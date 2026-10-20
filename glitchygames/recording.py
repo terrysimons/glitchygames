@@ -8,7 +8,8 @@ traces read recordings too. On top of the sprite fields it records what an exact
 takes in is recorded where it passes through them.
 
 - Header: ``source: "recording"``, ``frame_seconds: null`` (frame times vary; each frame
-  carries its own), plus what ``GameEngine`` adds: game and scene class names, engine,
+  carries its own), plus what ``GameEngine`` adds: game and scene class names (and
+  ``game_module``, the game class's module, optional: older recordings lack it), engine,
   pygame and Python versions, every command-line option, the screen size, the start time
   (``recorded_at``, ISO 8601; a replay's wall clock is this stamp plus its frame clock) and
   ``random_seed`` (see ``glitchygames/randomness.py``). And what the run took in before
@@ -41,7 +42,8 @@ takes in is recorded where it passes through them.
   opened in the frame, taken before the game could write to it;
   ``device_enumeration``, the enumeration and open answers given in the frame (failures
   included, with their ``error``); and ``scene_start``, the start of the scene that began in
-  the frame (``SceneStart.to_json``: ``scene_class``, ``arguments``,
+  the frame (``SceneStart.to_json``: ``scene_class`` (qualified name), ``scene_module``
+  (optional: older recordings lack it), ``arguments``,
   ``construction_random_states``, ``construction_frame_clock_seconds``,
   ``setup_random_states``, ``setup_frame_clock_seconds``, ``saves`` and
   ``first_logic_frame``; glitchygames/scene_start.py), written on the scene's first logic frame

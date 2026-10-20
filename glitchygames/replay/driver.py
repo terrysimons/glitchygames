@@ -347,6 +347,9 @@ CONTROL_EVENTS_FORMAT_VERSION = 3
 
 # Header fields the replay reads
 GAME_CLASS_HEADER_FIELD = 'game_class'
+GAME_MODULE_HEADER_FIELD = 'game_module'
+# The module name of a file run as a script (python paddleslap.py)
+SCRIPT_MODULE_NAME = '__main__'
 RANDOM_SEED_HEADER_FIELD = 'random_seed'
 RECORDED_AT_HEADER_FIELD = 'recorded_at'
 ENGINE_VERSION_HEADER_FIELD = 'engine_version'
@@ -2290,22 +2293,37 @@ def installed_engine_version() -> str | None:
         return None
 
 
-def check_recorded_game(*, header: Mapping[str, Any], game_class_name: str) -> None:
+def check_recorded_game(
+    *, header: Mapping[str, Any], game_class_name: str, game_module: str
+) -> None:
     """Refuse a recording of another game.
+
+    The class names must match. So must the modules, when the header holds one (recordings
+    made before headers held it do not) and neither is ``__main__`` (a game file run as a
+    script, ``python paddleslap.py``, is the same game as its console script).
 
     Args:
         header: The recording's header fields.
         game_class_name: The class name of the game being started.
+        game_module: The module the game being started is defined in.
 
     Raises:
-        ReplayRefusedError: If the recording's ``game_class`` is a different game.
+        ReplayRefusedError: If the recording's ``game_class`` (or ``game_module``) is a
+            different game's.
 
     """
     recorded_game = header.get(GAME_CLASS_HEADER_FIELD)
-    if recorded_game != game_class_name:
+    recorded_module = header.get(GAME_MODULE_HEADER_FIELD)
+    modules_differ = (
+        recorded_module is not None
+        and SCRIPT_MODULE_NAME not in {recorded_module, game_module}
+        and recorded_module != game_module
+    )
+    if recorded_game != game_class_name or modules_differ:
+        recorded_place = recorded_module or 'module not recorded'
         message = (
-            f'The recording is of the game {recorded_game!r}, not {game_class_name!r}; '
-            'refusing to replay it'
+            f'The recording is of the game {recorded_game!r} ({recorded_place}), not '
+            f'{game_class_name!r} ({game_module}); refusing to replay it'
         )
         raise ReplayRefusedError(message)
 
@@ -2324,7 +2342,12 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
 
 
 def start_replay(
-    *, path: Path, game_class_name: str, options: dict[str, Any], use_fastevents: bool = False
+    *,
+    path: Path,
+    game_class_name: str,
+    game_module: str,
+    options: dict[str, Any],
+    use_fastevents: bool = False,
 ) -> ReplaySources:
     """Read a recording and prepare the run to replay it (rule 1); the caller installs it.
 
@@ -2336,6 +2359,7 @@ def start_replay(
     Args:
         path: The recording.
         game_class_name: The class name of the game being started.
+        game_module: The module the game being started is defined in.
         options: The run's options, given the recorded ones in place; ``replay_fps`` (local, so
             never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset, and
             ``replay_digest`` (local) the digest file (rule 12), none when unset, and
@@ -2385,7 +2409,9 @@ def start_replay(
         captures_scene_starts=is_rebaseline,
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
-    check_recorded_game(header=sources.header, game_class_name=game_class_name)
+    check_recorded_game(
+        header=sources.header, game_class_name=game_class_name, game_module=game_module
+    )
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = installed_engine_version()
     if recorded_version != installed_version:

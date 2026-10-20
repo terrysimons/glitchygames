@@ -713,6 +713,14 @@ git commit -m "Add SceneManager.play_recording for attract-mode demos"
   `glitchygames/examples/<game>_demos/*.jsonl.gz`, the console script being the one whose entry
   point lives in `glitchygames.examples.<game>`), and
   `replay_recording_headless(*, console_script: str, path: Path) -> subprocess.CompletedProcess[str]`.
+- As built (commit 00ac1fb and its review fixes): PaddleSlap has no title or serve-wait screen,
+  so the idle hook is its game-over screen: `PaddleSlapGameOverScene` (built by
+  `Game._show_game_over`) plays `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS: float`
+  (10.0) of `Scene.game_time` without a key or button press, returning to the game-over screen;
+  `TITLE_IDLE_SECONDS` does not exist. The demo is 450 frames (before the golden script's pause
+  at frame 450). `bundled_demo_paths(*, examples_directory=EXAMPLES_DIRECTORY)`;
+  `replay_recording_headless` returns `glitchygames.process.CompletedProcess[str]` (the same
+  class). The tests are in `tests/replay/test_bundled_demos.py`.
 
 Rules (spec 5.3): a bundled demo is an ordinary recording shipped in the game's package. Every
 bundled demo gets a replay test, so a code change that makes it diverge fails CI before it ships;

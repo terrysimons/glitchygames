@@ -1382,6 +1382,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         engine_version = installed_engine_version()
         return {
             'game_class': type(self.game).__name__,
+            # With the class name, tells apart two games whose classes share a name
+            'game_module': type(self.game).__module__,
             'scene_class': None if active_scene is None else type(active_scene).__name__,
             'engine_version': engine_version,
             'pygame_version': pygame.version.ver,
@@ -1534,11 +1536,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         if options.get('audit'):
             self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
-        game_class_name = game.__name__ if isinstance(game, type) else type(game).__name__
+        game_class = game if isinstance(game, type) else type(game)
         try:
             sources = start_replay(
                 path=Path(replay_trace_path),
-                game_class_name=game_class_name,
+                game_class_name=game_class.__name__,
+                game_module=game_class.__module__,
                 options=options,
                 # Set by the version check this __init__ runs later, so pygame's version is
                 # asked here too

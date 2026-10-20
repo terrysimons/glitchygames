@@ -1,7 +1,8 @@
 """How each scene began, so it can be rebuilt from its start for in-game playback.
 
 A scene's start (``SceneStart``) is what rebuilding it as it began needs
-(plans/2026-10-19-gameplay-replay.md, section 5.1): its class, ``Scene.replay_arguments()``, every
+(plans/2026-10-19-gameplay-replay.md, section 5.1): its class (module and qualified name),
+``Scene.replay_arguments()``, every
 random stream's state and the frame clock at two moments (as its ``__init__`` began, and as its
 first ``setup()`` began), and the save view as its ``__init__`` began.
 
@@ -111,7 +112,11 @@ class SceneStart(BaseModel):
     """How one scene began (read-only; see the module docstring).
 
     Attributes:
-        scene_class: The scene's class name (``type(scene).__name__``).
+        scene_class: The scene's class name (``type(scene).__qualname__``; older recordings hold
+            ``__name__``, the same for a class defined at a module's top level).
+        scene_module: The module the scene's class is defined in (``type(scene).__module__``),
+            so two loaded classes of the same name are told apart; None in recordings made
+            before starts held it.
         arguments: ``Scene.replay_arguments()``, JSON-safe.
         construction_random_states: ``capture_stream_states()`` as the scene's ``__init__``
             began.
@@ -129,6 +134,7 @@ class SceneStart(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     scene_class: str
+    scene_module: str | None = None
     arguments: dict[str, Any]
     construction_random_states: dict[str, Any]
     construction_frame_clock_seconds: float
@@ -241,7 +247,8 @@ class SceneStartCapture:
             raise TypeError(message)
         stop_observing_save_store_openings(observer=self)
         self.start = SceneStart(
-            scene_class=scene_class_name,
+            scene_class=type(scene).__qualname__,
+            scene_module=type(scene).__module__,
             arguments=arguments_read_back,
             construction_random_states=copy.deepcopy(self.construction_random_states),
             construction_frame_clock_seconds=self.construction_frame_clock_seconds,

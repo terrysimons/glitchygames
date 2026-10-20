@@ -16,6 +16,7 @@ import pytest
 from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
 from glitchygames.events import FPSEVENT
+from glitchygames.examples import joystick_demo, paddleslap
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import random_stream
@@ -27,6 +28,8 @@ from glitchygames.replay.playback import (
     start_playback,
     start_playback_from_recording,
 )
+from glitchygames.scene_start import SceneStart
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sources import active_sources, has_scoped_sources, take_redelivered_events
 from glitchygames.state import open_saves
 from glitchygames.supervision import PLAYBACK_KIND
@@ -435,6 +438,42 @@ class TestPlaybackErrors:
     def test_scene_classes_are_found_by_unique_name(self):
         assert find_scene_class(name='CountingScene') is CountingScene
         assert find_scene_class(name='NoSuchScene') is None
+
+    def test_the_module_picks_one_of_two_loaded_scenes_named_alike(self):
+        """PaddleSlap's and the joystick demo's scenes are both named Game."""
+        assert paddleslap.Game.__name__ == joystick_demo.Game.__name__ == 'Game'
+        assert (
+            find_scene_class(name='Game', module='glitchygames.examples.paddleslap')
+            is paddleslap.Game
+        )
+        assert (
+            find_scene_class(name='Game', module='glitchygames.examples.joystick_demo')
+            is joystick_demo.Game
+        )
+
+    def test_without_an_exact_match_a_unique_name_is_used(self):
+        """A start without a module (older recordings), or from a game run as __main__."""
+        assert find_scene_class(name='CountingScene', module=None) is CountingScene
+        assert find_scene_class(name='CountingScene', module='__main__') is CountingScene
+
+    def test_without_an_exact_match_a_shared_name_is_refused(self, caplog):
+        assert find_scene_class(name='Game', module=None) is None
+        assert find_scene_class(name='Game', module='__main__') is None
+        assert 'Several scene classes are named Game' in caplog.text
+
+    def test_a_recorded_start_names_the_scenes_module_and_qualified_name(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        _header, frames = recorded_trace(path=recording_path)
+        start = SceneStart.from_json(frames[0][SCENE_START_FIELD])
+        assert start.scene_module == CountingScene.__module__
+        assert start.scene_class == CountingScene.__qualname__
+
+    def test_a_start_recorded_without_a_module_still_reads(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        _header, frames = recorded_trace(path=recording_path)
+        start_record = dict(frames[0][SCENE_START_FIELD])
+        del start_record['scene_module']
+        assert SceneStart.from_json(start_record).scene_module is None
 
 
 class TestPlaybackSourcesServeTheRecording:
@@ -1151,6 +1190,28 @@ class TestPlayRecordingDemos:
             if record.levelname == 'WARNING'
             and record.name.startswith(('game.replay', 'game.scenes'))
         ]
+
+    def test_after_a_demo_that_switches_scenes_game_over_restarts_the_live_game(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """The scope keeps SceneManager.previous_scene, which GameOverScene.resume restarts."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=RECORDED_FRAMES, scene_class=SwitchingCountingScene
+        )
+        with running_scene(KeyReleaseCountingScene) as manager:
+            live_game = manager.active_scene
+            game_over = GameOverScene(options=manager.OPTIONS)
+            manager.switch_to_scene(game_over)
+            assert manager.previous_scene is live_game
+            manager.play_recording(path=recording_path, then=game_over)
+            step(manager, frames=RECORDED_FRAMES + 2)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert manager.active_scene is game_over
+            assert manager.previous_scene is live_game
+            switch_to_scene = mocker.spy(manager, 'switch_to_scene')
+            game_over.resume()
+            (restarted_game,), _keywords = switch_to_scene.call_args
+            assert type(restarted_game) is KeyReleaseCountingScene
 
     def test_a_demo_asked_for_during_a_demo_is_refused(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)

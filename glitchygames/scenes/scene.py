@@ -1329,17 +1329,17 @@ class SceneManager(SceneInterface, events.EventManager):
     def _enter_playback(self: Self, *, request: PlaybackRequest) -> None:
         """Begin a playback scope, between frames (glitchygames/replay/playback.py).
 
-        Saves what the scope's end restores (the random streams, the frame clock, the FPS
-        event timer) and stashes the live scene without ``cleanup()``; pushes the scoped doors
-        (before the rebuild, so the rebuilt scene opens sandboxed saves and captures its own
-        start); records the ``playback`` control event; rebuilds the scene from its start,
-        which sets the streams and frame clock it began with; makes it active by the steps a
-        switch takes (``_setup_new_scene``, ``_configure_active_scene``), with no shake or
-        rumble carried in, and repeats a transition's arrival step for a scene that arrived by
-        one (``_capture_arriving_scene``). Then this frame is its first logic frame
-        (glitchygames/scene_start.py, rule 7): the streams, frame clock and FPS event timer are
-        set as that frame began, its dt and the polled input before it come from the scoped
-        doors (the recording's).
+        Saves what the scope's end restores (the random streams, the frame clock, the FPS event
+        timer, ``previous_scene``) and stashes the live scene without ``cleanup()``; pushes the
+        scoped doors (before the rebuild, so the rebuilt scene opens sandboxed saves and captures
+        its own start); records the ``playback`` control event; rebuilds the scene from its start,
+        which sets the streams and frame clock it began with; makes it active by the steps a switch
+        takes (``_setup_new_scene``, ``_configure_active_scene``), with no shake or rumble carried
+        in, and repeats a transition's arrival step for a scene that arrived by one
+        (``_capture_arriving_scene``). Then this frame is its first logic frame
+        (glitchygames/scene_start.py, rule 7): the streams, frame clock and FPS event timer are set
+        as that frame began, its dt and the polled input before it come from the scoped doors (the
+        recording's).
 
         Args:
             request: The scope to enter.
@@ -1353,7 +1353,9 @@ class SceneManager(SceneInterface, events.EventManager):
             message = f'A {request.kind} playback needs an active scene to return to'
             raise RuntimeError(message)
         session = request.begin_session(
-            live_scene=live_scene, fps_event_seconds=self._previous_fps_event_seconds
+            live_scene=live_scene,
+            previous_scene=self.previous_scene,
+            fps_event_seconds=self._previous_fps_event_seconds,
         )
         push_scoped_sources(sources=request.sources)
         # Events an earlier scope held and has not delivered yet (it ended into a scene that
@@ -1388,16 +1390,16 @@ class SceneManager(SceneInterface, events.EventManager):
         """End the playback scope in progress and return to the live game (nothing if none).
 
         Keeps the replay's result (``last_playback_result``) and the outcome with ``reason``
-        (``last_playback_outcome``); cleans up the playback's active scene (an error doing so
-        is logged); then, whatever happened, pops the scoped doors, restores the random
-        streams, the frame clock, the FPS event timer and the live polled input (the installed
-        doors' latest), and makes the stashed live scene active again without setting it up
-        again (its snap mode, the event proxies, the caption and a full redraw), with no shake
-        or rumble carried out. The events the scope held for the live game (its own posts,
-        the player's releases, device and window events) are delivered before the next pump
-        in the order they were pumped (``sources.redeliver_events``), unless the run is ending
-        (dropped: no frame follows). A ``then`` other than the live scene is then switched to
-        normally (the live scene is cleaned up as it is left), unless the run is ending.
+        (``last_playback_outcome``); cleans up the playback's active scene (an error doing so is
+        logged); then, whatever happened, pops the scoped doors, restores the random streams, the
+        frame clock, the FPS event timer, ``previous_scene`` and the live polled input (the
+        installed doors' latest), and makes the stashed live scene active again without setting it
+        up again (its snap mode, the event proxies, the caption and a full redraw), with no shake or
+        rumble carried out. The events the scope held for the live game (its own posts, the player's
+        releases, device and window events) are delivered before the next pump in the order they
+        were pumped (``sources.redeliver_events``), unless the run is ending (dropped: no frame
+        follows). A ``then`` other than the live scene is then switched to normally (the live scene
+        is cleaned up as it is left), unless the run is ending.
 
         The frame that ends the scope still finishes afterwards (``_finish_frame``), so the
         restored live frame clock resumes one frame later: it advances by that frame's dt.
@@ -1434,6 +1436,8 @@ class SceneManager(SceneInterface, events.EventManager):
             restore_stream_states(states=session.saved_random_states)
             set_frame_clock_seconds(seconds=session.saved_frame_clock_seconds)
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
+            # The playback's own scene switches set it to playback scenes
+            self.previous_scene = session.saved_previous_scene
             self._clear_frame_effects()
             set_current_input(snapshot=session.sources.last_base_snapshot)
             # In the order they were pumped; when the run ends no frame follows to deliver them

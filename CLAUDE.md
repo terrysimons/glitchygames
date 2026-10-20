@@ -351,8 +351,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
   (`bundled_demo_paths`, `replay_recording_headless` in `glitchygames/testing/replays.py`) and
-  plays PaddleSlap's through `play_recording` in a child process (playbacks find scene classes by
-  bare name). Record a demo with `scripts/record_scripted_session.py --output PATH` (it runs
+  plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
+  `step` never gives a playback the recording's dt). A scene start records `scene_module` and the
+  `__qualname__`, and the header `game_module`, so same-named scenes and games are told apart
+  (bare-name fallback, ambiguity refused). Record a demo with `scripts/record_scripted_session.py --output PATH` (it runs
   `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
   golden script's pause
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All

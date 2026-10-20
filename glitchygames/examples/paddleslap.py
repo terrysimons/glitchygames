@@ -1157,6 +1157,8 @@ class PaddleSlapGameOverScene(GameOverScene):
     After GAME_OVER_IDLE_SECONDS of game time without a key or button press, the demo plays
     (``SceneManager.play_recording``) and returns here; the idle wait starts again when the demo
     starts, and game time does not advance while it plays. SPACE starts a new PaddleSlap game.
+    The press that ends a demo is consumed (it never reaches this screen), so starting a new
+    game after a demo takes a second press.
     """
 
     def __init__(

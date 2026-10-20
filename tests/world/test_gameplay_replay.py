@@ -72,10 +72,12 @@ from glitchygames.replay.driver import (
     Divergence,
     ReplayExitPolicy,
     ReplayOptions,
+    ReplayRefusedError,
     ReplayResult,
     ReplaySources,
     apply_recorded_options,
     bookmarked_copy_path,
+    check_recorded_game,
     write_bookmarked_copy,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
@@ -1131,6 +1133,47 @@ class TestRefusals:
             replay_session(recording_path=recording_path, mocker=mocker)
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'SomeOtherGame' in caplog.text
+
+    def test_a_same_named_game_from_another_module_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace.update(game_module='some_other_package.game'),
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert 'some_other_package.game' in caplog.text
+
+    def test_the_recorded_games_module_and_name_are_accepted(self):
+        check_recorded_game(
+            header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
+            game_class_name='Game',
+            game_module='glitchygames.examples.paddleslap',
+        )
+
+    def test_another_game_of_the_same_name_is_refused(self):
+        with pytest.raises(ReplayRefusedError, match=r'glitchygames\.examples\.joystick_demo'):
+            check_recorded_game(
+                header={'game_class': 'Game', 'game_module': 'glitchygames.examples.joystick_demo'},
+                game_class_name='Game',
+                game_module='glitchygames.examples.paddleslap',
+            )
+
+    @pytest.mark.parametrize(
+        ('header', 'game_module'),
+        [
+            # Recorded before headers held the module
+            ({'game_class': 'Game'}, 'glitchygames.examples.paddleslap'),
+            # The same game file run as a script (python paddleslap.py), either way round
+            ({'game_class': 'Game', 'game_module': '__main__'}, 'glitchygames.examples.paddleslap'),
+            ({'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'}, '__main__'),
+        ],
+    )
+    def test_without_both_modules_the_name_alone_is_checked(self, header, game_module):
+        check_recorded_game(header=header, game_class_name='Game', game_module=game_module)
+        with pytest.raises(ReplayRefusedError):
+            check_recorded_game(header=header, game_class_name='Other', game_module=game_module)
 
     def test_missing_file_is_refused(self, mocker, tmp_path):
         with pytest.raises(SystemExit) as exit_info:

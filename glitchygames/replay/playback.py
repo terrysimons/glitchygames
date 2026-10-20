@@ -7,7 +7,8 @@ Demos and instant replays run inside a playback scope, not a new engine run
    frame played first (``PlaybackOptions.start_frame``) must hold a ``scene_start``
    (glitchygames/scene_start.py) with its first logic frame (rule 7 there: a recording writes
    a start on the scene's first logic frame, so the start's frame is where its logic began),
-   and its scene class must be found among the loaded ``Scene`` subclasses by name; otherwise
+   and its scene class must be found among the loaded ``Scene`` subclasses (``find_scene_class``:
+   by module and qualified name, else by a name no other loaded scene shares); otherwise
    nothing starts (logged; False), as for a recording that cannot be replayed (a malformed one
    included). The replay sources are made (``playback_replay_sources``, rule 18 of
    glitchygames/replay/driver.py) and the scope is requested (``SceneManager.
@@ -16,9 +17,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    the live doors. A request made while a transition plays waits for its end. A request made
    in a frame whose end switches scenes (``next_scene``) is dropped, logged: the scene to
    return to has gone. Scopes do not nest.
-2. Entering (``SceneManager._enter_playback``): the random streams, the frame clock and the FPS
-   event timer are saved (``PlaybackRequest.begin_session``); the live scene is stashed without
-   ``cleanup()``; ``PlaybackSources`` are pushed on top of the installed doors
+2. Entering (``SceneManager._enter_playback``): the random streams, the frame clock, the FPS
+   event timer and the scene manager's ``previous_scene`` are saved
+   (``PlaybackRequest.begin_session``); the live scene is stashed without ``cleanup()``;
+   ``PlaybackSources`` are pushed on top of the installed doors
    (``push_scoped_sources``; glitchygames/sources.py); a ``playback`` control event is
    recorded (a marker: replaying the session starts the scope again from the recorded input,
    so it is compared, never applied again); the scene is rebuilt (``rebuild_scene``) and made
@@ -44,12 +46,13 @@ Demos and instant replays run inside a playback scope, not a new engine run
    (``SceneManager.last_playback_result``) and a ``PlaybackOutcome``
    (``SceneManager.last_playback_outcome``: the kind, the reason and the frames played), cleans
    up the playback's scene, pops the scoped doors, restores the streams, the frame clock, the
-   FPS event timer and the live polled input (the installed doors' latest snapshot), posts
-   again the live game's posts the scope drained and hands back the player's held events (rule
-   5), then makes the live scene active again exactly as it was (no ``setup()`` again: only its
-   snap mode, event proxies, caption and a full redraw), or switches to ``then`` when that is
-   another scene. The frame that ends the scope still finishes afterwards, so the restored
-   live frame clock resumes one frame later (it advances by that frame's dt).
+   FPS event timer, the scene manager's ``previous_scene`` and the live polled input (the
+   installed doors' latest snapshot), posts again the live game's posts the scope drained and
+   hands back the player's held events (rule 5), then makes the live scene active again
+   exactly as it was (no ``setup()`` again: only its snap mode, event proxies, caption and a
+   full redraw), or switches to ``then`` when that is another scene. The frame that ends the
+   scope still finishes afterwards, so the restored live frame clock resumes one frame later
+   (it advances by that frame's dt).
 5. The scoped doors (``PlaybackSources``):
 
    - ``pump_events``: the installed doors pump once per pump of the frame (the real queue live;
@@ -549,12 +552,14 @@ class PlaybackRequest(BaseModel):
     first_logic_frame: FirstLogicFrame
 
     def begin_session(
-        self: Self, *, live_scene: Scene, fps_event_seconds: float
+        self: Self, *, live_scene: Scene, previous_scene: Scene | None, fps_event_seconds: float
     ) -> PlaybackSession:
         """Save what the scope's end restores, as the scope begins (rule 2).
 
         Args:
             live_scene: The active scene, stashed for the scope.
+            previous_scene: ``SceneManager.previous_scene``, which the playback's own scene
+                switches change.
             fps_event_seconds: When the live game last posted an FPS event.
 
         Returns:
@@ -564,6 +569,7 @@ class PlaybackRequest(BaseModel):
         return PlaybackSession(
             sources=self.sources,
             live_scene=live_scene,
+            saved_previous_scene=previous_scene,
             then=self.then,
             kind=self.kind,
             saved_random_states=capture_stream_states(),
@@ -579,6 +585,8 @@ class PlaybackSession(BaseModel):
         sources: The scoped doors pushed for the scope.
         live_scene: The scene that was active when the scope began, stashed without
             ``cleanup()`` and never touched while the scope runs.
+        saved_previous_scene: ``SceneManager.previous_scene`` as the scope began (restored at
+            its end: the playback's own scene switches set it to playback scenes).
         then: The scene to make active when the scope ends.
         kind: What the scope plays.
         saved_random_states: ``capture_stream_states()`` as the scope began.
@@ -592,6 +600,7 @@ class PlaybackSession(BaseModel):
 
     sources: PlaybackSources
     live_scene: Scene
+    saved_previous_scene: Scene | None
     then: Scene
     kind: PlaybackKind
     saved_random_states: dict[str, Any]
@@ -633,17 +642,24 @@ class PlaybackOutcome(BaseModel):
     frames_played: int
 
 
-def find_scene_class(*, name: str) -> type[Scene] | None:
-    """Return the loaded ``Scene`` subclass named ``name`` (rule 1).
+def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | None:
+    """Return the loaded ``Scene`` subclass a start names (rule 1).
+
+    Only loaded classes are searched: nothing is imported from recording data. The class
+    defined in ``module`` with the qualified name ``name`` is taken when exactly one is
+    loaded. Otherwise (no module recorded, a game run as ``__main__``, the class moved) the one
+    loaded class whose qualified name is ``name`` is taken; several are refused.
 
     Args:
-        name: A class name (``SceneStart.scene_class``).
+        name: A class's qualified name (``SceneStart.scene_class``).
+        module: The module it is defined in (``SceneStart.scene_module``), or None.
 
     Returns:
-        The class, or None when no loaded subclass has the name or several do (logged).
+        The class, or None when no loaded subclass matches or several match by name alone
+        (logged).
 
     """
-    matches: list[type[Scene]] = []
+    named_alike: list[type[Scene]] = []
     seen: set[type[Scene]] = set()
     unvisited: collections.deque[type[Scene]] = collections.deque([Scene])
     while unvisited:
@@ -652,12 +668,15 @@ def find_scene_class(*, name: str) -> type[Scene] | None:
             if subclass not in seen:
                 seen.add(subclass)
                 unvisited.append(subclass)
-                if subclass.__name__ == name:
-                    matches.append(subclass)
-    if len(matches) > 1:
+                if subclass.__qualname__ == name:
+                    named_alike.append(subclass)
+    exact_matches = [scene_class for scene_class in named_alike if scene_class.__module__ == module]
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    if len(named_alike) > 1:
         LOG.warning('Several scene classes are named %s; which to rebuild is unknown', name)
         return None
-    return matches[0] if matches else None
+    return named_alike[0] if named_alike else None
 
 
 def _playable_start(
@@ -727,7 +746,7 @@ def start_playback(
     start = _playable_start(frames=frames, options=options)
     if start is None or start.first_logic_frame is None:
         return False
-    scene_class = find_scene_class(name=start.scene_class)
+    scene_class = find_scene_class(name=start.scene_class, module=start.scene_module)
     if scene_class is None:
         LOG.warning('No %s: no scene class named %s is loaded', kind, start.scene_class)
         return False

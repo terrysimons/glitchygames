@@ -111,25 +111,27 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Either read the option where the first floor is built (`floor_index=options.get('floor', 0)`, which would make `--floor` a recorded option a replay applies) or drop the argument. Not fixed here: it changes the game's behaviour, outside this task
 - **Files**: `glitchygames/examples/clockwork_keep/game.py`
 
-### 80. Playbacks Find a Scene Class by Its Bare Name, So Two Loaded Scenes Named Alike Refuse It
-- **Description**: A scene start records only the class name (`SceneStart.scene_class`, e.g. `Game`), and `find_scene_class` refuses a playback when several loaded `Scene` subclasses share it ("Several scene classes are named Game"). Ten example and script scenes are named `Game` (PaddleSlap, the joystick, dt and text-input demos, six in `scripts/`)
-- **Status**: Active (latent in a game run, which loads one `Game`; real in a process that imports several, such as the test suite)
+## Resolved Bugs
+
+### 80. Playbacks Found a Scene Class by Its Bare Name, So Two Loaded Scenes Named Alike Refused It
+- **Description**: A scene start recorded only the class name (`SceneStart.scene_class`, e.g. `Game`), and `find_scene_class` refused a playback when several loaded `Scene` subclasses shared it ("Several scene classes are named Game"). Ten example and script scenes are named `Game` (PaddleSlap, the joystick, dt and text-input demos, six in `scripts/`), and the full suite loads more than one
+- **Status**: Resolved
 - **Priority**: Medium
 - **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 4: PaddleSlap's bundled demo)
 - **Date Reported**: 2026-10-20
-- **Details**: The full suite imports the joystick demo's `Game`, so PaddleSlap's demo cannot be played in-process there; `tests/replay/test_bundled_demos.py` plays it in a child interpreter instead. A fix records the qualified name (`module.qualname`) in the start (a format change) and looks it up exactly
-- **Files**: `glitchygames/scene_start.py`, `glitchygames/replay/playback.py`
+- **Files**: `glitchygames/scene_start.py`, `glitchygames/replay/playback.py`, `glitchygames/replay/driver.py`, `glitchygames/engine/game_engine.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: A start records `scene_module` and the class's `__qualname__`; `find_scene_class` takes the one loaded class with that module and qualified name, else (no module recorded, a game run as `__main__`) a qualified name no other loaded scene shares, and still refuses an ambiguous one; nothing is imported from recording data. The trace header holds `game_module` too, and `check_recorded_game` refuses a same-named game from another module (name only for headers without it, or when either side is `__main__`). PaddleSlap's bundled demo was re-recorded; the golden replay fixtures (no module) still replay
 
-### 81. A Playback Scope Leaves `SceneManager.previous_scene` Pointing at Its Own Scenes
-- **Description**: A demo whose recording switches scenes (to the pause screen, to game over) sets `SceneManager.previous_scene` through `switch_to_scene`; `_exit_playback` restores the live scene but not `previous_scene`, so the live game sees a scene from the playback there
-- **Status**: Active (latent: PaddleSlap's bundled demo switches no scenes, and `PaddleSlapGameOverScene.resume` builds its new `Game` explicitly)
+### 81. A Playback Scope Left `SceneManager.previous_scene` Pointing at Its Own Scenes
+- **Description**: A demo whose recording switches scenes (to the pause screen, to game over) set `SceneManager.previous_scene` through `switch_to_scene`; `_exit_playback` restored the live scene but not `previous_scene`, so `GameOverScene.resume` (which restarts `type(previous_scene)`) or the default `Scene.resume` could restart or resume a playback scene
+- **Status**: Resolved
 - **Priority**: Low
 - **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 4)
 - **Date Reported**: 2026-10-20
-- **Details**: `GameOverScene.resume` restarts `type(previous_scene)` and the default `Scene.resume` switches to `previous_scene`, so after such a demo they could restart or resume the wrong scene. Save `previous_scene` on entering the scope (`_enter_playback`) and restore it in `_exit_playback`
-- **Files**: `glitchygames/scenes/scene.py`
-
-## Resolved Bugs
+- **Files**: `glitchygames/scenes/scene.py`, `glitchygames/replay/playback.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: `PlaybackRequest.begin_session` saves `previous_scene` (`PlaybackSession.saved_previous_scene`) as the scope begins and `_exit_playback` restores it
 
 ### 77. Multi-Controller Stress Tests Time Themselves With the Wall Clock
 - **Description**: `tests/tools/test_multi_controller_stress.py` asserts elapsed `time.time()` differences (e.g. `test_concurrent_operations_stress`: `< 10.0` seconds), so a wall-clock jump fails it: one full-suite run measured 732 s inside a 68 s run

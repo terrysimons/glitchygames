@@ -455,6 +455,12 @@ def running_scene(
 def step(manager: GoldenTraceSceneManager, *events: pygame.event.Event, frames: int = 1) -> None:
     """Run frames at the harness's fixed dt, posting events before the first one.
 
+    It sets ``manager.dt`` itself and never calls ``SceneManager._finish_frame``, so a playback
+    scope's frames get the harness's dt, not the recording's: playback tests stepped with it
+    only work for recordings made by the harness (at FRAME_SECONDS). A recording made by the
+    real frame loop (``--record-trace``, scripts/record_scripted_session.py) is played with
+    ``step_finishing`` (tests/replay/playback_fixtures.py) instead.
+
     Args:
         manager: The running scene manager.
         *events: Events posted before the first frame.

@@ -442,6 +442,7 @@ def _assert_recording_header(header: dict[str, Any]) -> None:
     assert header['frame_seconds'] is None
     assert header['random_seed'] == RANDOM_SEED
     assert header['game_class'] == 'DepartureRecordedScene'
+    assert header['game_module'] == DepartureRecordedScene.__module__
     assert header['scene_class'] == 'DepartureRecordedScene'
     assert header['engine_version'] == importlib.metadata.version('glitchygames')
     assert header['pygame_version'] == pygame.version.ver
