@@ -148,6 +148,21 @@ session again, and every frame's sprites are compared with the recorded frame. T
     starts and NEW holds them (``scene_start``, frame 0's included), as a ``--record-trace``
     recording does; a recording's ``scene_start`` fields are never compared (the replayed code
     captures its own).
+18. Playback (Part 3's in-game playback scope, glitchygames/replay/playback.py, whose docstring
+    is the contract): ``playback_replay_sources`` builds the sources a scope serves a
+    recording's frames from, starting at ``ReplayOptions.start_frame`` N (the frame holding the
+    rebuilt scene's ``scene_start``). They behave as a headless replay's that nobody watches:
+    no viewer, controls, start screen or overlay; they never hold, pause or pace (the scope
+    uses the installed doors' pacing and presenting) and stop at the recording's end or first
+    divergence; no game check, recorded options or seed are applied, and no report is printed
+    and no exit code given (the scope keeps the result). The frames before N are not served:
+    what they took in is learned when the sources are made (opened devices, saves first
+    opened, the polled input they changed; not enumeration answers, which those frames
+    consumed), and the sprite ids continue the recording's (``StableSpriteIds``'s
+    ``recorded_ids``), so frame N is compared as recorded. Saves start from the scene start's
+    save view, over the header's. Frame indexes stay the recording's (rule 3, offset by N):
+    divergences name recording frames, and ``ReplayResult.frames_replayed`` counts up to the
+    last compared recording frame.
 """
 
 from __future__ import annotations
@@ -242,6 +257,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
     from glitchygames.input.state import InputSnapshot
+    from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
 
@@ -411,6 +427,8 @@ class ReplayOptions(BaseModel):
             (``EngineSources.captures_scene_starts``; glitchygames/scene_start.py): a
             rebaseline's new recording holds them (rule 17). False (the default) for a replay
             that records nothing.
+        start_frame: The recording frame served first (rule 18: an in-game playback of a
+            scene that began on a later frame). 0 (the default) for every other replay.
 
     """
 
@@ -428,6 +446,7 @@ class ReplayOptions(BaseModel):
     recording_path: Path | None = None
     stop_on_divergence: bool = True
     captures_scene_starts: bool = False
+    start_frame: int = Field(default=0, ge=0)
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -1042,8 +1061,9 @@ class ReplaySources:
             self.controls.debug_overlay.panel = options.viewer_state.debug_panel
             self.controls.divergence_frame = options.viewer_state.divergence_frame
         self._compares_control_events = format_version >= CONTROL_EVENTS_FORMAT_VERSION
-        # Frames ended so far (end_frame calls): the index of the frame being served
-        self._frame_index = 0
+        # Frames ended so far (end_frame calls), after the start frame: the index of the frame
+        # being served (rule 3; a playback starts at a later frame, rule 18)
+        self._frame_index = options.start_frame
         # Pumps so far in the current frame: the index of the batch the next pump serves
         self._pump_index = 0
         self._stop_requested = False
@@ -1077,7 +1097,14 @@ class ReplaySources:
         )
         self._real_input_block = EventTypeBlock(event_types=blocked_event_types)
         self._has_blocked_real_input = False
-        self._sprite_ids = StableSpriteIds()
+        # A playback from a later frame continues the recording's sprite ids (rule 18)
+        self._sprite_ids = StableSpriteIds(
+            recorded_ids=(
+                sprite[SPRITE_ID_FIELD]
+                for frame in frames[: options.start_frame]
+                for sprite in frame.get(SPRITES_FIELD, [])
+            )
+        )
         self._snapshot: InputSnapshot = IDLE_INPUT
         self._devices = ReplayDeviceRegistry(
             descriptors=[
@@ -1094,6 +1121,9 @@ class ReplaySources:
         self._opened_save_namespaces: dict[str, MemorySaveManager] = {}
         if format_version < TRACE_FORMAT_VERSION:
             LOG.warning(VERSION_TWO_INPUT_WARNING, format_version)
+        # The frames before the start frame are not served; what they took in is (rule 18)
+        for earlier_frame in frames[: options.start_frame]:
+            self._learn_frame_inputs(frame=earlier_frame)
         self._begin_frame()
 
     @classmethod
@@ -1767,15 +1797,28 @@ class ReplaySources:
         frame = self._current_frame()
         if frame is None:
             return
-        self._devices.add_descriptors(
-            descriptors=[
-                DeviceDescriptor.from_json(record) for record in frame.get(DEVICES_OPENED_FIELD, [])
-            ]
-        )
         self._devices.add_enumeration_answers(
             answers=[
                 EnumerationAnswer.from_json(record)
                 for record in frame.get(DEVICE_ENUMERATION_FIELD, [])
+            ]
+        )
+        self._learn_frame_inputs(frame=frame)
+
+    def _learn_frame_inputs(self: Self, *, frame: dict[str, Any]) -> None:
+        """Learn a frame's opened devices, newly opened save namespaces and polled input.
+
+        Everything ``_begin_frame`` learns but the enumeration answers, which are consumed by
+        the frame's own enumeration calls (so a playback learns the frames before its start
+        frame without them; rule 18).
+
+        Args:
+            frame: The recorded frame.
+
+        """
+        self._devices.add_descriptors(
+            descriptors=[
+                DeviceDescriptor.from_json(record) for record in frame.get(DEVICES_OPENED_FIELD, [])
             ]
         )
         for namespace, snapshot in frame.get(SAVES_OPENED_FIELD, {}).items():
@@ -1940,6 +1983,35 @@ class ReplaySources:
         if self.result.end_reason == RUNNING_END_REASON:
             self.result.end_reason = end_reason
         self._stop_requested = True
+
+
+def playback_replay_sources(
+    *, header: dict[str, Any], frames: Sequence[dict[str, Any]], start: SceneStart, start_frame: int
+) -> ReplaySources:
+    """Return the sources an in-game playback scope serves a recording from (rule 18).
+
+    Args:
+        header: The recording's header fields (its ``random_seed`` and ``recorded_at`` are
+            required).
+        frames: Every recorded frame, decoded (glitchygames/tracing.py).
+        start: The ``scene_start`` frame ``start_frame`` holds: the rebuilt scene's start,
+            whose save view the saves start from (over the header's).
+        start_frame: The recording frame served first.
+
+    Returns:
+        The sources, not installed (the scope pushes them; glitchygames/sources.py).
+
+    """
+    saves = {**header.get(SAVES_HEADER_FIELD, {}), **start.saves}
+    return ReplaySources(
+        header={**header, SAVES_HEADER_FIELD: saves},
+        frames=frames,
+        # Only recordings that hold scene starts can be played, and those are this format's
+        format_version=TRACE_FORMAT_VERSION,
+        # Nobody watches a playback's replay: it never holds or pauses and stops at its end or
+        # first divergence (the scope ends then)
+        options=ReplayOptions(headless=True, start_frame=start_frame),
+    )
 
 
 def is_cut_off(*, read_result: TraceReadResult) -> bool:

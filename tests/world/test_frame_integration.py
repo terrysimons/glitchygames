@@ -52,7 +52,7 @@ from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, screen_position_for
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
 
     from pytest_mock import MockerFixture
 
@@ -415,11 +415,14 @@ class DoubleMovedCameraScene(GameMovedCameraScene):
 
 
 @contextlib.contextmanager
-def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]:
+def running_scene(
+    scene_class: type[Scene], *, extra_arguments: Sequence[str] = ()
+) -> Generator[GoldenTraceSceneManager]:
     """Start a scene headless in the harness's deterministic environment.
 
     Args:
         scene_class: The scene class to make active.
+        extra_arguments: More command-line arguments (``--replay-trace PATH``).
 
     Yields:
         The scene manager with the scene active.
@@ -439,6 +442,7 @@ def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager
                 'warning',
                 '--random-seed',
                 str(RANDOM_SEED),
+                *extra_arguments,
             ]):
                 engine = GoldenTraceEngine(game=scene_class)
             engine.install_game(scene_class=scene_class)

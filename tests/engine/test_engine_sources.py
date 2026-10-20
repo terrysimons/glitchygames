@@ -17,17 +17,20 @@ from scripts.record_golden_traces import (
     command_line,
 )
 
-from glitchygames import sources as engine_sources_module
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene
 from glitchygames.sources import (
+    NoScopedSourcesError,
     SourcesAlreadyInstalledError,
     SourcesAlreadyRunningError,
     active_sources,
     advance_frame_clock,
     frame_clock_seconds,
+    has_scoped_sources,
     install_sources,
     mark_frames_started,
+    pop_scoped_sources,
+    push_scoped_sources,
     reset_sources,
 )
 from glitchygames.supervision import BREAKPOINT_KIND
@@ -166,13 +169,48 @@ class TestRegistry:
         installed_sources = ScriptedSources()
         scoped_sources = ScriptedSources()
         install_sources(sources=installed_sources)
-        # No push API until Part 3 (push_scoped_sources); put scoped sources in the registry
-        engine_sources_module._REGISTRY.scoped.append(scoped_sources)
+        push_scoped_sources(sources=scoped_sources)
         assert active_sources() is scoped_sources
         reset_sources()
         assert scoped_sources.uninstalled_calls == 1
         assert installed_sources.uninstalled_calls == 1
         assert active_sources() is not scoped_sources
+
+    def test_scoped_sources_are_active_until_popped_and_are_told(self):
+        """Pushing is allowed after the first frame; popping returns to the installed doors."""
+        installed_sources = ScriptedSources()
+        scoped_sources = ScriptedSources()
+        install_sources(sources=installed_sources)
+        mark_frames_started()
+        push_scoped_sources(sources=scoped_sources)
+        assert active_sources() is scoped_sources
+        assert has_scoped_sources()
+        assert scoped_sources.installed_calls == 1
+        assert pop_scoped_sources() is scoped_sources
+        assert scoped_sources.uninstalled_calls == 1
+        assert active_sources() is installed_sources
+        assert not has_scoped_sources()
+        # The installed doors were never told anything by the scope
+        assert installed_sources.installed_calls == 1
+        assert installed_sources.uninstalled_calls == 0
+
+    def test_pushing_sources_already_in_use_is_refused(self):
+        """Installed or already scoped sources would be told on_installed twice."""
+        installed_sources = ScriptedSources()
+        scoped_sources = ScriptedSources()
+        install_sources(sources=installed_sources)
+        push_scoped_sources(sources=scoped_sources)
+        with pytest.raises(SourcesAlreadyInstalledError):
+            push_scoped_sources(sources=installed_sources)
+        with pytest.raises(SourcesAlreadyInstalledError):
+            push_scoped_sources(sources=scoped_sources)
+        assert installed_sources.installed_calls == 1
+        assert scoped_sources.installed_calls == 1
+        assert active_sources() is scoped_sources
+
+    def test_popping_with_nothing_pushed_is_refused(self):
+        with pytest.raises(NoScopedSourcesError):
+            pop_scoped_sources()
 
 
 class TestFrameLoopUsesTheDoors:

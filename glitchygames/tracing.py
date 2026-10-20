@@ -82,7 +82,7 @@ import zlib
 from typing import TYPE_CHECKING, Any, Self, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
     from types import TracebackType
 
@@ -136,10 +136,23 @@ class StableSpriteIds:
     shifts the ids of the others.
     """
 
-    def __init__(self) -> None:
-        """Start with no sprites seen."""
+    def __init__(self, *, recorded_ids: Iterable[str] = ()) -> None:
+        """Start with no sprites seen, each class's count following ids already given.
+
+        Args:
+            recorded_ids: Ids given before (a recording's frames before the one a playback
+                starts at; glitchygames/replay/driver.py), so the sprites seen from now on take
+                the ids the recording gave them. Their sprites are not known: an id is never
+                given again, whichever object comes.
+
+        """
         self._ids_by_object_id: dict[int, str] = {}
         self._class_counts: dict[str, int] = {}
+        for sprite_id in recorded_ids:
+            class_name, _, index = sprite_id.rpartition('#')
+            self._class_counts[class_name] = max(
+                self._class_counts.get(class_name, 0), int(index) + 1
+            )
         # Held so a removed sprite's id(sprite) can never be reused by a new object
         self._seen_objects: list[object] = []
 

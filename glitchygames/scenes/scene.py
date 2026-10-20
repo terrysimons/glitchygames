@@ -23,14 +23,19 @@ from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.input.state import current_input
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
+from glitchygames.playback_scope import PlaybackSession
+from glitchygames.randomness import capture_stream_states, restore_stream_states
 from glitchygames.recording import post_event
-from glitchygames.scene_start import SceneStartCapture, begin_scene_start_capture
+from glitchygames.scene_start import SceneStartCapture, begin_scene_start_capture, rebuild_scene
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
     mark_frames_started,
+    pop_scoped_sources,
+    push_scoped_sources,
+    set_frame_clock_seconds,
 )
-from glitchygames.supervision import ControlEvent
+from glitchygames.supervision import PLAYBACK_KIND, ControlEvent
 from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
@@ -39,6 +44,8 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.playback_scope import PlaybackRequest
+    from glitchygames.replay.driver import ReplayResult
     from glitchygames.scene_start import SceneStart
     from glitchygames.supervision import Supervisor
 
@@ -185,6 +192,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self._timer_prev_deadline_ns: int | None = None
         # When the last FPS event was posted (frame-clock seconds); start() sets it
         self._previous_fps_event_seconds: float = 0.0
+        # In-game playback (glitchygames/replay/playback.py): the scope requested for the next
+        # frame, the scope in progress, and how the last one went
+        self._requested_playback: PlaybackRequest | None = None
+        self._playback_session: PlaybackSession | None = None
+        self._last_playback_result: ReplayResult | None = None
 
         # Mark as initialized to prevent re-initialization
         self._initialized: bool = True
@@ -267,6 +279,36 @@ class SceneManager(SceneInterface, events.EventManager):
         if isinstance(start_capture, SceneStartCapture):
             return start_capture.start
         return None
+
+    @property
+    def playback_session(self: Self) -> PlaybackSession | None:
+        """The playback scope in progress (glitchygames/replay/playback.py), or None."""
+        return self._playback_session
+
+    @property
+    def last_playback_result(self: Self) -> ReplayResult | None:
+        """How the last playback scope's replay went (kept when it ended), or None."""
+        return self._last_playback_result
+
+    def request_playback(self: Self, *, request: PlaybackRequest) -> bool:
+        """Enter a playback scope at the start of the next frame (glitchygames/replay/playback.py).
+
+        A scope begins between frames, so the rebuilt scene's first frame is a whole frame, as
+        the recorded one was, and the frame that asked runs to its end on the live doors.
+
+        Args:
+            request: The scope to enter (``start_playback`` builds it).
+
+        Returns:
+            False (logged) when a scope is already requested or in progress: scopes do not
+            nest. True otherwise.
+
+        """
+        if self._requested_playback is not None or self._playback_session is not None:
+            LOG.warning('A playback is already starting or playing; %s not started', request.kind)
+            return False
+        self._requested_playback = request
+        return True
 
     def request_transition(
         self: Self,
@@ -1083,8 +1125,81 @@ class SceneManager(SceneInterface, events.EventManager):
         The doors' ``end_frame`` (a recording samples the sprites there) runs after rendering,
         with the scene active at the end of the frame (after a switch, the new scene as set
         up), exactly as the golden-trace harness samples it.
+
+        In-game playback (glitchygames/replay/playback.py): a requested scope is entered first,
+        so its frame runs whole on the scoped doors. While a scope is in progress, an error in
+        the frame (or in entering it) ends the scope: it is logged, the live game is restored,
+        and the frame ends at the live doors. After ``end_frame`` the scope ends when its exit
+        was requested or its recording ended or diverged. ``start()`` and the golden-trace
+        harness share all of this.
         """
+        self._enter_requested_playback()
         frame_dt = self.dt
+        self._run_in_playback_scope(step=self._run_frame_contents)
+        self._run_in_playback_scope(step=lambda: self._end_frame_at_doors(frame_dt=frame_dt))
+        self._frame_control_events = []
+        self.frame_number += 1
+        session = self._playback_session
+        if session is not None and (session.sources.exit_requested or session.sources.ended):
+            self._exit_playback()
+
+    def _enter_requested_playback(self: Self) -> None:
+        """Enter the playback scope requested for this frame, if any (``request_playback``).
+
+        A request made while a transition plays waits for the transition to end (the
+        transition belongs to the live game, which the scope stashes). An error while entering
+        is logged and undoes whatever was entered: the frame runs live.
+        """
+        request = self._requested_playback
+        if (
+            request is None
+            or self._active_transition is not None
+            or self._pending_transition is not None
+        ):
+            return
+        self._requested_playback = None
+        try:
+            self._enter_playback(request=request)
+        except Exception:
+            LOG.exception('The %s playback could not start; the live game goes on', request.kind)
+            self._exit_playback()
+
+    def _end_frame_at_doors(self: Self, *, frame_dt: float) -> None:
+        """Tell the active doors the frame ended (a recording writes it, a replay compares it).
+
+        Args:
+            frame_dt: The frame's raw dt, read before the frame ran.
+
+        """
+        active_sources().end_frame(
+            frame_number=self.frame_number,
+            dt=frame_dt,
+            scene=self.active_scene,
+            control_events=self._frame_control_events,
+        )
+
+    def _run_in_playback_scope(self: Self, *, step: Callable[[], None]) -> None:
+        """Run part of a frame; inside a playback scope, an error in it ends the scope.
+
+        Outside a scope the error propagates as always. Inside one (including while it is
+        entered), it is logged, the scope ends (``_exit_playback``: the live game comes back
+        untouched) and the frame goes on at the live doors.
+
+        Args:
+            step: The part of the frame.
+
+        """
+        if self._playback_session is None:
+            step()
+            return
+        try:
+            step()
+        except Exception:
+            LOG.exception('Playback failed; returning to the live game')
+            self._exit_playback()
+
+    def _run_frame_contents(self: Self) -> None:
+        """Run the frame itself: a transition frame or a scene frame (``_run_frame``)."""
         # During a transition, render the transition effect instead of the scene
         if self._active_transition is not None:
             transition_done = self._active_transition.update(self.dt)
@@ -1098,14 +1213,112 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             self._run_scene_frame()
 
-        active_sources().end_frame(
-            frame_number=self.frame_number,
-            dt=frame_dt,
-            scene=self.active_scene,
-            control_events=self._frame_control_events,
+    def _enter_playback(self: Self, *, request: PlaybackRequest) -> None:
+        """Begin a playback scope, between frames (glitchygames/replay/playback.py).
+
+        Saves what the scope's end restores (the random streams, the frame clock, the FPS
+        event timer) and stashes the live scene without ``cleanup()``; pushes the scoped doors
+        (before the rebuild, so the rebuilt scene opens sandboxed saves and captures its own
+        start); records the ``playback`` control event; rebuilds the scene from its start,
+        which sets the streams and frame clock it began with; makes it active by the steps a
+        switch takes (``_setup_new_scene``, ``_configure_active_scene``), with no shake or
+        rumble carried in; then, on the rebuilt frame clock, starts the FPS event timer as
+        ``start()`` does and takes this frame's dt from the scoped doors (the recording's).
+
+        Args:
+            request: The scope to enter.
+
+        Raises:
+            RuntimeError: If no scene is active (there is no live game to return to).
+
+        """
+        live_scene = self.active_scene
+        if live_scene is None:
+            message = f'A {request.kind} playback needs an active scene to return to'
+            raise RuntimeError(message)
+        session = PlaybackSession(
+            sources=request.sources,
+            live_scene=live_scene,
+            then=request.then,
+            kind=request.kind,
+            saved_random_states=capture_stream_states(),
+            saved_frame_clock_seconds=frame_clock_seconds(),
+            saved_fps_event_seconds=self._previous_fps_event_seconds,
         )
-        self._frame_control_events = []
-        self.frame_number += 1
+        push_scoped_sources(sources=request.sources)
+        # From here on an error ends the scope and restores all of the above (_exit_playback)
+        self._playback_session = session
+        LOG.info('Playing a %s of %s', request.kind, request.scene_class.__name__)
+        self.record_control_event(
+            kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
+        )
+        scene = rebuild_scene(
+            start=request.start, scene_class=request.scene_class, options=self.OPTIONS
+        )
+        self._clear_frame_effects()
+        self._setup_new_scene(scene)
+        self.active_scene = scene
+        self._configure_active_scene()
+        self._previous_fps_event_seconds = frame_clock_seconds()
+        self._set_frame_time(measured=self._measured_frame_seconds)
+
+    def _exit_playback(self: Self) -> None:
+        """End the playback scope in progress and return to the live game (nothing if none).
+
+        Keeps the replay's result (``last_playback_result``); cleans up the playback's active
+        scene (an error doing so is logged); then, whatever happened, pops the scoped doors,
+        restores the random streams, the frame clock and the FPS event timer, and makes the
+        stashed live scene active again without setting it up again (its snap mode, the event
+        proxies, the caption and a full redraw), with no shake or rumble carried out. A
+        ``then`` other than the live scene is then switched to normally (the live scene is
+        cleaned up as it is left).
+        """
+        session = self._playback_session
+        if session is None:
+            return
+        self._playback_session = None
+        result = session.sources.replay.result
+        self._last_playback_result = result
+        LOG.info('The %s playback ended: %s', session.kind, result.end_reason)
+        LOG.debug('%s', result.report())
+        try:
+            # The live scene is active only when the scope failed before its scene was
+            if self.active_scene is not None and self.active_scene is not session.live_scene:
+                self._cleanup_current_scene()
+        except Exception:
+            LOG.exception('The playback scene failed to clean up')
+        finally:
+            # A transition the playback started belongs to it (none of the live game's runs:
+            # a scope begins only between transitions)
+            self._active_transition = None
+            self._pending_transition = None
+            pop_scoped_sources()
+            restore_stream_states(states=session.saved_random_states)
+            set_frame_clock_seconds(seconds=session.saved_frame_clock_seconds)
+            self._previous_fps_event_seconds = session.saved_fps_event_seconds
+            self._clear_frame_effects()
+            self._resume_live_scene(scene=session.live_scene)
+        if session.then is not session.live_scene:
+            self.switch_to_scene(session.then)
+
+    def _resume_live_scene(self: Self, *, scene: Scene) -> None:
+        """Make a stashed scene active again as it was: no setup(), only what is drawn anew.
+
+        Args:
+            scene: The live scene a playback scope stashed.
+
+        """
+        self.active_scene = scene
+        self._activate_scene_snap_mode(scene)
+        self._set_display_caption()
+        self._setup_event_proxies()
+        self._force_scene_redraw()
+        self._redraw_scene_background()
+
+    def _clear_frame_effects(self: Self) -> None:
+        """Stop the SCREEN shake and sustained rumble (a playback scope's start and end)."""
+        self.screen_shake.clear()
+        self.rumble.clear_sustained()
 
     def _run_scene_frame(self: Self) -> None:
         """Run one non-transition frame of the active scene.

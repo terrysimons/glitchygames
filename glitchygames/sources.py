@@ -10,8 +10,8 @@ goes through the real engine.
 The registry is module state, like glitchygames/randomness.py's streams, so engine code, games
 and widgets reach the active sources without an engine reference. ``install_sources`` may only be
 called before the first frame (a run never mixes live and recorded input); in-game playback pushes
-scoped sources on top instead (``push_scoped_sources``, Part 3 of
-plans/2026-10-19-gameplay-replay-implementation.md). ``GameEngine.__init__`` calls
+scoped sources on top instead (``push_scoped_sources``; glitchygames/replay/playback.py), which
+are active until popped (``pop_scoped_sources``). ``GameEngine.__init__`` calls
 ``reset_sources()`` so each run starts with fresh doors.
 
 This module is a leaf (see the layering rule in plans/2026-10-19-gameplay-replay-core.md, Task
@@ -51,7 +51,16 @@ class SourcesAlreadyRunningError(RuntimeError):
 
 
 class SourcesAlreadyInstalledError(RuntimeError):
-    """install_sources() was called with the sources that are already installed."""
+    """install_sources() or push_scoped_sources() was given sources already in use.
+
+    Installed, or pushed as scoped sources: using them again would tell them ``on_installed``
+    twice without an ``on_uninstalled`` between (and ``reset_sources`` would uninstall them
+    twice).
+    """
+
+
+class NoScopedSourcesError(RuntimeError):
+    """pop_scoped_sources() was called with no scoped sources pushed."""
 
 
 class EngineSources(Protocol):
@@ -272,6 +281,59 @@ def install_sources(*, sources: EngineSources) -> None:
         _REGISTRY.installed.on_uninstalled()
     _REGISTRY.installed = sources
     sources.on_installed()
+
+
+def push_scoped_sources(*, sources: EngineSources) -> None:
+    """Make ``sources`` the active doors on top of the installed ones (in-game playback).
+
+    Allowed at any time, frames started or not: a playback scope (glitchygames/replay/
+    playback.py) serves a recording to a rebuilt scene while the run's doors stay installed
+    underneath, and ``pop_scoped_sources`` ends it. ``sources`` are told they are installed
+    (``on_installed``) before they become active.
+
+    Args:
+        sources: The scoped doors.
+
+    Raises:
+        SourcesAlreadyInstalledError: If ``sources`` are the installed sources or already
+            pushed.
+
+    """
+    if sources is _REGISTRY.installed or any(
+        scoped_sources is sources for scoped_sources in _REGISTRY.scoped
+    ):
+        message = 'push_scoped_sources() was given sources that are already in use'
+        raise SourcesAlreadyInstalledError(message)
+    sources.on_installed()
+    _REGISTRY.scoped.append(sources)
+
+
+def pop_scoped_sources() -> EngineSources:
+    """Remove the scoped sources pushed last; they are told they are uninstalled.
+
+    Returns:
+        The sources removed.
+
+    Raises:
+        NoScopedSourcesError: If no scoped sources are pushed.
+
+    """
+    if not _REGISTRY.scoped:
+        message = 'pop_scoped_sources() was called with no scoped sources pushed'
+        raise NoScopedSourcesError(message)
+    sources = _REGISTRY.scoped.pop()
+    sources.on_uninstalled()
+    return sources
+
+
+def has_scoped_sources() -> bool:
+    """Return True while scoped sources are pushed (a playback scope serves the frame).
+
+    Returns:
+        Whether ``active_sources()`` returns scoped sources rather than the installed ones.
+
+    """
+    return bool(_REGISTRY.scoped)
 
 
 def mark_frames_started() -> None:

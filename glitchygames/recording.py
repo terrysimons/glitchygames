@@ -88,6 +88,32 @@ apart only by count (the first match is the internal one; the two are indistingu
 Posts the next pump does not return (the queue was cleared, or the type is blocked) are
 forgotten at that pump. Events posted before recording started are classified by type alone.
 
+Playback scopes
+---------------
+
+A recording wraps the run's installed doors, never a playback scope's (glitchygames/replay/
+playback.py pushes ``PlaybackSources`` on top of them; glitchygames/sources.py). While a scope
+plays a recording to a rebuilt scene, each recorded frame holds what the live session did:
+
+- ``event_batches``: the batches the installed doors' pump returned, which the scope pumps once
+  per pump of the frame: the player's real input (only the scope's exit check sees it), the
+  window's QUIT, and the playback scene's own posts (internal). Replaying the session therefore
+  replays the exit press and the scene's posts as they happened.
+- ``input_changes``: the player's polled input (the scope reads the installed doors' snapshot
+  every frame, then serves the recording's to the scene).
+- ``dt``: the frame times the frames ran with, which are the played recording's.
+- The sprites: the active scene's, which is the playback scene.
+- ``control_events``: a ``playback`` marker (``{"kind": "playback", "source": <"demo" or
+  "instant">, "frames": <frames to play>}``; glitchygames/supervision.py) on the frame the
+  scope began. It is not applied again: replaying the session starts the scope again from the
+  recorded input, and the marker is compared.
+- No ``saves_opened``, ``devices_opened`` or ``device_enumeration`` from the playback scene:
+  its saves are a sandbox and its devices the played recording's stand-ins, so nothing passes
+  through the installed doors.
+- No ``scene_start``: a scene that ends a frame while scoped doors are active (the playback
+  scene, or a scene it switched to) is not one the live session began, so its start is never
+  written (``RecordingSources._unrecorded_scene_start``).
+
 Polled input
 ------------
 
@@ -153,6 +179,7 @@ import pygame
 
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.scene_start import SceneStart, SceneStartCapture
+from glitchygames.sources import has_scoped_sources
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
@@ -572,9 +599,20 @@ def event_from_record(record: dict[str, Any]) -> pygame.event.Event:
     return pygame.event.Event(event_type, attributes)
 
 
-def _take_internal_post(
-    event: pygame.event.Event, pending: list[tuple[int, dict[str, Any]]]
+def take_internal_post(
+    *, event: pygame.event.Event, pending: list[tuple[int, dict[str, Any]]]
 ) -> bool:
+    """Remove the first post in ``pending`` with ``event``'s type and attributes, if any.
+
+    Args:
+        event: An event a pump returned.
+        pending: Posts not yet matched to a pumped event (``pending_internal_posts()`` or a
+            copy of it).
+
+    Returns:
+        True when a post matched (and was removed): code posted ``event``.
+
+    """
     for index, (event_type, attributes) in enumerate(pending):
         if event_type == event.type and attributes == event.dict:
             del pending[index]
@@ -593,7 +631,7 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
         ``INTERNAL_ORIGIN`` or ``EXTERNAL_ORIGIN``.
 
     """
-    was_posted_by_code = _take_internal_post(event, pending)
+    was_posted_by_code = take_internal_post(event=event, pending=pending)
     if was_posted_by_code or event.type >= pygame.USEREVENT:
         return INTERNAL_ORIGIN
     return EXTERNAL_ORIGIN
@@ -1075,7 +1113,9 @@ class RecordingSources:
         transitions make it active as they set it up), so the first frame it ends is the frame
         it began: frame 0 for the scene set up before the first frame. Resuming it from the
         pause screen does not record it again. A scene set up and switched away from within
-        one frame never ends a frame active, so its start is never written.
+        one frame never ends a frame active, so its start is never written. Nor is the start of
+        a scene that ends a frame while scoped doors are active (a playback scope's scene; see
+        Playback scopes in the module docstring): the live session did not begin it.
 
         Args:
             scene: The active scene at the end of the frame.
@@ -1085,6 +1125,9 @@ class RecordingSources:
 
         """
         if scene is None or scene in self._scenes_with_recorded_start:
+            return None
+        # Scoped doors serve this frame (a playback scope): its scene is not the session's
+        if has_scoped_sources():
             return None
         # Looked up by name, as SceneManager._setup_new_scene does: a SceneInterface stand-in
         # has no capture

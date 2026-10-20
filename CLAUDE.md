@@ -320,6 +320,18 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   switched away within its first frame has none). `rebuild_scene(start=..., scene_class=...,
   options=...)` restores the construction streams and clock, constructs, then restores the setup
   ones (no `setup()`); it sets global state the caller must restore. Live play captures nothing
+- Playback scope (`glitchygames/replay/playback.py`, whose docstring is the contract; Part 3 Task
+  2): `start_playback(manager=..., header=..., frames=..., then=..., options=PlaybackOptions(...))`
+  (or `start_playback_from_recording(path=...)`) requests a scope; `SceneManager._run_frame`
+  enters it at the next frame's start: saves the streams, frame clock and FPS timer, stashes the
+  live scene (no `cleanup()`), pushes `PlaybackSources` (`sources.push_scoped_sources`, over the
+  installed doors), records a `playback` marker, rebuilds the scene from the frame's
+  `scene_start` and sets it up. Real input reaches only the exit check (`exit_on_input`), the
+  scene's posts go to the replay's merge, saves are a sandbox. The scope ends after `end_frame`
+  on exit input, the recording's end or a divergence, and on any error in the frame (logged):
+  the live scene comes back untouched (no second `setup()`), `last_playback_result` keeps the
+  replay's result. Leaf records in `glitchygames/playback_scope.py`. A `--record-trace` session
+  records the live session through a scope (`recording.py`, Playback scopes) and replays it
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
@@ -430,7 +442,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--audit`, `--replay-digest` or `--replay-fps real`. NEW replays clean; a truncated OLD gives a
   `source_truncated` NEW (replays `UNUSABLE_INPUT`, not auditable, not a golden fixture);
   replacing a golden fixture with NEW stays a reviewed step
-- Pending: Part 3 (in-game playback: demos, instant replay, ghosts); see `plans/future-work.md`.
+- Pending: the rest of Part 3 (demos, instant replay, ghosts); see `plans/future-work.md`.
   User docs: `docs/architecture/gameplay_replay.md`
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)

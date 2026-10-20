@@ -623,6 +623,20 @@ class TestStableSpriteIds:
         assert sprite_ids.id_for(third_coin) == 'Coin#2'
         assert sprite_ids.id_for(first_coin) == 'Coin#0'
 
+    def test_recorded_ids_are_continued(self):
+        """Ids given before (a recording's earlier frames) are never given again."""
+
+        class Coin:
+            pass
+
+        class Ball:
+            pass
+
+        sprite_ids = StableSpriteIds(recorded_ids=['Coin#0', 'Coin#2', 'Coin#1', 'Ball#0'])
+        assert sprite_ids.id_for(Coin()) == 'Coin#3'
+        assert sprite_ids.id_for(Ball()) == 'Ball#1'
+        assert sprite_ids.id_for(object()) == 'object#0'
+
 
 @dataclasses.dataclass
 class LevelScene:
