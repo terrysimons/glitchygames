@@ -457,6 +457,8 @@ Features:
 - Use `pytest` assertions (not unittest style)
 - Leverage centralized mocks when available
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
+- `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
+  plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`)
 - All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
 - Coverage minimum: 80%
 - Run linting after modifying files

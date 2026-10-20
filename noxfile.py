@@ -291,11 +291,13 @@ def test(session: nox.Session) -> None:
     """Run tests."""
     session.install(_ALL_EXTRAS)
 
-    # Use dummy SDL video driver in CI/headless environments to prevent segfaults.
-    # This is set here so it applies before pygame is imported by any test worker.
-    env = {}
-    if os.environ.get('CI') == 'true' or os.environ.get('SDL_VIDEODRIVER') == 'dummy':
-        env['SDL_VIDEODRIVER'] = 'dummy'
+    # Default both SDL drivers to the dummy driver (windowless, silent), keeping any value the
+    # caller already set so a real driver can still be requested. This is set here so it applies
+    # before pygame is imported by any test worker.
+    env = {
+        'SDL_VIDEODRIVER': os.environ.get('SDL_VIDEODRIVER', 'dummy'),
+        'SDL_AUDIODRIVER': os.environ.get('SDL_AUDIODRIVER', 'dummy'),
+    }
 
     # In CI, limit xdist workers to half the CPU count to avoid resource exhaustion.
     # Locally, -n auto (from pyproject.toml addopts) uses all cores.

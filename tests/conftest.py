@@ -6,21 +6,18 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 
 import contextlib
 import logging
-import os
 import sys
 from pathlib import Path
 
 import pytest
 
-# Use dummy SDL video driver in CI to prevent segfaults in headless environments.
-# This must be set before pygame is imported/initialized in any test worker.
-if os.environ.get('CI') == 'true' and 'SDL_VIDEODRIVER' not in os.environ:
-    os.environ['SDL_VIDEODRIVER'] = 'dummy'
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Imported after the SDL environment is set up above
+# Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
+# set); it must come before pygame is imported/initialized in any test worker
+from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
+
 import pygame
 
 from glitchygames import pixel_snap, randomness, sources
@@ -55,6 +52,18 @@ def _load_lazy_pygame_modules() -> None:
 
 
 _load_lazy_pygame_modules()
+
+
+@pytest.fixture(scope='session')
+def sdl_variables_defaulted_at_startup() -> tuple[str, ...]:
+    """Names of the SDL driver variables this run defaulted to 'dummy' (the others were preset).
+
+    Returns:
+        tuple[str, ...]: The variables that were not set when the test process started.
+
+    """
+    return SDL_VARIABLES_DEFAULTED_AT_STARTUP
+
 
 # Real logging entry points, captured at import time before any test can patch them.
 _REAL_LOGGING_GET_LOGGER = logging.getLogger
