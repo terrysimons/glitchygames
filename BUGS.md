@@ -30,6 +30,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
 - **Files**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
 
+### 66. The Joystick Demo Calls `pygame._sdl2.controller.name_forindex`, Which pygame-ce Does Not Have
+- **Description**: `joystick_demo.py` calls `pygame._sdl2.controller.name_forindex` in controller mode (building a proxy's name and validating a controller), but pygame-ce 2.5.8 has no such function, so the call raises `AttributeError`, which the surrounding `except pygame.error` does not catch
+- **Status**: Active (Task 6 of the replay core routes both calls through `DeviceRegistry.name_for_index`, which answers None when pygame has no lookup; resolve this entry then)
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 5)
+- **Date Reported**: 2026-10-19
+- **Details**: The `# type: ignore[attr-defined]` on both lines hid it from the type checkers. Only pygame-ce's legacy stub `pygame/_sdl2/controller_old.pyi` declares it; the live `pygame/_sdl2/controller.pyi` does not
+- **Files**: `glitchygames/examples/joystick_demo.py` (lines 449 and 901)
+
 ## Resolved Bugs
 
 ### 65. A Test Left GameEngine.USE_FASTEVENTS Set for Every Later Test on Its Worker

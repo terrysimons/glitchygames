@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Self
 
 import pygame
 
+from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
 
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ class LiveSources:
         """
         self.random_seed = random_seed
         self._use_fastevents = use_fastevents
+        self._devices = LiveDeviceRegistry()
 
     @property
     def stop_requested(self: Self) -> bool:
@@ -67,13 +69,23 @@ class LiveSources:
         return measured
 
     def input_snapshot(self: Self) -> InputSnapshot:
-        """Read pygame's polled input now (Task 5 adds the device positions).
+        """Read pygame's polled input and every opened device's positions now.
 
         Returns:
             The live snapshot.
 
         """
-        return capture_live_snapshot()
+        axes, buttons, hats = self._devices.poll()
+        return capture_live_snapshot(device_axes=axes, device_buttons=buttons, device_hats=hats)
+
+    def devices(self: Self) -> LiveDeviceRegistry:
+        """Return the live device registry (real devices).
+
+        Returns:
+            The registry.
+
+        """
+        return self._devices
 
     def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
         """Nothing to do after a live frame."""

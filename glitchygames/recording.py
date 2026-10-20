@@ -130,6 +130,9 @@ CONTROL_EVENTS_FIELD = 'control_events'
 DEVICES_OPENED_FIELD = 'devices_opened'
 SAVES_OPENED_FIELD = 'saves_opened'
 SCENE_START_FIELD = 'scene_start'
+# Device enumeration answers (glitchygames/input/devices.py): a header field for answers given
+# before recording started, and a frame field for answers given during that frame
+DEVICE_ENUMERATION_FIELD = 'device_enumeration'
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
 DEVICES_HEADER_FIELD = 'devices'

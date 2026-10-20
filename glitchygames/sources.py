@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
     # Type only: glitchygames.input's package __init__ imports input.rumble, which comes to
     # import this module, so a runtime import here would be a cycle (this module is a leaf)
+    from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
@@ -71,6 +72,10 @@ class EngineSources(Protocol):
 
     def input_snapshot(self) -> InputSnapshot:
         """Return this frame's polled input, asked once per frame right after the first pump."""
+        ...
+
+    def devices(self) -> DeviceRegistry:
+        """Return the device registry (every joystick/controller enumeration and opening)."""
         ...
 
     def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
