@@ -366,11 +366,11 @@ Other games in the project demonstrate the pattern:
 
 | Game | File | Arguments |
 |------|------|-----------|
-| Paddle Slap | `examples/paddleslap.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
-| DT Demo | `examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
-| Clockwork Keep | `examples/clockwork_keep/game.py` | `--floor` (int, default 0) |
-| Brave Adventurer (both editions) | `examples/brave_adventurer/game.py`, `examples/brave_adventurer_papyrus/game.py` | `-v, --version` |
-| Joystick Demo | `examples/joystick_demo.py` | `--time` (int, default 10), `-v, --version` |
+| Paddle Slap | `glitchygames/examples/paddleslap.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
+| DT Demo | `glitchygames/examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
+| Clockwork Keep | `glitchygames/examples/clockwork_keep/game.py` | `--floor` (int, default 0) |
+| Brave Adventurer (both editions) | `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py` | `-v, --version` |
+| Joystick Demo | `glitchygames/examples/joystick_demo.py` | `--time` (int, default 10), `-v, --version` |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
 
