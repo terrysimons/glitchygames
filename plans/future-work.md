@@ -267,3 +267,27 @@ only replays; Part 2 Task 1).
     unchanged).
   - Output: a short table (class, file, decision, reason, benchmark if any) in this file or the task
     report, then the conversions in reviewed commits.
+- **Move the package to a `src/` layout** (user request, 2026-10-20): `glitchygames/glitchygames/` →
+  `glitchygames/src/glitchygames/`. Why: tests and scripts then import the installed package (via
+  `uv sync`), never a stray copy from the repository root, which catches packaging mistakes (missing
+  package data, wrong includes) before release; it is the layout the Python Packaging Authority
+  recommends. Things to move or update together, in one reviewed change:
+  - the build configuration in `pyproject.toml` (package discovery, package data such as fonts,
+    sprites and TOML assets, console-script entry points) — this is build config, not lint config,
+    but the ruff/pyright/ty/vulture/bandit/coverage path settings will also need `src/`; agree that
+    with the user when the task starts (the standing rule is not to change linter or type-checker
+    config without asking);
+  - `noxfile.py` session paths and every documented command (`ruff format glitchygames tests scripts
+    noxfile.py`, `vulture glitchygames …`), CI configs (CircleCI, GitHub Actions);
+  - path-based code and tests: the doors guard (`tests/test_engine_doors.py` scans the package
+    directory), the randomness guard, the recording guard, `glitchygames/sprites` asset lookups,
+    bundled demos, golden harness and fixture paths, `scripts/` that reference `glitchygames/…`;
+  - PyInstaller specs (`scripts/bitmappy.spec`, `glitchygames/bitmappy.spec`), mkdocs/mkdocstrings
+    source paths, CLAUDE.md, docs and plans that name `glitchygames/...` file paths;
+  - verify: `uv sync`, full suite, lint/type checks, mkdocs strict, `nox -s build` (wheel contents
+    unchanged apart from paths; assets still included), golden traces and golden replay fixtures
+    unchanged.
+- **Lint ignores cleanup** (user request, 2026-10-20): planned in
+  [`plans/2026-10-20-lint-ignores-cleanup.md`](2026-10-20-lint-ignores-cleanup.md) — dead ignores,
+  50 unused `ty: ignore` comments, narrowing `S311`, the 100 broad try blocks (`PLW0717`, BUGS.md #19),
+  `ANN401`, and a decision on `G004`.
