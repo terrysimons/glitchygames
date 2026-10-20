@@ -1542,7 +1542,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.replay_sources.finish_run()
         result = self.replay_sources.result
         report = result.report()
-        if self.replay_sources.headless:
+        if self.replay_sources.options.headless:
             sys.stdout.write(f'{report}\n')
             sys.stdout.flush()
         elif result.divergence is not None:
@@ -1673,7 +1673,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         An exception raised before start(), in ``__init__``, is not mapped: it exits with
         Python's default 1 (each game has its own entry point, so there is no one place to wrap;
         see glitchygames/exit_codes.py). A replay (``--replay-trace``) that ends normally exits
-        with its own code (``ReplaySources.run_exit_code``), watched or headless.
+        with its own code (``ReplayResult.exit_code`` under its exit policy), watched or
+        headless.
 
         Raises:
             RuntimeError: If the game is not initialized.
@@ -1740,7 +1741,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if self.replay_sources is not None:
             # The run ended normally: a replay exits with its own code (a divergence is
             # REPLAY_DIVERGED; never the INTERNAL_ERROR or INTERRUPTED of the paths above)
-            exit_with(exit_code=self.replay_sources.run_exit_code())
+            exit_with(
+                exit_code=self.replay_sources.result.exit_code(
+                    policy=self.replay_sources.options.exit_policy
+                )
+            )
 
     @classmethod
     def quit_game(cls) -> None:

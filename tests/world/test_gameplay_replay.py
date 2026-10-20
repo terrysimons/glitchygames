@@ -9,10 +9,12 @@ import re
 import sys
 import zlib
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
+from pydantic import ValidationError
 from scripts.record_golden_traces import (
     GAME_SCENES,
     GoldenTraceEngine,
@@ -47,6 +49,7 @@ from glitchygames.replay.audit import (
     run_command,
 )
 from glitchygames.replay.driver import (
+    DEFAULT_REPLAY_OPTIONS,
     EVENT_DIVERGENCE,
     LENGTH_DIVERGENCE,
     REAL_REPLAY_FPS,
@@ -57,6 +60,7 @@ from glitchygames.replay.driver import (
     SPRITE_DIVERGENCE,
     Divergence,
     ReplayExitPolicy,
+    ReplayOptions,
     ReplayResult,
     ReplaySources,
     apply_recorded_options,
@@ -83,7 +87,6 @@ from tests.world.test_gameplay_recording import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-    from pathlib import Path
 
 GOLDEN_SCRIPT_FRAMES = 300
 # A golden recording of this many frames, replayed by a harness stopped after the frame limit
@@ -240,8 +243,8 @@ def replay_session(
     dropped); `action` repeats a scripted action that is not input (a save write, a clock read).
 
     Every replay ends GameEngine.start() with SystemExit carrying its own exit code
-    (``ReplaySources.run_exit_code``); that exit is expected here. Any other exit (a crash's
-    ``ExitCode.INTERNAL_ERROR``, a refusal in ``__init__``) propagates.
+    (``ReplayResult.exit_code`` under its exit policy); that exit is expected here. Any other
+    exit (a crash's ``ExitCode.INTERNAL_ERROR``, a refusal in ``__init__``) propagates.
 
     Returns:
         The engine, after the replay ran.
@@ -261,7 +264,8 @@ def replay_session(
             engine.start()
         except SystemExit as exit_request:
             assert engine.replay_sources is not None
-            if exit_request.code != engine.replay_sources.run_exit_code():
+            sources = engine.replay_sources
+            if exit_request.code != sources.result.exit_code(policy=sources.options.exit_policy):
                 raise
         else:
             pytest.fail('A replay must end GameEngine.start() with SystemExit')
@@ -427,7 +431,12 @@ def clocks_paced_by_frames(mocker) -> None:
     mocker.patch.object(LiveSources, 'wall_clock_time', new=paced_wall_clock_time)
 
 
-def minimal_sources(*, frames: list[dict[str, Any]], is_truncated: bool = False) -> ReplaySources:
+def minimal_sources(
+    *,
+    frames: list[dict[str, Any]],
+    is_truncated: bool = False,
+    options: ReplayOptions = DEFAULT_REPLAY_OPTIONS,
+) -> ReplaySources:
     """Build replay sources over in-memory frames (no file).
 
     Returns:
@@ -440,7 +449,13 @@ def minimal_sources(*, frames: list[dict[str, Any]], is_truncated: bool = False)
         'recorded_at': '2026-10-19T12:00:00',
         'options': {},
     }
-    return ReplaySources(header=header, frames=frames, format_version=3, is_truncated=is_truncated)
+    return ReplaySources(
+        header=header,
+        frames=frames,
+        format_version=3,
+        is_truncated=is_truncated,
+        options=options,
+    )
 
 
 def recorded_frame(*, frame_number: int, dt: float = 0.25) -> dict[str, Any]:
@@ -743,15 +758,17 @@ class TestReplayFps:
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         engine = replay_session(recording_path=recording_path, mocker=mocker)
         assert engine.replay_sources is not None
-        assert engine.replay_sources.fps_source == RECORDED_REPLAY_FPS
-        assert minimal_sources(frames=[recorded_frame(frame_number=0)]).fps_source == (
+        assert engine.replay_sources.options.fps_source == RECORDED_REPLAY_FPS
+        assert minimal_sources(frames=[recorded_frame(frame_number=0)]).options.fps_source == (
             RECORDED_REPLAY_FPS
         )
 
     def test_the_performance_frame_time_door_serves_each_mode(self):
         recorded_sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
-        real_sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
-        real_sources.fps_source = REAL_REPLAY_FPS
+        real_sources = minimal_sources(
+            frames=[recorded_frame(frame_number=0)],
+            options=ReplayOptions(fps_source=REAL_REPLAY_FPS),
+        )
         assert recorded_sources.performance_frame_seconds(measured=9.0, frame_seconds=0.5) == 0.5
         assert real_sources.performance_frame_seconds(measured=9.0, frame_seconds=0.5) == 9.0
         live_sources = LiveSources(random_seed=RANDOM_SEED)
@@ -811,7 +828,7 @@ class TestReplayFps:
         assert exit_info.value.code == ExitCode.SUCCESS
         engine = shutdown_spy.call_args.args[0]
         assert engine.replay_sources is not None
-        assert engine.replay_sources.fps_source == REAL_REPLAY_FPS
+        assert engine.replay_sources.options.fps_source == REAL_REPLAY_FPS
         assert engine.replay_sources.result.divergence is None
         assert engine.replay_sources.result.end_reason == 'end_of_recording'
         measured_frame_seconds = [
@@ -1073,7 +1090,9 @@ class TestHeadless:
 
     def test_headless_never_sleeps(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        engine_sources = ReplaySources.from_path(path=recording_path, headless=True)
+        engine_sources = ReplaySources.from_path(
+            path=recording_path, options=ReplayOptions(headless=True)
+        )
         assert engine_sources.paced_frame_seconds() == 0.0
         # A watched replay paces to the target FPS as live play does (Task 2 changes this)
         assert ReplaySources.from_path(path=recording_path).paced_frame_seconds() is None
@@ -1084,7 +1103,7 @@ class TestHeadless:
         pacing_spy = mocker.spy(SceneManager, '_handle_frame_pacing')
         engine = replay_session(recording_path=recording_path, mocker=mocker)
         assert engine.replay_sources is not None
-        assert engine.replay_sources.headless
+        assert engine.replay_sources.options.headless
         paced_seconds = {call.kwargs['paced_seconds'] for call in pacing_spy.call_args_list}
         assert paced_seconds == {0.0}
         assert len(pacing_spy.call_args_list) == engine.replay_sources.result.frames_replayed
@@ -1183,7 +1202,7 @@ def sprite_frame(*, frame_number: int, rect: list[int]) -> dict[str, Any]:
 
 
 class TestReplayReport:
-    """ReplayResult.report() and exit_code, and ReplaySources.run_exit_code()."""
+    """ReplayResult.report() and exit_code(), and ReplayOptions."""
 
     def test_a_sprite_divergence_lists_the_last_frames_of_that_sprite(self, mocker):
         diverging_frame = REPORT_HISTORY_FRAMES + 5
@@ -1217,8 +1236,7 @@ class TestReplayReport:
                 f'[{diverging_frame}, 1, 4, 4] visible'
             ),
         ]
-        assert result.exit_code == ExitCode.REPLAY_DIVERGED
-        assert sources.run_exit_code() == ExitCode.REPLAY_DIVERGED
+        assert result.exit_code(policy=ReplayExitPolicy.RESULT) == ExitCode.REPLAY_DIVERGED
 
     def test_hidden_and_absent_sprites_are_named_in_the_history(self, mocker):
         frames = [
@@ -1248,7 +1266,9 @@ class TestReplayReport:
         assert sources.result.report() == (
             'Replay diverged at frame 1: length recording frames expected 2, got 1'
         )
-        assert sources.result.exit_code == ExitCode.REPLAY_DIVERGED
+        assert sources.result.exit_code(policy=ReplayExitPolicy.RESULT) == (
+            ExitCode.REPLAY_DIVERGED
+        )
 
     @pytest.mark.parametrize(
         ('end_reason', 'report', 'exit_code'),
@@ -1270,21 +1290,28 @@ class TestReplayReport:
     def test_each_ending_without_a_divergence(self, end_reason, report, exit_code):
         result = ReplayResult(frames_replayed=7, end_reason=end_reason)
         assert result.report() == report
-        assert result.exit_code == exit_code
+        assert result.exit_code(policy=ReplayExitPolicy.RESULT) == exit_code
+        # A rebaseline exits SUCCESS once it has written, whatever the result
+        assert result.exit_code(policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING) == (ExitCode.SUCCESS)
 
-    def test_the_exit_policy_picks_the_run_exit_code(self, mocker, tmp_path):
+    def test_the_options_are_read_only_typed_and_closed(self):
+        options = ReplayOptions(headless=True, digest_path='digests.jsonl')
+        assert options.digest_path == Path('digests.jsonl')
+        assert options.exit_policy is ReplayExitPolicy.RESULT
+        with pytest.raises(ValidationError):
+            options.headless = False
+        with pytest.raises(ValidationError):
+            ReplayOptions(fps_source='sometimes')
+        with pytest.raises(ValidationError):
+            ReplayOptions(pause_at_frame=3)
+
+    def test_the_sources_keep_the_options_they_were_given(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        tamper_first_sprite_rect(recording_path=recording_path, frame_number=1)
-        engine = replay_session(recording_path=recording_path, mocker=mocker)
-        assert engine.replay_sources is not None
-        assert engine.replay_sources.run_exit_code() == ExitCode.REPLAY_DIVERGED
-        rebaseline_sources = ReplaySources.from_path(
-            path=recording_path, exit_policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING
-        )
-        rebaseline_sources.result.divergence = engine.replay_sources.result.divergence
-        rebaseline_sources.result.end_reason = 'diverged'
-        assert rebaseline_sources.result.exit_code == ExitCode.REPLAY_DIVERGED
-        assert rebaseline_sources.run_exit_code() == ExitCode.SUCCESS
+        options = ReplayOptions(exit_policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING)
+        sources = ReplaySources.from_path(path=recording_path, options=options)
+        assert sources.options is options
+        assert sources.frame_count == len(read_trace_result(path=recording_path).trace['frames'])
+        assert ReplaySources.from_path(path=recording_path).options == ReplayOptions()
 
 
 class TestRealInput:

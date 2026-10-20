@@ -322,7 +322,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`ReplayResult.report()`: `Replay diverged at frame 6120: sprite Ball#2 rect expected [412,
   300, 16, 16], got [412, 301, 16, 16]`, then that sprite's last 20 frames, expected | got; or
   `Replay matched N frames (end of recording)`) is logged, and every replay that ends normally
-  exits with `ReplaySources.run_exit_code()`: `SUCCESS` (0) matched or window closed,
+  exits with `ReplayResult.exit_code(policy=...)` (the policy and the other replay settings are
+  the frozen pydantic `ReplayOptions`): `SUCCESS` (0) matched or window closed,
   `REPLAY_DIVERGED` (1), `UNUSABLE_INPUT` (65) for a truncated recording that matched to its
   cut-off. Recorded window references map to None (live events of the display window carry None).
   Version-2 recordings replay with one warning (polled input reads as idle)

@@ -60,7 +60,7 @@ session again, and every frame's sprites are compared with the recorded frame. T
     frame's recorded saves and device fields.
 11. ``GameEngine._shutdown`` calls ``finish_run`` and reports the result (``ReplayResult.report``:
     printed to stdout under ``--headless``, logged otherwise); ``GameEngine.start`` then ends the
-    run with ``run_exit_code()`` (``ReplayResult.exit_code`` under ``ReplayExitPolicy.RESULT``).
+    run with ``ReplayResult.exit_code(policy=options.exit_policy)``.
     The report of a sprite divergence lists the sprite in the last ``REPORT_HISTORY_FRAMES``
     frames before it, recorded and replayed (kept by ``end_frame``).
 12. Digests (``--replay-digest PATH``, for ``--audit``: glitchygames/replay/audit.py): each
@@ -83,9 +83,10 @@ import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Final, Literal, Self
 
 import pygame
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
@@ -183,8 +184,8 @@ REPORT_HISTORY_FRAMES = 20
 
 # --replay-fps values: FPS events (and the performance statistics) from the recorded frame times
 # (exact, compared) or from this machine's measured frame times (not compared)
-RECORDED_REPLAY_FPS = 'recorded'
-REAL_REPLAY_FPS = 'real'
+RECORDED_REPLAY_FPS: Final = 'recorded'
+REAL_REPLAY_FPS: Final = 'real'
 REPLAY_FPS_CHOICES = (RECORDED_REPLAY_FPS, REAL_REPLAY_FPS)
 REAL_REPLAY_FPS_NOTICE = (
     '--replay-fps real: FPS events follow this machine and are not compared; sprites that draw '
@@ -241,12 +242,44 @@ class ReplayRefusedError(RuntimeError):
 
 
 class ReplayExitPolicy(enum.Enum):
-    """What a replay's run exits with once it is over (``ReplaySources.run_exit_code``)."""
+    """What a replay's run exits with once it is over (``ReplayResult.exit_code``)."""
 
     # ReplayResult.exit_code: SUCCESS when matched, REPLAY_DIVERGED, UNUSABLE_INPUT when truncated
     RESULT = 'result'
     # ExitCode.SUCCESS whatever the result (--rebaseline: the new recording is the outcome)
     SUCCESS_AFTER_WRITING = 'success'
+
+
+class ReplayOptions(BaseModel):
+    """How a replay is run: everything ``ReplaySources`` is configured with but the recording.
+
+    Read-only; ``start_replay`` builds it from the run's local options (``REPLAY_LOCAL_OPTIONS``,
+    never the recording's). Later replay tasks add their fields here (a pause frame, a playback
+    start frame, whether a divergence stops the replay).
+
+    Attributes:
+        headless: True under ``--headless``: frames are not paced (rule 13) and the engine prints
+            the report to stdout (rule 11).
+        exit_policy: What the run exits with once it is over (``ReplayResult.exit_code``).
+        fps_source: ``RECORDED_REPLAY_FPS`` or ``REAL_REPLAY_FPS`` (``--replay-fps``; rule 4).
+        digest_path: Where ``finish_run`` writes the frame digests (``--replay-digest``; rule
+            12), or None.
+        use_fastevents: Drain the real queue with pygame.fastevent when pygame has it
+            (``GameEngine.USE_FASTEVENTS``), as the live doors would.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    headless: bool = False
+    exit_policy: ReplayExitPolicy = ReplayExitPolicy.RESULT
+    fps_source: Literal['recorded', 'real'] = RECORDED_REPLAY_FPS
+    digest_path: Path | None = None
+    use_fastevents: bool = False
+
+
+# The options of a replay given none (a test's, a tool's): watched, recorded FPS, no digests
+DEFAULT_REPLAY_OPTIONS = ReplayOptions()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -343,15 +376,22 @@ class ReplayResult:
         default_factory=_new_frame_history, repr=False
     )
 
-    @property
-    def exit_code(self: Self) -> ExitCode:
-        """The exit code this result stands for (glitchygames/exit_codes.py).
+    def exit_code(self: Self, *, policy: ReplayExitPolicy) -> ExitCode:
+        """Return the exit code the replay's run ends with (glitchygames/exit_codes.py).
 
-        ``SUCCESS`` when the replay matched to the end of the recording or the window was
-        closed; ``UNUSABLE_INPUT`` when it matched up to the cut-off of a truncated recording;
-        ``REPLAY_DIVERGED`` when it diverged, or is still running (``finish_run`` turns a run
-        that ended early into a length divergence).
+        Args:
+            policy: The replay's exit policy (``ReplayOptions.exit_policy``).
+
+        Returns:
+            ``SUCCESS`` under ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``. Under
+            ``ReplayExitPolicy.RESULT``: ``SUCCESS`` when the replay matched to the end of the
+            recording or the window was closed; ``UNUSABLE_INPUT`` when it matched up to the
+            cut-off of a truncated recording; ``REPLAY_DIVERGED`` when it diverged, or is still
+            running (``finish_run`` turns a run that ended early into a length divergence).
+
         """
+        if policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING:
+            return ExitCode.SUCCESS
         if self.divergence is not None:
             return ExitCode.REPLAY_DIVERGED
         if self.end_reason in {END_OF_RECORDING_END_REASON, QUIT_END_REASON}:
@@ -535,15 +575,10 @@ class ReplaySources:
 
     Attributes:
         header: The recording's header fields (without ``format_version`` and ``frames``).
-        fps_source: ``RECORDED_REPLAY_FPS`` or ``REAL_REPLAY_FPS`` (``--replay-fps``; rule 4).
+        options: How the replay is run (``ReplayOptions``).
         result: How the replay went so far.
         random_seed: The recorded master seed.
-        digest_path: Where ``finish_run`` writes the frame digests (``--replay-digest``; rule
-            12), or None.
-        headless: True under ``--headless``: frames are not paced (rule 13) and the engine
-            prints the report to stdout (rule 11).
-        exit_policy: What the run exits with once it is over (``run_exit_code``).
-        frame_count: How many complete frames the recording holds.
+        is_truncated: True when the file was cut off (a killed recorder).
 
     """
 
@@ -554,7 +589,7 @@ class ReplaySources:
         frames: Sequence[dict[str, Any]],
         format_version: int,
         is_truncated: bool = False,
-        use_fastevents: bool = False,
+        options: ReplayOptions = DEFAULT_REPLAY_OPTIONS,
     ) -> None:
         """Prepare to serve the recording from its first frame.
 
@@ -564,25 +599,16 @@ class ReplaySources:
             format_version: The file's format version (2 or 3).
             is_truncated: True when the file was cut off (a killed recorder): the replay then
                 ends with ``'truncated'`` after the last complete frame.
-            use_fastevents: Drain the real queue with pygame.fastevent when pygame has it
-                (``GameEngine.USE_FASTEVENTS``), as the live doors would.
+            options: How the replay is run.
 
         """
         self.header = header
-        # from_path sets them (--headless; a rebaseline's policy)
-        self.headless = False
-        self.exit_policy = ReplayExitPolicy.RESULT
-        # start_replay sets it from --replay-fps
-        self.fps_source = RECORDED_REPLAY_FPS
-        # start_replay sets it from --replay-digest
-        self.digest_path: Path | None = None
+        self.options = options
         self.result = ReplayResult()
         self.random_seed = _recorded_seed(header=header)
         self._recorded_at = _recorded_start(header=header)
         self._frames = frames
-        # How many complete frames the recording holds
-        self.frame_count = len(frames)
-        self._is_truncated = is_truncated
+        self.is_truncated = is_truncated
         self._compares_control_events = format_version >= CONTROL_EVENTS_FORMAT_VERSION
         # Frames ended so far (end_frame calls): the index of the frame being served
         self._frame_index = 0
@@ -600,7 +626,9 @@ class ReplaySources:
         self._warned_joystick_instances: set[int] = set()
         self._logged_unrepresentable_types: set[str] = set()
         # Only its event pump is used: the one place the real queue is read (rule 2)
-        self._live_queue = LiveSources(random_seed=self.random_seed, use_fastevents=use_fastevents)
+        self._live_queue = LiveSources(
+            random_seed=self.random_seed, use_fastevents=options.use_fastevents
+        )
         # Real input blocked at SDL from the first pump that drains the queue until the replay
         # ends or is uninstalled (rule 2); the snapshot is taken once, so a pump after the end
         # does not block again
@@ -630,9 +658,7 @@ class ReplaySources:
         cls,
         *,
         path: Path,
-        use_fastevents: bool = False,
-        headless: bool = False,
-        exit_policy: ReplayExitPolicy = ReplayExitPolicy.RESULT,
+        options: ReplayOptions = DEFAULT_REPLAY_OPTIONS,
     ) -> ReplaySources:
         """Read a recording file into replay sources.
 
@@ -642,9 +668,7 @@ class ReplaySources:
 
         Args:
             path: The recording.
-            use_fastevents: Drain the real queue with pygame.fastevent (see ``__init__``).
-            headless: True under ``--headless``: never pace (rule 13).
-            exit_policy: What ``run_exit_code`` returns once the run is over.
+            options: How the replay is run.
 
         Returns:
             The sources.
@@ -660,16 +684,18 @@ class ReplaySources:
                 len(frames),
             )
         header = {name: value for name, value in read_result.trace.items() if name != FRAMES_FIELD}
-        sources = cls(
+        return cls(
             header=header,
             frames=frames,
             format_version=read_result.format_version,
             is_truncated=is_truncated,
-            use_fastevents=use_fastevents,
+            options=options,
         )
-        sources.headless = headless
-        sources.exit_policy = exit_policy
-        return sources
+
+    @property
+    def frame_count(self: Self) -> int:
+        """How many complete frames the recording holds."""
+        return len(self._frames)
 
     @property
     def opened_save_namespaces(self: Self) -> Mapping[str, SaveManager]:
@@ -786,7 +812,7 @@ class ReplaySources:
             ``frame_seconds`` under ``--replay-fps recorded``, ``measured`` under ``real``.
 
         """
-        if self.fps_source == REAL_REPLAY_FPS:
+        if self.options.fps_source == REAL_REPLAY_FPS:
             return measured
         return frame_seconds
 
@@ -797,21 +823,9 @@ class ReplaySources:
             0.0 (no pacing) when headless, else None (the target FPS, as live play).
 
         """
-        if self.headless:
+        if self.options.headless:
             return 0.0
         return None
-
-    def run_exit_code(self: Self) -> ExitCode:
-        """Return what the run exits with once it is over (``GameEngine.start``).
-
-        Returns:
-            ``result.exit_code`` under ``ReplayExitPolicy.RESULT``; ``ExitCode.SUCCESS`` under
-            ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``.
-
-        """
-        if self.exit_policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING:
-            return ExitCode.SUCCESS
-        return self.result.exit_code
 
     def input_snapshot(self: Self) -> InputSnapshot:
         """Return the current frame's recorded polled input (rule 5).
@@ -905,7 +919,7 @@ class ReplaySources:
             replayed = sample_scene_frame(
                 frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
             )
-            if self.digest_path is not None:
+            if self.options.digest_path is not None:
                 self._frame_digests.append(frame_digest(frame_record=replayed))
             # For the divergence report (rule 11)
             self.result.recorded_history.append((self._frame_index, frame[SPRITES_FIELD]))
@@ -925,7 +939,7 @@ class ReplaySources:
             elif self._frame_index == len(self._frames) - 1:
                 self._stop(
                     end_reason=TRUNCATED_END_REASON
-                    if self._is_truncated
+                    if self.is_truncated
                     else END_OF_RECORDING_END_REASON
                 )
         if self._window_was_closed and not self._stop_requested:
@@ -953,10 +967,10 @@ class ReplaySources:
                 actual=self.result.frames_replayed,
             )
             self._stop(end_reason=DIVERGED_END_REASON)
-        if self.digest_path is not None:
+        if self.options.digest_path is not None:
             divergence = self.result.divergence
             write_digest_file(
-                path=self.digest_path,
+                path=self.options.digest_path,
                 digests=self._frame_digests,
                 divergence=None if divergence is None else divergence.describe(),
             )
@@ -1095,7 +1109,7 @@ class ReplaySources:
 
         """
         uncompared_event_types: frozenset[int] = (
-            frozenset({FPSEVENT}) if self.fps_source == REAL_REPLAY_FPS else frozenset()
+            frozenset({FPSEVENT}) if self.options.fps_source == REAL_REPLAY_FPS else frozenset()
         )
         live_origins = [INTERNAL_ORIGIN] * len(live_internal_events)
         frame = self._current_frame()
@@ -1287,8 +1301,8 @@ def start_replay(
 
     A recording of another game raises ReplayRefusedError (``check_recorded_game``); an
     unreadable file raises TraceFormatError or OSError (``ReplaySources.from_path``). The engine
-    exits with
-    ``ExitCode.UNUSABLE_INPUT`` on each, or ``ExitCode.MISSING_INPUT`` for a missing file.
+    exits with ``ExitCode.UNUSABLE_INPUT`` on each, or ``ExitCode.MISSING_INPUT`` for a missing
+    file.
 
     Args:
         path: The recording.
@@ -1303,9 +1317,15 @@ def start_replay(
         The replay's sources, not yet installed.
 
     """
-    sources = ReplaySources.from_path(
-        path=path, use_fastevents=use_fastevents, headless=bool(options.get('headless'))
+    # Local options (REPLAY_LOCAL_OPTIONS): the recorded ones applied below never replace them
+    replay_digest = options.get('replay_digest')
+    replay_options = ReplayOptions(
+        headless=bool(options.get('headless')),
+        fps_source=options.get('replay_fps') or RECORDED_REPLAY_FPS,
+        digest_path=None if replay_digest is None else Path(replay_digest),
+        use_fastevents=use_fastevents,
     )
+    sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class_name=game_class_name)
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = _installed_engine_version()
@@ -1317,10 +1337,7 @@ def start_replay(
         )
     apply_recorded_options(options=options, recorded=sources.header.get(OPTIONS_HEADER_FIELD, {}))
     seed_engine_random(seed=sources.random_seed)
-    sources.fps_source = options.get('replay_fps') or RECORDED_REPLAY_FPS
-    replay_digest = options.get('replay_digest')
-    sources.digest_path = None if replay_digest is None else Path(replay_digest)
-    if sources.fps_source == REAL_REPLAY_FPS:
+    if replay_options.fps_source == REAL_REPLAY_FPS:
         LOG.warning(REAL_REPLAY_FPS_NOTICE)
     LOG.info(
         'Replaying %s (%d frames, random seed %d)', path, sources.frame_count, sources.random_seed

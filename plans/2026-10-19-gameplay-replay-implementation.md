@@ -261,15 +261,21 @@ def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]: ...
 class ReplayExitPolicy(enum.Enum):                 # Part 2 Task 1
     RESULT = 'result'                               # exit with ReplayResult.exit_code
     SUCCESS_AFTER_WRITING = 'success'               # exit 0 once the run is over (--rebaseline)
+class ReplayOptions(pydantic.BaseModel):         # Part 2 Task 1 (frozen, extra='forbid')
+    headless: bool = False
+    exit_policy: ReplayExitPolicy = ReplayExitPolicy.RESULT
+    fps_source: Literal['recorded', 'real'] = 'recorded'
+    digest_path: Path | None = None
+    use_fastevents: bool = False
+    # later tasks add their fields here: pause_at_frame (Part 2 Task 3),
+    # stop_on_divergence (Part 2 Task 6), start_frame (Part 3 Task 2)
 class ReplaySources:   # implements EngineSources
     def __init__(self, *, header: dict[str, Any], frames: Sequence[dict[str, Any]],
                  format_version: int, is_truncated: bool = False,
-                 headless: bool = False,                          # Part 2 Task 1
-                 exit_policy: ReplayExitPolicy = ReplayExitPolicy.RESULT,   # Part 2 Task 1
-                 pause_at_frame: int | None = None,               # Part 2 Task 3
-                 stop_on_divergence: bool = True) -> None: ...    # Part 2 Task 6
+                 options: ReplayOptions = DEFAULT_REPLAY_OPTIONS) -> None: ...
     @classmethod
-    def from_path(cls, *, path: Path, headless: bool = False) -> ReplaySources: ...
+    def from_path(cls, *, path: Path,
+                  options: ReplayOptions = DEFAULT_REPLAY_OPTIONS) -> ReplaySources: ...
     @classmethod
     def for_playback(cls, *, header: dict[str, Any], frames: Sequence[dict[str, Any]],
                      start_frame: int = 0) -> ReplaySources: ...  # Part 3 Task 2; never pauses
@@ -278,9 +284,11 @@ class ReplaySources:   # implements EngineSources
     def last_batch_origins(self) -> list[str]: ...
     def recorded_frame_fields(self, *, frame_index: int) -> dict[str, Any]: ...
     def recorded_dt(self, *, frame_number: int) -> float: ...     # Part 2 Task 2
-    def run_exit_code(self) -> int: ...                           # Part 2 Task 1
+    frame_count: int  # read-only property
     header: dict[str, Any]
-    result: ReplayResult
+    options: ReplayOptions
+    is_truncated: bool
+    result: ReplayResult  # .report() -> str, .exit_code(*, policy) -> ExitCode (Part 2 Task 1)
 def start_replay(*, path: Path, game_class_name: str, options: dict[str, Any]) -> ReplaySources: ...
 GameEngine.replay_sources: ReplaySources | None
 @dataclasses.dataclass(frozen=True)
