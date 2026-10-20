@@ -27,7 +27,7 @@ and a WORLD-space `GhostSprite` draws it later.
 ## Global Constraints
 
 See the master plan. Parts 1 and 2 must be complete (master order): Task 4 uses Part 2's
-scripted-session recorder and replay plugin, Task 6 its `presents_frames()` / `paced_frame_seconds()`
+scripted-session recorder and replay plugin, Task 6 its `presents_frames` / `paced_frame_seconds()`
 doors and unpaced path, Task 5 its `recording.recorded_dt`; Task 2 creates `tests/replay/__init__.py` only if
 Part 2 did not.
 
@@ -947,7 +947,7 @@ git commit -m "Keep an in-memory input journal for scenes that offer instant rep
   scene has no journal or the journal exceeds `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS`. True:
   a scope of kind `'instant'` starts: the rebuilt scene replays the journal's frames; frames before
   `game_seconds - INSTANT_REPLAY_SECONDS` are fast-forwarded (no presenting, no pacing: the
-  scope's `presents_frames()` is False and `paced_frame_seconds()` 0.0 — Part 2's doors and its
+  scope's `presents_frames` is False and `paced_frame_seconds()` 0.0 — Part 2's doors and its
   unpaced path), the rest play visibly; at the end of the journal the scope ends and the live
   scene continues exactly where it was. It is started with Task 2's in-memory entry point:
   `start_playback(manager=self, header=header, frames=frames, then=<the live scene>,

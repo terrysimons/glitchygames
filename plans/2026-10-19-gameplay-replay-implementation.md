@@ -24,7 +24,7 @@ replay compares each frame's sprites with the recording. Tooling and in-game pla
 
 Order: Part 1, then Part 2, then Part 3. Part 3 depends on Part 2: its bundled demo (Task 4) is
 recorded with Part 2's `scripts/record_scripted_session.py` and tested through Part 2's replay
-plugin, its instant replay (Task 6) uses Part 2's `presents_frames()` / `paced_frame_seconds()`
+plugin, its instant replay (Task 6) uses Part 2's `presents_frames` / `paced_frame_seconds()`
 doors and unpaced pacing path, and its journal test uses `recording.recorded_dt`.
 
 ## Global Constraints

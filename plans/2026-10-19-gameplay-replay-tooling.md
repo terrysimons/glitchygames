@@ -307,10 +307,10 @@ class ReplayControls:
     MIN_SPEED = 0.25; MAX_SPEED = 8.0
     def __init__(self, *, total_frames: int) -> None: ...
     paused: bool; speed: float; step_requested: bool; quit_requested: bool
-    MESSAGE_PRESENTED_FRAMES = 120                            # a status message's lifetime
+    MESSAGE_CONTROL_TICKS = 120                            # a status message's lifetime
     def handle_key(self, *, key: int) -> None: ...           # Space . , ] [ Home D B S Esc
     def show_message(self, *, text: str) -> None: ...        # shown for 120 presented frames
-    def message_for_presented_frame(self) -> str | None: ... # counts one presented frame down
+    def message_for_control_tick(self) -> str | None: ... # counts one presented frame down
     def take_step(self) -> bool: ...                          # consume one pending step
     def status_line(self, *, frame_number: int, seconds: float,
                     divergence_frame: int | None) -> str: ...
@@ -322,9 +322,9 @@ Home, D, B, S): Space toggles `paused`; `.` while paused sets `step_requested`; 
 `speed` within [0.25, 8.0]; Esc sets `quit_requested`, and `ReplaySources` then sets
 `stop_requested` with `end_reason = 'quit'` — no event is posted (a code-posted QUIT would be an
 internal event the recording lacks, i.e. a divergence). Transient status messages ("no bookmarks to
-save", Task 4) last `MESSAGE_PRESENTED_FRAMES` (120) presented frames, counted by
-`message_for_presented_frame()` each time the status bar is drawn, so they need no clock (every
-clock export follows the frame clock in a replay, which stands still while paused). F3/F4 keep working: the debug overlay's keys must still reach the engine — in
+save", Task 4) last `MESSAGE_CONTROL_TICKS` (120) viewer ticks (2 s of real time: the viewer's
+outer loop ticks at 60 Hz on `measured_seconds`, whatever the speed or pause), counted by
+`message_for_control_tick()` once per tick. F3/F4 keep working: the debug overlay's keys must still reach the engine — in
 `ReplaySources.pump_events`, real KEYDOWN/KEYUP for F3 and F4 are passed to the debug overlay
 exactly as live (read how `SceneManager` handles F3/F4 today and route those two keys there),
 not to the game.
@@ -372,7 +372,7 @@ def test_watched_replay_pauses_at_the_divergence_with_the_overlay_on(mocker, tmp
     assert sources.controls.paused
     assert not sources.stop_requested
     assert manager.debug_overlay.is_visible
-    assert sources.banner_line().startswith('Diverged at frame 3')
+    assert sources.controls.banner.startswith('Diverged at frame 3')
     GoldenTraceSceneManager.uninstall()
 
 
@@ -383,12 +383,12 @@ def test_watched_replay_pauses_at_the_end(mocker, tmp_path):
     while not sources.controls.paused:
         manager.dt = sources.frame_seconds(measured=0.0)
         manager.run_frame()
-    assert sources.banner_line() == 'End of recording'
+    assert sources.controls.banner == 'End of recording'
     assert not sources.stop_requested
     GoldenTraceSceneManager.uninstall()
 ```
 
-(`ReplaySources.banner_line() -> str | None` is added here.)
+(Implemented as `ReplayControls.banner: str | None`.)
 
 - [ ] **Step 1: Write the failing tests** — `tests/replay/test_controls.py`:
 
@@ -439,12 +439,12 @@ def test_escape_requests_quit_without_posting_an_event(mocker):
     post_event.assert_not_called()
 
 
-def test_a_message_lasts_a_fixed_number_of_presented_frames():
+def test_a_message_lasts_a_fixed_number_of_control_ticks():
     controls = ReplayControls(total_frames=100)
     controls.show_message(text='no bookmarks to save')
-    shown = [controls.message_for_presented_frame()
-             for _ in range(ReplayControls.MESSAGE_PRESENTED_FRAMES + 1)]
-    assert shown[:-1] == ['no bookmarks to save'] * ReplayControls.MESSAGE_PRESENTED_FRAMES
+    shown = [controls.message_for_control_tick()
+             for _ in range(ReplayControls.MESSAGE_CONTROL_TICKS + 1)]
+    assert shown[:-1] == ['no bookmarks to save'] * ReplayControls.MESSAGE_CONTROL_TICKS
     assert shown[-1] is None
 
 
@@ -478,11 +478,11 @@ class TestWatched:
         sources = ReplaySources.from_path(path=recording_path)
         first_dt = sources.frame_seconds(measured=0.0)
         assert sources.paced_frame_seconds() == pytest.approx(
-            sources.recorded_dt(frame_number=1))
+            sources.recording.recorded_dt(frame_index=1))
         sources.controls.handle_key(key=pygame.K_RIGHTBRACKET)
         assert sources.paced_frame_seconds() == pytest.approx(
-            sources.recorded_dt(frame_number=1) / 2)
-        assert first_dt == sources.recorded_dt(frame_number=0)
+            sources.recording.recorded_dt(frame_index=1) / 2)
+        assert first_dt == sources.recording.recorded_dt(frame_index=0)
 
     def test_paused_replay_holds_until_a_step(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -494,7 +494,8 @@ class TestWatched:
         assert sources.hold_frame()       # then it holds again
 ```
 
-(`ReplaySources.recorded_dt(*, frame_number) -> float` is a small public accessor added here.)
+(`ReplaySources.recording.recorded_dt(*, frame_index) -> float`: Task 2 moved the recorded
+frames to `RecordedFrames`.)
 
 - [ ] **Step 2–4:** fail; implement `controls.py` (draw with the debug overlay's font helper —
   read `glitchygames/debug/` for how it renders cached text on a translucent backing and reuse
@@ -512,13 +513,25 @@ git commit -m "Watch replays: recorded pacing, status bar, pause, step and speed
 
 ### Task 3: Step back, Home and jump to divergence
 
+**Context (since Task 2):** a watched replay is a read-only game inside a game
+(`glitchygames/replay/viewer.py` documents the contract). The OUTER `ReplayViewer` ticks at 60 Hz
+real time, reads the viewer's keys (`ReplayControls`, once per press) and presents the latest
+frame; the INNER recorded game runs full, unpresented frames from an accumulator (real time x
+speed, consumed by recorded dt, at most `MAX_INNER_FRAMES_PER_TICK` per tick), driven through
+`EngineSources.hold_frame`. `EngineSources.presents_frames` already exists as a read-only property
+(ReplaySources attribute: False while watched); this task makes it False while fast-forwarding
+too. Step back is the outer loop driving the inner game's re-simulation to frame N - 1 (restart,
+fast-forward 0..N-2 unpresented, pause at N - 1); `,` currently only shows a status message.
+Recorded frames are read through `ReplaySources.recording` (`recorded_dt(frame_index=...)`,
+`frame_count`, `is_truncated`).
+
 **Files:**
 - Modify: `glitchygames/replay/controls.py` (`,`, Home, D → `restart_request`)
 - Modify: `glitchygames/replay/driver.py` (`--replay-pause-at-frame N`: fast-forward headless, then
   pause; perform a restart request with `os.execv`)
 - Modify: `glitchygames/engine/game_engine.py` (`--replay-pause-at-frame` option)
 - Modify: `glitchygames/scenes/scene.py` (`_present_frame` is skipped while fast-forwarding:
-  `EngineSources.presents_frames()`)
+  `EngineSources.presents_frames`)
 - Modify: `glitchygames/sources.py` (Protocol `presents_frames`), `glitchygames/live_sources.py`
   (True), `glitchygames/recording.py` (delegates)
 - Test: `tests/replay/test_controls.py`, `tests/world/test_gameplay_replay.py`
@@ -528,7 +541,8 @@ git commit -m "Watch replays: recorded pacing, status bar, pause, step and speed
 
 ```python
 ReplayControls.restart_request -> int | None     # frame to restart at, set by , / Home / D
-EngineSources.presents_frames(self) -> bool       # False while fast-forwarding
+EngineSources.presents_frames -> bool  # read-only property (Task 2); now also False
+                                       # while fast-forwarding
 ReplayOptions.pause_at_frame: int | None = None   # new field, >= 0 (pydantic); simulate
                                                   # 0..N-1, pause at N; ReplaySources reads
                                                   # options.pause_at_frame
@@ -544,7 +558,7 @@ and its value and appends `--replay-pause-at-frame N` (and replaces the `--repla
 `recording_path`, which Task 4 uses for the bookmarked copy) — flush logs, then
 `os.execv(sys.executable, command)` (command[0] is the interpreter path from `sys.orig_argv`; check
 `sys.orig_argv[0]` and pass the arguments after it). With `pause_at_frame` N > 0 the replay
-fast-forwards: `presents_frames()` False and `paced_frame_seconds()` 0.0 until frame N, printing
+fast-forwards: `presents_frames` False and `paced_frame_seconds()` 0.0 until frame N, printing
 `Rebuilding: frame k / N` to stdout every 60 frames and presenting a plain progress screen at the
 same interval (a one-line text on the cleared display, so the window does not look frozen); at
 frame N it starts paused.
@@ -692,7 +706,7 @@ def test_saving_with_no_bookmarks_writes_nothing_and_says_so(mocker, tmp_path):
     sources = ReplaySources.from_path(path=recording_path)
     assert sources.save_bookmarked_copy() is None
     assert not bookmarked_copy_path(recording_path=recording_path).exists()
-    assert sources.controls.message_for_presented_frame() == 'no bookmarks to save'
+    assert sources.controls.message_for_control_tick() == 'no bookmarks to save'
 
 
 def test_restart_carries_unsaved_bookmarks(mocker, tmp_path):

@@ -140,3 +140,70 @@ interface, useful for debugging and offline encoding; the streaming transports a
 2. Whether the framed-stream refactor of `tracing.py` lands first or alongside the A/V work.
 3. Default codec per transport (raw for shared memory, zstd for TCP?) and keyframe interval.
 4. Whether the event/state API and the existing `glitchygames/api/` server merge or stay separate.
+
+## Nesting games (brainstorm, 2026-10-20)
+
+The replay viewer already runs as a read-only game inside a game: an outer viewer at a fixed 60 Hz
+(keys, overlays, presenting) steps an inner recorded game by an accumulator. Three ways to grow that
+into real nesting, where an outer game passes (or replaces) input to an inner game and snoops its
+output:
+
+- **A — context stack in one process.** Push/pop a context that swaps the per-game internals behind
+  the same `SceneManager` / `GameEngine` / doors so each game is unaware: active scene and manager
+  state, options, doors (Part 3's scoped sources), random streams (Part 3 saves/restores them),
+  frame clock, input snapshot, saves, debug overlay, sprite groups. Hard parts are pygame's
+  process-wide state: the display (inner games draw offscreen; direct `get_surface()`/`flip()` must
+  go through the engine), SDL's event queue (route a context's own posts; the doors already see every
+  pump), the mixer. Verify isolation with the audit idea: two games interleaved through the stack
+  must trace identically to solo runs. Good for demos, instant replays, picture-in-picture; both
+  games share one core (GIL), so not for maximum speed. Part 3's playback scope is effectively
+  version 0 — design it to grow into this.
+- **B — inner game in a child process, joined by the tap (recommended for AI).** The outer host
+  launches a headless inner game and talks to it through the tap: an external input source in,
+  frame/audio/state sinks out. Real isolation, both run flat out on separate cores, many inner games
+  in parallel; the tap is the injection/snooping layer; lockstep keeps it reproducible and every run
+  recordable and auditable. Cost: small IPC latency per frame (shared memory) and building the tap.
+- **C — instance-based engine (no singletons).** Cleanest long term, biggest refactor; A gets most of
+  the benefit for far less.
+
+### A host command with `--` layering
+
+`uv run glitchygames-host <host options> -- <game command line>`: everything before `--` belongs to
+the host, everything after is the inner command passed through verbatim; levels stack, each
+stripping its own options up to the first `--`:
+
+```bash
+uv run glitchygames-host --audit -- paddleslap --replay-trace run.jsonl.gz --random-seed 5
+uv run glitchygames-host --tap shm --lockstep -- clockwork-keep --headless
+uv run glitchygames-host --parallel 8 -- glitchygames-host --tap shm --lockstep -- brave-adventurer --headless
+```
+
+Games stay unchanged; each host layer adds one capability (audit, tap, record, replay, parallel,
+lockstep); it reuses the one subprocess launcher (`glitchygames.replay.audit.run_command`); it fixes
+the "bare `--` already in argv" edge case of today's self-rerunning `--audit`. Keep the games'
+existing flags as thin aliases for the host so current commands keep working.
+
+### Hijacking pygame and randomness (third-party games)
+
+A wrapper can swap pygame's public functions for shims before the inner game uses them:
+`display.set_mode` → an offscreen surface; `display.flip/update` → hand the surface to the host
+(viewport, scale, tap); `display.get_surface` → the inner surface; `event.get/post` → that game's own
+queue (host injects/snoops); `key.get_pressed`, `mouse.get_pos` → host-chosen input; `time.get_ticks`,
+`Clock.tick` → a host-controlled clock (flat out or lockstep); `mixer` → a host-owned buffer.
+In-process (A) the shims are context-aware (dispatch on the active context, since the outer game
+uses pygame too). In a child process (B) a bootstrap installs them before the game imports pygame —
+so **any pygame game**, not only GlitchyGames ones, could run under the tap, be recorded, replayed,
+streamed or played by an AI with no source changes.
+
+Randomness the same way, for third-party determinism: seed the global `random` generator (and seeds
+for new `random.Random()` instances) from the run's master seed; seed numpy's legacy global state and
+make unseeded `np.random.default_rng()` seeded; make `os.urandom` / `secrets` / `uuid.uuid4` return
+seeded bytes under the tap only (never for anything security-related); the host fixes
+`PYTHONHASHSEED`. Limits: no automatic named streams (one global sequence per build — fine for
+recording/replaying a given build), multi-threaded draws not exact.
+
+Limits of hijacking: `pygame._sdl2` window/renderer APIs, OpenGL games (frame needs GPU readback),
+C extensions calling SDL directly, and functions bound before the shims were installed
+(`from pygame.display import flip`) — the bootstrap must run first. GlitchyGames' own games don't need
+the shims (the doors, random streams and A/V sinks cover the same ground); hijacking is the bridge for
+games not written for the engine.
