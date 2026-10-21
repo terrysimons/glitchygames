@@ -6,8 +6,8 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 
 ## Gameplay replay wrap-up (needs the user)
 
-`feature/gameplay-replay` is done and reviewed (96 commits on `80134d1`, HEAD `7254478`), not
-pushed. These steps wait on the user's decision:
+`feature/gameplay-replay` is done, reviewed and committed (97 commits on `80134d1` up to
+`34c99ff`, the 2026-10-20/21 close-out), not pushed. What is left waits on the user:
 
 - ~~**Decide `--rebaseline`'s exit code when input was not delivered.**~~ **Done** 2026-10-20
   (the user chose a new code): `ExitCode.REBASELINE_INPUT_LOST` (7); NEW is still written, and
@@ -29,19 +29,18 @@ pushed. These steps wait on the user's decision:
     processing-time comparison was built instead (below).
   - Live supervisors' posts made during a scope are re-posted after it, behind the events the
     scope held: **kept** (it is what lets a supervisor end a playback and then post).
-- **Squash the branch's history, then push / open the PR.** The user runs history rewrites:
-  either `git reset --soft 80134d1 && git commit` (one commit) or `git rebase -i 80134d1`
-  (fold review-fix commits such as `58a29d7`, `4f4badd`, `32ac8f0`, `fead138`, `b8b02fc`,
-  `00b795d` and `77ed933` into their tasks). BUGS.md, this file and the plans cite those
-  commits, so keep the unsquashed history first, e.g.
-  `git branch feature/gameplay-replay-unsquashed` before squashing.
-- **Delete the plan workspace** `.superpowers/sdd/2026-10-19-gameplay-replay-implementation/`
-  (git-ignored briefs, reports, review packages and the ledger) once the user agrees.
-- **Review and commit the 2026-10-20 close-out fixes** (uncommitted, on top of `7254478`):
-  BUGS.md #79 (`--floor` now picks the first floor and refuses one that does not exist), #84
-  (new `recording.post_input_event`, recorded as external input; the user chose this API over
-  inferring input from who added the supervisor) and the scope's joystick rumble asking its
-  own doors (below).
+- **Push the branch, open the PR and merge it with GitHub's "Squash and merge"** (the user's
+  workflow: no squashing in the branch, so no backup branch is needed). GitHub makes one
+  commit on `main` and leaves the branch's commits alone, so the hashes BUGS.md, this file and
+  the plans cite (`fead138`, `77ed933` and others) stay valid while the branch exists, and on
+  the PR's Commits tab after the branch is deleted.
+- ~~**Delete the plan workspace**~~ **Done** 2026-10-20, after an audit put everything worth
+  keeping into the plans, docs and module docstrings (the plans stay in `plans/`).
+- ~~**Review and commit the close-out fixes**~~ **Done** 2026-10-21 (`34c99ff`): BUGS.md #79,
+  #82 and #84, the scope's joystick rumble, `REBASELINE_INPUT_LOST` and
+  `PROCESSING_SLOWER`, content hashes and measurement history, scancode bindings (the golden
+  fixtures and bundled demo patched and rebaselined), and certifi 2026.10.19 for
+  PYSEC-2026-4320.
 - Bugs logged on the branch and still open: BUGS.md #83 (a documented limitation).
 
 ## Input
