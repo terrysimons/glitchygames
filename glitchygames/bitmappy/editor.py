@@ -343,7 +343,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.canvas.pixel_width = pixel_size
         self.canvas.pixel_height = pixel_size
 
-        self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)  # ty: ignore[invalid-assignment]
+        self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)
         self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
         # Reset viewport/panning system

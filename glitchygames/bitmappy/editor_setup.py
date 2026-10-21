@@ -16,7 +16,7 @@ import pygame
 try:
     from glitchygames.events.voice import VoiceEventManager
 except ImportError:
-    VoiceEventManager = None  # ty: ignore[invalid-assignment]
+    VoiceEventManager = None
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.ui import (
@@ -246,7 +246,7 @@ class EditorSetup:
         surface1 = pygame.Surface((pixels_across, pixels_tall), pygame.SRCALPHA)
         surface1.fill(MAGENTA_TRANSPARENT)  # Magenta frame (transparent)
         frame1 = SpriteFrame(surface1)
-        frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)  # ty: ignore[invalid-assignment]
+        frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)
 
         # DEBUG: Log the first frame's pixel data
         LOG.info(f'DEBUG: First frame initialized with {len(frame1.pixels)} pixels')

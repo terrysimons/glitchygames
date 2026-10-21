@@ -1641,7 +1641,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.pixel_height = pixel_size
 
         # Create new pixel arrays
-        self.pixels = [(255, 0, 255, 255)] * (  # ty: ignore[invalid-assignment]
+        self.pixels = [(255, 0, 255, 255)] * (
             sprite_width * sprite_height
         )  # Initialize with magenta
         self.dirty_pixels = [True] * (sprite_width * sprite_height)

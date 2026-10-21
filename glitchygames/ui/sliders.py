@@ -633,7 +633,7 @@ class ColorWellSprite(BitmappySprite):
         self.blue = active_color[2]
         # Handle both RGB and RGBA tuples
         if len(active_color) == RGBA_COMPONENT_COUNT:
-            self.alpha = active_color[3]  # ty: ignore[index-out-of-bounds]
+            self.alpha = active_color[3]
         else:
             self.alpha = 255  # Default to fully opaque if not specified
         self.dirty = 1

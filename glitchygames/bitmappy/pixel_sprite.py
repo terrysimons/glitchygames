@@ -66,7 +66,7 @@ class BitmapPixelSprite(BitmappySprite):
             None
 
         """
-        return self._pixel_color  # ty: ignore[invalid-return-type]
+        return self._pixel_color
 
     @pixel_color.setter
     def pixel_color(

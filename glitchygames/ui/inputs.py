@@ -562,9 +562,9 @@ class ConfirmDialog(BitmappySprite):
         else:
             text_rect = text_surface.get_rect()
 
-        text_rect.centerx = self.image.get_width() // 2  # ty: ignore[unresolved-attribute]
-        text_rect.y = 20  # ty: ignore[unresolved-attribute]
-        self.image.blit(text_surface, text_rect)  # ty: ignore[invalid-argument-type]
+        text_rect.centerx = self.image.get_width() // 2
+        text_rect.y = 20
+        self.image.blit(text_surface, text_rect)
 
         # Draw Yes button
         yes_color = (60, 120, 60) if self.hover_button == 'yes' else (40, 100, 40)
@@ -576,8 +576,8 @@ class ConfirmDialog(BitmappySprite):
             yes_text, yes_text_rect = yes_text
         else:
             yes_text_rect = yes_text.get_rect()
-        yes_text_rect.center = self.yes_button_rect.center  # ty: ignore[unresolved-attribute]
-        self.image.blit(yes_text, yes_text_rect)  # ty: ignore[invalid-argument-type]
+        yes_text_rect.center = self.yes_button_rect.center
+        self.image.blit(yes_text, yes_text_rect)
 
         # Draw No button
         no_color = (120, 60, 60) if self.hover_button == 'no' else (100, 40, 40)
@@ -589,8 +589,8 @@ class ConfirmDialog(BitmappySprite):
             no_text, no_text_rect = no_text
         else:
             no_text_rect = no_text.get_rect()
-        no_text_rect.center = self.no_button_rect.center  # ty: ignore[unresolved-attribute]
-        self.image.blit(no_text, no_text_rect)  # ty: ignore[invalid-argument-type]
+        no_text_rect.center = self.no_button_rect.center
+        self.image.blit(no_text, no_text_rect)
 
         self.dirty = 0
 

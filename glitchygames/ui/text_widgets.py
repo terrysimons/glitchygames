@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 try:
     import pyperclip
 except ImportError:
-    pyperclip = None  # ty: ignore[invalid-assignment]
+    pyperclip = None
 
 import pygame
 from pygame import Rect
@@ -271,7 +271,7 @@ class TextSprite(BitmappySprite):
                 is_transparent=is_transparent,
             )
 
-        return text_surface, text_rect  # ty: ignore[invalid-return-type]
+        return text_surface, text_rect
 
     def _render_with_pygame_font(
         self,
@@ -1031,7 +1031,7 @@ class MultiLineTextBox(BitmappySprite):
                 else:
                     font_result = self.font.render(line, True, text_color)  # type: ignore[arg-type]  # ruff: ignore[boolean-positional-value-in-call]
                     text_surface = font_result[0] if isinstance(font_result, tuple) else font_result
-                self.image.blit(text_surface, (5, y_offset))  # ty: ignore[invalid-argument-type]
+                self.image.blit(text_surface, (5, y_offset))
             y_offset += line_height
 
     def _update_cursor_blink(self, current_time: int, line_height: int) -> None:

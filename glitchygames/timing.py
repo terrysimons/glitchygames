@@ -166,7 +166,7 @@ class FastTimer:
             try:
                 import ctypes
 
-                ctypes.windll.winmm.timeEndPeriod(1)  # ty: ignore[unresolved-attribute]
+                ctypes.windll.winmm.timeEndPeriod(1)
             except (OSError, AttributeError) as timer_error:
                 LOG.debug('Windows timer resolution cleanup failed: %s', timer_error)
 

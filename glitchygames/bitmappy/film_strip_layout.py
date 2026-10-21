@@ -276,7 +276,7 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
             else:  # pygame.font returns surface
                 text_rect = text_surface.get_rect()
 
-            label_width = text_rect.width + 20  # ty: ignore[unresolved-attribute]  # Add padding
+            label_width = text_rect.width + 20  # Add padding
             label_x = center_x - (label_width // 2)  # Center the label
 
             self.widget.animation_layouts[anim_name] = pygame.Rect(

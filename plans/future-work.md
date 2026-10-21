@@ -462,6 +462,8 @@ only replays; Part 2 Task 1).
     unchanged apart from paths; assets still included), golden traces and golden replay fixtures
     unchanged.
 - **Lint ignores cleanup** (user request, 2026-10-20): planned in
-  [`plans/2026-10-20-lint-ignores-cleanup.md`](2026-10-20-lint-ignores-cleanup.md) — dead ignores,
-  50 unused `ty: ignore` comments, narrowing `S311`, the 100 broad try blocks (`PLW0717`, BUGS.md #19),
-  `ANN401`, and a decision on `G004`.
+  [`plans/2026-10-20-lint-ignores-cleanup.md`](2026-10-20-lint-ignores-cleanup.md). Phases 1-2
+  done 2026-10-21 (the dead `EM101`/`EM102` ignores removed, the `COM812` comment corrected, the
+  50 unused `ty: ignore` comments deleted so ty reports nothing, `S311` scoped to
+  `glitchygames/randomness.py` and the tests). Left: the 100 broad try blocks (`PLW0717`,
+  BUGS.md #19), `ANN401`, and a decision on `G004`.

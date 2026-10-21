@@ -35,12 +35,12 @@ CONTROLLER_NOISE_RANDOM_STREAM = 'audio.controller_noise'
 try:
     import miniaudio as mi
 except ImportError:  # pragma: no cover
-    mi = None  # ty: ignore[invalid-assignment]
+    mi = None
 
 try:
     import speech_recognition as sr
 except ImportError:  # pragma: no cover
-    sr = None  # ty: ignore[invalid-assignment]
+    sr = None
 
 try:
     import hid as hidapi  # ty: ignore[unresolved-import]

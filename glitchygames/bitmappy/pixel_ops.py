@@ -217,7 +217,7 @@ def render_frames_side_by_side(
         else:
             # If rendering failed, use empty placeholder
             width, height = frame.get_size()
-            frame_outputs.append([' ' * width] * height)  # ty: ignore[invalid-argument-type]
+            frame_outputs.append([' ' * width] * height)
 
     if not frame_outputs:
         return ''

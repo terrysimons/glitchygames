@@ -1431,7 +1431,7 @@ class SceneManager(SceneInterface, events.EventManager):
             buf: list[int] = getattr(self, '_jitter_samples', None) or []
             if not self._jitter_samples:
                 self._jitter_samples = buf
-                now_init: int = timer_any.ns_now()  # ty: ignore[unresolved-attribute]
+                now_init: int = timer_any.ns_now()
                 self._jitter_last_log_ns = now_init
                 self._jitter_interval_start_ns = now_init
                 self._jitter_late_frames = 0
@@ -1443,7 +1443,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 self._jitter_late_frames = getattr(self, '_jitter_late_frames', 0) + 1
             # Log every fps_log_interval_ms
             interval_ns = int(float(self.fps_log_interval_ms) * 1_000_000)
-            now_ns: int = timer_any.ns_now()  # ty: ignore[unresolved-attribute]
+            now_ns: int = timer_any.ns_now()
             if now_ns - self._jitter_last_log_ns >= interval_ns:
                 self._log_jitter_interval(buf, now_ns)
         except (ValueError, TypeError, AttributeError) as jitter_error:
@@ -1511,8 +1511,8 @@ class SceneManager(SceneInterface, events.EventManager):
         if timer is not None and period_ns > 0:
             # Cast timer to Any since it has dynamic methods (compute_deadline, etc.)
             timer_any: Any = timer
-            deadline_ns: int = timer_any.compute_deadline(prev_deadline_ns, period_ns)  # ty: ignore[unresolved-attribute]
-            wake_ns: int = timer_any.sleep_until_next(deadline_ns)  # ty: ignore[unresolved-attribute]
+            deadline_ns: int = timer_any.compute_deadline(prev_deadline_ns, period_ns)
+            wake_ns: int = timer_any.sleep_until_next(deadline_ns)
             self._timer_prev_deadline_ns = deadline_ns
             # Deadlines use the timer's own clock; the frame is NOT measured with it. The pygame
             # backend's ns_now() is whole milliseconds (get_ticks() * 1_000_000), so a true

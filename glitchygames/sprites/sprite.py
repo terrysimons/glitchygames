@@ -642,7 +642,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         # terminate() is provided by Scene subclasses via SceneInterface,
         # not directly on Sprite. Cast to Any to allow dynamic dispatch.
         game: Any = self
-        game.terminate()  # ty: ignore[unresolved-attribute]
+        game.terminate()
 
     def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle an active event.

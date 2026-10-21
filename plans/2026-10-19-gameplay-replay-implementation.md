@@ -71,7 +71,8 @@ doors and unpaced pacing path, and its journal test uses `recording.recorded_dt`
   with the attribution trailer given in the session.
 - Run linters and type checkers before tests: `uv run ruff check glitchygames tests scripts
   noxfile.py`, `uv run ruff format --check glitchygames tests scripts noxfile.py`,
-  `uv run basedpyright`, `uv run nox -s static-analysis-ty` (the 50 known warnings only),
+  `uv run basedpyright`, `uv run nox -s static-analysis-ty` (the 50 known warnings only; since the
+  lint cleanup's phase 1, 2026-10-21, ty reports none),
   `uv run vulture glitchygames vulture_whitelist.py --min-confidence=80` (exit 0).
 - Full suite: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest -q -p no:cacheprovider`,
   read in the foreground. If you time it, zsh prints "... total", never "real" — do not wait for a

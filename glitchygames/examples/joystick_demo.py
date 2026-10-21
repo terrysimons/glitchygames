@@ -222,14 +222,14 @@ class _InlineTextBox:
         if isinstance(rendered, tuple):
             rendered = rendered[0]
         # Debug: check if text would go beyond surface bounds
-        text_width = rendered.get_width()  # ty: ignore[unresolved-attribute]
+        text_width = rendered.get_width()
         if self.x + text_width > surface.get_width():
             LOG.debug(
                 f"Text '{string}' width {text_width} "
                 f'at x={self.x} exceeds surface '
                 f'width {surface.get_width()}',
             )
-        surface.blit(rendered, (self.x, self.y))  # ty: ignore[invalid-argument-type]
+        surface.blit(rendered, (self.x, self.y))
         self.y += self.line_height
 
     def reset(self) -> None:

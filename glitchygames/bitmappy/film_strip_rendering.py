@@ -563,8 +563,8 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 text, text_rect = text
             else:  # pygame.font returns surface
                 text_rect = text.get_rect()
-            text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)  # ty: ignore[unresolved-attribute]
-            label_surface.blit(text, text_rect)  # ty: ignore[invalid-argument-type]
+            text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
+            label_surface.blit(text, text_rect)
 
         # Add hover highlighting (only if not editing)
         if (
@@ -600,8 +600,8 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 text, text_rect = text
             else:  # pygame.font returns surface
                 text_rect = text.get_rect()
-            text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)  # ty: ignore[unresolved-attribute]
-            label_surface.blit(text, text_rect)  # ty: ignore[invalid-argument-type]
+            text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
+            label_surface.blit(text, text_rect)
 
             # Draw blinking I-beam cursor after the text
             if self.widget.cursor_visible:
@@ -609,8 +609,8 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 pygame.draw.line(
                     label_surface,
                     text_color,
-                    (text_rect.right + 2, text_rect.centery - cursor_height // 2),  # ty: ignore[unresolved-attribute]
-                    (text_rect.right + 2, text_rect.centery + cursor_height // 2),  # ty: ignore[unresolved-attribute]
+                    (text_rect.right + 2, text_rect.centery - cursor_height // 2),
+                    (text_rect.right + 2, text_rect.centery + cursor_height // 2),
                     2,
                 )
         elif self.widget.cursor_visible:

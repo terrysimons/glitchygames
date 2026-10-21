@@ -41,13 +41,13 @@ from .models import AIRequest, AIResponse
 try:
     import aisuite as ai
 except ImportError, AttributeError:
-    ai = None  # ty: ignore[invalid-assignment]
+    ai = None
 
 # Try to import backoff for retry logic
 try:
     import backoff
 except ImportError:
-    backoff = None  # ty: ignore[invalid-assignment]
+    backoff = None
 
 if TYPE_CHECKING:
     import multiprocessing

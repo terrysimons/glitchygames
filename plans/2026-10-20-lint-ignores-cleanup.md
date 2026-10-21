@@ -1,8 +1,13 @@
 # Lint Ignores Cleanup — Plan
 
 - **Date:** 2026-10-20
-- **Status:** Plan (user asked for it; each phase needs the user's go-ahead before it changes lint or
-  type-checker configuration — standing rule).
+- **Status:** Phases 1 and 2 done 2026-10-21 on `feature/gameplay-replay` (the user's go-ahead:
+  "start addressing those future lint issues here and now"). Phase 1: `EM101`/`EM102` removed (0
+  violations), the `COM812` comment corrected, the 50 unused `ty: ignore` comments deleted (none
+  shared with basedpyright, which reads only `# pyright:`/`# type:` comments; ty now reports
+  nothing). Phase 2: `S311` moved to per-file ignores for `glitchygames/randomness.py` and
+  `tests/**`; the 34 measured sites were all in those two places, so no engine code changed.
+  Phases 3-5 still need the user's go-ahead (standing rule for lint configuration changes).
 - **Why:** several global ignores in `pyproject.toml` are dead, mislabelled or broader than needed,
   and some suppression comments no longer suppress anything. Tightening them makes the linters catch
   real problems again (broad try blocks hide bugs; a stray `random` call would break replay

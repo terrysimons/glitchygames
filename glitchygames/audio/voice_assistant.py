@@ -31,12 +31,12 @@ log: logging.Logger = logging.getLogger('game.audio.voice_assistant')
 try:
     import speech_recognition as sr
 except ImportError:  # pragma: no cover
-    sr = None  # ty: ignore[invalid-assignment]
+    sr = None
 
 try:
     import aisuite as ai
 except ImportError, AttributeError:  # pragma: no cover
-    ai = None  # ty: ignore[invalid-assignment]
+    ai = None
     log.warning(
         '*** aisuite not available — voice assistant AI features disabled. '
         'Install aisuite or check Python 3.14 compatibility (ast.NameConstant removed). ***',

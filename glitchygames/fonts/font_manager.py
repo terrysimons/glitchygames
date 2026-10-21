@@ -149,15 +149,15 @@ class FontManager(ResourceManager):
             pygame.font.init()
 
         # Set up the default options.
-        FontManager.OPTIONS['font_name'] = self.game.OPTIONS['font_name']  # ty: ignore[unresolved-attribute]
-        FontManager.OPTIONS['font_size'] = self.game.OPTIONS['font_size']  # ty: ignore[unresolved-attribute]
-        FontManager.OPTIONS['font_bold'] = self.game.OPTIONS['font_bold']  # ty: ignore[unresolved-attribute]
-        FontManager.OPTIONS['font_italic'] = self.game.OPTIONS['font_italic']  # ty: ignore[unresolved-attribute]
-        FontManager.OPTIONS['font_antialias'] = self.game.OPTIONS['font_antialias']  # ty: ignore[unresolved-attribute]
-        FontManager.OPTIONS['font_dpi'] = self.game.OPTIONS['font_dpi']  # ty: ignore[unresolved-attribute]
+        FontManager.OPTIONS['font_name'] = self.game.OPTIONS['font_name']
+        FontManager.OPTIONS['font_size'] = self.game.OPTIONS['font_size']
+        FontManager.OPTIONS['font_bold'] = self.game.OPTIONS['font_bold']
+        FontManager.OPTIONS['font_italic'] = self.game.OPTIONS['font_italic']
+        FontManager.OPTIONS['font_antialias'] = self.game.OPTIONS['font_antialias']
+        FontManager.OPTIONS['font_dpi'] = self.game.OPTIONS['font_dpi']
 
         # Set font system based on command line argument
-        font_system: str = self.game.OPTIONS.get('font_system', 'freetype')  # ty: ignore[unresolved-attribute]
+        font_system: str = self.game.OPTIONS.get('font_system', 'freetype')
         FontManager.OPTIONS['use_freetype'] = font_system == 'freetype'
         log.info('Font system initialized: %s', font_system)
 
@@ -406,7 +406,7 @@ class FontManager(ResourceManager):
         # Get pygame.font
         pygame_font = cls.get_font('pygame', config)
         pygame_render_result = pygame_font.render(text, fgcolor=(255, 255, 255))
-        pygame_surface: pygame.Surface = (  # ty: ignore[invalid-assignment]
+        pygame_surface: pygame.Surface = (
             pygame_render_result[0]
             if isinstance(pygame_render_result, tuple)
             else pygame_render_result
@@ -415,7 +415,7 @@ class FontManager(ResourceManager):
         # Get pygame.freetype
         freetype_font = cls.get_font('freetype', config)
         freetype_render_result = freetype_font.render(text, fgcolor=(255, 255, 255))
-        freetype_surface: pygame.Surface = (  # ty: ignore[invalid-assignment]
+        freetype_surface: pygame.Surface = (
             freetype_render_result[0]
             if isinstance(freetype_render_result, tuple)
             else freetype_render_result
