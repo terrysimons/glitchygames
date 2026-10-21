@@ -99,7 +99,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found on feature/gameplay-replay (final review fixes, item A4)
 - **Date Reported**: 2026-10-20
-- **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code
+- **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code. Documented for game authors in `docs/architecture/gameplay_replay.md` (Polled input): handle such keys through events or by position (`scancode_pressed`, `ActionMap.bind(scancode=...)`), not by polling their key code
 - **Files**: `glitchygames/input/state.py`
 
 ## Resolved Bugs

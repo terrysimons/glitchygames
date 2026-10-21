@@ -127,6 +127,17 @@ Held keys are physical positions (scancodes), and a key code depends on the keyb
 key in the A position is `K_q` on AZERTY). A recording therefore also holds the key codes the
 held keys had on the recording machine, and a replay answers `key_pressed(pygame.K_q)` as that
 machine did, whatever the replaying machine's layout. Only pygame's `K_*` key codes are recorded.
+
+Limitation (BUGS.md #83): keys a layout adds that pygame names no `K_*` constant for, such as
+French `é`, German `ß` or Spanish `ñ` (SDL gives them their character's code point as the key
+code), are not in that list. The recorder can only find the held key codes by trying every
+`K_*` constant (pygame lets Python ask a key code's position, not a position's key code), so a
+game that polls one, say `key_pressed(ord('é'))`, reads it held live but not held in a replay,
+even on the machine that recorded it. Key events are unaffected (a recorded KEYDOWN or KEYUP
+keeps its `key`, whatever its value), and so are positional controls (`scancode_pressed`,
+`ActionMap.bind(scancode=...)`). Handle such keys through events or by position, not by
+polling their key code.
+
 For positional controls (movement, say), poll `scancode_pressed(scancode=pygame.KSCAN_*)`: no
 keymap is consulted, so it is the same key on every layout, live or replayed, as
 `ActionMap.bind(scancode=...)` is for events.
