@@ -197,10 +197,15 @@ class EngineSources(Protocol):
         dt: float,
         scene: Scene | None,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         """Called once after each frame (recording writes it, replay compares it).
 
         ``control_events`` are the control events recorded in the frame, in order.
+        ``processing_seconds`` is the frame's processing time (its work, without presenting,
+        without this call and without pacing; ``clock.measured_seconds``): a diagnostic a
+        recording writes and a replay may compare (glitchygames/replay/processing.py), never
+        served to the game; None when not measured.
         """
         ...
 

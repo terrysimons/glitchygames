@@ -217,13 +217,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
-### 40. Gameplay Replay Core ✅ COMPLETED (Part 1 of 3)
+### 40. Gameplay Replay ✅ COMPLETED (Parts 1-3)
 - **Description**: Replay a `--record-trace` recording exactly through the real engine
   (`--replay-trace PATH`), comparing every frame's sprites with the recording and reporting the
-  first divergence; audit determinism in two fresh processes (`--audit`)
+  first divergence; audit determinism in two fresh processes (`--audit`); replay tooling (Part 2)
+  and in-game playback (Part 3)
 - **Use Case**: Bug reproduction from a recording, regression tests from real play, finding
-  nondeterminism; the base for replay tooling (Part 2) and in-game playback (Part 3, pending)
-- **Status**: ✅ COMPLETED (branch `feature/gameplay-replay`, 2026-10-19); Parts 2 and 3 pending
+  nondeterminism; watching and stepping through recordings; attract-mode demos, instant replays
+  and ghosts in games
+- **Status**: ✅ COMPLETED (branch `feature/gameplay-replay`: Part 1 2026-10-19, Parts 2 and 3
+  2026-10-20; final whole-branch review clean 2026-10-20; not yet pushed)
 - **Priority**: High
 - **Implementation**:
   - The doors: `glitchygames/sources.py` (leaf registry), `LiveSources`, `RecordingSources`,
@@ -234,6 +237,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Trace format 3, `--replay-fps {recorded,real}`, real input blocked at SDL during a replay,
     golden replay fixtures (`tests/fixtures/replays/`, `scripts/record_scripted_session.py`),
     run as pytest items by the replay plugin (`glitchygames/testing/replays.py`)
+  - Part 2, tooling: `--headless`, the watched-replay viewer (pause, step, speed, step back
+    through a restarted process, bookmarks saved to `*.bookmarked.jsonl.gz`), recordings as
+    pytest items, `--rebaseline`
+  - Part 3, playback: scene starts (`glitchygames/scene_start.py`), the playback scope
+    (`glitchygames/replay/playback.py`), demos (`play_recording`; PaddleSlap's bundled demo on
+    its game-over screen), instant replay (`glitchygames/instant_replay.py`), ghosts
+    (`glitchygames/replay/ghosts.py`)
 - **Docs**: CLAUDE.md (Clocks, Gameplay Recording and Replay),
   `docs/architecture/gameplay_replay.md`, `plans/2026-10-19-gameplay-replay.md`
 

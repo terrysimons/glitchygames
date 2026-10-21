@@ -80,6 +80,21 @@ class TestQueries:
         assert len(pressed) == SCANCODE_COUNT
         assert pressed[pygame.K_LEFT]
 
+    def test_scancode_pressed_reads_a_physical_position(self):
+        """The positional query for polled controls: no keymap, the same on every layout."""
+        snapshot = snapshot_with(pressed_scancodes=frozenset({pygame.KSCAN_W}))
+        assert snapshot.scancode_pressed(scancode=pygame.KSCAN_W)
+        assert not snapshot.scancode_pressed(scancode=pygame.KSCAN_S)
+
+    def test_scancode_pressed_ignores_the_recording_layouts_key_codes(self):
+        """Recorded on AZERTY, the key in QWERTY's W place was held and named Z."""
+        snapshot = snapshot_with(
+            pressed_scancodes=frozenset({pygame.KSCAN_W}), held_key_codes=frozenset({pygame.K_z})
+        )
+        assert snapshot.scancode_pressed(scancode=pygame.KSCAN_W)
+        assert snapshot.key_pressed(pygame.K_z)
+        assert not snapshot.key_pressed(pygame.K_w)
+
     def test_device_queries_default_to_rest(self):
         """Unknown devices, axes, buttons and hats read as at rest."""
         snapshot = snapshot_with(

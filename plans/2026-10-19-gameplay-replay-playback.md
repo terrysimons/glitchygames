@@ -5,6 +5,8 @@
 **Master plan:** [2026-10-19-gameplay-replay-implementation.md](2026-10-19-gameplay-replay-implementation.md)
 (read its Global Constraints, Review Focus and Cross-part interfaces first)
 
+**Status:** Done (all 7 tasks, 2026-10-20, on `feature/gameplay-replay`; checkboxes not ticked).
+
 **Goal:** Let games play recordings inside a running session — attract-mode demos and instant
 replays, both exact input replays on a rebuilt scene — and show ghosts (recorded appearance
 tracks) beside live play.

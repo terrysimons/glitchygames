@@ -9,6 +9,7 @@ import pytest
 
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
+from glitchygames.testing.keys import qwerty_scancode
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -58,10 +59,12 @@ class TestPauseScreen:
         # Simulate spacebar press to trigger pause
         space_down_event = mocker.Mock()
         space_down_event.key = pygame.K_SPACE
+        space_down_event.scancode = qwerty_scancode(key=pygame.K_SPACE)
         space_down_event.type = pygame.KEYDOWN
 
         space_up_event = mocker.Mock()
         space_up_event.key = pygame.K_SPACE
+        space_up_event.scancode = qwerty_scancode(key=pygame.K_SPACE)
         space_up_event.type = pygame.KEYUP
 
         # Handle the key events (down then up to trigger pause)
@@ -88,10 +91,12 @@ class TestPauseScreen:
         # Simulate pause
         space_down_event = mocker.Mock()
         space_down_event.key = pygame.K_SPACE
+        space_down_event.scancode = qwerty_scancode(key=pygame.K_SPACE)
         space_down_event.type = pygame.KEYDOWN
 
         space_up_event = mocker.Mock()
         space_up_event.key = pygame.K_SPACE
+        space_up_event.scancode = qwerty_scancode(key=pygame.K_SPACE)
         space_up_event.type = pygame.KEYUP
 
         game.on_key_down_event(space_down_event)
@@ -171,10 +176,12 @@ class TestPauseScreenIntegration:
         # Simulate pause
         space_down_event = mocker.Mock()
         space_down_event.key = pygame.K_SPACE
+        space_down_event.scancode = qwerty_scancode(key=pygame.K_SPACE)
         space_down_event.type = pygame.KEYDOWN
 
         space_up_event = mocker.Mock()
         space_up_event.key = pygame.K_SPACE
+        space_up_event.scancode = qwerty_scancode(key=pygame.K_SPACE)
         space_up_event.type = pygame.KEYUP
 
         game.on_key_down_event(space_down_event)

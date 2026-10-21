@@ -204,6 +204,7 @@ class StoppingSources(LiveSources):
         dt: float,
         scene: object,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         """Record the frame number."""
         self.ended_frames.append(frame_number)

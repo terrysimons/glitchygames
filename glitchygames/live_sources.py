@@ -227,11 +227,12 @@ class LiveSources:
         dt: float,
         scene: Scene | None,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         """Discard the frame's device answers and descriptors nobody took.
 
         A recorder (Task 11 of the gameplay replay plan) takes them before this runs.
         """
         # The frame itself needs nothing from live play (EngineSources signature)
-        del frame_number, dt, scene, control_events
+        del frame_number, dt, scene, control_events, processing_seconds
         self._devices.discard_untaken()

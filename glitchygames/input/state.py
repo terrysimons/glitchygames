@@ -241,6 +241,22 @@ class InputSnapshot:
         """
         return bool(self.pressed_keys[key])
 
+    def scancode_pressed(self, *, scancode: int) -> bool:
+        """Return whether the key at a physical position (a pygame.KSCAN_* code) is held.
+
+        The positional query for polled controls (movement, say), as
+        ``ActionMap.bind(scancode=...)`` is for events: no keymap is consulted, so it answers the
+        same on every keyboard layout, live or replayed (the snapshot holds the held scancodes).
+
+        Args:
+            scancode: The physical key position.
+
+        Returns:
+            True when the key in that position is held.
+
+        """
+        return scancode in self.pressed_scancodes
+
     def axis(self, *, device_id: int, axis: int) -> float:
         """Return an axis position; 0.0 for an unknown device or axis.
 

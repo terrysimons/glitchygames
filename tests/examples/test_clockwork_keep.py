@@ -1,5 +1,6 @@
 """Tests for the Clockwork Keep example game."""
 
+import argparse
 import logging
 import math
 import types
@@ -30,6 +31,7 @@ from glitchygames.examples.clockwork_keep.game import (
 from glitchygames.examples.clockwork_keep.player import Tinker
 from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import CoordinateSpace, position_world_sprites
 
 FRAME_TIME = 1.0 / 60.0
@@ -58,7 +60,9 @@ def _stand_on_first_elevator(scene):
 
 
 def _press_key(scene, key):
-    scene.on_key_down_event(HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0))
+    scene.on_key_down_event(
+        HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key))
+    )
 
 
 class TestElevatorActivation:
@@ -81,7 +85,13 @@ class TestElevatorActivation:
         """Even if on_ground is restored before the check, jump alone never rides."""
         _stand_on_first_elevator(clockwork_scene)
         clockwork_scene.actions.handle_event(
-            HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode='', scancode=0)
+            HashableEvent(
+                pygame.KEYDOWN,
+                key=pygame.K_SPACE,
+                mod=0,
+                unicode='',
+                scancode=qwerty_scancode(key=pygame.K_SPACE),
+            )
         )
         clockwork_scene._check_elevator()
         clockwork_scene.transition_to.assert_not_called()
@@ -358,6 +368,45 @@ class TestFloorThreeClock:
             'player_score': 1450,
             'player_lives': 2,
         }
+
+
+class TestStartingFloor:
+    """--floor picks the first floor; floors built by the game name theirs (BUGS.md #79)."""
+
+    @pytest.fixture(autouse=True)
+    def _display(self):
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+
+    def test_floor_option_picks_the_first_floor(self):
+        """The engine builds the first scene from options alone, so --floor must reach it."""
+        scene = ClockworkKeepScene(options={'input_mode': 'joystick', 'floor': 1})
+        assert scene.floor_index == 1
+        assert scene.replay_arguments()['floor_index'] == 1
+
+    def test_no_floor_option_starts_on_the_boiler_room(self):
+        scene = ClockworkKeepScene(options={'input_mode': 'joystick'})
+        assert scene.floor_index == 0
+
+    def test_explicit_floor_index_wins_over_the_option(self):
+        """The elevator and playback rebuilds name the floor; --floor is only the first one."""
+        scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick', 'floor': 1})
+        assert scene.floor_index == 2
+
+    @pytest.mark.parametrize('floor_argument', ['-1', '3'])
+    def test_floor_option_out_of_range_is_refused(self, floor_argument, capsys):
+        parser = argparse.ArgumentParser()
+        ClockworkKeepScene.args(parser)
+        with pytest.raises(SystemExit):
+            parser.parse_args(['--floor', floor_argument])
+        assert f"invalid choice: '{floor_argument}'" in capsys.readouterr().err
+
+    def test_floor_option_in_range_parses(self):
+        parser = argparse.ArgumentParser()
+        ClockworkKeepScene.args(parser)
+        assert parser.parse_args(['--floor', '2']).floor == 2
 
 
 class TestPlatformSupportUsesHitbox:
@@ -667,3 +716,44 @@ def test_world_shake_on_a_set_up_floor_does_not_warn(clockwork_scene, mocker, ca
     with caplog.at_level(logging.WARNING):
         clockwork_scene.shake(ELEVATOR_STOP_BOUNCE, targets=ShakeTarget.WORLD)
     assert all('WORLD shake on' not in record.getMessage() for record in caplog.records)
+
+
+def key_at(*, key: int, scancode: int) -> HashableEvent:
+    """Return a key press reporting ``key`` at physical position ``scancode`` (another layout).
+
+    Returns:
+        The KEYDOWN event.
+
+    """
+    return HashableEvent(pygame.KEYDOWN, key=key, scancode=scancode, mod=0, unicode='')
+
+
+class TestPositionalKeys:
+    """Every control is a physical position (scancode bindings), pause and quit included."""
+
+    @pytest.mark.parametrize(
+        ('action', 'scancode', 'qwerty_key'),
+        [
+            ('move_right', pygame.KSCAN_RIGHT, pygame.K_RIGHT),
+            ('move_left', pygame.KSCAN_LEFT, pygame.K_LEFT),
+            ('jump', pygame.KSCAN_SPACE, pygame.K_SPACE),
+            ('jump', pygame.KSCAN_UP, pygame.K_UP),
+            ('interact', pygame.KSCAN_W, pygame.K_w),
+            ('run', pygame.KSCAN_LSHIFT, pygame.K_LSHIFT),
+        ],
+    )
+    def test_a_positional_control_is_its_position(
+        self, clockwork_scene, action, scancode, qwerty_key
+    ):
+        actions = clockwork_scene.actions
+        assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
+        assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
+
+    @pytest.mark.parametrize(
+        ('action', 'scancode', 'qwerty_key'),
+        [('pause', pygame.KSCAN_ESCAPE, pygame.K_ESCAPE), ('quit', pygame.KSCAN_Q, pygame.K_q)],
+    )
+    def test_pause_and_quit_are_positions_too(self, clockwork_scene, action, scancode, qwerty_key):
+        actions = clockwork_scene.actions
+        assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
+        assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None

@@ -28,6 +28,7 @@ from scripts.record_golden_traces import (
 )
 from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY, REPLAY_FIXTURE_SUFFIX
 
+from glitchygames import recording_history
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -36,6 +37,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.process import run_command
 from glitchygames.recording import (
+    EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
     RECORDING_FORMAT_THREE_FIELDS,
     SCENE_START_FIELD,
@@ -43,6 +45,18 @@ from glitchygames.recording import (
     RecordingSources,
     pending_internal_posts,
     post_event,
+    post_input_event,
+)
+from glitchygames.recording_history import (
+    CONTENT_HASH_FIELD,
+    CONTENT_HASH_SCHEME,
+    MEASUREMENT_FRAME_FIELDS,
+    MEASUREMENT_RUNS_HEADER_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    MeasurementRun,
+    frame_content_hash,
+    latest_measurement_run,
+    recording_content_hash,
 )
 from glitchygames.replay import audit
 from glitchygames.replay import driver as driver_module
@@ -81,6 +95,7 @@ from glitchygames.replay.driver import (
     write_bookmarked_copy,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
+from glitchygames.replay.processing import machine_description
 from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebuild, ViewerState
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
 from glitchygames.scenes import SceneManager
@@ -692,6 +707,67 @@ def recorded_frame(*, frame_number: int, dt: float = 0.25) -> dict[str, Any]:
         'dt': dt,
         'event_batches': [],
     }
+
+
+def post_supervisor_goal(*, as_input: bool) -> Callable[[], None]:
+    """Return a scripted action that posts a user event, as input or as the game's own post.
+
+    Returns:
+        The action.
+
+    """
+    poster = post_input_event if as_input else post_event
+
+    def post_goal() -> None:
+        poster(pygame.event.Event(pygame.USEREVENT, {'supervisor_goal': 1}))
+
+    return post_goal
+
+
+class TestInputPosts:
+    """post_input_event is input to the game: a replay serves it whether or not it posts it."""
+
+    @pytest.mark.parametrize('replay_posts_it_again', [True, False])
+    def test_an_input_post_replays_with_or_without_its_poster(
+        self, mocker, tmp_path, replay_posts_it_again
+    ):
+        """A poster the replay runs again has its copy dropped; one it lacks is served."""
+        action = post_supervisor_goal(as_input=True)
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, action=action, action_frame=ACTION_FRAME
+        )
+        recorded_origins = [
+            record['origin']
+            for frame in read_trace_result(path=recording_path).trace['frames']
+            for batch in frame['event_batches']
+            for record in batch
+            if record['attributes'].get('supervisor_goal') == 1
+        ]
+        assert recorded_origins == [EXTERNAL_ORIGIN]
+        engine = replay_session(
+            recording_path=recording_path,
+            mocker=mocker,
+            action=action if replay_posts_it_again else None,
+            action_frame=ACTION_FRAME,
+        )
+        assert engine.replay_sources is not None
+        result = engine.replay_sources.result
+        assert result.divergence is None, result.report()
+        assert result.end_reason == 'end_of_recording'
+
+    def test_a_code_post_the_replay_never_makes_still_diverges(self, mocker, tmp_path):
+        """post_event stays the game's own post (BUGS.md #84's case without post_input_event)."""
+        recording_path = record_session(
+            tmp_path=tmp_path,
+            mocker=mocker,
+            action=post_supervisor_goal(as_input=False),
+            action_frame=ACTION_FRAME,
+        )
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        divergence = engine.replay_sources.result.divergence
+        assert divergence is not None
+        assert divergence.kind == EVENT_DIVERGENCE
 
 
 class TestRoundTrip:
@@ -1800,8 +1876,42 @@ class TestReplayReport:
         result = ReplayResult(frames_replayed=7, end_reason=end_reason)
         assert result.report() == report
         assert result.exit_code(policy=ReplayExitPolicy.RESULT) == exit_code
-        # A rebaseline exits SUCCESS once it has written, whatever the result
+        # A rebaseline exits SUCCESS once it has written, whatever the result, unless input
+        # was lost (test_a_rebaseline_that_lost_input_exits_input_lost)
         assert result.exit_code(policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING) == (ExitCode.SUCCESS)
+
+    @pytest.mark.parametrize(
+        ('frames_replayed', 'undelivered_input_count'),
+        [(7, 3), (5, 0)],
+        ids=['undelivered_events', 'ended_early'],
+    )
+    def test_a_rebaseline_that_lost_input_exits_input_lost(
+        self, frames_replayed, undelivered_input_count
+    ):
+        """The summary's lost input (rebaseline.py rule 2) is in the exit status too."""
+        result = ReplayResult(
+            frames_replayed=frames_replayed,
+            frames_recorded=7,
+            undelivered_input_count=undelivered_input_count,
+            end_reason='end_of_recording',
+        )
+        assert result.has_lost_input
+        assert result.exit_code(policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING) == (
+            ExitCode.REBASELINE_INPUT_LOST
+        )
+        # A plain replay's exit is its result's, as before
+        assert result.exit_code(policy=ReplayExitPolicy.RESULT) == ExitCode.SUCCESS
+
+    def test_a_rebaseline_whose_frames_differ_still_succeeds(self):
+        """Differing frames are the point of a rebaseline; only lost input is reported."""
+        result = ReplayResult(
+            frames_replayed=7,
+            frames_recorded=7,
+            differing_frame_count=4,
+            end_reason='end_of_recording',
+        )
+        assert not result.has_lost_input
+        assert result.exit_code(policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING) == ExitCode.SUCCESS
 
     def test_the_options_are_read_only_typed_and_closed(self):
         options = ReplayOptions(headless=True, digest_path='digests.jsonl')
@@ -2784,6 +2894,29 @@ class TestBookmarkedCopy:
     def test_the_bookmarked_copy_path(self, tmp_path, name, copy_name):
         assert bookmarked_copy_path(recording_path=tmp_path / name) == tmp_path / copy_name
 
+    def test_a_bookmarked_frames_hash_describes_its_breakpoint(self, mocker, tmp_path):
+        """The breakpoint is the frame's content now; older runs' hashes stay (final review #2).
+
+        Without it, a rebaseline of the copy (which re-applies the breakpoint) would show every
+        bookmarked frame as changed behaviour.
+        """
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        write_bookmarked_copy(recording_path=recording_path, bookmarks=[3], destination=destination)
+        original = read_trace_result(path=recording_path).trace['frames']
+        copy = read_trace_result(path=destination).trace['frames']
+        assert all(
+            frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame) for frame in copy
+        )
+        assert copy[2][CONTENT_HASH_FIELD][0] != original[2][CONTENT_HASH_FIELD][0]
+        assert copy[1][CONTENT_HASH_FIELD] == original[1][CONTENT_HASH_FIELD]
+        rebaselined = tmp_path / 'rebaselined.jsonl.gz'
+        rebaseline_session(recording_path=destination, new_path=rebaselined, mocker=mocker)
+        assert all(
+            frame[CONTENT_HASH_FIELD][0] == frame[CONTENT_HASH_FIELD][1]
+            for frame in read_trace_result(path=rebaselined).trace['frames']
+        )
+
     def test_bookmarked_copy_adds_breakpoints(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         original_bytes = recording_path.read_bytes()
@@ -2795,6 +2928,11 @@ class TestBookmarkedCopy:
         # The session records no control events of its own
         assert 'control_events' not in original['frames'][2]
         assert copy['frames'][2].pop('control_events') == [BOOKMARK_RECORD]
+        # The bookmarked frame's newest hash describes its breakpoint now; nothing else changes
+        copy_hashes = copy['frames'][2].pop(CONTENT_HASH_FIELD)
+        original_hashes = original['frames'][2].pop(CONTENT_HASH_FIELD)
+        assert copy_hashes[0] != original_hashes[0]
+        assert copy_hashes[1:] == original_hashes[1:]
         assert copy.pop('bookmarked_copy_of') == 'session.jsonl.gz'
         assert copy == original
         assert destination.name == 'session.bookmarked.jsonl.gz'
@@ -2975,6 +3113,7 @@ class TestBookmarkedCopy:
         header = rebaseline_header(
             original_header={'random_seed': 5, 'bookmarked_copy_of': 'session.jsonl.gz'},
             original_path=tmp_path / 'session.bookmarked.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
         )
         assert 'bookmarked_copy_of' not in header
 
@@ -4084,6 +4223,25 @@ class TestAuditOption:
         assert 'diverged' in audit_run.stdout
 
 
+def rebaseline_measurement_run() -> MeasurementRun:
+    """Return a rebaseline's provenance for header tests (``rebaseline_header``).
+
+    Returns:
+        The run.
+
+    """
+    return MeasurementRun(
+        machine=machine_description(),
+        processing_paced=False,
+        engine_version='1.0.0',
+        pygame_version='2.5.8',
+        python_version='3.14.8',
+        measured_at='2026-10-21T12:00:00+00:00',
+        rebaselined_from='old.jsonl.gz',
+        hash_scheme=CONTENT_HASH_SCHEME,
+    )
+
+
 def rebaseline_session(
     *,
     recording_path: Path,
@@ -4107,6 +4265,410 @@ def rebaseline_session(
             action_frame=action_frame,
         )
     return exit_info.value.code
+
+
+class FakeProcessingClock:
+    """Stands in for the scene manager's ``measured_seconds``: each reading ``step`` later."""
+
+    def __init__(self, *, step: float) -> None:
+        """Start at 0.
+
+        Args:
+            step: Seconds between readings.
+
+        """
+        self.step = step
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        """Return the next reading.
+
+        Returns:
+            Seconds.
+
+        """
+        self.now += self.step
+        return self.now
+
+
+def with_processing_step(mocker, *, step: float) -> None:
+    """Make every measured processing time a fixed multiple of ``step`` (record and replay)."""
+    mocker.patch('glitchygames.scenes.scene.measured_seconds', new=FakeProcessingClock(step=step))
+
+
+def recorded_processing_times(*, path: Path) -> list[float | None]:
+    """Return each recorded frame's newest processing time (None where it has none).
+
+    Returns:
+        The times, in frame order.
+
+    """
+    return [
+        (frame.get(PROCESSING_SECONDS_FIELD) or [None])[0]
+        for frame in read_trace_result(path=path).trace['frames']
+    ]
+
+
+class TestProcessingComparison:
+    """--compare-processing: this machine's processing time against the recording's."""
+
+    def test_a_recording_holds_each_frames_processing_time_and_its_machine(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        times = recorded_processing_times(path=recording_path)
+        assert times
+        assert all(isinstance(seconds, float) and seconds >= 0.0 for seconds in times)
+        header = read_trace_result(path=recording_path).trace
+        run = latest_measurement_run(header=header)
+        assert run is not None
+        assert run.machine == machine_description()
+        # The harness runs uncapped (--target-fps 0): its frames are not paced
+        assert header['options']['target_fps'] == 0.0
+        assert run.processing_paced is False
+        assert run.rebaselined_from is None
+
+    def test_a_run_with_a_target_fps_says_its_frames_are_paced(self, mocker, tmp_path):
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, extra_arguments=('--target-fps', '60')
+        )
+        run = latest_measurement_run(header=read_trace_result(path=recording_path).trace)
+        assert run is not None
+        assert run.processing_paced is True
+
+    def test_the_comparison_is_reported_after_the_replay(self, mocker, tmp_path, capsys):
+        with_processing_step(mocker, step=0.001)
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        capsys.readouterr()
+        with_processing_step(mocker, step=0.002)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless', '--compare-processing'),
+            )
+        assert exit_info.value.code == ExitCode.SUCCESS
+        report_line, processing_line = capsys.readouterr().out.splitlines()[-2:]
+        assert report_line.startswith('Replay matched')
+        assert processing_line.startswith('Processing: the replay took ')
+        assert 'longer than the recording' in processing_line
+
+    @pytest.mark.parametrize(
+        ('replay_step', 'exit_code'),
+        [(0.002, ExitCode.PROCESSING_SLOWER), (0.0005, ExitCode.SUCCESS)],
+        ids=['slower', 'faster'],
+    )
+    def test_the_allowed_slowdown_is_a_check(self, mocker, tmp_path, replay_step, exit_code):
+        with_processing_step(mocker, step=0.001)
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with_processing_step(mocker, step=replay_step)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless', '--max-processing-slowdown', '10'),
+            )
+        assert exit_info.value.code == exit_code
+
+    def test_a_divergence_still_exits_diverged(self, mocker, tmp_path):
+        with_processing_step(mocker, step=0.001)
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        with_processing_step(mocker, step=0.002)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless', '--max-processing-slowdown', '10'),
+            )
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+
+    def test_a_recording_without_processing_times_cannot_be_checked(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+
+        def drop_processing_times(trace: dict[str, Any]) -> None:
+            for frame in trace['frames']:
+                frame.pop(PROCESSING_SECONDS_FIELD, None)
+
+        rewrite_recording(recording_path=recording_path, change=drop_processing_times)
+        capsys.readouterr()
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless', '--max-processing-slowdown', '10'),
+            )
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert 'Processing: nothing to compare' in capsys.readouterr().out
+
+    @pytest.mark.parametrize(
+        ('arguments', 'message'),
+        [
+            (('--compare-processing',), '--compare-processing needs --headless'),
+            (('--headless', '--compare-processing', '--audit'), 'not with --audit'),
+            (
+                ('--headless', '--compare-processing', '--rebaseline', '{new}'),
+                'not with --rebaseline',
+            ),
+            (('--max-processing-slowdown', '5'), '--compare-processing needs --headless'),
+        ],
+    )
+    def test_unsound_comparisons_are_refused(self, mocker, tmp_path, caplog, arguments, message):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        filled_arguments = tuple(argument.format(new=new_path) for argument in arguments)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=filled_arguments
+            )
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
+        assert message in caplog.text
+        assert not new_path.exists()
+
+    @pytest.mark.parametrize(
+        'arguments', [('--compare-processing',), ('--max-processing-slowdown', '5')]
+    )
+    def test_without_a_replay_the_options_are_ignored_with_a_warning(
+        self, mocker, tmp_path, caplog, arguments
+    ):
+        record_session(tmp_path=tmp_path, mocker=mocker, extra_arguments=arguments)
+        assert f'{arguments[0]} is ignored without --replay-trace' in caplog.text
+
+    def test_a_rebaseline_records_its_own_processing_times(self, mocker, tmp_path):
+        """NEW's times are the current code's, measured as it ran, never OLD's copied over."""
+        with_processing_step(mocker, step=0.001)
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with_processing_step(mocker, step=0.003)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        rebaseline_session(recording_path=recording_path, new_path=new_path, mocker=mocker)
+        old_times = recorded_processing_times(path=recording_path)
+        new_times = recorded_processing_times(path=new_path)
+        assert len(new_times) == len(old_times)
+        assert sum(time or 0.0 for time in new_times) > sum(time or 0.0 for time in old_times)
+        # Measured unpaced (a headless replay), as a later replay of NEW will be: a fair baseline
+        new_run = latest_measurement_run(header=read_trace_result(path=new_path).trace)
+        assert new_run is not None
+        assert new_run.processing_paced is False
+        assert new_run.machine == machine_description()
+        assert new_run.rebaselined_from == str(recording_path)
+
+
+class TestRebaselinedHeader:
+    """NEW's header: one name for its source, no unreleased fields."""
+
+    def test_rebaselined_header_names_the_source_one_way(self, tmp_path):
+        """The run's rebaselined_from is the header's, however the path was written."""
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        written_path = f'{tmp_path}/./old.jsonl.gz'
+        header = rebaseline_header(
+            original_header={'random_seed': 5},
+            original_path=Path(written_path),
+            measurement_run=rebaseline_measurement_run().model_copy(
+                update={'rebaselined_from': written_path}
+            ),
+        )
+        run = header[MEASUREMENT_RUNS_HEADER_FIELD][0]
+        assert run['rebaselined_from'] == header['rebaselined_from']
+        assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
+
+    def test_rebaselined_header_drops_the_unreleased_top_level_fields(self, tmp_path):
+        """2026-10-20's unreleased format named the machine and pacing at the top level."""
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        header = rebaseline_header(
+            original_header={'random_seed': 5, 'machine': 'old', 'processing_paced': True},
+            original_path=tmp_path / 'old.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
+        )
+        assert 'machine' not in header
+        assert 'processing_paced' not in header
+
+
+class TestRebaselineHistory:
+    """Each rebaseline puts its run in front: frames' histories and the header's runs align."""
+
+    def rebaselined(self, *, mocker, tmp_path, source: Path, name: str) -> Path:
+        """Rebaseline ``source`` to ``tmp_path / name`` and return it (exit SUCCESS expected).
+
+        Returns:
+            NEW's path.
+
+        """
+        new_path = tmp_path / name
+        exit_status = rebaseline_session(recording_path=source, new_path=new_path, mocker=mocker)
+        assert exit_status == ExitCode.SUCCESS
+        return new_path
+
+    def test_two_rebaselines_stack_three_aligned_runs(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        first = self.rebaselined(
+            mocker=mocker, tmp_path=tmp_path, source=recording_path, name='a.jsonl.gz'
+        )
+        second = self.rebaselined(mocker=mocker, tmp_path=tmp_path, source=first, name='b.jsonl.gz')
+        trace = read_trace_result(path=second).trace
+        runs = trace[MEASUREMENT_RUNS_HEADER_FIELD]
+        assert [run['rebaselined_from'] for run in runs] == [str(first), str(recording_path), None]
+        for frame in trace['frames']:
+            assert len(frame[CONTENT_HASH_FIELD]) == 3
+            assert len(frame[PROCESSING_SECONDS_FIELD]) == 3
+            # Unchanged code: every run's hash is the same
+            assert len(set(frame[CONTENT_HASH_FIELD])) == 1
+        assert recording_content_hash(frames=trace['frames'], run_index=0) == (
+            recording_content_hash(frames=trace['frames'], run_index=2)
+        )
+
+    def test_a_recording_from_before_histories_starts_one(self, mocker, tmp_path):
+        """Today's golden fixtures: no histories and no runs; NEW gets one of each, aligned."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+
+        def forget_the_history(trace: dict[str, Any]) -> None:
+            trace.pop(MEASUREMENT_RUNS_HEADER_FIELD, None)
+            for frame in trace['frames']:
+                for name in (CONTENT_HASH_FIELD, PROCESSING_SECONDS_FIELD):
+                    frame.pop(name, None)
+
+        rewrite_recording(recording_path=recording_path, change=forget_the_history)
+        new_path = self.rebaselined(
+            mocker=mocker, tmp_path=tmp_path, source=recording_path, name='a.jsonl.gz'
+        )
+        trace = read_trace_result(path=new_path).trace
+        assert len(trace[MEASUREMENT_RUNS_HEADER_FIELD]) == 1
+        assert all(len(frame[CONTENT_HASH_FIELD]) == 1 for frame in trace['frames'])
+        assert all(len(frame[PROCESSING_SECONDS_FIELD]) == 1 for frame in trace['frames'])
+
+    def test_depths_tuned_apart_keep_the_indexes_aligned(self, mocker, tmp_path):
+        mocker.patch.object(recording_history, 'PROCESSING_SECONDS_HISTORY_DEPTH', 3)
+        mocker.patch.object(recording_history, 'CONTENT_HASH_HISTORY_DEPTH', 2)
+        mocker.patch.object(recording_history, 'MEASUREMENT_RUNS_HISTORY_DEPTH', 1)
+        path = record_session(tmp_path=tmp_path, mocker=mocker)
+        for name in ('a.jsonl.gz', 'b.jsonl.gz', 'c.jsonl.gz'):
+            path = self.rebaselined(mocker=mocker, tmp_path=tmp_path, source=path, name=name)
+        trace = read_trace_result(path=path).trace
+        assert len(trace[MEASUREMENT_RUNS_HEADER_FIELD]) == 1
+        frame = trace['frames'][0]
+        assert len(frame[PROCESSING_SECONDS_FIELD]) == 3
+        assert len(frame[CONTENT_HASH_FIELD]) == 2
+        # Index 0 is the newest run everywhere, and index 1 the run before: b's newest entries
+        assert trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['rebaselined_from'] == str(
+            tmp_path / 'b.jsonl.gz'
+        )
+        before = read_trace_result(path=tmp_path / 'b.jsonl.gz').trace['frames']
+        for frame, frame_before in zip(trace['frames'], before, strict=True):
+            assert frame[PROCESSING_SECONDS_FIELD][1] == frame_before[PROCESSING_SECONDS_FIELD][0]
+            assert frame[CONTENT_HASH_FIELD][1] == frame_before[CONTENT_HASH_FIELD][0]
+
+    def test_changed_behaviour_changes_exactly_the_frames_it_touched(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+
+        def move_the_marker() -> None:
+            # The current code draws the departure scene's marker elsewhere from this frame on
+            scene = SceneManager().active_scene
+            assert isinstance(scene, DepartureRecordedScene)
+            scene.marker.rect.y = 99
+
+        rebaseline_session(
+            recording_path=recording_path,
+            new_path=tmp_path / 'changed.jsonl.gz',
+            mocker=mocker,
+            action=move_the_marker,
+            action_frame=ACTION_FRAME,
+        )
+        frames = read_trace_result(path=tmp_path / 'changed.jsonl.gz').trace['frames']
+        changed = [
+            index
+            for index, frame in enumerate(frames)
+            if frame[CONTENT_HASH_FIELD][0] != frame[CONTENT_HASH_FIELD][1]
+        ]
+        old_frames = read_trace_result(path=recording_path).trace['frames']
+        drawn_differently = [
+            index
+            for index, (old_frame, new_frame) in enumerate(zip(old_frames, frames, strict=True))
+            if old_frame['sprites'] != new_frame['sprites']
+        ]
+        assert changed[0] == ACTION_FRAME
+        # Exactly the frames drawn differently, and no others
+        assert changed == drawn_differently
+
+    def test_a_rebaseline_that_ends_early_stacks_only_the_frames_it_ran(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'short.jsonl.gz'
+        rebaseline_session(
+            recording_path=recording_path,
+            new_path=new_path,
+            mocker=mocker,
+            action=lambda: SceneManager().quit_game(),
+            action_frame=1,
+        )
+        old_frames = read_trace_result(path=recording_path).trace['frames']
+        new_frames = read_trace_result(path=new_path).trace['frames']
+        assert len(new_frames) < len(old_frames)
+        assert all(len(frame[CONTENT_HASH_FIELD]) == 2 for frame in new_frames)
+        assert recording_content_hash(frames=new_frames, run_index=1) != recording_content_hash(
+            frames=old_frames
+        )
+        # The file says how long the run before was (its newest run's count is the file's)
+        runs = read_trace_result(path=new_path).trace[MEASUREMENT_RUNS_HEADER_FIELD]
+        assert runs[1]['frame_count'] == len(old_frames)
+        assert runs[0]['frame_count'] is None
+
+
+class TestRebaselineEndedByTheGamesOwnExit:
+    """A game's own sys.exit during --rebaseline: success ends it early, failure writes nothing."""
+
+    @pytest.mark.parametrize('exit_status', [0, None])
+    def test_a_games_own_successful_exit_ends_the_rebaseline_early(
+        self, mocker, tmp_path, capsys, exit_status
+    ):
+        """Like quit_game(): NEW holds the frames that ran, and the lost input is reported."""
+
+        def exit_successfully() -> None:
+            raise SystemExit(exit_status)
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status_seen = rebaseline_session(
+            recording_path=recording_path,
+            new_path=new_path,
+            mocker=mocker,
+            action=exit_successfully,
+            action_frame=ACTION_FRAME,
+        )
+        assert exit_status_seen == ExitCode.REBASELINE_INPUT_LOST
+        assert not new_path.with_name(new_path.name + '.partial').exists()
+        new_frame_count = len(read_trace_result(path=new_path).trace['frames'])
+        # The frames before the one the game left part way through
+        assert new_frame_count == ACTION_FRAME
+        output = capsys.readouterr().out
+        assert f'; ended at frame {new_frame_count} of {frame_count}' in output
+        # NEW replays clean on the code that exits there: it ends before the exit is reached
+        engine = replay_session(
+            recording_path=new_path,
+            mocker=mocker,
+            action=exit_successfully,
+            action_frame=ACTION_FRAME,
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        assert engine.replay_sources.result.end_reason == 'end_of_recording'
+
+    def test_a_games_own_failing_exit_writes_nothing(self, mocker, tmp_path, capsys):
+        """A failure status says the run did not succeed: it is kept, and NEW is not written."""
+
+        def exit_with_failure() -> None:
+            raise SystemExit(ExitCode.CANNOT_WRITE_OUTPUT)
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path,
+            new_path=new_path,
+            mocker=mocker,
+            action=exit_with_failure,
+            action_frame=ACTION_FRAME,
+        )
+        assert exit_status == ExitCode.CANNOT_WRITE_OUTPUT
+        assert not new_path.exists()
+        assert f'{new_path} was not written' in capsys.readouterr().out
 
 
 class TestRebaseline:
@@ -4144,9 +4706,28 @@ class TestRebaseline:
         assert capsys.readouterr().out.rstrip().endswith(': no frames differ')
         old_trace = read_trace_result(path=recording_path).trace
         new_trace = read_trace_result(path=new_path).trace
+
         # Same inputs (batches with their origins, dt, input changes, control events), sprites
-        # and scene starts (the replayed code captures its own, frame 0's included)
-        assert new_trace['frames'] == old_trace['frames']
+        # and scene starts (the replayed code captures its own, frame 0's included); only the
+        # measurements differ: NEW holds this run's own in front of OLD's (recording_history.py)
+        def without_measurements(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            return [
+                {
+                    name: value
+                    for name, value in frame.items()
+                    if name not in MEASUREMENT_FRAME_FIELDS
+                }
+                for frame in frames
+            ]
+
+        assert without_measurements(new_trace['frames']) == without_measurements(
+            old_trace['frames']
+        )
+        # Unchanged behaviour: this run's hash equals OLD's, now one entry deeper
+        assert all(
+            frame[CONTENT_HASH_FIELD][0] == frame[CONTENT_HASH_FIELD][1]
+            for frame in new_trace['frames']
+        )
         assert SCENE_START_FIELD in new_trace['frames'][0]
         assert new_trace['rebaselined_from'] == str(recording_path)
         for field_name in ('random_seed', 'recorded_at', 'options', 'saves', 'devices'):
@@ -4158,8 +4739,16 @@ class TestRebaseline:
         header = rebaseline_header(
             original_header={'random_seed': 5, 'engine_version': 'old'},
             original_path=tmp_path / 'old.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
         )
         assert header['random_seed'] == 5
+        assert header[MEASUREMENT_RUNS_HEADER_FIELD] == [
+            {
+                **rebaseline_measurement_run().to_json(),
+                'rebaselined_from': str(tmp_path / 'old.jsonl.gz'),
+            }
+        ]
+
         assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
         assert header['engine_version'] == importlib.metadata.version('glitchygames')
         assert 'source_truncated' not in header
@@ -4170,6 +4759,7 @@ class TestRebaseline:
         header = rebaseline_header(
             original_header={'random_seed': 5, 'input_capture_format_version': 2},
             original_path=tmp_path / 'old.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
             source_truncated=True,
         )
         assert header['source_truncated'] is True
@@ -4488,8 +5078,8 @@ class TestRebaseline:
         exit_status = rebaseline_session(
             recording_path=recording_path, new_path=new_path, mocker=mocker
         )
-        # The summary is what the user reviews; the rebaseline is still written
-        assert exit_status == ExitCode.SUCCESS
+        # The rebaseline is still written, but a script sees the input it lost
+        assert exit_status == ExitCode.REBASELINE_INPUT_LOST
         output = capsys.readouterr().out
         assert '; 1 recorded input event not delivered (first at frame 2)' in output
         assert 'ended at frame' not in output
@@ -4510,7 +5100,7 @@ class TestRebaseline:
             action=lambda: SceneManager().quit_game(),
             action_frame=1,
         )
-        assert exit_status == ExitCode.SUCCESS
+        assert exit_status == ExitCode.REBASELINE_INPUT_LOST
         output = capsys.readouterr().out
         new_frame_count = len(read_trace_result(path=new_path).trace['frames'])
         assert new_frame_count < frame_count

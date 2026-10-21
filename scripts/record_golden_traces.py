@@ -59,6 +59,7 @@ from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdve
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
+from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
 
 if TYPE_CHECKING:
@@ -144,29 +145,34 @@ class RecordTraceHooks(TypedDict, total=False):
 
 
 def press(key: int) -> pygame.event.Event:
-    """Build a key-down event.
+    """Build a key-down event, at the key's US QWERTY position as a real keyboard reports it.
 
     Args:
         key: The pygame key code.
 
     Returns:
-        The KEYDOWN event.
+        The KEYDOWN event (its ``scancode`` from ``qwerty_scancode``: games bind positional
+        controls by scancode).
 
     """
-    return pygame.event.Event(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0)
+    return pygame.event.Event(
+        pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key)
+    )
 
 
 def release(key: int) -> pygame.event.Event:
-    """Build a key-up event.
+    """Build a key-up event, at the key's US QWERTY position as a real keyboard reports it.
 
     Args:
         key: The pygame key code.
 
     Returns:
-        The KEYUP event.
+        The KEYUP event (its ``scancode`` from ``qwerty_scancode``).
 
     """
-    return pygame.event.Event(pygame.KEYUP, key=key, mod=0, unicode='', scancode=0)
+    return pygame.event.Event(
+        pygame.KEYUP, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key)
+    )
 
 
 @dataclass

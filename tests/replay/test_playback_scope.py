@@ -19,10 +19,11 @@ from glitchygames.audio.live import VoiceState
 from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT
 from glitchygames.examples import joystick_demo, paddleslap
+from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import random_stream
-from glitchygames.recording import SCENE_START_FIELD, post_event
+from glitchygames.recording import SCENE_START_FIELD, post_event, post_input_event
 from glitchygames.replay.playback import (
     PlaybackOptions,
     PlaybackSources,
@@ -68,6 +69,7 @@ from tests.world.test_frame_integration import (
 from tests.world.test_gameplay_replay import cut_off_after_frame
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from pytest_mock import MockerFixture
@@ -758,6 +760,31 @@ class UpdatePostingScene(CountingScene):
         post_event(pygame.event.Event(pygame.USEREVENT, {'from_update': self.frames_ticked}))
 
 
+class SetupInputPostingSupervisor:
+    """Posts one user event as input (``post_input_event``) on its second call."""
+
+    def __init__(self) -> None:
+        """Post nothing yet."""
+        self.calls = 0
+
+    def on_frame(self, *, frame_number: int, scene: Any) -> None:
+        """Post on the second call (implements glitchygames.supervision.Supervisor)."""
+        del frame_number, scene
+        self.calls += 1
+        if self.calls == 2:
+            post_input_event(pygame.event.Event(pygame.USEREVENT, {'from_setup_supervisor': 1}))
+
+
+class InputSupervisingCountingScene(CountingScene):
+    """Adds an input-posting supervisor in every setup(): a played scene adds it again."""
+
+    @override
+    def setup(self) -> None:
+        """Add the supervisor, which the scope owns when the played scene adds it."""
+        super().setup()
+        SceneManager().add_supervisor(supervisor=SetupInputPostingSupervisor())
+
+
 class QuitOnItsOwnEventScene(CountingScene):
     """On its last recorded tick posts an event whose handler asks the game to quit.
 
@@ -810,14 +837,21 @@ class LivePostingSupervisor:
     replay early (glitchygames/replay/playback.py, rule 7).
     """
 
-    def __init__(self, *, ends_the_scope: bool) -> None:
+    def __init__(
+        self,
+        *,
+        ends_the_scope: bool,
+        poster: Callable[[pygame.event.Event], bool] = post_event,
+    ) -> None:
         """Post nothing yet.
 
         Args:
             ends_the_scope: True to call ``end_playback()`` before posting.
+            poster: How it posts: ``post_event`` (the game's own post) or ``post_input_event``.
 
         """
         self.ends_the_scope = ends_the_scope
+        self.poster = poster
         self.posted_frame_number: int | None = None
 
     def on_frame(self, *, frame_number: int, scene: Any) -> None:
@@ -828,7 +862,7 @@ class LivePostingSupervisor:
         self.posted_frame_number = frame_number
         if self.ends_the_scope:
             manager.end_playback()
-        post_event(pygame.event.Event(pygame.USEREVENT, {'from_live_supervisor': frame_number}))
+        self.poster(pygame.event.Event(pygame.USEREVENT, {'from_live_supervisor': frame_number}))
 
 
 class TestScopePostsNeverReachTheLiveGame:
@@ -884,10 +918,12 @@ class TestScopePostsNeverReachTheLiveGame:
                 {'from_live_supervisor': supervisor.posted_frame_number}
             ]
 
+    @pytest.mark.parametrize('poster', [post_event, post_input_event])
     @pytest.mark.parametrize('ends_the_scope', [True, False])
     def test_a_session_with_a_live_supervisors_scope_post_replays_exactly(
-        self, tmp_path, ends_the_scope
+        self, tmp_path, ends_the_scope, poster
     ):
+        """The replay runs the supervisor again; an input post is re-posted as input after."""
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
         )
@@ -896,7 +932,7 @@ class TestScopePostsNeverReachTheLiveGame:
         def play_in_the_session(manager: Any) -> list[dict[str, Any]]:
             live_scene = manager.active_scene
             assert isinstance(live_scene, LiveUserEventScene)
-            supervisor = LivePostingSupervisor(ends_the_scope=ends_the_scope)
+            supervisor = LivePostingSupervisor(ends_the_scope=ends_the_scope, poster=poster)
             manager.add_supervisor(supervisor=supervisor)
             step(manager, frames=LIVE_FRAMES_BEFORE)
             start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
@@ -926,6 +962,48 @@ class TestScopePostsNeverReachTheLiveGame:
             assert replay_sources.result.divergence is None
             assert replay_sources.result.frames_replayed == len(session_frames)
         assert replayed_user_events == live_user_events
+
+    def test_a_session_whose_played_scene_posts_input_replays_exactly(self, tmp_path):
+        """The played scene's own supervisor posts input again; each run drops its copy."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path,
+            frames=SHORT_RECORDED_FRAMES,
+            scene_class=InputSupervisingCountingScene,
+        )
+        session_path = tmp_path / 'session.jsonl.gz'
+
+        def play_in_the_session(manager: Any) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, LiveUserEventScene)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES + LIVE_FRAMES_AFTER)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert manager.last_playback_result is not None
+            assert manager.last_playback_result.divergence is None
+            # The played scene's input never reaches the live scene
+            assert live_scene.user_events == []
+
+        with running_scene(LiveUserEventScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            play_in_the_session(manager)
+            engine.stop_trace_recording()
+        _header, session_frames = recorded_trace(path=session_path)
+        with running_scene(
+            LiveUserEventScene,
+            extra_arguments=['--replay-trace', str(session_path), '--headless'],
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            play_in_the_session(manager)
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None
+            assert replay_sources.result.frames_replayed == len(session_frames)
 
     def test_a_post_made_in_update_in_the_last_frame_is_dropped(self, tmp_path):
         recording_path = record_counting_scene(
@@ -1072,6 +1150,35 @@ class TestRumbleThroughAPlayback:
             live_rumble.pulse(low_frequency=1.0, high_frequency=0.5, duration=0.5)
             step(manager)
             device.rumble.assert_called_once()
+
+    def test_a_playback_asks_its_own_door_for_the_joysticks_as_the_recording_did(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """Each send asks the played recording's joystick count, so none is left queued.
+
+        A count left unasked would be read by the played scene's next enumeration of its own.
+        The live game's device cache is never asked (it would reopen joysticks afterwards).
+        """
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=PulsingScene
+        )
+        recorded_counts = [
+            answer
+            for frame in read_trace_result(path=recording_path).trace['frames']
+            for answer in frame.get('device_enumeration', [])
+            if answer['call'] == JOYSTICK_COUNT_CALL
+        ]
+        assert recorded_counts, 'the recorded pulse should have asked the joystick count'
+        with running_scene(CountingScene) as manager:
+            live_find = mocker.spy(manager._rumble_devices, 'find')
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            asked_counts = mocker.spy(ReplayDeviceRegistry, 'joystick_count')
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert asked_counts.call_count == len(recorded_counts)
+            live_find.assert_not_called()
 
 
 class TestOnlyScopedErrorsAreContained:

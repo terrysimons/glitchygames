@@ -29,6 +29,10 @@ uv run paddleslap --replay-trace session.jsonl.gz --audit
 # After an intentional change: replay the same inputs on the current code, write what it does
 # to a new recording and print what changed
 uv run paddleslap --replay-trace session.jsonl.gz --rebaseline new-session.jsonl.gz --headless
+
+# Did the code get slower? Compare this machine's processing time per frame with the
+# recording's; with a limit, more than 10% slower exits 8
+uv run paddleslap --replay-trace session.jsonl.gz --headless --max-processing-slowdown 10
 ```
 
 ## The doors
@@ -101,7 +105,8 @@ from pygame:
 from glitchygames.input.state import current_input
 
 snapshot = current_input()          # or GameEngine.input
-snapshot.key_pressed(pygame.K_LEFT)
+snapshot.key_pressed(pygame.K_LEFT)                # by key code (follows the layout)
+snapshot.scancode_pressed(scancode=pygame.KSCAN_W)  # by physical position (every layout)
 snapshot.modifiers                  # KMOD bits
 snapshot.mouse_position             # (x, y)
 snapshot.mouse_buttons              # (left, middle, right)
@@ -122,6 +127,9 @@ Held keys are physical positions (scancodes), and a key code depends on the keyb
 key in the A position is `K_q` on AZERTY). A recording therefore also holds the key codes the
 held keys had on the recording machine, and a replay answers `key_pressed(pygame.K_q)` as that
 machine did, whatever the replaying machine's layout. Only pygame's `K_*` key codes are recorded.
+For positional controls (movement, say), poll `scancode_pressed(scancode=pygame.KSCAN_*)`: no
+keymap is consulted, so it is the same key on every layout, live or replayed, as
+`ActionMap.bind(scancode=...)` is for events.
 
 ### Devices
 
@@ -150,6 +158,12 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
 - Post events with `glitchygames.recording.post_event`, not `pygame.event.post`, so a recording
   can mark them internal. Replay delivers internal events from the code that posts them again;
   an SDL-type event posted directly would be delivered twice.
+- Code that drives the game from outside its logic, as a player would (a supervisor, a test
+  harness, a tool), posts with `glitchygames.recording.post_input_event` instead. The event is
+  recorded as external input, whatever its type, so `--replay-trace`, instant replays and demos
+  serve it whether or not they run the poster again (a copy the replayed code posts is
+  dropped). A supervisor that posts with `post_event` is taken for the game itself, and a
+  replay that does not run it diverges.
 - Draw random numbers from the seeded named streams in `glitchygames/randomness.py`
   (`random_stream('name')`, `numpy_stream('name')`), never from the global `random` functions,
   `secrets` or an unseeded numpy generator.
@@ -256,7 +270,8 @@ as for any run, and the report then says only where the replay stopped (`Replay 
 12: the run ended with INTERNAL_ERROR (70)`); if the replay had already reached its result, the
 report gives it, then `then the run ended with ...` (see
 [exit codes](#exit-codes)). The game's own successful exit (`sys.exit(0)`) before the replay
-reached its result exits `REPLAY_DIVERGED` (1), never `SUCCESS`, which would say it matched.
+reached its result exits `REPLAY_DIVERGED` (1), never `SUCCESS`, which would say it matched
+(a rebaseline takes it as the game ending early instead: below).
 A recording whose header or first frame cannot be decoded (a malformed device, saves or input
 field) is refused as unusable (`UNUSABLE_INPUT`, 65), like an unreadable file.
 
@@ -427,6 +442,8 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
 | 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's generation request |
 | 5 | `EXTRACTION_REJECTED` | The API server rejected the sprite client's frame extraction |
 | 6 | `AUDIO_DROPOUT_RISK` | `scripts/audio_glitch_probe.py` found a risk of audio dropouts |
+| 7 | `REBASELINE_INPUT_LOST` | `--rebaseline` wrote NEW, but the run never received some of OLD's input (it ended early, or did not pump a recorded batch) |
+| 8 | `PROCESSING_SLOWER` | A replay matched, but its processing time exceeded the recording's by more than `--max-processing-slowdown` |
 | 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
 | 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
 | 66 | `MISSING_INPUT` | The input file does not exist |
@@ -448,6 +465,92 @@ SIGKILL and SIGSTOP cannot be caught, Python ignores SIGPIPE, and SIGQUIT keeps 
 convention. An engine started off the main thread cannot install its handlers, so SIGTERM then
 ends it the system's default way, without the teardown. An exception raised before the run
 starts (while the engine is being constructed) exits with Python's default status 1.
+
+## Comparing processing time (`--compare-processing`)
+
+A recording holds each frame's **processing time** (`processing_seconds`): the frame's work
+(logic, events, frame services, positioning and rendering), without presenting it, without the
+recorder's own writing and without the pacing sleep. The header's latest measurement run
+(`measurement_runs[0]`, see "Content hashes and measurement history" below) names the machine
+it was measured on (system, version and architecture, never the host name). These are
+diagnostics: a replay never compares them with the recording to decide whether it matched, and
+never serves them to the game. The comparison uses the newest entry, `processing_seconds[0]`.
+
+`--replay-trace PATH --headless --compare-processing` measures this machine's processing time
+for every replayed frame the same way and prints one line after the replay's report:
+
+```text
+Replay matched 9800 frames (end of recording)
+Processing: the replay took 14.2% longer than the recording (9800 frames: 30.410 s against 26.630 s; median frame 3.100 ms against 2.710 ms); slowest against the recording: frame 812 +6.100 ms, frame 813 +5.920 ms, frame 4400 +3.010 ms
+```
+
+`--max-processing-slowdown PERCENT` (which implies `--compare-processing`) makes it a check: a
+replay that matched but took more than PERCENT longer in total exits `PROCESSING_SLOWER` (8). A
+divergence still exits `REPLAY_DIVERGED` (1), and a recording without processing times (made
+before they were recorded) cannot be checked: `UNUSABLE_INPUT` (65), with `Processing: nothing
+to compare` after the report.
+
+Why processing time and not wall-clock time: a live run is paced (most of each frame is the
+sleep before the next) and a headless replay is not paced at all, so their total times measure
+different things. Processing time measures the same work in both. It only compares on the same
+machine, so make the baseline on the machine that will check it (a CI runner); the report says
+so when the recording names another machine.
+
+Pacing still slows the work itself: between paced frames the processor idles and clocks down,
+so a live recording's frames take longer than the same frames in an unpaced replay (one
+Clockwork Keep session measured about 65% faster replayed than recorded live). So make the
+baseline with a rebaseline, which is measured unpaced as every later replay is, and check
+against it:
+
+```bash
+# Once, on the CI machine: the baseline (the same inputs, measured unpaced)
+uv run clockwork-keep --replay-trace session.jsonl.gz --rebaseline baseline.jsonl.gz --headless
+
+# On every change: fail if the work got more than 10% slower
+uv run clockwork-keep --replay-trace baseline.jsonl.gz --headless --max-processing-slowdown 10
+```
+
+Replays of the same session against such a baseline land within about 1% of it. The latest
+measurement run says whether it paced its frames (`processing_paced`; a live run with a target
+FPS, as recording began), and the report adds a note when the baseline was paced. `--compare-processing` needs `--headless` (a
+watched replay presents, steps and rebuilds frames as its viewer asks) and is refused
+(`OPTIONS_REFUSED`, 64) with `--audit` and with `--rebaseline` (a rebaseline's NEW records the
+current code's own processing times anyway). The contract is
+`glitchygames/replay/processing.py`'s docstring.
+
+## Content hashes and measurement history
+
+Every frame a recorder writes carries two histories, newest first, and the header a third
+(design: `plans/2026-10-20-recording-content-hash-and-history.md`; contract:
+`glitchygames/recording_history.py`):
+
+| Where | Field | Each entry | Depth constant (10) |
+|---|---|---|---|
+| frame | `content_hash` | the frame's content hash | `CONTENT_HASH_HISTORY_DEPTH` |
+| frame | `processing_seconds` | its processing time (`null` when not measured) | `PROCESSING_SECONDS_HISTORY_DEPTH` |
+| header | `measurement_runs` | the run's provenance: machine, `processing_paced`, engine, pygame and Python versions, `measured_at`, `rebaselined_from`, `hash_scheme`, and `frame_count` (how many frames it wrote; filled in when the next rebaseline stacks onto it, `null` for the newest run, whose count is the file's) | `MEASUREMENT_RUNS_HISTORY_DEPTH` |
+
+A fresh recording writes one entry in each. A rebaseline puts its own in front of the replayed
+recording's and drops the oldest past the depth, so index `i` means run `i` in every list. If
+the runs' depth is tuned below the hash depth, the deeper hashes have no run, so no
+`hash_scheme`: treat their scheme as unknown. A reader takes the fields of a run it knows and
+ignores fields a newer engine added.
+
+The **content hash** is the first 64 bits of SHA-256 of the frame's content fields as a JSON
+reader decodes them (string keys, lists), encoded as compact, key-sorted JSON (hash scheme 1),
+so the stored hash is the one a reader recomputes from the frame it reads. Content is everything the game did or took in: `dt`, the event
+batches, input, control events, devices, saves, scene starts, the scene and its sprites.
+Measurements (the two history fields) are left out. Every frame field is one or the other, and
+the hash refuses a field that is neither, so a new field cannot slip in or out unnoticed.
+
+A rebaseline copies the inputs, `dt` included, so an unchanged game gives the same hash one
+entry deeper, and a changed one shows exactly which frames changed. Two fresh recordings of the
+same script differ anyway (each measures its own `dt`, and the game moves by it). A recording's
+own hash, for any run, is derived from its frames' hashes:
+`recording_content_hash(frames=..., run_index=i)`; it is not stored.
+
+Neither history is compared by a replay or served to the game. They are the record the
+baselines in the repository keep: behaviour (hashes) and speed (processing times) over time.
 
 ## Golden replays
 
@@ -490,14 +593,16 @@ writes what that code did to NEW: the same inputs and a new picture. The contrac
   frame did not pump (the current code pumped fewer times than recorded), and OLD's frames
   after the game ended early.
 - NEW is written to `NEW.partial` and moved into place only when the run ends normally; a run
-  that crashes or is interrupted writes nothing. If the move fails (say NEW is a directory),
+  that crashes, is interrupted or fails its own exit (`sys.exit(1)`) writes nothing; the game's
+  own successful exit (`sys.exit(0)`) ends it early as `quit_game()` does (NEW holds the frames
+  that ran, exit `REBASELINE_INPUT_LOST`). If the move fails (say NEW is a directory),
   the finished `NEW.partial` is kept, its path logged and printed, and the run exits
   `CANNOT_WRITE_OUTPUT` (73). NEW is never OLD, and `NEW.partial` is never OLD either. A
   `NEW.partial` that cannot be written at all is refused before the replay starts, with one
   line and `CANNOT_WRITE_OUTPUT` (73), as is an unwritable `--record-trace` or
   `--replay-digest` file. NEW is an original, never a bookmarked copy (OLD's
   `bookmarked_copy_of` is dropped), so S on a replay of NEW never rewrites it.
-- It prints one line to stdout and exits `SUCCESS` (0):
+- It prints one line to stdout and exits `SUCCESS` (0), however many frames differ:
 
 ```text
 Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites affected: Ball#2, Ball#3
@@ -505,8 +610,9 @@ Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120: sprite Ball#2 
 
   or `Rebaselined 9800 frames to NEW: no frames differ`. Lost input (above) is added to the
   line and logged as a warning, e.g. `; 3 recorded input events not delivered (first at frame
-  812); ended at frame 500 of 9800`. The run still exits `SUCCESS`: NEW is written, and the
-  summary is what you review before using it.
+  812); ended at frame 500 of 9800`. NEW is still written (it replays clean), but the run
+  exits `REBASELINE_INPUT_LOST` (7) instead, so a script that replaces fixtures notices that
+  NEW is not a faithful re-run of OLD's session.
 
 It is refused (`OPTIONS_REFUSED`, 64) without `--replay-trace` or without `--headless` (a watched
 replay holds frames and takes the viewer's keys, so it is refused rather than made headless

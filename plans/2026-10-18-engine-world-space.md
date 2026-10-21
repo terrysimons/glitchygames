@@ -2,7 +2,8 @@
 
 - **Date:** 2026-10-18
 - **Branch:** `feature/engine-world-space`
-- **Status:** Design approved in conversation; spec awaiting review
+- **Status:** Implemented on `feature/engine-world-space` (`plans/engine-audit.md` #6 and #15:
+  Done; `plans/future-features.md` #39)
 - **Master plan:** `plans/engine-audit.md` items #6 (engine world space, absorbing pixel snapping
   and camera follow) and #15 (one end-of-frame call)
 

@@ -93,33 +93,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Not fixed here (documentation task). The help text is a one-line fix; `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
 - **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
 
-### 78. A Stale `glitchygames.egg-info` in the Checkout Root Hides the Installed Package Metadata
-- **Description**: The checkout root holds an untracked, git-ignored `glitchygames.egg-info/` from April 2025 (version 0.1.0, no entry points). Whenever the checkout root comes before `site-packages` on `sys.path` (pytest's rootdir insertion, `python -c` or `python -m` run from the root), `importlib.metadata` finds it first: `importlib.metadata.version('glitchygames')` returns `0.1.0` instead of `1.0.0`, so `--replay-trace` logs "The recording was made with engine version 1.0.0; this is 0.1.0" and recordings made that way would record `engine_version` 0.1.0; `importlib.metadata.entry_points()` (which keeps only the first distribution of each name) lists none of the project's console scripts
-- **Status**: Active (local environment)
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay tooling, Task 5: the replay plugin's console-script lookup failed under pytest)
-- **Date Reported**: 2026-10-20
-- **Details**: Not a code bug and not removed here (it is the user's file). Deleting the directory fixes it; `glitchygames/testing/replays.py` (`game_entry_point`) searches every distribution so the plugin works either way. `replay/driver.py` (`_installed_engine_version`) and `state/manager.py` still read the first one
-- **Files**: `glitchygames.egg-info/` (untracked), `glitchygames/replay/driver.py`, `glitchygames/state/manager.py`
-
-### 79. Clockwork Keep's `--floor` Option Is Parsed but Never Read
-- **Description**: `ClockworkKeepScene.args` adds `--floor` ("Starting floor (0=Boiler Room, 1=Gear Works, 2=Clock Face)"), but nothing reads `options['floor']`: the game always starts on floor 0 (`ClockworkKeepScene()` with its default `floor_index`)
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 1: Clockwork Keep's `replay_arguments`)
-- **Date Reported**: 2026-10-20
-- **Details**: Either read the option where the first floor is built (`floor_index=options.get('floor', 0)`, which would make `--floor` a recorded option a replay applies) or drop the argument. Not fixed here: it changes the game's behaviour, outside this task
-- **Files**: `glitchygames/examples/clockwork_keep/game.py`
-
-### 82. A Recording That Cannot Be Written Part Way Ends the Run as an Internal Error
-- **Description**: An unwritable `--record-trace` (or `--rebaseline` partial, `--replay-digest`) file is refused before the run with one line and `CANNOT_WRITE_OUTPUT` (73), and a digest file that fails at the end exits 73 after the report. But a recording whose writes start failing part way (the disk fills, the file system goes away) raises `OSError` from `GameplayRecorder.record_frame` inside the frame loop, so the run exits `INTERNAL_ERROR` (70) with a traceback
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A5)
-- **Date Reported**: 2026-10-20
-- **Details**: Catching `OSError` around the recorder's writes and ending the run with `CANNOT_WRITE_OUTPUT` (after closing what was written) would match the up-front refusal; not done here, as the review asked for the path checks only
-- **Files**: `glitchygames/recording.py`, `glitchygames/engine/game_engine.py`
-
 ### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
 - **Description**: Recordings now hold the key codes the held keys had (`held_key_codes`), so a replay on another keyboard layout answers `key_pressed(K_*)` as recorded. Only pygame's named `K_*` codes are recorded (`glitchygames.input.state.NAMED_KEY_CODES`): a key code a layout adds that pygame names no constant for (say a Unicode letter key) is never reported held in a replay, even on the recording machine
 - **Status**: Active (documented limitation)
@@ -129,16 +102,51 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code
 - **Files**: `glitchygames/input/state.py`
 
+## Resolved Bugs
+
+### 82. A Recording That Cannot Be Written Part Way Ends the Run as an Internal Error
+- **Description**: An unwritable `--record-trace` (or `--rebaseline` partial, `--replay-digest`) file is refused before the run with one line and `CANNOT_WRITE_OUTPUT` (73), and a digest file that fails at the end exits 73 after the report. But a recording whose writes start failing part way (the disk fills, the file system goes away) raises `OSError` from `GameplayRecorder.record_frame` inside the frame loop, so the run exits `INTERNAL_ERROR` (70) with a traceback
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A5)
+- **Date Reported**: 2026-10-20
+- **Details**: Catching `OSError` around the recorder's writes and ending the run with `CANNOT_WRITE_OUTPUT` (after closing what was written) would match the up-front refusal; not done here, as the review asked for the path checks only
+- **Files**: `glitchygames/recording.py`, `glitchygames/engine/game_engine.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: `GameplayRecorder` turns a failed write into `RecordingWriteError` (an `OSError`): it logs one line (`<path> could not be written: No space left on device`, no traceback), closes the file as far as it can (the frames before stay readable) and writes nothing more; `GameEngine.start` ends the run with `CANNOT_WRITE_OUTPUT` (73). A failure as the file is closed in the teardown (the gzip trailer) is logged, not raised, so the teardown finishes, and the run exits 73 too (`GameEngine.recording_write_failed`). A rebaseline's NEW goes through the same recorder
+
+### 78. A Stale `glitchygames.egg-info` in the Checkout Root Hides the Installed Package Metadata
+- **Description**: The checkout root holds an untracked, git-ignored `glitchygames.egg-info/` from April 2025 (version 0.1.0, no entry points). Whenever the checkout root comes before `site-packages` on `sys.path` (pytest's rootdir insertion, `python -c` or `python -m` run from the root), `importlib.metadata` finds it first: `importlib.metadata.version('glitchygames')` returns `0.1.0` instead of `1.0.0`, so `--replay-trace` logs "The recording was made with engine version 1.0.0; this is 0.1.0" and recordings made that way would record `engine_version` 0.1.0; `importlib.metadata.entry_points()` (which keeps only the first distribution of each name) lists none of the project's console scripts
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay tooling, Task 5: the replay plugin's console-script lookup failed under pytest)
+- **Date Reported**: 2026-10-20
+- **Details**: Not a code bug and not removed here (it is the user's file). Deleting the directory fixes it; `glitchygames/testing/replays.py` (`game_entry_point`) searches every distribution so the plugin works either way. `replay/driver.py` (`_installed_engine_version`) and `state/manager.py` still read the first one
+- **Files**: `glitchygames.egg-info/` (untracked), `glitchygames/replay/driver.py`, `glitchygames/state/manager.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: Deleted the stale directory (with the user's go-ahead); `importlib.metadata.version('glitchygames')` run from the checkout root now gives 1.0.0 and the console scripts are listed. `game_entry_point`'s search of every distribution (`glitchygames/testing/replays.py`) is left as it is: harmless, and it guards against the next stray egg-info (the src/ layout move would remove the cause)
+
 ### 84. A Live Supervisor's `post_event` Is Recorded as the Scene's Own Internal Event
 - **Description**: When a live supervisor (or control-event handler) calls `glitchygames.recording.post_event` in an ordinary live frame, the post is journaled and recorded as one of the scene's internal events. A later `instant_replay()` across that frame diverges (`event UserEvent missing internal event expected {...}, got None`), because nothing in the played scene makes that post; a post made in the frame just before `instant_replay()` plays the first time, but a second replay across that scope diverges. A `--replay-trace` replay of a `--record-trace` session diverges the same way unless the replay adds the same supervisor
-- **Status**: Active
+- **Status**: Resolved
 - **Priority**: Low (supervisors are an engine hook; no shipped game posts from one)
 - **Reporter**: Found by reading during the gameplay-replay final review fixes; confirmed by the re-review's probe
 - **Date Reported**: 2026-10-20
 - **Details**: Predates 77ed933 (present at 00b795d). Inside a playback scope, 77ed933 already keeps live supervisors' posts apart (`recording.live_game_posts`) and re-posts them after the scope; outside a scope they are not marked. Golden replays avoid it because `ScriptedInputSupervisor` (`scripts/record_scripted_session.py`) posts SDL input types with raw `pygame.event.post`, which are recorded as external input. A fix could mark supervisor-slot posts outside scopes too and record them as external (or as control events), so a replay serves them instead of expecting the game to make them
-- **Files**: `glitchygames/recording.py`, `glitchygames/scenes/scene.py`, `glitchygames/replay/playback.py`
+- **Files**: `glitchygames/recording.py`, `glitchygames/scenes/scene.py`, `glitchygames/replay/playback.py`, `glitchygames/replay/driver.py`, `glitchygames/engine/game_engine.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: An explicit API instead of guessing whose supervisor it is: `recording.post_input_event` posts an event as input to the game (a supervisor driving it, a harness, a tool). Recordings and the instant-replay journal record it as `external`, whatever its type, so every replay serves it whether or not it runs the poster again; a copy the replayed code posts (a supervisor the played scene's setup() added) is dropped (`ReplaySources._sort_live_events`; inside a scope `PlaybackSources._sort_base_events`, which notes the input posts before the installed doors pump, since a replay's pump forgets them). The live game's input posts held by a scope are redelivered as external or re-posted as input; scene starts and resume bridges count only the game's own posts as earlier events (`pending_code_post_count`). `post_event` keeps meaning "the game posted it", so a supervisor that posts with it still gets the old behaviour (documented in the module docstring). Remaining limit: a `--replay-trace` of a session whose live supervisor posted during an instant replay diverges if the replay lacks that supervisor (the scope's pump cannot tell the served event from a scope post; `replay/playback.py` Limits)
 
-## Resolved Bugs
+### 79. Clockwork Keep's `--floor` Option Is Parsed but Never Read
+- **Description**: `ClockworkKeepScene.args` adds `--floor` ("Starting floor (0=Boiler Room, 1=Gear Works, 2=Clock Face)"), but nothing reads `options['floor']`: the game always starts on floor 0 (`ClockworkKeepScene()` with its default `floor_index`)
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 1: Clockwork Keep's `replay_arguments`)
+- **Date Reported**: 2026-10-20
+- **Details**: Either read the option where the first floor is built (`floor_index=options.get('floor', 0)`, which would make `--floor` a recorded option a replay applies) or drop the argument. Not fixed here: it changes the game's behaviour, outside this task
+- **Files**: `glitchygames/examples/clockwork_keep/game.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: Read it where the first floor is built: `ClockworkKeepScene(floor_index=None)` (the default, which is how the engine builds the first scene from options alone) takes `options['floor']` (`_starting_floor_index`); the elevator and a playback's rebuild still name their floor. `--floor` now refuses a floor that does not exist (`choices=range(len(ALL_FLOORS))`), and as a recorded option a replay applies it; recordings without it start on floor 0 as before
 
 ### 80. Playbacks Found a Scene Class by Its Bare Name, So Two Loaded Scenes Named Alike Refused It
 - **Description**: A scene start recorded only the class name (`SceneStart.scene_class`, e.g. `Game`), and `find_scene_class` refused a playback when several loaded `Scene` subclasses shared it ("Several scene classes are named Game"). Ten example and script scenes are named `Game` (PaddleSlap, the joystick, dt and text-input demos, six in `scripts/`), and the full suite loads more than one

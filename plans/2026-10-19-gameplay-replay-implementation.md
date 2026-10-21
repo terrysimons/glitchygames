@@ -16,6 +16,11 @@ replay compares each frame's sprites with the recording. Tooling and in-game pla
 
 **Spec:** `plans/2026-10-19-gameplay-replay.md`
 
+**Status:** Done on `feature/gameplay-replay` (Parts 1-3, then the final whole-branch review and
+its fix rounds, clean 2026-10-20; not yet pushed). Steps were executed subagent-driven, so the
+checkboxes below were not ticked. Follow-ups: `plans/future-work.md` ("Gameplay replay" and
+"Gameplay replay wrap-up").
+
 **Sub-plans (execute in this order):**
 
 1. [Part 1 — Replay core](2026-10-19-gameplay-replay-core.md) (15 tasks)
@@ -41,7 +46,9 @@ doors and unpaced pacing path, and its journal test uses `recording.recorded_dt`
   3.4 (wall-clock cooldowns/blinks no longer advancing while paused); each such difference gets an
   exact `ExpectedDifference` rule that proves its cause — never edit a baseline.
 - No lint or type suppressions of any kind (`# type: ignore`, `# noqa`, `# pyright: ignore`,
-  `# ty: ignore`, `# ruff: ignore`) in new or changed lines; never change lint/type-checker config
+  `# ty: ignore`, `# ruff: ignore`) in new or changed lines (one exception, authorised by the
+  user 2026-10-19: the justified `subprocess` pair in `glitchygames/process.py`, the one child
+  process launcher, in `tts.py`'s style); never change lint/type-checker config
   (`pyproject.toml` tool sections, `pyrightconfig.json`, `.pre-commit-config.yaml`,
   `vulture_whitelist.py`, `noxfile.py`). If a config change seems needed, stop and ask.
 - Keyword arguments at call sites; keyword-only (`*,`) parameters for new public functions with

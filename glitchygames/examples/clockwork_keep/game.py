@@ -197,7 +197,7 @@ class ClockworkKeepScene(Scene):
 
     def __init__(
         self: Self,
-        floor_index: int = 0,
+        floor_index: int | None = None,
         player_score: int = 0,
         player_lives: int = 3,
         options: dict[str, Any] | None = None,
@@ -206,7 +206,8 @@ class ClockworkKeepScene(Scene):
         """Initialize the floor scene.
 
         Args:
-            floor_index: Which floor (0=Boiler Room, 1=Gear Works, 2=Clock Face).
+            floor_index: Which floor (0=Boiler Room, 1=Gear Works, 2=Clock Face). None (the
+                engine's first scene, built from options alone) takes the --floor option.
             player_score: Score carried from previous floor.
             player_lives: Lives carried from previous floor.
             options: Command-line options.
@@ -217,23 +218,23 @@ class ClockworkKeepScene(Scene):
             groups = pygame.sprite.LayeredDirty()
         super().__init__(options=options, groups=groups)
 
-        self.floor_index = floor_index
+        self.floor_index = self._starting_floor_index(floor_index=floor_index, options=options)
         # The score and lives carried onto this floor, as it began (replay_arguments)
         self.starting_player_score = player_score
         self.starting_player_lives = player_lives
-        self.floor_data: FloorData = ALL_FLOORS[floor_index]
+        self.floor_data: FloorData = ALL_FLOORS[self.floor_index]
         # Game time on this floor (capped dt, frozen after game over); drives the floor-3 clock
         self.floor_elapsed_time: float = 0.0
 
         # Theme colors
-        platform_color, top_color, self.led_color = _FLOOR_THEMES[floor_index]
+        platform_color, top_color, self.led_color = _FLOOR_THEMES[self.floor_index]
 
         # Background
         bg_color = [
             (40, 25, 15),  # Boiler Room
             (35, 35, 40),  # Gear Works
             (15, 15, 35),  # Clock Face
-        ][floor_index]
+        ][self.floor_index]
         self.background_color = bg_color
 
         # Camera: vertical scroll only (tower is 1 screen wide)
@@ -254,8 +255,8 @@ class ClockworkKeepScene(Scene):
         # Background parallax
         bg_func = (
             self._draw_timed_clock_background
-            if _FLOOR_BACKGROUNDS[floor_index] is draw_clock_background
-            else _FLOOR_BACKGROUNDS[floor_index]
+            if _FLOOR_BACKGROUNDS[self.floor_index] is draw_clock_background
+            else _FLOOR_BACKGROUNDS[self.floor_index]
         )
         self.camera.add_background_layer(
             scroll_factor=PARALLAX_FAR,
@@ -305,7 +306,7 @@ class ClockworkKeepScene(Scene):
         )
         self.player.score = player_score
         self.player.lives = player_lives
-        self.player.floor = floor_index
+        self.player.floor = self.floor_index
 
         # Collision layers: cog pickups (and the debug overlay) use these collision rects
         self.collisions.add_layer('player').add(self.player)
@@ -328,37 +329,56 @@ class ClockworkKeepScene(Scene):
         # Input
         input_mode = self.options.get('input_mode', 'joystick')
         self.actions = ActionMap(input_mode=input_mode)
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause and quit included (ActionMap module docstring)
         self.actions.bind(
             'move_right',
-            keyboard=pygame.K_RIGHT,
+            scancode=pygame.KSCAN_RIGHT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
         )
         self.actions.bind(
             'move_left',
-            keyboard=pygame.K_LEFT,
+            scancode=pygame.KSCAN_LEFT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
         )
         self.actions.bind(
             'jump',
-            keyboard=pygame.K_SPACE,
+            scancode=pygame.KSCAN_SPACE,
             controller_button=pygame.CONTROLLER_BUTTON_A,
         )
-        self.actions.bind('jump', keyboard=pygame.K_UP)
+        self.actions.bind('jump', scancode=pygame.KSCAN_UP)
         self.actions.bind(
             'interact',
-            keyboard=pygame.K_w,
+            scancode=pygame.KSCAN_W,
             controller_button=pygame.CONTROLLER_BUTTON_Y,
         )
         self.actions.bind(
             'run',
-            keyboard=pygame.K_LSHIFT,
+            scancode=pygame.KSCAN_LSHIFT,
             controller_button=pygame.CONTROLLER_BUTTON_X,
         )
-        self.actions.bind('pause', keyboard=pygame.K_ESCAPE)
-        self.actions.bind('quit', keyboard=pygame.K_q)
+        self.actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
+        self.actions.bind('quit', scancode=pygame.KSCAN_Q)
 
         # HUD
         self.hud_font: pygame.font.Font | None = None
+
+    @staticmethod
+    def _starting_floor_index(*, floor_index: int | None, options: dict[str, Any] | None) -> int:
+        """Return the floor to build: the one named, else the --floor option (BUGS.md #79).
+
+        Args:
+            floor_index: The floor the caller names (the elevator, a playback's rebuild), or None
+                for the engine's first scene, which it builds from options alone.
+            options: Command-line options.
+
+        Returns:
+            The floor index.
+
+        """
+        if floor_index is not None:
+            return floor_index
+        return int((options or {}).get('floor', 0))
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -372,6 +392,7 @@ class ClockworkKeepScene(Scene):
             '--floor',
             type=int,
             default=0,
+            choices=range(len(ALL_FLOORS)),
             help='Starting floor (0=Boiler Room, 1=Gear Works, 2=Clock Face)',
         )
 

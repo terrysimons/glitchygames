@@ -29,12 +29,20 @@ The rules:
    from the replay's merge, so code-posted events stay internal and replaying NEW delivers
    nothing twice), ``dt``, ``input_changes``, re-applied control events, and each frame's
    ``saves_opened``, ``devices_opened`` and ``device_enumeration`` copied from OLD's frame; and
-   the current code's sprites and markers. The header is OLD's (``rebaseline_header``).
+   the current code's sprites and markers. The header is OLD's (``rebaseline_header``). NEW's
+   frames stack this run's content hash and processing time in front of OLD's histories, and
+   its header this run's ``measurement_runs`` entry in front of OLD's
+   (glitchygames/recording_history.py), so an unchanged game shows the same hash one entry
+   deeper, and a changed one shows which frames changed.
 4. Writing: NEW is written to ``NEW.partial`` (``glitchygames.output_files.partial_path``)
    and moved into place once the run ended normally, so NEW is never left half written; a run
-   that a crash, signal or the game's own exit ended early writes nothing (the partial file is
-   removed). A partial file that cannot be written is refused before the replay starts, on one
-   line, with ``ExitCode.CANNOT_WRITE_OUTPUT`` (``GameEngine._refuse_unwritable_outputs``). If
+   that a crash, a signal or the game's own failing exit (``sys.exit(1)``) ended early writes
+   nothing (the partial file is removed). The game's own successful exit (``sys.exit(0)``,
+   ``sys.exit()``) is the game ending early, as ``quit_game()`` is: NEW holds the frames
+   that ran (not the one it left part way through) and the run exits
+   ``ExitCode.REBASELINE_INPUT_LOST`` (rule 5). A partial file that cannot be written is
+   refused before the replay starts, on one line, with ``ExitCode.CANNOT_WRITE_OUTPUT``
+   (``GameEngine._refuse_unwritable_outputs``). If
    the final move fails, the finished partial file is kept, its path logged and printed, and
    the run exits ``ExitCode.CANNOT_WRITE_OUTPUT``.
 5. Output: the summary (``RebaselineSummary.describe``) is printed to stdout instead of the
@@ -43,8 +51,10 @@ The rules:
    Ball#2, Ball#3`` or ``Rebaselined 9800 frames to NEW: no frames differ``, followed by the
    lost input (rule 2) when there is any, e.g. ``; 3 recorded input events not delivered (first
    at frame 812); ended at frame 500 of 9800``, which is also logged as a warning. The run
-   exits ``ExitCode.SUCCESS`` (``ReplayExitPolicy.SUCCESS_AFTER_WRITING``) even then: NEW is
-   written, and the summary is what the user reviews before using it.
+   exits ``ExitCode.SUCCESS`` (``ReplayExitPolicy.SUCCESS_AFTER_WRITING``) however many frames
+   differ, but ``ExitCode.REBASELINE_INPUT_LOST`` when input was lost
+   (``ReplayResult.has_lost_input``), so a script notices: NEW is still written (it replays
+   clean), but it is not a faithful re-run of OLD's session.
 
 NEW replays on the current code with no divergence, as long as the rebaseline replayed all of
 OLD: a truncated OLD gives a truncated NEW (``source_truncated``), whose replay matches to its
@@ -64,6 +74,11 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames.output_files import partial_path
 from glitchygames.recording import GameplayRecorder, RecordingSources
+from glitchygames.recording_history import (
+    MEASUREMENT_RUNS_HEADER_FIELD,
+    MeasurementRun,
+    stacked_measurement_runs,
+)
 from glitchygames.replay.driver import (
     ENGINE_VERSION_HEADER_FIELD,
     INPUT_CAPTURE_FORMAT_HEADER_FIELD,
@@ -85,6 +100,9 @@ LOG.addHandler(logging.NullHandler())
 
 # The header field naming the recording a rebaselined one was made from
 REBASELINED_FROM_HEADER_FIELD = 'rebaselined_from'
+# Top-level header fields of 2026-10-20's unreleased format (now each run's, in
+# measurement_runs): dropped if a recording from that day is rebaselined
+UNRELEASED_HEADER_FIELDS = ('machine', 'processing_paced')
 # Header fields that describe the code that produced the sprites, set to this run's
 PYGAME_VERSION_HEADER_FIELD = 'pygame_version'
 PYTHON_VERSION_HEADER_FIELD = 'python_version'
@@ -201,6 +219,8 @@ def rebaseline_header(
     *,
     original_header: Mapping[str, Any],
     original_path: Path,
+    measurement_run: MeasurementRun,
+    original_frame_count: int | None = None,
     source_truncated: bool = False,
 ) -> dict[str, Any]:
     """Return the header of a recording rebaselined from another (rule 3).
@@ -208,7 +228,8 @@ def rebaseline_header(
     OLD's header is kept (the seed, start time, options, screen size, saves, devices and device
     enumeration answers: the replay ran with them, so NEW replays with them), with:
     ``rebaselined_from`` naming OLD, the engine, pygame and Python versions of this run (they
-    produced NEW's sprites), ``source_truncated`` when OLD was cut off (NEW then ends as
+    produced NEW's sprites), this run's ``measurement_run`` in front of OLD's
+    ``measurement_runs``, ``source_truncated`` when OLD was cut off (NEW then ends as
     truncated, as OLD's replay did), no ``input_capture_format_version`` (NEW records the
     polled input and markers the replay saw, as format 3) and no ``bookmarked_copy_of``: NEW
     is an original, never a bookmarked copy that S may rewrite in place (it may be moved over
@@ -218,6 +239,10 @@ def rebaseline_header(
     Args:
         original_header: OLD's header fields (without ``format_version`` and ``frames``).
         original_path: OLD's file.
+        measurement_run: This run's provenance, put in front of OLD's ``measurement_runs``
+            (its ``rebaselined_from`` is set to the header's, so both name OLD one way).
+        original_frame_count: How many complete frames OLD holds, given to OLD's newest run
+            (``frame_count``), or None.
         source_truncated: True when OLD was cut off part way.
 
     Returns:
@@ -230,6 +255,15 @@ def rebaseline_header(
     header[ENGINE_VERSION_HEADER_FIELD] = installed_engine_version()
     header[PYGAME_VERSION_HEADER_FIELD] = pygame.version.ver
     header[PYTHON_VERSION_HEADER_FIELD] = platform.python_version()
+    # Each run's provenance, newest first; NEW's frames stack this run's histories the same way,
+    # as glitchygames/recording_history.py describes
+    for unreleased_field in UNRELEASED_HEADER_FIELDS:
+        header.pop(unreleased_field, None)
+    header[MEASUREMENT_RUNS_HEADER_FIELD] = stacked_measurement_runs(
+        newest=measurement_run.model_copy(update={'rebaselined_from': str(original_path)}),
+        previous=original_header.get(MEASUREMENT_RUNS_HEADER_FIELD),
+        previous_frame_count=original_frame_count,
+    )
     header[REBASELINED_FROM_HEADER_FIELD] = str(original_path)
     if source_truncated:
         header[SOURCE_TRUNCATED_HEADER_FIELD] = True
@@ -317,7 +351,12 @@ class Rebaseline:
     """
 
     def __init__(
-        self: Self, *, replay_sources: ReplaySources, source_path: Path, destination: Path
+        self: Self,
+        *,
+        replay_sources: ReplaySources,
+        source_path: Path,
+        destination: Path,
+        measurement_run: MeasurementRun,
     ) -> None:
         """Keep what the rebaseline needs.
 
@@ -325,9 +364,12 @@ class Rebaseline:
             replay_sources: The replay of OLD (``ReplayOptions.stop_on_divergence`` False).
             source_path: OLD's file.
             destination: NEW's file.
+            measurement_run: This run's provenance, put in front of OLD's runs in NEW's header
+                (``GameEngine.measurement_run``).
 
         """
         self._replay_sources = replay_sources
+        self._measurement_run = measurement_run
         self._source_path = source_path
         self.destination = destination
         self.write_failed = False
@@ -343,6 +385,8 @@ class Rebaseline:
         header = rebaseline_header(
             original_header=self._replay_sources.header,
             original_path=self._source_path,
+            measurement_run=self._measurement_run,
+            original_frame_count=self._replay_sources.recording.frame_count,
             source_truncated=self._replay_sources.recording.is_truncated,
         )
         recorder = GameplayRecorder(path=self._partial_path, header=header)

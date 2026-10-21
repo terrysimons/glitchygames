@@ -33,6 +33,7 @@ from glitchygames.instant_replay import (
 )
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
+    EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
     PLAYBACK_ANSWERS_FIELD,
     REDELIVERED_EVENTS_FIELD,
@@ -40,6 +41,7 @@ from glitchygames.recording import (
     SAVES_OPENED_FIELD,
     SCENE_START_FIELD,
     post_event,
+    post_input_event,
 )
 from glitchygames.replay.driver import ReplaySources
 from glitchygames.replay.ghosts import GhostRecorder
@@ -147,6 +149,17 @@ class SwitchingToInstantScene(CountingScene):
         super().dt_tick(dt)
         if self.frames_ticked == self.SWITCH_TICK:
             self.next_scene = InstantCountingScene(options=self.options)
+
+
+class SwitchingToInstantPostingScene(CountingScene):
+    """Switches to an InstantPostingScene (it posts in its first dt_tick) on SWITCH_FRAME."""
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Request the posting instant-replay scene on SWITCH_FRAME."""
+        super().dt_tick(dt)
+        if self.frames_ticked == SWITCH_FRAME:
+            self.next_scene = InstantPostingScene(options=self.options)
 
 
 class InstantKeyReleaseScene(KeyReleaseCountingScene):
@@ -373,6 +386,53 @@ class SupervisorAddingSupervisor:
             SceneManager().add_supervisor(supervisor=self._added)
 
 
+class InputPostingSupervisor:
+    """Posts one user event as input (``post_input_event``) on its Nth call outside a scope."""
+
+    def __init__(self: Self, *, on_call: int) -> None:
+        """Post on call number ``on_call``.
+
+        Args:
+            on_call: The call (1 = the first) that posts.
+
+        """
+        self._calls = 0
+        self._on_call = on_call
+        self.posts = 0
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Post on the chosen call (implements Supervisor)."""
+        del frame_number, scene
+        if SceneManager().playback_session is not None:
+            return
+        self._calls += 1
+        if self._calls == self._on_call:
+            self.posts += 1
+            post_input_event(pygame.event.Event(pygame.USEREVENT, {'input_from_supervisor': 1}))
+
+
+class ScopeInputPostingSupervisor:
+    """Posts one user event as input on its Nth call, live or in a scope (a scene's own)."""
+
+    def __init__(self: Self, *, on_call: int) -> None:
+        """Post on call number ``on_call``.
+
+        Args:
+            on_call: The call (1 = the first) that posts.
+
+        """
+        self._calls = 0
+        self._on_call = on_call
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Post on the chosen call (implements Supervisor)."""
+        del frame_number, scene
+        self._calls += 1
+        if self._calls == self._on_call:
+            InputSupervisingScene.posts_by_supervisors += 1
+            post_input_event(pygame.event.Event(pygame.USEREVENT, {'input_from_supervisor': 1}))
+
+
 class GoalInUpdateScene(KeyReleaseCountingScene):
     """Posts its goal in update() (after the frame's pump); the goal asks for an instant replay.
 
@@ -411,6 +471,18 @@ class InstantUserEventScene(InstantCountingScene):
         """Move the marker down a pixel."""
         super().on_user_event(event)
         self.marker.rect.y += 1
+
+
+class InputSupervisingScene(InstantUserEventScene):
+    """Adds a supervisor that posts input in every setup() (a rebuilt scene's too)."""
+
+    posts_by_supervisors: ClassVar[int] = 0
+
+    @override
+    def setup(self: Self) -> None:
+        """Add the posting supervisor, as the played scene will again."""
+        super().setup()
+        SceneManager().add_supervisor(supervisor=ScopeInputPostingSupervisor(on_call=2))
 
 
 class HandlerAddingScene(InstantCountingScene):
@@ -1645,15 +1717,16 @@ class TestScopePostsAndTheJournal:
             assert result.divergence is None, result.report()
             assert result.end_reason == 'end_of_recording'
 
+    @pytest.mark.parametrize('poster', [post_event, post_input_event])
     @pytest.mark.parametrize('ends_the_scope', [True, False])
     def test_a_later_replay_across_a_scope_with_a_live_supervisors_post_matches(
-        self, ends_the_scope
+        self, ends_the_scope, poster
     ):
         """The live supervisor's post reaches the live scene after the scope, as journaled."""
         with running_scene(InstantUserEventScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
             live_scene = active_counting_scene(manager)
-            supervisor = LivePostingSupervisor(ends_the_scope=ends_the_scope)
+            supervisor = LivePostingSupervisor(ends_the_scope=ends_the_scope, poster=poster)
             manager.add_supervisor(supervisor=supervisor)
             assert manager.instant_replay()
             step(manager)
@@ -1672,6 +1745,69 @@ class TestScopePostsAndTheJournal:
             assert result is not None
             assert result.divergence is None, result.report()
             assert result.end_reason == 'end_of_recording'
+
+
+class TestInputPostsAndTheJournal:
+    """post_input_event is input: an instant replay serves it, whoever posted it (BUGS.md #84)."""
+
+    def test_a_live_supervisors_input_post_is_served_by_a_later_instant_replay(self):
+        """The journal holds it as input, so the played scene gets it without the supervisor."""
+        with running_scene(InstantUserEventScene) as manager:
+            live_scene = active_counting_scene(manager)
+            supervisor = InputPostingSupervisor(on_call=2)
+            manager.add_supervisor(supervisor=supervisor)
+            marker_rect = live_scene.marker.rect
+            assert marker_rect is not None
+            marker_before = marker_rect.y
+            step(manager, frames=JOURNALED_FRAMES)
+            assert marker_rect.y == marker_before + 1
+            journaled_origins = [
+                record['origin']
+                for record in event_records(frames=journal_of(manager).as_recording().frames)
+                if record['attributes'].get('input_from_supervisor') == 1
+            ]
+            assert journaled_origins == [EXTERNAL_ORIGIN]
+            play_journal(
+                manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
+            )
+            assert supervisor.posts == 1
+
+    def test_a_scene_added_supervisors_input_post_arrives_once_in_an_instant_replay(self):
+        """The played scene adds it again; its copy is dropped and the journaled one served."""
+        InputSupervisingScene.posts_by_supervisors = 0
+        with running_scene(InputSupervisingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            assert isinstance(live_scene, InputSupervisingScene)
+            step(manager, frames=JOURNALED_FRAMES)
+            play_journal(
+                manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
+            )
+            # One post live, one by the played scene's own supervisor
+            assert InputSupervisingScene.posts_by_supervisors == 2
+
+
+class TestInputPostsAtASceneStart:
+    """An input post pending as a scene's logic begins is not one of its earlier posts."""
+
+    def test_an_input_post_queued_for_the_first_logic_frame_is_not_counted(self):
+        """Counted, the replay would serve the scene's own first post and then see it again."""
+        with running_scene(SwitchingToInstantPostingScene) as manager:
+            # Posts in the switching frame's supervisor slot, after the switch was requested
+            manager.add_supervisor(supervisor=InputPostingSupervisor(on_call=SWITCH_FRAME))
+            step(manager, frames=SWITCH_FRAME + JOURNALED_FRAMES)
+            live_scene = active_counting_scene(manager)
+            assert isinstance(live_scene, InstantPostingScene)
+            start = live_scene.scene_start
+            assert start is not None
+            assert start.first_logic_frame is not None
+            assert start.first_logic_frame.earlier_internal_event_count == 0
+            recording = journal_of(manager).as_recording()
+            first_batch = recording.frames[recording.start_frame]['event_batches'][0]
+            assert [record['origin'] for record in first_batch] == [
+                EXTERNAL_ORIGIN,
+                INTERNAL_ORIGIN,
+            ]
+            play_journal(manager=manager, recording=recording, then=live_scene)
 
 
 class TestFastForwardFrameCount:

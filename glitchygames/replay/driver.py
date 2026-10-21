@@ -246,13 +246,22 @@ from glitchygames.recording import (
     RecordedReference,
     UnrepresentableValue,
     event_from_record,
-    event_origin,
     event_to_record,
+    forget_pending_posts,
+    is_input_post,
     pending_internal_posts,
     recorded_start_time,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
+    take_matching_post,
     value_from_json,
+)
+from glitchygames.recording_history import (
+    CONTENT_HASH_FIELD,
+    MEASUREMENT_FRAME_FIELDS,
+    PROCESSING_SECONDS_FIELD,
+    frame_content_hash,
+    latest_measurement_run,
 )
 from glitchygames.replay.audit import frame_digest, write_digest_file
 from glitchygames.replay.controls import (
@@ -261,6 +270,11 @@ from glitchygames.replay.controls import (
     ReplayControls,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
+from glitchygames.replay.processing import (
+    ProcessingComparison,
+    ProcessingSummary,
+    machine_description,
+)
 from glitchygames.replay.rebuild import Rebuild, ViewerState
 from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.scene_start import ResumeBridge
@@ -313,6 +327,8 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'replay_restart_handoff',
     'replay_viewer_state',
     'replay_fps',
+    'compare_processing',
+    'max_processing_slowdown',
     'profile',
     'log_level',
     'windowed',
@@ -425,7 +441,8 @@ class ReplayExitPolicy(enum.Enum):
 
     # ReplayResult.exit_code: SUCCESS when matched, REPLAY_DIVERGED, UNUSABLE_INPUT when truncated
     RESULT = 'result'
-    # ExitCode.SUCCESS whatever the result (--rebaseline: the new recording is the outcome)
+    # ExitCode.SUCCESS whatever the result (--rebaseline: the new recording is the outcome),
+    # but ExitCode.REBASELINE_INPUT_LOST when the run lost recorded input
     SUCCESS_AFTER_WRITING = 'success'
 
 
@@ -472,6 +489,10 @@ class ReplayOptions(BaseModel):
         serves_redelivered_events: True to deliver the start frame's recorded
             ``redelivered_events`` before its first pump (a playback, rule 18); False for every
             other replay, which redelivers them itself as the recorded run did.
+        compare_processing: True to compare each frame's processing time with the recorded
+            one (``--compare-processing``; glitchygames/replay/processing.py).
+        max_processing_slowdown_percent: The slowdown a replay that matched may show before it
+            exits ``PROCESSING_SLOWER`` (``--max-processing-slowdown``), or None for no check.
 
     """
 
@@ -492,6 +513,8 @@ class ReplayOptions(BaseModel):
     start_frame: int = Field(default=0, ge=0)
     earlier_internal_event_count: int = Field(default=0, ge=0)
     serves_redelivered_events: bool = False
+    compare_processing: bool = False
+    max_processing_slowdown_percent: float | None = Field(default=None, ge=0)
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -569,6 +592,22 @@ class RecordedFrames:
             for field_name in REBASELINE_FRAME_FIELDS
             if field_name in frame
         }
+
+    def recorded_frame_histories(self: Self, *, frame_index: int) -> dict[str, Any]:
+        """Return the recorded frame's histories (a rebaseline stacks its own in front).
+
+        Args:
+            frame_index: The recording's frame index.
+
+        Returns:
+            Whichever of ``content_hash`` and ``processing_seconds`` the frame has; none past the
+            end of the recording.
+
+        """
+        frame = self.frame(frame_index=frame_index)
+        if frame is None:
+            return {}
+        return {name: frame[name] for name in MEASUREMENT_FRAME_FIELDS if name in frame}
 
 
 class BookmarkedCopy:
@@ -757,6 +796,13 @@ class ReplayResult:
             recorded). Events of frames never replayed are not counted here (see
             ``frames_recorded``).
         first_undelivered_input_frame: The frame of the first of them, or None.
+        processing_comparison: Collects each frame's processing time beside the recorded one
+            while comparing them (``--compare-processing``), else None.
+        processing: How this replay's processing time compared with the recording's
+            (glitchygames/replay/processing.py), settled by ``finish_run``; None when not
+            compared.
+        max_processing_slowdown_percent: The slowdown a matched replay may show
+            (``--max-processing-slowdown``), or None for no check.
 
     """
 
@@ -775,6 +821,18 @@ class ReplayResult:
     frames_recorded: int = 0
     undelivered_input_count: int = 0
     first_undelivered_input_frame: int | None = None
+    processing_comparison: ProcessingComparison | None = dataclasses.field(default=None, repr=False)
+    processing: ProcessingSummary | None = None
+    max_processing_slowdown_percent: float | None = None
+
+    @property
+    def has_lost_input(self: Self) -> bool:
+        """True when the run never received some recorded input (a rebaseline's rule 2).
+
+        That is undelivered events, or frames it never replayed (a run that ended before the
+        recording did).
+        """
+        return self.undelivered_input_count > 0 or self.frames_replayed < self.frames_recorded
 
     def note_undelivered_inputs(self: Self, *, frame_index: int, count: int) -> None:
         """Count recorded external events a frame never received (its unpumped batches).
@@ -811,22 +869,43 @@ class ReplayResult:
             policy: The replay's exit policy (``ReplayOptions.exit_policy``).
 
         Returns:
-            ``SUCCESS`` under ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``. Under
+            Under ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``: ``REBASELINE_INPUT_LOST`` when the
+            run lost recorded input (``has_lost_input``), else ``SUCCESS``. Under
             ``ReplayExitPolicy.RESULT``: ``SUCCESS`` when the replay matched to the end of the
             recording or was quit or restarted before it; ``UNUSABLE_INPUT`` when it matched up
             to the cut-off of a truncated recording; ``REPLAY_DIVERGED`` when it diverged, or is
             still running (``finish_run`` turns a run that ended early into a length divergence).
+            A replay that would exit ``SUCCESS`` under a processing check
+            (``max_processing_slowdown_percent``) exits ``PROCESSING_SLOWER`` when it took
+            longer than allowed, and ``UNUSABLE_INPUT`` when the recording holds no processing
+            times to check (glitchygames/replay/processing.py).
 
         """
         if policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING:
-            return ExitCode.SUCCESS
+            return ExitCode.REBASELINE_INPUT_LOST if self.has_lost_input else ExitCode.SUCCESS
         if self.divergence is not None:
             return ExitCode.REPLAY_DIVERGED
         if self.end_reason in {END_OF_RECORDING_END_REASON, QUIT_END_REASON, RESTART_END_REASON}:
-            return ExitCode.SUCCESS
+            return self._processing_check_exit_code()
         if self.end_reason == TRUNCATED_END_REASON:
             return ExitCode.UNUSABLE_INPUT
         return ExitCode.REPLAY_DIVERGED
+
+    def _processing_check_exit_code(self: Self) -> ExitCode:
+        """Return a matched replay's exit code under its processing check, if it has one.
+
+        Returns:
+            ``SUCCESS``; ``PROCESSING_SLOWER`` when it took more than the allowed slowdown
+            longer; ``UNUSABLE_INPUT`` when nothing could be compared.
+
+        """
+        if self.max_processing_slowdown_percent is None or self.processing is None:
+            return ExitCode.SUCCESS
+        if self.processing.frames_compared == 0:
+            return ExitCode.UNUSABLE_INPUT
+        if self.processing.exceeds(max_slowdown_percent=self.max_processing_slowdown_percent):
+            return ExitCode.PROCESSING_SLOWER
+        return ExitCode.SUCCESS
 
     def report(self: Self) -> str:
         """Describe how the replay went, for stdout (``--headless``) or the log.
@@ -886,6 +965,28 @@ def _recorded_start(*, header: dict[str, Any]) -> datetime:
         message = f'The recording header has no recorded_at start time (found {recorded_at!r})'
         raise TraceFormatError(message)
     return start
+
+
+def _recorded_machine(*, header: dict[str, Any]) -> str | None:
+    """Return the machine the header's latest run names (``measurement_runs[0]``), or None.
+
+    Returns:
+        The machine's description, or None (older recordings name none).
+
+    """
+    run = latest_measurement_run(header=header)
+    return None if run is None else run.machine
+
+
+def _recorded_paced(*, header: dict[str, Any]) -> bool | None:
+    """Return whether the header's latest run paced its frames, or None when it does not say.
+
+    Returns:
+        True or False, or None.
+
+    """
+    run = latest_measurement_run(header=header)
+    return None if run is None else run.processing_paced
 
 
 def _recorded_seed(*, header: dict[str, Any]) -> int:
@@ -1093,7 +1194,20 @@ class ReplaySources:
             frames=frames,
             is_truncated=is_truncated or header.get(SOURCE_TRUNCATED_HEADER_FIELD) is True,
         )
-        self.result = ReplayResult(frames_recorded=self.recording.frame_count)
+        self.result = ReplayResult(
+            frames_recorded=self.recording.frame_count,
+            max_processing_slowdown_percent=options.max_processing_slowdown_percent,
+            # Each frame's processing time beside the recorded one (replay/processing.py)
+            processing_comparison=(
+                ProcessingComparison(
+                    recorded_machine=_recorded_machine(header=header),
+                    replay_machine=machine_description(),
+                    recorded_paced=_recorded_paced(header=header),
+                )
+                if options.compare_processing
+                else None
+            ),
+        )
         # A bookmarked copy of a version-2 recording replays as version 2 (rule 16)
         input_capture_format_version = header.get(INPUT_CAPTURE_FORMAT_HEADER_FIELD)
         if isinstance(input_capture_format_version, int):
@@ -1276,7 +1390,7 @@ class ReplaySources:
             live_events=live_events, is_first_drain=is_first_drain
         )
         # Posted but not returned: the queue was cleared or the type is blocked
-        pending_internal_posts().clear()
+        forget_pending_posts()
         # Posts a held frame found come first: they were queued before this drain (rule 14)
         live_internal_events = [*self._held_internal_events, *live_internal_events]
         self._held_internal_events = []
@@ -1489,6 +1603,7 @@ class ReplaySources:
         dt: float,
         scene: Scene | None,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         """Compare the frame with the recorded one, then move on to the next (rule 8).
 
@@ -1497,6 +1612,8 @@ class ReplaySources:
             dt: The frame's raw dt.
             scene: The active scene at the end of the frame.
             control_events: The control events recorded in the frame.
+            processing_seconds: This replay's processing time for the frame, compared with the
+                recorded one under ``--compare-processing`` (None: not measured).
 
         """
         # dt is the recorded one by construction
@@ -1518,6 +1635,7 @@ class ReplaySources:
                 frame=frame, replayed=replayed, control_events=control_events
             )
             self._note_unpumped_batches(frame=frame)
+            self._compare_processing(frame=frame, processing_seconds=processing_seconds)
             self.result.frames_replayed = self._frame_index + 1
             if divergence is not None:
                 self._note_divergence(
@@ -1563,6 +1681,8 @@ class ReplaySources:
         file written when asked for (rule 12).
         """
         self._real_input_block.restore()
+        if self.result.processing_comparison is not None:
+            self.result.processing = self.result.processing_comparison.summary()
         if self.result.end_reason == RUNNING_END_REASON:
             if self.result.divergence is None:
                 self.result.divergence = Divergence(
@@ -1592,6 +1712,32 @@ class ReplaySources:
                     'Could not write the digest file %s: %s', self.options.digest_path, write_error
                 )
                 self.digest_write_failed = True
+
+    def _compare_processing(
+        self: Self, *, frame: dict[str, Any], processing_seconds: float | None
+    ) -> None:
+        """Add the frame's processing time beside the recorded one, when comparing them.
+
+        Args:
+            frame: The recorded frame.
+            processing_seconds: This replay's processing time for it (None: not measured).
+
+        """
+        comparison = self.result.processing_comparison
+        if comparison is None or processing_seconds is None:
+            return
+        history = frame.get(PROCESSING_SECONDS_FIELD)
+        recorded_value: object = (
+            cast('list[Any]', history)[0] if isinstance(history, list) and history else None
+        )
+        recorded_seconds: float | None = None
+        if isinstance(recorded_value, (int, float)) and not isinstance(recorded_value, bool):
+            recorded_seconds = float(recorded_value)
+        comparison.add_frame(
+            frame_index=self._frame_index,
+            recorded_seconds=recorded_seconds,
+            replayed_seconds=processing_seconds,
+        )
 
     def _current_frame(self: Self) -> dict[str, Any] | None:
         return self.recording.frame(frame_index=self._frame_index)
@@ -2079,7 +2225,13 @@ class ReplaySources:
         live_internal_events: list[pygame.event.Event] = []
         window_closes: list[pygame.event.Event] = []
         for event in live_events:
-            if event_origin(event=event, pending=pending) == INTERNAL_ORIGIN:
+            post = take_matching_post(event=event, pending=pending)
+            if post is not None and is_input_post(post=post):
+                # The replayed code's copy of an input post (post_input_event): the recording
+                # holds it as external and serves it, so this one is dropped, never taken for
+                # a window close or a viewer key
+                continue
+            if post is not None or event.type >= pygame.USEREVENT:
                 live_internal_events.append(event)
             elif event.type == pygame.QUIT:
                 window_closes.append(event)
@@ -2236,6 +2388,11 @@ def decoded_replay_sources(
     unreadable file (``ReplaySources.from_path``), and a playback refuses as it does any
     recording it cannot play (``playback_replay_sources``).
 
+    Known limitation: the catch covers the whole ``ReplaySources.__init__``, so a genuine
+    engine bug there that raises AttributeError, KeyError, TypeError or ValueError is reported
+    as a malformed recording (``UNUSABLE_INPUT``, 65), not as ``INTERNAL_ERROR`` (70); the
+    message keeps the original exception (``repr``), and it is chained as the cause.
+
     Args:
         header: The header fields.
         frames: Every complete recorded frame, decoded.
@@ -2374,9 +2531,11 @@ def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destina
 
     The recording's header and complete frames are copied as read; for each bookmark N, frame
     N - 1 gets ``BOOKMARK_CONTROL_EVENT`` appended to its control events, unless it already has
-    it. The header gains ``bookmarked_copy_of`` (the source's file name, kept from a copy),
-    ``source_truncated`` when the source was cut off, and ``input_capture_format_version``
-    when the source is older than format version 3, so the copy replays as its source does. A
+    it, and its newest content hash (``content_hash[0]``, glitchygames/recording_history.py)
+    is recomputed to describe the breakpoint. The header gains ``bookmarked_copy_of`` (the
+    source's file name, kept from a copy), ``source_truncated`` when the source was cut off,
+    and ``input_capture_format_version`` when the source is older than format version 3, so
+    the copy replays as its source does. A
     copy an earlier session saved from the same source keeps its bookmarks: they are added to
     ``bookmarks`` (a copy of another recording is never written over). The copy is written
     aside, then moved into place (``glitchygames.output_files.write_aside_then_replace``), so
@@ -2416,6 +2575,14 @@ def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destina
         if bookmark_record not in control_events:
             control_events.append(bookmark_record)
         frame[CONTROL_EVENTS_FIELD] = control_events
+        # The breakpoint is the frame's content now (a rebaseline of the copy re-applies it), so
+        # the newest run's hash describes it; older runs' hashes stay as they were
+        recorded_hashes = frame.get(CONTENT_HASH_FIELD)
+        if isinstance(recorded_hashes, list) and recorded_hashes:
+            frame[CONTENT_HASH_FIELD] = [
+                frame_content_hash(frame_record=frame),
+                *cast('list[Any]', recorded_hashes)[1:],
+            ]
     trace.setdefault(BOOKMARKED_COPY_OF_HEADER_FIELD, recording_path.name)
     if is_cut_off(read_result=read_result):
         trace[SOURCE_TRUNCATED_HEADER_FIELD] = True
@@ -2588,6 +2755,10 @@ def start_replay(
         stop_on_divergence=not is_rebaseline,
         # The rebaseline's new recording holds the scene starts, frame 0's included (rule 17)
         captures_scene_starts=is_rebaseline,
+        # --max-processing-slowdown implies --compare-processing (replay/processing.py)
+        compare_processing=bool(options.get('compare_processing'))
+        or options.get('max_processing_slowdown') is not None,
+        max_processing_slowdown_percent=options.get('max_processing_slowdown'),
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(

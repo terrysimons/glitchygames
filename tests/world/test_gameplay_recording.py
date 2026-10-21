@@ -10,6 +10,7 @@ checks the recording's sprites against the golden harness's own frames.
 from __future__ import annotations
 
 import contextlib
+import errno
 import gzip
 import importlib.metadata
 import json
@@ -60,6 +61,7 @@ from glitchygames.recording import (
     UnrepresentableValue,
     event_from_record,
 )
+from glitchygames.recording_history import CONTENT_HASH_FIELD, PROCESSING_SECONDS_FIELD
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
@@ -67,7 +69,7 @@ from glitchygames.sources import active_sources, install_sources
 from glitchygames.state import DiskSaveManager, MemorySaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND
-from glitchygames.tracing import read_trace_result
+from glitchygames.tracing import TraceWriter, read_trace_result
 from glitchygames.transitions import FadeTransition
 
 if TYPE_CHECKING:
@@ -110,6 +112,8 @@ RECORDING_FRAME_FIELDS = frozenset({
     SAVES_OPENED_FIELD,
     DEVICE_ENUMERATION_FIELD,
     SCENE_START_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    CONTENT_HASH_FIELD,
 })
 
 # The whole Clockwork Keep golden script: the elevator ride (frames 352-592) and a pause (740-790)
@@ -684,6 +688,58 @@ class TestRecordingThroughTheEngine:
         assert exit_info.value.code == ExitCode.INTERRUPTED
         assert result.is_complete
         assert [frame['frame'] for frame in result.trace['frames']] == [0]
+
+    def test_a_recording_that_fails_part_way_ends_the_run_cannot_write_output(
+        self, mocker, tmp_path, caplog
+    ):
+        """The disk fills on frame 2: one error line, the frames before kept (BUGS.md #82)."""
+        path = tmp_path / 'session.jsonl.gz'
+        real_write_frame = TraceWriter.write_frame
+        frames_written: list[int] = []
+
+        def write_until_the_disk_fills(writer: TraceWriter, **arguments: Any) -> None:
+            # Frames 0 and 1 fit
+            if len(frames_written) == 2:
+                raise OSError(errno.ENOSPC, 'No space left on device')
+            frames_written.append(len(frames_written))
+            real_write_frame(writer, **arguments)
+
+        mocker.patch.object(
+            TraceWriter, 'write_frame', autospec=True, side_effect=write_until_the_disk_fills
+        )
+        with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
+            run_engine('--record-trace', str(path))
+
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+        result = read_trace_result(path=path)
+        assert result.is_complete
+        assert [frame['frame'] for frame in result.trace['frames']] == [0, 1]
+        failures = [
+            record for record in caplog.records if 'could not be written' in record.getMessage()
+        ]
+        assert len(failures) == 1
+        assert 'No space left on device' in failures[0].getMessage()
+        # One line, not a traceback
+        assert failures[0].exc_info is None
+
+    def test_a_recording_that_fails_to_close_ends_the_run_cannot_write_output(
+        self, mocker, tmp_path
+    ):
+        """The last write (the gzip trailer, at teardown) fails: the teardown still finishes."""
+        path = tmp_path / 'session.jsonl.gz'
+        real_close = TraceWriter.close
+
+        def close_then_fail(writer: TraceWriter) -> None:
+            real_close(writer)
+            raise OSError(errno.EIO, 'Input/output error')
+
+        mocker.patch.object(TraceWriter, 'close', autospec=True, side_effect=close_then_fail)
+        with engine_run_environment(mocker):
+            _schedule_quit_in_arrival()
+            with pytest.raises(SystemExit) as exit_info:
+                run_engine('--record-trace', str(path))
+
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
 
     @pytest.mark.parametrize('signal_name', ['SIGTERM', 'SIGHUP', 'SIGBREAK'])
     def test_existing_signal_handler_is_left_alone(self, mocker, tmp_path, signal_name):

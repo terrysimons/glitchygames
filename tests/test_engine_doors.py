@@ -138,8 +138,12 @@ ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
         # get_time and get_fps are never read (SceneManager._track_performance says why)
         '__init__': frozenset({'pygame.time.Clock'}),
     },
-    # The recording's own start stamp (header recorded_at, the replay wall clock's origin)
-    'engine/game_engine.py': {'trace_recording_header': frozenset({'datetime.datetime.now'})},
+    # The recording's own start stamp (header recorded_at, the replay wall clock's origin), and
+    # each run's measured_at (measurement_runs provenance; never replayed or served)
+    'engine/game_engine.py': {
+        'trace_recording_header': frozenset({'datetime.datetime.now'}),
+        'measurement_run': frozenset({'datetime.datetime.now'}),
+    },
 }
 
 

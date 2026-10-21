@@ -5,6 +5,8 @@
 **Master plan:** [2026-10-19-gameplay-replay-implementation.md](2026-10-19-gameplay-replay-implementation.md)
 (read its Global Constraints, Review Focus and Cross-part interfaces first)
 
+**Status:** Done (all 6 tasks, 2026-10-20, on `feature/gameplay-replay`; checkboxes not ticked).
+
 **Goal:** Make replays usable: headless runs with exit codes and a readable report, a watched
 replay with pause/step/speed/step-back/bookmarks and a status bar, recordings as pytest regression
 tests, and `--rebaseline` for intentional changes.

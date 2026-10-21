@@ -6,6 +6,8 @@
 (read its Global Constraints, Review Focus and Cross-part interfaces first; they apply to every
 task here)
 
+**Status:** Done (all 15 tasks, 2026-10-19, on `feature/gameplay-replay`; checkboxes not ticked).
+
 **Goal:** Put every input the engine takes from the outside world behind swappable doors, record
 what passes through them, and replay a recording exactly with `--replay-trace`, reporting the first
 divergence.

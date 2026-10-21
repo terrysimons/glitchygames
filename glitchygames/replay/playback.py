@@ -99,7 +99,11 @@ Demos and instant replays run inside a playback scope, not a new engine run
      event handlers make while the scope plays (``recording.live_game_posts``: ``post_event``
      marks them while ``SceneManager`` runs live code in a scope, rule 4; the played
      recording never held them) are held apart (``held_live_game_posts``) and posted again as
-     the scope ends (rule 4). External events reach only the exit check, never the
+     the scope ends (rule 4), input posts (``recording.post_input_event``) as input again;
+     the live game's input posts made before the scope are held with the external origin.
+     The scope's code's own input posts (a supervisor the played scene added again) are
+     dropped: the recording holds them as external and the replay serves them, so each
+     arrives once. External events reach only the exit check, never the
      scene; presses and motion are dropped. The batch is the
      replay's (recorded external events, matched internal ones) without any QUIT (a QUIT in
      it ends the scope: ``recording_quit``), then the kept QUIT.
@@ -165,7 +169,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    play on after it (``LiveAudio.update``'s ``paused_owners``), even when the playback's own
    scene switches change ``previous_scene``; the playback scene's own voices end with it.
 
-Limits: a scope that fast-forwards inside a restarted replay's rebuild silences on top of the
+Limits: a ``--replay-trace`` replay of a session whose live supervisor posted during a scope
+(``post_event`` or ``post_input_event``) diverges unless the replay adds that supervisor too:
+the served event reaches the scope's pump, which can no longer tell it from a scope post.
+A scope that fast-forwards inside a restarted replay's rebuild silences on top of the
 rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
 pauses it again after the next frame). A scene must be rebuildable from its start
 (``Scene.replay_arguments``). Of a scene
@@ -180,8 +187,12 @@ that scope: a recorder writes no ``playback_answers`` or ``resume_bridge`` (only
 instant-replay journal does), so its scene's playback requests and its resumption after the
 scope are not known (it replays exactly with ``--replay-trace``, which runs the scope again).
 Rumble in joystick mode asks the devices door for the joysticks (glitchygames/input/rumble.py);
-inside a scope it asks nothing (rule 8), so when the played recording's joystick count changed
-part way, a later device enumeration by the played scene may read an earlier recorded answer.
+inside a scope each send still asks the scope's door, with a device cache of its own, and then
+sends to no device (rule 8), so the played recording's answers are taken as it gave them. The
+scope's rumble controller starts fresh, though: a rumble the live game sent before the played
+scene began, still running when it was recorded, is not known to it, so its sends (and the
+counts they ask) can fall on other frames than the recording's; that matters only when the
+played recording's joystick count changed part way.
 """
 
 from __future__ import annotations
@@ -203,10 +214,12 @@ from glitchygames.recording import (
     INTERNAL_ORIGIN,
     SCENE_START_FIELD,
     event_origin,
+    is_input_post,
     is_live_game_post,
     live_game_posts,
     pending_internal_posts,
     take_internal_post,
+    take_matching_post,
 )
 from glitchygames.replay.driver import (
     SCRIPT_MODULE_NAME,
@@ -308,6 +321,36 @@ class PlaybackOptions(BaseModel):
 DEFAULT_PLAYBACK_OPTIONS = PlaybackOptions()
 
 
+def _is_one_of(
+    *, post: tuple[int, dict[str, Any]] | None, posts: list[tuple[int, dict[str, Any]]]
+) -> bool:
+    """Report whether ``post`` is one of ``posts`` (by identity, as the post tracker tells them).
+
+    Returns:
+        True when it is the very entry of one of them.
+
+    """
+    return post is not None and any(post is candidate for candidate in posts)
+
+
+def _add_scope_post(
+    *, event: pygame.event.Event, is_input: bool, internal_events: list[pygame.event.Event]
+) -> None:
+    """Hand the scope's code's post to the replay, unless it is an input post (dropped).
+
+    The recording holds an input post (``recording.post_input_event``) as external and the
+    replay serves it, so the copy the played scene's code posts again is dropped.
+
+    Args:
+        event: The pumped event.
+        is_input: True when the scope's post it matched was an input post.
+        internal_events: The internal events for the replay (the event is added to them).
+
+    """
+    if not is_input:
+        internal_events.append(event)
+
+
 class PlaybackSources:
     """A playback scope's doors (implements glitchygames.sources.EngineSources; rule 5).
 
@@ -337,9 +380,14 @@ class PlaybackSources:
             with its origin, in pump order: its own posts made before the scope (internal) and
             the player's releases, device and window events (external,
             ``PLAYBACK_HELD_EVENT_TYPES``). Delivered before the first pump after the scope.
+        input_posts_at_pump: The pending posts that were input posts
+            (``recording.post_input_event``) as the current pump began, noted before the
+            installed doors pump: a replay's pump (a session replayed) forgets the tracker's
+            posts, their input marks included, once it has sorted its batch.
         held_live_game_posts: The posts the live game's own supervisors and handlers made
             during the scope (``recording.live_game_posts``) that the scope's pumps drained, in
-            pump order. Posted again as the scope ends (``SceneManager._exit_playback``).
+            pump order, each with whether it was an input post (``recording.post_input_event``).
+            Posted again as the scope ends, as they were posted (``SceneManager._exit_playback``).
         live_posts_before_scope: The live game's posts no pump had returned yet as the scope
             began (its first pump holds them; rule 5).
         has_pumped: True once the scope's doors pumped: from then on every post still pending
@@ -384,7 +432,8 @@ class PlaybackSources:
         self.end_reason: PlaybackEndReason | None = None
         self.last_base_snapshot: InputSnapshot = current_input()
         self.held_live_events: list[RedeliveredEvent] = []
-        self.held_live_game_posts: list[pygame.event.Event] = []
+        self.held_live_game_posts: list[tuple[pygame.event.Event, bool]] = []
+        self.input_posts_at_pump: list[tuple[int, dict[str, Any]]] = []
         self.live_posts_before_scope: list[tuple[int, dict[str, Any]]] = []
         self.has_pumped = False
 
@@ -441,6 +490,7 @@ class PlaybackSources:
         """
         pending = pending_internal_posts()
         posted_before_pump = list(pending)
+        self.input_posts_at_pump = [post for post in posted_before_pump if is_input_post(post=post)]
         base_events = self.base.pump_events()
         # The posts the live game made before the scope come first (pending is in posting
         # order, and nothing pumped between the scope's start and its first pump)
@@ -504,22 +554,35 @@ class PlaybackSources:
         internal_events: list[pygame.event.Event] = []
         quit_events: list[pygame.event.Event] = []
         for event in base_events:
-            if event.type == pygame.QUIT and not take_internal_post(
-                event=event, pending=scope_posts
-            ):
+            scope_post = (
+                take_matching_post(event=event, pending=scope_posts)
+                if event.type == pygame.QUIT
+                else None
+            )
+            if event.type == pygame.QUIT and scope_post is None:
                 # The player's (or the live game's own) quit request still quits the game
                 self._take_live_post(
                     event=event, live_posts=live_posts, live_game_posts=live_game_posts
                 )
                 quit_events.append(event)
             elif event.type == pygame.QUIT:
-                internal_events.append(event)
+                _add_scope_post(
+                    event=event,
+                    is_input=_is_one_of(post=scope_post, posts=self.input_posts_at_pump),
+                    internal_events=internal_events,
+                )
             elif self._hold_live_post(
-                event=event, live_posts=live_posts, live_game_posts=live_game_posts
+                event=event,
+                live_posts=live_posts,
+                live_game_posts=live_game_posts,
             ):
                 continue
-            elif take_internal_post(event=event, pending=scope_posts):
-                internal_events.append(event)
+            elif (scope_post := take_matching_post(event=event, pending=scope_posts)) is not None:
+                _add_scope_post(
+                    event=event,
+                    is_input=_is_one_of(post=scope_post, posts=self.input_posts_at_pump),
+                    internal_events=internal_events,
+                )
             elif event_origin(event=event, pending=[]) == INTERNAL_ORIGIN:
                 # Internal by type alone: on the first pump, posted before the scope began
                 if is_first_pump:
@@ -567,11 +630,18 @@ class PlaybackSources:
             True when it was held.
 
         """
-        if take_internal_post(event=event, pending=live_posts):
-            self.held_live_events.append((event, INTERNAL_ORIGIN))
+        live_post = take_matching_post(event=event, pending=live_posts)
+        if live_post is not None:
+            # An input post is input to the live game: redelivered as external, as recorded
+            is_input = _is_one_of(post=live_post, posts=self.input_posts_at_pump)
+            self.held_live_events.append((event, EXTERNAL_ORIGIN if is_input else INTERNAL_ORIGIN))
             return True
-        if take_internal_post(event=event, pending=live_game_posts):
-            self.held_live_game_posts.append(event)
+        live_game_post = take_matching_post(event=event, pending=live_game_posts)
+        if live_game_post is not None:
+            self.held_live_game_posts.append((
+                event,
+                _is_one_of(post=live_game_post, posts=self.input_posts_at_pump),
+            ))
             return True
         return False
 
@@ -677,6 +747,7 @@ class PlaybackSources:
         dt: float,
         scene: Scene | None,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         """Compare the frame with the recording, then let the installed doors end it (rule 5).
 
@@ -691,7 +762,11 @@ class PlaybackSources:
             )
         finally:
             self.base.end_frame(
-                frame_number=frame_number, dt=dt, scene=scene, control_events=control_events
+                frame_number=frame_number,
+                dt=dt,
+                scene=scene,
+                control_events=control_events,
+                processing_seconds=processing_seconds,
             )
 
     def compare_frame(

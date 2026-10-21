@@ -541,3 +541,43 @@ def test_bundled_demo_exists_and_is_small():
     """PaddleSlap ships its demo in its package, under 100 KB."""
     assert PADDLESLAP_DEMO_PATH.is_file()
     assert PADDLESLAP_DEMO_PATH.stat().st_size < 100_000
+
+
+def key_at(*, key: int, scancode: int) -> HashableEvent:
+    """Return a key press reporting ``key`` at physical position ``scancode`` (another layout).
+
+    Returns:
+        The KEYDOWN event.
+
+    """
+    return HashableEvent(pygame.KEYDOWN, key=key, scancode=scancode, mod=0, unicode='')
+
+
+class TestPositionalKeys:
+    """Every control is a physical position (scancode bindings), pause included."""
+
+    @pytest.mark.parametrize(
+        ('player', 'action', 'scancode', 'qwerty_key'),
+        [
+            (0, 'up', pygame.KSCAN_W, pygame.K_w),
+            (0, 'down', pygame.KSCAN_S, pygame.K_s),
+            (1, 'up', pygame.KSCAN_UP, pygame.K_UP),
+            (1, 'down', pygame.KSCAN_DOWN, pygame.K_DOWN),
+        ],
+    )
+    def test_a_paddle_key_is_its_position(self, player, action, scancode, qwerty_key):
+        actions = Game._create_action_maps()[player]
+        # Another layout names the key in that place differently (AZERTY's Z is QWERTY's W)
+        assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
+        # The QWERTY key code somewhere else is not the paddle key
+        assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
+
+    def test_pause_is_a_position_too(self):
+        pause_actions = Game._create_action_maps()[2]
+        assert (
+            pause_actions.get_action(key_at(key=pygame.K_F13, scancode=pygame.KSCAN_SPACE))
+            == 'pause'
+        )
+        assert (
+            pause_actions.get_action(key_at(key=pygame.K_SPACE, scancode=pygame.KSCAN_F13)) is None
+        )

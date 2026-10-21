@@ -408,6 +408,9 @@ class LiveDeviceRegistry:
             joystick = pygame.joystick.Joystick(device_index)
             descriptor = _describe(kind=JOYSTICK_KIND, device_index=device_index, device=joystick)
         except pygame.error as error:
+            # Not quit, unlike open_controller's failure: pygame Joystick objects for one
+            # device index share an SDL handle, so quitting this one could close a handle
+            # another object still uses (the leak is the smaller harm)
             self._remember_failure(call=OPEN_JOYSTICK_CALL, device_index=device_index, error=error)
             raise
         self._remember_opened(

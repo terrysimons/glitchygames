@@ -96,7 +96,9 @@ def measured_seconds() -> float:
 
     Never replayed: a replay reads the real machine's time here, so a reading must never feed a
     decision that changes what is drawn, played or recorded (use ``elapsed_seconds()`` for
-    that). It is the one raw clock read the doors guard allows in this module.
+    that). The one exception is a diagnostic a recording stores but no replay compares or
+    serves to the game: each frame's processing time (glitchygames/replay/processing.py). It
+    is the one raw clock read the doors guard allows in this module.
 
     Returns:
         ``time.monotonic()``.

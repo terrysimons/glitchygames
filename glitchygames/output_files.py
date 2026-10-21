@@ -5,7 +5,8 @@
   file), so the engine refuses it with ``ExitCode.CANNOT_WRITE_OUTPUT`` and one line before any
   game code runs, instead of failing part way with a traceback. It creates the parent
   directories (as the writers do) and opens the file for appending; a file the check created
-  is removed again, so nothing is left behind.
+  is removed again. The parent directories it created stay (the writer would create them
+  anyway), even when the run is then refused for another reason.
 - ``partial_path``: the file an output is written to before it is moved into place
   (``<name>.partial``, next to it).
 - ``write_aside_then_replace``: writes an output whole: to its partial file, then moved into

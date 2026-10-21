@@ -148,6 +148,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `AUDIT_NONDETERMINISTIC`, 4 `GENERATION_REJECTED` / 5 `EXTRACTION_REJECTED` (API client: the
   server refused a generation / a frame extraction; a 503 is `SERVICE_UNAVAILABLE`),
   6 `AUDIO_DROPOUT_RISK` (`scripts/audio_glitch_probe.py` found a risk of audio dropouts),
+  7 `REBASELINE_INPUT_LOST` (`--rebaseline` wrote NEW, but the run never got some of OLD's input),
+  8 `PROCESSING_SLOWER` (a replay matched, but took more than `--max-processing-slowdown` longer),
   64 `OPTIONS_REFUSED` (option combinations the engine won't run), 65 `UNUSABLE_INPUT` (wrong
   game, unsupported format, corrupt or unreadable file, bad server response), 66 `MISSING_INPUT`
   (the file does not exist), 69 `SERVICE_UNAVAILABLE` (API server unreachable), 70
@@ -244,12 +246,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `elapsed_seconds()`: throttles, debounces, repeat intervals, timeouts (only differences mean
   anything). It is the frame clock, live and replayed, so these timers have frame granularity
 - `measured_seconds()`: real `time.monotonic()` for logs, metrics and diagnostics only. It is never
-  replayed, so its readings must never change what is drawn, played or recorded
+  replayed, so its readings must never change what is drawn, played or recorded (the one
+  exception: each frame's diagnostic `processing_seconds`, recorded but never compared or served)
 - Only `ALLOWED_BYPASSES` in `tests/test_engine_doors.py` may read the raw clock (or use
   `pygame.time.set_timer`/`Clock`): pacing (`timing.py`), `performance/`, `debug/`,
   `audio/diagnostics.py` and the live doors' wall clock (`live_sources.py`); by function
   (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.start`/`_finish_frame` (and its pacing `Clock`),
-  the recording's start stamp (`GameEngine.trace_recording_header`) and `clock.measured_seconds`
+  the recording's start stamp (`GameEngine.trace_recording_header`), each run's `measured_at`
+  (`GameEngine.measurement_run`) and `clock.measured_seconds`
 - A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
   clock (`RecordingSources.wall_clock_time`)
 
@@ -273,7 +277,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   frame's immutable `InputSnapshot`. It is captured once per frame, right after the frame's first
   pump, so `dt_tick` (which runs before the pump) sees the previous frame's. It offers
   `key_pressed(key)`, `pressed_keys` (like `pygame.key.get_pressed()`; key lookup needs
-  `pygame.init()`), `modifiers`, `mouse_position`, `mouse_buttons` and `mouse_focused`. Devices
+  `pygame.init()`), `scancode_pressed(scancode=...)` (a physical position: no keymap, the same
+  on every layout), `modifiers`, `mouse_position`, `mouse_buttons` and `mouse_focused`. Devices
   are keyed by instance id on two layers: the joystick layer (`axis`/`button`/`hat(device_id=...,
   ...)`, float axes) and the controller layer (`controller_axis`/`controller_button(device_id=...,
   ...)` by `CONTROLLER_AXIS_*`/`CONTROLLER_BUTTON_*` id, on pygame's int scale). Never poll pygame
@@ -308,7 +313,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   frame fields through). The header holds versions, options, `recorded_at`, the
   random seed and, since format 3, the `saves`, `devices` and `device_enumeration` taken in before
   recording started. Engine code posts events with `glitchygames.recording.post_event` so
-  recordings can mark them internal. The format is described in `glitchygames/recording.py`
+  recordings can mark them internal; code driving the game from outside its logic (a
+  supervisor, a harness) posts with `post_input_event`, recorded external whatever its type, so
+  every replay serves it and drops a copy the replayed code posts (BUGS.md #84). The format is
+  described in `glitchygames/recording.py`
 - Scene starts (`glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
   Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
   from their start, `--rebaseline`, the playback scope) or the class sets
@@ -428,6 +436,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   N: the run ended with ...` (after its result: the result, then `then the run ended with ...`).
   The diagnostic flags (`--headless`, `--debug-overlay`, the trace/replay/audit flags, the timer
   jitter and FPS report flags) are in the "Diagnostics Options" group
+- Fabricated key events (scripts, tests) carry their key's US QWERTY position
+  (`glitchygames.testing.keys.qwerty_scancode`): the example games bind every control by
+  scancode (`ActionMap.bind(scancode=...)`), pause and quit included
 - Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
@@ -452,9 +463,34 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   timeout and the engine's signal handlers installed around the wait
   (`GameEngine._waiting_for_child_processes`, shared with restarts)
 - Outputs: an unwritable `--record-trace`, `--rebaseline` partial or `--replay-digest` file is
-  refused before the run (`CANNOT_WRITE_OUTPUT`, one line; `glitchygames/output_files.py`, which
+  refused before the run (`CANNOT_WRITE_OUTPUT`, one line; a recording whose writes fail part
+  way, the disk filling, also ends the run `CANNOT_WRITE_OUTPUT` with one line, keeping the
+  frames written: `recording.RecordingWriteError`; `glitchygames/output_files.py`, which
   also holds the one write-aside-then-replace helper); a game's own `sys.exit(0)` that cuts a
-  replay short exits `REPLAY_DIVERGED`; a malformed header or start frame is `UNUSABLE_INPUT`
+  replay short exits `REPLAY_DIVERGED` (under `--rebaseline` it is the game ending early, as
+  `quit_game()` is: NEW is written, exit `REBASELINE_INPUT_LOST`); a malformed header or start frame is `UNUSABLE_INPUT`
+- Processing time (`glitchygames/replay/processing.py`, whose docstring is the contract): each
+  recorded frame holds a diagnostic `processing_seconds` (its work from the top of
+  `SceneManager._run_frame_steps`, minus `_present_frame`, without the doors' `end_frame` or
+  pacing; `clock.measured_seconds`), passed to the doors as `end_frame(processing_seconds=...)`,
+  never compared or served; the header names the `machine`. `--replay-trace PATH --headless
+  --compare-processing` prints `Processing: the replay took 14.2% longer than the recording
+  (...)` after the report; `--max-processing-slowdown PERCENT` (implies it) exits
+  `PROCESSING_SLOWER` (8) for a matched replay that took more than PERCENT longer in total,
+  `UNUSABLE_INPUT` when the recording has no times. Refused (`OPTIONS_REFUSED`) without
+  `--headless`, with `--audit` or `--rebaseline` (whose NEW records its own times). Paced frames
+  process slower (the CPU idles between them), so the fair baseline is a `--rebaseline` made on
+  the checking machine (latest run's `processing_paced` False); the report notes a paced baseline
+- Frame histories (`glitchygames/recording_history.py`, the contract; design
+  `plans/2026-10-20-recording-content-hash-and-history.md`): every recorded frame holds
+  newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
+  re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
+  lists, and the header `measurement_runs` (each run's provenance: machine, paced, versions,
+  `measured_at` from `GameEngine.measurement_run`, `rebaselined_from`, `hash_scheme`, and
+  `frame_count`, filled in when the next run stacks; read leniently, written strictly); index `i`
+  is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run
+  in front (same hashes when behaviour is unchanged); `recording_content_hash` derives a
+  recording's hash for any run. Never compared by a replay, never served
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a
@@ -471,7 +507,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `SUCCESS` (`ReplayExitPolicy.SUCCESS_AFTER_WRITING`); input OLD has that the run never got
   (unpumped batches' external events, frames after an early game end) is never carried
   elsewhere, only appended to the summary (`; 3 recorded input events not delivered (first at
-  frame 812); ended at frame 500 of 9800`) and logged as a warning; a failed final move keeps
+  frame 812); ended at frame 500 of 9800`), logged as a warning, and the run then exits
+  `REBASELINE_INPUT_LOST` (NEW still written; `ReplayResult.has_lost_input`); a failed final move keeps
   `NEW.partial` and exits `CANNOT_WRITE_OUTPUT`. Refused (`OPTIONS_REFUSED`) without
   `--replay-trace` or `--headless`, with NEW or `NEW.partial` == OLD, `--record-trace`,
   `--audit`, `--replay-digest` or `--replay-fps real`. NEW replays clean; a truncated OLD gives a

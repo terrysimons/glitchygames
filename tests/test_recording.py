@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import errno
 import gzip
 import json
 import math
@@ -44,24 +45,33 @@ from glitchygames.recording import (
     GameplayRecorder,
     RecordedReference,
     RecordingSources,
+    RecordingWriteError,
     UnrepresentableValue,
     event_from_record,
     event_origin,
     event_to_record,
+    forget_pending_posts,
     is_live_game_post,
     json_safe_value,
     live_game_posts,
+    pending_code_post_count,
     pending_internal_posts,
     post_event,
+    post_input_event,
     reset_internal_post_tracking,
     set_live_game_code_running,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     value_from_json,
 )
+from glitchygames.recording_history import (
+    CONTENT_HASH_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    frame_content_hash,
+)
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
-from glitchygames.tracing import TraceFormatError, read_trace_result
+from glitchygames.tracing import TraceFormatError, TraceWriter, read_trace_result
 
 WINDOW_SIZE = (16, 16)
 TEST_JOYSTICK_INSTANCE_ID = 7
@@ -501,11 +511,178 @@ class TestEventOrigin:
         assert live_game_posts() == []
         pygame.event.clear()
 
+    def test_an_input_post_is_external_whatever_its_type(self, tmp_path, event_queue):
+        """post_input_event is input to the game (a replay serves it), even a custom type."""
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+            post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 2}))
+            post_input_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+            _pump_batch(recorder)
+            recorder.record_frame(dt=0.01, scene=None)
+
+        assert _origins(read_trace_result(path=path).trace['frames'][0]) == [
+            (pygame.USEREVENT, EXTERNAL_ORIGIN),
+            (pygame.USEREVENT, INTERNAL_ORIGIN),
+            (pygame.KEYDOWN, EXTERNAL_ORIGIN),
+        ]
+
+    def test_an_input_post_is_told_from_an_equal_code_post(self, event_queue):
+        """Matched by identity: an equal post_event queued first is still the game's own."""
+        start_tracking_internal_posts()
+        post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        pending = pending_internal_posts()
+        first, second = pygame.event.get()
+
+        assert event_origin(event=first, pending=pending) == INTERNAL_ORIGIN
+        assert event_origin(event=second, pending=pending) == EXTERNAL_ORIGIN
+        stop_tracking_internal_posts()
+
+    def test_pending_code_posts_leave_out_input_posts(self, event_queue):
+        """A scene start's earlier internal events are the game's own posts only."""
+        start_tracking_internal_posts()
+        post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 2}))
+
+        assert len(pending_internal_posts()) == 2
+        assert pending_code_post_count() == 1
+        stop_tracking_internal_posts()
+
+    def test_forgetting_pending_posts_forgets_input_posts(self, event_queue):
+        start_tracking_internal_posts()
+        post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        forget_pending_posts()
+
+        assert pending_internal_posts() == []
+        assert recording._INTERNAL_POSTS.input_posts == []
+        stop_tracking_internal_posts()
+
+    def test_input_posts_are_not_tracked_without_a_recorder(self, event_queue):
+        """With no recording open, post_input_event only posts."""
+        assert post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1})) is True
+        assert recording._INTERNAL_POSTS.pending == []
+        assert recording._INTERNAL_POSTS.input_posts == []
+        assert [event.type for event in pygame.event.get()] == [pygame.USEREVENT]
+
     def test_posts_are_not_tracked_without_a_recorder(self, event_queue):
         """With no recording open, post_event only posts."""
         assert post_event(pygame.event.Event(pygame.QUIT)) is True
         assert recording._INTERNAL_POSTS.pending == []
         assert [event.type for event in pygame.event.get()] == [pygame.QUIT]
+
+
+class TestRecorderWriteFailures:
+    """A recording that cannot be written part way (the disk fills): BUGS.md #82."""
+
+    def test_a_failed_frame_write_raises_and_keeps_the_frames_before(self, tmp_path, mocker):
+        path = tmp_path / 'play.jsonl.gz'
+        recorder = GameplayRecorder(path=path, header={})
+        recorder.record_frame(dt=0.01, scene=None)
+        mocker.patch.object(
+            TraceWriter, 'write_frame', side_effect=OSError(28, 'No space left on device')
+        )
+        with pytest.raises(RecordingWriteError, match='No space left on device') as error_info:
+            recorder.record_frame(dt=0.01, scene=None)
+        assert error_info.value.path == path
+        assert recorder.write_failed is True
+        # Abandoned: closed, posts no longer tracked, later frames are not written
+        assert recording._INTERNAL_POSTS.is_tracking is False
+        recorder.record_frame(dt=0.01, scene=None)
+        recorder.close()
+        result = read_trace_result(path=path)
+        assert result.is_complete
+        assert len(result.trace['frames']) == 1
+
+    def test_a_failed_close_is_noted_not_raised(self, tmp_path, mocker, caplog):
+        """The teardown goes on; the engine reads write_failed and exits CANNOT_WRITE_OUTPUT."""
+        recorder = GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={})
+        real_close = TraceWriter.close
+
+        def close_then_fail(writer: TraceWriter) -> None:
+            real_close(writer)
+            raise OSError(errno.EIO, 'Input/output error')
+
+        mocker.patch.object(TraceWriter, 'close', autospec=True, side_effect=close_then_fail)
+        recorder.close()
+        assert recorder.write_failed is True
+        assert 'could not be written' in caplog.text
+
+
+class TestFrameHistories:
+    """Each written frame carries its content hash and processing time, newest first."""
+
+    def test_a_fresh_recording_starts_each_history_with_one_entry(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(dt=0.01, scene=None, processing_seconds=0.0021)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[PROCESSING_SECONDS_FIELD] == [0.0021]
+        assert frame[CONTENT_HASH_FIELD] == [frame_content_hash(frame_record=frame)]
+
+    def test_an_unmeasured_frame_keeps_its_place(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(dt=0.01, scene=None)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[PROCESSING_SECONDS_FIELD] == [None]
+
+    def test_a_recording_over_a_replay_stacks_onto_the_replayed_frame(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(
+                dt=0.01,
+                scene=None,
+                processing_seconds=0.003,
+                previous_histories={
+                    PROCESSING_SECONDS_FIELD: [0.002],
+                    CONTENT_HASH_FIELD: ['0123456789abcdef'],
+                },
+            )
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[PROCESSING_SECONDS_FIELD] == [0.003, 0.002]
+        assert frame[CONTENT_HASH_FIELD][1] == '0123456789abcdef'
+
+    def test_the_stored_hash_is_the_hash_of_the_frame_read_back(self, tmp_path, event_queue):
+        """A reader recomputes the hash from what it decodes: tagged floats, tuples, non-ASCII."""
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            post_event(
+                pygame.event.Event(
+                    pygame.USEREVENT, {'speed': float('inf'), 'pair': (1, 2), 'name': 'Ünïcødé'}
+                )
+            )
+            _pump_batch(recorder)
+            recorder.record_frame(dt=0.01, scene=None, processing_seconds=0.001)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame)
+
+
+class TestFrameHashesDescribeWhatAReaderGets:
+    """The hash is of the frame as JSON decodes it: keys become strings (final review #1)."""
+
+    def test_integer_keys_hash_as_the_string_keys_a_reader_gets(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(
+                dt=0.01,
+                scene=None,
+                control_events=[{'kind': 'cheat', 'data': {'slots': {1: 'a', 10: 'b', 2: 'c'}}}],
+            )
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame)
+
+    def test_mixed_key_types_still_record(self, tmp_path):
+        """Sorting int and str keys together raised TypeError and ended the run."""
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(
+                dt=0.01,
+                scene=None,
+                control_events=[{'kind': 'cheat', 'data': {1: 'a', 'x': 'b'}}],
+            )
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame)
 
 
 class TestGameplayRecorder:

@@ -20,6 +20,11 @@ Code  Member                       Meaning
 5     ``EXTRACTION_REJECTED``      The API server rejected the client's frame extraction
 6     ``AUDIO_DROPOUT_RISK``       ``scripts/audio_glitch_probe.py`` found a risk of audio
                                    dropouts
+7     ``REBASELINE_INPUT_LOST``    ``--rebaseline`` wrote the new recording, but the run never
+                                   received some of the old one's input (it ended early, or did
+                                   not pump a recorded batch): not a faithful re-run
+8     ``PROCESSING_SLOWER``        A replay matched, but its processing time exceeded the
+                                   recording's by more than ``--max-processing-slowdown``
 64    ``OPTIONS_REFUSED``          The engine refuses the options given (a combination it will not
                                    run)
 65    ``UNUSABLE_INPUT``           The recording or input data is unusable (another game's
@@ -101,6 +106,14 @@ class ExitCode(enum.IntEnum):
 
     # scripts/audio_glitch_probe.py found a risk of audio dropouts
     AUDIO_DROPOUT_RISK = 6
+
+    # --rebaseline wrote the new recording, but the run never received some of the old one's
+    # input (glitchygames/replay/rebaseline.py, rule 2)
+    REBASELINE_INPUT_LOST = 7
+
+    # A replay matched, but took longer to process than --max-processing-slowdown allows; see
+    # glitchygames/replay/processing.py
+    PROCESSING_SLOWER = 8
 
     # The engine refuses the options given (a combination it will not run). Same value as
     # Python's os.EX_USAGE (sysexits.h EX_USAGE)

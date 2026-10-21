@@ -24,6 +24,10 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   ``device_index``, ``instance_id``, ``name``, ``guid`` and the axis, button, hat and ball
   counts; glitchygames/input/devices.py); and ``device_enumeration``, the enumeration and
   open answers given so far (``call``, ``device_index``, ``value``, ``error``), in order.
+  And ``measurement_runs``: each run's provenance, newest first (``MeasurementRun``: machine,
+  whether it paced its frames, versions, ``measured_at``, ``rebaselined_from``, the hash
+  scheme); one entry for a fresh recording, and a rebaseline puts its own in front
+  (glitchygames/recording_history.py).
 - Exactly one frame line per main-loop frame, numbered 0, 1, 2, ... in order: transition
   frames, paused frames, frames where nothing changed, and a final frame whose active scene
   is None (``scene: null``, no sprites) included.
@@ -72,6 +76,16 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   And ``redelivered_events``: the events a playback scope held for the live game, delivered
   before the frame's first pump (see Playback scopes below), likewise version-free; a replay
   never serves it (it redelivers them itself), a playback starting on the frame does.
+- Every frame a recorder writes holds two histories, newest first, index ``i`` being
+  ``measurement_runs[i]`` (glitchygames/recording_history.py, the contract):
+  ``content_hash``, the frame's content hash (64 bits of SHA-256 of its content fields as
+  JSON decodes them, re-encoded compact and sorted; every frame field is content or a
+  measurement, and the hash refuses any other), and ``processing_seconds``, its processing
+  time (glitchygames/replay/
+  processing.py; None when not measured). Diagnostics: a replay never compares them or serves
+  them to the game. A rebaseline stacks its own in front of the replayed frame's; each list
+  keeps ``CONTENT_HASH_HISTORY_DEPTH`` / ``PROCESSING_SECONDS_HISTORY_DEPTH`` entries (10).
+  A recording's own hash for any run is derived from them (``recording_content_hash``).
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -86,6 +100,10 @@ from SDL (keyboard, mouse, controller, joystick, touch, window, device, drop, th
 to quit). Replay re-injects only external events and takes internal ones from the live queue,
 where the code that posted them posts them again. The rule:
 
+- An event posted through ``post_input_event()`` is external, whatever its type: it is input
+  to the game from outside its logic (a supervisor driving it, a test harness, a tool), which
+  a replay serves from the recording. When the replayed code posts it again (a supervisor the
+  game's own setup() added), that copy is dropped, so it arrives once either way.
 - A type at or above ``pygame.USEREVENT`` (FPSEVENT, GAMEEVENT, MENUEVENT, any
   ``pygame.event.custom_type()``) is internal: SDL never generates those.
 - An SDL-type event posted through ``post_event()`` (every post in the engine goes through
@@ -216,6 +234,11 @@ import numpy as np
 import pygame
 
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
+from glitchygames.recording_history import (
+    CONTENT_HASH_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    add_frame_histories,
+)
 from glitchygames.scene_start import SceneStart, SceneStartCapture
 from glitchygames.sources import (
     frame_clock_seconds,
@@ -274,6 +297,8 @@ RECORDING_FORMAT_THREE_FIELDS = (
     DEVICE_ENUMERATION_FIELD,
     SCENE_START_FIELD,
     REDELIVERED_EVENTS_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    CONTENT_HASH_FIELD,
 )
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
@@ -352,6 +377,8 @@ class InternalEventPosts:
             rule 4).
         live_game_posts: The very entries of ``pending`` (the same tuple objects) posted while
             ``live_game_code_running``, until the scope's next pump or its end sorts them out.
+        input_posts: The very entries of ``pending`` posted through ``post_input_event``
+            (input to the game, recorded as external), until the posts are forgotten.
 
     """
 
@@ -359,6 +386,7 @@ class InternalEventPosts:
     pending: list[tuple[int, dict[str, Any]]] = dataclasses.field(default_factory=list)
     live_game_code_running: bool = False
     live_game_posts: list[tuple[int, dict[str, Any]]] = dataclasses.field(default_factory=list)
+    input_posts: list[tuple[int, dict[str, Any]]] = dataclasses.field(default_factory=list)
 
     @property
     def is_tracking(self) -> bool:
@@ -384,6 +412,7 @@ def stop_tracking_internal_posts() -> None:
     if _INTERNAL_POSTS.owner_count == 0:
         _INTERNAL_POSTS.pending.clear()
         _INTERNAL_POSTS.live_game_posts.clear()
+        _INTERNAL_POSTS.input_posts.clear()
 
 
 def reset_internal_post_tracking() -> None:
@@ -392,6 +421,17 @@ def reset_internal_post_tracking() -> None:
     _INTERNAL_POSTS.pending.clear()
     _INTERNAL_POSTS.live_game_code_running = False
     _INTERNAL_POSTS.live_game_posts.clear()
+    _INTERNAL_POSTS.input_posts.clear()
+
+
+def forget_pending_posts() -> None:
+    """Forget every pending post, input posts included (after a pump: matched or never returned).
+
+    The live game's posts made inside a playback scope (``live_game_posts``) are not touched:
+    the scope sorts those out itself.
+    """
+    _INTERNAL_POSTS.pending.clear()
+    _INTERNAL_POSTS.input_posts.clear()
 
 
 def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
@@ -445,6 +485,33 @@ def live_game_posts() -> list[tuple[int, dict[str, Any]]]:
     return _INTERNAL_POSTS.live_game_posts
 
 
+def is_input_post(*, post: tuple[int, dict[str, Any]]) -> bool:
+    """Report whether a pending post was made through ``post_input_event`` (input to the game).
+
+    Args:
+        post: An entry of ``pending_internal_posts()`` (or a copy of that list).
+
+    Returns:
+        True when it is one of the input posts (by identity, not equality).
+
+    """
+    return any(post is input_post for input_post in _INTERNAL_POSTS.input_posts)
+
+
+def pending_code_post_count() -> int:
+    """Return how many pending posts are the game's own (``post_event``), not input posts.
+
+    What a scene start or a resume bridge counts as the earlier internal events its replay
+    serves from the recording: input posts are recorded as external, which a replay always
+    serves.
+
+    Returns:
+        The number of pending posts not made through ``post_input_event``.
+
+    """
+    return sum(1 for post in _INTERNAL_POSTS.pending if not is_input_post(post=post))
+
+
 def is_live_game_post(*, post: tuple[int, dict[str, Any]]) -> bool:
     """Report whether a pending post is one the live game's code made inside a playback scope.
 
@@ -471,10 +538,46 @@ def post_event(event: pygame.event.Event) -> bool:
         True if pygame queued the event (False if its type is blocked).
 
     """
+    return _post_tracked(event=event, is_input=False)
+
+
+def post_input_event(event: pygame.event.Event) -> bool:
+    """Post an event that is input to the game; a recording marks it ``origin: external``.
+
+    For code outside the game's logic that drives it, as a player would: a supervisor, a test
+    harness, a tool (BUGS.md #84). A replay (``--replay-trace``, an instant replay, a demo)
+    serves the recorded event whether or not it runs the poster again; a copy the replayed
+    code posts (a supervisor the game's own setup() added) is dropped, so the game gets it
+    once. Use ``post_event`` for the game's own posts, which a replay expects it to make again.
+
+    Args:
+        event: The event to post.
+
+    Returns:
+        True if pygame queued the event (False if its type is blocked: a replay blocks real
+        input types, and serves the recorded event instead).
+
+    """
+    return _post_tracked(event=event, is_input=True)
+
+
+def _post_tracked(*, event: pygame.event.Event, is_input: bool) -> bool:
+    """Post ``event`` and, while posts are tracked, remember it (``post_event``).
+
+    Args:
+        event: The event to post.
+        is_input: True for ``post_input_event``'s posts.
+
+    Returns:
+        True if pygame queued the event.
+
+    """
     was_posted = bool(pygame.event.post(event))
     if was_posted and _INTERNAL_POSTS.is_tracking:
         post = (event.type, dict(event.dict))
         _INTERNAL_POSTS.pending.append(post)
+        if is_input:
+            _INTERNAL_POSTS.input_posts.append(post)
         if _INTERNAL_POSTS.live_game_code_running:
             _INTERNAL_POSTS.live_game_posts.append(post)
     return was_posted
@@ -750,11 +853,32 @@ def take_internal_post(
         True when a post matched (and was removed): code posted ``event``.
 
     """
-    for index, (event_type, attributes) in enumerate(pending):
+    return take_matching_post(event=event, pending=pending) is not None
+
+
+def take_matching_post(
+    *, event: pygame.event.Event, pending: list[tuple[int, dict[str, Any]]]
+) -> tuple[int, dict[str, Any]] | None:
+    """Remove and return the first post in ``pending`` with ``event``'s type and attributes.
+
+    The very entry is returned, so ``is_input_post`` and ``is_live_game_post`` can tell it
+    from an equal post.
+
+    Args:
+        event: An event a pump returned.
+        pending: Posts not yet matched to a pumped event (``pending_internal_posts()`` or a
+            copy of it).
+
+    Returns:
+        The matched post, or None when code did not post ``event``.
+
+    """
+    for index, post in enumerate(pending):
+        event_type, attributes = post
         if event_type == event.type and attributes == event.dict:
             del pending[index]
-            return True
-    return False
+            return post
+    return None
 
 
 def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str, Any]]]) -> str:
@@ -768,8 +892,10 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
         ``INTERNAL_ORIGIN`` or ``EXTERNAL_ORIGIN``.
 
     """
-    was_posted_by_code = take_internal_post(event=event, pending=pending)
-    if was_posted_by_code or event.type >= pygame.USEREVENT:
+    post = take_matching_post(event=event, pending=pending)
+    if post is not None and is_input_post(post=post):
+        return EXTERNAL_ORIGIN
+    if post is not None or event.type >= pygame.USEREVENT:
         return INTERNAL_ORIGIN
     return EXTERNAL_ORIGIN
 
@@ -847,6 +973,31 @@ class TraceRecordingAlreadyStartedError(RuntimeError):
     """GameEngine.start_trace_recording() was called while the engine was already recording."""
 
 
+class RecordingWriteError(OSError):
+    """A recording's file could not be written part way (the disk filled, it went away).
+
+    ``GameplayRecorder.record_frame`` raises it once it has abandoned the recording (what was
+    written before stays readable); the engine ends the run with
+    ``ExitCode.CANNOT_WRITE_OUTPUT`` and one error line, as it refuses an unwritable output
+    before the run (BUGS.md #82).
+
+    Attributes:
+        path: The recording's file.
+
+    """
+
+    def __init__(self, *, path: Path, cause: OSError) -> None:
+        """Name the file and the operating system's reason.
+
+        Args:
+            path: The recording's file.
+            cause: The error the write raised.
+
+        """
+        super().__init__(cause.errno, f'{path} could not be written: {cause.strerror or cause}')
+        self.path = path
+
+
 class RecordedFrameFields(TypedDict, total=False):
     """The format-3 frame fields ``GameplayRecorder.record_frame`` takes by keyword.
 
@@ -882,6 +1033,18 @@ class RecordedFrameFields(TypedDict, total=False):
 
 class RecordedFrameFieldSource(Protocol):
     """A recording's frames, as a recording made over its replay copies them."""
+
+    def recorded_frame_histories(self, *, frame_index: int) -> dict[str, Any]:
+        """Return a frame's recorded histories (``content_hash``, ``processing_seconds``).
+
+        Args:
+            frame_index: The recording's frame index.
+
+        Returns:
+            Whichever the frame has; none past the end.
+
+        """
+        ...
 
     def recorded_frame_fields(self, *, frame_index: int) -> dict[str, Any]:
         """Return a frame's recorded saves and device fields (whichever it has; none past the end).
@@ -923,6 +1086,14 @@ class GameplayRecorder:
     ``GameEngine._shutdown`` closes it. Every frame is flushed to the file as it is written, so
     a killed process leaves every finished frame readable. While open, it owns the
     internal-post tracker, to tell internal events from external ones.
+
+    A write that fails (``OSError``) abandons the recording: it is closed as far as it can be,
+    ``write_failed`` is set and nothing more is written. ``record_frame`` then raises
+    ``RecordingWriteError``; a failing ``close`` only logs it, so the teardown goes on (the
+    engine reads ``write_failed`` and exits ``ExitCode.CANNOT_WRITE_OUTPUT``).
+
+    Attributes:
+        write_failed: True once a write of the file failed.
     """
 
     def __init__(self, *, path: Path, header: dict[str, Any]) -> None:
@@ -939,6 +1110,7 @@ class GameplayRecorder:
         self._event_batches: list[list[dict[str, Any]]] = []
         self._previous_scene: Scene | None = None
         self._is_closed = False
+        self.write_failed = False
         start_tracking_internal_posts()
 
     @property
@@ -982,20 +1154,34 @@ class GameplayRecorder:
         self._event_batches.append(batch)
 
     def record_frame(
-        self, *, dt: float, scene: Scene | None, **frame_fields: Unpack[RecordedFrameFields]
+        self,
+        *,
+        dt: float,
+        scene: Scene | None,
+        processing_seconds: float | None = None,
+        previous_histories: Mapping[str, Any] | None = None,
+        **frame_fields: Unpack[RecordedFrameFields],
     ) -> None:
         """Write the frame just finished: its dt, its event batches and the scene's sprites.
 
         The format-3 fields (``RecordedFrameFields``, see the module docstring) are written
-        only when given and not empty, so idle frames stay small.
+        only when given and not empty, so idle frames stay small. Every frame also gets its
+        histories (glitchygames/recording_history.py): its content hash and processing time,
+        in front of ``previous_histories`` (a rebaseline's: the replayed frame's).
 
         Args:
             dt: The frame's raw delta time (scene logic received it capped at the scene's
                 MAX_FRAME_SECONDS, when the scene sets one).
             scene: The active scene at the end of the frame (None once the game has ended).
+            processing_seconds: The frame's processing time, or None when not measured.
+            previous_histories: The frame's earlier ``content_hash`` and ``processing_seconds``
+                histories, or None for a fresh recording.
             **frame_fields: The frame's format-3 fields, by keyword.
 
         """
+        if self._is_closed:
+            # Abandoned after a failed write (or closed): nothing more is written
+            return
         frame_record = recorded_frame(
             frame_number=self._writer.frame_count,
             scene=scene,
@@ -1004,8 +1190,24 @@ class GameplayRecorder:
             event_batches=self._event_batches,
             **frame_fields,
         )
+        add_frame_histories(
+            frame_record=frame_record,
+            processing_seconds=processing_seconds,
+            previous_histories=previous_histories,
+        )
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
-        self._writer.write_frame(frame_record=frame_record, force_keyframe=is_new_scene_object)
+        failure: OSError | None = None
+        try:
+            self._writer.write_frame(frame_record=frame_record, force_keyframe=is_new_scene_object)
+        except OSError as error:
+            failure = error
+        if failure is not None:
+            write_error = RecordingWriteError(path=self.path, cause=failure)
+            # One line, no traceback: the reason is the operating system's, not a bug
+            LOG.error('%s', write_error.strerror)
+            self.write_failed = True
+            self.close()
+            raise write_error from failure
         self._previous_scene = scene
         self._event_batches = []
 
@@ -1015,8 +1217,24 @@ class GameplayRecorder:
             return
         self._is_closed = True
         stop_tracking_internal_posts()
-        self._writer.close()
         self._previous_scene = None
+        failure: OSError | None = None
+        try:
+            self._writer.close()
+        except OSError as error:
+            failure = error
+        if failure is not None:
+            # Logged once (one line, no traceback): after a failed frame write the close may
+            # fail too
+            if not self.write_failed:
+                LOG.error('%s', RecordingWriteError(path=self.path, cause=failure).strerror)
+            self.write_failed = True
+            return
+        if self.write_failed:
+            LOG.info(
+                'Kept the %d frames recorded to %s before it failed', self.frame_count, self.path
+            )
+            return
         LOG.info('Recorded %d frames to %s', self.frame_count, self.path)
 
     def __enter__(self) -> Self:
@@ -1279,6 +1497,7 @@ class RecordingSources:
         dt: float,
         scene: Scene | None,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         """Write the frame with everything that passed through the doors, then end it inside.
 
@@ -1320,12 +1539,26 @@ class RecordingSources:
                 device_enumeration=device_enumeration,
                 scene_start=None if scene_start is None else scene_start.to_json(),
                 redelivered_events=self._frame_redelivered_events,
+                # This run's own measurement, over a replay too (a rebaseline's NEW holds the
+                # current code's times in front of OLD's)
+                processing_seconds=processing_seconds,
+                previous_histories=(
+                    None
+                    if self._replayed is None
+                    else self._replayed.recording.recorded_frame_histories(
+                        frame_index=self._recorder.frame_count
+                    )
+                ),
             )
         self._frame_snapshot = None
         self._frame_saves_opened = {}
         self._frame_redelivered_events = []
         self.inner.end_frame(
-            frame_number=frame_number, dt=dt, scene=scene, control_events=control_events
+            frame_number=frame_number,
+            dt=dt,
+            scene=scene,
+            control_events=control_events,
+            processing_seconds=processing_seconds,
         )
 
     def _unrecorded_scene_start(self, *, scene: Scene | None) -> SceneStart | None:

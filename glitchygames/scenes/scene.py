@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import itertools
 import logging
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
@@ -11,7 +10,7 @@ import pygame
 
 from glitchygames import events
 from glitchygames.camera import Camera2D
-from glitchygames.clock import frame_clock_seconds
+from glitchygames.clock import frame_clock_seconds, measured_seconds
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
@@ -33,11 +32,14 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
 from glitchygames.recording import (
+    is_input_post,
     is_live_game_post,
     live_game_code_running,
     live_game_posts,
+    pending_code_post_count,
     pending_internal_posts,
     post_event,
+    post_input_event,
     set_live_game_code_running,
 )
 from glitchygames.scene_start import (
@@ -210,11 +212,16 @@ class SceneManager(SceneInterface, events.EventManager):
         # presented, frames ran unpresented, or a playback scope ended): the next presented
         # frame updates the whole display (_show_frame)
         self._display_is_stale: bool = False
+        # The time this frame spent presenting (_present_frame): left out of its processing time
+        self._frame_present_seconds: float = 0.0
         self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
         # The devices rumble is sent to (joysticks opened once, while their count holds), and
         # the live game's rumble controller while a playback scope plays on its own
         self._rumble_devices = ConnectedRumbleDevices()
+        # A playback scope's own device lookups, asked through its doors and then dropped
+        # (_rumble_devices_for_scope); new for each scope, so the live cache is never touched
+        self._scope_rumble_devices = ConnectedRumbleDevices()
         self._live_rumble_behind_scope: RumbleController | None = None
         self._live_audio: LiveAudio | None = None
 
@@ -433,7 +440,7 @@ class SceneManager(SceneInterface, events.EventManager):
                     bridge=ResumeBridge(
                         frame_clock_seconds=frame_clock_seconds(),
                         fps_event_seconds=self._previous_fps_event_seconds,
-                        earlier_internal_event_count=len(pending_internal_posts()),
+                        earlier_internal_event_count=pending_code_post_count(),
                         input_before=snapshot_changes(previous=IDLE_INPUT, current=input_before),
                     ),
                     input_before=input_before,
@@ -1102,7 +1109,7 @@ class SceneManager(SceneInterface, events.EventManager):
             dt=self.dt,
             # A playback never rumbles the player's real devices (playback.py, rule 8)
             devices=(
-                self._no_rumble_devices
+                (lambda: self._rumble_devices_for_scope(controller_manager=controller_manager))
                 if self.in_playback_scope
                 else lambda: self._rumble_devices.find(controller_manager=controller_manager)
             ),
@@ -1134,14 +1141,24 @@ class SceneManager(SceneInterface, events.EventManager):
                 paused_owners=paused_owners,
             )
 
-    @staticmethod
-    def _no_rumble_devices() -> list[RumbleDevice]:
-        """Return no devices: what a playback scope's rumble is sent to (playback.py, rule 8).
+    def _rumble_devices_for_scope(
+        self: Self, *, controller_manager: object | None
+    ) -> list[RumbleDevice]:
+        """Ask the scope's doors for the devices as a live send would, then send to none.
+
+        A playback never rumbles the player's real devices (playback.py, rule 8), but each send
+        still asks the played recording's devices door, as the recorded run did: a joystick
+        count it answered for rumble and nobody asked would be read by the played scene's next
+        enumeration of its own.
+
+        Args:
+            controller_manager: GameEngine.controller_manager; None in joystick mode.
 
         Returns:
             An empty list.
 
         """
+        self._scope_rumble_devices.find(controller_manager=controller_manager)
         return []
 
     @property
@@ -1244,7 +1261,11 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         if active_sources().presents_frames:
+            present_started_seconds = measured_seconds()
             self._show_frame(full_update=full_update)
+            # Not the frame's processing time: a live window and a headless replay's dummy
+            # display present at very different costs (glitchygames/replay/processing.py)
+            self._frame_present_seconds += measured_seconds() - present_started_seconds
         else:
             # What this frame drew never reached the display: the next presented frame must
             # update all of it, not only its own dirty rects (an instant replay's first shown
@@ -1733,16 +1754,24 @@ class SceneManager(SceneInterface, events.EventManager):
             self._exit_playback(reason=session.sources.end_reason)
 
     def _run_frame_steps(self: Self) -> None:
-        """Run the frame and end it at the doors (``_run_frame``, with the frame in progress)."""
+        """Run the frame and end it at the doors (``_run_frame``, with the frame in progress).
+
+        The doors get the frame's processing time (glitchygames/replay/processing.py): its
+        work from here to its end, without presenting it (``_present_frame``), without the
+        doors' own ``end_frame`` and without the pacing that follows.
+        """
+        work_started_seconds = measured_seconds()
+        self._frame_present_seconds = 0.0
         self._enter_requested_playback()
         self._apply_resume_bridge()
         self._begin_scene_logic_frame()
         self._begin_journal_frame()
         frame_dt = self.dt
         self._run_in_playback_scope(step=self._run_frame_contents)
+        processing_seconds = measured_seconds() - work_started_seconds - self._frame_present_seconds
         session = self._playback_session
         if session is None:
-            self._end_frame_at_doors(frame_dt=frame_dt)
+            self._end_frame_at_doors(frame_dt=frame_dt, processing_seconds=processing_seconds)
             self._journal_frame(frame_dt=frame_dt)
         else:
             scoped_sources = session.sources
@@ -1761,6 +1790,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 dt=frame_dt,
                 scene=self.active_scene,
                 control_events=self._frame_control_events,
+                processing_seconds=processing_seconds,
             )
         self._frame_control_events = []
         self.frame_number += 1
@@ -1780,7 +1810,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if isinstance(start_capture, SceneStartCapture):
             start_capture.begin_first_logic_frame(
                 fps_event_seconds=self._previous_fps_event_seconds,
-                earlier_internal_event_count=len(pending_internal_posts()),
+                earlier_internal_event_count=pending_code_post_count(),
             )
 
     def _enter_requested_playback(self: Self) -> None:
@@ -1811,11 +1841,12 @@ class SceneManager(SceneInterface, events.EventManager):
             LOG.exception('The %s playback could not start; the live game goes on', request.kind)
             self._exit_playback(reason='error')
 
-    def _end_frame_at_doors(self: Self, *, frame_dt: float) -> None:
+    def _end_frame_at_doors(self: Self, *, frame_dt: float, processing_seconds: float) -> None:
         """Tell the active doors the frame ended (a recording writes it, a replay compares it).
 
         Args:
             frame_dt: The frame's raw dt, read before the frame ran.
+            processing_seconds: The frame's processing time (``_run_frame_steps``).
 
         """
         active_sources().end_frame(
@@ -1823,6 +1854,7 @@ class SceneManager(SceneInterface, events.EventManager):
             dt=frame_dt,
             scene=self.active_scene,
             control_events=self._frame_control_events,
+            processing_seconds=processing_seconds,
         )
 
     def _run_in_playback_scope(self: Self, *, step: Callable[[], None]) -> None:
@@ -1902,6 +1934,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # that reaches no device (_update_frame_services), so the live game's waits untouched
         self._live_rumble_behind_scope = self.rumble
         self.rumble = RumbleController(intensity=self.rumble.intensity)
+        self._scope_rumble_devices = ConnectedRumbleDevices()
         LOG.info('Starting the %s playback of %s', request.kind, request.scene_class.__name__)
         self.record_control_event(
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
@@ -2020,11 +2053,18 @@ class SceneManager(SceneInterface, events.EventManager):
                 # posts them)
                 discard_scope_posts(posts=[*scope_posts, *queued_live_game_posts])
                 live_game_posts().clear()
-                for event in [
+                # Each as it was posted: an input post (post_input_event) stays input
+                for event, is_input in [
                     *session.sources.held_live_game_posts,
-                    *itertools.starmap(pygame.event.Event, queued_live_game_posts),
+                    *(
+                        (pygame.event.Event(*post), is_input_post(post=post))
+                        for post in queued_live_game_posts
+                    ),
                 ]:
-                    post_event(event)
+                    if is_input:
+                        post_input_event(event)
+                    else:
+                        post_event(event)
             # Outside a scope every post is the live game's
             live_game_posts().clear()
             self._resume_live_scene(scene=session.live_scene)

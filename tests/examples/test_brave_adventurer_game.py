@@ -48,6 +48,7 @@ from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_tr
 from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
+from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
 
 FRAME_SECONDS = 1 / 60
@@ -769,7 +770,9 @@ def brave_scene(mocker):
 
 
 def _press_key(scene, key):
-    scene.on_key_down_event(HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0))
+    scene.on_key_down_event(
+        HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key))
+    )
 
 
 class TestEngineWorldSpace:
@@ -1177,3 +1180,42 @@ class TestPitGapsMatchTheGround:
         assert left_segment.rect.right == 349
         assert pit_fill_rect[0] == left_segment.rect.right
         assert pit_fill_rect[0] + pit_fill_rect[2] == right_segment.rect.left
+
+
+def key_at(*, key: int, scancode: int) -> HashableEvent:
+    """Return a key press reporting ``key`` at physical position ``scancode`` (another layout).
+
+    Returns:
+        The KEYDOWN event.
+
+    """
+    return HashableEvent(pygame.KEYDOWN, key=key, scancode=scancode, mod=0, unicode='')
+
+
+class TestPositionalKeys:
+    """Every control is a physical position, pause and quit included (both editions)."""
+
+    @pytest.mark.parametrize(
+        ('action', 'scancode', 'qwerty_key'),
+        [
+            ('move_right', pygame.KSCAN_RIGHT, pygame.K_RIGHT),
+            ('move_left', pygame.KSCAN_LEFT, pygame.K_LEFT),
+            ('jump', pygame.KSCAN_SPACE, pygame.K_SPACE),
+            ('jump', pygame.KSCAN_UP, pygame.K_UP),
+        ],
+    )
+    def test_a_positional_control_is_its_position(
+        self, adventurer_scene, action, scancode, qwerty_key
+    ):
+        actions = adventurer_scene.actions
+        assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
+        assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
+
+    @pytest.mark.parametrize(
+        ('action', 'scancode', 'qwerty_key'),
+        [('pause', pygame.KSCAN_ESCAPE, pygame.K_ESCAPE), ('quit', pygame.KSCAN_Q, pygame.K_q)],
+    )
+    def test_pause_and_quit_are_positions_too(self, adventurer_scene, action, scancode, qwerty_key):
+        actions = adventurer_scene.actions
+        assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
+        assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None

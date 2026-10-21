@@ -90,6 +90,7 @@ class ScriptedSources(LiveSources):
         dt: float,
         scene: Scene | None,
         control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
     ) -> None:
         self.ended_frames.append(frame_number)
 

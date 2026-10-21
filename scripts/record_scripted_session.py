@@ -3,8 +3,10 @@ r"""Record a scripted session of a game through the real engine (GameEngine.star
 Used for the golden replay fixtures under ``tests/fixtures/replays/`` (and later for bundled
 demos). The game's golden input script (scripts/record_golden_traces.py: SCRIPT_BUILDERS) is
 played by a supervisor (glitchygames/supervision.py): at the supervisor slot of frame N it posts
-the script's key events and per-frame input for frame N + 1 with ``pygame.event.post``, so the
-next pump returns them as external events, exactly what a player's keys are, and at frame
+the script's key events and per-frame input for frame N + 1 with
+``glitchygames.recording.post_input_event``, so the recording holds them as external input,
+exactly what a player's keys are (each key event at its key's US QWERTY position:
+``glitchygames.testing.keys``), and at frame
 ``frame_count - 1`` it ends the run (``SceneManager.quit_requested``, no event), so the recording
 holds frames 0 to ``frame_count - 1``.
 
@@ -30,7 +32,12 @@ posts a focus-lost event at startup that would auto-pause Clockwork Keep.
 Regenerating the fixtures: only deliberately, after reviewing why they changed, never just to make
 a failing golden replay pass (the same rule as the golden traces in tests/world/golden/). A
 failing golden replay means the engine or a game no longer reproduces a recorded session; find out
-why first. Then, one command per game:
+why first. A re-recorded fixture never matches the one it replaces, in content as well as bytes:
+each frame's dt is measured in real time, game logic moves by dt (so sprites differ by a few
+pixels), FPS events carry the measured rate, and processing times and the header's recorded_at
+differ. So diffing an old fixture with a new one shows mostly noise; what counts is that the new
+one replays clean and holds the same scenes and scripted input. (A rebaseline keeps the inputs,
+dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one command per game:
 
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
         --game paddleslap --frames 600
@@ -60,6 +67,7 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+from glitchygames.recording import post_input_event
 from glitchygames.testing.replays import EXAMPLES_PACKAGE, console_script_in_module
 from scripts.record_golden_traces import (
     GAME_SCENES,
@@ -182,9 +190,9 @@ class ScriptedInputSupervisor:
             # Per-frame input for frame 0 is never posted: no supervisor slot runs before it
             if self.script.per_frame is not None:
                 for event in self.script.per_frame(scene):
-                    pygame.event.post(event)
+                    post_input_event(event)
         for event in self.script.key_events.get(next_frame, []):
-            pygame.event.post(event)
+            post_input_event(event)
 
 
 def record_scripted_session(

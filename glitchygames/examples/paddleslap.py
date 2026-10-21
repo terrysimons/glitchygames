@@ -996,17 +996,19 @@ class Game(Scene):
             Tuple of (player1_actions, player2_actions, pause_actions).
 
         """
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause included (ActionMap module docstring)
         player1_actions = ActionMap(input_mode=input_mode)
         player1_actions.bind(
             'up',
-            keyboard=pygame.K_w,
+            scancode=pygame.KSCAN_W,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
             instance_id=0,
         )
         player1_actions.bind(
             'down',
-            keyboard=pygame.K_s,
+            scancode=pygame.KSCAN_S,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
             instance_id=0,
@@ -1015,21 +1017,21 @@ class Game(Scene):
         player2_actions = ActionMap(input_mode=input_mode)
         player2_actions.bind(
             'up',
-            keyboard=pygame.K_UP,
+            scancode=pygame.KSCAN_UP,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
             instance_id=1,
         )
         player2_actions.bind(
             'down',
-            keyboard=pygame.K_DOWN,
+            scancode=pygame.KSCAN_DOWN,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
             instance_id=1,
         )
 
         pause_actions = ActionMap(input_mode=input_mode)
-        pause_actions.bind('pause', keyboard=pygame.K_SPACE)
+        pause_actions.bind('pause', scancode=pygame.KSCAN_SPACE)
 
         return player1_actions, player2_actions, pause_actions
 

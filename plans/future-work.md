@@ -1,8 +1,62 @@
 # Future Work Backlog
 
-Suggested during the `feature/debug-overlay` and `feature/engine-world-space` sessions (2026-10-17
-to 2026-10-18) and not done yet. One line per item, with where it is detailed. Review, then promote items into
+Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
+`feature/gameplay-replay` sessions (2026-10-17 to 2026-10-20) and not done yet. One line per item, with where it is detailed. Review, then promote items into
 `plans/engine-audit.md`, a plan, or BUGS.md, or delete them.
+
+## Gameplay replay wrap-up (needs the user)
+
+`feature/gameplay-replay` is done and reviewed (96 commits on `80134d1`, HEAD `7254478`), not
+pushed. These steps wait on the user's decision:
+
+- ~~**Decide `--rebaseline`'s exit code when input was not delivered.**~~ **Done** 2026-10-20
+  (the user chose a new code): `ExitCode.REBASELINE_INPUT_LOST` (7); NEW is still written, and
+  differing frames alone still exit `SUCCESS` (`ReplayResult.has_lost_input`).
+- ~~**Delete the stale `glitchygames.egg-info/`**~~ **Done** 2026-10-20 (BUGS.md #78).
+  `game_entry_point`'s search of every installed distribution in
+  `glitchygames/testing/replays.py` is kept as a guard against the next stray egg-info.
+- **The final review fix round's behaviour decisions** (reviewed with the user 2026-10-20):
+  - A game's own `sys.exit(0)` during `--rebaseline`: **changed**; it writes NEW and exits
+    `REBASELINE_INPUT_LOST` (a plain replay still exits `REPLAY_DIVERGED`).
+  - Held keys record their key codes, no format bump (BUGS.md #83): **kept**; `ActionMap`
+    gained scancode bindings (see Input).
+  - Saves snapshotted as first opened only for `--record-trace` runs: **kept**.
+  - Unwritable outputs refused before the run with `CANNOT_WRITE_OUTPUT`: **kept**, and a
+    mid-run write failure now exits `CANNOT_WRITE_OUTPUT` too (BUGS.md #82, fixed).
+  - Rumble caching joystick handles per count, and playbacks never rumbling: **kept for now**;
+    the user chose the rumble door (Gameplay replay, below), which replaces both.
+  - A recorded run's wall clock is `recorded_at` plus the frame clock: **kept**; the
+    processing-time comparison was built instead (below).
+  - Live supervisors' posts made during a scope are re-posted after it, behind the events the
+    scope held: **kept** (it is what lets a supervisor end a playback and then post).
+- **Squash the branch's history, then push / open the PR.** The user runs history rewrites:
+  either `git reset --soft 80134d1 && git commit` (one commit) or `git rebase -i 80134d1`
+  (fold review-fix commits such as `58a29d7`, `4f4badd`, `32ac8f0`, `fead138`, `b8b02fc`,
+  `00b795d` and `77ed933` into their tasks). BUGS.md, this file and the plans cite those
+  commits, so keep the unsquashed history first, e.g.
+  `git branch feature/gameplay-replay-unsquashed` before squashing.
+- **Delete the plan workspace** `.superpowers/sdd/2026-10-19-gameplay-replay-implementation/`
+  (git-ignored briefs, reports, review packages and the ledger) once the user agrees.
+- **Review and commit the 2026-10-20 close-out fixes** (uncommitted, on top of `7254478`):
+  BUGS.md #79 (`--floor` now picks the first floor and refuses one that does not exist), #84
+  (new `recording.post_input_event`, recorded as external input; the user chose this API over
+  inferring input from who added the supervisor) and the scope's joystick rumble asking its
+  own doors (below).
+- Bugs logged on the branch and still open: BUGS.md #83 (a documented limitation).
+
+## Input
+
+- ~~**Move the example games' positional keys to scancode bindings**~~ **Done** 2026-10-21:
+  every control of PaddleSlap (paddles W/S and Up/Down, pause Space), Clockwork Keep and both
+  Brave Adventurer editions (movement, jump, interact, run, pause Esc, quit Q) binds a physical
+  position (`scancode=pygame.KSCAN_*`; pause and quit too, at the user's call: Q is then the key
+  in QWERTY's Q place, A on AZERTY). Fabricated key events (the golden scripts' `press`/`release`, tests)
+  take their key's US QWERTY position from `glitchygames.testing.keys.qwerty_scancode`
+  (name-based, the same on every machine; it matched this machine's keymap for every key the
+  scripts use). The golden replay fixtures and the bundled demo were patched in place (each
+  recorded key event given its position; a one-off check proved nothing else changed), not
+  re-recorded, and `ScriptedInputSupervisor` posts with `post_input_event`. Later: a rebind
+  screen saving `ActionMap.to_dict()` (it already round-trips scancodes).
 
 ## Bugs found and not fixed yet
 
@@ -60,6 +114,63 @@ to 2026-10-18) and not done yet. One line per item, with where it is detailed. R
 
 ## Gameplay replay
 
+- **Rumble door** (the user chose option c, 2026-10-20): rumble goes through the doors like
+  events, saves and devices. Live sends to the real controllers; a recording also writes each
+  send (`rumble_sent`: low/high levels, duration, target device) into its frame; a replay
+  compares the sends with the recorded ones (a rumble regression is a divergence, as a sprite's
+  is) and sends them to nothing or, in a watched replay, to the viewer's controller; a playback
+  scope's policy decides per kind (instant replays may rumble, demos stay silent). The door
+  owns the device mapping, which replaces the per-count joystick cache
+  (`ConnectedRumbleDevices`) and the scope's asked-but-unused counts
+  (`SceneManager._rumble_devices_for_scope`).
+- **TODO (plan later): physical outputs as recorded events.** The user's direction
+  (2026-10-20): an output such as rumble is both an event and a per-frame output record, so it
+  can drive more than pygame/SDL (an Arduino over serial, other programmable devices) and leave
+  a record of the physical behaviour for playbacks, devices and tools that post-process a
+  session. Shape to plan:
+  - Command events: a request to do something physical (rumble this controller at these
+    levels for this long). Game code, or the game wrapper (the external control API), posts
+    one; the engine intercepts the kinds it knows and translates them into the calls (the
+    rumble door, a serial sink) instead of handing them to the scene. A wrapper's injected
+    commands are input from outside the game, so they go through `post_input_event` and a
+    replay serves them (BUGS.md #84's API).
+  - Output record: what the engine actually did, per frame (`outputs`: kind, target, payload),
+    written by the recorder, compared by a replay (an output regression is a divergence) and
+    read by playbacks, devices and tools. A notification event of the same output lets game
+    code or a wrapper react to it.
+  - Sinks: pluggable per kind (SDL rumble, serial, MIDI out, OSC, DMX); a playback's policy
+    picks which sinks it drives (rumble door, above).
+  Other candidates worth recording the same way:
+  - Haptics beyond rumble: trigger rumble and adaptive triggers (DualSense).
+  - Controller lights: DualSense/DualShock light bar colour, player LEDs.
+  - Audio cues: which sound or music started or stopped, on which channel, at what volume (audio
+    regression checks; syncing lights or video to the game's sound).
+  - Speech: text-to-speech lines and the DualSense speaker's audio.
+  - Screen effects: shakes and flashes as they start (synced external lights; highlight reels).
+  - Game milestones: score changes, lives lost, level start and end, achievements (`GAMEEVENT`
+    today; analytics, highlight reels, the external control API's notifications).
+  - Save writes: what was written and when (they are sandboxed in a replay; recorded, they could
+    be compared).
+  - Presentation changes: fullscreen, resolution and window changes.
+  Input from such devices (an Arduino's buttons, MIDI in) would come back through the input
+  door as device events, recorded as external input like a controller's.
+- ~~**Content hashes and measurement history in recordings**~~ **Done** 2026-10-21 (design doc
+  `plans/2026-10-20-recording-content-hash-and-history.md`, hashing option "Better"; plan
+  `plans/2026-10-21-recording-content-hash-and-history-implementation.md`). The golden fixtures
+  and bundled demo were rebaselined (the plan's Task 5, 2026-10-21) and carry one run each.
+  Follow-ups: C12 through `recording_content_hash`; a git commit per run if the user decides
+  for it; a CI processing-time check needs a baseline rebaselined on its runner (the fixtures'
+  times are the developer machine's). A per-frame
+  `content_hash` of everything the game did (times left out), and newest-first history lists
+  across rebaselines (`processing_seconds`, `content_hash`, a header `measurement_runs`; depth
+  constants starting at 10), so the baselines in the repo record behaviour and speed over time.
+  The recording-level hash is derived from the frame hashes, not stored.
+- ~~**Processing-time comparison**~~ **Done** 2026-10-20: `processing_seconds` per recorded
+  frame, `--compare-processing` and `--max-processing-slowdown PERCENT` (exit
+  `PROCESSING_SLOWER`, 8); contract in `glitchygames/replay/processing.py`, user docs in
+  `docs/architecture/gameplay_replay.md`. Follow-ups: a CI job that keeps a baseline recording
+  per runner and checks it; the golden fixtures and bundled demo hold no processing times until
+  they are re-recorded (the scancode TODO's re-record would add them).
 Design: `plans/2026-10-19-gameplay-replay.md`. Master plan:
 `plans/2026-10-19-gameplay-replay-implementation.md`, with one sub-plan per part. User docs:
 `docs/architecture/gameplay_replay.md`; engine summary in CLAUDE.md ("Clocks", "Gameplay Recording
@@ -122,20 +233,27 @@ Follow-ups (not in any plan yet):
   same frame: add its kind to `REAPPLIED_CONTROL_EVENT_KINDS` (glitchygames/supervision.py),
   as `breakpoint` is, and apply it in a control event handler. Its reads should go through the
   same named fields the external control API would expose (spec section 2, out of scope).
-- **Supervisor posts outside a playback scope** (BUGS.md #84): mark a live supervisor's
-  `post_event` outside scopes too and record it as external input or a control event, so instant
-  replays and `--replay-trace` serve it instead of expecting the game to make it.
-- **Joystick-mode rumble inside a scope:** it no longer asks the devices door, so if a played
-  recording's joystick count changed part way, the played scene's later enumeration can read an
-  earlier recorded answer (documented in `replay/playback.py` Limits). Cheap fix: still ask the
-  devices door inside a scope, but send the rumble to no device.
+- ~~**Supervisor posts outside a playback scope** (BUGS.md #84)~~ **Done:**
+  `recording.post_input_event` (recorded as external input; every replay serves it). Left: a
+  `--replay-trace` of a session whose live supervisor posted during a scope still needs that
+  supervisor in the replay (`replay/playback.py` Limits): the scope's pump would have to use
+  the installed replay's batch origins to tell a served input post from a scope post.
+- ~~**Joystick-mode rumble inside a scope**~~ **Done:** each send asks the scope's devices door
+  (a device cache of its own, so the live one is untouched) and rumbles no device. Left: the
+  scope's rumble controller starts fresh, so its sends can fall on other frames than the
+  recording's (documented in `replay/playback.py` Limits).
 - **"Take over" handover:** let the player take control part way through a replay. It must end or
   suspend the SDL input block at the handover and switch the doors from recorded to live input.
 - ~~**Audit test helper suppressions**~~ **Done:** every child process, the tests' included,
   starts through `glitchygames.process.run_command`, the one `subprocess` suppression.
 - Deferred review notes still open: no test pins the first FPS log waiting one interval;
   `selection.get_state_summary` can return `-inf` for `last_update_time` (not strict JSON);
-  `ControlEvent` is unhashable. Resolved by Part 3: `push_scoped_sources` refuses the installed
+  `ControlEvent` is unhashable; `tests/test_tracing.py`'s `test_unknown_version_is_refused`
+  duplicates `test_unknown_format_version_is_rejected_on_open`; `glitchygames/tracing.py` uses
+  `cast('int', format_version)` where narrowing would do; `open_controller`'s
+  `controller.quit()` inside its `except` (`glitchygames/input/devices.py`) could hide the
+  original error if `quit` itself raises; a save's metadata `version` 1.9 is accepted as 1
+  through `int()` (`glitchygames/state/manager.py` `_metadata_version`, pre-existing). Resolved by Part 3: `push_scoped_sources` refuses the installed
   sources (`SourcesAlreadyInstalledError`), so `reset_sources` never uninstalls one object
   twice; `start_trace_recording` can only run before the first frame (`install_sources` raises
   `SourcesAlreadyRunningError` after it), when no playback scope can be active, so it always
@@ -280,6 +398,15 @@ only replays; Part 2 Task 1).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
 
 ## Code quality
+
+- **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
+  sit at the statement limit, `ReplaySources` and `PlaybackSources` at the public-method limit
+  (PLR0904), and `GameEngine.start` at the complexity limit. Several shapes come from that:
+  `decoded_replay_sources` is a module function, bookmarks save through a collaborator
+  (`sources.bookmarks.save()`), `is_fast_forwarding` is a plain attribute, `record_frame`'s
+  optional fields are `TypedDict`/`Unpack` keywords, and the processing collector rides on
+  `ReplayResult`. The next change to these classes hits the same walls; split them (with the
+  SceneManager extraction below) rather than squeezing more in.
 
 - **Extract the playback scope's bookkeeping out of `SceneManager`** (final review of
   `feature/gameplay-replay`, item C6; deferred). `glitchygames/scenes/scene.py`'s `SceneManager`
