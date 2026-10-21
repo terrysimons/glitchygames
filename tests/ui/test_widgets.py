@@ -2448,6 +2448,68 @@ class TestMultiLineTextBoxClipboard:
         text_box._handle_cut()
         # Should not raise
 
+    def test_handle_cut_without_pyperclip_keeps_the_text(self, text_box, mocker):
+        """No clipboard: a cut with a selection warns and leaves the text alone (no crash)."""
+        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
+        text_box.selection_start = 0
+        text_box.selection_end = 5
+        original_text = text_box._original_text
+        text_box._handle_cut()
+        assert text_box._original_text == original_text
+
+    @pytest.mark.parametrize('operation', ['copy', 'paste', 'cut'])
+    def test_clipboard_without_a_copy_mechanism_keeps_the_text(self, text_box, mocker, operation):
+        """No clipboard tool (headless Linux without xclip/xsel/wl-clipboard): no crash.
+
+        pyperclip raises its own PyperclipException there, from copy() and paste().
+        """
+        import pyperclip as real_pyperclip
+
+        no_mechanism = real_pyperclip.PyperclipException('no copy/paste mechanism')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
+        mock_pyperclip.copy.side_effect = no_mechanism
+        mock_pyperclip.paste.side_effect = no_mechanism
+        text_box.selection_start = 0
+        text_box.selection_end = 5
+        original_text = text_box._original_text
+
+        getattr(text_box, f'_handle_{operation}')()
+
+        assert text_box._original_text == original_text
+
+    def test_copy_and_paste_through_the_real_clipboard(self, text_box):
+        """Copy, then paste, through this machine's real clipboard (pyperclip unmocked).
+
+        Where there is a clipboard the text survives the round trip; where there is none (a
+        headless Linux CI runner), the text box must survive that instead. The clipboard's
+        prior contents are restored afterwards.
+        """
+        import pyperclip as real_pyperclip
+
+        # A clipboard counts only if both calls work (copying back what is there changes nothing)
+        try:
+            saved_clipboard = real_pyperclip.paste()
+            real_pyperclip.copy(saved_clipboard)
+        except real_pyperclip.PyperclipException:
+            saved_clipboard = None
+        try:
+            text_box.text = 'Round trip'
+            text_box.selection_start = 0
+            text_box.selection_end = len('Round')
+            text_box._handle_copy()
+            text_box.text = ''
+            text_box.cursor_pos = 0
+            text_box.selection_start = None
+            text_box.selection_end = None
+            text_box._handle_paste()
+            if saved_clipboard is None:
+                assert not text_box._original_text
+            else:
+                assert text_box._original_text == 'Round'
+        finally:
+            if saved_clipboard is not None:
+                real_pyperclip.copy(saved_clipboard)
+
     def test_clipboard_operation_copy_key(self, text_box, mocker):
         """Test _handle_clipboard_operation dispatches Ctrl+C to copy."""
         mocker.patch('glitchygames.ui.text_widgets.pyperclip')

@@ -318,38 +318,35 @@ class SliderSprite(BitmappySprite):
             return
 
         # Validate and apply new value
+        # Check if input is hex (contains letters) or decimal
+        text = self.text_sprite.text.strip().lower()
+        base = 16 if any(c in 'abcdef' for c in text) else 10
         try:
-            # Check if input is hex (contains letters) or decimal
-            text = self.text_sprite.text.strip().lower()
-            base = 16 if any(c in 'abcdef' for c in text) else 10
             new_value = int(text, base)
-
-            if not (0 <= new_value <= MAX_COLOR_CHANNEL_VALUE):
-                self._restore_original_value()
-                return
-
-            # Valid value, update slider
-            self.value = new_value
-
-            # Convert text to appropriate format based on parent's format setting
-            # Convert text to appropriate format based on parent's format setting
-            if (
-                hasattr(self.parent, 'slider_input_format')
-                and self.parent.slider_input_format == '%X'
-            ):
-                self.text_sprite.text = f'{new_value:02X}'
-            else:
-                self.text_sprite.text = str(new_value)
-
-            self.text_sprite.is_active = False
-            self.text_sprite.update_text(self.text_sprite.text)
-            self.text_sprite.dirty = 2  # Force redraw
-            # Update parent scene
-            if hasattr(self.parent, 'on_slider_event'):
-                trigger = pygame.event.Event(0, {'name': self.name, 'value': new_value})
-                self.parent.on_slider_event(event=event, trigger=trigger)
         except ValueError:
             self._restore_original_value()
+            return
+
+        if not (0 <= new_value <= MAX_COLOR_CHANNEL_VALUE):
+            self._restore_original_value()
+            return
+
+        # Valid value, update slider
+        self.value = new_value
+
+        # Convert text to appropriate format based on parent's format setting
+        if hasattr(self.parent, 'slider_input_format') and self.parent.slider_input_format == '%X':
+            self.text_sprite.text = f'{new_value:02X}'
+        else:
+            self.text_sprite.text = str(new_value)
+
+        self.text_sprite.is_active = False
+        self.text_sprite.update_text(self.text_sprite.text)
+        self.text_sprite.dirty = 2  # Force redraw
+        # Update parent scene
+        if hasattr(self.parent, 'on_slider_event'):
+            trigger = pygame.event.Event(0, {'name': self.name, 'value': new_value})
+            self.parent.on_slider_event(event=event, trigger=trigger)
 
     def _handle_text_character_input(self, event: HashableEvent) -> None:
         """Handle character input in the slider text input."""

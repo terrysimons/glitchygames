@@ -2067,7 +2067,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Print performance report before shutdown
         try:
             from glitchygames.performance import performance_manager
-
+        except ImportError:
+            pass  # Performance module not available
+        else:
             # Configure performance manager with the same log interval as FPS
             if self.fps_log_interval_ms is not None:
                 performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
@@ -2075,8 +2077,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             performance_manager.set_target_fps(self.fps)
             performance_manager.print_shutdown_report()
             performance_manager.print_per_scene_shutdown_report()
-        except ImportError:
-            pass  # Performance module not available
 
         self._log_unhandled_event_report()
 
@@ -2180,31 +2180,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
         profiler = None
+        if GameEngine.OPTIONS['profile']:
+            # Enabled before the crash boundary, so the teardown prints only a profiler that ran
+            profiler = cProfile.Profile()
+            profiler.enable()
         # Set when the run ends in a way that start() turns into an exit code
         exit_code: ExitCode | None = None
         run_error: Exception | None = None
         # What ended the run early, described for the replay report (None: a normal end)
         run_ended_by: str | None = None
         try:
-            # For the whole run, so a signal always ends it through the teardown below
-            self._install_signal_handlers()
-            if GameEngine.OPTIONS['profile']:
-                profiler = cProfile.Profile()
-                profiler.enable()
-
-            # Initialize the game instance
-            self.game = self.game(options=GameEngine.OPTIONS)
-
-            # Set the scene manager's OPTIONS class variable for managers that expect it
-            SceneManager.OPTIONS = GameEngine.OPTIONS
-            self.scene_manager.game_engine = self
-
-            self._initialize_event_managers()
-
-            self.scene_manager.switch_to_scene(self.game)
-            self._configure_timer_and_performance()
-            self._start_requested_trace_recording()
-            self.scene_manager.start()
+            # The crash boundary: anything the run raises is turned into an exit code below
+            self._run_game()
         except KeyboardInterrupt:
             # Ctrl-C: never an internal error; exits INTERRUPTED once the teardown has run
             exit_code = ExitCode.INTERRUPTED
@@ -2232,6 +2219,25 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 # Replaces whatever was ending the run: a failed teardown is an internal error
                 exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=teardown_error)
         self._end_run(exit_code=exit_code, run_error=run_error)
+
+    def _run_game(self: Self) -> None:
+        """Construct the game and run its scenes: the whole run inside start()'s crash boundary."""
+        # For the whole run, so a signal always ends it through start()'s teardown
+        self._install_signal_handlers()
+
+        # Initialize the game instance
+        self.game = self.game(options=GameEngine.OPTIONS)
+
+        # Set the scene manager's OPTIONS class variable for managers that expect it
+        SceneManager.OPTIONS = GameEngine.OPTIONS
+        self.scene_manager.game_engine = self
+
+        self._initialize_event_managers()
+
+        self.scene_manager.switch_to_scene(self.game)
+        self._configure_timer_and_performance()
+        self._start_requested_trace_recording()
+        self.scene_manager.start()
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:
         """Describe a SystemExit that ended the run, for the log and the replay report.

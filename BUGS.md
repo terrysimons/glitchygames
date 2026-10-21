@@ -6,7 +6,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
-- **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done)
+- **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done). 2026-10-21: every site outside Bitmappy is narrowed; 62 remain in `glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py` and `tests/tools/` (plan: `plans/2026-10-20-lint-ignores-cleanup.md`, phase 3)
 - **Priority**: Low
 - **Reporter**: Found while fixing the pre-push hooks
 - **Date Reported**: 2026-10-15

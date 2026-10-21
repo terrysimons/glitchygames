@@ -34,11 +34,8 @@ def indexed_rgb_triplet_generator[PixelValue](
         PixelValue: The first element of each pixel datum.
 
     """
-    try:
-        for datum in pixel_data:
-            yield datum[0]
-    except StopIteration:
-        pass
+    for datum in pixel_data:
+        yield datum[0]
 
 
 def rgb_555_triplet_generator(
@@ -50,51 +47,48 @@ def rgb_555_triplet_generator(
         tuple[int, int, int]: An (R, G, B) color tuple extracted from 555 packed data.
 
     """
-    try:
-        # Construct RGB triplets.
-        for packed_rgb_triplet in pixel_data:
-            # struct unpacks as a 1 element tuple.
-            rgb_data = bin(packed_rgb_triplet[0])
+    # Construct RGB triplets.
+    for packed_rgb_triplet in pixel_data:
+        # struct unpacks as a 1 element tuple.
+        rgb_data = bin(packed_rgb_triplet[0])
 
-            # binary conversions start with 0b, so chop that off.
-            rgb_data = rgb_data[2:]
+        # binary conversions start with 0b, so chop that off.
+        rgb_data = rgb_data[2:]
 
-            # Pad the data out.
-            pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
+        # Pad the data out.
+        pad_bits = 16 - len(rgb_data)
+        pad_data = '0' * pad_bits
 
-            rgb_data = pad_data + rgb_data
+        rgb_data = pad_data + rgb_data
 
-            LOG.info('Padded %s bits (now %s)', pad_bits, rgb_data)
+        LOG.info('Padded %s bits (now %s)', pad_bits, rgb_data)
 
-            # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
+        # red is 5 bits
+        red = int(rgb_data[0:5] + '000', 2)
 
-            if red:
-                red += 7
+        if red:
+            red += 7
 
-            # green is 6 bits
-            green = int(rgb_data[5:10] + '000', 2)
+        # green is 6 bits
+        green = int(rgb_data[5:10] + '000', 2)
 
-            if green:
-                green += 7
+        if green:
+            green += 7
 
-            # blue is 5 bits
-            blue = int(rgb_data[10:15] + '000', 2)
+        # blue is 5 bits
+        blue = int(rgb_data[10:15] + '000', 2)
 
-            # last bit is ignored or used for alpha.
+        # last bit is ignored or used for alpha.
 
-            if blue:
-                blue += 7
+        if blue:
+            blue += 7
 
-            LOG.info('Packed RGB: %s', rgb_data)
-            LOG.info('Red: %s', red)
-            LOG.info('Green: %s', green)
-            LOG.info('Blue: %s', blue)
+        LOG.info('Packed RGB: %s', rgb_data)
+        LOG.info('Red: %s', red)
+        LOG.info('Green: %s', green)
+        LOG.info('Blue: %s', blue)
 
-            yield (red, green, blue)
-    except StopIteration:
-        pass
+        yield (red, green, blue)
 
 
 def rgb_565_triplet_generator(
@@ -106,49 +100,46 @@ def rgb_565_triplet_generator(
         tuple[int, int, int]: An (R, G, B) color tuple extracted from 565 packed data.
 
     """
-    try:
-        # Construct RGB triplets.
-        for packed_rgb_triplet in pixel_data:
-            # struct unpacks as a 1 element tuple.
-            rgb_data = bin(packed_rgb_triplet[0])
+    # Construct RGB triplets.
+    for packed_rgb_triplet in pixel_data:
+        # struct unpacks as a 1 element tuple.
+        rgb_data = bin(packed_rgb_triplet[0])
 
-            # binary conversions start with 0b, so chop that off.
-            rgb_data = rgb_data[2:]
+        # binary conversions start with 0b, so chop that off.
+        rgb_data = rgb_data[2:]
 
-            # Pad the data out.
-            pad_bits = 16 - len(rgb_data)
-            pad_data = '0' * pad_bits
+        # Pad the data out.
+        pad_bits = 16 - len(rgb_data)
+        pad_data = '0' * pad_bits
 
-            rgb_data = pad_data + rgb_data
+        rgb_data = pad_data + rgb_data
 
-            LOG.info('Padded %s bits (now %s)', pad_bits, rgb_data)
+        LOG.info('Padded %s bits (now %s)', pad_bits, rgb_data)
 
-            # red is 5 bits
-            red = int(rgb_data[0:5] + '000', 2)
+        # red is 5 bits
+        red = int(rgb_data[0:5] + '000', 2)
 
-            if red:
-                red += 7
+        if red:
+            red += 7
 
-            # green is 6 bits
-            green = int(rgb_data[5:11] + '00', 2)
+        # green is 6 bits
+        green = int(rgb_data[5:11] + '00', 2)
 
-            if green:
-                green += 3
+        if green:
+            green += 3
 
-            # blue is 5 bits
-            blue = int(rgb_data[11:] + '000', 2)
+        # blue is 5 bits
+        blue = int(rgb_data[11:] + '000', 2)
 
-            if blue:
-                blue += 7
+        if blue:
+            blue += 7
 
-            LOG.info('Packed RGB: %s', rgb_data)
-            LOG.info('Red: %s', red)
-            LOG.info('Green: %s', green)
-            LOG.info('Blue: %s', blue)
+        LOG.info('Packed RGB: %s', rgb_data)
+        LOG.info('Red: %s', red)
+        LOG.info('Green: %s', green)
+        LOG.info('Blue: %s', blue)
 
-            yield (red, green, blue)
-    except StopIteration:
-        pass
+        yield (red, green, blue)
 
 
 def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:

@@ -11,14 +11,14 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.14.3"
+    default: "3.14.8"
   XCODE_LATEST_VERSION:
     type: string
-    default: "26.3.0"
+    default: "27.1.0"
 
 orbs:
   win: circleci/windows@5.1.1
-  macos: circleci/macos@2.5.4
+  macos: circleci/macos@3.0.0
   jira: circleci/jira@2.2.0
   slack: circleci/slack@6.1.3
 
@@ -106,20 +106,28 @@ commands:
 
   nox-test:
     steps:
+      # Tests run (and report) even when an earlier lint or format step failed, so a lint
+      # failure never hides the test results. Headless: the test session defaults SDL's video
+      # and audio drivers to dummy, and the Linux image has no clipboard tool, so the real
+      # clipboard test checks the no-clipboard path there.
       - run:
           name: "Tests (pytest + coverage)"
           no_output_timeout: 120m
+          when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s test
       - store_test_results:
           path: test-results
+          when: always
       - store_artifacts:
           path: test-results
           destination: test-results
+          when: always
       - store_artifacts:
           path: htmlcov
           destination: coverage-html
+          when: always
 
   nox-security-scan:
     steps:
@@ -307,9 +315,11 @@ jobs:
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv run nox -s lint-docs
+      # Tests run (and report) even when an earlier step failed, as in nox-test
       - run:
           name: "Tests (pytest + coverage)"
           no_output_timeout: 120m
+          when: always
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
@@ -317,12 +327,15 @@ jobs:
             uv run nox -s test
       - store_test_results:
           path: test-results
+          when: always
       - store_artifacts:
           path: test-results
           destination: test-results
+          when: always
       - store_artifacts:
           path: htmlcov
           destination: coverage-html
+          when: always
       - run:
           name: "Security scan (bandit + safety)"
           shell: powershell.exe

@@ -46,6 +46,12 @@ CURSOR_BLINK_HALF_SECOND = 0.5
 PYGAME_MOUSE_SCROLL_UP_BUTTON = 4
 PYGAME_MOUSE_SCROLL_DOWN_BUTTON = 5
 
+# What a clipboard call may raise: pyperclip's PyperclipException comes from copy() and paste()
+# on a machine with no clipboard tool (headless Linux without xclip, xsel or wl-clipboard)
+CLIPBOARD_ERRORS: tuple[type[Exception], ...] = (ImportError, AttributeError) + (
+    () if pyperclip is None else (pyperclip.PyperclipException,)
+)
+
 
 class TextSprite(BitmappySprite):
     """A text sprite class."""
@@ -245,16 +251,9 @@ class TextSprite(BitmappySprite):
         if hasattr(font, 'render_to'):
             # This is a pygame.freetype.Font
             try:
-                if is_transparent:
-                    text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-                    text_surface.fill((0, 0, 0, 0))
-                    text_rect = font.render_to(text_surface, (0, 0), str(text), text_color)
-                else:
-                    render_result = font.render(str(text), text_color, self.background_color)
-                    if isinstance(render_result, tuple):
-                        text_surface, text_rect = render_result
-                    else:
-                        text_surface = render_result
+                text_surface, text_rect = self._render_with_freetype_font(
+                    font, text, text_color, is_transparent=is_transparent
+                )
             except TypeError, ValueError:
                 # Fall back to pygame.font style (returns surface)
                 text_surface = self._render_with_pygame_font(
@@ -271,6 +270,33 @@ class TextSprite(BitmappySprite):
                 is_transparent=is_transparent,
             )
 
+        return text_surface, text_rect
+
+    def _render_with_freetype_font(
+        self,
+        font: GameFont,
+        text: str,
+        text_color: tuple[int, ...],
+        *,
+        is_transparent: bool,
+    ) -> tuple[pygame.Surface, pygame.Rect | None]:
+        """Render text using pygame.freetype.Font.
+
+        Returns:
+            Tuple of (text_surface, text_rect). text_rect may be None.
+
+        """
+        text_rect = None
+        if is_transparent:
+            text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            text_surface.fill((0, 0, 0, 0))
+            text_rect = font.render_to(text_surface, (0, 0), str(text), text_color)
+        else:
+            render_result = font.render(str(text), text_color, self.background_color)
+            if isinstance(render_result, tuple):
+                text_surface, text_rect = render_result
+            else:
+                text_surface = render_result
         return text_surface, text_rect
 
     def _render_with_pygame_font(
@@ -301,29 +327,26 @@ class TextSprite(BitmappySprite):
 
     def _draw_cursor(self, text_rect: pygame.Rect, _font: GameFont) -> None:
         """Draw a blinking cursor at the end of the text."""
-        if self._cursor_visible:
-            try:
-                # Calculate cursor position at the end of the text
-                cursor_x = text_rect.right + 2  # 2 pixels after the text
-                cursor_y = text_rect.top
-                cursor_height = text_rect.height
-
-                # Ensure cursor is within bounds
-                if cursor_x < self.width and cursor_y < self.height:
-                    # Set cursor color (hover disabled)
-                    cursor_color = self.text_color  # Use original text color
-
-                    # Draw a vertical line for the cursor
-                    pygame.draw.line(
-                        self.image,
-                        cursor_color,
-                        (cursor_x, cursor_y),
-                        (cursor_x, cursor_y + cursor_height),
-                        2,  # 2 pixel wide cursor
-                    )
-            except TypeError, AttributeError:
-                # Handle mock objects in tests - just skip cursor drawing
-                pass
+        if not self._cursor_visible:
+            return
+        try:
+            # Calculate cursor position at the end of the text
+            cursor_x = text_rect.right + 2  # 2 pixels after the text
+            cursor_y = text_rect.top
+            # Ensure cursor is within bounds
+            if cursor_x >= self.width or cursor_y >= self.height:
+                return
+            # Draw a vertical line for the cursor in the original text color (hover disabled)
+            pygame.draw.line(
+                self.image,
+                self.text_color,
+                (cursor_x, cursor_y),
+                (cursor_x, cursor_y + text_rect.height),
+                2,  # 2 pixel wide cursor
+            )
+        except TypeError, AttributeError:
+            # Handle mock objects in tests - just skip cursor drawing
+            pass
 
     @override
     def on_mouse_motion_event(self, event: HashableEvent) -> None:
@@ -1297,52 +1320,54 @@ class MultiLineTextBox(BitmappySprite):
 
     def _handle_copy(self) -> None:
         """Handle copy operation."""
+        if pyperclip is None:
+            self.log.warning('pyperclip not available, cannot copy text')
+            return
+        if self.selection_start is not None and self.selection_end is not None:
+            start = min(self.selection_start, self.selection_end)
+            end = max(self.selection_start, self.selection_end)
+            copied_text = self._text[start:end]
+        else:
+            copied_text = self._text
         try:
-            if pyperclip is None:
-                self.log.warning('pyperclip not available, cannot copy text')
-                return
-
-            if self.selection_start is not None and self.selection_end is not None:
-                start = min(self.selection_start, self.selection_end)
-                end = max(self.selection_start, self.selection_end)
-                pyperclip.copy(self._text[start:end])
-            else:
-                pyperclip.copy(self._text)
-        except ImportError, AttributeError:
+            pyperclip.copy(copied_text)
+        except CLIPBOARD_ERRORS:
             self.log.error('Error copying text')  # ruff: ignore[error-instead-of-exception]
 
     def _handle_paste(self) -> None:
         """Handle paste operation."""
+        if not pyperclip:
+            return
         try:
-            clipboard_text = None
-            if pyperclip:
-                clipboard_text = pyperclip.paste()
-            if clipboard_text:
-                before_cursor = self._original_text[: self.cursor_pos]
-                after_cursor = self._original_text[self.cursor_pos :]
-                self.text = before_cursor + clipboard_text + after_cursor
-                self.cursor_pos += len(clipboard_text)
-        except ImportError, AttributeError:
+            clipboard_text = pyperclip.paste()
+        except CLIPBOARD_ERRORS:
             self.log.error('Error pasting text')  # ruff: ignore[error-instead-of-exception]
+            return
+        if clipboard_text:
+            before_cursor = self._original_text[: self.cursor_pos]
+            after_cursor = self._original_text[self.cursor_pos :]
+            self.text = before_cursor + clipboard_text + after_cursor
+            self.cursor_pos += len(clipboard_text)
 
     def _handle_cut(self) -> None:
-        """Handle cut operation."""
+        """Handle cut operation: the selection, or all the text when nothing is selected."""
+        if pyperclip is None:
+            self.log.warning('pyperclip not available, cannot cut text')
+            return
+        if self.selection_start is not None and self.selection_end is not None:
+            start = min(self.selection_start, self.selection_end)
+            end = max(self.selection_start, self.selection_end)
+        else:
+            start, end = 0, len(self._original_text)
         try:
-            if pyperclip and self.selection_start is not None and self.selection_end is not None:
-                start = min(self.selection_start, self.selection_end)
-                end = max(self.selection_start, self.selection_end)
-                pyperclip.copy(self._original_text[start:end])
-                self.text = self._original_text[:start] + self._original_text[end:]
-                self.cursor_pos = start
-                self.selection_start = None
-                self.selection_end = None
-            else:
-                assert pyperclip is not None
-                pyperclip.copy(self._original_text)
-                self.text = ''
-                self.cursor_pos = 0
-        except ImportError, AttributeError:
+            pyperclip.copy(self._original_text[start:end])
+        except CLIPBOARD_ERRORS:
             self.log.error('Error cutting text')  # ruff: ignore[error-instead-of-exception]
+            return
+        self.text = self._original_text[:start] + self._original_text[end:]
+        self.cursor_pos = start
+        self.selection_start = None
+        self.selection_end = None
 
     def _handle_delete_selection(self, event: HashableEvent) -> bool:
         """Handle delete key with active selection.

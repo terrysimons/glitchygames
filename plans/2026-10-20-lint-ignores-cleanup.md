@@ -7,7 +7,11 @@
   shared with basedpyright, which reads only `# pyright:`/`# type:` comments; ty now reports
   nothing). Phase 2: `S311` moved to per-file ignores for `glitchygames/randomness.py` and
   `tests/**`; the 34 measured sites were all in those two places, so no engine code changed.
-  Phases 3-5 still need the user's go-ahead (standing rule for lint configuration changes).
+  Phase 3 in progress (go-ahead 2026-10-21): the 36 sites outside Bitmappy are narrowed (engine
+  `start()` and the thread/HTTP boundaries keep their broad catch around one helper call; the
+  dead `StopIteration` guards in `pixels/pixel.py` removed); Bitmappy's 62 (`glitchygames/bitmappy/`,
+  `sprites/bitmappy_sprite.py`, `tests/tools/`) remain, then the ignore goes. Phases 4-5 still
+  need the user's go-ahead (standing rule for lint configuration changes).
 - **Why:** several global ignores in `pyproject.toml` are dead, mislabelled or broader than needed,
   and some suppression comments no longer suppress anything. Tightening them makes the linters catch
   real problems again (broad try blocks hide bugs; a stray `random` call would break replay

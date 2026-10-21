@@ -286,37 +286,52 @@ def display_sprite_ascii(toml_content: str) -> None:
 
     """
     try:
-        sprite_data = tomllib.loads(toml_content)
-        renderer = ASCIIRenderer()
-        colors = renderer.extract_colors_from_toml(sprite_data)
-
-        # Check if it's an animated sprite
-        if sprite_data.get('animation'):
-            animations = sprite_data['animation']
-            for anim_index, animation in enumerate(animations):
-                anim_name = animation.get('namespace', f'animation-{anim_index}')
-                frames = animation.get('frame', [])
-
-                print(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')  # ruff: ignore[print]
-
-                for frame_index, frame in enumerate(frames):
-                    pixels = frame.get('pixels', '')
-                    if pixels:
-                        print(f'\n--- Frame {frame_index} ---')  # ruff: ignore[print]
-                        colorized = renderer.colorize_pixels(pixels, colors)
-                        print(colorized)  # ruff: ignore[print]
-        else:
-            # Static sprite
-            pixels = renderer.extract_pixels_from_toml(sprite_data)
-            if pixels:
-                print('\n=== Sprite Preview ===')  # ruff: ignore[print]
-                colorized = renderer.colorize_pixels(pixels, colors)
-                print(colorized)  # ruff: ignore[print]
-
-        print()  # ruff: ignore[print]  # Empty line after output
-
+        preview_lines = _sprite_ascii_preview_lines(toml_content=toml_content)
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         LOG.warning('Could not render ASCII preview: %s', e)
+        return
+    for line in preview_lines:
+        print(line)  # ruff: ignore[print]
+    print()  # ruff: ignore[print]  # Empty line after output
+
+
+def _sprite_ascii_preview_lines(*, toml_content: str) -> list[str]:
+    """Render a sprite as colorized ASCII art, one printed line per entry.
+
+    Args:
+        toml_content: TOML content of the sprite
+
+    Returns:
+        The preview's lines: each animation's frames, or the static sprite.
+
+    """
+    sprite_data = tomllib.loads(toml_content)
+    renderer = ASCIIRenderer()
+    colors = renderer.extract_colors_from_toml(sprite_data)
+    lines: list[str] = []
+
+    # Check if it's an animated sprite
+    if sprite_data.get('animation'):
+        animations = sprite_data['animation']
+        for anim_index, animation in enumerate(animations):
+            anim_name = animation.get('namespace', f'animation-{anim_index}')
+            frames = animation.get('frame', [])
+
+            lines.append(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')
+
+            for frame_index, frame in enumerate(frames):
+                pixels = frame.get('pixels', '')
+                if pixels:
+                    lines.extend((
+                        f'\n--- Frame {frame_index} ---',
+                        renderer.colorize_pixels(pixels, colors),
+                    ))
+    else:
+        # Static sprite
+        pixels = renderer.extract_pixels_from_toml(sprite_data)
+        if pixels:
+            lines.extend(('\n=== Sprite Preview ===', renderer.colorize_pixels(pixels, colors)))
+    return lines
 
 
 def create_apng_from_frames(

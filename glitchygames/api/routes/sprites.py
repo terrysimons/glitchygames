@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
     import apng as apng_types
 
+    from glitchygames.services.sprite_generation_service import GenerationResult
+
 from fastapi import APIRouter, HTTPException
 
 from glitchygames.api.dependencies import (
@@ -191,6 +193,76 @@ def _render_png_to_response(
     return render_result.png_bytes
 
 
+def _response_for_result(
+    *,
+    result: GenerationResult,
+    request: SpriteGenerationRequest | SpriteRefinementRequest,
+    renderer_service: RendererService,
+    failure_label: str,
+) -> SpriteGenerationResponse:
+    """Build a generation or refinement response: TOML, PNG and saved files as requested.
+
+    Args:
+        result: The generation service's result.
+        request: The request, for its output format, PNG scale and output path.
+        renderer_service: The renderer service instance.
+        failure_label: What failed, for the log ('Generation' or 'Refinement').
+
+    Returns:
+        The response; unsuccessful when the service failed, or when PNG was the only
+        requested format and rendering it failed.
+
+    """
+    if not result.success:
+        LOG.warning(f'{failure_label} failed: {result.error}')
+        return SpriteGenerationResponse(
+            success=False,
+            error=result.error,
+        )
+
+    # Prepare response based on output format
+    response = SpriteGenerationResponse(
+        success=True,
+        sprite_name=result.sprite_name,
+        is_animated=result.is_animated,
+        frame_count=result.frame_count,
+    )
+
+    # Include TOML if requested
+    if OUTPUT_FORMAT_TOML in request.output_format:
+        response.toml_content = result.toml_content
+
+    # Render PNG if requested
+    png_bytes = None
+    if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
+        png_bytes = _render_png_to_response(
+            renderer_service,
+            response,
+            result.toml_content,
+            png_scale=request.png_scale,
+            frame_count=result.frame_count,
+        )
+        # Only fail if PNG was the only requested format and rendering failed
+        if png_bytes is None and request.output_format == [OUTPUT_FORMAT_PNG]:
+            return SpriteGenerationResponse(
+                success=False,
+                error='PNG rendering failed',
+            )
+
+    # Save files if output_path is specified
+    if request.output_path and result.sprite_name:
+        saved_files = _save_sprite_files(
+            output_path=request.output_path,
+            sprite_name=result.sprite_name,
+            toml_content=response.toml_content,
+            png_bytes=png_bytes,
+            rendered_frames=response.rendered_frames,
+            output_format=request.output_format,
+        )
+        response.saved_files = saved_files
+    return response
+
+
 @router.post('/generate')
 async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationResponse:
     """Generate a new sprite from a text prompt.
@@ -224,54 +296,12 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
             animation_duration=request.animation_duration,
             model=request.model,
         )
-
-        if not result.success:
-            LOG.warning(f'Generation failed: {result.error}')
-            return SpriteGenerationResponse(
-                success=False,
-                error=result.error,
-            )
-
-        # Prepare response based on output format
-        response = SpriteGenerationResponse(
-            success=True,
-            sprite_name=result.sprite_name,
-            is_animated=result.is_animated,
-            frame_count=result.frame_count,
+        response = _response_for_result(
+            result=result,
+            request=request,
+            renderer_service=renderer_service,
+            failure_label='Generation',
         )
-
-        # Include TOML if requested
-        if OUTPUT_FORMAT_TOML in request.output_format:
-            response.toml_content = result.toml_content
-
-        # Render PNG if requested
-        png_bytes = None
-        if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
-            png_bytes = _render_png_to_response(
-                renderer_service,
-                response,
-                result.toml_content,
-                png_scale=request.png_scale,
-                frame_count=result.frame_count,
-            )
-            # Only fail if PNG was the only requested format and rendering failed
-            if png_bytes is None and request.output_format == [OUTPUT_FORMAT_PNG]:
-                return SpriteGenerationResponse(
-                    success=False,
-                    error='PNG rendering failed',
-                )
-
-        # Save files if output_path is specified
-        if request.output_path and result.sprite_name:
-            saved_files = _save_sprite_files(
-                output_path=request.output_path,
-                sprite_name=result.sprite_name,
-                toml_content=response.toml_content,
-                png_bytes=png_bytes,
-                rendered_frames=response.rendered_frames,
-                output_format=request.output_format,
-            )
-            response.saved_files = saved_files
     except AIProviderError as e:
         LOG.exception('AI provider error')
         raise HTTPException(
@@ -314,54 +344,12 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
             prompt=request.prompt,
             current_toml=request.current_toml,
         )
-
-        if not result.success:
-            LOG.warning(f'Refinement failed: {result.error}')
-            return SpriteGenerationResponse(
-                success=False,
-                error=result.error,
-            )
-
-        # Prepare response based on output format
-        response = SpriteGenerationResponse(
-            success=True,
-            sprite_name=result.sprite_name,
-            is_animated=result.is_animated,
-            frame_count=result.frame_count,
+        response = _response_for_result(
+            result=result,
+            request=request,
+            renderer_service=renderer_service,
+            failure_label='Refinement',
         )
-
-        # Include TOML if requested
-        if OUTPUT_FORMAT_TOML in request.output_format:
-            response.toml_content = result.toml_content
-
-        # Render PNG if requested
-        png_bytes = None
-        if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
-            png_bytes = _render_png_to_response(
-                renderer_service,
-                response,
-                result.toml_content,
-                png_scale=request.png_scale,
-                frame_count=result.frame_count,
-            )
-            # Only fail if PNG was the only requested format and rendering failed
-            if png_bytes is None and request.output_format == [OUTPUT_FORMAT_PNG]:
-                return SpriteGenerationResponse(
-                    success=False,
-                    error='PNG rendering failed',
-                )
-
-        # Save files if output_path is specified
-        if request.output_path and result.sprite_name:
-            saved_files = _save_sprite_files(
-                output_path=request.output_path,
-                sprite_name=result.sprite_name,
-                toml_content=response.toml_content,
-                png_bytes=png_bytes,
-                rendered_frames=response.rendered_frames,
-                output_format=request.output_format,
-            )
-            response.saved_files = saved_files
     except AIProviderError as e:
         LOG.exception('AI provider error')
         raise HTTPException(
@@ -485,66 +473,81 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
 
     """
     try:
-        from apng import APNG
-
-        # Decode the base64 APNG data
-        try:
-            apng_bytes = base64.b64decode(request.apng_base64)
-        except (ValueError, TypeError) as e:
-            LOG.warning('Failed to decode base64: %s', e)
-            return ApngExtractResponse(
-                success=False,
-                error=f'Invalid base64 data: {e}',
-            )
-
-        # Parse the APNG
-        try:
-            apng: APNG = APNG.from_bytes(apng_bytes)
-        except (ValueError, OSError) as e:
-            LOG.warning('Failed to parse APNG: %s', e)
-            return ApngExtractResponse(
-                success=False,
-                error=f'Invalid APNG file: {e}',
-            )
-
-        # Extract frames and metadata
-        frames_info: list[ApngFrameInfo] = []
-        total_duration_ms: int = 0
-        canvas_width: int | None = None
-        canvas_height: int | None = None
-
-        for index, (png, control) in enumerate(apng.frames):
-            frame_info, delay_ms = _extract_single_frame(png, control, index)
-
-            # Track canvas size (first frame usually defines it)
-            if canvas_width is None:
-                canvas_width = frame_info.width
-                canvas_height = frame_info.height
-
-            total_duration_ms += delay_ms
-            frames_info.append(frame_info)
-
-        # Get loop count from APNG
-        loop_count = apng.num_plays if hasattr(apng, 'num_plays') else 0
-
-        LOG.info(
-            f'Extracted {len(frames_info)} frames from APNG '
-            f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)',
-        )
-
-        return ApngExtractResponse(
-            success=True,
-            frame_count=len(frames_info),
-            width=canvas_width,
-            height=canvas_height,
-            loop_count=loop_count,
-            total_duration_ms=total_duration_ms,
-            frames=frames_info,
-        )
-
+        response = _extract_apng_frames(apng_base64=request.apng_base64)
     except Exception as e:
         LOG.exception('Unexpected error extracting APNG frames')
         raise HTTPException(
             status_code=500,
             detail=f'Internal server error: {e}',
         ) from e
+    else:
+        return response
+
+
+def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
+    """Decode an APNG and extract its frames and metadata.
+
+    Args:
+        apng_base64: The base64-encoded APNG data.
+
+    Returns:
+        The extracted frames and metadata, or an unsuccessful response for bad base64 or APNG
+        data
+
+    """
+    from apng import APNG
+
+    # Decode the base64 APNG data
+    try:
+        apng_bytes = base64.b64decode(apng_base64)
+    except (ValueError, TypeError) as e:
+        LOG.warning('Failed to decode base64: %s', e)
+        return ApngExtractResponse(
+            success=False,
+            error=f'Invalid base64 data: {e}',
+        )
+
+    # Parse the APNG
+    try:
+        apng: APNG = APNG.from_bytes(apng_bytes)
+    except (ValueError, OSError) as e:
+        LOG.warning('Failed to parse APNG: %s', e)
+        return ApngExtractResponse(
+            success=False,
+            error=f'Invalid APNG file: {e}',
+        )
+
+    # Extract frames and metadata
+    frames_info: list[ApngFrameInfo] = []
+    total_duration_ms: int = 0
+    canvas_width: int | None = None
+    canvas_height: int | None = None
+
+    for index, (png, control) in enumerate(apng.frames):
+        frame_info, delay_ms = _extract_single_frame(png, control, index)
+
+        # Track canvas size (first frame usually defines it)
+        if canvas_width is None:
+            canvas_width = frame_info.width
+            canvas_height = frame_info.height
+
+        total_duration_ms += delay_ms
+        frames_info.append(frame_info)
+
+    # Get loop count from APNG
+    loop_count = apng.num_plays if hasattr(apng, 'num_plays') else 0
+
+    LOG.info(
+        f'Extracted {len(frames_info)} frames from APNG '
+        f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)',
+    )
+
+    return ApngExtractResponse(
+        success=True,
+        frame_count=len(frames_info),
+        width=canvas_width,
+        height=canvas_height,
+        loop_count=loop_count,
+        total_duration_ms=total_duration_ms,
+        frames=frames_info,
+    )

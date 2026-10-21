@@ -86,7 +86,8 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 - **Level tools / Glitchy Studio (#11):** `plans/2026-10-18-level-tools.md` and sub-plans A–E
   (tilemap format with object layers, Mapsmith, Tilesmith, Bitmappy updates, Galimore import). Each
   needs a brainstormed spec before implementation.
-- BUGS.md #19 (ruff PLW0717, 102 overly broad `try` blocks; rule temporarily disabled) is still active.
+- BUGS.md #19 (ruff PLW0717, overly broad `try` blocks; rule temporarily disabled) is still active:
+  62 sites left, all in Bitmappy (see Lint ignores cleanup below).
 
 ## World space follow-ups (feature/engine-world-space final review)
 
@@ -465,5 +466,28 @@ only replays; Part 2 Task 1).
   [`plans/2026-10-20-lint-ignores-cleanup.md`](2026-10-20-lint-ignores-cleanup.md). Phases 1-2
   done 2026-10-21 (the dead `EM101`/`EM102` ignores removed, the `COM812` comment corrected, the
   50 unused `ty: ignore` comments deleted so ty reports nothing, `S311` scoped to
-  `glitchygames/randomness.py` and the tests). Left: the 100 broad try blocks (`PLW0717`,
-  BUGS.md #19), `ANN401`, and a decision on `G004`.
+  `glitchygames/randomness.py` and the tests). Phase 3 part 1 done 2026-10-21: the 36 broad try
+  blocks outside Bitmappy narrowed. Left, carried forward by the user's choice (2026-10-21):
+  Bitmappy's 62 `PLW0717` sites (`glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py`,
+  `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
+- **Tests that never run in CI** (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
+  only, nothing changed). Every collected test runs in CI, but these skip on every CI OS or are
+  never collected:
+  - 18 Bitmappy placeholders that skip as not implemented: frame insertion and spacing
+    (`tests/tools/test_film_tab_functionality.py`, 9), selection state
+    (`tests/tools/test_film_strip_navigation.py`, 2), AI strip integration
+    (`tests/tools/test_bitmappy_ai_strip_integration.py`, 2), PNG conversion
+    (`tests/tools/test_bitmappy_png_loading.py`, 1), `tests/tools/test_bitmappy.py` (2). Implement
+    the features or delete the placeholders.
+  - A real bug behind a skip: `VisualCollisionManager` is not thread-safe (concurrent updates raise
+    `RuntimeError`; `tests/tools/test_multi_controller_edge_cases.py:249`). Log it in BUGS.md.
+  - `tests/events/test_voice.py:1038` and `:1074` test the path without `speech_recognition`, which
+    the dev extras install, so they always skip. Mock the import away so they run.
+  - `tests/sprites/test_animated_sprite.py:288` and `:324` cover mixed content, which no longer
+    exists since TOML-only sprites. Delete them.
+  - `test_transparency_fix.py` (tracked, repo root) is outside `testpaths`, so never collected, and
+    errors in its mock setup when run by hand (`'str' object has no attribute 'start'`);
+    `tests/tools/` already covers transparency. Delete it.
+  - Run on some CI OSes only, as intended: the `SIGBREAK` tests and the 1 ms timer test
+    (`tests/timing/test_fast_timer_os.py`) only on Windows; one timing test is skipped only on
+    Windows.

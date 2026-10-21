@@ -253,6 +253,39 @@ class TestEngineLifecycle:
         # Verify game was initialized
         mock_game_class.assert_called_once()
 
+    def test_start_prints_the_profile_of_a_run_that_failed_at_once(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """A --profile run that fails at its first step still prints the profile it took."""
+
+        class MockGame:
+            NAME = 'MockGame'
+            VERSION = '1.0'
+            TARGET_FPS = None
+
+            @classmethod
+            def args(cls, parser):
+                return parser
+
+        mock_game_args.profile = True
+        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
+        engine.scene_manager = mocker.Mock()
+        mock_profile_instance = mocker.Mock()
+        mocker.patch('cProfile.Profile', return_value=mock_profile_instance)
+        mocker.patch.object(
+            engine, '_install_signal_handlers', side_effect=RuntimeError('no handlers')
+        )
+        mocker.patch('glitchygames.engine.LOG.exception')
+
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
+
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        mock_profile_instance.enable.assert_called_once_with()
+        mock_profile_instance.disable.assert_called_once_with()
+        mock_profile_instance.print_stats.assert_called_once_with()
+
     def test_start_method_exception_handling(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine.start method exception handling."""
 

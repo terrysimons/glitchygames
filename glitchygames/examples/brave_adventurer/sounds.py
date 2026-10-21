@@ -163,15 +163,20 @@ class GameSounds:
             return
 
         try:
-            self.jump = _generate_jump_sound()
-            self.land = _generate_land_sound()
-            self.collect = _generate_collect_sound()
-            self.death = _generate_death_sound()
-            self.game_over = _generate_game_over_sound()
-            self._initialized = True
-            log.info('Brave Adventurer sounds generated successfully')
+            sounds = (
+                _generate_jump_sound(),
+                _generate_land_sound(),
+                _generate_collect_sound(),
+                _generate_death_sound(),
+                _generate_game_over_sound(),
+            )
         except AudioUnavailableError:
+            # No sound is set: the game plays silent rather than with some of its sounds
             log.warning('Audio unavailable, Brave Adventurer plays without sound')
+            return
+        self.jump, self.land, self.collect, self.death, self.game_over = sounds
+        self._initialized = True
+        log.info('Brave Adventurer sounds generated successfully')
 
     def play_jump(self) -> None:
         """Play the jump sound effect."""

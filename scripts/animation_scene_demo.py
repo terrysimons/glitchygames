@@ -42,16 +42,16 @@ class AnimationScene(Scene):
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)
-            self.animated_sprite.play()
-            assert self.animated_sprite.rect is not None
-            self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
-            logger.info(
-                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
-            )
-            logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
         except FileNotFoundError, ValueError, RuntimeError:
             logger.exception('Failed to load animation')
             raise
+        self.animated_sprite.play()
+        assert self.animated_sprite.rect is not None
+        self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
+        logger.info(
+            f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
+        )
+        logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 
     @override
     def update(self, dt: float | None = None) -> None:

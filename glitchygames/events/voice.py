@@ -31,6 +31,26 @@ except ImportError:
     SPEECH_RECOGNITION_AVAILABLE = False  # pyright: ignore[reportConstantRedefinition]
 
 
+def _open_and_close_once(*, microphone: object) -> None:
+    """Open a probe microphone and close it again; an error while closing is only logged.
+
+    Args:
+        microphone: A microphone backend instance (a context manager, or not).
+
+    """
+    enter = getattr(microphone, '__enter__', None)
+    exit_cm = getattr(microphone, '__exit__', None)
+    if callable(enter):
+        try:
+            enter()
+        finally:
+            try:
+                if callable(exit_cm):
+                    exit_cm(None, None, None)
+            except OSError, RuntimeError:
+                LOG.debug('Voice backend cleanup raised error during probe', exc_info=True)
+
+
 class VoiceEventManager(ResourceManager):
     """Manages voice recognition and command processing."""
 
@@ -106,20 +126,8 @@ class VoiceEventManager(ResourceManager):
         """
         backend_name = getattr(mic_cls, '__name__', str(mic_cls))
         try:
-            probe = mic_cls()
-            enter = getattr(probe, '__enter__', None)
-            exit_cm = getattr(probe, '__exit__', None)
-            if callable(enter):
-                try:
-                    enter()
-                finally:
-                    try:
-                        if callable(exit_cm):
-                            exit_cm(None, None, None)
-                    except OSError, RuntimeError:
-                        LOG.debug('Voice backend cleanup raised error during probe', exc_info=True)
-            self.log.info('Voice backend selected: %s', backend_name)
-            return mic_cls()
+            _open_and_close_once(microphone=mic_cls())
+            microphone = mic_cls()
         except OSError, RuntimeError:
             self.log.exception('Voice backend probe failed for %s', backend_name)
             return None
@@ -127,6 +135,8 @@ class VoiceEventManager(ResourceManager):
             # Catch-all to prevent unexpected backend errors from crashing initialization
             self.log.exception('Unexpected error while probing voice backend %s', backend_name)
             return None
+        self.log.info('Voice backend selected: %s', backend_name)
+        return microphone
 
     def _setup_microphone(self) -> None:
         """Set up the microphone for voice recognition."""
@@ -212,29 +222,40 @@ class VoiceEventManager(ResourceManager):
 
             while self.is_listening and not self.stop_listening_event.is_set():
                 try:
-                    # Listen for audio with timeout
-                    self.log.debug('Listening for voice input...')
-                    audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
-
-                    # Recognize speech
-                    try:
-                        text = self.recognizer.recognize_google(audio).lower()
-                        self.log.info("Recognized speech: '%s'", text)
-                        self._process_command(text)
-                    except sr.UnknownValueError:
-                        # Speech was unintelligible, continue listening
-                        self.log.debug('Could not understand audio')
-                    except sr.RequestError:
-                        self.log.error('Speech recognition service error')  # ruff: ignore[error-instead-of-exception]
-                        # Wait a bit before trying again
-                        time.sleep(2)
-
+                    self._listen_and_process_once(source=source)
                 except sr.WaitTimeoutError:
                     # Timeout is normal, continue listening
                     continue
                 except OSError:
                     self.log.error('Error in voice recognition loop')  # ruff: ignore[error-instead-of-exception]
                     time.sleep(1)
+
+    def _listen_and_process_once(self, *, source: object) -> None:
+        """Listen for one phrase, recognize it and run its command.
+
+        Args:
+            source: The open microphone.
+
+        """
+        assert sr is not None
+        # Listen for audio with timeout
+        self.log.debug('Listening for voice input...')
+        audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
+
+        # Recognize speech
+        try:
+            text = self.recognizer.recognize_google(audio).lower()
+        except sr.UnknownValueError:
+            # Speech was unintelligible, continue listening
+            self.log.debug('Could not understand audio')
+            return
+        except sr.RequestError:
+            self.log.error('Speech recognition service error')  # ruff: ignore[error-instead-of-exception]
+            # Wait a bit before trying again
+            time.sleep(2)
+            return
+        self.log.info("Recognized speech: '%s'", text)
+        self._process_command(text)
 
     def _process_command(self, text: str) -> None:
         """Process a recognized voice command.

@@ -1074,19 +1074,34 @@ class JoystickScene(Scene):
             if input_mode == 'controller':
                 device_id = self._find_controller_device_id(joystick_id, device_obj)
             else:
-                # Validate by accessing name, then find device index
-                device_obj.get_name()
-                found_id = self.text_sprite._find_joystick_device_id(device_obj)  # type: ignore[reportPrivateUsage]
-                device_id = found_id if found_id is not None else joystick_id
-
-            # Validate the device is reachable (controllers skip GUID check)
-            if input_mode != 'controller':
-                device_obj.get_guid()
+                device_id = self._validated_joystick_device_id(
+                    joystick_id=joystick_id, device_obj=device_obj
+                )
         except pygame.error:
             LOG.debug('Failed to validate device %d, skipping', joystick_id)
             return None
         else:
             return device_id
+
+    def _validated_joystick_device_id(self: Self, *, joystick_id: int, device_obj: Any) -> int:
+        """Validate a joystick by reading its name and GUID, and return its current device ID.
+
+        A joystick that is no longer reachable raises pygame.error.
+
+        Args:
+            joystick_id: The proxy's joystick ID (fallback).
+            device_obj: The underlying joystick object.
+
+        Returns:
+            The device ID found for the joystick, or joystick_id when none is found.
+
+        """
+        # Validate by accessing name, then find device index
+        device_obj.get_name()
+        found_id = self.text_sprite._find_joystick_device_id(device_obj)  # type: ignore[reportPrivateUsage]
+        # Validate the device is reachable (controllers skip GUID check)
+        device_obj.get_guid()
+        return found_id if found_id is not None else joystick_id
 
     def _remove_tab_control(self: Self) -> None:
         """Remove the tab control sprite and reset selection state."""

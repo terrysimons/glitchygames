@@ -535,15 +535,12 @@ class LiveDeviceRegistry:
         for instance_id, joystick_view in self._devices_by_instance.items():
             controller = self._controllers_by_instance.get(instance_id)
             try:
-                if controller is not None and not controller.attached():
-                    LOG.debug('Controller %d is detached; forgetting it', instance_id)
-                    vanished_instance_ids.append(instance_id)
-                    continue
-                device_axes, device_buttons, device_hats = _poll_joystick_layer(
-                    device=joystick_view
-                )
+                detached = controller is not None and not controller.attached()
+                joystick_layer = None if detached else _poll_joystick_layer(device=joystick_view)
                 controller_layer = (
-                    None if controller is None else _poll_controller_layer(controller=controller)
+                    None
+                    if detached or controller is None
+                    else _poll_controller_layer(controller=controller)
                 )
             except pygame.error:
                 # Unplugged since it was opened: it is absent from every mapping (a device is
@@ -553,9 +550,11 @@ class LiveDeviceRegistry:
                 )
                 vanished_instance_ids.append(instance_id)
                 continue
-            axes[instance_id] = device_axes
-            buttons[instance_id] = device_buttons
-            hats[instance_id] = device_hats
+            if joystick_layer is None:
+                LOG.debug('Controller %d is detached; forgetting it', instance_id)
+                vanished_instance_ids.append(instance_id)
+                continue
+            axes[instance_id], buttons[instance_id], hats[instance_id] = joystick_layer
             if controller_layer is not None:
                 controller_axes[instance_id], controller_buttons[instance_id] = controller_layer
         for instance_id in vanished_instance_ids:

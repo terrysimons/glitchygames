@@ -206,37 +206,46 @@ class VoiceAssistant:
             audio_data: Raw PCM audio from the controller mic.
 
         """
+        # The thread's boundary: a failure is reported to the main thread, never lost with it
         try:
-            # 1. Speech-to-text
-            text = self._transcribe(audio_data)
-            if not text:
-                self._fire_error('Could not understand speech')
-                return
-
-            log.info('Voice assistant heard: %r', text)
-            if self._on_transcription is not None:
-                self._on_transcription(text)
-
-            # 2. AI response
-            response = self._ask_ai(text)
-            if not response:
-                self._fire_error('No response from AI')
-                return
-
-            log.info('Voice assistant says: %r', response)
-
-            # 3. Deliver response text
-            with self._lock:
-                self._pending_response = response
-
-            # 4. TTS → speaker
-            self._speak_response(response)
-
+            self._run_pipeline(audio_data)
         except Exception:
             log.exception('Voice assistant pipeline error')
             self._fire_error('Voice assistant error — check logs')
         finally:
             self._processing = False
+
+    def _run_pipeline(self, audio_data: bytes) -> None:
+        """Transcribe, ask the AI, deliver the response text and speak it.
+
+        Args:
+            audio_data: Raw PCM audio from the controller mic.
+
+        """
+        # 1. Speech-to-text
+        text = self._transcribe(audio_data)
+        if not text:
+            self._fire_error('Could not understand speech')
+            return
+
+        log.info('Voice assistant heard: %r', text)
+        if self._on_transcription is not None:
+            self._on_transcription(text)
+
+        # 2. AI response
+        response = self._ask_ai(text)
+        if not response:
+            self._fire_error('No response from AI')
+            return
+
+        log.info('Voice assistant says: %r', response)
+
+        # 3. Deliver response text
+        with self._lock:
+            self._pending_response = response
+
+        # 4. TTS → speaker
+        self._speak_response(response)
 
     def _transcribe(self, audio_data: bytes) -> str | None:
         """Convert raw audio to text via speech_recognition.

@@ -154,34 +154,47 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
         Formatted TOML string for AI context
 
     """
+    # Extract key information
+    name = example.get('name', 'unknown')
+    sprite_type = example.get('sprite_type', 'unknown')
+    has_alpha = example.get('has_alpha', False)
+
+    # Build description
+    desc_parts = [f'name="{name}"', f'type={sprite_type}']
+    if has_alpha:
+        desc_parts.append('alpha=yes')
+
+    description = f'# {", ".join(desc_parts)}\n'
+
     try:
-        # Extract key information
-        name = example.get('name', 'unknown')
-        sprite_type = example.get('sprite_type', 'unknown')
-        has_alpha = example.get('has_alpha', False)
-
-        # Build description
-        desc_parts = [f'name="{name}"', f'type={sprite_type}']
-        if has_alpha:
-            desc_parts.append('alpha=yes')
-
-        description = f'# {", ".join(desc_parts)}\n'
-
-        # Get raw content if available and requested
-        if include_raw and 'raw_content' in example:
-            return description + example['raw_content']
-
-        # Fallback to sprite data reconstruction
-        if 'pixels' in example and 'colors' in example:
-            return description + _reconstruct_static_sprite(example)
-        if 'animations' in example:
-            return description + _reconstruct_animated_sprite(example)
-
-        return description + '# (Format unavailable)'
-
+        return description + _training_example_body(example, include_raw=include_raw)
     except (KeyError, ValueError, TypeError, AttributeError) as e:
         LOG.warning('Error formatting training example: %s', e)
         return f'# Example: {example.get("name", "unknown")} (formatting error)'
+
+
+def _training_example_body(example: dict[str, Any], *, include_raw: bool) -> str:
+    """Return a training example's sprite TOML: raw if available and requested, else rebuilt.
+
+    Args:
+        example: Training example dict with sprite data
+        include_raw: If True, use raw_content if available (more accurate)
+
+    Returns:
+        The sprite TOML, or a comment when the example has no usable sprite data
+
+    """
+    # Get raw content if available and requested
+    if include_raw and 'raw_content' in example:
+        return example['raw_content']
+
+    # Fallback to sprite data reconstruction
+    if 'pixels' in example and 'colors' in example:
+        return _reconstruct_static_sprite(example)
+    if 'animations' in example:
+        return _reconstruct_animated_sprite(example)
+
+    return '# (Format unavailable)'
 
 
 def _reconstruct_static_sprite(example: dict[str, Any]) -> str:

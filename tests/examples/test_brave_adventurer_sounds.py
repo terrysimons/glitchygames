@@ -68,3 +68,13 @@ def test_game_sounds_initialize_without_mixer(mocker):
     game_sounds.initialize()
     game_sounds.play_jump()  # No-op, no exception
     assert game_sounds.jump is None
+
+
+def test_game_sounds_set_none_when_audio_fails_part_way(mocker):
+    """Audio lost after some sounds were made: no sound is set, so the game plays silent."""
+    mocker.patch.object(sounds, '_generate_collect_sound', side_effect=sounds.AudioUnavailableError)
+    game_sounds = sounds.GameSounds()
+    game_sounds.initialize()
+    assert game_sounds.jump is None
+    assert game_sounds.land is None
+    assert game_sounds.collect is None
