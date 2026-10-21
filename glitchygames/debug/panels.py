@@ -108,12 +108,13 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
     """Compute where a sprite's collision rect appears on the presented frame.
 
     Sprites with world_x and world_y have a world-space collision rect. Its box is placed
-    where the sprite is actually drawn: the sprite's rect (which games set from the camera
-    every frame, WORLD shake included, plus an anchored AnimatedSprite's draw_offset) less
-    that draw_offset, plus the hitbox's offset from the snapped world position the collision
-    rect was built from (which includes the draw_offset). Converting the already-rounded world rect
-    through the camera would round twice and put the box a pixel off the sprite whenever the
-    camera position is fractional. Other sprites already have screen-space rects.
+    where the sprite is actually drawn: the sprite's rect (which the engine, or a game, sets
+    from the camera every frame, WORLD shake included, plus an anchored AnimatedSprite's
+    draw_offset) less that draw_offset, plus the hitbox's offset from the snapped world
+    position the collision rect was built from (which includes the draw_offset). Converting
+    the already-rounded world rect through the camera would round twice and put the box a
+    pixel off the sprite whenever the camera position is fractional. Other sprites already
+    have screen-space rects.
 
     Args:
         sprite (Any): The sprite to locate.

@@ -180,11 +180,13 @@ class FrameAnchor(Enum):
 
     Walkers use BOTTOM, spinners and floaters CENTER, hanging things TOP.
 
-    Contract: a game that sets frame_anchor must place the sprite's rect at its world
-    position (through the camera) plus AnimatedSprite.draw_offset, as Papyrus's
-    PapyrusPlayer.apply_camera does. hitbox already includes the offset, and the debug
-    overlay (glitchygames.debug.panels.screen_rect_for) takes it back out of rect, so a rect
-    placed without it shows outlines and collisions that do not match the drawing.
+    Contract: the sprite's rect must be placed at its world position (through the camera)
+    plus AnimatedSprite.draw_offset. The engine does this for world sprites
+    (CoordinateSpace.WORLD, e.g. Papyrus's PapyrusPlayer: glitchygames.world.screen_position_for
+    adds draw_offset); a game that places an anchored sprite's rect itself must add it.
+    hitbox already includes the offset, and the debug overlay
+    (glitchygames.debug.panels.screen_rect_for) takes it back out of rect, so a rect placed
+    without it shows outlines and collisions that do not match the drawing.
     """
 
     NONE = 'none'  # Draw frames as authored (default)
@@ -454,7 +456,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         hitbox (see FrameAnchor) lands on the same point of the reference hitbox, in drawn
         pixels (times hitbox_scale; computed in authored space and, when hitbox_flip_x,
         mirrored with the image about the widest frame's width, so frames of differing widths
-        stay exact). Games add it when placing rect (e.g. after camera.apply), and hitbox
+        stay exact). The engine adds it when placing a world-space sprite's rect
+        (glitchygames.world.screen_position_for); a screen-space game adds it itself. hitbox
         includes it, so collisions match the drawing. NONE (the default) is (0, 0).
 
         Returns:
@@ -640,8 +643,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # True while the game draws this sprite mirrored horizontally (see hitbox)
         self.hitbox_flip_x: bool = False
         # How frames of different shapes line up when drawn (see draw_offset); NONE draws
-        # each frame as authored. When set, the game must add draw_offset when placing rect
-        # (see FrameAnchor's contract)
+        # each frame as authored. When set, rect must include draw_offset: the engine adds it
+        # for world sprites, a game placing rect itself must (see FrameAnchor's contract)
         self.frame_anchor: FrameAnchor = FrameAnchor.NONE
         # (frames it was built from, union of their hitboxes); see _frame_anchor_reference
         self._frame_anchor_reference_cache: (

@@ -1,5 +1,6 @@
 """Tests for timing functionality and coverage."""
 
+import itertools
 import sys
 
 import pytest
@@ -74,7 +75,8 @@ class TestPygameTimer:
 
     def test_compute_deadline_with_prev(self):
         timer = PygameTimer()
-        prev = 1_000_000_000
+        # The previous deadline is now: on time, so the next is exactly one period later.
+        prev = timer.ns_now()
         period = 16_666_666
         deadline = timer.compute_deadline(prev, period)
         assert deadline == prev + period
@@ -136,7 +138,8 @@ class TestFastTimer:
 
     def test_compute_deadline_with_prev(self):
         timer = FastTimer()
-        prev = 1_000_000_000
+        # The previous deadline is now: on time, so the next is exactly one period later.
+        prev = timer.ns_now()
         period = 16_666_666
         deadline = timer.compute_deadline(prev, period)
         assert deadline == prev + period
@@ -373,7 +376,8 @@ class TestFastTimerComputeDeadline:
     def test_compute_deadline_with_previous(self):
         """Test compute_deadline with a previous deadline adds period."""
         timer = FastTimer()
-        prev_deadline = 1_000_000_000
+        # The previous deadline is now: on time, so the next is exactly one period later.
+        prev_deadline = timer.ns_now()
         period_ns = EXPECTED_PERIOD_60
         deadline = timer.compute_deadline(prev_deadline, period_ns)
         assert deadline == prev_deadline + period_ns
@@ -449,6 +453,8 @@ class TestPygameTimerExtended:
     def test_pygame_timer_compute_deadline_with_previous(self, mocker):
         """Test PygameTimer.compute_deadline with a previous deadline."""
         mock_pygame = mocker.MagicMock()
+        # The clock reads 500 ms, the previous deadline: on time, so no re-anchoring.
+        mock_pygame.time.get_ticks.return_value = 500
         mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
 
         from glitchygames.timing import PygameTimer
@@ -535,3 +541,250 @@ class TestFractionalTargetFps:
 
     def test_pygame_timer_zero_target(self):
         assert PygameTimer().start_frame(0) == 0
+
+
+# --- Re-anchoring after a hitch (BUGS.md #58) -------------------------------------------------
+
+PERIOD_60_01_NS = 16_663_889  # round(1e9 / 60.01), the engine's default target
+HITCH_NS = 2 * ONE_S_IN_NS
+LIGHT_WORK_NS = 4 * ONE_MS_IN_NS
+TWO_MS_LATE_NS = 2 * ONE_MS_IN_NS
+
+
+class FakeClock:
+    """A nanosecond clock that only moves when the code under test sleeps or a test advances it.
+
+    Stands in for ``time.perf_counter_ns`` / ``time.sleep`` (FastTimer) and for
+    ``pygame.time.get_ticks`` / ``pygame.time.delay`` (PygameTimer), so pacing runs with no real
+    sleeping. ``sleep_count`` counts calls that moved the clock forward.
+    """
+
+    # FastTimer spins with time.sleep(0); each spin step costs one microsecond of fake time so
+    # the spin loop terminates.
+    SPIN_STEP_NS = 1_000
+
+    def __init__(self, start_ns: int) -> None:
+        """Start the clock at ``start_ns``."""
+        self.now_ns = start_ns
+        self.sleep_count = 0
+
+    def advance(self, duration_ns: int) -> None:
+        """Move the clock forward without counting a sleep (simulated frame work)."""
+        self.now_ns += duration_ns
+
+    def perf_counter_ns(self) -> int:
+        """Return the current fake time in nanoseconds.
+
+        Returns:
+            The current fake time in nanoseconds.
+
+        """
+        return self.now_ns
+
+    def sleep(self, seconds: float) -> None:
+        """Sleep on the fake clock (time.sleep replacement)."""
+        self.now_ns += max(round(seconds * 1_000_000_000), self.SPIN_STEP_NS)
+        self.sleep_count += 1
+
+    def get_ticks(self) -> int:
+        """Return whole milliseconds, as pygame.time.get_ticks does.
+
+        Returns:
+            The current fake time in whole milliseconds.
+
+        """
+        return self.now_ns // ONE_MS_IN_NS
+
+    def delay(self, milliseconds: int) -> None:
+        """Sleep whole milliseconds on the fake clock (pygame.time.delay replacement)."""
+        if milliseconds > 0:
+            self.now_ns += milliseconds * ONE_MS_IN_NS
+            self.sleep_count += 1
+
+
+def make_timer_on_fake_clock(*, backend: str, clock: FakeClock, mocker) -> FastTimer | PygameTimer:
+    """Build a timer backend whose clock and sleeps are the fake clock.
+
+    Returns:
+        The timer backend, reading and sleeping on ``clock``.
+
+    """
+    if backend == 'fast':
+        mocker.patch('glitchygames.timing.time.perf_counter_ns', side_effect=clock.perf_counter_ns)
+        mocker.patch('glitchygames.timing.time.sleep', side_effect=clock.sleep)
+        return FastTimer()
+    timer = PygameTimer()
+    fake_pygame = mocker.MagicMock()
+    fake_pygame.time.get_ticks.side_effect = clock.get_ticks
+    fake_pygame.time.delay.side_effect = clock.delay
+    timer._pg = fake_pygame
+    return timer
+
+
+def run_paced_frames(
+    *,
+    timer: FastTimer | PygameTimer,
+    clock: FakeClock,
+    period_ns: int,
+    work_ns_per_frame: list[int],
+    first_deadline_ns: int | None = None,
+) -> tuple[list[int], list[bool]]:
+    """Run the SceneManager pacing sequence (work, compute_deadline, sleep_until_next).
+
+    Returns:
+        The deadline of each frame and, per frame, whether sleep_until_next slept at all.
+
+    """
+    deadlines: list[int] = []
+    slept_per_frame: list[bool] = []
+    previous_deadline_ns = first_deadline_ns
+    for work_ns in work_ns_per_frame:
+        clock.advance(work_ns)
+        deadline_ns = timer.compute_deadline(previous_deadline_ns, period_ns)
+        sleeps_before = clock.sleep_count
+        timer.sleep_until_next(deadline_ns)
+        deadlines.append(deadline_ns)
+        slept_per_frame.append(clock.sleep_count > sleeps_before)
+        previous_deadline_ns = deadline_ns
+    return deadlines, slept_per_frame
+
+
+BACKENDS = ['fast', 'pygame']
+
+
+@pytest.mark.parametrize('backend', BACKENDS)
+class TestDeadlineReanchorsAfterHitch:
+    """After falling more than one period behind, pacing re-anchors instead of bursting."""
+
+    def test_two_second_hitch_reanchors_to_now_plus_period(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        previous_deadline_ns = clock.now_ns
+        clock.advance(HITCH_NS)
+
+        deadline_ns = timer.compute_deadline(previous_deadline_ns, PERIOD_60_01_NS)
+
+        assert deadline_ns == clock.now_ns + PERIOD_60_01_NS
+
+    def test_frames_after_a_hitch_are_all_paced(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        frame_count = 200
+        hitch_frame = 20
+        work_ns_per_frame = [LIGHT_WORK_NS] * frame_count
+        work_ns_per_frame[hitch_frame] = HITCH_NS
+
+        _deadlines, slept_per_frame = run_paced_frames(
+            timer=timer,
+            clock=clock,
+            period_ns=PERIOD_60_01_NS,
+            work_ns_per_frame=work_ns_per_frame,
+        )
+
+        # Without re-anchoring the ~120 frames after the hitch ran back to back unslept.
+        assert slept_per_frame.count(False) == 0
+
+    def test_hitch_frame_is_followed_by_steady_period_deadlines(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        work_ns_per_frame = [LIGHT_WORK_NS] * 10
+        work_ns_per_frame[3] = HITCH_NS
+
+        deadlines, _slept_per_frame = run_paced_frames(
+            timer=timer,
+            clock=clock,
+            period_ns=PERIOD_60_01_NS,
+            work_ns_per_frame=work_ns_per_frame,
+        )
+
+        gaps = [later - earlier for earlier, later in itertools.pairwise(deadlines)]
+        assert gaps[2] > HITCH_NS  # the re-anchor jump (the dropped backlog)
+        assert all(gap == PERIOD_60_01_NS for gap in gaps[3:])
+
+    def test_slightly_late_frame_still_catches_up(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        previous_deadline_ns = clock.now_ns
+        # 2 ms past this frame's deadline (previous + period): normal jitter.
+        clock.advance(PERIOD_60_01_NS + TWO_MS_LATE_NS)
+
+        deadline_ns = timer.compute_deadline(previous_deadline_ns, PERIOD_60_01_NS)
+
+        assert deadline_ns == previous_deadline_ns + PERIOD_60_01_NS
+
+    def test_average_rate_over_jittery_frames_equals_target_exactly(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        frame_count = 1_000
+        # Deterministic jitter: 0 to 0.95 periods of work per frame, with a 1.8-period spike
+        # every 50th frame. A spike leaves the loop less than one period behind, so it is caught
+        # up and no frame is dropped.
+        work_ns_per_frame = [
+            (frame_index * 7 % 20) * PERIOD_60_01_NS // 20 for frame_index in range(frame_count)
+        ]
+        for spike_frame in range(25, frame_count, 50):
+            work_ns_per_frame[spike_frame] = PERIOD_60_01_NS * 18 // 10
+
+        deadlines, _slept_per_frame = run_paced_frames(
+            timer=timer,
+            clock=clock,
+            period_ns=PERIOD_60_01_NS,
+            work_ns_per_frame=work_ns_per_frame,
+        )
+
+        assert deadlines[-1] - deadlines[0] == (frame_count - 1) * PERIOD_60_01_NS
+        elapsed_seconds = (deadlines[-1] - deadlines[0]) / ONE_S_IN_NS
+        measured_fps = (frame_count - 1) / elapsed_seconds
+        assert measured_fps == pytest.approx(ONE_S_IN_NS / PERIOD_60_01_NS, rel=1e-12)
+        # The period is rounded to a whole nanosecond, 60.0100013 FPS.
+        assert measured_fps == pytest.approx(60.01, abs=1e-5)
+
+    def test_uncapped_period_zero_is_unchanged(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        previous_deadline_ns = clock.now_ns
+        clock.advance(HITCH_NS)
+
+        assert timer.compute_deadline(previous_deadline_ns, 0) == previous_deadline_ns
+
+    def test_first_frame_is_now_plus_period(self, backend, mocker):
+        clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+
+        assert timer.compute_deadline(None, PERIOD_60_01_NS) == clock.now_ns + PERIOD_60_01_NS
+
+
+# A previous deadline chosen so that previous + 2 periods is exactly 1000 ms, a whole-millisecond
+# instant both backends can read (PygameTimer's clock is whole milliseconds).
+BOUNDARY_PREVIOUS_DEADLINE_NS = ONE_S_IN_NS - 2 * PERIOD_60_01_NS
+
+
+@pytest.mark.parametrize('backend', BACKENDS)
+class TestDeadlineReanchorBoundary:
+    """Exactly one period behind still catches up; any later than that re-anchors."""
+
+    def test_one_millisecond_inside_the_boundary_catches_up(self, backend, mocker):
+        clock = FakeClock(start_ns=ONE_S_IN_NS - ONE_MS_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+
+        deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
+
+        assert deadline_ns == BOUNDARY_PREVIOUS_DEADLINE_NS + PERIOD_60_01_NS
+
+    def test_exactly_one_period_behind_catches_up(self, backend, mocker):
+        clock = FakeClock(start_ns=ONE_S_IN_NS)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+
+        deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
+
+        assert deadline_ns == BOUNDARY_PREVIOUS_DEADLINE_NS + PERIOD_60_01_NS
+
+    def test_past_one_period_behind_reanchors(self, backend, mocker):
+        # The smallest step each clock can show past the boundary: 1 ns, or 1 ms for pygame.
+        step_past_boundary_ns = 1 if backend == 'fast' else ONE_MS_IN_NS
+        clock = FakeClock(start_ns=ONE_S_IN_NS + step_past_boundary_ns)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+
+        deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
+
+        assert deadline_ns == ONE_S_IN_NS + step_past_boundary_ns + PERIOD_60_01_NS

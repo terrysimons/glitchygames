@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, override
 
 import pygame
 
@@ -32,17 +32,17 @@ from glitchygames.physics import (
     PhysicsBody,
 )
 from glitchygames.sprites import Sprite
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
+from glitchygames.world import CoordinateSpace
 
 
 class Tinker(Sprite):
     """The Tinker — a goggled mechanic exploring the clockwork tower.
 
     Uses PhysicsBody for platformer movement and an animation state
-    machine for visual states.
+    machine for visual states. A world sprite: the engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     IDLE = 'idle'
     RUNNING = 'running'
@@ -182,7 +182,12 @@ class Tinker(Sprite):
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Advance physics and animation.
+        """Advance physics and animation, then draw this frame's pose.
+
+        The pose is drawn here, not in update(), because the hitbox is trimmed to the drawn
+        pixels: collision (the side walls here, the floor's ground and cog checks after this)
+        must use this frame's pose, not the previous frame's (the pose-before-collision rule,
+        plans/2026-10-18-engine-world-space.md section 1).
 
         Args:
             dt: Delta time in seconds.
@@ -196,6 +201,22 @@ class Tinker(Sprite):
         context = self.physics.get_animation_context()
         self.state_machine.evaluate(context, dt)
         self.state = self.state_machine.current_state
+
+        self._draw_pose()
+        # The new pose (facing or state) can move the hitbox inside the image, so the side
+        # walls are refitted to it and applied again: the hitbox never enters a wall
+        self._fit_playfield_bounds_to_hitbox()
+        self._playfield_bounds.apply(self.physics, dt)
+
+    def _draw_pose(self: Self) -> None:
+        """Redraw the image for the current state, facing and animation time."""
+        self.image.fill((0, 0, 0, 0))
+        draw_tinker(
+            self.image,
+            self.state,
+            facing_right=self.facing_right,
+            animation_timer=self.animation_timer,
+        )
 
     def _fit_playfield_bounds_to_hitbox(self: Self) -> None:
         """Set the side-wall bounds so the hitbox, not the whole image, meets the walls.
@@ -252,25 +273,7 @@ class Tinker(Sprite):
         if accel:
             accel.target_velocity_x = 0.0
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen rect from world coordinates.
-
-        Args:
-            camera: The camera for world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
     @override
     def update(self: Self) -> None:
-        """Redraw the Tinker based on current state."""
-        self.image.fill((0, 0, 0, 0))
-        draw_tinker(
-            self.image,
-            self.state,
-            facing_right=self.facing_right,
-            animation_timer=self.animation_timer,
-        )
+        """Apply the respawn fade (purely visual; the pose is drawn in dt_tick)."""
         self.image.set_alpha(round(self.alpha))

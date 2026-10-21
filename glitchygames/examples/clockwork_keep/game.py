@@ -11,7 +11,7 @@ import pygame
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
-from glitchygames.camera import Camera2D
+from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
@@ -75,6 +75,7 @@ from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import Sprite
 from glitchygames.state import SaveManager, SaveNotFoundError
 from glitchygames.transitions import ElevatorTransition, FadeTransition
+from glitchygames.world import CoordinateSpace
 
 if TYPE_CHECKING:
     import argparse
@@ -135,6 +136,9 @@ class CogCollectible(Sprite):
 
     """
 
+    # A world sprite: the engine places it from the camera
+    COORDINATE_SPACE = CoordinateSpace.WORLD
+
     def __init__(
         self,
         world_x: float,
@@ -177,17 +181,6 @@ class CogCollectible(Sprite):
         self.image.fill((0, 0, 0, 0))
         draw_cog_collectible(self.image, self.color, rotation=self._timer * 0.5)
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera.
-
-        Args:
-            camera: The camera for world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
 
 class ClockworkKeepScene(Scene):
     """One floor of the clockwork tower.
@@ -198,6 +191,9 @@ class ClockworkKeepScene(Scene):
 
     NAME = 'Clockwork Keep'
     VERSION = '1.0'
+    # Cap dt to prevent physics tunneling after focus loss (Cmd-Tab, etc.): 50 ms = 20 fps
+    # minimum. The engine caps the dt dt_tick and the camera aim receive.
+    MAX_FRAME_SECONDS = 0.05
 
     def __init__(
         self: Self,
@@ -383,6 +379,9 @@ class ClockworkKeepScene(Scene):
         self.hud_font = pygame.font.Font(None, 28)
         # Render every sound now so the elevator clank does not render on the slam frame
         self.sounds.prerender()
+        # The engine aims the camera at the player each frame (both axes; the bounds above
+        # keep it from scrolling sideways) and places every world sprite from it
+        self.camera.follow(target=self.player, axes=FollowAxes.BOTH)
         log.info(
             'Clockwork Keep: Floor %d (%s) — %dx%d',
             self.floor_index,
@@ -393,7 +392,7 @@ class ClockworkKeepScene(Scene):
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Master tick: input, physics, collision, camera.
+        """Master tick: input, physics, collision (the engine then aims the camera).
 
         Args:
             dt: Delta time in seconds.
@@ -403,10 +402,6 @@ class ClockworkKeepScene(Scene):
 
         if self.game_over_triggered:
             return
-
-        # Cap dt to prevent physics tunneling after focus loss (Cmd-Tab, etc.)
-        max_dt = 0.05  # 50ms = 20fps minimum
-        dt = min(dt, max_dt)
 
         self.floor_elapsed_time += dt
 
@@ -432,28 +427,6 @@ class ClockworkKeepScene(Scene):
 
         # Collectibles
         self._check_collectibles()
-
-        # Camera follows player (both axes)
-        self.camera.update(
-            target_x=self.player.world_x,
-            target_y=self.player.world_y,
-            dt=dt,
-        )
-
-        # Apply camera to all world-space sprites
-        self.apply_camera_to_sprites()
-
-    @override
-    def apply_camera_to_sprites(self: Self) -> None:
-        """Position every world-space sprite from the camera."""
-        camera = self.camera
-        self.player.apply_camera(camera)
-        for platform in self.platform_sprites:
-            platform.apply_camera(camera)
-        for elevator in self.elevator_sprites:
-            elevator.apply_camera(camera)
-        for cog in self.collectible_sprites:
-            cog.apply_camera(camera)
 
     # --- Movement ---
 
@@ -706,6 +679,8 @@ class ClockworkKeepScene(Scene):
 
         if self.player.lives <= 0:
             self.game_over_triggered = True
+            # The floor (and its camera) stand still from here on: stop following
+            self.camera.follow(target=None)
             self.sounds.play('game_over')
             self._save_high_score()
             # Spec revision 3: a shake still running would carry into the fade; end it first.

@@ -557,8 +557,16 @@ class EventInterface(abc.ABC):
     def __subclasshook__(cls, subclass: type[Any]) -> bool:
         """Override the default __subclasshook__ to create an interface.
 
+        A class that implements every abstract method of the interface counts as a subclass
+        even without inheriting from it. Per the `abc` contract, anything else returns
+        NotImplemented rather than False: False would mean "definitely not a subclass" and
+        hide real subclasses (every concrete class such as Scene has no abstract methods,
+        so the structural check never passes for it).
+
         Returns:
-            bool: True if the condition is met, False otherwise.
+            bool: True if the subclass implements the interface; otherwise NotImplemented
+                (typeshed annotates object.__subclasshook__ as bool and types NotImplemented
+                as compatible with it), so the normal inheritance check decides.
 
         """
         # Note: This accounts for under/dunder methods in addition to regular methods.
@@ -571,12 +579,12 @@ class EventInterface(abc.ABC):
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
+                    cls.log.debug(f'{subclass.__name__}.{attribute} -> implemented (callable)')
                 else:
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
+                    cls.log.debug(f'{subclass.__name__}.{attribute} -> implemented (attribute)')
                 methods.append(True)
             else:
-                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
+                cls.log.debug(f'{subclass.__name__}.{attribute} -> unimplemented')
                 methods.append(False)
 
         # all([]) returns True, so mask it
@@ -586,4 +594,6 @@ class EventInterface(abc.ABC):
         if len(methods) > 0 and all(methods):
             interface_is_implemented = all(methods)
 
-        return interface_is_implemented
+        if interface_is_implemented:
+            return True
+        return NotImplemented

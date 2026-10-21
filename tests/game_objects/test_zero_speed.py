@@ -17,6 +17,7 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
 )
 from glitchygames.movement import Speed
+from tests.game_objects.ball_helpers import drawn_position
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -134,22 +135,21 @@ def _run_continuous_speedup_scenarios(ball):
 
     LOG.debug('10. Test movement over many iterations with zero speed:')
     ball.speed = Speed(0.0, 0.0)
-    assert ball.rect is not None
-    # Move via world_x/world_y; dt_tick re-snaps rect from them, so setting rect alone
-    # would be overwritten on the first tick
+    # Move via world_x/world_y; the engine places rect from them before each render, so
+    # setting rect alone would be overwritten
     ball.world_x = 100.0
     ball.world_y = 100.0
-    LOG.debug(f'   Initial position: ({ball.rect.x}, {ball.rect.y})')
+    LOG.debug(f'   Initial position: ({ball.world_x}, {ball.world_y})')
 
     for iteration in range(20):
         ball.dt_tick(interval)
         LOG.debug(
             f'   Iteration {iteration + 1}:'
-            f' position=({ball.rect.x}, {ball.rect.y}),'
+            f' position=({ball.world_x}, {ball.world_y}),'
             f' speed=({ball.speed.x}, {ball.speed.y})',
         )
 
-    assert (ball.rect.x, ball.rect.y) == (100, 100)
+    assert drawn_position(ball) == (100, 100)
     assert (ball.speed.x, ball.speed.y) == (0.0, 0.0)
     LOG.debug('   Result: Position never changes (no movement with zero speed)\n')
 

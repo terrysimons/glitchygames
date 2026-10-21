@@ -12,15 +12,133 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
-### 46. scripts/legacy_sprite_loader.py Cannot Start
-- **Description**: The script raises `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
-- **Status**: Active
+### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size
+- **Description**: Papyrus's TOML sprites are drawn at 2x (`SPRITE_SCALE`), but their `rect` keeps the native size: the player's rect is 20x28 while its image is 40x56, a scarab's 10x8 while its image is 20x16
+- **Status**: Active (latent)
 - **Priority**: Low
-- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Reporter**: Found on feature/engine-world-space (Task 8)
 - **Date Reported**: 2026-10-18
-- **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
+- **Details**: Predates the branch. Latent today: every Papyrus sprite is `dirty = 2`, the scene renders the full screen, the image overhangs the rect by at most 28 px (less than `CULL_MARGIN_PIXELS`, 32), and hitboxes and the debug overlay use collision rects. It would surface with mouse picking (`sprites_at_position`, `pygame.sprite.spritecollide`), a non-dirty Papyrus sprite, or `pygame.display.update(rects)`. Fixing it (sizing rect from the scaled image in `apply_transparency_and_scale` / `prepare_papyrus_sprite`) changes every Papyrus rect size in the golden trace, so it needs its own expected-difference class in `tests/world/test_golden_traces.py`
+- **Files**: `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py`
+
+### 60. Brave Adventurer Ground and Walls Stay Drawn Only Because the Parallax Layers Dirty the Screen
+- **Description**: The shared `GroundSegment` and `StoneWall` (both editions) are `dirty = 1` and are dirtied again only when they move. With a still camera they stay on screen only because the full-screen `dirty = 2` ParallaxLayers make the whole screen dirty every frame
+- **Status**: Active (fragile, works today)
+- **Priority**: Low
+- **Reporter**: Found by the Task 8 review on feature/engine-world-space
+- **Date Reported**: 2026-10-18
+- **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
+- **Files**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
 
 ## Resolved Bugs
+
+### 64. Collision Used the Previous Frame's Pose (Hitbox Up to 4 px Inside a Wall for One Frame)
+- **Description**: In Brave Adventurer and Clockwork Keep, on the frame the player turned toward a wall or started to run while standing at it, the drawn hitbox sat 1-4 px inside the wall for one frame; the first ground check after a respawn also ran on the blank image, so the player stood 1-2 px high
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/debug-overlay (`plans/future-work.md`); fixed on feature/engine-world-space
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Both games drew the player's pose in `update()`, which runs in the render phase after collision, so wall and ground resolution in `dt_tick` used the previous frame's image and hitbox
+- **Solution**: The pose rule (CLAUDE.md, World Space): each player draws its pose in `dt_tick` (`_draw_pose()`), after physics and the state machine and before collision, then refits its wall bounds to the new hitbox; `update()` keeps only visual work (the respawn fade). Papyrus already drew in `dt_tick`
+- **Files Modified**: `glitchygames/examples/clockwork_keep/player.py` (51d4f08), `glitchygames/examples/brave_adventurer/player.py` (dc4d25f)
+- **Tests**: `TestPoseBeforeCollision` in `tests/examples/test_clockwork_keep.py` and `tests/examples/test_brave_adventurer_game.py` (8 wall/facing/key cases each, hitbox checked after logic and after render, both Brave editions); the golden traces prove the changed frames exactly
+
+### 63. Camera Stepped Ahead on the Frame a Scene Resumed From Pause
+- **Description**: After the engine took over camera aiming, Brave Adventurer's camera moved one extra smoothing step on the frame it resumed from the pause screen, so every sprite was drawn a little off for the following frames (about 470 golden-trace rects on frames 373-386)
+- **Status**: Resolved (found and fixed before it reached main)
+- **Priority**: Medium
+- **Reporter**: Found by the golden traces on feature/engine-world-space (Task 7)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `PauseScene` resumes with `switch_to_scene` during event processing, after the pause scene's `dt_tick`. The engine then aimed the resumed scene's camera that same frame although that scene ran no logic, an extra step the games' own `camera.update` in `dt_tick` had never taken
+- **Solution**: `SceneManager._run_scene_frame` aims the camera only when the scene that ran `dt_tick` this frame is still active; its world sprites are still positioned for the frame's render
+- **Files Modified**: `glitchygames/scenes/scene.py` (0823479)
+- **Tests**: `test_camera_waits_for_the_resumed_scene_logic` in `tests/world/test_frame_integration.py`; the Brave Adventurer golden trace
+
+### 62. Frame Processing Time Included the Pacing Sleep
+- **Description**: The per-frame processing time handed to the performance manager was measured after `_handle_frame_pacing`, so it included the sleep; `AdaptiveClamping.get_spare_time_stats` reported about zero spare capacity whenever a timer backend paced the loop
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/engine-world-space (Task 5)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `actual_processing_time` was taken from the frame start to after pacing, not to the end of the frame's work
+- **Solution**: `SceneManager.start()` measures `processing_seconds` from the frame start to the end of `_run_frame()`, before pacing, and passes it to `_finish_frame`, which records it (engine audit #15)
+- **Files Modified**: `glitchygames/scenes/scene.py` (733ebb4)
+- **Tests**: `test_processing_time_excludes_the_pacing_sleep` in `tests/world/test_finish_frame.py` (on a fake clock; before the fix the sample was 0.0234 s for 0.0059 s of work)
+
+### 61. Brave Adventurer Sprites That Had Been Off Screen Stopped Being Drawn
+- **Description**: Brave Adventurer's per-sprite culling set `dirty = 0` on sprites outside the screen. `Scene.update()` calls `update()` only on dirty sprites, so an off-screen scarab never drew its image: collision then used the blank image (the whole image as the hitbox) and the scarabs rolled 2 px above the ground. Enemies that draw in `update()` (Cobra, Scarab, Scorpion) were drawn once when they came back on screen (the `visible` setter dirtied them) and then froze on that frame
+- **Status**: Resolved
+- **Priority**: Low (the scripted runs never show an enemy returning on screen; worked out from the code and proven on the scarabs)
+- **Reporter**: Found by the golden traces on feature/engine-world-space (Task 7)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Culling and redraw scheduling shared one flag: `dirty = 0` meant both "nothing changed" and "do not run `update()`"
+- **Solution**: The games' `is_visible` culling was removed; the engine's positioning step culls with `visible` only and never lowers `dirty = 2` (spec 2.4). The scarabs now rest their visible underside on the ground (3384 golden rects, each proven by an exact rule; a scratch emulation restoring only the old culling reproduced the baseline with 0 differences)
+- **Files Modified**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/enemies.py` (dc4d25f); Papyrus's copies in d5144ce
+- **Tests**: `test_scarab_rolls_with_its_visible_bottom_on_the_ground`; the off-screen Papyrus scarab keeps `dirty = 2` (`TestPapyrusEngineWorldSpace` in `tests/examples/test_brave_adventurer_game.py`); `test_dirty_two_sprite_stays_two` in `tests/world/test_positioning.py`
+
+### 58. Frame Pacing Bursts to Catch Up After a Hitch
+- **Description**: After a long stall (a 2 s hitch, a window drag, a debugger pause) the main loop ran about 120-150 frames back to back without sleeping: a CPU spike, skewed FPS, frame-time and 1%-low statistics, uneven presentation, and anything counted per frame ran fast until the deadlines caught up
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/engine-world-space
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Both timer backends' `compute_deadline` returned `previous_deadline + period` unconditionally, so after a stall every missed deadline was already in the past and `sleep_until_next` returned immediately for each of them
+- **Solution**: A shared `next_frame_deadline_ns` in `glitchygames/timing.py` (used by `FastTimer` and `PygameTimer`) re-anchors to `now + period` when the loop is more than one full period behind (`now - (previous + period) > period`), dropping the backlog. Exactly one period behind still catches up, as does any normal jitter, so the long-run rate stays exactly at the target. The first frame and the uncapped (period 0) result are unchanged. PygameTimer's clock is whole milliseconds, so its lateness is measured to within 1 ms
+- **Files Modified**: `glitchygames/timing.py`, `tests/timing/test_timing.py`, `CLAUDE.md`
+- **Tests**: `TestDeadlineReanchorsAfterHitch` and `TestDeadlineReanchorBoundary` in `tests/timing/test_timing.py` (both backends on a fake clock: a 2 s hitch re-anchors and leaves no unslept frames (157 before the fix), a 2 ms late frame still catches up, both sides of the boundary, an exact average rate over 1,000 jittery frames, uncapped unchanged); existing `compute_deadline` tests now use an on-time previous deadline instead of a fixed 1 s one
+
+### 57. PaddleSlap Reseeds Python's Global random Module at Startup
+- **Description**: Creating PaddleSlap's `Game` called `random.seed()` with a value from `time.perf_counter()`, under the comment "Set random seed for reproducible randomness". The seed was neither reproducible (it came from the clock) nor used by PaddleSlap (its randomness comes from `secrets` and the ball's `_SERVE_RANDOM`), but it reset the process-wide `random` module for every other user in the process (for example `glitchygames/audio/controller_audio.py`'s noise), and the golden-trace harness had to save and restore the global state around each run
+- **Status**: Resolved
+- **Priority**: Low (no visible effect; a hidden global side effect)
+- **Reporter**: Found on feature/engine-world-space (Task 1)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: A leftover reseed from the coverage branch (a029a67); nothing in PaddleSlap reads the global `random` module
+- **Solution**: Removed the reseed, its log line and the `random` import. The golden-trace harness no longer fakes `time.perf_counter` for PaddleSlap or saves/restores the global random state; the PaddleSlap golden trace is unchanged (the harness never depended on the reseed)
+- **Files Modified**: `glitchygames/examples/paddleslap.py`, `scripts/record_golden_traces.py`
+- **Tests**: `test_game_initialization_leaves_global_random_state_alone` in `tests/examples/test_paddleslap.py`; `tests/world/test_golden_traces.py` (PaddleSlap trace still matches)
+
+### 56. isinstance/issubclass Against Scene, Sprite and Every Concrete Event Class Is False for Subclasses
+- **Description**: `issubclass(SubScene, Scene)` and `isinstance(sub_scene, Scene)` were False for every real subclass; the same held for every concrete class deriving from `EventInterface` (`Sprite`, `BitmappySprite`, `Scene`, the `*EventStubs`, the example game scenes, UI widgets and dialogs). Only an object whose exact type is the checked class passed (Python's exact-type fast path)
+- **Status**: Resolved
+- **Priority**: Low (no engine code path depended on the wrong answer; it blocked using isinstance)
+- **Reporter**: Found on feature/engine-world-space (Task 1b)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `EventInterface.__subclasshook__` returned `False` when its structural check failed. To `abc`, False means "definitely not a subclass", so normal inheritance was never consulted. Concrete classes have no abstract methods, so the structural check always failed for them
+- **Solution**: The hook returns True when the class implements every abstract method of the interface and `NotImplemented` otherwise, so `abc` falls back to inheritance. Audit (every `isinstance`/`issubclass` against an `EventInterface` subclass in `glitchygames/`, `scripts/` and `tests/`, plus a full-suite run with an instrumented hook): no check on a real object changes outcome (the checked objects are exact types or classes without subclasses); the 615 changed class pairs are subclass-vs-concrete-ancestor pairs and interface pairs involving abstract classes, which no code checks. `SceneManager.on_key_down_event` keeps its by-name `_record_key_press` lookup: `active_scene` is annotated `Scene`, so an isinstance check is flagged as unnecessary by basedpyright
+- **Files Modified**: `glitchygames/events/base.py`, `glitchygames/scenes/scene.py` (comment only)
+- **Tests**: `TestEventInterface` in `tests/events/test_events_core.py`: a real Scene subclass passes issubclass/isinstance; an unrelated class does not; a class implementing every abstract method of `KeyboardEvents` without inheriting passes; a partial implementation does not; the hook returns NotImplemented for a non-matching class. The existing hook tests now expect NotImplemented instead of False
+
+### 55. Input Pressed During a Scene Transition Is Delivered When It Ends
+- **Description**: Keys, buttons and clicks pressed during a transition (about 4 s for Clockwork Keep's elevator ride) were all delivered at once to the new scene when it ended: a jump pressed mid-ride jumped on arrival. A key held before the ride and released during it still read as held on the arrival scene's first frame, and quit or a controller disconnect during a ride waited for it to end
+- **Status**: Resolved
+- **Priority**: Medium (stale input acted on arrival)
+- **Reporter**: Found while planning the engine world space (`plans/2026-10-18-engine-world-space.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `SceneManager.start()`'s transition branch never processed events, so they queued in SDL for the whole transition
+- **Solution**: Each transition frame calls the new `SceneManager._process_transition_events()`, which runs `GameEngine.process_events(discarded_event_types=TRANSITION_DISCARDED_EVENT_TYPES)`: presses and motion (`KEYDOWN`, `TEXTINPUT`, `MOUSEBUTTONDOWN`, `MOUSEMOTION`, `MOUSEWHEEL`, `JOYBUTTONDOWN`, `JOYAXISMOTION`, `JOYHATMOTION`, `JOYBALLMOTION`, `CONTROLLERBUTTONDOWN`, `CONTROLLERAXISMOTION`, `FINGERDOWN`, `FINGERMOTION`, `TEXTEDITING`, `CONTROLLERTOUCHPADDOWN`, `CONTROLLERTOUCHPADMOTION`, `MULTIGESTURE`) are dropped, except motion back to neutral, which is a release (`is_discarded_during_transition`: an axis inside ActionMap's `DEFAULT_DEADZONE`, or a hat at (0, 0)); releases (including `CONTROLLERTOUCHPADUP`), quit, window, focus, device and drop events (`DROPFILE`/`DROPTEXT`: a drop during a ride should land) go through the normal dispatch. They reach the incoming scene, which `_start_transition` has already made active (the outgoing scene is cleaned up). The golden-trace harness's copy of the transition branch (`GoldenTraceSceneManager.run_frame`) does the same. The base `Scene.on_key_up_event` quit keys (Q, ESC) now quit only on the release of a key whose key-down reached that scene: `SceneManager.on_key_down_event` calls `Scene._record_key_press` before dispatch (so overriding handlers are covered) and each release consumes its press. A Q pressed during a transition, or pressed in the departing scene and released after it was left, no longer quits (nor does an ESC held from gameplay into the pause screen)
+- **Files Modified**: `glitchygames/scenes/scene.py`, `glitchygames/engine/game_engine.py`, `glitchygames/input/action_map.py`, `scripts/record_golden_traces.py`
+- **Tests**: `tests/world/test_transition_input.py` (real engine and scenes through the harness): a jump pressed and released mid-ride does not jump on arrival; a key held before a transition and released during it is not held after (shared `ActionMap`); a press during a transition is never delivered; quit during a transition quits; a joystick removal during a transition reaches the joystick manager; the discard set holds no release; a stick pushed before a transition and centred during it is not held after, a stick pushed during it is discarded, a centred hat is delivered and a pushed one discarded; a file dropped during a transition reaches the arriving scene. Q pressed and released during a transition does not quit; Q pressed before it and released during it does not quit; Q pressed and released in one scene quits (`TestSceneKeyUpEvent` in `tests/scenes/test_scene.py` covers the release-without-press and one-quit-per-press cases). The golden traces did not change: the only scripted input inside a transition is Clockwork Keep's interact release at frame 354 (ride: frames 352-592), which the arrival floor's fresh `ActionMap` ignores whether it arrives during or after the ride
+
+### 54. GameEngine.process_events Drops Events
+- **Description**: Events queued in the same frame as an unhandled event were lost, scenes that take raw pygame events (`process_event`) only ever received the first event of each frame, and an event type missing from `EVENT_HANDLERS` was reported with the previous event's result
+- **Status**: Resolved
+- **Priority**: Medium (lost input whenever an unhandled event shared a frame with it)
+- **Reporter**: Found while planning the engine world space (`plans/2026-10-18-engine-world-space.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `pygame.event.get()` removes the whole batch from SDL's queue, but the loop returned `False` right after `process_unimplemented_event`, returned `True` after the first raw event, and never reset `event_was_handled` per event
+- **Solution**: Every event of the batch is handled; handled/unhandled is decided per event (a type with no handler is unhandled and goes to `process_unimplemented_event`); the loop never returns early; raw-event scenes get every event in order. The return value is True only when every event was handled (False for an empty batch, as before)
+- **Files Modified**: `glitchygames/engine/game_engine.py`
+- **Tests**: `TestProcessEvents` in `tests/engine/test_game_engine.py`: an unhandled event followed by a key-down in one batch (both processed); a raw-event scene receives all events in order; an unmapped type after a handled event is unhandled; True only when every event was handled. The golden traces did not change (the scripts never mix an unhandled event into a batch)
 
 ### 53. Undoing a Bitmappy Frame Delete Fails
 - **Description**: Deleting a frame from an animation in the film strip and then undoing the delete restored nothing: the undo failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and the frame stayed deleted. A frame known only by its surface came back black, and a restored frame lost its explicit hitbox and per-pixel alpha

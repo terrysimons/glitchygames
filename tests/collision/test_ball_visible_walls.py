@@ -16,6 +16,7 @@ import glitchygames.game_objects.ball as ball_module
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.game_objects.ball import BallSprite, ServeSettings
 from glitchygames.movement import Speed
+from glitchygames.randomness import random_stream
 from tests.game_objects.test_ball import (
     CORNERS,
     FRAMES_AFTER_BOUNCE,
@@ -224,7 +225,7 @@ class TestVisibleServeMargin:
         """The extreme serve positions put the visible box exactly spawn_margin from the edge."""
         ball = make_bouncing_ball()
         mocker.patch.object(
-            ball_module._SERVE_RANDOM,
+            random_stream(ball_module.SERVE_RANDOM_STREAM),
             'randint',
             side_effect=lambda low, high: low if pick == 'lowest' else high,
         )

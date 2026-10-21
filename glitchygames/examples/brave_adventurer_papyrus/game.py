@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from glitchygames.camera import Camera2D
+from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.engine import GameEngine
@@ -223,11 +223,14 @@ class PapyrusBraveAdventurerScene(Scene):
         super().setup()
         self.hud_font = pygame.font.Font(None, 28)
         self.sounds.initialize()
+        # The engine aims the camera at the player each frame (x only: the camera stays at the
+        # top of the world) and places every world sprite from it
+        self.camera.follow(target=self.player, axes=FollowAxes.X)
         log.info('Brave Adventurer: Papyrus Edition setup complete')
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Master tick: physics, collision, camera, scoring.
+        """Master tick: physics, collision, scoring (the engine then aims the camera).
 
         Args:
             dt: Delta time in seconds since the last frame.
@@ -275,43 +278,54 @@ class PapyrusBraveAdventurerScene(Scene):
         # 8. Collectible pickup
         self._check_collectible_collisions()
 
-        # 9-10. Follow the player and place every world-space sprite
-        self._follow_player_with_camera()
-
-        # 11. Update distance score (parallax updated automatically by Camera2D)
+        # 9. Update distance score (the engine aims the camera and places the sprites after
+        # this tick)
         self.player.max_distance = max(self.player.max_distance, self.player.world_x)
         self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
 
-    def _follow_player_with_camera(self: Self) -> None:
-        """Move the camera toward the player and apply it to all world-space sprites."""
-        camera = self.camera
-        camera.update(
-            target_x=self.player.world_x,
-            target_y=0.0,
-            dt=self.dt,
-        )
+    @staticmethod
+    def _snapped_terrain_left(terrain_sprite: Any) -> int:
+        """Return a ground segment's or wall's left edge in world pixels, snapped as it is drawn.
 
-        self.player.apply_camera(camera)
-        for ground_segment in self.ground_sprites:
-            ground_segment.apply_camera(camera)
-        for wall in self.wall_sprites:
-            wall.apply_camera(camera)
-        for enemy in self.enemy_sprites:
-            enemy.apply_camera(camera)
-        for collectible in self.collectible_sprites:
-            collectible.apply_camera(camera)
+        Uses the engine's snapping (the scene's PIXEL_SNAP_MODE, or the sprite's own mode), so
+        terrain collision agrees with where the engine draws the terrain.
 
-    def _get_trailing_foot_x(self: Self, body_x: float, body_width: int, velocity_x: float) -> int:
+        Returns:
+            int: The snapped world x of the left edge.
+
+        """
+        snapped_x, _ = snapped_world_position(terrain_sprite, terrain_sprite.world_x, 0.0)
+        return snapped_x
+
+    def _snapped_player_top(self: Self) -> int:
+        """Return the player's world y snapped as the engine draws it (before draw_offset).
+
+        Papyrus stands the player on a fixed foot line PAPYRUS_PLAYER_HEIGHT below this; each
+        anchored frame is drawn its draw_offset lower, so its visible feet meet that line.
+
+        Returns:
+            int: The snapped world y.
+
+        """
+        _, snapped_y = snapped_world_position(self.player, self.player.world_x, self.player.world_y)
+        return snapped_y
+
+    def _get_trailing_foot_x(self: Self, body_x: int, body_width: int, velocity_x: float) -> int:
         """Get the X coordinate of the trailing foot for ground checks.
 
         Uses the back foot so the player doesn't fall until their
         trailing edge actually leaves the ground.
 
+        Args:
+            body_x: The left edge of the support span in world pixels (already snapped).
+            body_width: The support span's width.
+            velocity_x: The player's horizontal velocity (which foot trails).
+
         Returns:
             The X pixel coordinate of the trailing foot.
 
         """
-        left = round(body_x)
+        left = body_x
         if velocity_x > 0:
             return left
         if velocity_x < 0:
@@ -332,11 +346,11 @@ class PapyrusBraveAdventurerScene(Scene):
             body_width=support_right - support_left,
             velocity_x=self.player.velocity_x,
         )
-        player_bottom = round(self.player.world_y) + PAPYRUS_PLAYER_HEIGHT
+        player_bottom = self._snapped_player_top() + PAPYRUS_PLAYER_HEIGHT
 
         if self.ground_sprites:
             for ground_segment in self.ground_sprites:
-                segment_left = round(ground_segment.world_x)
+                segment_left = self._snapped_terrain_left(ground_segment)
                 segment_right = segment_left + ground_segment.segment_width
 
                 feet_over_segment = (
@@ -358,7 +372,7 @@ class PapyrusBraveAdventurerScene(Scene):
         # of adjacent ground segments act as walls to prevent climbing out.
         if (
             not self.player.on_ground
-            and round(self.player.world_y) + PAPYRUS_PLAYER_HEIGHT > GROUND_Y
+            and self._snapped_player_top() + PAPYRUS_PLAYER_HEIGHT > GROUND_Y
         ):
             player_rect = get_sprite_collision_rect(self.player)
             player_offset_x, _ = collision_rect_offset(self.player)
@@ -366,7 +380,7 @@ class PapyrusBraveAdventurerScene(Scene):
             player_right = player_rect.right
 
             for ground_segment in self.ground_sprites:
-                segment_left = round(ground_segment.world_x)
+                segment_left = self._snapped_terrain_left(ground_segment)
                 segment_right = segment_left + ground_segment.segment_width
 
                 if (
@@ -398,15 +412,14 @@ class PapyrusBraveAdventurerScene(Scene):
         # Left/right edges come from the collision rect (hitbox), not the drawn width
         player_rect = get_sprite_collision_rect(self.player)
         player_offset_x, _ = collision_rect_offset(self.player)
-        player_top = round(self.player.world_y)
+        player_top = self._snapped_player_top()
         player_bottom = player_top + PAPYRUS_PLAYER_HEIGHT
 
         support_left, support_right = self._player_support_span()
 
         for wall in self.wall_sprites:
-            wall_left = round(wall.world_x)
+            wall_left, wall_top = snapped_world_position(wall, wall.world_x, wall.world_y)
             wall_right = wall_left + STONE_WALL_WIDTH
-            wall_top = round(wall.world_y)
             wall_bottom = wall_top + wall.wall_height
 
             horizontally_overlapping = (
@@ -506,7 +519,7 @@ class PapyrusBraveAdventurerScene(Scene):
             if self.ground_sprites:
                 scarab_center_x = get_sprite_collision_rect(enemy).centerx
                 for ground_segment in self.ground_sprites:
-                    segment_left = round(ground_segment.world_x)
+                    segment_left = self._snapped_terrain_left(ground_segment)
                     segment_right = segment_left + ground_segment.segment_width
 
                     over_segment = (
@@ -528,7 +541,7 @@ class PapyrusBraveAdventurerScene(Scene):
 
             # Wall collision: reverse direction when hitting a wall
             for wall in self.wall_sprites:
-                wall_left = round(wall.world_x)
+                wall_left = self._snapped_terrain_left(wall)
                 wall_right = wall_left + STONE_WALL_WIDTH
                 scarab_rect = get_sprite_collision_rect(enemy)
                 scarab_offset_x, _ = collision_rect_offset(enemy)
@@ -594,6 +607,8 @@ class PapyrusBraveAdventurerScene(Scene):
 
         if self.player.lives <= 0:
             self.game_over_triggered = True
+            # The world (and its camera) stand still from here on: stop following
+            self.camera.follow(target=None)
             self.sounds.play_game_over()
             self.scene_manager.rumble.pulse(
                 low_frequency=GAME_OVER_RUMBLE_LOW,
@@ -835,8 +850,11 @@ class PapyrusBraveAdventurerScene(Scene):
             if gap_right_world <= gap_left_world:
                 continue
 
-            gap_left_screen, _ = self.camera.apply(gap_left_world, 0)
-            gap_right_screen, _ = self.camera.apply(gap_right_world, 0)
+            # The gap runs between the segments' drawn rects (the engine positioned them before
+            # render), so the pit edges always meet the ground: Camera2D.apply's
+            # round(world - camera) can differ by 1 px at an exact half-pixel camera
+            gap_left_screen = current_segment.rect.right
+            gap_right_screen = next_segment.rect.left
             gap_width = gap_right_screen - gap_left_screen
 
             if gap_right_screen < 0 or gap_left_screen > self.screen_width:

@@ -9,6 +9,7 @@ import time
 import pygame
 
 from glitchygames.game_objects.ball import BallSprite
+from tests.game_objects.ball_helpers import drawn_position
 
 LOG = logging.getLogger(__name__)
 
@@ -58,6 +59,8 @@ def _run_wall_bounce_simulation(balls, max_frames, dt, screen_width=800, screen_
                 continue
 
             ball.dt_tick(dt)
+            # The engine positions world-space balls before each render
+            drawn_position(ball)
 
             new_x, new_y = ball.rect.x, ball.rect.y
             trajectory_data[ball_index].append((new_x, new_y))

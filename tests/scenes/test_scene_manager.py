@@ -15,7 +15,6 @@ from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
 FPS_REFRESH_RATE = 1000
-TWO_PIXELS = 2
 
 
 class TestSceneManager:
@@ -247,17 +246,6 @@ class TestSceneManager:
         mock_event.type = pygame.KEYUP
         scene_manager.handle_event(mock_event)
 
-    def test_scene_manager_update_timing(self):
-        """Test SceneManager _update_timing method."""
-        scene_manager = self.scene_manager
-
-        # Test timing update
-        previous_time = 0.0
-        current_time = 1.0
-        result = scene_manager._update_timing(previous_time, current_time)
-        assert isinstance(result, tuple)
-        assert len(result) == TWO_PIXELS
-
 
 class TestSceneManagerInternals:
     """Test SceneManager internal methods."""
@@ -304,8 +292,8 @@ class TestSceneManagerInternals:
         mock_scene = mocker.Mock()
         scene_manager.active_scene = mock_scene
 
-        scene_manager._update_scene()
-        mock_scene.dt_tick.assert_called_once_with(scene_manager.dt)
+        scene_manager._update_scene(scene_dt=0.025)
+        mock_scene.dt_tick.assert_called_once_with(0.025)
 
     def test_scene_manager_process_events(self):
         """Test SceneManager _process_events method."""

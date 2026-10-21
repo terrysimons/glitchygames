@@ -45,6 +45,25 @@ _SDL_AXIS_MAX: float = 32767.0
 DEFAULT_DEADZONE: float = 0.15
 
 
+def normalized_axis_value(*, event_type: int, value: float) -> float:
+    """Return an axis motion's position as a float from -1.0 to 1.0.
+
+    Controller axis values are raw SDL ints (-32767 to 32767).
+    Joystick axis values are already normalized floats (-1.0 to 1.0).
+
+    Args:
+        event_type: CONTROLLERAXISMOTION or JOYAXISMOTION.
+        value: The event's value.
+
+    Returns:
+        The normalized position (before any deadzone).
+
+    """
+    if event_type == pygame.CONTROLLERAXISMOTION:
+        return float(value) / _SDL_AXIS_MAX
+    return float(value)
+
+
 @dataclass(frozen=True)
 class Binding:
     """A single physical input mapped to a named action.
@@ -641,14 +660,7 @@ class ActionMap:
             event: A CONTROLLERAXISMOTION or JOYAXISMOTION HashableEvent.
 
         """
-        value = float(event.value)
-
-        # Controller axis values are raw SDL ints (-32767 to 32767).
-        # Joystick axis values are already normalized floats (-1.0 to 1.0).
-        if event.type == pygame.CONTROLLERAXISMOTION:
-            raw_value: float = value / _SDL_AXIS_MAX
-        else:
-            raw_value = value
+        raw_value = normalized_axis_value(event_type=event.type, value=event.value)
 
         # Apply deadzone
         if abs(raw_value) < self._deadzone:

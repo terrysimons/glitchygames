@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, override
+from typing import Self, override
 
 import pygame
 
@@ -24,17 +24,18 @@ from glitchygames.examples.brave_adventurer.drawing import (
     draw_scorpion,
 )
 from glitchygames.sprites import Sprite
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
+from glitchygames.world import CoordinateSpace
 
 
 class Cobra(Sprite):
     """A stationary cobra that bobs and periodically strikes.
 
     Cobras sit in one place and are always dangerous to touch.
-    They animate with a gentle bob and a periodic strike lunge.
+    They animate with a gentle bob and a periodic strike lunge. A world sprite: the engine
+    places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     STRIKE_INTERVAL = 2.0
     STRIKE_DURATION = 0.3
@@ -95,29 +96,15 @@ class Cobra(Sprite):
         self.image.fill((0, 0, 0, 0))
         draw_cobra(self.image, striking=self.striking, animation_timer=self.dt_timer)
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, COBRA_WIDTH):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0
-
 
 class Scarab(Sprite):
     """A scarab beetle that rolls across the ground at constant speed.
 
-    Scarabs move in one direction and wrap or continue off-screen.
+    Scarabs move in one direction and wrap or continue off-screen. A world sprite: the
+    engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -179,30 +166,15 @@ class Scarab(Sprite):
         self.image.fill((0, 0, 0, 0))
         draw_scarab(self.image, self.roll_angle)
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, SCARAB_WIDTH):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0
-
 
 class Scorpion(Sprite):
     """A scorpion that patrols back and forth within a range.
 
     Scorpions walk at a steady pace between their origin and origin + patrol_range,
-    then reverse direction.
+    then reverse direction. A world sprite: the engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     DEFAULT_PATROL_SPEED = 60.0
 
@@ -268,20 +240,3 @@ class Scorpion(Sprite):
         """Redraw the scorpion with current facing direction."""
         self.image.fill((0, 0, 0, 0))
         draw_scorpion(self.image, facing_right=self.facing_right)
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, SCORPION_WIDTH):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0

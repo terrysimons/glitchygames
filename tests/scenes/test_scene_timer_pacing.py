@@ -78,8 +78,10 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     sm.game_engine = engine_mock
     sm.target_fps = 60
 
-    monkeypatch.setattr(sm, '_update_scene', lambda: None)
+    monkeypatch.setattr(sm, '_update_scene', lambda *, scene_dt: None)
     monkeypatch.setattr(sm, '_process_events', lambda: None)
+    monkeypatch.setattr(sm, '_aim_active_camera', lambda *, scene_dt: None)
+    monkeypatch.setattr(sm, '_position_active_world_sprites', lambda: None)
     monkeypatch.setattr(sm, '_render_scene', lambda: None)
     monkeypatch.setattr(sm, '_update_display', lambda: None)
 
@@ -132,8 +134,10 @@ def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker
     sm.game_engine = engine_mock
     sm.target_fps = 60.5
 
-    monkeypatch.setattr(sm, '_update_scene', lambda: None)
+    monkeypatch.setattr(sm, '_update_scene', lambda *, scene_dt: None)
     monkeypatch.setattr(sm, '_process_events', lambda: None)
+    monkeypatch.setattr(sm, '_aim_active_camera', lambda *, scene_dt: None)
+    monkeypatch.setattr(sm, '_position_active_world_sprites', lambda: None)
     monkeypatch.setattr(sm, '_render_scene', lambda: None)
 
     def stop_after_first_frame():

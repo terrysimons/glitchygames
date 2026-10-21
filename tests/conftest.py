@@ -20,6 +20,11 @@ if os.environ.get('CI') == 'true' and 'SDL_VIDEODRIVER' not in os.environ:
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Imported after the SDL environment is set up above
+import pygame
+
+from glitchygames import pixel_snap, randomness
+from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
@@ -29,6 +34,25 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 from tests.mocks import MockFactory
+
+
+def _load_lazy_pygame_modules() -> None:
+    """Run the imports pygame defers until first use, while pygame is still unpatched.
+
+    pygame imports `sndarray` and `surfarray` lazily: the module body runs on the first
+    attribute access. `sndarray` does `from pygame import mixer` there, so if that first access
+    happens inside a test that patched `pygame.mixer` (MockFactory's pygame patches do), the
+    mock is bound into `pygame.sndarray` for the rest of the process and every later
+    `pygame.sndarray.make_sound` returns a Mock. Loading them here binds the real modules.
+    """
+    for lazy_module, attribute_name in (
+        (pygame.sndarray, 'make_sound'),
+        (pygame.surfarray, 'pixels3d'),
+    ):
+        getattr(lazy_module, attribute_name)
+
+
+_load_lazy_pygame_modules()
 
 # Real logging entry points, captured at import time before any test can patch them.
 _REAL_LOGGING_GET_LOGGER = logging.getLogger
@@ -156,6 +180,44 @@ def restore_gil_switch_interval():
     previous_interval = sys.getswitchinterval()
     yield
     sys.setswitchinterval(previous_interval)
+
+
+@pytest.fixture(autouse=True)
+def restore_game_engine_class_state(mocker):
+    """Restore the GameEngine class attributes that engine code writes, after each test.
+
+    GameEngine.__init__ stores its game in the class attribute `game` and its parsed options
+    in `OPTIONS`, and GameEngine.initialize_icon stores the icon in `icon`. A test that runs
+    them with mocks (a Mock game, a mocked pygame.image.load) would otherwise leave the mocks
+    there for every later test on the worker: a real GameEngine then fails in
+    initialize_system_icons with "Argument to set_icon must be a Surface".
+    """
+    for attribute_name in ('game', 'icon', 'OPTIONS'):
+        # Patched with its own value: whatever the test assigns is undone at teardown
+        mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
+
+
+@pytest.fixture(autouse=True)
+def fresh_random_streams(mocker):
+    """Give each test an unseeded set of engine random streams (glitchygames/randomness.py).
+
+    GameEngine and reset_streams() set the process-wide master seed and cache streams; without
+    this, one test's seed and half-used streams would carry into the next test on the worker.
+    """
+    mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
+
+
+@pytest.fixture(autouse=True)
+def reset_default_snap_mode():
+    """Start and end each test with the engine default snap mode (NEAREST_HALF_UP).
+
+    The active default is process-global (glitchygames/pixel_snap.py) and scene setup sets it
+    from Scene.PIXEL_SNAP_MODE; without this, one test's scene would change snapping for the
+    next test on the worker.
+    """
+    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
+    yield
+    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
 
 
 @pytest.fixture(autouse=True)

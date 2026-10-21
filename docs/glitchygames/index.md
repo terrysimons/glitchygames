@@ -125,7 +125,7 @@ Bitrot Adventures v0.0.0 Options:
 
 [glitchygames.events](./events/index.md)
 
-The glitchygames.events module extends the pygame event subsystem by giving you on_*_event callbacks.  Note that you can use the normal pygame raw event mode by simply implementing a "process_events" method in your Scene.
+The glitchygames.events module extends the pygame event subsystem by giving you on_*_event callbacks.  Note that you can use the normal pygame raw event mode by simply implementing a `process_event(event)` method in your Scene: the engine then calls it once for each raw pygame event, in order, instead of dispatching on_*_event callbacks.
 
 This can be especially useful for porting games to glitchygames, but there are some advantages to using glitchygames' event subsystem.
 

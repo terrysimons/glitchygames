@@ -10,6 +10,7 @@ engine so every game gets viewport support for free.
 
 from __future__ import annotations
 
+import enum
 import logging
 import math
 from typing import TYPE_CHECKING, Self, override
@@ -17,10 +18,13 @@ from typing import TYPE_CHECKING, Self, override
 import pygame
 
 from glitchygames.effects.shake import ScreenShake
+from glitchygames.pixel_snap import active_default_snap_mode, snap_to_pixel
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from glitchygames.world import WorldPositioned
 
 log: logging.Logger = logging.getLogger('game.camera')
 
@@ -35,6 +39,14 @@ DEFAULT_VISIBILITY_MARGIN = 64.0
 
 # Reference frame rate for frame-rate-independent smoothing
 REFERENCE_FPS = 60.0
+
+
+class FollowAxes(enum.Flag):
+    """Which camera axes follow the target; an unfollowed axis keeps the camera where it is."""
+
+    X = enum.auto()
+    Y = enum.auto()
+    BOTH = X | Y
 
 
 class ParallaxLayer(Sprite):
@@ -167,6 +179,168 @@ class Camera2D:
         # Set by apply(); WORLD shake only moves sprites positioned through apply()
         self._has_been_applied: bool = False
 
+        # Declared follow target (see follow()); the engine aims the camera at it each frame
+        self._follow_target: WorldPositioned | None = None
+        self._follow_axes: FollowAxes = FollowAxes.BOTH
+
+        # Set when game code calls update() this frame (cleared by begin_frame()), so the
+        # engine can warn when the game and the engine both move the camera in one frame
+        self._updated_by_game_this_frame: bool = False
+
+        # Set whenever the WORLD shake advances (cleared by begin_frame()), so the engine
+        # advances it exactly once per frame whoever moves the camera, or when nobody does
+        self._shake_advanced_this_frame: bool = False
+
+    @property
+    def follow_target(self: Self) -> WorldPositioned | None:
+        """The world sprite the engine aims the camera at, or None (manual camera)."""
+        return self._follow_target
+
+    @property
+    def follow_axes(self: Self) -> FollowAxes:
+        """The axes that follow the target; the others keep the camera where it is."""
+        return self._follow_axes
+
+    def follow(
+        self: Self, *, target: WorldPositioned | None, axes: FollowAxes = FollowAxes.BOTH
+    ) -> None:
+        """Declare the world sprite the engine aims this camera at each frame.
+
+        The target is a world sprite (glitchygames.world.WorldPositioned); its world_x and
+        world_y are checked here, so a target without them fails at this call rather than a
+        frame later. The scene's camera_target() hook reads it, and the engine applies the
+        axes to whichever point that hook supplies.
+
+        The camera holds the target strongly. A target that is killed or removed from its
+        groups keeps the camera aimed at its last position; call follow(target=...) again with
+        the new sprite on respawn. follow(target=None) also resets the axes to
+        FollowAxes.BOTH unless axes is passed.
+
+        Args:
+            target: The sprite to follow, or None to stop following (manual camera).
+            axes: The axes that follow (FollowAxes.X, FollowAxes.Y or FollowAxes.BOTH).
+
+        Raises:
+            TypeError: If the target has no world_x or world_y.
+
+        """
+        if target is not None and (
+            getattr(target, 'world_x', None) is None or getattr(target, 'world_y', None) is None
+        ):
+            message = f'Camera follow target {type(target).__name__} has no world_x/world_y'
+            raise TypeError(message)
+        self._follow_target = target
+        self._follow_axes = axes
+
+    @property
+    def updated_by_game_this_frame(self: Self) -> bool:
+        """Whether game code called update() since the last begin_frame()."""
+        return self._updated_by_game_this_frame
+
+    @property
+    def shake_advanced_this_frame(self: Self) -> bool:
+        """Whether the WORLD shake advanced since the last begin_frame()."""
+        return self._shake_advanced_this_frame
+
+    def aim_at(self: Self, *, target_x: float, target_y: float, dt: float) -> None:
+        """Move toward a target on the followed axes only (the engine's camera aim).
+
+        An axis not in follow_axes aims at the camera's current goal on that axis
+        (world position plus lead offset), so smoothing leaves it where it is and only the
+        bounds clamp applies. Does not count as a game update(). The WORLD shake is not
+        advanced again if game code already advanced it this frame (a camera.update() in
+        dt_tick while the engine also aims), so it advances once per frame.
+
+        An engine hook (public only because the engine calls it from another module): games
+        use follow(), camera_target() or update(), never this, or they would bypass the
+        double-update warning.
+
+        Args:
+            target_x: Target X position in world coordinates.
+            target_y: Target Y position in world coordinates.
+            dt: Delta time in seconds since last frame.
+
+        """
+        target_x, target_y = self._target_on_followed_axes(target_x=target_x, target_y=target_y)
+        self._engine_update(
+            target_x=target_x,
+            target_y=target_y,
+            dt=dt,
+            advance_shake=not self._shake_advanced_this_frame,
+        )
+
+    def snap_followed_axes_to(self: Self, *, target_x: float, target_y: float) -> None:
+        """Instantly move to a target on the followed axes only (snap_to, honouring the axes).
+
+        An axis not in follow_axes keeps the camera where it is (only the bounds clamp
+        applies), as aim_at() does. The engine uses this for a transition's arriving-scene
+        screenshot, so a side-scroller's camera keeps its y.
+
+        Args:
+            target_x: Target X in world coordinates.
+            target_y: Target Y in world coordinates.
+
+        """
+        target_x, target_y = self._target_on_followed_axes(target_x=target_x, target_y=target_y)
+        self.snap_to(target_x=target_x, target_y=target_y)
+
+    def _target_on_followed_axes(
+        self: Self, *, target_x: float, target_y: float
+    ) -> tuple[float, float]:
+        """Replace the target on each unfollowed axis with the camera's current goal there.
+
+        The current goal is the world position plus the lead offset, so moving toward it
+        (smoothed or snapped) leaves the camera where it is on that axis.
+
+        Args:
+            target_x: Target X in world coordinates.
+            target_y: Target Y in world coordinates.
+
+        Returns:
+            tuple[float, float]: The target to move toward.
+
+        """
+        if FollowAxes.X not in self._follow_axes:
+            target_x = self.world_x + self.lead_x
+        if FollowAxes.Y not in self._follow_axes:
+            target_y = self.world_y + self.lead_y
+        return (target_x, target_y)
+
+    def advance_shake(self: Self, *, dt: float) -> None:
+        """Advance the WORLD shake without moving the camera (the engine's still-camera step).
+
+        The engine calls this at the end of a frame in which nothing moved the camera (no
+        engine aim, no game update()), so a shake on a camera that stands still (a scene that
+        never scrolls, or a follow game after game over) still decays and its rumble stops.
+        The camera position does not change, so parallax layers do not scroll; while a shake
+        is running they are redrawn from the same position with the new shake offset, so
+        their shake displacement follows the shake and returns to rest with it.
+
+        An engine hook (public only because the scene manager calls it from another module);
+        games never call it.
+
+        Args:
+            dt: Delta time in seconds (the scene's dt, as the engine aim would have used).
+
+        """
+        shake_was_active = self.shake_effect.is_active
+        self.shake_effect.update(dt)
+        self._shake_advanced_this_frame = True
+        if shake_was_active:
+            shake_x, shake_y = self.shake_effect.offset
+            self._update_parallax_layers(
+                camera_x=self.world_x + shake_x, camera_y=self.world_y + shake_y
+            )
+
+    def begin_frame(self: Self) -> None:
+        """Start a new frame: forget last frame's game update() and WORLD shake advance.
+
+        An engine hook (public only because the scene manager calls it from another module);
+        games never call it.
+        """
+        self._updated_by_game_this_frame = False
+        self._shake_advanced_this_frame = False
+
     @property
     def has_been_applied(self: Self) -> bool:
         """Whether apply() has ever been called (some sprite is positioned through this camera).
@@ -176,6 +350,16 @@ class Camera2D:
 
         """
         return self._has_been_applied
+
+    @property
+    def has_parallax_layers(self: Self) -> bool:
+        """Whether the camera scrolls any background (parallax) layers.
+
+        Returns:
+            True once add_background_layer() has added a layer.
+
+        """
+        return bool(self._parallax_layers)
 
     @property
     def bounds(self) -> tuple[float | None, float | None, float | None, float | None]:
@@ -213,10 +397,32 @@ class Camera2D:
         offset is subtracted from the target so the tracked object
         appears at that offset from the viewport edge.
 
+        This is the manual-camera call for game code. A camera the engine aims (a follow
+        target or a camera_target() hook) should not also be updated by the game.
+
         Args:
             target_x: Target X position in world coordinates.
             target_y: Target Y position in world coordinates.
             dt: Delta time in seconds since last frame.
+
+        """
+        self._updated_by_game_this_frame = True
+        self._engine_update(target_x=target_x, target_y=target_y, dt=dt)
+
+    def _engine_update(
+        self, *, target_x: float, target_y: float, dt: float, advance_shake: bool = True
+    ) -> None:
+        """Move the camera exactly as update() does, without marking a game update.
+
+        Called by update() and by aim_at() (the engine's camera aim,
+        glitchygames.world.aim_camera).
+
+        Args:
+            target_x: Target X position in world coordinates.
+            target_y: Target Y position in world coordinates.
+            dt: Delta time in seconds since last frame.
+            advance_shake: Whether to advance the WORLD shake by dt (False when it already
+                advanced this frame).
 
         """
         goal_x = target_x - self.lead_x
@@ -231,7 +437,9 @@ class Camera2D:
         # Clamp to world bounds
         self._clamp_to_bounds()
 
-        self.shake_effect.update(dt)
+        if advance_shake:
+            self.shake_effect.update(dt)
+            self._shake_advanced_this_frame = True
         shake_x, shake_y = self.shake_effect.offset
         # Layers scroll from the shaken position, so each shakes in proportion to its
         # scroll_factor: a static sky never shakes, distant scenery barely moves.
@@ -257,15 +465,22 @@ class Camera2D:
         self._update_parallax_layers(camera_x=self.world_x, camera_y=self.world_y)
 
     def _update_parallax_layers(self, *, camera_x: float, camera_y: float) -> None:
-        """Scroll every parallax layer to the given camera position.
+        """Scroll every parallax layer to the given camera position, snapped to whole pixels.
+
+        The position is snapped with the active default snap mode (the scene's
+        PIXEL_SNAP_MODE), the same snapped camera position world sprites are drawn from, so
+        the background never shimmers against them.
 
         Args:
             camera_x: Camera X used for the parallax offset.
             camera_y: Camera Y used for the parallax offset.
 
         """
+        mode = active_default_snap_mode()
+        snapped_camera_x = snap_to_pixel(camera_x, mode)
+        snapped_camera_y = snap_to_pixel(camera_y, mode)
         for layer in self._parallax_layers:
-            layer.update_scroll(camera_x, camera_y)
+            layer.update_scroll(snapped_camera_x, snapped_camera_y)
 
     def _clamp_to_bounds(self) -> None:
         """Clamp camera position to configured world bounds."""

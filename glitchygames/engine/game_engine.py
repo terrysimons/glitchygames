@@ -12,8 +12,11 @@ import math
 import multiprocessing
 import os
 import platform
+import signal
 import sys
 import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
 
@@ -33,6 +36,8 @@ from glitchygames.events.mouse import MouseEventManager
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
+from glitchygames.randomness import seed_engine_random
+from glitchygames.recording import GameplayRecorder, json_safe_value, post_event
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
 from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
@@ -40,6 +45,7 @@ from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS,
 if TYPE_CHECKING:
     from collections import OrderedDict
     from collections.abc import Callable
+    from types import FrameType
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -59,6 +65,9 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
+
+# Exit status after SIGTERM ends a recording run (the shell convention: 128 + signal number)
+SIGNAL_EXIT_STATUS_BASE = 128
 
 
 def unit_interval(value: str) -> float:
@@ -133,6 +142,45 @@ def non_negative_int(value: str) -> int:
     return number
 
 
+def exit_on_signal(signal_number: int, _frame: FrameType | None) -> None:
+    """End the run with SystemExit, so GameEngine.start()'s teardown still runs.
+
+    Installed for SIGTERM while recording (``GameEngine.start_trace_recording``), so the
+    recording is closed by ``_shutdown``. It ignores further signals of the same kind before
+    raising: a second SIGTERM (``uv run`` forwards one to its child as well, and ``pkill``
+    can match both) would otherwise raise again inside the teardown and leave the recording
+    unclosed. ``stop_trace_recording`` restores the default handling after closing the file.
+    It does nothing else: logging here could fail with "reentrant call" if the signal
+    interrupted a write to the same stream.
+
+    Args:
+        signal_number: The signal received.
+        _frame: The interrupted frame (unused).
+
+    Raises:
+        SystemExit: Always, with status 128 + the signal number.
+
+    """
+    signal.signal(signal_number, signal.SIG_IGN)
+    raise SystemExit(SIGNAL_EXIT_STATUS_BASE + signal_number)
+
+
+@dataclass
+class UnhandledEventRecord:
+    """Statistics for one unhandled event type over a whole run.
+
+    Attributes:
+        count: How many events of this type went unhandled.
+        first_seen_seconds: When the first one arrived, in seconds since the engine started.
+        attribute_names: The first event's attribute names, sorted (never their values).
+
+    """
+
+    count: int
+    first_seen_seconds: float
+    attribute_names: tuple[str, ...]
+
+
 class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
 
@@ -170,6 +218,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     #
     # These are wired up at the end of __init__()
     EVENT_HANDLERS: ClassVar[dict[int, Callable[..., Any]]] = {}
+
+    # The --record-trace recorder while recording (start_trace_recording), else None. A class
+    # default so process_events can check it on an engine whose __init__ did not run.
+    trace_recorder: GameplayRecorder | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -299,6 +351,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
             action='store_true',
             default=False,
+        )
+        group.add_argument(
+            '--record-trace',
+            metavar='PATH',
+            help=(
+                'record the session (sprites, frame times, input events, random seed) to a '
+                'gzip JSON Lines trace for inspection and later replay (default: off)'
+            ),
+            default=None,
+        )
+        group.add_argument(
+            '--random-seed',
+            type=int,
+            help=(
+                'master seed for every engine random stream (default: a random 64-bit seed, '
+                'logged in recordings)'
+            ),
+            default=None,
         )
         group.add_argument(
             '--screen-shake-intensity',
@@ -497,6 +567,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         super().__init__()
 
         self._active_scene: Scene | None = None
+
+        # Set the master seed of the engine random streams before any game code runs
+        # (see glitchygames/randomness.py)
+        self.random_seed: int = seed_engine_random(seed=options.get('random_seed'))
+        # Set while start_trace_recording's SIGTERM handler is installed
+        self._installed_sigterm_handler: bool = False
+
+        # Unhandled events by type, reported at teardown (see unhandled_event_report)
+        self._started_at_seconds: float = time.perf_counter()
+        self.unhandled_events: dict[int, UnhandledEventRecord] = {}
 
         # Pygame stuff.
         pygame.register_quit(self.quit_game)
@@ -1007,8 +1087,96 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return 'None'
 
+    def trace_recording_header(self: Self) -> dict[str, Any]:
+        """Build the header of a --record-trace recording.
+
+        Returns:
+            The game and scene class names, engine, pygame and Python versions, the screen
+            size, every command-line option (JSON-safe), the start time and the random seed.
+
+        """
+        active_scene = self.scene_manager.active_scene
+        try:
+            engine_version = importlib.metadata.version('glitchygames')
+        except importlib.metadata.PackageNotFoundError:
+            engine_version = None
+        return {
+            'game_class': type(self.game).__name__,
+            'scene_class': None if active_scene is None else type(active_scene).__name__,
+            'engine_version': engine_version,
+            'pygame_version': pygame.version.ver,
+            'python_version': platform.python_version(),
+            'screen_size': [self.screen_width, self.screen_height],
+            'options': {
+                str(name): json_safe_value(value) for name, value in GameEngine.OPTIONS.items()
+            },
+            # Informational only: replay never depends on wall-clock time
+            'recorded_at': datetime.now(tz=UTC).isoformat(),
+            'random_seed': self.random_seed,
+        }
+
+    def start_trace_recording(self: Self, *, path: Path) -> GameplayRecorder:
+        """Start recording the session to a trace file.
+
+        The scene manager records one frame after each frame it runs, and process_events
+        records each frame's events. While recording, SIGTERM ends the run through the normal
+        teardown (``exit_on_signal``), unless the game installed its own SIGTERM handler;
+        SIGINT already does (KeyboardInterrupt). ``stop_trace_recording`` (called by
+        ``_shutdown``) closes the file.
+
+        Args:
+            path: The recording's file.
+
+        Returns:
+            The recorder.
+
+        """
+        recorder = GameplayRecorder(path=path, header=self.trace_recording_header())
+        self.trace_recorder = recorder
+        self.scene_manager.trace_recorder = recorder
+        self._install_sigterm_handler()
+        self.log.info(f'Recording gameplay to {path} (random seed {self.random_seed})')
+        return recorder
+
+    def _start_requested_trace_recording(self: Self) -> None:
+        """Start recording if --record-trace was given (recording is off by default)."""
+        record_trace_path = GameEngine.OPTIONS.get('record_trace')
+        if record_trace_path is not None:
+            self.start_trace_recording(path=Path(record_trace_path))
+
+    def stop_trace_recording(self: Self) -> None:
+        """Close the recording, if one is running, and restore the SIGTERM handling."""
+        recorder = self.trace_recorder
+        if recorder is None:
+            return
+        self.trace_recorder = None
+        self.scene_manager.trace_recorder = None
+        recorder.close()
+        # After closing: until then a repeated SIGTERM must stay ignored (exit_on_signal)
+        self._restore_sigterm_handler()
+
+    def _install_sigterm_handler(self: Self) -> None:
+        """Make SIGTERM raise SystemExit, if nothing else handles it yet."""
+        try:
+            if signal.getsignal(signal.SIGTERM) == signal.SIG_DFL:
+                signal.signal(signal.SIGTERM, exit_on_signal)
+                self._installed_sigterm_handler = True
+        except ValueError as signal_error:
+            # Signal handlers can only be set from the main thread
+            self.log.debug('SIGTERM handler not installed: %s', signal_error)
+
+    def _restore_sigterm_handler(self: Self) -> None:
+        """Put back the default SIGTERM handling, if _install_sigterm_handler replaced it."""
+        if not self._installed_sigterm_handler:
+            return
+        self._installed_sigterm_handler = False
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
     def _shutdown(self: Self) -> None:
-        """Print performance reports and shut down pygame."""
+        """Close any recording, print performance reports and shut down pygame."""
+        # First, so the recording is complete even if a report below fails
+        self.stop_trace_recording()
+
         # Print performance report before shutdown
         try:
             from glitchygames.performance import performance_manager
@@ -1022,6 +1190,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             performance_manager.print_per_scene_shutdown_report()
         except ImportError:
             pass  # Performance module not available
+
+        self._log_unhandled_event_report()
 
         pygame.display.quit()
         pygame.quit()
@@ -1087,6 +1257,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 )
             except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
                 LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
+            self._start_requested_trace_recording()
             self.scene_manager.start()
         except Exception:
             scene_name = self._resolve_scene_name_for_error()
@@ -1115,7 +1286,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         # put a quit event in the event queue.
-        pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
+        post_event(pygame.event.Event(pygame.QUIT, {}))
 
     def handle_event(self, event: events.HashableEvent) -> None:
         """Handle pygame events.
@@ -1153,14 +1324,70 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Pass other events to the scene manager
         self.scene_manager.handle_event(event)
 
-    def process_events(self: Self) -> bool:
-        """Process events.
+    def process_events(
+        self: Self, *, should_discard: Callable[[pygame.event.Event], bool] | None = None
+    ) -> bool:
+        """Process every event queued this frame.
+
+        ``pygame.event.get()`` removes the whole batch from SDL's queue at once, so every event
+        of the batch is handled here: none may be dropped. Each event is judged on its own; an
+        event whose type has no entry in ``EVENT_HANDLERS``, or whose handler did not handle
+        it, goes to ``process_unimplemented_event``.
+
+        Args:
+            should_discard: Returns True for an event to remove from the batch without
+                processing it (not counted as unhandled). SceneManager passes
+                ``is_discarded_during_transition`` during a transition.
 
         Returns:
-            bool: True if the event was handled, False otherwise.
+            bool: True if at least one event was dispatched and every dispatched event was
+            handled (a raw-event scene's ``process_event`` counts as handled). False if any
+            dispatched event was unhandled, or if nothing was dispatched: an empty batch, or
+            one whose events were all discarded.
 
         """
-        event_was_handled = False
+        raw_events = self._pump_events()
+        dispatched_event_count = 0
+        every_event_was_handled = True
+        for pygame_event in raw_events:
+            if should_discard is not None and should_discard(pygame_event):
+                continue
+            dispatched_event_count += 1
+
+            # Support scenes processing pygame raw events, bypassing
+            # the glitchygames.engine event processing altogether
+            if hasattr(self._active_scene, 'process_event'):
+                self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                continue
+
+            event: events.HashableEvent = events.HashableEvent(type=pygame_event.type)
+            event.__dict__.update(pygame_event.dict)
+
+            # Decided per event: a type missing from the map is unhandled
+            event_was_handled = False
+            if event.type in GameEngine.EVENT_HANDLERS:
+                event_was_handled = bool(GameEngine.EVENT_HANDLERS[event.type](event))
+
+            # If an event is not in the event handler map, or the function
+            # called didn't handle the event in question, we'll process it
+            # as an unimplemented event
+            if not event_was_handled:
+                self.process_unimplemented_event(event)
+                every_event_was_handled = False
+
+        return dispatched_event_count > 0 and every_event_was_handled
+
+    def _pump_events(self: Self) -> list[pygame.event.Event]:
+        """Take every event from SDL's queue: the one place the engine reads it.
+
+        A running recorder (``--record-trace``) records the batch here exactly as pygame
+        returned it, before any dispatch or discarding. This is also the seam a replay will
+        use to hand back a recorded batch instead of reading SDL's queue.
+
+        Returns:
+            The batch, in queue order.
+
+        """
         # To use events in a different thread, use the fastevent package from pygame.
         # if you're using pygame < 2.2, you'll need to use pygame.fastevent.
         # if you're using pygame >= 2.2, you can use the new pygame.event.
@@ -1173,27 +1400,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         raw_events: list[pygame.event.Event] = cast(  # ty: ignore[redundant-cast]
             'list[pygame.event.Event]', pump_events()
         )
-        for pygame_event in raw_events:
-            # Support scenes processing pygame raw events, bypassing
-            # the glitchygames.engine event processing altogether
-            if hasattr(self._active_scene, 'process_event'):
-                self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
-                return True
-
-            event: events.HashableEvent = events.HashableEvent(type=pygame_event.type)
-            event.__dict__.update(pygame_event.dict)
-
-            if event.type in GameEngine.EVENT_HANDLERS:
-                event_was_handled = GameEngine.EVENT_HANDLERS[event.type](event)
-
-            # If an event is in the event handler map, but the function
-            # called didn't handle the event in question, we'll process it
-            # as an uinimplemented event
-            if not event_was_handled:
-                self.process_unimplemented_event(event)
-                return False
-
-        return event_was_handled
+        # The only per-frame cost of recording when it is off: this check
+        if self.trace_recorder is not None:
+            self.trace_recorder.record_event_batch(raw_events=raw_events)
+        return raw_events
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.
@@ -1659,6 +1869,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             event (events.HashableEvent): The event.
 
         """
+        self._record_unhandled_event(event)
+
         # Debug: Special handling for event type 1543
         if event.type == UNKNOWN_SDL2_EVENT_TYPE_1543:
             event_name = pygame.event.event_name(event.type)
@@ -1707,6 +1919,67 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 
+    def _record_unhandled_event(self: Self, event: events.HashableEvent) -> None:
+        """Count an unhandled event under its type, keeping the first one's time and names.
+
+        Args:
+            event (events.HashableEvent): The event.
+
+        """
+        record = self.unhandled_events.get(event.type)
+        if record is not None:
+            record.count += 1
+            return
+        # Names only: values can be large or private. 'type' is the key itself, and names
+        # starting with '_' are internals (HashableEvent's cached hash)
+        attribute_names = tuple(
+            sorted(
+                name
+                for name in getattr(event, '__dict__', {})
+                if name != 'type' and not name.startswith('_')
+            )
+        )
+        self.unhandled_events[event.type] = UnhandledEventRecord(
+            count=1,
+            first_seen_seconds=time.perf_counter() - self._started_at_seconds,
+            attribute_names=attribute_names,
+        )
+
+    def unhandled_event_report(self: Self) -> list[str]:
+        """Describe every unhandled event type, most frequent first.
+
+        Each line names the type (pygame's event name and its number, so custom and unknown
+        types still show), its count, when it was first seen and the first event's attribute
+        names, e.g. ``JOYDEVICEADDED (1541) x1, first at 0.3 s, attributes: device_index, guid``.
+
+        Returns:
+            One line per type; empty when every event was handled.
+
+        """
+        records = sorted(
+            self.unhandled_events.items(),
+            key=lambda item: item[1].count,
+            reverse=True,
+        )
+        return [
+            f'{pygame.event.event_name(event_type).upper()} ({event_type}) x{record.count}, '
+            f'first at {record.first_seen_seconds:.1f} s, '
+            f'attributes: {", ".join(record.attribute_names) or "none"}'
+            for event_type, record in records
+        ]
+
+    def _log_unhandled_event_report(self: Self) -> None:
+        """Log the unhandled event table at teardown; log nothing if there were none."""
+        report_lines = self.unhandled_event_report()
+        if not report_lines:
+            return
+        # Framed like the performance shutdown reports logged just before it
+        self.log.info(f'\n{"=" * 80}')
+        self.log.info('Unhandled events:')
+        for report_line in report_lines:
+            self.log.info(f'  {report_line}')
+        self.log.info('=' * 80)
+
     def post_game_event(self: Self, event_subtype: int, event_data: dict[str, Any]) -> None:
         """Post a game event.
 
@@ -1717,7 +1990,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         event: dict[str, Any] = event_data.copy()
         event['subtype'] = event_subtype
-        pygame.event.post(pygame.event.Event(events.GAMEEVENT, event))
+        post_event(pygame.event.Event(events.GAMEEVENT, event))
         self.log.debug('Posted Event: %s', event)
 
     def suppress_event(self: Self, *args: Any, attr: str, **kwargs: Any) -> None:

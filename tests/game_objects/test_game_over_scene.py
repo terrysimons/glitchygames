@@ -75,19 +75,21 @@ class TestGameOverScene:
         scene = GameOverScene()
         scene.scene_manager = mocker.Mock()
 
-        # Mock pygame events
-        pygame.K_SPACE = 32
-        pygame.K_ESCAPE = 27
-
         # Test SPACE key (restart)
         space_event = mocker.Mock()
         space_event.key = pygame.K_SPACE
         scene.on_key_down_event(space_event)
 
+        # SPACE only arms the restart (it happens on release); it never quits
+        assert scene._space_pressed is True
+        scene.scene_manager.quit.assert_not_called()
+
         # Test ESC key (quit)
         esc_event = mocker.Mock()
         esc_event.key = pygame.K_ESCAPE
         scene.on_key_down_event(esc_event)
+
+        scene.scene_manager.quit.assert_called_once()
 
 
 class TestGameOverIntegration:
@@ -135,8 +137,8 @@ class TestGameOverIntegration:
 
         game.balls = [mock_ball1, mock_ball2]
 
-        # Call update to trigger Game Over
-        game.update()
+        # Run a frame's logic (dt_tick resolves collisions and checks for Game Over)
+        game.dt_tick(0.0)
 
         # Verify that next_scene was set to the mocked GameOverScene
         assert game.next_scene == mock_game_over_scene

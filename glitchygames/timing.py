@@ -48,6 +48,38 @@ def s_to_ns(s: float) -> int:
     return int(s * 1_000_000_000)
 
 
+def next_frame_deadline_ns(*, previous_deadline_ns: int | None, period_ns: int, now_ns: int) -> int:
+    """Return the next frame deadline, shared by both timer backends.
+
+    Normally the deadline is ``previous_deadline_ns + period_ns``, so a frame that wakes or
+    finishes a little late is caught up by the next one and the long-run rate stays exactly at
+    the target (60.01 FPS stays 60.01 FPS). After a hitch (a 2 s stall, a window drag) that
+    deadline would be far in the past and the loop would run every missed frame back to back
+    without sleeping (~120 frames for 2 s), so once the loop has fallen MORE than one full period
+    behind (``now_ns - (previous_deadline_ns + period_ns) > period_ns``) the backlog is dropped
+    and pacing re-anchors to ``now_ns + period_ns`` (BUGS.md #58).
+
+    Boundary: exactly one period behind still catches up (strictly greater re-anchors). The
+    PygameTimer clock is whole milliseconds, so its lateness is measured to within 1 ms.
+    A non-positive period (uncapped) keeps the plain ``previous + period`` result.
+
+    Args:
+        previous_deadline_ns: The previous frame's deadline, or None for the first frame.
+        period_ns: The frame period in nanoseconds.
+        now_ns: The current time on the same clock as the deadlines.
+
+    Returns:
+        int: The next deadline in nanoseconds.
+
+    """
+    if previous_deadline_ns is None:
+        return now_ns + period_ns
+    scheduled_deadline_ns = previous_deadline_ns + period_ns
+    if period_ns > 0 and now_ns - scheduled_deadline_ns > period_ns:
+        return now_ns + period_ns
+    return scheduled_deadline_ns
+
+
 class PygameTimer:
     """Legacy pygame-based timer backend."""
 
@@ -81,15 +113,17 @@ class PygameTimer:
         return 0
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
-        """Compute the next frame deadline in nanoseconds.
+        """Compute the next frame deadline in nanoseconds (see next_frame_deadline_ns).
 
         Returns:
             int: The deadline in nanoseconds.
 
         """
-        if prev_deadline_ns is None:
-            return self.ns_now() + period_ns
-        return prev_deadline_ns + period_ns
+        return next_frame_deadline_ns(
+            previous_deadline_ns=prev_deadline_ns,
+            period_ns=period_ns,
+            now_ns=self.ns_now(),
+        )
 
     def sleep_until_next(self, deadline_ns: int) -> int:
         """Sleep until the given deadline using pygame delay.
@@ -160,15 +194,17 @@ class FastTimer:
         return 0
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
-        """Compute the next frame deadline in nanoseconds.
+        """Compute the next frame deadline in nanoseconds (see next_frame_deadline_ns).
 
         Returns:
             int: The deadline in nanoseconds.
 
         """
-        if prev_deadline_ns is None:
-            return self.ns_now() + period_ns
-        return prev_deadline_ns + period_ns
+        return next_frame_deadline_ns(
+            previous_deadline_ns=prev_deadline_ns,
+            period_ns=period_ns,
+            now_ns=self.ns_now(),
+        )
 
     def sleep_until_next(self, deadline_ns: int) -> int:
         """Sleep until the given deadline using a hybrid sleep+spin approach.

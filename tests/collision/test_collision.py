@@ -15,7 +15,7 @@ from glitchygames.collision import (
 from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
-from glitchygames.pixel_snap import PixelSnapMode
+from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 
 
 def _default_rect(world_x: float, world_y: float, size: int = 32) -> pygame.Rect:
@@ -552,11 +552,31 @@ class TestSnappedCollisionPosition:
         )
         assert snapped_world_position(sprite, world_x=10.9, world_y=-0.5) == (10, -1)
 
-    def test_sprite_without_snap_mode_uses_round(self):
-        """Sprites without pixel_snap_mode keep Python round() (halves to even)."""
+    def test_sprite_without_snap_mode_uses_the_scene_default(self):
+        """Sprites without pixel_snap_mode use the active scene mode (default half-up).
+
+        Exact halves round up (10.5 -> 11), where the old round() fallback went to even.
+        """
         sprite = FakeSprite(world_x=10.5, world_y=11.5)
-        assert snapped_world_position(sprite, world_x=10.5, world_y=11.5) == (10, 12)
-        assert get_collision_rect(sprite, world_x=10.5, world_y=11.5).topleft == (10, 12)
+        assert snapped_world_position(sprite, world_x=10.5, world_y=11.5) == (11, 12)
+        assert get_collision_rect(sprite, world_x=10.5, world_y=11.5).topleft == (11, 12)
+
+    def test_sprite_without_snap_mode_follows_a_floor_scene(self):
+        """With a FLOOR scene active, a sprite without its own mode is floored."""
+        set_active_default_snap_mode(PixelSnapMode.FLOOR)
+        sprite = FakeSprite(world_x=10.5, world_y=-0.5)
+        assert snapped_world_position(sprite, world_x=10.5, world_y=-0.5) == (10, -1)
+
+    def test_sprite_own_mode_beats_the_scene_default(self):
+        """A sprite's own pixel_snap_mode wins over the active scene mode."""
+        set_active_default_snap_mode(PixelSnapMode.FLOOR)
+        sprite = SnappingImageWorldSprite(
+            image=_ball_like_image(),
+            world_x=10.5,
+            world_y=20.5,
+            pixel_snap_mode=PixelSnapMode.NEAREST_EVEN,
+        )
+        assert snapped_world_position(sprite, world_x=10.5, world_y=20.5) == (10, 20)
 
 
 class TestRedrawnGameSprites:

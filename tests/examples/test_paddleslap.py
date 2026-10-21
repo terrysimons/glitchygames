@@ -2,6 +2,7 @@
 """Test paddleslap example using centralized mocks."""
 
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -26,11 +27,26 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
     speed_up_step_ratio,
 )
+from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from tests.mocks.test_mock_factory import MockFactory
+
+PADDLESLAP_STREAM_TEST_SEED = 41
 
 # The class's autouse MockFactory patches replace pygame.sprite.LayeredDirty with a mock
 # group, so keep the real class for tests that need dt_tick to reach real sprites.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
+
+
+def _reference_stream(name: str) -> random.Random:
+    """Return a fresh copy of what random_stream(name) is after PADDLESLAP_STREAM_TEST_SEED.
+
+    Returns:
+        A generator seeded as the named stream is.
+
+    """
+    return random.Random(
+        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=PADDLESLAP_STREAM_TEST_SEED, name=name)
+    )
 
 
 class TestPaddleslapExample:
@@ -86,6 +102,76 @@ class TestPaddleslapExample:
         assert math.isclose(ball.speed_up_settings.multiplier, 1.15)
         assert ball.bounce_top_bottom is True
         assert ball.bounce_left_right is False
+
+    def test_game_initialization_leaves_global_random_state_alone(self):
+        """Creating the game must not reseed Python's process-wide random module."""
+        random_state_before = random.getstate()
+
+        Game(options=self.mock_options)
+
+        random_state_is_unchanged = random.getstate() == random_state_before
+        assert random_state_is_unchanged, 'Game() reseeded the global random module'
+
+    def test_opening_ball_colors_come_from_the_colors_stream(self):
+        """The opening balls' colours are drawn from random_stream('paddleslap.colors')."""
+        reset_streams(seed=PADDLESLAP_STREAM_TEST_SEED)
+
+        game = Game(options=self.mock_options)
+
+        reference_generator = _reference_stream('paddleslap.colors')
+        assert game.balls[0].color == tuple(reference_generator.randrange(256) for _ in range(3))
+
+    def test_spawned_ball_position_and_color_come_from_their_streams(self):
+        """A random spawn's position is from 'paddleslap.spawn', its colour 'paddleslap.colors'."""
+        game = Game(options=self.mock_options)
+        game.ball_spawn_mode = BallSpawnMode.RANDOM_POSITION | BallSpawnMode.RANDOM_COLOR
+        # No ball to keep away from, so the first drawn position is used
+        game.balls = []
+        reset_streams(seed=PADDLESLAP_STREAM_TEST_SEED)
+
+        game._spawn_new_ball()
+
+        spawn_generator = _reference_stream('paddleslap.spawn')
+        color_generator = _reference_stream('paddleslap.colors')
+        new_ball = game.balls[-1]
+        assert (new_ball.world_x, new_ball.world_y) == (
+            float(spawn_generator.randrange(game.screen_width - 60) + 30),
+            float(spawn_generator.randrange(game.screen_height - 40) + 20),
+        )
+        assert new_ball.color == tuple(color_generator.randrange(256) for _ in range(3))
+
+    def test_spawn_keeps_away_from_where_balls_are_now_not_where_they_were_drawn(self):
+        """Spawn spacing uses each ball's current (snapped) world position, not its rect.
+
+        The engine writes a ball's rect only when it positions world sprites before the next
+        render, so during dt_tick the rect still holds last frame's place.
+        """
+        game = Game(options=self.mock_options)
+        game.ball_spawn_mode = BallSpawnMode.RANDOM_POSITION
+        existing_ball = game.balls[0]
+        spawn_generator = _reference_stream('paddleslap.spawn')
+        first_candidate = (
+            spawn_generator.randrange(game.screen_width - 60) + 30,
+            spawn_generator.randrange(game.screen_height - 40) + 20,
+        )
+        second_candidate = (
+            spawn_generator.randrange(game.screen_width - 60) + 30,
+            spawn_generator.randrange(game.screen_height - 40) + 20,
+        )
+        assert math.dist(first_candidate, second_candidate) >= 100
+        # The ball is now centred on the first candidate; its rect is still far away
+        existing_ball.world_x = float(first_candidate[0] - existing_ball.rect.width // 2)
+        existing_ball.world_y = float(first_candidate[1] - existing_ball.rect.height // 2)
+        existing_ball.rect.topleft = (-1000, -1000)
+        reset_streams(seed=PADDLESLAP_STREAM_TEST_SEED)
+
+        game._spawn_new_ball()
+
+        new_ball = game.balls[-1]
+        assert (new_ball.world_x, new_ball.world_y) == (
+            float(second_candidate[0]),
+            float(second_candidate[1]),
+        )
 
     def test_paddleslap_ball_speed_up_mechanism(self):
         """Test that the ball speeds up logarithmically on paddle bounces only."""
@@ -194,11 +280,11 @@ class TestPaddleslapExample:
         new_ball = game.balls[-1]
         assert (new_ball.speed.x, new_ball.speed.y) == (250.0, 125.0)
 
-    def test_ball_moving_into_paddle_bounces_in_one_game_update(self, mocker):
-        """One dt_tick + update: the collision manager finds the overlap and the ball bounces.
+    def test_ball_moving_into_paddle_bounces_in_the_same_dt_tick(self, mocker):
+        """The game's dt_tick moves the balls, then resolves paddle hits, before rendering.
 
-        BallSprite.dt_tick no longer checks paddles; the game's update runs
-        collisions.check_overlap('balls', 'paddles') and the ball handles the hit.
+        Collisions run in dt_tick, not update(): the engine positions world sprites (the ball)
+        between the two, so a bounce resolved in update() would be drawn a frame late.
         """
         game = Game(options=self.mock_options)
         ball = game.balls[0]
@@ -215,10 +301,6 @@ class TestPaddleslapExample:
         ball.speed.y = 0.0
 
         game.dt_tick(0.05)
-        assert get_sprite_collision_rect(ball).colliderect(get_sprite_collision_rect(paddle))
-        handle_spy.assert_not_called()
-
-        game.update()
 
         handle_spy.assert_called_once_with(paddle)
         assert any(
@@ -229,16 +311,40 @@ class TestPaddleslapExample:
         paddle.snd.play.assert_called_once()
         assert ball.alive()
 
-    def test_update_keeps_collided_balls_playable_after_ball_collisions(self, mocker):
-        """update() applies the serve-like playability rule after the ball-ball physics."""
+    def test_update_resolves_no_collisions(self, mocker):
+        """update() is render-phase only: it neither checks overlaps nor removes balls."""
+        game = Game(options=self.mock_options)
+        check_overlap_spy = mocker.spy(game.collisions, 'check_overlap')
+        handle_ball_collisions_spy = mocker.spy(game, '_handle_ball_collisions')
+
+        game.update()
+
+        check_overlap_spy.assert_not_called()
+        handle_ball_collisions_spy.assert_not_called()
+
+    def test_dt_tick_keeps_collided_balls_playable_after_ball_collisions(self, mocker):
+        """dt_tick applies the serve-like playability rule after the ball-ball physics."""
         game = Game(options=self.mock_options)
         call_order = mocker.Mock()
         mocker.patch.object(game, '_handle_ball_collisions', call_order.physics)
         mocker.patch.object(game, '_keep_collided_balls_playable', call_order.playability)
 
-        game.update()
+        game.dt_tick(0.0)
 
         assert [call[0] for call in call_order.mock_calls] == ['physics', 'playability']
+
+    def test_dt_tick_removes_dead_balls_and_ends_the_game_without_balls(self, mocker):
+        """The last ball leaving the screen ends the game in that frame's dt_tick."""
+        game = Game(options=self.mock_options)
+        mocker.patch.object(game, '_save_high_score', return_value=[])
+        ball = game.balls[0]
+        mocker.patch.object(ball, 'alive', return_value=False)
+
+        game.dt_tick(0.0)
+
+        assert game.balls == []
+        assert ball not in game.collisions.get_layer('balls').sprites
+        assert type(game.next_scene).__name__ == 'GameOverScene'
 
     def test_dead_ball_still_in_layer_is_not_bounced(self, mocker):
         """A ball killed this frame (still in the 'balls' layer until cleanup) is skipped."""

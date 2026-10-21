@@ -798,6 +798,7 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
         scene_mock = Mock()
         scene_mock.options = options
         scene_mock.TARGET_FPS = None  # A real Scene's TARGET_FPS is None unless a game opts in
+        scene_mock.MAX_FRAME_SECONDS = None  # A real Scene does not cap its dt unless it opts in
         # Every real Scene has a camera (never None); the scene manager reads its shake effect
         scene_mock.camera = Camera2D(screen_width=800, screen_height=600)
         scene_mock.audio_events_received = []

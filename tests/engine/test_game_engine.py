@@ -71,6 +71,16 @@ def _make_engine(mocker, mock_pygame_patches, mock_game_args):
     return GameEngine(game=mock_game)
 
 
+def _raw_event(mocker, event_type, **attributes):
+    """Build a stand-in raw pygame event (mock_pygame_patches replaces pygame.event.Event).
+
+    Returns:
+        Mock: An object with the type and dict a pygame event has.
+
+    """
+    return mocker.Mock(type=event_type, dict=dict(attributes))
+
+
 # ---------------------------------------------------------------------------
 # From test_engine_coverage.py
 # ---------------------------------------------------------------------------
@@ -959,6 +969,149 @@ class TestProcessUnimplementedEvent:
         assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
 
 
+class TestUnhandledEventTracking:
+    """GameEngine keeps per-type statistics of unhandled events and reports them at teardown."""
+
+    @staticmethod
+    def _make_engine_at(mocker, mock_pygame_patches, mock_game_args, *, start_seconds):
+        """Create an engine whose clock (time.perf_counter) reads start_seconds at startup.
+
+        Returns:
+            tuple: The engine and the perf_counter mock (set its return_value to move time).
+
+        """
+        fake_perf_counter = mocker.patch(
+            'glitchygames.engine.game_engine.time.perf_counter', return_value=start_seconds
+        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        return engine, fake_perf_counter
+
+    def test_counts_and_first_seen_time_per_type(self, mock_pygame_patches, mock_game_args, mocker):
+        """Each type is counted; its first-seen time is seconds since the engine started."""
+        engine, fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=100.0
+        )
+
+        fake_perf_counter.return_value = 100.25
+        engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
+        fake_perf_counter.return_value = 102.0
+        engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
+        engine.process_unimplemented_event(events.HashableEvent(pygame.DROPBEGIN))
+
+        joystick_record = engine.unhandled_events[pygame.JOYDEVICEADDED]
+        assert joystick_record.count == 2
+        assert joystick_record.first_seen_seconds == pytest.approx(0.25)
+        drop_record = engine.unhandled_events[pygame.DROPBEGIN]
+        assert drop_record.count == 1
+        assert drop_record.first_seen_seconds == pytest.approx(2.0)
+
+    def test_records_attribute_names_of_first_event_only(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """The first event's attribute names are kept, sorted; values never appear."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, guid='secret-guid', device_index=3)
+        )
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, instance_id=9)
+        )
+
+        assert engine.unhandled_events[pygame.JOYDEVICEADDED].attribute_names == (
+            'device_index',
+            'guid',
+        )
+        (report_line,) = engine.unhandled_event_report()
+        assert 'secret-guid' not in report_line
+        assert 'attributes: device_index, guid' in report_line
+
+    def test_report_is_sorted_by_count_descending(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """The most frequent type comes first."""
+        engine, fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=10.0
+        )
+        fake_perf_counter.return_value = 10.3
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
+        )
+        for _ in range(3):
+            engine.process_unimplemented_event(events.HashableEvent(pygame.DROPBEGIN))
+
+        report = engine.unhandled_event_report()
+
+        drop_name = pygame.event.event_name(pygame.DROPBEGIN).upper()
+        assert report == [
+            f'{drop_name} ({pygame.DROPBEGIN}) x3, first at 0.3 s, attributes: none',
+            (
+                f'JOYDEVICEADDED ({pygame.JOYDEVICEADDED}) x1, first at 0.3 s, '
+                'attributes: device_index, guid'
+            ),
+        ]
+
+    def test_custom_event_type_appears_with_its_number(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An unknown or custom type is reported with its numeric type."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+        custom_event_type = 88886
+
+        engine.process_unimplemented_event(events.HashableEvent(custom_event_type, payload=1))
+
+        (report_line,) = engine.unhandled_event_report()
+        assert f'({custom_event_type}) x1' in report_line
+
+    def test_teardown_logs_the_unhandled_event_table(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """_shutdown logs every unhandled event type with the shutdown statistics."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
+        )
+
+        with caplog.at_level('INFO', logger='game.engine'):
+            engine._shutdown()
+
+        engine_messages = [
+            record.getMessage() for record in caplog.records if record.name == 'game.engine'
+        ]
+        assert 'Unhandled events:' in engine_messages
+        assert (
+            f'  JOYDEVICEADDED ({pygame.JOYDEVICEADDED}) x1, first at 0.0 s, '
+            'attributes: device_index, guid'
+        ) in engine_messages
+
+    def test_teardown_logs_nothing_when_every_event_was_handled(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """No unhandled events means no report line at all."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+
+        with caplog.at_level('INFO', logger='game.engine'):
+            engine._shutdown()
+
+        assert not [
+            record
+            for record in caplog.records
+            if record.name == 'game.engine' and 'Unhandled events' in record.getMessage()
+        ]
+
+
 class TestPostGameEvent:
     """Test GameEngine.post_game_event method."""
 
@@ -1106,6 +1259,149 @@ class TestProcessEvents:
         result = engine.process_events()
         engine.process_unimplemented_event.assert_called_once()
         assert result is False
+
+    def test_process_events_unhandled_event_does_not_drop_rest_of_batch(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An unhandled event must not drop the key-down queued after it in the same batch."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+
+        unhandled_raw_event = _raw_event(mocker, pygame.KEYUP, key=pygame.K_b)
+        key_down_raw_event = _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a)
+        mocker.patch('pygame.event.get', return_value=[unhandled_raw_event, key_down_raw_event])
+
+        key_up_handler = mocker.Mock(return_value=False)
+        key_down_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS,
+            {pygame.KEYUP: key_up_handler, pygame.KEYDOWN: key_down_handler},
+        )
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        result = engine.process_events()
+
+        key_down_handler.assert_called_once()
+        assert key_down_handler.call_args.args[0].key == pygame.K_a
+        mock_unimplemented.assert_called_once()
+        assert mock_unimplemented.call_args.args[0].type == pygame.KEYUP
+        assert result is False
+
+    def test_process_events_raw_event_scene_receives_every_event_in_order(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """A scene with process_event receives all N events of a batch, in order."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, pygame.MOUSEMOTION, pos=(1, 2)),
+            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        mock_scene = mocker.Mock()
+        engine._active_scene = mock_scene
+
+        result = engine.process_events()
+
+        assert [call.args[0] for call in mock_scene.process_event.call_args_list] == raw_events
+        assert result is True
+
+    def test_process_events_unmapped_type_after_handled_event_is_unhandled(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An event type missing from EVENT_HANDLERS never inherits the previous result."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        unmapped_event_type = 88887
+        GameEngine.EVENT_HANDLERS.pop(unmapped_event_type, None)
+
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, unmapped_event_type),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: mocker.Mock(return_value=True)}
+        )
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        result = engine.process_events()
+
+        mock_unimplemented.assert_called_once()
+        assert mock_unimplemented.call_args.args[0].type == unmapped_event_type
+        assert result is False
+
+    def test_process_events_returns_true_only_when_every_event_handled(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """The return value is True only if every event of the batch was handled."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS,
+            {
+                pygame.KEYDOWN: mocker.Mock(return_value=True),
+                pygame.KEYUP: mocker.Mock(return_value=True),
+            },
+        )
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        assert engine.process_events() is True
+        mock_unimplemented.assert_not_called()
+
+        # A handled event after an unhandled one does not turn the result back to True
+        mocker.patch('pygame.event.get', return_value=list(reversed(raw_events)))
+        GameEngine.EVENT_HANDLERS[pygame.KEYUP] = mocker.Mock(return_value=False)
+
+        assert engine.process_events() is False
+        mock_unimplemented.assert_called_once()
+
+    def test_process_events_returns_false_when_every_event_is_discarded(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """No event dispatched (all discarded) is reported as False, like an empty batch."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        raw_events = [_raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a)]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        key_down_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: key_down_handler})
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        result = engine.process_events(should_discard=lambda _event: True)
+
+        assert result is False
+        key_down_handler.assert_not_called()
+        mock_unimplemented.assert_not_called()
+
+    def test_process_events_discards_only_matching_events(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Kept events are dispatched and decide the result; discarded ones do not count."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        key_down_handler = mocker.Mock(return_value=True)
+        key_up_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS,
+            {pygame.KEYDOWN: key_down_handler, pygame.KEYUP: key_up_handler},
+        )
+
+        result = engine.process_events(should_discard=lambda event: event.type == pygame.KEYDOWN)
+
+        assert result is True
+        key_down_handler.assert_not_called()
+        key_up_handler.assert_called_once()
 
 
 class TestHandleEventAdditionalPaths:
@@ -2294,13 +2590,17 @@ class TestFpsHistogramArgument:
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
         mock_manager = mocker.patch('glitchygames.performance.performance_manager')
-        GameEngine.game = mocker.Mock()
-        GameEngine.OPTIONS = {
-            'profile': False,
-            'timer_backend': 'fast',
-            'perf_trim_percent': 5.0,
-            'fps_histogram': 'target-relative',
-        }
+        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        mocker.patch.object(
+            GameEngine,
+            'OPTIONS',
+            {
+                'profile': False,
+                'timer_backend': 'fast',
+                'perf_trim_percent': 5.0,
+                'fps_histogram': 'target-relative',
+            },
+        )
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
@@ -2317,13 +2617,17 @@ class TestFpsHistogramArgument:
         mocker.patch('glitchygames.engine.game_engine.create_timer')
         mock_manager = mocker.patch('glitchygames.performance.performance_manager')
         mock_manager.set_trim_percent.side_effect = ValueError('bad trim')
-        GameEngine.game = mocker.Mock()
-        GameEngine.OPTIONS = {
-            'profile': False,
-            'timer_backend': 'fast',
-            'perf_trim_percent': 5.0,
-            'fps_histogram': 'target-relative',
-        }
+        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        mocker.patch.object(
+            GameEngine,
+            'OPTIONS',
+            {
+                'profile': False,
+                'timer_backend': 'fast',
+                'perf_trim_percent': 5.0,
+                'fps_histogram': 'target-relative',
+            },
+        )
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()

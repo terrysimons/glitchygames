@@ -25,7 +25,12 @@ import time
 from pathlib import Path
 from typing import Any
 
+from glitchygames.randomness import random_stream
+
 log: logging.Logger = logging.getLogger('game.audio.controller')
+
+# The engine random stream texture haptics draw their noise from (glitchygames/randomness.py)
+CONTROLLER_NOISE_RANDOM_STREAM = 'audio.controller_noise'
 
 try:
     import miniaudio as mi
@@ -234,12 +239,11 @@ def _generate_noise_burst(
         Array of signed 16-bit PCM samples.
 
     """
-    import random
-
+    noise_random = random_stream(CONTROLLER_NOISE_RANDOM_STREAM)
     max_val = 32767
     num_samples = int(sample_rate * duration)
     # Simple low-pass via averaging adjacent samples
-    raw = [random.uniform(-1.0, 1.0) for _ in range(num_samples)]
+    raw = [noise_random.uniform(-1.0, 1.0) for _ in range(num_samples)]
     smoothed = [(raw[i] + raw[max(0, i - 1)]) / 2 for i in range(num_samples)]
     return array.array('h', [int(max_val * amplitude * s) for s in smoothed])
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging
 import math
-import secrets
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
 from typing import TYPE_CHECKING, NamedTuple, Self, override
@@ -23,9 +22,30 @@ from glitchygames.movement import Speed
 
 # PixelSnapMode and snap_to_pixel moved to glitchygames.pixel_snap (with HALF_PIXEL, which
 # only snap_to_pixel uses) so collision code can share them; importing them here keeps
-# `from glitchygames.game_objects.ball import PixelSnapMode, snap_to_pixel` working.
+# `from glitchygames.game_objects.ball import PixelSnapMode, snap_to_pixel` working. The ball no
+# longer calls snap_to_pixel itself (the engine snaps its rect), so __all__ re-exports it.
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.randomness import random_stream
 from glitchygames.sprites import Sprite
+from glitchygames.world import CoordinateSpace
+
+__all__ = [
+    'SERVE_RANDOM_STREAM',
+    'BallSpawnMode',
+    'BallSprite',
+    'PixelSnapMode',
+    'ServeHorizontalDirection',
+    'ServeSettings',
+    'ServeVerticalDirection',
+    'SpeedUpAxes',
+    'SpeedUpCurve',
+    'SpeedUpSchedule',
+    'SpeedUpSettings',
+    'SpeedUpTrigger',
+    'VisibleRect',
+    'snap_to_pixel',
+    'speed_up_step_ratio',
+]
 
 log: logging.Logger = logging.getLogger('game.objects.ball')
 
@@ -249,9 +269,10 @@ def speed_up_step_ratio(curve: SpeedUpCurve, multiplier: float, completed_steps:
             )
 
 
-# Single random source for serves (position, side, angle), so tests can pin them all.
-# SystemRandom draws from the OS entropy pool, like the secrets module.
-_SERVE_RANDOM = secrets.SystemRandom()
+# The engine random stream every serve draws from (position, side, angle), so a run's seed
+# reproduces serves and tests can pin them all. Looked up at each draw, never kept from import
+# time, so reset_streams() takes effect (glitchygames/randomness.py).
+SERVE_RANDOM_STREAM = 'ball.serve'
 
 
 class ServeHorizontalDirection(Enum):
@@ -329,7 +350,15 @@ class BallSprite(Sprite):
     The ball moves and bounces off walls itself; paddle hits are resolved by the caller:
     a CollisionManager overlap check pairs balls with paddles and calls
     handle_paddle_collision (PaddleSlap does this).
+
+    The ball is a world sprite: its position is world_x/world_y, and the engine writes rect
+    from them (snapped with the ball's own pixel_snap_mode) before each render
+    (glitchygames/world.py). Under an identity camera, as in PaddleSlap, screen and world
+    coordinates are the same. Game logic should read the world position or the collision
+    rect, never rect, which holds where the ball was last drawn.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self: Self,
@@ -376,9 +405,9 @@ class BallSprite(Sprite):
         self.direction = 0
         self.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
 
-        # Sub-pixel position tracking (floats for accurate physics). rect holds the
-        # snapped whole-pixel position for rendering and is kept in sync by the
-        # world_x/world_y setters, so code should move the ball via world_x/world_y.
+        # Sub-pixel position tracking (floats for accurate physics). The engine writes rect,
+        # the snapped whole-pixel position the ball is drawn at, from world_x/world_y before
+        # each render, so code should move the ball via world_x/world_y.
         self._pixel_snap_mode = pixel_snap_mode
         self.world_x = float(x)
         self.world_y = float(y)
@@ -419,9 +448,8 @@ class BallSprite(Sprite):
 
     @world_x.setter
     def world_x(self: Self, value: float) -> None:
-        """Set the sub-pixel x position and snap rect.x to match."""
+        """Set the sub-pixel x position (the engine places rect from it before rendering)."""
         self._world_x = value
-        self.rect.x = snap_to_pixel(value, self._pixel_snap_mode)
 
     @property
     def world_y(self: Self) -> float:
@@ -430,9 +458,8 @@ class BallSprite(Sprite):
 
     @world_y.setter
     def world_y(self: Self, value: float) -> None:
-        """Set the sub-pixel y position and snap rect.y to match."""
+        """Set the sub-pixel y position (the engine places rect from it before rendering)."""
         self._world_y = value
-        self.rect.y = snap_to_pixel(value, self._pixel_snap_mode)
 
     @property
     def pixel_snap_mode(self: Self) -> PixelSnapMode:
@@ -441,10 +468,24 @@ class BallSprite(Sprite):
 
     @pixel_snap_mode.setter
     def pixel_snap_mode(self: Self, mode: PixelSnapMode) -> None:
-        """Change the snap mode and immediately re-snap rect to the world position."""
+        """Change the snap mode; collision uses it at once, drawing from the next positioning."""
         self._pixel_snap_mode = mode
-        self.world_x = self._world_x
-        self.world_y = self._world_y
+
+    def drawn_center(self: Self) -> tuple[int, int]:
+        """Return the centre of the ball's image at its current snapped world position.
+
+        This is where the engine's next positioning draws the ball (under an identity camera,
+        as in PaddleSlap; with a moving camera it is the drawn centre in world pixels). Unlike
+        rect.center it is current during dt_tick, before the engine has positioned the ball.
+
+        Returns:
+            tuple[int, int]: The centre, as rect.center reads after positioning.
+
+        """
+        drawn_rect = pygame.Rect(
+            snapped_world_position(self, self.world_x, self.world_y), self.rect.size
+        )
+        return drawn_rect.center
 
     @property
     def color(self: Self) -> tuple[int, int, int]:
@@ -508,7 +549,7 @@ class BallSprite(Sprite):
         highest = maximum_position - margin
         if lowest > highest:
             return max(maximum_position // 2, 0)
-        return _SERVE_RANDOM.randint(lowest, highest)
+        return random_stream(SERVE_RANDOM_STREAM).randint(lowest, highest)
 
     def serve(self: Self, serve_toward: ServeHorizontalDirection | None = None) -> None:
         """Set a serve velocity from serve_settings without moving the ball.
@@ -519,21 +560,22 @@ class BallSprite(Sprite):
 
         """
         settings = self.serve_settings
+        serve_random = random_stream(SERVE_RANDOM_STREAM)
         horizontal = serve_toward or settings.horizontal
         if horizontal is ServeHorizontalDirection.EITHER:
-            horizontal = _SERVE_RANDOM.choice((
+            horizontal = serve_random.choice((
                 ServeHorizontalDirection.LEFT,
                 ServeHorizontalDirection.RIGHT,
             ))
         vertical = settings.vertical
         if vertical is ServeVerticalDirection.EITHER:
-            vertical = _SERVE_RANDOM.choice((
+            vertical = serve_random.choice((
                 ServeVerticalDirection.UP,
                 ServeVerticalDirection.DOWN,
             ))
 
         angle_radians = math.radians(
-            _SERVE_RANDOM.uniform(settings.minimum_angle_degrees, settings.maximum_angle_degrees)
+            serve_random.uniform(settings.minimum_angle_degrees, settings.maximum_angle_degrees)
         )
         horizontal_sign = 1.0 if horizontal is ServeHorizontalDirection.RIGHT else -1.0
         vertical_sign = 1.0 if vertical is ServeVerticalDirection.DOWN else -1.0
@@ -638,7 +680,7 @@ class BallSprite(Sprite):
         # Check for continuous speed-up
         self._advance_continuous_speed_up(dt)
 
-        # Apply velocity to sub-pixel position (the setters sync rect for rendering)
+        # Apply velocity to sub-pixel position (the engine places rect before rendering)
         self.world_x += self.speed.x * dt
         self.world_y += self.speed.y * dt
 
@@ -679,7 +721,7 @@ class BallSprite(Sprite):
 
         """
         log.debug(
-            f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
+            f'BALL BOUNCE CHECK: pos=({self.world_x:.1f},{self.world_y:.1f}) '
             f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
             f'screen=({self.screen_width},{self.screen_height}) '
             f'bounce_top_bottom={self.bounce_top_bottom} '
@@ -844,9 +886,9 @@ class BallSprite(Sprite):
 
         """
         log.debug(
-            'BALL CORNER COLLISION: pos=(%s, %s) speed=(%.3f, %.3f)',
-            self.rect.x,
-            self.rect.y,
+            'BALL CORNER COLLISION: pos=(%.1f, %.1f) speed=(%.3f, %.3f)',
+            self.world_x,
+            self.world_y,
             self.speed.x,
             self.speed.y,
         )
@@ -873,7 +915,8 @@ class BallSprite(Sprite):
 
         # For now, we'll add debug logging and prepare for future visual effects
         log.debug(
-            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})',
+            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at '
+            f'({self.world_x:.1f}, {self.world_y:.1f})',
         )
 
         # Future implementation could include:

@@ -16,21 +16,85 @@ from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
+from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
+from glitchygames.recording import post_event
 from glitchygames.timing import DEFAULT_TARGET_FPS
+from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.recording import GameplayRecorder
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
 SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
+
+# Input dropped while a transition plays (SceneManager._process_transition_events): presses
+# and motion, so nothing pressed during a ride acts when it ends. Releases (KEYUP,
+# MOUSEBUTTONUP, JOYBUTTONUP, CONTROLLERBUTTONUP, FINGERUP), quit, window, focus and device
+# events are still delivered, so held-input state (ActionMap) is never left stuck. Motion back
+# to neutral is a release too and is delivered: see is_discarded_during_transition.
+# CONTROLLERTOUCHPADUP is a release and is delivered. DROPFILE and DROPTEXT are deliberately
+# delivered too, to the arriving scene: a file or text dropped during a ride should land.
+TRANSITION_DISCARDED_EVENT_TYPES: frozenset[int] = frozenset({
+    pygame.KEYDOWN,
+    pygame.TEXTINPUT,
+    pygame.MOUSEBUTTONDOWN,
+    pygame.MOUSEMOTION,
+    pygame.MOUSEWHEEL,
+    pygame.JOYBUTTONDOWN,
+    pygame.JOYAXISMOTION,
+    pygame.JOYHATMOTION,
+    pygame.JOYBALLMOTION,
+    pygame.CONTROLLERBUTTONDOWN,
+    pygame.CONTROLLERAXISMOTION,
+    pygame.FINGERDOWN,
+    pygame.FINGERMOTION,
+    pygame.TEXTEDITING,
+    pygame.CONTROLLERTOUCHPADDOWN,
+    pygame.CONTROLLERTOUCHPADMOTION,
+    pygame.MULTIGESTURE,
+})
+
+
+# Axis motions whose value is neutral (a stick back at rest) are releases
+_AXIS_MOTION_EVENT_TYPES: frozenset[int] = frozenset({
+    pygame.JOYAXISMOTION,
+    pygame.CONTROLLERAXISMOTION,
+})
+_HAT_CENTRED: tuple[int, int] = (0, 0)
+
+
+def is_discarded_during_transition(event: pygame.event.Event) -> bool:
+    """Report whether a transition frame drops this event.
+
+    Presses and motion (TRANSITION_DISCARDED_EVENT_TYPES) are dropped, except motion back to
+    neutral, which releases a held stick or hat: an axis inside ActionMap's DEFAULT_DEADZONE
+    (the value ActionMap treats as zero) or a hat at (0, 0).
+
+    Args:
+        event: A raw pygame event.
+
+    Returns:
+        True if the event is dropped, False if it is delivered.
+
+    """
+    if event.type not in TRANSITION_DISCARDED_EVENT_TYPES:
+        return False
+    if event.type in _AXIS_MOTION_EVENT_TYPES:
+        position = normalized_axis_value(event_type=event.type, value=event.value)
+        return abs(position) >= DEFAULT_DEADZONE
+    if event.type == pygame.JOYHATMOTION:
+        return tuple(event.value) != _HAT_CENTRED
+    return True
 
 
 class SceneManager(SceneInterface, events.EventManager):
@@ -43,6 +107,10 @@ class SceneManager(SceneInterface, events.EventManager):
     _instance: ClassVar[SceneManager | None] = None
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
+
+    # The --record-trace recorder (GameEngine.start_trace_recording sets it), else None; _run_frame
+    # records each frame with it. A class default so a frame can run without __init__.
+    trace_recorder: GameplayRecorder | None = None
 
     def __new__(cls) -> Self:
         """Create a new instance or return the existing singleton instance."""
@@ -98,6 +166,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self._jitter_interval_start_ns: int = 0
         self._jitter_late_frames: int = 0
         self._timer_prev_deadline_ns: int | None = None
+        # When the last FPS event was posted (perf_counter seconds); start() sets it
+        self._previous_fps_event_seconds: float = 0.0
 
         # Mark as initialized to prevent re-initialization
         self._initialized: bool = True
@@ -194,28 +264,7 @@ class SceneManager(SceneInterface, events.EventManager):
             transition: The Transition object.
 
         """
-        # Capture screenshot of the current (old) scene.
-        # Hide the player first so the transition can draw its own
-        # player overlay without doubling.
-        old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
-
-        # Clear a WORLD shake so the old-floor screenshot is unshaken.
-        camera_was_shaking = False
-        if self.active_scene is not None and self.active_scene.camera.shake_effect.is_active:
-            camera_was_shaking = True
-            self.active_scene.camera.shake_effect.clear()
-            self.active_scene.apply_camera_to_sprites()
-
-        if old_player is not None:
-            old_player.visible = False
-            old_player.dirty = 0
-        if (old_player is not None or camera_was_shaking) and self.active_scene and self.screen:
-            self.active_scene.update()
-            self.active_scene.render(self.screen)
-        old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
-        if old_player is not None:
-            old_player.visible = True
-            old_player.dirty = 2
+        old_surface = self._capture_outgoing_scene()
 
         # Set up the new scene (off-screen) so we can capture it
         self.previous_scene = self.active_scene
@@ -226,35 +275,146 @@ class SceneManager(SceneInterface, events.EventManager):
         self.active_scene = scene
         self._configure_active_scene()
 
-        # Snap the camera to the player position (no lerp) and render
-        # so the screenshot shows the correct view for the transition.
-        # Hide the player sprite during capture so it doesn't appear in
-        # the screenshot (the transition draws its own player overlay).
-        if self.active_scene and self.screen:
-            camera = self.active_scene.camera
-            player = getattr(self.active_scene, 'player', None)
-            player_was_visible = True
-            if player is not None:
-                player_was_visible = getattr(player, 'visible', True)
-                player.visible = False
-                player.dirty = 0
-            if player is not None:
-                camera.snap_to(
-                    target_x=getattr(player, 'world_x', 0.0),
-                    target_y=getattr(player, 'world_y', 0.0),
-                )
-            self.active_scene.dt_tick(0.001)
-            self.active_scene.update()
-            self.active_scene.render(self.screen)
-            # Restore player visibility for when gameplay resumes
-            if player is not None:
-                player.visible = player_was_visible
-                player.dirty = 2
-        new_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+        new_surface = self._capture_arriving_scene()
 
         # Start the transition effect with both screenshots
         transition.start(old_surface, new_surface)
         self._active_transition = transition
+
+    def _capture_outgoing_scene(self: Self) -> pygame.Surface:
+        """Screenshot the scene being left, without its player and without a WORLD shake.
+
+        The player is hidden so the transition can draw its own player overlay without
+        doubling, and shown again afterwards. A world-space player is hidden with ``hidden``
+        (the engine owns its ``visible``) and re-culled afterwards; a screen-space player's
+        ``visible`` is written directly.
+
+        Returns:
+            A copy of the screen showing the outgoing scene.
+
+        """
+        old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
+        old_player_was_hidden = self._hide_world_player_for_capture(old_player)
+
+        # Clear a WORLD shake so the old-floor screenshot is unshaken.
+        camera_was_shaking = False
+        if self.active_scene is not None and self.active_scene.camera.shake_effect.is_active:
+            camera_was_shaking = True
+            self.active_scene.camera.shake_effect.clear()
+            self.active_scene.apply_camera_to_sprites()
+
+        recapture_old_scene = bool(
+            (old_player is not None or camera_was_shaking) and self.active_scene and self.screen
+        )
+        if recapture_old_scene:
+            # Re-place world sprites (the WORLD shake they were placed with is now cleared);
+            # a world-space player is already hidden, so positioning culls it
+            self._position_active_world_sprites()
+        if old_player is not None:
+            if old_player_was_hidden is None:
+                old_player.visible = False
+            old_player.dirty = 0
+        if recapture_old_scene:
+            assert self.active_scene is not None
+            assert self.screen is not None
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
+        old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+        if old_player is not None:
+            if old_player_was_hidden is None:
+                old_player.visible = True
+            else:
+                self._restore_world_player_after_capture(
+                    player=old_player, was_hidden=old_player_was_hidden
+                )
+            old_player.dirty = 2
+        return old_surface
+
+    @staticmethod
+    def _hide_world_player_for_capture(player: object) -> bool | None:
+        """Hide a world-space player with ``hidden`` for a transition capture.
+
+        Returns:
+            The player's previous ``hidden`` value, or None when there is no player or it is
+            screen space (its ``visible`` is written directly instead).
+
+        """
+        if player is None or not is_world_positioned(player):
+            return None
+        was_hidden = bool(getattr(player, 'hidden', False))
+        cast('Any', player).hidden = True
+        return was_hidden
+
+    def _restore_world_player_after_capture(
+        self: Self, *, player: object, was_hidden: bool
+    ) -> None:
+        """Give a world-space player back its ``hidden`` value and let the engine re-cull it.
+
+        Positioning again sets ``visible`` from the screen and ``hidden``, so a player off
+        screen stays invisible instead of being shown until the next frame.
+
+        Args:
+            player: The world-space player.
+            was_hidden: Its ``hidden`` value before the capture.
+
+        """
+        cast('Any', player).hidden = was_hidden
+        self._position_active_world_sprites()
+
+    def _capture_arriving_scene(self: Self) -> pygame.Surface:
+        """Screenshot the scene being entered (already set up and active), without its player.
+
+        Snaps the camera (no lerp) and renders, so the screenshot shows the correct view for
+        the transition: to the scene's camera target on the camera's followed axes only (an
+        unfollowed axis stays where setup() put it), or, when camera_target() is None, to the
+        player's position on both axes, as before follow targets existed. The player sprite
+        is hidden during the capture (the transition draws its own player overlay) and
+        restored afterwards.
+
+        Returns:
+            A copy of the screen showing the arriving scene.
+
+        """
+        if self.active_scene and self.screen:
+            camera = self.active_scene.camera
+            player = getattr(self.active_scene, 'player', None)
+            # A world-space player is hidden with hidden (positioning then culls it); a
+            # screen-space player's visible is written directly, as it always was
+            player_was_hidden = self._hide_world_player_for_capture(player)
+            player_was_visible = True
+            if player is not None:
+                if player_was_hidden is None:
+                    player_was_visible = getattr(player, 'visible', True)
+                    player.visible = False
+                player.dirty = 0
+                camera_target = self.active_scene.camera_target()
+                if camera_target is None:
+                    camera.snap_to(
+                        target_x=getattr(player, 'world_x', 0.0),
+                        target_y=getattr(player, 'world_y', 0.0),
+                    )
+                else:
+                    target_x, target_y = camera_target
+                    camera.snap_followed_axes_to(target_x=target_x, target_y=target_y)
+            self.active_scene.dt_tick(0.001)
+            # Place the arriving scene's world sprites, so its screenshot shows them in place
+            self._position_active_world_sprites()
+            if player is not None:
+                if player_was_hidden is None:
+                    player.visible = False
+                player.dirty = 0
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
+            # Restore the player for when gameplay resumes
+            if player is not None:
+                if player_was_hidden is None:
+                    player.visible = player_was_visible
+                else:
+                    self._restore_world_player_after_capture(
+                        player=player, was_hidden=player_was_hidden
+                    )
+                player.dirty = 2
+        return self.screen.copy() if self.screen else pygame.Surface((800, 600))
 
     def _finalize_transition(self: Self) -> None:
         """Complete a transition and resume normal scene rendering."""
@@ -270,8 +430,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
-        if self.active_scene is not None:
-            shakers.append(self.active_scene.camera.shake_effect)
+        active_camera = self._active_camera()
+        if active_camera is not None:
+            shakers.append(active_camera.shake_effect)
         controller_manager = getattr(self.game_engine, 'controller_manager', None)
         self.rumble.update(
             shakers=shakers,
@@ -364,6 +525,13 @@ class SceneManager(SceneInterface, events.EventManager):
                 self.debug_overlay.cycle_panel()
             return
         if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
+            # Recorded before dispatch, so a quit-key release knows this scene saw the press.
+            # Looked up by name: at runtime an active scene may be any SceneInterface stand-in
+            # without _record_key_press, but active_scene is annotated Scene, so an isinstance
+            # check would be flagged as unnecessary by the type checker
+            record_key_press = getattr(self.active_scene, '_record_key_press', None)
+            if record_key_press is not None:
+                record_key_press(key=event.key)
             self.active_scene.on_key_down_event(event)
         elif self.game_engine is not None and hasattr(self.game_engine, 'on_key_down_event'):
             self.game_engine.on_key_down_event(event)
@@ -559,15 +727,16 @@ class SceneManager(SceneInterface, events.EventManager):
         timer: object | None,
         period_ns: int,
         prev_deadline_ns: int | None,
-        frame_start_seconds: float,
     ) -> None:
         """Handle frame pacing via timer or fallback to pygame clock.
+
+        Only paces: the frame is measured afterwards, by _finish_frame, with
+        time.perf_counter().
 
         Args:
             timer: The timer backend instance (or None)
             period_ns: Frame period in nanoseconds (0 if no timer)
             prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
-            frame_start_seconds: Frame start time from time.perf_counter() in seconds
 
         """
         if timer is not None and period_ns > 0:
@@ -576,11 +745,10 @@ class SceneManager(SceneInterface, events.EventManager):
             deadline_ns: int = timer_any.compute_deadline(prev_deadline_ns, period_ns)  # ty: ignore[unresolved-attribute]
             wake_ns: int = timer_any.sleep_until_next(deadline_ns)  # ty: ignore[unresolved-attribute]
             self._timer_prev_deadline_ns = deadline_ns
-            # Measure dt with time.perf_counter(), NOT the timer backend's clock. The pygame
+            # Deadlines use the timer's own clock; the frame is NOT measured with it. The pygame
             # backend's ns_now() is whole milliseconds (get_ticks() * 1_000_000), so a true
             # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
-            # Deadlines above still use the timer's own clock; only the measurement changes.
-            self.dt = time.perf_counter() - frame_start_seconds
+            # _finish_frame measures with time.perf_counter() instead (BUGS.md #26).
             # Optional jitter logging
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
@@ -606,17 +774,25 @@ class SceneManager(SceneInterface, events.EventManager):
             #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
             #   3. carries over from the previous scene (the clock is shared), so a new
             #      scene's first samples are stale.
-            # self.dt is the measured frame time from time.perf_counter() in the main loop.
+            # self.dt is the frame time _finish_frame measured with time.perf_counter(): the
+            # full start-to-start period of the frame just finished.
             current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
             performance_manager.track_fps_from_event(current_fps, processing_time)
         except ImportError:
             pass  # Performance module not available
 
     def start(self: Self) -> None:
-        """Start the scene manager."""
-        previous_time: float = time.perf_counter()
-        previous_fps_time: float = previous_time
-        current_time: float = previous_time
+        """Start the scene manager.
+
+        Each frame starts at the previous frame's closing perf_counter() reading and ends in
+        _finish_frame, which sets ``self.dt`` once, to that frame's start-to-start period, so
+        logic in frame N receives the time frame N-1 took (engine audit #15).
+        """
+        frame_start_seconds: float = time.perf_counter()
+        self._previous_fps_event_seconds = frame_start_seconds
+        # The first frame has no previous frame: its dt is the short time since the reading
+        # above, as before
+        self.dt = time.perf_counter() - frame_start_seconds
 
         while self.active_scene is not None and self.quit_requested is False:
             # Frame pacing using timer backend when available
@@ -625,74 +801,230 @@ class SceneManager(SceneInterface, events.EventManager):
             if timer is not None:
                 period_ns = timer.start_frame(self.target_fps)
 
-            prev_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
-            now: float = time.perf_counter()
-            self.dt = now - previous_time
-            previous_time = now
+            previous_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
 
-            # Start timing ONLY the actual processing (after tick_clock)
-            processing_start = time.perf_counter()
+            self._run_frame()
 
-            # During a transition, render the transition effect instead of the scene
-            if self._active_transition is not None:
-                transition_done = self._active_transition.update(self.dt)
-                self._update_frame_services()
-                self._active_transition.render(self.screen)
-                self._present_frame(full_update=True)
-                if transition_done:
-                    self._finalize_transition()
-            else:
-                # Order matters: Scene.dt_tick runs first, then frame services (shake and
-                # rumble). Scene.update() runs inside _render_scene, after frame services.
-                self._update_scene()
-                self._process_events()
-                self._update_frame_services()
-                self._render_scene()
-                self._present_frame(full_update=False)
+            # The frame's processing time: its work, without the pacing sleep that follows
+            processing_seconds = time.perf_counter() - frame_start_seconds
 
-                # Check for pending transition (set by Scene.transition_to)
-                if self._pending_transition is not None:
-                    self._start_transition(*self._pending_transition)
-                    self._pending_transition = None
-                # Check for plain scene switch (no transition, backward compatible)
-                else:
-                    self._switch_to_requested_scene()
-
-            self._handle_frame_pacing(
+            frame_start_seconds = self._finish_frame(
+                frame_start_seconds=frame_start_seconds,
                 timer=timer,
                 period_ns=period_ns,
-                prev_deadline_ns=prev_deadline_ns,
-                frame_start_seconds=now,
+                previous_deadline_ns=previous_deadline_ns,
+                processing_seconds=processing_seconds,
             )
-
-            # End timing the actual processing
-            processing_end = time.perf_counter()
-            actual_processing_time = processing_end - processing_start
-
-            self._track_performance(processing_time=actual_processing_time)
-
-            if self._should_post_fps_event(current_time, previous_fps_time):
-                self._post_fps_event()
-                previous_fps_time = current_time
-            current_time = time.perf_counter()
 
         self._log_quit_info()
         return self.terminate()
 
-    def _update_timing(self, previous_time: float, current_time: float) -> tuple[float, float]:
-        """Update timing variables for the game loop.
+    def _finish_frame(
+        self: Self,
+        *,
+        frame_start_seconds: float,
+        timer: object | None,
+        period_ns: int,
+        previous_deadline_ns: int | None,
+        processing_seconds: float,
+    ) -> float:
+        """End the frame: pace, measure it once, then record that one frame time.
+
+        In order: pace (timer backend deadline on the timer's own clock, else the pygame
+        clock; target 0 never sleeps) and log timer jitter; read time.perf_counter() once,
+        which ends this frame and starts the next; set ``self.dt`` to the start-to-start
+        period; record it as the frame's FPS sample and post the FPS event when its
+        wall-clock interval has passed. Each frame's ``self.dt`` is set only here, so
+        recorded frames sum exactly to elapsed time, and logic and the debug overlay in the
+        next frame see the same value the statistics recorded (engine audit #15).
+
+        The statistics are recorded after the closing reading, so their (microseconds of)
+        work counts towards the next frame's period rather than going unmeasured.
 
         Args:
-            previous_time: Previous frame time
-            current_time: Current frame time
+            frame_start_seconds: The perf_counter() reading this frame started at (the
+                previous frame's closing reading).
+            timer: The timer backend instance (or None).
+            period_ns: Frame period in nanoseconds (0 if no timer or uncapped).
+            previous_deadline_ns: The previous frame's deadline in nanoseconds (or None).
+            processing_seconds: The frame's processing time, without pacing, in seconds.
 
         Returns:
-            Tuple of (updated_previous_time, updated_current_time)
+            The closing perf_counter() reading: the next frame's start.
 
         """
-        now: float = time.perf_counter()
-        self.dt = now - previous_time
-        return current_time, now
+        self._handle_frame_pacing(
+            timer=timer,
+            period_ns=period_ns,
+            prev_deadline_ns=previous_deadline_ns,
+        )
+
+        closing_reading_seconds = time.perf_counter()
+        self.dt = closing_reading_seconds - frame_start_seconds
+
+        self._track_performance(processing_time=processing_seconds)
+        if self._should_post_fps_event(closing_reading_seconds, self._previous_fps_event_seconds):
+            self._post_fps_event()
+            self._previous_fps_event_seconds = closing_reading_seconds
+
+        return closing_reading_seconds
+
+    def _run_frame(self: Self) -> None:
+        """Run one frame (a transition frame or a scene frame), then record it if recording.
+
+        ``self.dt`` must already hold this frame's delta time. It is read before the frame
+        runs, because a scene switch at the end of the frame resets ``self.dt``: the
+        recording gets the frame's raw dt. A transition's update receives it as is; scene
+        logic and the camera aim receive it capped at the scene's MAX_FRAME_SECONDS
+        (_scene_frame_seconds), which a replay re-derives from the scene class's attribute.
+        The recorder samples the sprites after rendering, from the scene active at the end of
+        the frame (after a switch, the new scene as set up), exactly as the golden-trace
+        harness does.
+        """
+        frame_dt = self.dt
+        # During a transition, render the transition effect instead of the scene
+        if self._active_transition is not None:
+            transition_done = self._active_transition.update(self.dt)
+            self._process_transition_events()
+            self._update_frame_services()
+            self._active_transition.render(self.screen)
+            self._present_frame(full_update=True)
+            if transition_done:
+                self._finalize_transition()
+        else:
+            self._run_scene_frame()
+
+        if self.trace_recorder is not None:
+            self.trace_recorder.record_frame(dt=frame_dt, scene=self.active_scene)
+
+    def _run_scene_frame(self: Self) -> None:
+        """Run one non-transition frame of the active scene.
+
+        Starts the camera's frame, updates the scene, processes events, updates frame
+        services, aims the camera, positions world sprites, renders the frame, advances the
+        WORLD shake of a camera nothing moved, presents the frame, then starts a pending
+        transition or performs a requested scene switch. ``self.dt`` must already hold this
+        frame's delta time. The aim and the still-camera shake step are skipped when the
+        active scene was switched mid-frame (during its logic or events, as resuming from the
+        pause screen does): that scene ran no logic this frame, so its camera waits for its
+        first dt_tick.
+        """
+        # Order matters: begin_frame() first, so a camera.update() the game made last frame
+        # does not count as this frame's (the double-update warning in aim_camera). Then
+        # Scene.dt_tick, events, frame services (shake and rumble, so positioning uses this
+        # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
+        # dt_tick are placed before their first render. Scene.update() runs inside
+        # _render_scene, after positioning.
+        active_camera = self._active_camera()
+        if active_camera is not None:
+            active_camera.begin_frame()
+        # Logic and the camera aim share one (possibly capped) dt; self.dt stays the raw frame
+        # time for the frame services, pacing and FPS statistics
+        scene_dt = self._scene_frame_seconds()
+        logic_scene = self.active_scene
+        self._update_scene(scene_dt=scene_dt)
+        self._process_events()
+        self._update_frame_services()
+        # A scene switched to during this frame (resuming from the pause screen switches while
+        # events are processed) ran no logic this frame, so its camera is not aimed either:
+        # camera time stays in step with the scene's dt_tick, as when games moved the camera
+        # in dt_tick. Its world sprites are still positioned for this frame's render.
+        if self.active_scene is logic_scene:
+            self._aim_active_camera(scene_dt=scene_dt)
+        # The display surface may appear only after startup; positioning needs its size
+        self.update_screen()
+        self._position_active_world_sprites()
+        self._render_scene()
+        # After the render phase, where game code may still call camera.update() (in update()):
+        # a WORLD shake that nothing advanced this frame advances now, once, so it decays on a
+        # camera that stands still (sprites drawn from it settle on the next frame)
+        if self.active_scene is logic_scene:
+            self._advance_still_camera_shake(scene_dt=scene_dt)
+        self._present_frame(full_update=False)
+
+        # Check for pending transition (set by Scene.transition_to)
+        if self._pending_transition is not None:
+            self._start_transition(*self._pending_transition)
+            self._pending_transition = None
+        # Check for plain scene switch (no transition, backward compatible)
+        else:
+            self._switch_to_requested_scene()
+
+    def _active_camera(self: Self) -> Camera2D | None:
+        """Return the active scene's camera, or None.
+
+        Every Scene has a camera; a scene stand-in (a SceneInterface that is not a Scene) may
+        not, and then the engine's camera steps are skipped, as _activate_scene_snap_mode
+        tolerates a stand-in without a snap mode.
+
+        Returns:
+            The active scene's Camera2D, or None when there is none.
+
+        """
+        return cast('Camera2D | None', getattr(self.active_scene, 'camera', None))
+
+    def _scene_frame_seconds(self: Self) -> float:
+        """The dt the active scene's logic and camera aim receive this frame.
+
+        self.dt, capped at the scene's MAX_FRAME_SECONDS when it sets one (a scene stand-in
+        without the attribute is not capped). After a hitch the scene advances at most the
+        cap, while self.dt keeps the whole frame for pacing, FPS statistics and services.
+
+        Returns:
+            The scene's dt in seconds.
+
+        """
+        cap = getattr(self.active_scene, 'MAX_FRAME_SECONDS', None)
+        if cap is None:
+            return self.dt
+        return min(self.dt, cap)
+
+    def _aim_active_camera(self: Self, *, scene_dt: float) -> None:
+        """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera).
+
+        Args:
+            scene_dt: The scene's dt this frame (_scene_frame_seconds).
+
+        """
+        camera = self._active_camera()
+        if camera is None:
+            return
+        aim_camera(scene=self.active_scene, camera=camera, dt=scene_dt)
+
+    def _advance_still_camera_shake(self: Self, *, scene_dt: float) -> None:
+        """Advance the active camera's WORLD shake if nothing advanced it this frame.
+
+        The shake advances when the camera moves (the engine aim or a game camera.update()).
+        A camera nobody moved this frame (no follow target and no game update, or
+        camera_target() returned None, as games do after game over) gets the advance here, with
+        the dt the aim would have used, so the shake decays and its rumble stops instead of
+        staying at full strength. Exactly one advance per frame in every case.
+
+        Args:
+            scene_dt: The scene's dt this frame (_scene_frame_seconds).
+
+        """
+        camera = self._active_camera()
+        if camera is None or camera.shake_advanced_this_frame:
+            return
+        camera.advance_shake(dt=scene_dt)
+
+    def _position_active_world_sprites(self: Self) -> None:
+        """Place the active scene's world sprites on screen from its camera, and cull them.
+
+        Screen-space sprites are untouched (glitchygames.world.position_world_sprites). Uses
+        self.screen as it is (callers refresh it with update_screen() first): without a display
+        surface there is nothing to place sprites on, so nothing is done.
+        """
+        camera = self._active_camera()
+        if camera is None or self.screen is None:
+            return
+        assert self.active_scene is not None
+        position_world_sprites(
+            sprites=self.active_scene.all_sprites,
+            camera=camera,
+            screen_size=self.screen.get_size(),
+        )
 
     def stop(self: Self) -> None:
         """Stop the game."""
@@ -711,7 +1043,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """Quit the game."""
         # put a quit event in the event queue.
         self.log.info('POSTING QUIT EVENT')
-        pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
+        post_event(pygame.event.Event(pygame.QUIT, {}))
 
     def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle quit events.
@@ -844,17 +1176,36 @@ class SceneManager(SceneInterface, events.EventManager):
         # Prefer dt-derived FPS when available (fast timer path); fallback to clock
         fps_value = 1.0 / self.dt if hasattr(self, 'dt') and self.dt > 0 else self.clock.get_fps()
 
-        pygame.event.post(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
+        post_event(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
 
-    def _update_scene(self) -> None:
-        """Update the active scene."""
+    def _update_scene(self, *, scene_dt: float) -> None:
+        """Update the active scene.
+
+        Args:
+            scene_dt: The scene's dt this frame (_scene_frame_seconds).
+
+        """
         assert self.active_scene is not None
-        self.active_scene.dt_tick(self.dt)
+        self.active_scene.dt_tick(scene_dt)
 
     def _process_events(self) -> None:
         """Process game engine events."""
         if self.game_engine is not None:
             self.game_engine.process_events()
+
+    def _process_transition_events(self) -> None:
+        """Drain the event queue during a transition frame.
+
+        Presses and motion (``TRANSITION_DISCARDED_EVENT_TYPES``) are discarded, so input
+        pressed during a ride never acts when it ends; motion back to neutral is delivered
+        (``is_discarded_during_transition``). Everything else goes through the normal
+        GameEngine dispatch: releases (so held keys, including ActionMap state, are never left
+        stuck), quit, window, focus and device events. ``_start_transition`` has already made
+        the incoming scene the active scene, so the delivered events reach the scene that will
+        be active after the transition; the outgoing scene has been cleaned up.
+        """
+        if self.game_engine is not None:
+            self.game_engine.process_events(should_discard=is_discarded_during_transition)
 
     def _render_scene(self) -> None:
         """Render the active scene."""
@@ -885,8 +1236,11 @@ class SceneManager(SceneInterface, events.EventManager):
         )
 
     def _reset_scene_timers(self) -> None:
-        """Reset scene timers."""
-        self.dt = 0.0
+        """Reset the scene timer.
+
+        The manager's ``dt`` is left alone: _finish_frame is its only per-frame writer, and
+        _configure_active_scene seeds the new scene's own ``dt``.
+        """
         self.timer = 0
 
     def _log_scene_switch(self, next_scene: Scene | None) -> None:
@@ -901,13 +1255,41 @@ class SceneManager(SceneInterface, events.EventManager):
             self.active_scene.cleanup()
 
     def _setup_new_scene(self, next_scene: Scene | None) -> None:
-        """Set up the new scene."""
+        """Set up the new scene.
+
+        Every switch and transition (including resuming a paused scene) passes through here, so
+        the incoming scene also forgets the key presses it recorded while it was last active.
+        """
         if next_scene:
             self.log.info('Setting up new scene %s.', next_scene)
             # Ensure the new scene has access to the game engine
             if hasattr(self, 'game_engine') and self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
+            # A press recorded before the scene was left (an ESC that paused it, released in
+            # the pause scene) must not let a later release quit. Looked up by name, like
+            # _record_key_press: the scene may be a SceneInterface stand-in without it
+            forget_key_presses = getattr(next_scene, '_forget_key_presses', None)
+            if forget_key_presses is not None:
+                forget_key_presses()
+            # The scene's snap mode is active from setup() on, so positions snapped while it
+            # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
+            self._activate_scene_snap_mode(next_scene)
             next_scene.setup()
+
+    def _activate_scene_snap_mode(self, scene: Scene) -> None:
+        """Make the scene's PIXEL_SNAP_MODE the default for sprites without their own mode.
+
+        A scene stand-in (a SceneInterface that is not a Scene) without a PixelSnapMode gets
+        the engine default, NEAREST_HALF_UP, so the previous scene's mode never leaks into it.
+
+        Args:
+            scene: The scene being activated.
+
+        """
+        scene_mode = getattr(scene, 'PIXEL_SNAP_MODE', None)
+        if not isinstance(scene_mode, PixelSnapMode):
+            scene_mode = PixelSnapMode.NEAREST_HALF_UP
+        set_active_default_snap_mode(scene_mode)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
         """Log blocked events for the scene."""
@@ -930,7 +1312,8 @@ class SceneManager(SceneInterface, events.EventManager):
     def _configure_active_scene(self) -> None:
         """Configure the active scene after switching."""
         if self.active_scene:
-            self.active_scene.dt = self.dt
+            # A new scene has not ticked yet; its first frame receives the real frame time
+            self.active_scene.dt = 0.0
             self.active_scene.timer = self.timer  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             # Don't call setup() here - it's already called in _setup_new_scene()
 
@@ -1014,6 +1397,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
     # An explicit --target-fps on the command line always wins.
     TARGET_FPS: ClassVar[float | None] = None
+    # The longest frame time (seconds) this scene's dt_tick and camera aim receive; after a
+    # hitch (a window drag, focus loss) they advance at most this much, so physics cannot
+    # tunnel. None passes the real frame time. Pacing, FPS statistics and the frame services
+    # (shake, rumble, the debug overlay) always see the real frame time.
+    MAX_FRAME_SECONDS: ClassVar[float | None] = None
+    # How sprites without their own pixel_snap_mode (and the camera and parallax layers) are
+    # snapped to whole pixels while this scene runs.
+    PIXEL_SNAP_MODE: ClassVar[PixelSnapMode] = PixelSnapMode.NEAREST_HALF_UP
 
     def __init__(
         self: Self,
@@ -1060,6 +1451,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
+        # Keys whose key-down reached this scene and are not yet released (_record_key_press)
+        self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
         self.next_scene: Scene | Self | None = self
         self.rects = None
@@ -1177,7 +1570,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 message = f'{self.NAME} is not the active scene; use ShakeTarget.SCREEN'
                 raise RuntimeError(message)
             self.camera.shake_effect.add(shake)
-            if not self.camera.has_been_applied and not self._world_shake_warning_logged:
+            if not self._world_shake_warning_logged and not self._world_shake_moves_anything():
                 LOG.warning(
                     'WORLD shake on %s has no effect: no sprites are positioned through its '
                     'camera; use ShakeTarget.SCREEN',
@@ -1186,6 +1579,46 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 self._world_shake_warning_logged = True
         if ShakeTarget.SCREEN in targets:
             self.scene_manager.screen_shake.add(shake)
+
+    def _world_shake_moves_anything(self: Self) -> bool:
+        """Whether a WORLD shake on this scene's camera would move anything on screen.
+
+        It does when a sprite is positioned through Camera2D.apply(), when the camera scrolls
+        background layers, or when the scene has world sprites (the engine places them from
+        the camera, shake included, without apply()). Decided when shake() is called.
+
+        The warning only has to ask whether anything is drawn from the camera: whether the
+        camera moves does not matter, because the engine advances a WORLD shake every frame
+        even on a camera nothing moves (SceneManager._advance_still_camera_shake), so on a
+        scene with world sprites it always shakes them and then decays.
+
+        Returns:
+            True if anything is drawn from this scene's camera.
+
+        """
+        return (
+            self.camera.has_been_applied
+            or self.camera.has_parallax_layers
+            or any(is_world_positioned(sprite) for sprite in self.all_sprites)
+        )
+
+    def camera_target(self: Self) -> tuple[float, float] | None:
+        """The world point the engine aims the camera at this frame, or None (manual camera).
+
+        Override to aim the camera anywhere (a point between two players, a cutscene focus).
+        The default returns the camera's follow target position (Camera2D.follow()). The
+        engine applies the camera's follow axes to whatever point this returns.
+
+        Returns:
+            tuple[float, float] | None: The target's (world_x, world_y), or None when the
+                camera follows nothing.
+
+        """
+        target = self.camera.follow_target
+        if target is None:
+            return None
+        # Camera2D.follow() checked that the target has world_x and world_y
+        return (float(target.world_x), float(target.world_y))
 
     def apply_camera_to_sprites(self: Self) -> None:
         """Reposition camera-relative sprites from the current camera.
@@ -1326,11 +1759,34 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             self.log.debug('Click outside focusable sprites - unfocusing')
             self._unfocus_sprites(focused_sprites)
 
+    def _record_key_press(self: Self, *, key: int) -> None:
+        """Note that a key-down reached this scene.
+
+        SceneManager calls this for every key-down it routes to the active scene, before the
+        scene's own on_key_down_event, so subclasses that override that handler are covered.
+        on_key_up_event quits only on the release of a key recorded here.
+
+        Args:
+            key: The pygame key code.
+
+        """
+        self._keys_pressed_in_scene.add(key)
+
+    def _forget_key_presses(self: Self) -> None:
+        """Forget every key press recorded by _record_key_press.
+
+        SceneManager calls this whenever the scene becomes active (switched to, resumed, or
+        the target of a transition), before setup(). A press whose release went to another
+        scene would otherwise stay recorded, and a later release of that key (whose press was
+        discarded during a transition) would quit.
+        """
+        self._keys_pressed_in_scene.clear()
+
     def _handle_quit_key_press(self) -> None:
         """Handle quit key press when no sprites are focused."""
         self.log.info('Quit requested')
         # Post a QUIT event to ensure proper cleanup
-        pygame.event.post(pygame.event.Event(pygame.QUIT))
+        post_event(pygame.event.Event(pygame.QUIT))
 
     @override
     def on_audio_device_added_event(self: Self, event: events.HashableEvent) -> None:
@@ -1411,9 +1867,20 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Check for focused sprites first
         focused_sprites = self._get_focused_sprites()
 
-        # Only process quit keys if no sprites are focused
+        # Only a release whose press this scene received can quit (_record_key_press): a key
+        # pressed during a transition (the press is discarded) or in a scene that has since
+        # been left must not quit from here. Each release consumes its press.
         event_key: int | None = getattr(event, 'key', None)
-        if not focused_sprites and event_key in {pygame.K_q, pygame.K_ESCAPE}:
+        was_pressed_in_scene = event_key is not None and event_key in self._keys_pressed_in_scene
+        if event_key is not None:
+            self._keys_pressed_in_scene.discard(event_key)
+
+        # Only process quit keys if no sprites are focused
+        if (
+            not focused_sprites
+            and was_pressed_in_scene
+            and event_key in {pygame.K_q, pygame.K_ESCAPE}
+        ):
             self._handle_quit_key_press()
 
     @override

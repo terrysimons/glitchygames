@@ -37,8 +37,8 @@ def test_game_over_condition():
     dead_balls = [ball for ball in game.balls if not ball.alive()]
     LOG.debug(f'Dead balls: {len(dead_balls)}')
 
-    # Simulate the update cycle that should trigger Game Over
-    game.update()
+    # Run a frame's logic, which removes dead balls and should trigger Game Over
+    game.dt_tick(0.0)
 
     # Check if Game Over was triggered (balls list should be empty after cleanup)
     final_ball_count = len(game.balls)

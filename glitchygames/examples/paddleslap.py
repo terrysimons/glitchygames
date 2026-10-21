@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-import random
-import secrets
 import time
 from typing import TYPE_CHECKING, Self, cast, override
 
@@ -21,6 +19,7 @@ if TYPE_CHECKING:
 import pygame
 import pygame.freetype
 
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
@@ -39,6 +38,7 @@ from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
 from glitchygames.input import ActionMap
 from glitchygames.movement import Speed
+from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
@@ -61,6 +61,13 @@ MIN_TRAJECTORY_POSITIONS_FOR_CURVE = 5
 
 # Y trend threshold for detecting significant upward movement (negative = upward)
 UPWARD_CURVE_Y_TREND_THRESHOLD = -5
+
+# Engine random streams (glitchygames/randomness.py): spawn positions and ball colours draw
+# from separate streams, so a colour draw never moves where the next ball spawns
+SPAWN_RANDOM_STREAM = 'paddleslap.spawn'
+COLOR_RANDOM_STREAM = 'paddleslap.colors'
+# Each colour channel is drawn from range(COLOR_CHANNEL_LEVELS)
+COLOR_CHANNEL_LEVELS = 256
 
 # Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
 # off so long rallies stay playable, preserving the angle the paddle set, capped at 500.
@@ -227,6 +234,20 @@ class TextSprite(Sprite):
         self.text_box.print_text(self.image, f'{Game.NAME} version {Game.VERSION}')
 
 
+def _random_ball_color() -> tuple[int, int, int]:
+    """Draw a ball colour from the colour stream (red, then green, then blue).
+
+    Returns:
+        The (red, green, blue) colour, each channel in range(COLOR_CHANNEL_LEVELS).
+
+    """
+    color_random = random_stream(COLOR_RANDOM_STREAM)
+    red = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    green = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    blue = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    return (red, green, blue)
+
+
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
@@ -251,11 +272,6 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # FPS will be set by command line arguments or default to 60
-
-        # Set random seed for reproducible randomness
-        seed = int(time.perf_counter() * 1000000) % 2**32
-        random.seed(seed)
-        log.info('Random seed set to: %s', seed)
 
         v_center = self.screen_height // 2
         self.player1 = VerticalPaddle(
@@ -325,10 +341,7 @@ class Game(Scene):
             self.balls.append(ball)
 
         for ball in self.balls:
-            red = secrets.randbelow(256)
-            green = secrets.randbelow(256)
-            blue = secrets.randbelow(256)
-            ball.color = (red, green, blue)
+            ball.color = _random_ball_color()
             self.collisions.get_layer('balls').add(ball)
 
         paddle_layer = self.collisions.get_layer('paddles')
@@ -393,7 +406,8 @@ class Game(Scene):
         if not hasattr(ball, '_debug_positions'):
             ball._debug_positions = []  # type: ignore[attr-defined]
 
-        ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
+        drawn_x, drawn_y = snapped_world_position(ball, ball.world_x, ball.world_y)
+        ball._debug_positions.append((drawn_x, drawn_y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
 
         # Keep only last positions for trajectory analysis
         if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:  # type: ignore[attr-defined]
@@ -417,7 +431,7 @@ class Game(Scene):
                     )
 
         log.debug(
-            f'BALL {ball_index + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+            f'BALL {ball_index + 1} BEFORE: pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
             f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
             f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
         )
@@ -448,18 +462,20 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 log.debug(
-                    f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                    f'BALL {i + 1} AFTER:  pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
                     f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
                     f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
                 )
 
-    @override
-    def update(self: Self) -> None:
-        """Update the game.
+        # Collisions are game logic, so they run here, after every sprite moved. The engine
+        # positions the world-space balls after dt_tick and before update() renders, so a
+        # bounce or a ball spawned here is drawn this frame (glitchygames/world.py).
+        self._resolve_collisions()
 
-        Args:
-            None
+    def _resolve_collisions(self: Self) -> None:
+        """Resolve this frame's paddle and ball-ball hits, remove dead balls, check game over.
 
+        Runs at the end of dt_tick, after every sprite moved this frame.
         """
         for i, ball in enumerate(self.balls):
             if not ball.alive():
@@ -467,7 +483,7 @@ class Game(Scene):
 
             # Debug log ball state before collision checks
             log.debug(
-                f'BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                f'BALL {i + 1} COLLISION CHECK: pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
                 f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
                 f'paddle1_rect=({self.player1.rect.x},'
                 f'{self.player1.rect.y},'
@@ -482,7 +498,7 @@ class Game(Scene):
         # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
         # phase) and BallSprite.handle_paddle_collision does the exact circle-vs-rect check and
         # the bounce (which also triggers ball spawn via on_paddle_collision). This runs after
-        # every ball moved in dt_tick and before ball-ball collisions and dead-ball cleanup.
+        # every ball moved and before ball-ball collisions and dead-ball cleanup.
         self.collisions.check_overlap(
             'balls',
             'paddles',
@@ -504,8 +520,6 @@ class Game(Scene):
         # Check for Game Over condition
         if len(self.balls) == 0:
             self._show_game_over()
-
-        super().update()
 
     def _show_game_over(self: Self) -> None:
         """Save high score and show the Game Over scene."""
@@ -564,20 +578,22 @@ class Game(Scene):
             max_attempts = 10
             spawn_x = self.screen_width // 2
             spawn_y = self.screen_height // 2
+            spawn_random = random_stream(SPAWN_RANDOM_STREAM)
             for _ in range(max_attempts):
                 spawn_x = (
-                    secrets.randbelow(self.screen_width - 60) + 30
+                    spawn_random.randrange(self.screen_width - 60) + 30
                 )  # Between paddles with margin
                 spawn_y = (
-                    secrets.randbelow(self.screen_height - 40) + 20
+                    spawn_random.randrange(self.screen_height - 40) + 20
                 )  # Within top/bottom boundaries
 
                 # Check if this location is far enough from existing balls
                 min_distance = 100  # Minimum distance from other balls
                 too_close = False
                 for existing_ball in self.balls:
-                    dx = spawn_x - existing_ball.rect.centerx
-                    dy = spawn_y - existing_ball.rect.centery
+                    existing_center_x, existing_center_y = existing_ball.drawn_center()
+                    dx = spawn_x - existing_center_x
+                    dy = spawn_y - existing_center_y
                     distance = math.sqrt(dx * dx + dy * dy)
                     if distance < min_distance:
                         too_close = True
@@ -604,11 +620,7 @@ class Game(Scene):
 
         # Set color based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_COLOR:
-            new_ball.color = (
-                secrets.randbelow(256),
-                secrets.randbelow(256),
-                secrets.randbelow(256),
-            )
+            new_ball.color = _random_ball_color()
         else:
             new_ball.color = WHITE
         # Add collision cooldown tracking
@@ -677,7 +689,7 @@ class Game(Scene):
         """Handle a ball-paddle candidate from the collision manager.
 
         A ball that left the screen this frame was killed in its dt_tick but stays in the
-        'balls' layer until update() removes dead balls, so it is skipped here.
+        'balls' layer until _resolve_collisions removes dead balls, so it is skipped here.
         """
         if not ball.alive():
             return
@@ -951,9 +963,9 @@ class Game(Scene):
         ):
             separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
 
-        # Move the sub-pixel world positions; their setters snap rect to match.
-        # Moving rect directly would be undone on the next frame, because
-        # BallSprite.dt_tick() rebuilds rect from world_x/world_y.
+        # Move the sub-pixel world positions; the engine places each ball's rect from them
+        # before this frame's render. Moving rect directly would be undone, because the
+        # engine rebuilds rect from world_x/world_y every frame.
         ball1.world_x -= separation_x
         ball1.world_y -= separation_y
         ball2.world_x += separation_x

@@ -105,7 +105,7 @@ class TestProbeMicrophoneBackend:
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -119,7 +119,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'FakeBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -140,7 +140,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'TestBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -159,7 +159,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'SimpleBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -177,7 +177,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'CustomBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         manager._probe_microphone_backend(mock_mic_cls)
 
@@ -195,7 +195,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'FailingBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         manager._probe_microphone_backend(mock_mic_cls)
 
@@ -216,7 +216,7 @@ class TestSetupMicrophone:
         mock_sr.Microphone.side_effect = OSError('No audio device')
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         manager._setup_microphone()
 
@@ -228,7 +228,7 @@ class TestSetupMicrophone:
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         manager._setup_microphone()
 
@@ -241,7 +241,7 @@ class TestSetupMicrophone:
         mock_sr.Microphone.side_effect = AttributeError('missing attribute')
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         manager._setup_microphone()
 
@@ -256,7 +256,7 @@ class TestSetupMicrophone:
         mock_sr.Microphone.return_value = mock_microphone
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        type(manager).log = mocker.Mock()
+        mocker.patch.object(type(manager), 'log')
 
         manager._setup_microphone()
 
