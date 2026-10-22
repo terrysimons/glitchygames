@@ -23,7 +23,7 @@ uv sync --all-extras
 
 ### Testing
 ```bash
-# Run all tests with coverage (80% minimum required)
+# Run all tests with coverage (99% minimum required)
 pytest
 
 # Run specific test file
@@ -85,6 +85,7 @@ nox -s static-analysis-ty           # Run ty only
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
+nox -s test-linux-x11      # Tests on Linux in Docker with real X11 windows on XQuartz (macOS; see its docstring)
 
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)
@@ -692,7 +693,7 @@ Features:
 - `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`)
 - All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
-- Coverage minimum: 80%
+- Coverage minimum: 99% (each remaining miss is audited: dead code is removed, deliberate defensive lines carry a `# pragma: no cover` with the reason)
 - Run linting after modifying files
 - Check for real bugs before assuming test failures are test issues
 
@@ -795,5 +796,5 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - **Test Suite**: Migrating to TOML-only (see TEST_UPDATE_PLAN.md)
 - **Sprite Loading**: Use `SpriteFactory` not direct `BitmappySprite` for new code
 - **Event Managers**: May be renamed to `*EventManager` convention in future
-- **Coverage**: 80% minimum required, exceptions handled via configuration
+- **Coverage**: 99% minimum required (`--cov-fail-under` in pyproject.toml); no exclusions in configuration
 - **Documentation**: Architecture details in root .md files (ANIMATION_README.md, LOADER_README.md, etc.)

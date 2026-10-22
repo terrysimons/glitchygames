@@ -1,7 +1,11 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
+import contextlib
 import os
 import shutil
+import socket
+import sys
+import time
 from pathlib import Path
 
 import nox
@@ -381,6 +385,119 @@ def test(session: nox.Session) -> None:
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args, env=env)
+
+
+# The Linux X11 test image and the X server it draws on (XQuartz's display :0, over TCP)
+_LINUX_X11_IMAGE = 'glitchygames-linux-x11'
+_LINUX_X11_VENV_VOLUME = 'glitchygames-linux-venv'
+_XQUARTZ_PORT = 6000
+_XQUARTZ_START_SECONDS = 30
+# `xauth nlist` writes each record as hex fields: family, then length-prefixed address, display
+# number, auth name and cookie. Family 0000 is a TCP address; display number "0" is 30 in hex
+_XAUTH_TCP_FAMILY = '0000'
+_XAUTH_WILDCARD_FAMILY = 'ffff'
+_XAUTH_DISPLAY_ZERO = ('0001', '30')
+
+
+def _wait_for_xquartz(session: nox.Session) -> None:
+    """Start XQuartz (a no-op when it runs) and wait until it accepts TCP connections.
+
+    Args:
+        session: The nox session (for errors).
+
+    """
+    session.run('open', '-a', 'XQuartz', external=True)
+    deadline = time.monotonic() + _XQUARTZ_START_SECONDS
+    while time.monotonic() < deadline:
+        with contextlib.suppress(OSError), socket.create_connection(('localhost', _XQUARTZ_PORT)):
+            return
+        time.sleep(0.5)
+    session.error(
+        f'XQuartz is not listening on port {_XQUARTZ_PORT}: enable TCP connections with '
+        '`defaults write org.xquartz.X11 nolisten_tcp -bool false` and restart XQuartz'
+    )
+
+
+def _write_wildcard_xauthority(session: nox.Session, *, path: Path) -> None:
+    """Copy XQuartz's TCP cookie for display :0 to ``path`` with a wildcard address.
+
+    A container's connection does not arrive as this host's name, so a cookie for the host's
+    address would not match; the wildcard family matches any address and still needs the
+    secret (XQuartz makes a new one at each launch, so this runs every session).
+
+    Args:
+        session: The nox session (runs xauth).
+        path: The Xauthority file to write.
+
+    """
+    records = session.run(
+        '/opt/X11/bin/xauth', 'nlist', silent=True, external=True, env={'DISPLAY': ':0'}
+    )
+    for record in str(records).splitlines():
+        family, *fields = record.split()
+        if family == _XAUTH_TCP_FAMILY and tuple(fields[2:4]) == _XAUTH_DISPLAY_ZERO:
+            path.write_bytes(bytes.fromhex(_XAUTH_WILDCARD_FAMILY + ''.join(fields)))
+            path.chmod(0o644)
+            return
+    session.error('XQuartz has no TCP cookie for display :0 (is XQuartz running?)')
+
+
+@nox.session(venv_backend='none', name='test-linux-x11', default=False)
+def test_linux_x11(session: nox.Session) -> None:
+    """Run the tests on Linux in Docker, drawing real windows on this Mac's XQuartz (macOS only).
+
+    The suite runs with SDL's x11 video driver (a real framebuffer: real pixel formats and
+    window behaviour, unlike the dummy driver) and the dummy audio driver. Needs Docker and
+    XQuartz with TCP connections enabled (`defaults write org.xquartz.X11 nolisten_tcp -bool
+    false`, then restart XQuartz). The container's venv is kept in a Docker volume between
+    runs. Arguments after `--` replace the command, e.g. `nox -s test-linux-x11 -- uv run pytest
+    tests/animation`.
+    """
+    if sys.platform != 'darwin':
+        session.error('test-linux-x11 forwards windows to XQuartz, so it runs on macOS only')
+    _wait_for_xquartz(session)
+    xauthority = Path(session.create_tmp()).resolve() / 'xauthority'
+    _write_wildcard_xauthority(session, path=xauthority)
+    session.run(
+        'docker', 'build', '--quiet', '--tag', _LINUX_X11_IMAGE, 'scripts/linux_x11', external=True
+    )
+    command = session.posargs or [
+        'sh',
+        '-c',
+        (
+            'uv sync --frozen --extra dev --no-install-package taplo --quiet '
+            '&& uv run pytest -p no:randomly -p no:cacheprovider'
+        ),
+    ]
+    session.run(
+        'docker',
+        'run',
+        '--rm',
+        '--env',
+        'DISPLAY=host.docker.internal:0',
+        '--env',
+        'XAUTHORITY=/x11/xauthority',
+        '--env',
+        'SDL_VIDEODRIVER=x11',
+        '--env',
+        'SDL_AUDIODRIVER=dummy',
+        '--env',
+        'UV_PROJECT_ENVIRONMENT=/venv',
+        '--env',
+        'UV_LINK_MODE=copy',
+        # Coverage data stays in the container, apart from the host's own runs
+        '--env',
+        'COVERAGE_FILE=/venv/.coverage',
+        '--volume',
+        f'{xauthority}:/x11/xauthority:ro',
+        '--volume',
+        f'{Path.cwd()}:/work',
+        '--volume',
+        f'{_LINUX_X11_VENV_VOLUME}:/venv',
+        _LINUX_X11_IMAGE,
+        *command,
+        external=True,
+    )
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='timer-report', default=False)
