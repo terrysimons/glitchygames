@@ -10,16 +10,37 @@ import nox
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-# Common install target — all extras so every tool can resolve imports.
-# Update this if new [project.optional-dependencies] sections are added.
-_ALL_EXTRAS = '.[api,dev,docs]'
-
 _CODE_DIRS = ['noxfile.py', 'glitchygames', 'scripts', 'tests']
 
 
 # ---------------------------------------------------------------------------
 # Helper functions (reusable logic, not sessions themselves)
 # ---------------------------------------------------------------------------
+
+
+def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> None:
+    """Install the project into the session's venv exactly as uv.lock pins it.
+
+    ``uv sync --frozen`` never re-resolves, so every session, local or CI, on every OS, runs
+    the locked versions (installing ``.[api,dev,docs]`` with pip-style resolution picked the
+    newest matching versions, so a new release of any dependency could change what CI tested
+    without the lockfile changing). ``--no-editable`` installs the built package, as before,
+    not the source tree.
+
+    Args:
+        session: The nox session whose venv to fill.
+        all_extras: Every extra (dev, docs, api) when True; the runtime dependencies only
+            when False.
+
+    """
+    session.run_install(
+        'uv',
+        'sync',
+        '--frozen',
+        '--no-editable',
+        *(['--all-extras'] if all_extras else []),
+        env={'UV_PROJECT_ENVIRONMENT': session.virtualenv.location},
+    )
 
 
 def _format_code(session: nox.Session) -> None:
@@ -135,7 +156,7 @@ def _lint_cves(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='format')
 def format_all(session: nox.Session) -> None:
     """Run all formatters (code + TOML)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _format_code(session)
     _format_toml(session)
 
@@ -143,7 +164,7 @@ def format_all(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
     """Run all linters (code, docs, YAML, TOML, deps, dead code, CVEs)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_code(session)
     _lint_docs(session)
     _lint_yaml(session)
@@ -163,7 +184,7 @@ def lint_all(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='format-code', default=False)
 def format_code(session: nox.Session) -> None:
     """Format Python code with ruff (import sorting + black-style formatting)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _format_code(session)
 
 
@@ -181,14 +202,14 @@ def format_toml(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-code', default=False)
 def lint_code(session: nox.Session) -> None:
     """Lint Python code with ruff."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_code(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-docs', default=False)
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_docs(session)
 
 
@@ -226,21 +247,21 @@ def lint_toml(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies', default=False)
 def lint_dependencies(session: nox.Session) -> None:
     """Check for dependency issues with deptry."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_dependencies(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code', default=False)
 def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_dead_code(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-cves', default=False)
 def lint_cves(session: nox.Session) -> None:
     """Audit dependencies for known CVEs with pip-audit."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_cves(session)
 
 
@@ -262,21 +283,21 @@ def _static_analysis_ty(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright', default=False)
 def static_analysis_basedpyright(session: nox.Session) -> None:
     """Run static type analysis with basedpyright."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _static_analysis_basedpyright(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty', default=False)
 def static_analysis_ty(session: nox.Session) -> None:
     """Run static type analysis with ty (Astral's type checker)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _static_analysis_ty(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='static-analysis')
 def static_analysis(session: nox.Session) -> None:
     """Run all static type analysis (basedpyright + ty)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _static_analysis_basedpyright(session)
     _static_analysis_ty(session)
 
@@ -313,7 +334,7 @@ def _usable_cpu_count() -> int:
 @nox.session(python=['3.14'], reuse_venv=False)
 def test(session: nox.Session) -> None:
     """Run tests."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
 
     # Default both SDL drivers to the dummy driver (windowless, silent), keeping any value the
     # caller already set so a real driver can still be requested. This is set here so it applies
@@ -358,14 +379,14 @@ def timer_report(session: nox.Session) -> None:
     kern.hv_vmm_present, Linux's hypervisor CPU flag) for whether it runs in a VM, then measures
     the CPU share and how late FastTimer, time.sleep and spin-only sleeps wake.
     """
-    session.install('.')
+    _install_from_lockfile(session, all_extras=False)
     session.run('python', 'scripts/timer_report.py')
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
 
     # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
@@ -427,21 +448,21 @@ def _safety_scan(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _bandit_scan(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='safety-scan', default=False)
 def safety_scan(session: nox.Session) -> None:
     """Run safety vulnerability scan."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _safety_scan(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
     """Run all security scanning tools (bandit + safety)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _bandit_scan(session)
     _safety_scan(session)
 
@@ -481,7 +502,7 @@ def build_binary(session: nox.Session) -> None:
     Usage:
         nox -s build-binary
     """
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _build_binary(session)
 
 
@@ -502,7 +523,7 @@ def build_all(session: nox.Session) -> None:
     Usage:
         nox -s build
     """
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _build_binary(session)
     _build_wheel(session)
 
@@ -523,7 +544,7 @@ def code_complexity(session: nox.Session) -> None:
         nox -s code-complexity -- --graphs  # Also generate HTML graphs for docs
         nox -s code-complexity -- --rank    # Show files ranked by complexity
     """
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
 
     # Build the wily cache from git history
     session.run('wily', 'build')
