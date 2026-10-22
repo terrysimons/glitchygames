@@ -1,28 +1,12 @@
 """Constants for the sprites module."""
 
-import unicodedata
-
 # Default file format for saving sprites
 DEFAULT_FILE_FORMAT = 'toml'
 
-# Universal character set for sprite encoding
-# Original set plus all Unicode letters (excluding duplicates)
-
-# Start with the original set
-original_glyphs = '.aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789@'
-
-# Get all Unicode letters that aren't already in the original set
-unicode_letters: set[str] = set()
-for i in range(0x10FFFF + 1):  # Full Unicode range
-    try:
-        char = chr(i)
-        if unicodedata.category(char).startswith('L'):  # Unicode letter categories
-            unicode_letters.add(char)
-    except ValueError:
-        pass
-
-# Remove characters already in original set
-unicode_letters -= set(original_glyphs)
-
-# Combine: original set first, then additional Unicode letters
-SPRITE_GLYPHS = original_glyphs  # + "".join(sorted(unicode_letters))
+# The characters a sprite's pixels are written with, one per color
+#
+# This was once planned to grow by every Unicode letter not already here: each import walked all
+# 1,114,112 codepoints (about 90 ms) to build that set, but the line adding it stayed commented
+# out, so the set was never used. To widen the glyph set, build it where it is used, or as a
+# literal here, rather than computing it at import.
+SPRITE_GLYPHS = '.aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789@'

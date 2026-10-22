@@ -13,6 +13,222 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Something accumulates across tests in one process: caches, surfaces or mocks kept alive between tests, or a leak. Not yet located. Short-term options: a larger Linux resource class (`large`, 8 GB, with 2 workers), or more workers per job (each runs a share). Measure per-test growth (e.g. `tracemalloc` snapshots or RSS after each test file) to find the source
 - **Files**: `tests/`, `noxfile.py`, `.circleci/config.yml`
 
+### 87. Images Dropped onto the Film Strip Never Become Frames
+- **Description**: `FilmStripSprite._convert_image_to_sprite_frame` calls `pygame.surfarray.array4d`, which pygame-ce does not have; the AttributeError is caught at line 698, so every image dropped on the film strip converts to None and the drop silently does nothing
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: The existing drop tests mock `_convert_image_to_sprite_frame`, which hid it. Pinned by the strict xfail `tests/tools/test_film_strip_sprite.py::TestFilmStripSpriteImageDrops::test_png_converts_to_a_frame_of_the_canvas_size`. Lines 666, 678-696 and 702 are reachable only once this is fixed
+- **Files**: `glitchygames/bitmappy/film_strip_sprite.py:677`
+
+### 88. `HashableEvent.get` and `in` Raise, So Film Strip C and V Keys Crash
+- **Description**: `HashableEvent` subclasses `UserDict` but never sets `self.data`, so its `get` and `in` raise AttributeError (a pygame Event has no `get` at all). `FilmStripSprite.on_key_down_event` reads `event.get('mod', 0)`, so any C or V key reaching it raises
+- **Status**: Active
+- **Priority**: High
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_film_strip_sprite.py::TestFilmStripSpriteCopyPasteKeys::test_real_hashable_ctrl_c_event_copies_the_frame`. Other code calling `.get` or `in` on a HashableEvent fails the same way; fix `HashableEvent` (set `self.data` or read attributes) rather than each caller
+- **Files**: `glitchygames/events/base.py`, `glitchygames/bitmappy/film_strip_sprite.py:443`, `:453`
+
+### 89. Loading a PNG Through the Load Dialog Fails
+- **Description**: `AnimatedCanvasSprite` calls `self._convert_png_to_bitmappy`, which only exists on the file I/O delegate (`file_io.py:151`), so loading a PNG through the Load dialog ends in "Error loading sprite"
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the canvas tests; not pinned by an xfail
+- **Files**: `glitchygames/bitmappy/animated_canvas.py:1398`, `glitchygames/bitmappy/file_io.py:151`
+
+### 90. Unconfirmed Deletes Crash Instead of Opening the Confirmation Dialog
+- **Description**: `FilmStripCoordinator._show_delete_animation_confirmation` and `_show_delete_frame_confirmation` call `self.game_engine.scene_manager.switch_to_scene(...)`, but `FilmStripCoordinator` never sets `game_engine`, so every unconfirmed delete raises AttributeError and no dialog opens. `film_strip_events.py:830` also calls `parent_scene._show_delete_frame_confirmation(...)`, which `BitmapEditorScene` does not have (only the coordinator does), so the frame-removal button would raise too (found by reading, not run)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_film_strip_coordinator.py::test_delete_animation_dialog_opens_from_a_new_coordinator`; the dialog-callback tests give the coordinator a `game_engine` explicitly
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py:1007`, `:1077`, `glitchygames/bitmappy/film_strip_events.py:830`
+
+### 91. Events the Delete Confirmation Dialog Does Not Take Crash the Editor
+- **Description**: `BitmapEditorScene.handle_event` calls `super().handle_event`, which no parent class defines, so any event the confirmation dialog does not consume raises AttributeError (lines 1406-1410 can never run)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the editor tests
+- **Files**: `glitchygames/bitmappy/editor.py:1404`
+
+### 92. Transparent Pixels of a Dropped PNG Come Out White
+- **Description**: `_load_and_resize_png` flattens any image with alpha onto a white RGB surface, then `_convert_png_to_bitmappy` checks that flattened surface for `SRCALPHA` (`_detect_png_transparency`), which is always false: transparent pixels map to white, never to the magenta transparency key
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Confirmed with a 4x4 PNG whose pixel (0, 0) is transparent: the TOML maps it to (255, 255, 255). Line 176 is unreachable until fixed
+- **Files**: `glitchygames/bitmappy/file_io.py:249-255`, `:274-275`
+
+### 93. AI Answers Wrapped in Markdown Fences Never Load
+- **Description**: `validate_ai_response` runs before `_clean_ai_response` and rejects any answer starting with ``` or containing ```toml, so a fenced answer is retried and, after the last retry, treated as an error; the cleaning step that would strip the fences never runs
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the AI manager tests
+- **Files**: `glitchygames/bitmappy/ai_manager.py:436`, `:537`
+
+### 94. Deleting a Frame Before the Shown Frame Moves the Canvas Back Two Frames
+- **Description**: When a frame before the shown frame is deleted, `current_frame` is decremented twice: in `_stop_animation_and_adjust_frame_before_deletion` and again in `_adjust_canvas_frame_after_deletion`. `FrameDeleteCommand.execute()` and `FrameAddCommand.undo()` both take this path. In a 3-frame animation showing frame 2, deleting frame 0 shows index 0 instead of 1
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_history_commands.py::TestFrameDeleteCommand::test_deleting_frame_before_shown_frame_keeps_showing_it`
+- **Files**: `glitchygames/bitmappy/history/commands.py:1309-1314`, `:1329-1333`
+
+### 95. Undoing a Trigger Mode Switch Does Nothing
+- **Description**: `handle_trigger_input` has already switched the mode when `_track_controller_mode_change` reads the old mode, so the undo record holds the new mode twice (`('canvas', 'canvas')` instead of `('film_strip', 'canvas')`)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_controller_event_handler.py::TestControllerTriggerAxisMotion::test_a_trigger_mode_switch_records_the_old_and_new_mode_for_undo`
+- **Files**: `glitchygames/bitmappy/controllers/event_handler.py:578-587`, `:748`
+
+### 96. Controller Lookups Pass a Controller Id Where an Instance Id Is Expected
+- **Description**: `MultiControllerManager.get_controller_info` is keyed by SDL instance id (`self.controllers.get(instance_id)`), but `visual_indicators.py:53` and `:102` (and the callers `event_handler.py:187`, `:191`, `:588`, `canvas_operations.py:482`, `history/commands.py:1125`, `:1210`) pass a controller id. When the two differ (after a reconnect, say), no canvas or mode indicator is placed, or another controller's info is used
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_visual_indicators.py::TestUpdateControllerCanvasVisualIndicator::test_controller_whose_instance_id_differs_gets_indicator`. A fix: look up by controller id (`ControllerEventHandler.find_controller_info`)
+- **Files**: `glitchygames/bitmappy/controllers/visual_indicators.py:53`, `:102`, `glitchygames/bitmappy/controllers/manager.py:283`
+
+### 97. The Canvas Cursor Is Clamped to the Canvas's Screen Size, Not Its Pixels
+- **Description**: `_canvas_move_cursor` clamps to `canvas.width` / `canvas.height`, the on-screen size, so on an 8x8 canvas drawn at 16x the D-pad can move the cursor up to x=127; the line, jump and paint code all use `pixels_across` / `pixels_tall`
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Seen with a real `AnimatedCanvasSprite` (8x8, `pixel_width=16`: `pixels_across` 8, `width` 128). The tests use a fake canvas whose two sizes agree, so they do not pin today's behaviour
+- **Files**: `glitchygames/bitmappy/controllers/canvas_operations.py:437-438`
+
+### 98. Film Strips Are Never Refreshed After an Undo or Redo Sync
+- **Description**: `BitmapEditorScene` checks `hasattr(self, 'update_film_strips_for_frame')`, which is always False (only `FilmStripCoordinator` has that method), so the refresh after an undo/redo sync never runs
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the editor tests
+- **Files**: `glitchygames/bitmappy/editor.py:1291`
+
+### 99. Deleting an Animation Loses the Frame Selection It Computes
+- **Description**: `_select_animation_after_deletion` computes and shows a clamped target frame, then calls `on_sprite_loaded`, which resets `selected_frame` and the canvas to frame 0, so the computed selection is always lost
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: A test showed frame 0 where 1 was expected
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py:870-905`, `:1252-1284`
+
+### 100. Slider Hover Crashes Before the Sliders Are Set Up
+- **Description**: `_update_slider_bbox_hover` guards with `hasattr(self, bbox_attr)`, but `__init__` always sets those attributes to None, so `update_slider_hover_effects` before `setup_sliders_and_color_well` raises `AttributeError: 'NoneType' object has no attribute 'visible'` (the alpha path at line 601 checks `is not None` correctly; line 535 is unreachable)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Reproduced by a script and by the slider manager tests
+- **Files**: `glitchygames/bitmappy/slider_manager.py:532-535`
+
+### 101. Drag Strokes May Never Reach Undo Through the Canvas Drag Path (Suspected)
+- **Description**: `_submit_drag_pixel_changes_to_undo` runs only when `_drag_pixels` is empty, so drag strokes do not reach undo through this path
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Suspected from reading; whether drags record undo elsewhere was not checked
+- **Files**: `glitchygames/bitmappy/animated_canvas.py:1229-1240`
+
+### 102. The System Palette's Color Names Do Not Match Its File
+- **Description**: The names in `palette.py:217-233` are in a different order from `color/resources/system.palette`: loading `System()` gives MAROON=(255, 255, 255), GREEN=(255, 0, 0), RED=(128, 128, 128), WHITE=(0, 0, 128); only BLACK is right
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Seen by printing every named color
+- **Files**: `glitchygames/color/palette.py:217-233`
+
+### 103. `ColorPalette` Size Is Off by One
+- **Description**: `_size` is `len - 1`, so `set_color(last_index, ...)` appends instead of replacing, `_size` is never updated after `set_color` (`get_color` cannot see appended colors), and a one-color palette has `_size == 0` (`get_color` returns magenta for every index)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the palette tests
+- **Files**: `glitchygames/color/palette.py:55`, `:67`, `:87`
+
+### 104. Palette Files Cannot Round-Trip
+- **Description**: `PaletteUtility.write_palette_to_file` writes JSON, but `load_palette_from_file` reads ConfigParser format, so a written palette cannot be loaded back
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the palette tests
+- **Files**: `glitchygames/color/palette.py:147-148`
+
+### 105. The Voice Assistant's History Breaks After 10 Questions
+- **Description**: History trimming keeps the last 20 of 21 entries, so from the 11th question on the history sent starts with an `assistant` message, which providers requiring a user message first reject ("No response from AI"). A failed request also leaves the question in the history unanswered, so the next request sends two user messages in a row
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Both confirmed by tests on the messages sent; not checked against a live API
+- **Files**: `glitchygames/audio/voice_assistant.py:295`, `:298-299`, `:314-316`
+
+### 106. The `backoff` Retry Decorator Triggers a Python 3.14 Deprecation Warning
+- **Description**: `backoff`'s decorator calls `asyncio.iscoroutinefunction`, deprecated in Python 3.14 and due for removal in 3.16; applying it in the AI worker emits a DeprecationWarning (an error under the test suite's `filterwarnings=error`)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: The AI worker tests patch `ai_worker.backoff` to None and use the no-retry path. Fix by upgrading or replacing `backoff` before 3.16
+- **Files**: `glitchygames/bitmappy/ai_worker.py:549`
+
+### 107. Remote Templates Get a Trailing Newline in Their URL
+- **Description**: `build()` reads the `.repo` file with `fh.readline()`, which keeps the newline, so cookiecutter receives `'url\n'` from a normal `.repo` file
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: The new test writes the file without a newline so it does not lock in the bug
+- **Files**: `glitchygames/templates/game.py:26`
+
+### 108. A DualSense HID Write Error Disables the Controller's Whole Audio
+- **Description**: If `device.write` raises (hidapi can, on a disconnected device), `close()` is skipped and the exception escapes `ControllerAudio.__init__`, so `for_controller` returns None for the whole controller instead of only losing the speaker
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by reading, not tested
+- **Files**: `glitchygames/audio/controller_audio.py:134-135`
+
+### 109. `quantize_colors_if_needed` Crashes When There Is No Room for Colors
+- **Description**: When `max_colors` is no more than the slot reserved for transparency (`has_transparency=True, max_colors=1`), it raises `KeyError: None`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Confirmed by running it; reachable only through direct calls with a tiny `max_colors`
+- **Files**: `glitchygames/bitmappy/toml_processing.py:714`
+
+### 110. Smaller Findings From the Coverage Push
+- **Description**: Small inconsistencies the coverage tests found, none breaking a feature on its own
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: (1) `animated_canvas.py:1366/1376` writes load errors to `self.parent.debug_text` but a successful load writes `self.parent_scene.debug_text` (`:1527`). (2) `animated_canvas.py:1711-1712`: a resize sets the class attributes `AnimatedCanvasSprite.WIDTH`/`HEIGHT`, global state shared by every canvas. (3) `slider_manager.py:807` and `ui/sliders.py:322` read typed text as hex only when it contains a-f, even on the hex tab ("10" is 10, not 16). (4) `slider_manager.py:701-735` refreshes only the R, G and B text formats on a tab change, not alpha. (5) `audio/tts.py:92` calls `subprocess.run` directly instead of `glitchygames.process.run_command`, the engine's one launcher. (6) `services/renderer_service.py:101-102` always overwrites `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER`; its `pygame_initialized` class flag never resets after `pygame.quit()`; `:415-418` leaves the frame manager on the last rendered frame when its starting animation is None. (7) `ai_manager.py:588-590`/`616-620`: each TOML rewrite adds a blank line to every pixel block (tomllib keeps the trailing newline; loading ignores it). (8) No production callers: `visual_indicators._update_slider_indicator` and `_draw_visual_indicator`, the `animated_canvas` panning helpers, `_convert_static_to_animated`, `_mark_film_strips_dirty`, `_clear_existing_film_strips`, `adaptive_clamping.get_statistical_aggregates`. (9) Unreachable code the tests could not reach is listed in each agent's notes: e.g. `film_strip_operations.py:324-328`/`388-391`, `modes.py:146`/`367`/`373`, `sprite_generation_service.py:176-181`. Also: a joystick in film strip mode always reads R2 as pressed because of #67, so its triggers never switch modes
+- **Files**: see Details
+
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
 - **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done). 2026-10-21: every site outside Bitmappy is narrowed; 62 remain in `glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py` and `tests/tools/` (plan: `plans/2026-10-20-lint-ignores-cleanup.md`, phase 3)
