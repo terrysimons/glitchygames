@@ -231,3 +231,33 @@ class TestTemplateBuilding:
 
 if __name__ == '__main__':
     pytest.main([__file__])
+
+
+class TestTemplateBuildingOnDisk:
+    """build() against real template directories (only cookiecutter, the boundary, is stubbed).
+
+    The mocked-path tests above never reach the .repo branch: build() opens the file with
+    ``Path.open(...)``, not the mock's ``open``, so every one of them falls back to the local path.
+    """
+
+    def test_repo_file_names_the_remote_template(self, mocker, tmp_path):
+        """A template directory with a .repo file builds from the location written in it."""
+        remote_template_directory = tmp_path / 'remote_template'
+        remote_template_directory.mkdir()
+        (remote_template_directory / '.repo').write_text('gh:user/repo')
+        mocker.patch('glitchygames.templates.game.path', tmp_path)
+        cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
+
+        build('remote_template')
+
+        cookiecutter.assert_called_once_with('gh:user/repo')
+
+    def test_without_a_repo_file_the_local_directory_is_built(self, mocker, tmp_path):
+        """A template directory without a .repo file builds from the directory itself."""
+        (tmp_path / 'local_template').mkdir()
+        mocker.patch('glitchygames.templates.game.path', tmp_path)
+        cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
+
+        build('local_template')
+
+        cookiecutter.assert_called_once_with(str(tmp_path / 'local_template'))

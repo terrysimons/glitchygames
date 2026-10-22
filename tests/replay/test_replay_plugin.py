@@ -291,3 +291,124 @@ def test_replay_recording_headless_returns_the_finished_replay(tmp_path):
 
     assert completed.returncode == ExitCode.REPLAY_DIVERGED
     assert f'Replay diverged at frame {TAMPERED_FRAME}' in completed.stdout
+
+
+# A conftest for an in-process inner run: it takes the plugin's collection hook by import, so
+# the inner run collects recordings without loading (and asking to rewrite) the plugin module,
+# which this interpreter has already imported. In-process, the coverage of the collector and the
+# item is measured, and the child replay can be replaced at its boundary.
+IN_PROCESS_PLUGIN_CONFTEST = """
+from glitchygames.testing.replays import pytest_collect_file
+"""
+
+
+def run_pytest_in_process(*, pytester: pytest.Pytester) -> pytest.RunResult:
+    """Run pytest over ``fixtures`` in this interpreter, with the plugin's collection hook.
+
+    Args:
+        pytester: pytest's fixture for running pytest in a temporary directory.
+
+    Returns:
+        pytester's run result.
+
+    """
+    pytester.makeconftest(IN_PROCESS_PLUGIN_CONFTEST)
+    return pytester.runpytest_inprocess('-p', 'no:cacheprovider', FIXTURES_DIRECTORY_NAME)
+
+
+def test_game_entry_point_of_an_unknown_console_script_raises():
+    """A name no installed package has as a console script is a KeyError naming it."""
+    with pytest.raises(KeyError, match='no-such-game'):
+        game_entry_point(console_script='no-such-game')
+
+
+class TestPluginInProcess:
+    """The collector and the item, run in this interpreter with the child replay stubbed out."""
+
+    def test_an_unknown_game_directory_is_a_collection_error(self, pytester):
+        """A directory that names no console script fails collection, saying so."""
+        directory = game_directory(pytester=pytester, console_script='no-such-game')
+        (directory / 'rally.jsonl.gz').write_bytes(b'')
+
+        result = run_pytest_in_process(pytester=pytester)
+
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines(["*'no-such-game' is not a console script*"])
+
+    def test_a_misplaced_recording_is_a_collection_error(self, pytester):
+        """A recording directly in fixtures/replays/ (no game directory) fails collection."""
+        replays_directory = pytester.path.joinpath(*REPLAY_FIXTURES_PATH_PARTS)
+        replays_directory.mkdir(parents=True)
+        (replays_directory / 'stray.jsonl.gz').write_bytes(b'')
+
+        result = run_pytest_in_process(pytester=pytester)
+
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines([MISPLACED_RECORDING_LINE])
+
+    def test_a_bookmarked_copy_is_not_collected(self, pytester):
+        """A viewer's bookmarked copy beside a fixture is not an item of its own."""
+        fixture = copy_fixture_into(
+            pytester=pytester, console_script='paddleslap', name='rally.jsonl.gz'
+        )
+        write_bookmarked_copy(
+            recording_path=fixture,
+            bookmarks=[2],
+            destination=fixture.with_name('rally.bookmarked.jsonl.gz'),
+        )
+        pytester.makeconftest(IN_PROCESS_PLUGIN_CONFTEST)
+
+        result = pytester.runpytest_inprocess(
+            '-p', 'no:cacheprovider', '--collect-only', '-q', FIXTURES_DIRECTORY_NAME
+        )
+
+        result.stdout.fnmatch_lines(['*rally.jsonl.gz::paddleslap/rally'])
+        result.stdout.no_fnmatch_line('*rally.bookmarked*')
+
+    @pytest.mark.parametrize(
+        ('exit_code', 'expected_line'),
+        [
+            (ExitCode.REPLAY_DIVERGED, '*paddleslap/rally: the replay exited REPLAY_DIVERGED (1)'),
+            (
+                ExitCode.UNUSABLE_INPUT,
+                '*paddleslap/rally: the replay exited UNUSABLE_INPUT (65) (unusable recording)',
+            ),
+        ],
+    )
+    def test_a_failed_replay_fails_the_item_with_its_exit_code_and_output(
+        self, pytester, mocker, exit_code, expected_line
+    ):
+        """A child that does not exit SUCCESS fails the item with its exit code and output."""
+        from glitchygames.process import CompletedProcess
+        from glitchygames.testing import replays
+
+        copy_fixture_into(pytester=pytester, console_script='paddleslap', name='rally.jsonl.gz')
+        replay_child = mocker.patch.object(
+            replays,
+            'replay_recording_headless',
+            return_value=CompletedProcess(
+                args=[], returncode=int(exit_code), stdout='the child said this\n'
+            ),
+        )
+
+        result = run_pytest_in_process(pytester=pytester)
+
+        result.assert_outcomes(failed=1)
+        result.stdout.fnmatch_lines([expected_line, '*the child said this*'])
+        assert replay_child.call_args.kwargs['console_script'] == 'paddleslap'
+
+    def test_a_successful_replay_passes_the_item(self, pytester, mocker):
+        """A child that exits SUCCESS passes the item."""
+        from glitchygames.process import CompletedProcess
+        from glitchygames.testing import replays
+
+        copy_fixture_into(pytester=pytester, console_script='paddleslap', name='rally.jsonl.gz')
+        mocker.patch.object(
+            replays,
+            'replay_recording_headless',
+            return_value=CompletedProcess(args=[], returncode=int(ExitCode.SUCCESS), stdout=''),
+        )
+
+        result = run_pytest_in_process(pytester=pytester)
+
+        result.assert_outcomes(passed=1)

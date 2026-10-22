@@ -1,5 +1,7 @@
 """Tests for charmap tool functionality and coverage."""
 
+import unicodedata
+
 import pytest
 
 from glitchygames.tools import charmap
@@ -93,23 +95,20 @@ class TestIsDefinedNonWhitespacePrintableEdgeCases:
     """Tests for is_defined_non_whitespace_printable with edge cases."""
 
     def test_undefined_char_returns_false(self):
-        """Test that an undefined Unicode character returns False.
+        """A printable character that has no name in unicodedata returns False.
 
-        Some codepoints are printable but not defined in unicodedata.name(),
-        which raises ValueError. The function should catch that and return False.
+        Python's unicodedata has no names for the Tangut ideographs (U+17000 on), yet
+        str.isprintable() counts them as printable, so unicodedata.name() raises ValueError,
+        which the function turns into False. (A private-use character such as U+E000 is not
+        printable, so it never reaches the name lookup.)
         """
-        # U+FDD0 is a non-character that is technically valid but has no name
-        # in the Unicode database, causing unicodedata.name() to raise ValueError.
-        # However, it may not be printable. Let's find a char that is printable
-        # but undefined.
-        # The soft hyphen U+00AD is a common character that causes issues.
-        # Some private use area characters may be printable but undefined.
-        # U+E000 is in the Private Use Area - printable but no Unicode name
-        char = '\ue000'
-        # If it's printable but has no Unicode name, the function should return False
-        if char.isprintable() and not char.isspace():
-            result = is_defined_non_whitespace_printable(char)
-            assert result is False
+        tangut_ideograph = chr(0x17000)
+        assert tangut_ideograph.isprintable()
+        assert not tangut_ideograph.isspace()
+        with pytest.raises(ValueError, match='no such name'):
+            unicodedata.name(tangut_ideograph)
+
+        assert is_defined_non_whitespace_printable(tangut_ideograph) is False
 
     def test_control_char_returns_false(self):
         """Test that a control character returns False (not printable)."""
@@ -185,3 +184,14 @@ class TestUnicodeGeneratorWithPriority:
         generator = unicode_generator_with_priority()
         chars = [next(generator) for _index in range(100)]
         assert len(chars) == 100
+
+    def test_exhausted_generator_yields_every_printable_emoji_once_in_codepoint_order(self):
+        """Run to the end, the generator yields each named emoji once, by ascending codepoint."""
+        chars = list(unicode_generator_with_priority())
+
+        codepoints = [ord(char) for char in chars]
+        assert codepoints == sorted(set(codepoints))
+        assert all(is_emoji(char) and is_defined_non_whitespace_printable(char) for char in chars)
+        # Characters from two of the ranges: Emoticons (U+1F600) and Misc Symbols (U+2600)
+        assert '\N{GRINNING FACE}' in chars
+        assert '\N{BLACK SUN WITH RAYS}' in chars

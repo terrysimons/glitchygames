@@ -2,6 +2,7 @@
 
 import itertools
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +13,7 @@ from glitchygames.timing import (
     PygameTimer,
     SleepModel,
     create_timer,
+    describe_pacing_timer,
     measure_sleep_model,
     ms_to_ns,
     pacing_timer_for_options,
@@ -977,3 +979,138 @@ class TestSleepModel:
         assert timer.pacing_timer() == PacingTimer(
             backend='pygame', sleep_granularity_ns=None, sleep_model=None
         )
+
+
+class TestDescribePacingTimer:
+    """describe_pacing_timer names the backend, its final spin and its calibration."""
+
+    def test_pygame_timer_is_named_by_its_backend_alone(self):
+        """A timer without a sleep granularity (the pygame backend) is just its backend's name."""
+        pacing = PacingTimer(backend='pygame', sleep_granularity_ns=None, sleep_model=None)
+
+        assert describe_pacing_timer(pacing=pacing) == 'pygame'
+
+    def test_uncalibrated_fast_timer_gives_its_final_spin(self):
+        """An uncalibrated fast timer is described by its final spin, in milliseconds."""
+        pacing = PacingTimer(backend='fast', sleep_granularity_ns=1_500_000, sleep_model=None)
+
+        assert describe_pacing_timer(pacing=pacing) == 'fast, final spin 1.5 ms'
+
+    def test_calibrated_fast_timer_gives_its_sleep_model(self):
+        """A calibrated fast timer adds how late its sleeps wake."""
+        pacing = PacingTimer(
+            backend='fast',
+            sleep_granularity_ns=1_000_000,
+            sleep_model=SleepModel(constant_ns=120_000, fraction=0.25),
+        )
+
+        assert describe_pacing_timer(pacing=pacing) == (
+            'fast, final spin 1.0 ms (calibrated: sleeps wake 0.12 ms + 25% of their length late)'
+        )
+
+
+class FakeWinmm:
+    """Stands in for ctypes.windll.winmm: records the timer period calls it gets."""
+
+    def __init__(self, *, failure: Exception | None = None) -> None:
+        """Start with no calls; raise failure from timeEndPeriod when given."""
+        self.calls: list[tuple[str, int]] = []
+        self.failure = failure
+
+    def timeBeginPeriod(self, period: int) -> int:  # ruff: ignore[invalid-function-name]  # the Windows API's name
+        """Record a timer resolution request.
+
+        Returns:
+            int: 0, TIMERR_NOERROR.
+
+        """
+        self.calls.append(('timeBeginPeriod', period))
+        return 0
+
+    def timeEndPeriod(self, period: int) -> int:  # ruff: ignore[invalid-function-name]  # the Windows API's name
+        """Record a timer resolution release, or raise the failure this stand-in was made with.
+
+        Returns:
+            int: 0, TIMERR_NOERROR.
+
+        """
+        if self.failure is not None:
+            raise self.failure
+        self.calls.append(('timeEndPeriod', period))
+        return 0
+
+
+class TestFastTimerWindowsTimerResolution:
+    """On Windows, --windows-timer-1ms asks WinMM for 1 ms timer resolution and gives it back.
+
+    The platform is faked: timing's ``sys`` is replaced with one reporting ``win32``, and
+    ``ctypes.windll`` (absent off Windows) with a recording stand-in.
+    """
+
+    @pytest.fixture
+    def on_windows(self, mocker):
+        """Make glitchygames.timing see a Windows platform."""
+        from glitchygames import timing
+
+        mocker.patch.object(timing, 'sys', mocker.Mock(platform='win32'))
+
+    def test_requests_and_releases_1ms_resolution(self, on_windows, monkeypatch):
+        """The timer begins a 1 ms period at construction and ends it when it is deleted."""
+        import ctypes
+
+        winmm = FakeWinmm()
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+
+        timer = FastTimer(windows_timer_1ms=True)
+        assert timer._win_period_on is True
+        assert winmm.calls == [('timeBeginPeriod', 1)]
+
+        timer.__del__()
+        assert winmm.calls == [('timeBeginPeriod', 1), ('timeEndPeriod', 1)]
+
+    def test_without_the_flag_winmm_is_not_touched(self, on_windows, monkeypatch):
+        """Without windows_timer_1ms, a Windows timer leaves the system timer alone."""
+        import ctypes
+
+        winmm = FakeWinmm()
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+
+        timer = FastTimer()
+
+        assert timer._win_period_on is False
+        assert winmm.calls == []
+
+    def test_unavailable_winmm_leaves_the_resolution_alone(self, on_windows, monkeypatch, caplog):
+        """Without ctypes.windll the request fails quietly (debug log) and nothing is released."""
+        import ctypes
+
+        monkeypatch.delattr(ctypes, 'windll', raising=False)
+
+        with caplog.at_level('DEBUG', logger='glitchygames.timing'):
+            timer = FastTimer(windows_timer_1ms=True)
+
+        assert timer._win_period_on is False
+        assert 'Windows timer resolution setup failed' in caplog.text
+
+    def test_a_failed_release_is_logged_not_raised(self, on_windows, monkeypatch, caplog):
+        """An error ending the period in __del__ is logged at debug level, never raised."""
+        import ctypes
+
+        winmm = FakeWinmm(failure=OSError('winmm went away'))
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+        timer = FastTimer(windows_timer_1ms=True)
+
+        with caplog.at_level('DEBUG', logger='glitchygames.timing'):
+            timer.__del__()
+
+        assert 'Windows timer resolution cleanup failed: winmm went away' in caplog.text
+
+
+def fake_windll(*, winmm: FakeWinmm) -> SimpleNamespace:
+    """Return a ctypes.windll stand-in whose winmm is the given recorder.
+
+    Returns:
+        SimpleNamespace: An object with only a ``winmm`` attribute.
+
+    """
+    return SimpleNamespace(winmm=winmm)

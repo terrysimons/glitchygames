@@ -355,6 +355,123 @@ class TestPerformanceGrading:
         )  # 400% of target
 
 
+class TestStatisticalAggregates:
+    """get_statistical_aggregates: mean, spread and a 99.999% confidence interval of the FPS."""
+
+    def setup_method(self):
+        """Reset singleton before each test."""
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+
+    def test_unknown_scene(self):
+        """A scene that never ran answers 'Scene not found'."""
+        assert self.instance.get_statistical_aggregates(scene_name='Nowhere') == {
+            'message': 'Scene not found'
+        }
+
+    def test_no_scenes_have_no_data(self):
+        """Across no scenes at all there is nothing to aggregate."""
+        assert self.instance.get_statistical_aggregates() == {'message': 'No data available'}
+
+    def test_a_scene_without_samples_has_no_data(self):
+        """A scene set current but given no FPS samples has no data."""
+        self.instance.set_current_scene('Empty')
+
+        assert self.instance.get_statistical_aggregates(scene_name='Empty') == {
+            'message': 'No data available'
+        }
+
+    def test_one_scenes_aggregates(self):
+        """Samples 50 and 70: mean 60, deviation 10, interval 60 +/- 4.265 * 10 / sqrt(2)."""
+        self.instance.set_current_scene('Level')
+        self.instance.track_fps_from_event(50.0)
+        self.instance.track_fps_from_event(70.0)
+
+        aggregates = self.instance.get_statistical_aggregates(scene_name='Level')
+
+        margin_of_error = 4.265 * 10.0 / math.sqrt(2)
+        assert aggregates['total_samples'] == 2
+        assert aggregates['mean_fps'] == pytest.approx(60.0)
+        assert aggregates['std_deviation'] == pytest.approx(10.0)
+        assert aggregates['min_fps'] == 50.0
+        assert aggregates['max_fps'] == 70.0
+        assert aggregates['confidence_interval_99_999'] == pytest.approx({
+            'lower': 60.0 - margin_of_error,
+            'upper': 60.0 + margin_of_error,
+            'margin_of_error': margin_of_error,
+        })
+        assert aggregates['reliability_level'] == 'Limited (2 samples)'
+
+    def test_constant_fps_has_no_spread(self):
+        """Identical samples have zero deviation and a zero-width interval."""
+        self.instance.set_current_scene('Steady')
+        for _sample in range(3):
+            self.instance.track_fps_from_event(60.0)
+
+        aggregates = self.instance.get_statistical_aggregates(scene_name='Steady')
+
+        assert aggregates['std_deviation'] == 0.0
+        assert aggregates['confidence_interval_99_999']['margin_of_error'] == 0.0
+
+    def test_all_scenes_are_combined(self):
+        """Without a scene name the samples of every scene are aggregated together."""
+        self.instance.set_current_scene('First')
+        self.instance.track_fps_from_event(30.0)
+        self.instance.set_current_scene('Second')
+        self.instance.track_fps_from_event(60.0)
+        self.instance.track_fps_from_event(90.0)
+
+        aggregates = self.instance.get_statistical_aggregates()
+
+        assert aggregates['total_samples'] == 3
+        assert aggregates['mean_fps'] == pytest.approx(60.0)
+        assert aggregates['min_fps'] == 30.0
+        assert aggregates['max_fps'] == 90.0
+
+    def test_a_million_samples_earn_the_five_nines_label(self):
+        """At RELIABILITY_MIN_SAMPLES samples the result is labelled 5 9s."""
+        self.instance.set_current_scene('Long')
+        statistical_aggregates = self.instance._scene_data['Long']['statistical_aggregates']
+        statistical_aggregates.update(
+            total_samples=1_000_000,
+            sum_fps=60.0 * 1_000_000,
+            sum_squared_fps=3600.0 * 1_000_000,
+            min_fps=60.0,
+            max_fps=60.0,
+        )
+
+        aggregates = self.instance.get_statistical_aggregates(scene_name='Long')
+
+        assert aggregates['reliability_level'] == '5 9s (99.999%)'
+
+
+class TestPerformanceStats:
+    """get_performance_stats needs a few frame times before it measures anything."""
+
+    def setup_method(self):
+        """Reset singleton before each test."""
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+
+    def test_too_little_history_answers_the_default(self):
+        """With fewer than two frame times the stats are the 60 FPS default and no history."""
+        self.instance.get_adaptive_dt(0.02)
+
+        assert self.instance.get_performance_stats() == {'avg_fps': 60.0, 'history_length': 0}
+
+    def test_two_frame_times_give_their_average_fps(self):
+        """Frame times 0.02 s and 0.03 s average 0.025 s: 40 FPS."""
+        self.instance.get_adaptive_dt(0.02)
+        self.instance.get_adaptive_dt(0.03)
+
+        stats = self.instance.get_performance_stats()
+
+        assert stats['avg_fps'] == pytest.approx(40.0)
+        assert stats['history_length'] == 2
+
+
 class TestShutdownReporting:
     """Test shutdown reporting functionality."""
 

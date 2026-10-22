@@ -838,3 +838,151 @@ class TestMultiControllerManagerQueries:
 
         # Color should now be one of the CONTROLLER_COLORS
         assert manager.controllers[100].color in MultiControllerManager.CONTROLLER_COLORS
+
+
+class TestMultiControllerManagerScanning:
+    """Scanning connects new devices, disconnects missing ones and skips unusable ones."""
+
+    @pytest.fixture(autouse=True)
+    def fresh_manager(self, mocker):
+        """Give each test its own singleton, restoring the shared one afterwards."""
+        mocker.patch.object(MultiControllerManager, '_instance', None)
+
+    @staticmethod
+    def _devices_door(mocker, *, joysticks):
+        """Make the devices door enumerate ``joysticks`` (a joystick mock or an exception).
+
+        Returns:
+            The registry mock.
+
+        """
+        from glitchygames.sources import active_sources
+
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = len(joysticks)
+        registry.open_joystick.side_effect = joysticks
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        return registry
+
+    @staticmethod
+    def _joystick(mocker, *, initialized, instance_id):
+        """Return a joystick mock with the given init state and instance id.
+
+        Returns:
+            The joystick mock.
+
+        """
+        joystick = mocker.Mock()
+        joystick.get_init.return_value = initialized
+        joystick.get_instance_id.return_value = instance_id
+        return joystick
+
+    def test_scan_keeps_known_drops_missing_and_skips_unusable_devices(self, mocker):
+        """A known device keeps its info, a missing one is removed, unusable ones are skipped."""
+        import pygame
+
+        manager = MultiControllerManager()
+        known_info = ControllerInfo(controller_id=0, instance_id=5, status=ControllerStatus.ACTIVE)
+        manager.controllers[5] = known_info
+        manager.controllers[7] = ControllerInfo(
+            controller_id=1,
+            instance_id=7,
+            status=ControllerStatus.ASSIGNED,
+        )
+        manager.assigned_controllers[7] = 1
+        self._devices_door(
+            mocker,
+            joysticks=[
+                self._joystick(mocker, initialized=True, instance_id=5),
+                self._joystick(mocker, initialized=False, instance_id=6),
+                pygame.error('device vanished'),
+            ],
+        )
+
+        connected_ids = manager.scan_for_controllers()
+
+        assert connected_ids == [5]
+        assert manager.controllers == {5: known_info}
+        assert manager.assigned_controllers == {}
+
+    def test_a_scan_within_the_interval_reuses_the_known_controllers(self, mocker):
+        """A second scan less than scan_interval later enumerates no devices."""
+        manager = MultiControllerManager()
+        registry = self._devices_door(
+            mocker,
+            joysticks=[self._joystick(mocker, initialized=True, instance_id=5)],
+        )
+        manager.scan_for_controllers()
+        advance_frame_clock(seconds=manager.scan_interval / 2)
+
+        connected_ids = manager.scan_for_controllers()
+
+        assert connected_ids == [5]
+        registry.joystick_count.assert_called_once_with()
+
+    def test_disconnecting_an_unassigned_controller(self):
+        """An unassigned controller is removed without touching the assignments."""
+        manager = MultiControllerManager()
+        manager.controllers[5] = ControllerInfo(
+            controller_id=0,
+            instance_id=5,
+            status=ControllerStatus.CONNECTED,
+        )
+        manager.assigned_controllers[8] = 2
+
+        manager._handle_controller_disconnect(5)
+        manager._handle_controller_disconnect(99)
+
+        assert manager.controllers == {}
+        assert manager.assigned_controllers == {8: 2}
+
+
+class TestMultiControllerManagerInconsistentState:
+    """Lookups and updates for instances the manager does not hold."""
+
+    @pytest.fixture(autouse=True)
+    def fresh_manager(self, mocker):
+        """Give each test its own singleton, restoring the shared one afterwards."""
+        mocker.patch.object(MultiControllerManager, '_instance', None)
+
+    def test_activating_an_assignment_without_controller_info_fails(self):
+        """An assignment whose controller info is gone cannot be activated."""
+        manager = MultiControllerManager()
+        manager.assigned_controllers[5] = 0
+
+        assert manager.activate_controller(5) is False
+
+    def test_activity_of_an_unknown_instance_is_ignored(self):
+        """Updating an unknown instance's activity creates no controller."""
+        manager = MultiControllerManager()
+
+        manager.update_controller_activity(5)
+
+        assert manager.controllers == {}
+
+    def test_get_assigned_controllers_lists_instance_ids(self):
+        """The assigned controllers are listed by instance id."""
+        manager = MultiControllerManager()
+        manager.assigned_controllers[5] = 0
+        manager.assigned_controllers[9] = 1
+
+        assert manager.get_assigned_controllers() == [5, 9]
+        assert manager.get_controller_id(9) == 1
+        assert manager.get_controller_id(6) is None
+
+    def test_cleanup_deactivates_an_inactive_unassigned_controller(self):
+        """An idle controller that was never assigned is set back to connected."""
+        manager = MultiControllerManager()
+        manager.controllers[5] = ControllerInfo(
+            controller_id=0,
+            instance_id=5,
+            status=ControllerStatus.ACTIVE,
+            assigned_time=0.0,
+            last_activity=0.0,
+        )
+        advance_frame_clock(seconds=manager.ASSIGNMENT_TIMEOUT + 1.0)
+
+        manager.cleanup_inactive_controllers()
+
+        assert manager.controllers[5].status == ControllerStatus.CONNECTED
+        assert manager.controllers[5].assigned_time is None

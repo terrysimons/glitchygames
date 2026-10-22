@@ -687,3 +687,80 @@ class TestModeSwitcherEdgeCases:
         """Test getting position for unregistered controller returns None."""
         switcher = ModeSwitcher()
         assert switcher.get_controller_position(999) is None
+
+
+class TestTriggerDetectorState:
+    """Reading a known controller's trigger state."""
+
+    def test_get_trigger_state_after_a_reading(self):
+        """The last value read for a trigger is its state."""
+        detector = TriggerDetector()
+        detector.detect_trigger_press(0, 0.7, 'L2', 0.0)
+
+        assert detector.get_trigger_state(0, 'L2') == pytest.approx(0.7)
+        assert detector.get_trigger_state(0, 'R2') == 0.0
+
+
+class TestModeSwitcherStrategies:
+    """The mode switcher hands out the strategy of a controller's mode."""
+
+    def test_no_strategy_for_an_unregistered_controller(self):
+        """A controller without a mode has no strategy."""
+        switcher = ModeSwitcher()
+
+        assert switcher.get_strategy(0) is None
+
+    def test_no_strategy_before_a_handler_is_set(self):
+        """Strategies exist only once set_handler() has bound them."""
+        switcher = ModeSwitcher()
+        switcher.register_controller(0, ControllerMode.CANVAS)
+
+        assert switcher.get_strategy(0) is None
+
+    def test_each_mode_gets_its_strategy(self, mocker):
+        """Film strip, canvas and the three slider modes map to their strategies."""
+        from glitchygames.bitmappy.controllers.strategies import (
+            CanvasModeStrategy,
+            FilmStripModeStrategy,
+            SliderModeStrategy,
+        )
+
+        switcher = ModeSwitcher()
+        handler = mocker.Mock()
+        switcher.set_handler(handler)
+        expected_strategy_types = {
+            ControllerMode.FILM_STRIP: FilmStripModeStrategy,
+            ControllerMode.CANVAS: CanvasModeStrategy,
+            ControllerMode.R_SLIDER: SliderModeStrategy,
+            ControllerMode.G_SLIDER: SliderModeStrategy,
+            ControllerMode.B_SLIDER: SliderModeStrategy,
+        }
+
+        for controller_id, (mode, strategy_type) in enumerate(expected_strategy_types.items()):
+            switcher.register_controller(controller_id, mode)
+            strategy = switcher.get_strategy(controller_id)
+            assert isinstance(strategy, strategy_type)
+            assert strategy.handler is handler  # type: ignore[union-attr]
+
+        assert switcher.get_strategy(2) is switcher.get_strategy(4)
+
+
+class TestModeSwitcherUnregisteredControllers:
+    """Calls for a controller the switcher does not know change nothing."""
+
+    def test_unregistering_an_unknown_controller_keeps_the_others(self):
+        """Unregistering an unknown controller leaves registered ones alone."""
+        switcher = ModeSwitcher()
+        switcher.register_controller(0, ControllerMode.CANVAS)
+
+        switcher.unregister_controller(5)
+
+        assert switcher.get_controller_mode(0) == ControllerMode.CANVAS
+
+    def test_saving_a_position_for_an_unknown_controller_registers_nothing(self):
+        """Saving a position for an unknown controller does not register it."""
+        switcher = ModeSwitcher()
+
+        switcher.save_controller_position(5, (1, 2))
+
+        assert switcher.controller_modes == {}

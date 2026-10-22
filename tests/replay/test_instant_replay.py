@@ -7,7 +7,7 @@ since its first logic frame; played back through the playback scope it matches e
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 import pygame
 import pytest
@@ -1834,3 +1834,107 @@ class TestFastForwardFrameCount:
     def test_more_seconds_than_recorded_fast_forward_nothing(self):
         frames = [{'dt': FRAME_SECONDS}] * SHOWN_FRAMES
         assert fast_forward_frame_count(frames=frames, start_frame=0, shown_seconds=10.0) == 0
+
+
+@dataclasses.dataclass
+class JournalOnlyScene:
+    """The little of a Scene a journal reads: its start, its start capture and its game time."""
+
+    scene_start: Any = None
+    scene_start_capture: Any = None
+    game_time: float = 0.0
+
+
+class TestJournalLifecycleGuards:
+    """A journal used directly, outside a running game: what it does before, between and after."""
+
+    @pytest.fixture
+    def journal_scene(self) -> JournalOnlyScene:
+        """A scene with no start, no start capture and its game clock at 0."""
+        return JournalOnlyScene()
+
+    @pytest.fixture
+    def journal(self, journal_scene: JournalOnlyScene) -> Iterator[InstantReplayJournal]:
+        """A journal of journal_scene without a game, closed (unobserving the doors) after.
+
+        Yields:
+            The journal, open.
+
+        """
+        made_journal = InstantReplayJournal(scene=cast('Scene', journal_scene), game=None)
+        yield made_journal
+        made_journal.close()
+
+    def test_without_a_game_the_header_names_only_the_scene(self, journal):
+        """No game, so the header has no game class or module; no capture, so no devices."""
+        header = journal.as_recording().header
+
+        assert header['scene_class'] == 'JournalOnlyScene'
+        assert 'game_class' not in header
+        assert 'game_module' not in header
+        assert journal._devices_opened == []
+        assert journal._device_enumeration == []
+
+    def test_before_its_first_logic_frame_it_records_nothing(self, journal, journal_scene):
+        """Not begun: no game seconds, not recording, and batches and answers are not kept."""
+        journal_scene.game_time = 5.0
+
+        journal.add_event_batch(
+            raw_events=[], posts_before_pump=[], origins=None, redelivered_events=[]
+        )
+        journal.suspend()
+
+        assert journal.game_seconds == 0.0
+        assert journal.is_recording is False
+        assert journal.is_suspended is False
+        assert journal._event_batches == []
+
+    def test_a_second_begin_keeps_the_first(self, journal, journal_scene):
+        """Only the first logic frame begins the journal: game seconds count from it."""
+        journal_scene.game_time = 1.0
+        journal.begin(start=object(), input_before_start=IDLE_INPUT)
+        journal_scene.game_time = 3.0
+
+        journal.begin(start=object(), input_before_start=IDLE_INPUT)
+
+        assert journal.is_recording is True
+        assert journal.game_seconds == pytest.approx(2.0)
+
+    def test_resume_without_a_suspension_changes_nothing(self, journal, mocker: MockerFixture):
+        """Resuming a journal that was never suspended neither reads the bridge nor keeps it."""
+        journal.begin(start=object(), input_before_start=IDLE_INPUT)
+        bridge = mocker.Mock()
+
+        journal.resume(bridge=bridge, input_before=IDLE_INPUT)
+
+        bridge.model_dump.assert_not_called()
+        assert journal._resume_bridge is None
+        assert journal.is_suspended is False
+
+    def test_a_suspended_journal_keeps_no_playback_answers(self, journal):
+        """While suspended (a playback scope plays), playback answers are not the scene's."""
+        journal.begin(start=object(), input_before_start=IDLE_INPUT)
+        journal.suspend()
+
+        journal.add_playback_answer(granted=True)
+
+        assert journal.is_suspended is True
+        assert journal._playback_answers == []
+
+    def test_a_watching_journal_keeps_playback_answers(self, journal):
+        """While watching, each playback answer is kept for the frame."""
+        journal.begin(start=object(), input_before_start=IDLE_INPUT)
+
+        journal.add_playback_answer(granted=False)
+
+        assert journal._playback_answers == [False]
+
+    def test_close_twice_is_harmless_and_a_closed_journal_does_not_begin(self, journal):
+        """A closed journal stays closed: closing again and beginning do nothing."""
+        journal.close()
+        journal.close()
+
+        journal.begin(start=object(), input_before_start=IDLE_INPUT)
+
+        assert journal.is_recording is False
+        assert journal.frame_count == 0

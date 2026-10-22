@@ -376,6 +376,75 @@ class TestControllerEventProxyDirectMethods:
         assert isinstance(result, str)
 
 
+class TestControllerEventProxyOutputs:
+    """The proxy's sensor forwarding and its outputs: rumble and the LED."""
+
+    # The same SDL-free proxy the direct-method tests build
+    _create_mock_proxy = TestControllerEventProxyDirectMethods._create_mock_proxy
+
+    def test_proxy_sensor_update_forwards(self, mock_pygame_patches, mocker):
+        """A sensor update (gyro/accelerometer) is forwarded to the game."""
+        proxy, mock_game = self._create_mock_proxy(mocker)
+
+        event = HashableEvent(pygame.CONTROLLERSENSORUPDATE, sensor=1, data=(0.1, 0.2, 0.3))
+        proxy.on_controller_sensor_update_event(event)
+
+        mock_game.on_controller_sensor_update_event.assert_called_once_with(event)
+
+    def test_proxy_rumble_reports_whether_it_started(self, mock_pygame_patches, mocker):
+        """Rumble passes the motor strengths and duration on and returns the device's answer."""
+        proxy, _mock_game = self._create_mock_proxy(mocker)
+        proxy.controller.rumble.return_value = True
+
+        assert proxy.rumble(low_frequency=0.25, high_frequency=0.75, duration=200) is True
+        proxy.controller.rumble.assert_called_once_with(0.25, 0.75, 200)
+
+        proxy.controller.rumble.return_value = False
+        assert proxy.rumble() is False
+
+    @pytest.mark.parametrize('failure', [pygame.error('no haptics'), AttributeError('rumble')])
+    def test_proxy_rumble_failure_returns_false(self, mock_pygame_patches, mocker, failure):
+        """A device without rumble (pygame.error, or no rumble method) answers False."""
+        proxy, _mock_game = self._create_mock_proxy(mocker)
+        proxy.controller.rumble.side_effect = failure
+
+        assert proxy.rumble(low_frequency=1.0, high_frequency=1.0, duration=100) is False
+
+    def test_proxy_stop_rumble_stops_the_device(self, mock_pygame_patches, mocker):
+        """stop_rumble stops the device's motors."""
+        proxy, _mock_game = self._create_mock_proxy(mocker)
+
+        proxy.stop_rumble()
+
+        proxy.controller.stop_rumble.assert_called_once_with()
+
+    @pytest.mark.parametrize('failure', [pygame.error('no haptics'), AttributeError('stop_rumble')])
+    def test_proxy_stop_rumble_failure_is_suppressed(self, mock_pygame_patches, mocker, failure):
+        """A device that cannot stop rumbling raises nothing to the caller."""
+        proxy, _mock_game = self._create_mock_proxy(mocker)
+        proxy.controller.stop_rumble.side_effect = failure
+
+        proxy.stop_rumble()
+
+        proxy.controller.stop_rumble.assert_called_once_with()
+
+    def test_proxy_set_led_passes_the_color(self, mock_pygame_patches, mocker):
+        """set_led sends the color as one (red, green, blue) tuple and returns the answer."""
+        proxy, _mock_game = self._create_mock_proxy(mocker)
+        proxy.controller.set_led.return_value = True
+
+        assert proxy.set_led(red=255, green=128, blue=0) is True
+        proxy.controller.set_led.assert_called_once_with((255, 128, 0))
+
+    @pytest.mark.parametrize('failure', [pygame.error('no LED'), AttributeError('set_led')])
+    def test_proxy_set_led_failure_returns_false(self, mock_pygame_patches, mocker, failure):
+        """A controller without an LED answers False."""
+        proxy, _mock_game = self._create_mock_proxy(mocker)
+        proxy.controller.set_led.side_effect = failure
+
+        assert proxy.set_led(red=1, green=2, blue=3) is False
+
+
 class TestControllerEvents:
     """Test ControllerEvents interface functionality."""
 
@@ -1030,3 +1099,40 @@ class TestControllerDevicesDoor:
         )
 
         assert registry.joystick_for_instance(instance_id=7) is None
+
+    def test_a_device_that_is_not_a_controller_is_skipped(self, mocker, caplog):
+        """A counted device the registry says is not a controller gets no proxy, with a warning."""
+        from glitchygames.input.devices import (
+            CONTROLLER_COUNT_CALL,
+            IS_CONTROLLER_CALL,
+            EnumerationAnswer,
+            ReplayDeviceRegistry,
+        )
+        from glitchygames.sources import active_sources
+
+        registry = ReplayDeviceRegistry(
+            descriptors=[],
+            enumeration_answers=[
+                EnumerationAnswer(call=CONTROLLER_COUNT_CALL, device_index=None, value=1),
+                EnumerationAnswer(call=IS_CONTROLLER_CALL, device_index=0, value=False),
+            ],
+        )
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        mocker.patch('pygame._sdl2.controller.init')
+
+        with caplog.at_level('WARNING'):
+            manager = ControllerEventManager(game=mocker.Mock())
+
+        assert manager.controllers == {}
+        assert 'Controller #0 is not a controller.' in caplog.text
+
+    def test_manager_starts_when_controller_events_cannot_be_allowed(self, mocker, caplog):
+        """If pygame refuses to allow controller events, the manager still starts (debug log)."""
+        mocker.patch('pygame.event.set_allowed', side_effect=pygame.error('video not initialized'))
+        _setup_controller_patches(mocker, controller_count=0)
+
+        with caplog.at_level('DEBUG', logger='game.controllers'):
+            manager = ControllerEventManager(game=mocker.Mock())
+
+        assert manager.controllers == {}
+        assert 'Failed to set allowed controller events' in caplog.text
