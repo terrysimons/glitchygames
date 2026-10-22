@@ -212,6 +212,8 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
+      PYTEST_WORKERS: "0"
 
     steps:
       - checkout
