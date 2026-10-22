@@ -9,12 +9,19 @@ import pytest
 
 from glitchygames.timing import FastTimer, create_timer
 
-# The accuracy tests compare FastTimer with the OS's own sleep, in pairs: each pair is one
-# FastTimer sleep and one plain time.sleep of the same length, taken back to back (alternating
+# The accuracy tests compare the engine's timer with the OS's own sleep, in pairs: each pair is
+# one timer sleep and one plain time.sleep of the same length, taken back to back (alternating
 # which goes first). They claim, with 99.999% confidence, that the median of
-# (FastTimer overshoot - OS sleep overshoot) is under PAIRED_TOLERANCE_NS: FastTimer wakes no
-# later than the OS's sleep would. FastTimer sleeps less than the OS sleep does (it sleeps to
-# 1 ms before the deadline, then spins), so whatever delays a sleep delays it no more.
+# (timer overshoot - OS sleep overshoot) is under PAIRED_TOLERANCE_NS: the timer wakes no later
+# than the OS's sleep would.
+#
+# The sleeping test uses the engine's default, --timer-backend auto (calibrated to the machine's
+# sleep delay, so it spins wherever sleeping would wake late). Plain fast is not tested this way:
+# it assumes a sleep wakes on time, and on CircleCI's macOS VM (2026-10-21; sleeps of 1 ms woke
+# 11 ms late, 8 ms 66 ms late) its 3 ms deadlines were met 15 ms late, which the pairs could not
+# tell apart from the OS sleep's own lateness (the VM wakes in coarse steps, so each sleep's
+# delay depends on when it began). auto met the same deadlines 0.00 ms late (median; max
+# 0.26 ms) on that VM.
 #
 # Why paired, not an absolute bound: the machine decides how late any sleep wakes. On macOS with
 # every core busy, about 3% of 3 ms sleeps overshot 5 ms; a CircleCI macOS job (2026-10-21)
@@ -128,9 +135,24 @@ def test_factory_fast_backend_instantiates():
     assert isinstance(t, FastTimer)
 
 
+def _calibrated_auto_timer(*, windows_timer_1ms: bool) -> FastTimer:
+    """Return the timer the engine paces with by default: auto, calibrated to this machine.
+
+    Returns:
+        The calibrated FastTimer.
+
+    """
+    timer = create_timer(
+        'auto', {'sleep_granularity_ns': None, 'windows_timer_1ms': windows_timer_1ms}
+    )
+    assert isinstance(timer, FastTimer)
+    timer.calibrate()
+    return timer
+
+
 def test_fast_timer_basic_sleep_accuracy():
-    """Sleep+spin wakes no later than the OS's own sleep of the same length (3 ms)."""
-    t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=False)
+    """The engine's default timer (auto) wakes no later than the OS's own sleep (3 ms)."""
+    t = _calibrated_auto_timer(windows_timer_1ms=False)
     difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=3_000_000)
     assert difference < PAIRED_TOLERANCE_NS
 
@@ -147,7 +169,7 @@ def test_fast_timer_spin_tighten_accuracy():
     reason='Windows-only timing resolution test',
 )
 def test_fast_timer_windows_1ms_option_tighter():
-    """With the Windows 1 ms timer resolution, wakes no later than the OS's own sleep (3 ms)."""
-    t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=True)
+    """With the Windows 1 ms timer resolution, auto wakes no later than the OS sleep (3 ms)."""
+    t = _calibrated_auto_timer(windows_timer_1ms=True)
     difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=3_000_000)
     assert difference < PAIRED_TOLERANCE_NS
