@@ -232,14 +232,10 @@ jobs:
       - install-deps-posix
       - save-venv-posix
       - save-uv-cache-posix
-      - nox-format
-      - nox-lint
-      - nox-static-analysis
-      - nox-lint-docs
+      # Only what differs by platform; format, lint, type checks, docs, security scans and
+      # benchmarks give the same answer on every OS and run on macOS (the fastest runner)
       - nox-timer-report
       - nox-test
-      - nox-security-scan
-      - nox-performance-test
       - nox-build
 
   build-and-test-macos:
@@ -305,34 +301,7 @@ jobs:
             uv sync --frozen --extra dev --extra docs
       - save-venv-windows
       - save-uv-cache-windows
-      - run:
-          name: "Format check"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s format
-      - run:
-          name: "Lint (ruff)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s lint
-      - run:
-          name: "Static analysis (basedpyright)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s static-analysis
-      - run:
-          name: "Lint docs (mkdocs)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s lint-docs
+      # Only what differs by platform, as on Linux; the rest runs on macOS
       # Diagnostic only, as in nox-timer-report
       - run:
           name: "Timer report (diagnostic)"
@@ -363,20 +332,6 @@ jobs:
           path: htmlcov
           destination: coverage-html
           when: always
-      - run:
-          name: "Security scan (bandit + safety)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s security-scan
-      - run:
-          name: "Performance benchmarks"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s performance-test
       - run:
           name: "Build binary and wheel"
           shell: powershell.exe

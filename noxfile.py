@@ -335,6 +335,16 @@ def test(session: nox.Session) -> None:
         half_cpus = _usable_cpu_count() // 2
         args.extend(['-n', str(half_cpus if half_cpus > 1 else 0)])
 
+    # Live log output: pyproject.toml's addopts stream every DEBUG record as tests run. In CI
+    # that is only WARNING and above (a serial run printed every debug line into the job log);
+    # PYTEST_LOG_CLI_LEVEL overrides it (e.g. DEBUG, to re-run a failing job with full logs).
+    # A test's captured logs are still reported when it fails.
+    log_cli_level = os.environ.get('PYTEST_LOG_CLI_LEVEL')
+    if log_cli_level is None and os.environ.get('CI') == 'true':
+        log_cli_level = 'WARNING'
+    if log_cli_level is not None:
+        args.append(f'--log-cli-level={log_cli_level}')
+
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args, env=env)
