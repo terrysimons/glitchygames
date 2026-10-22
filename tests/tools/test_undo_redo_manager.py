@@ -192,3 +192,81 @@ class TestUndoRedoManager:
         assert result is False
         # Operation should still be in undo stack since undo failed
         assert len(self.manager.undo_stack) == 1
+
+    def test_flood_fill_with_failed_callback_stays_undoable(self):
+        """A flood fill whose pixel callback refuses pixels fails to undo and stays on the stack."""
+        painted_pixels = []
+
+        def refuse_pixel(x, y, color):
+            painted_pixels.append((x, y, color))
+            return False
+
+        self.manager.set_pixel_change_callback(refuse_pixel)
+        self.manager.add_operation(
+            OperationType.CANVAS_FLOOD_FILL,
+            'Flood fill',
+            {'affected_pixels': [(1, 2), (3, 4)], 'old_color': (0, 0, 0)},
+            {'affected_pixels': [(1, 2), (3, 4)], 'new_color': (9, 9, 9)},
+        )
+
+        assert self.manager.undo() is False
+        assert painted_pixels == [(1, 2, (0, 0, 0)), (3, 4, (0, 0, 0))]
+        assert len(self.manager.undo_stack) == 1
+
+    def test_flood_fill_without_a_recorded_color_paints_nothing(self):
+        """A flood fill whose undo data has no old color undoes without painting any pixel."""
+        painted_pixels = []
+
+        def paint_pixel(x, y, color):
+            painted_pixels.append((x, y, color))
+            return True
+
+        self.manager.set_pixel_change_callback(paint_pixel)
+        self.manager.add_operation(
+            OperationType.CANVAS_FLOOD_FILL,
+            'Flood fill',
+            {'affected_pixels': [(1, 2)]},
+            {'affected_pixels': [(1, 2)], 'new_color': (9, 9, 9)},
+        )
+
+        assert self.manager.undo() is True
+        assert painted_pixels == []
+
+    def test_frame_command_pushed_while_undoing_keeps_the_frame_redo_history(self):
+        """A frame command pushed by an undo in progress does not clear that frame's redos."""
+
+        class FrameCommand:
+            """A frame command that only names itself."""
+
+            operation_type = OperationType.CANVAS_BRUSH_STROKE
+            timestamp = 0.0
+
+            def __init__(self, description):
+                self.description = description
+
+            def execute(self):
+                return True
+
+            def undo(self):
+                return True
+
+        manager = self.manager
+        frame_redo = FrameCommand('frame redo')
+        manager.push_frame_command('walk', 0, FrameCommand('frame stroke'))
+        manager.frame_redo_stacks['walk', 0].append(frame_redo)
+
+        class PushesFrameCommandOnUndo(FrameCommand):
+            """A global command whose undo records a frame command, as nested edits do."""
+
+            def undo(self):
+                manager.push_frame_command('walk', 0, FrameCommand('pushed during undo'))
+                return True
+
+        manager.push_command(PushesFrameCommandOnUndo('global stroke'))
+
+        assert manager.undo() is True
+        assert manager.frame_redo_stacks['walk', 0] == [frame_redo]
+        assert [command.description for command in manager.frame_undo_stacks['walk', 0]] == [
+            'frame stroke',
+            'pushed during undo',
+        ]

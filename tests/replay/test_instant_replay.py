@@ -7,6 +7,7 @@ since its first logic frame; played back through the playback scope it matches e
 from __future__ import annotations
 
 import dataclasses
+import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 import pygame
@@ -692,6 +693,22 @@ class TestTheJournal:
             step(manager, frames=JOURNALED_FRAMES)
             assert journal_of(manager).frame_count == JOURNALED_FRAMES
 
+    def test_a_scene_set_up_again_before_its_first_logic_frame_keeps_its_journal(self):
+        """Switched away and back before it ran: the journal its first setup made is kept."""
+        with running_scene(CameraFreeScene) as manager:
+            step(manager, frames=SWITCH_FRAME)
+            scene = InstantCountingScene(options=manager.OPTIONS)
+            manager.switch_to_scene(scene)
+            first_journal = manager._instant_replay_journal
+            assert first_journal is not None
+            manager.switch_to_scene(CameraFreeScene(options=manager.OPTIONS))
+            manager.switch_to_scene(scene)
+            assert scene.setup_calls == 2
+            assert manager._instant_replay_journal is first_journal
+            step(manager, frames=JOURNALED_FRAMES)
+            assert journal_of(manager) is first_journal
+            assert first_journal.frame_count == JOURNALED_FRAMES
+
     def test_posts_are_tracked_in_plain_live_play(self):
         """An SDL-type event the scene posts is recorded as internal, as a recording would."""
         with running_scene(InstantExposingScene) as manager:
@@ -1054,6 +1071,26 @@ class TestPlaybackScopesAndTheJournal:
             assert manager.instant_replay_journal is journal
             play_journal(manager=manager, recording=journal.as_recording(), then=live_scene)
 
+    def test_a_demo_that_returns_to_another_scene_ends_the_journal(self, tmp_path):
+        """The journal's scene is not shown after the scope: it is not resumed, and it ends."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=JOURNALED_FRAMES)
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=2)
+            journal = journal_of(manager)
+            other_scene = CountingScene()
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=other_scene
+            )
+            step(manager)
+            assert journal.is_suspended
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            assert manager.active_scene is other_scene
+            # The first frame after the scope does not resume it, and ends it at its end
+            step(manager)
+            assert manager.instant_replay_journal is None
+            assert journal.is_suspended
+            assert not manager.instant_replay()
+
 
 KEY_RELEASE_DURING_SCOPE = pygame.event.Event(
     pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicode='', scancode=0
@@ -1274,6 +1311,21 @@ class TestInstantReplay:
             assert not manager.instant_replay()
             step(manager)
             assert manager.playback_session is None
+
+    def test_instant_replay_refused_once_the_scene_turns_it_off(self, caplog):
+        """A scene that sets INSTANT_REPLAY_SECONDS to None mid-run offers no instant replay."""
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            live_scene = active_counting_scene(manager)
+            live_scene.INSTANT_REPLAY_SECONDS = None
+            assert manager.instant_replay_journal is not None
+            with caplog.at_level(logging.INFO):
+                assert not manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is None
+        assert 'No instant replay: InstantCountingScene sets no INSTANT_REPLAY_SECONDS' in (
+            caplog.text
+        )
 
     def test_instant_replay_refused_without_a_journal(self):
         with running_scene(CountingScene) as manager:

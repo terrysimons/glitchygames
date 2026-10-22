@@ -288,6 +288,10 @@ class TestDetectAlphaChannelInAnimation:
         animation_data = ['not_a_dict', 42]
         assert _detect_alpha_channel_in_animation(animation_data) is False
 
+    def test_animation_value_that_is_neither_table_nor_array_has_no_alpha(self):
+        """A TOML 'animation' key holding a plain string (e.g. animation = "walk") has no alpha."""
+        assert _detect_alpha_channel_in_animation('walk') is False  # type: ignore[arg-type]
+
     def test_multiple_frames_alpha_in_second(self):
         """Test that alpha is found in the second frame of a list."""
         animation_data = [

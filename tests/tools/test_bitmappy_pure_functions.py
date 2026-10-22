@@ -1023,6 +1023,18 @@ class TestRenderStaticSpriteAscii:
         _render_static_sprite_ascii(sprite, renderer)
         # Should not raise an error
 
+    def test_frame_that_renders_to_nothing_logs_nothing(self, mocker, caplog):
+        """A first frame with no pixel data renders no ASCII, so nothing is logged."""
+        frame = mocker.Mock()
+        frame.get_pixel_data.return_value = []
+        sprite = mocker.Mock()
+        sprite._animations = {'idle': [frame]}
+
+        with caplog.at_level(logging.INFO, logger='game.tools.bitmappy'):
+            _render_static_sprite_ascii(sprite, mocker.Mock())
+
+        assert caplog.records == []
+
 
 class TestRenderAnimatedSpriteAscii:
     """Test _render_animated_sprite_ascii function."""
@@ -1069,6 +1081,22 @@ class TestRenderAnimatedSpriteAscii:
         renderer = mocker.Mock()
         _render_animated_sprite_ascii(sprite, renderer)
         # Should not raise
+
+    def test_animation_that_renders_to_nothing_logs_only_its_heading(self, mocker, caplog):
+        """Frames with no pixels give no ASCII, so only the animation heading is logged."""
+        frame = mocker.Mock()
+        frame.get_pixel_data.return_value = []
+        frame.get_size.return_value = (0, 0)
+        sprite = mocker.Mock()
+        sprite._animations = {'idle': [frame], 'walk': [frame]}
+
+        with caplog.at_level(logging.INFO, logger='game.tools.bitmappy'):
+            _render_animated_sprite_ascii(sprite, mocker.Mock())
+
+        assert [record.getMessage() for record in caplog.records] == [
+            '  Animation: "idle" (1 frames)',
+            '  Animation: "walk" (1 frames)',
+        ]
 
 
 class TestLogColorizedSpriteOutput:

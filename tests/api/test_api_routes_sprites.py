@@ -22,10 +22,11 @@ from glitchygames.api.main import app
 from glitchygames.api.routes.sprites import (
     _extract_png_dimensions,
     _extract_single_frame,
+    _get_services,
     _save_sprite_files,
 )
 from glitchygames.services.exceptions import AIProviderError
-from glitchygames.services.renderer_service import RenderResult
+from glitchygames.services.renderer_service import RenderedFrame, RenderResult
 from glitchygames.services.sprite_generation_service import GenerationResult
 
 MOCK_TOML = (
@@ -502,3 +503,100 @@ class TestGenerateWithModelOverride:
         assert response.status_code == 200
         call_kwargs = mock_gen_service.generate_sprite.call_args.kwargs
         assert call_kwargs['model'] == 'openai:gpt-4o'
+
+
+class TestGetServices:
+    """Test _get_services."""
+
+    def test_returns_the_dependency_providers_services(self, mocker):
+        """The route uses the services the dependency providers hand out."""
+        generation_service = mocker.Mock()
+        renderer_service = mocker.Mock()
+        mocker.patch(
+            'glitchygames.api.routes.sprites.get_sprite_generation_service',
+            return_value=generation_service,
+        )
+        mocker.patch(
+            'glitchygames.api.routes.sprites.get_renderer_service',
+            return_value=renderer_service,
+        )
+
+        assert _get_services() == (generation_service, renderer_service)
+
+
+class TestGenerateAnimatedSprite:
+    """Test the generate endpoint for a sprite with several frames."""
+
+    def test_every_rendered_frame_is_returned(self, client, mocker):
+        """A multi-frame sprite returns each rendered frame with its animation and frame index."""
+        mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
+        generation_service = mocker.MagicMock()
+        generation_service.generate_sprite.return_value = GenerationResult(
+            success=True,
+            toml_content=MOCK_TOML,
+            sprite_name='walk',
+            is_animated=True,
+            frame_count=2,
+        )
+        renderer_service = mocker.MagicMock()
+        renderer_service.render_from_toml.return_value = RenderResult(
+            success=True,
+            png_bytes=b'first frame',
+            png_base64='Zmlyc3QgZnJhbWU=',
+            width=16,
+            height=16,
+            frame_count=2,
+            all_frames_png_base64=['AAAA', 'BBBB'],
+            rendered_frames=[
+                RenderedFrame(animation_index=0, frame_index=0, png_base64='AAAA'),
+                RenderedFrame(animation_index=0, frame_index=1, png_base64='BBBB'),
+            ],
+        )
+        mock_services.return_value = (generation_service, renderer_service)
+
+        response = client.post(
+            '/sprites/generate',
+            json={'prompt': 'a walking hero', 'output_format': ['png']},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['all_frames_png_base64'] == ['AAAA', 'BBBB']
+        assert data['rendered_frames'] == [
+            {'animation_index': 0, 'frame_index': 0, 'png_base64': 'AAAA'},
+            {'animation_index': 0, 'frame_index': 1, 'png_base64': 'BBBB'},
+        ]
+        assert renderer_service.render_from_toml.call_args.kwargs['render_all_frames'] is True
+
+
+class TestExtractFramesErrors:
+    """Test the extract-frames endpoint's error handling."""
+
+    def test_truncated_apng_is_an_unsuccessful_response(self, client):
+        """APNG data cut off inside a chunk header is invalid data, not a server error."""
+        truncated_apng = b'\x89PNG\r\n\x1a\n' + b'\x00\x00'
+
+        response = client.post(
+            '/sprites/extract-frames',
+            json={'apng_base64': base64.b64encode(truncated_apng).decode('ascii')},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is False
+        assert data['error'].startswith('Invalid APNG file:')
+
+    def test_unexpected_error_returns_500(self, client, mocker):
+        """An error the extraction does not expect becomes an internal server error."""
+        mocker.patch(
+            'glitchygames.api.routes.sprites._extract_apng_frames',
+            side_effect=RuntimeError('decoder exploded'),
+        )
+
+        response = client.post(
+            '/sprites/extract-frames',
+            json={'apng_base64': base64.b64encode(b'anything').decode('ascii')},
+        )
+
+        assert response.status_code == 500
+        assert response.json()['detail'] == 'Internal server error: decoder exploded'

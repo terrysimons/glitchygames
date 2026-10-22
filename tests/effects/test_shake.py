@@ -48,6 +48,14 @@ class TestShakeValidation:
         with pytest.raises(ValueError, match='intensity'):
             ScreenShake(intensity=value)
 
+    @pytest.mark.parametrize('maximum_offset', [0.0, -4.0])
+    def test_maximum_offset_must_be_positive(self, maximum_offset):
+        with pytest.raises(ValueError, match='maximum_offset'):
+            ScreenShake(maximum_offset=maximum_offset)
+
+    def test_maximum_offset_is_reported_as_given(self):
+        assert ScreenShake(maximum_offset=7.5).maximum_offset == 7.5
+
 
 class TestShakeLifetime:
     """Shake duration, envelope limits, and clearing."""

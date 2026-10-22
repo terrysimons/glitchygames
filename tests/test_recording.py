@@ -14,6 +14,7 @@ import dataclasses
 import errno
 import gzip
 import json
+import logging
 import math
 import types
 from datetime import UTC, datetime
@@ -295,6 +296,15 @@ class TestJsonSafeValue:
 
         assert encoded == {'__unrepresentable__': GAMEPAD_TYPE_NAME}
         assert _json_round_trip(Gamepad()) == UnrepresentableValue(type_name=GAMEPAD_TYPE_NAME)
+
+    def test_a_numpy_scalar_with_no_plain_form_is_unrepresentable(self):
+        """A numpy complex scalar unwraps to a Python complex, which JSON cannot hold."""
+        encoded = json_safe_value(np.complex128(1 + 2j))
+
+        assert encoded == {'__unrepresentable__': 'numpy.complex128'}
+        assert _json_round_trip(np.complex128(1 + 2j)) == UnrepresentableValue(
+            type_name='numpy.complex128'
+        )
 
     def test_unrepresentable_value_inside_a_container(self):
         """A sprite inside a payload dict marks only itself; the rest of the payload is kept."""
@@ -607,6 +617,31 @@ class TestRecorderWriteFailures:
         recorder.close()
         assert recorder.write_failed is True
         assert 'could not be written' in caplog.text
+
+    def test_a_close_that_fails_after_a_failed_frame_write_is_logged_once(
+        self, tmp_path, mocker, caplog
+    ):
+        """After a failed frame write the close fails too: one error line, not two."""
+        recorder = GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={})
+        real_close = TraceWriter.close
+
+        def close_then_fail(writer: TraceWriter) -> None:
+            real_close(writer)
+            raise OSError(errno.ENOSPC, 'No space left on device')
+
+        mocker.patch.object(TraceWriter, 'close', autospec=True, side_effect=close_then_fail)
+        mocker.patch.object(
+            TraceWriter, 'write_frame', side_effect=OSError(errno.ENOSPC, 'No space left on device')
+        )
+        with caplog.at_level(logging.ERROR, logger=recording.LOG.name):
+            with pytest.raises(RecordingWriteError):
+                recorder.record_frame(dt=0.01, scene=None)
+            recorder.close()
+
+        assert recorder.write_failed is True
+        error_records = [record for record in caplog.records if record.levelno == logging.ERROR]
+        assert len(error_records) == 1
+        assert 'could not be written' in error_records[0].getMessage()
 
 
 class TestFrameHistories:
@@ -928,8 +963,39 @@ def _end_frame(sources: RecordingSources, *, frame_number: int) -> None:
     sources.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
 
 
+class OverlayDrawingSources(LiveSources):
+    """Live doors that draw an overlay of their own: a white top-left pixel."""
+
+    @property
+    def draws_overlay(self) -> bool:
+        """These doors draw an overlay."""
+        return True
+
+    def draw_overlay(self, *, surface: pygame.Surface) -> None:
+        """Mark the top-left pixel white."""
+        surface.set_at((0, 0), (255, 255, 255))
+
+
 class TestRecordingSources:
     """RecordingSources records what passes through the doors it wraps."""
+
+    def test_the_overlay_is_the_inner_doors_and_is_not_recorded(self, tmp_path):
+        """The wrapped doors draw their overlay on the surface; nothing of it is recorded."""
+        path = tmp_path / 'unit.jsonl.gz'
+        recorder = GameplayRecorder(path=path, header={'game_class': 'Unit'})
+        sources = RecordingSources(inner=OverlayDrawingSources(random_seed=1), recorder=recorder)
+        surface = pygame.Surface((4, 4))
+        surface.fill((0, 0, 0))
+
+        sources.draw_overlay(surface=surface)
+        _end_frame(sources, frame_number=0)
+        recorder.close()
+
+        assert sources.draws_overlay
+        assert tuple(surface.get_at((0, 0))) == (255, 255, 255, 255)
+        assert tuple(surface.get_at((1, 1))) == (0, 0, 0, 255)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert 'overlay' not in json.dumps(frame)
 
     def test_recording_sources_write_only_non_empty_fields(self, tmp_path):
         """A frame with no control events has no control_events field."""

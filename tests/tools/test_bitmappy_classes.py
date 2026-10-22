@@ -535,6 +535,23 @@ class TestScrollArrowSpriteDrawArrow:
         assert corner_color[1] == 255
         assert corner_color[2] == 255
 
+    def test_draw_arrow_unknown_direction_draws_only_background(self, mock_groups):
+        """An unknown direction leaves a plain white square with no glyph."""
+        sprite = ScrollArrowSprite(
+            x=0,
+            y=0,
+            width=20,
+            height=20,
+            groups=mock_groups,
+            direction='sideways',
+        )
+
+        assert sprite.image is not None
+        white = sprite.image.map_rgb((255, 255, 255))
+        for pixel_y in range(20):
+            for pixel_x in range(20):
+                assert sprite.image.get_at_mapped((pixel_x, pixel_y)) == white
+
 
 class TestScrollArrowSpriteSetDirection:
     """Test ScrollArrowSprite set_direction method."""

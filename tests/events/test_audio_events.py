@@ -324,3 +324,21 @@ class TestAudioEventFlow:
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options
         return scene_mock
+
+
+class TestAudioEventManagerWithoutVideo:
+    """Constructing the manager before pygame's video system is up."""
+
+    def test_unallowed_events_are_logged_and_the_manager_still_works(self, mocker, caplog):
+        """set_allowed raises 'video system not initialized' before pygame.display.init()."""
+        mocker.patch(
+            'pygame.event.set_allowed',
+            side_effect=pygame.error('video system not initialized'),
+        )
+        game = mocker.Mock()
+
+        with caplog.at_level('DEBUG', logger='game.audio'):
+            manager = AudioEventManager(game=game)
+
+        assert len(manager.proxies) == 1
+        assert 'Failed to set allowed audio events: pygame not fully initialized' in caplog.text

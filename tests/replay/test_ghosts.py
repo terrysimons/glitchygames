@@ -272,6 +272,31 @@ class TestGhostSprite:
         ghost.update()
         assert ghost.rect.size == GHOST_SIZE
 
+    def test_a_shown_ghost_goes_back_to_nothing_at_an_invisible_sample_or_without_a_scene(
+        self,
+    ):
+        """After a visible sample, an invisible one (or no scene) shows the empty image again."""
+        invisible = GhostSample(
+            game_seconds=1.0, world_x=0.0, world_y=0.0, appearance={}, visible=False
+        )
+        track = GhostTrack(samples=(sample(seconds=0.0, x=0.0), invisible))
+        ghost = GhostSprite(track=track, image_for=plain_image)
+        scene = GameTimedStandIn(game_time=0.0)
+        ghost.scene = scene
+        ghost.update()
+        assert ghost.rect.size == GHOST_SIZE
+        scene.game_time = 1.0
+        ghost.update()
+        assert ghost.image.get_size() == (0, 0)
+        assert ghost.rect.size == (0, 0)
+        scene.game_time = 0.0
+        ghost.update()
+        assert ghost.rect.size == GHOST_SIZE
+        ghost.scene = None
+        ghost.update()
+        assert ghost.image.get_size() == (0, 0)
+        assert ghost.hidden is False
+
     def test_hidden_is_the_games_own_flag_and_round_trips(self):
         """A ghost the track hides is not ``hidden``, so saving and restoring the flag is safe."""
         track = GhostTrack(samples=(sample(seconds=1.0, x=0.0),))

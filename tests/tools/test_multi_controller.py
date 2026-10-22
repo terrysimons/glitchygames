@@ -450,8 +450,8 @@ class TestVisualCollisionManager:
         self.manager.clear_all_indicators()
 
         assert len(self.manager.indicators) == 0
-        # Note: clear_all_indicators() clears the legacy collision_groups dict
-        # but not the location-specific dicts (production bug)
+        assert len(self.manager.film_strip_indicators) == 0
+        assert len(self.manager.film_strip_collision_groups) == 0
         assert len(self.manager.collision_groups) == 0
         assert len(self.manager.position_cache) == 0
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import collections
 import random
+from time import perf_counter_ns
 
 import pytest
 
@@ -240,3 +241,36 @@ def test_keeping_up_is_not_behind(mocker):
     run_ticks(viewer=viewer, time=time, tick_count=120)
     assert not viewer.is_behind
     assert viewer.effective_speed() == pytest.approx(2.0, rel=0.05)
+
+
+def test_effective_speed_is_zero_before_any_time_passed():
+    """A new viewer has run nothing over no real time: its effective speed is 0.0."""
+    viewer = new_viewer(speed=4.0)
+    assert viewer.effective_speed() == 0.0
+    assert viewer.real_speed_if_behind() is None
+
+
+def test_sleep_coarsely_sleeps_only_for_a_positive_time(mocker):
+    """The coarse sleep is one time.sleep of the time asked for; none for zero or less."""
+    sleep = mocker.patch.object(viewer_module.time, 'sleep')
+    viewer_module.sleep_coarsely(seconds=0.0)
+    viewer_module.sleep_coarsely(seconds=-0.5)
+    sleep.assert_not_called()
+    viewer_module.sleep_coarsely(seconds=0.002)
+    sleep.assert_called_once_with(0.002)
+
+
+def test_sleep_for_waits_at_least_the_time_asked_for():
+    """The fine sleep (sleep then spin, on the perf_counter timer) returns no earlier than asked."""
+    sleep_seconds = 0.003
+    started_ns = perf_counter_ns()
+    viewer_module.sleep_for(seconds=sleep_seconds)
+    assert perf_counter_ns() - started_ns >= round(sleep_seconds * 1_000_000_000)
+
+
+def test_sleep_for_does_not_sleep_for_zero_or_less(mocker):
+    """No positive time to wait: the timer is never asked to sleep."""
+    sleep_until_next = mocker.patch.object(viewer_module._SLEEP_TIMER, 'sleep_until_next')
+    viewer_module.sleep_for(seconds=0.0)
+    viewer_module.sleep_for(seconds=-0.1)
+    sleep_until_next.assert_not_called()

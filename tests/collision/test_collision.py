@@ -343,6 +343,24 @@ class TestCollisionManager:
         assert len(hits) == 1
         assert hits[0] == (player, enemy_near)
 
+    def test_check_single_never_reports_a_sprite_against_itself(self):
+        """A sprite that is also in the layer it is checked against skips itself."""
+        manager = CollisionManager()
+        player_layer = manager.add_layer('players')
+
+        player = FakeSprite(world_x=100.0, world_y=100.0)
+        partner = FakeSprite(world_x=110.0, world_y=110.0)
+        player_layer.add(player)
+        player_layer.add(partner)
+
+        hits: list[tuple] = []
+        manager.check_single(
+            player,
+            'players',
+            callback=lambda sprite_a, sprite_b: hits.append((sprite_a, sprite_b)),
+        )
+        assert hits == [(player, partner)]
+
     def test_hitbox_sprite_uses_hitbox_for_collision(self):
         """Sprites with TOML hitboxes use them for collision detection."""
         manager = CollisionManager()

@@ -478,10 +478,16 @@ class ActionMap:
         result: dict[str, list[dict[str, Any]]] = {}
 
         # Digital bindings (only DOWN events, UP is derived); a key position is stored as
-        # 'scancode', a key code or button as 'code'
+        # 'scancode', a key code or button as 'code'. A joystick button (JOYBUTTONDOWN: a
+        # controller_button bound in joystick mode, or a joystick_button) is kept too, or a
+        # save would drop every gamepad button of a joystick-mode map
         for bindings in [*self._bindings.values(), *self._scancode_bindings.values()]:
             for binding in bindings:
-                if binding.event_type not in {pygame.KEYDOWN, pygame.CONTROLLERBUTTONDOWN}:
+                if binding.event_type not in {
+                    pygame.KEYDOWN,
+                    pygame.CONTROLLERBUTTONDOWN,
+                    pygame.JOYBUTTONDOWN,
+                }:
                     continue
                 if binding.action not in result:
                     result[binding.action] = []
@@ -565,6 +571,7 @@ class ActionMap:
         event_name_to_type = {
             'KeyDown': pygame.KEYDOWN,
             'ControllerButtonDown': pygame.CONTROLLERBUTTONDOWN,
+            'JoyButtonDown': pygame.JOYBUTTONDOWN,
         }
 
         binding_type = entry.get('type', '')
@@ -596,6 +603,13 @@ class ActionMap:
             action_map.bind(
                 action_name,
                 controller_button=int(code),
+                instance_id=instance_id,
+            )
+        else:
+            # JOYBUTTONDOWN: restored as the raw joystick button it was, in any input mode
+            action_map.bind(
+                action_name,
+                joystick_button=int(code),
                 instance_id=instance_id,
             )
 

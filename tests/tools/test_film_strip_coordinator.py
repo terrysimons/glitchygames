@@ -5,6 +5,7 @@ AnimatedSprite and SpriteFrame objects, so each test checks the editor state
 the coordinator leaves behind (selection, scroll offset, frames, strips).
 """
 
+import logging
 from types import SimpleNamespace
 
 import pygame
@@ -2112,3 +2113,38 @@ class TestCallsWithoutStrips:
 
         assert editor.film_strips == {}
         assert editor.selected_animation is None
+
+
+class TestLogFilmStripDebugState:
+    """_log_film_strip_debug_state reports what the canvas offers for film strip creation."""
+
+    def test_sprite_without_animations_attribute_logs_no_animations(self, caplog):
+        """A canvas sprite with no _animations attribute is reported, but its animations are not."""
+        editor = _EditorStandIn()
+        editor.canvas = SimpleNamespace(animated_sprite=SimpleNamespace())
+        coordinator = FilmStripCoordinator(editor)
+
+        with caplog.at_level(logging.DEBUG, logger='game.tools.bitmappy'):
+            coordinator._log_film_strip_debug_state()
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert (
+            "DEBUG: hasattr(self.editor.canvas.animated_sprite, '_animations'): False" in messages
+        )
+        assert not any(
+            message.startswith('DEBUG: self.editor.canvas.animated_sprite._animations:')
+            for message in messages
+        )
+
+    def test_sprite_with_animations_logs_them(self, caplog):
+        """A canvas sprite with animations has them logged."""
+        editor = _EditorStandIn(animated_sprite=_make_animated_sprite(frame_counts={'walk': 1}))
+        coordinator = FilmStripCoordinator(editor)
+
+        with caplog.at_level(logging.DEBUG, logger='game.tools.bitmappy'):
+            coordinator._log_film_strip_debug_state()
+
+        assert any(
+            record.getMessage().startswith('DEBUG: self.editor.canvas.animated_sprite._animations:')
+            for record in caplog.records
+        )

@@ -489,3 +489,21 @@ class TestTouchManager:
             dy=10,
         )
         manager.on_touch_finger_motion_event(touch_motion_event)
+
+
+class TestTouchEventManagerWithoutVideo:
+    """Constructing the manager before pygame's video system is up."""
+
+    def test_unallowed_events_are_logged_and_the_manager_still_works(self, mocker, caplog):
+        """set_allowed raises 'video system not initialized' before pygame.display.init()."""
+        mocker.patch(
+            'pygame.event.set_allowed',
+            side_effect=pygame.error('video system not initialized'),
+        )
+        game = mocker.Mock()
+
+        with caplog.at_level('DEBUG', logger='game.touch'):
+            manager = TouchEventManager(game=game)
+
+        assert len(manager.proxies) == 1
+        assert 'Failed to set allowed touch events: pygame not fully initialized' in caplog.text

@@ -77,3 +77,16 @@ class TestCanvasOperationTracker:
         assert operation.operation_type.value == 'canvas_flood_fill'
         assert 'Flood fill at (10, 10)' in operation.description
         assert '4 pixels' in operation.description
+
+    def test_empty_pixel_changes_add_no_history(self):
+        """A stroke that changed no pixels leaves nothing to undo."""
+        self.tracker.add_pixel_changes([])
+
+        assert len(self.manager.undo_stack) == 0
+
+    def test_empty_frame_pixel_changes_add_no_history(self):
+        """A frame stroke that changed no pixels creates no frame undo stack."""
+        self.tracker.add_frame_pixel_changes('walk_animation', 1, [])
+
+        assert ('walk_animation', 1) not in self.manager.frame_undo_stacks
+        assert len(self.manager.undo_stack) == 0

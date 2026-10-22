@@ -497,6 +497,50 @@ class TestSceneManagerInternals:
         manager._live_audio = None
 
 
+class TestSceneManagerEngineAndQuit:
+    """Detaching the engine, and QUIT while a sprite has keyboard focus."""
+
+    def setup_method(self):
+        """Set up a fresh scene manager (centralized mocks handle pygame)."""
+        SceneManager._reset()
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
+        """Reset the singleton for the next test."""
+        SceneManager._reset()
+
+    def test_detaching_the_game_engine_keeps_its_settings(self, mocker):
+        """Setting game_engine to None forgets the engine; the settings it gave stay."""
+        engine = mocker.Mock()
+        engine.OPTIONS = {
+            'update_type': 'flip',
+            'fps_log_interval_ms': 250,
+            'target_fps': 30.0,
+        }
+        self.scene_manager.game_engine = engine
+
+        self.scene_manager.game_engine = None
+
+        assert self.scene_manager.game_engine is None
+        assert self.scene_manager.update_type == 'flip'
+        assert self.scene_manager.fps_log_interval_ms == 250
+        assert self.scene_manager.target_fps == 30.0
+
+    def test_quit_is_handled_while_a_sprite_has_focus(self, mocker):
+        """A focused sprite takes key presses, never QUIT: the manager still quits."""
+        focused_sprite = mocker.Mock()
+        focused_sprite.is_active = True
+        scene = mocker.Mock()
+        scene.all_sprites = [focused_sprite]
+        self.scene_manager.active_scene = scene
+        self.scene_manager.quit_requested = False
+
+        self.scene_manager.handle_event(mocker.Mock(type=pygame.KEYDOWN))
+        assert self.scene_manager.quit_requested is False
+        self.scene_manager.handle_event(mocker.Mock(type=pygame.QUIT))
+        assert self.scene_manager.quit_requested is True
+
+
 class TestSceneShake:
     """Test Scene.shake targeting."""
 

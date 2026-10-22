@@ -1092,6 +1092,20 @@ class TestTemporaryFilesAndStaticLoad:
         assert canvas.loaded_paths == [sprite_path]
         assert canvas.redraw_count == 0
 
+    def test_detected_file_without_frames_loads_as_static(self, tmp_path):
+        """An animation with no frames leaves no animations, so it takes the static load path."""
+        canvas = FakeCanvas()
+        sprite_path = _write_sprite(
+            tmp_path=tmp_path,
+            name='frameless.toml',
+            content='[sprite]\nname = "frameless"\n\n[[animation]]\nnamespace = "idle"\n',
+        )
+
+        AIManager(_editor(canvas=canvas))._detect_and_load_ai_sprite(sprite_path)  # type: ignore[arg-type]
+
+        assert canvas.loaded_paths == [sprite_path]
+        assert canvas.redraw_count == 1
+
 
 # ---------------------------------------------------------------------------
 # Current frame and strip context

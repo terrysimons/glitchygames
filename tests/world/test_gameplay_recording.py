@@ -36,6 +36,7 @@ from scripts.record_golden_traces import (
 from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
+from glitchygames.events.controller import ControllerEventManager
 from glitchygames.examples import paddleslap
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input import devices as devices_module
@@ -1068,6 +1069,29 @@ class TestRecordingEdgeCases:
         with constructed_engine():
             pass
         assert 'SDL may own SIGINT and SIGTERM' in caplog.text
+
+    def test_controller_input_mode_runs_with_a_controller_manager(self, mocker):
+        """--input-mode controller: SDL's Game Controller API, its events left unblocked."""
+        controller_events_blocked: list[bool] = []
+
+        def note_blocked_state() -> None:
+            controller_events_blocked.append(pygame.event.get_blocked(pygame.CONTROLLERBUTTONDOWN))
+
+        with engine_run_environment(mocker):
+            Script.action, Script.action_frame = note_blocked_state, 1
+            _schedule_quit_in_arrival()
+            engine = run_engine('--input-mode', 'controller')
+
+        assert isinstance(engine.controller_manager, ControllerEventManager)
+        assert controller_events_blocked == [False]
+
+    def test_pygame_not_yet_initialized_is_not_warned_about(self, mocker, caplog):
+        """The engine initializes pygame itself: SDL then installs no signal handlers."""
+        mocker.patch.object(game_engine_module.pygame, 'get_init', return_value=False)
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
+        assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '1'
 
     @SKIP_WITHOUT_A_DELIVERABLE_SIGTERM
     def test_a_real_sigterm_ends_a_live_run_as_terminated_not_as_a_quit(self, tmp_path):

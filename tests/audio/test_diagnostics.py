@@ -63,6 +63,14 @@ class TestFindDiscontinuities:
 
         assert any(abs(index - 2000) <= 1 for index in found)
 
+    def test_fewer_than_three_samples_have_none(self):
+        """A second difference needs at least three samples."""
+        assert find_discontinuities(np.array([0.0, 1.0])) == []
+
+    def test_constant_signal_has_none(self):
+        """A constant signal has a zero second difference, so the threshold is zero."""
+        assert find_discontinuities(np.full(100, 0.5)) == []
+
 
 class TestDescribeEdges:
     """Tests for describe_edges."""
@@ -82,6 +90,11 @@ class TestDescribeEdges:
         report = describe_edges(samples)
 
         assert abs(report.cut_ratio) < 1.0
+
+    def test_silence_reports_all_zeros(self):
+        assert describe_edges(np.zeros(100)) == EdgeReport(
+            onset_samples=(), final_sample=0.0, typical_step=0.0, cut_ratio=0.0
+        )
 
 
 class TestDropoutRisk:
@@ -143,6 +156,23 @@ class TestMeasureLockWait:
         assert report.sample_count > 0
         assert math.isclose(sys.getswitchinterval(), previous_interval, rel_tol=1e-6)
 
+    def test_late_frames_without_spin_yield_skip_the_coarse_sleep(self, mocker):
+        """Game logic longer than the frame leaves no time to sleep: the pacing only spins."""
+        sleep = mocker.spy(diagnostics.time, 'sleep')
+
+        listener_period_seconds = 0.002
+
+        measure_lock_wait(
+            frames=2,
+            target_fps=200.0,
+            game_logic_seconds=0.006,
+            period_seconds=listener_period_seconds,
+            yield_in_spin=False,
+        )
+
+        # Every sleep is the listener's own period; the frame pacing never slept
+        assert all(call.args[0] == listener_period_seconds for call in sleep.call_args_list)
+
     def test_restores_interval_and_stops_thread_when_frame_loop_raises(self, mocker):
         previous_interval = sys.getswitchinterval()
         mocker.patch.object(diagnostics, 'busy_python_work', side_effect=RuntimeError('boom'))
@@ -157,3 +187,25 @@ class TestMeasureLockWait:
 
         assert math.isclose(sys.getswitchinterval(), previous_interval, rel_tol=1e-6)
         assert not any(thread.name == 'lock-wait-listener' for thread in threading.enumerate())
+
+    def test_listener_that_never_woke_gives_an_empty_report(self, mocker):
+        """When the listener records no waits (stopped before its first wake), all figures are 0."""
+
+        def already_set_event():
+            event = threading.Event()
+            event.set()
+            return event
+
+        fake_threading = mocker.Mock(wraps=threading)
+        fake_threading.Thread = threading.Thread
+        fake_threading.Event = already_set_event
+        mocker.patch.object(diagnostics, 'threading', fake_threading)
+
+        report = measure_lock_wait(frames=1, target_fps=200.0, game_logic_seconds=0.0)
+
+        assert report == LockWaitReport(
+            median_milliseconds=0.0,
+            p99_milliseconds=0.0,
+            maximum_milliseconds=0.0,
+            sample_count=0,
+        )

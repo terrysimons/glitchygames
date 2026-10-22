@@ -8,7 +8,7 @@ and hit-testing helpers.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pygame
 
@@ -19,6 +19,41 @@ if TYPE_CHECKING:
     from glitchygames.sprites import SpriteFrame
 
 LOG = logging.getLogger('game.tools.film_strip')
+
+LABEL_FONT_SIZE = 12
+
+
+def render_label_text(
+    *,
+    text: str,
+    color: tuple[int, int, int],
+) -> tuple[pygame.Surface, pygame.Rect]:
+    """Render film strip label text with whichever font system FontManager uses.
+
+    pygame.freetype fonts (the default) take ``fgcolor`` and a per-call ``size`` and
+    return ``(surface, rect)``; pygame.font fonts (``--font-system pygame``) take
+    ``antialias`` and ``color``, have a fixed size and return only the
+    surface. Telling them apart by ``render_to`` (only freetype has it) matches
+    ``glitchygames.ui.text_widgets``.
+
+    Args:
+        text: The text to render.
+        color: The text colour.
+
+    Returns:
+        The rendered text surface and its rect.
+
+    """
+    font = FontManager.get_font()
+    if hasattr(font, 'render_to'):
+        text_surface, text_rect = cast(
+            'tuple[pygame.Surface, pygame.Rect]',
+            font.render(text, fgcolor=color, size=LABEL_FONT_SIZE),
+        )
+        return text_surface, text_rect
+    pygame_font = cast('pygame.font.Font', font)
+    text_surface = pygame_font.render(text, antialias=True, color=color)
+    return text_surface, text_surface.get_rect()
 
 
 class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
@@ -269,12 +304,7 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
         # Calculate label width dynamically for each animation
         for anim_name in self.widget.animated_sprite.animations:
             # Get text width for this animation
-            font = FontManager.get_font()
-            text_surface = font.render(anim_name, fgcolor=(255, 255, 255), size=12)
-            if isinstance(text_surface, tuple):  # freetype returns (surface, rect)
-                text_surface, text_rect = text_surface
-            else:  # pygame.font returns surface
-                text_rect = text_surface.get_rect()
+            _text_surface, text_rect = render_label_text(text=anim_name, color=(255, 255, 255))
 
             label_width = text_rect.width + 20  # Add padding
             label_x = center_x - (label_width // 2)  # Center the label

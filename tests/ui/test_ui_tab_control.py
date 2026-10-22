@@ -7,6 +7,7 @@ format changes, and integration with slider input formatting.
 import sys
 from pathlib import Path
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -253,3 +254,30 @@ class TestTabControlSpriteFunctionality:
         # Assert - should select second tab
         assert tab_control.active_tab == 1
         parent.on_tab_change_event.assert_called_once_with('%X')
+
+
+class TestTabControlSpriteWithRealSurfaces:
+    """TabControlSprite built on real pygame surfaces and rects (no pygame mocks)."""
+
+    def test_click_outside_the_tabs_changes_nothing(self, mocker):
+        parent = mocker.Mock()
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
+        tab_control.dirty = 0
+
+        tab_control.on_left_mouse_button_down_event(mocker.Mock(pos=(200, 200)))
+
+        assert tab_control.active_tab == 0
+        assert tab_control.dirty == 0
+        parent.on_tab_change_event.assert_not_called()
+
+    def test_update_draws_nothing_while_clean(self, mocker):
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=mocker.Mock())
+        tab_control.update()  # The first update draws the tabs
+        drawn_pixels = pygame.image.tobytes(tab_control.image, 'RGBA')
+        tab_control.image.fill((1, 2, 3, 255))
+        tab_control.dirty = 0
+
+        tab_control.update()
+
+        assert pygame.image.tobytes(tab_control.image, 'RGBA') != drawn_pixels
+        assert tab_control.image.get_at((0, 0)) == (1, 2, 3, 255)

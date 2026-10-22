@@ -189,6 +189,30 @@ class TestFontManagerPygameFontCacheHit:
         result = FontManager.pygame_font(config)
         assert result == mock_font
 
+    def test_pygame_font_without_a_size_uses_14(self, mock_pygame_patches, mocker):
+        """A configuration naming only the font gets the default size."""
+        loaded_font = mocker.Mock()
+        system_font = mocker.patch('pygame.font.SysFont', return_value=loaded_font)
+
+        result = FontManager.pygame_font({'font_name': 'courier'})
+
+        assert result is loaded_font
+        system_font.assert_called_once_with('courier', 14)
+        assert FontManager._font_cache['pygame_courier_14'] is loaded_font
+
+
+class TestFontProxy:
+    """FontManager.FontProxy forwards font events to the game."""
+
+    def test_font_changed_event_reaches_the_game(self, mocker):
+        game = mocker.Mock()
+        proxy = FontManager.FontProxy(game=game)
+        event = mocker.Mock(name='font_changed_event')
+
+        proxy.on_font_changed_event(event)
+
+        game.on_font_changed_event.assert_called_once_with(event)
+
 
 class TestFontManagerFontMethodBranches:
     """Test FontManager.font method additional branches."""

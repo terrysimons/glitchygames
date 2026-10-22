@@ -4250,11 +4250,10 @@ class TestMenuItemAddMenuItemNoneMenu:
 
 
 class TestMenuItemMouseEventSubmenus:
-    """Test MenuItem mouse event propagation to submenu items (lines 633, 663, 692).
+    """Test MenuItem mouse event propagation to submenu items.
 
-    Note: The source code iterates over dict keys (strings) and then calls
-    event methods on those keys. The keys in menu_items are submenu name strings.
-    To cover these lines, we use mock objects as dict keys that have the event methods.
+    menu_items maps submenu names to submenu items; the events reach the items (the dict's
+    values). These tests used mock objects as dict keys while the code iterated the keys.
     """
 
     @pytest.fixture(autouse=True)
@@ -4263,14 +4262,10 @@ class TestMenuItemMouseEventSubmenus:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def _make_collided_sprite_with_submenu_keys(self, mocker):
-        """Create a collided_sprite mock with mock objects as dict keys.
-
-        The source code does: `for submenu in collided_sprite.menu_items:`
-        which iterates dict keys, then calls `.on_mouse_*_event(event)` on them.
-        We use mock objects as dict keys to make this work.
+        """Create a collided_sprite mock with one submenu item, keyed by its name.
 
         Returns:
-            tuple: (collided_sprite, submenu_key) mock objects.
+            tuple: (collided_sprite, submenu_key) mock objects (submenu_key is the item).
 
         """
         collided_sprite = mocker.Mock()
@@ -4278,11 +4273,11 @@ class TestMenuItemMouseEventSubmenus:
         submenu_key.on_mouse_motion_event = mocker.Mock()
         submenu_key.on_mouse_enter_event = mocker.Mock()
         submenu_key.on_mouse_exit_event = mocker.Mock()
-        collided_sprite.menu_items = {submenu_key: mocker.Mock()}
+        collided_sprite.menu_items = {'Submenu': submenu_key}
         return collided_sprite, submenu_key
 
     def test_on_mouse_motion_event_propagates_to_submenus(self, mocker):
-        """Test on_mouse_motion_event propagates to submenu keys (line 633)."""
+        """Test on_mouse_motion_event propagates to submenu items."""
         groups = _RealLayeredDirty()
         menu_item = MenuItem(
             x=0,
@@ -4304,7 +4299,7 @@ class TestMenuItemMouseEventSubmenus:
         submenu_key.on_mouse_motion_event.assert_called_with(event)
 
     def test_on_mouse_enter_event_propagates_to_submenus(self, mocker):
-        """Test on_mouse_enter_event propagates to submenu keys (line 663)."""
+        """Test on_mouse_enter_event propagates to submenu items."""
         groups = _RealLayeredDirty()
         menu_item = MenuItem(
             x=0,
@@ -4327,7 +4322,7 @@ class TestMenuItemMouseEventSubmenus:
         assert menu_item.has_focus is True
 
     def test_on_mouse_exit_event_propagates_to_submenus(self, mocker):
-        """Test on_mouse_exit_event propagates to submenu keys (line 692)."""
+        """Test on_mouse_exit_event propagates the exit to submenu items."""
         groups = _RealLayeredDirty()
         menu_item = MenuItem(
             x=0,
@@ -4346,8 +4341,8 @@ class TestMenuItemMouseEventSubmenus:
         mocker.patch('pygame.sprite.spritecollide', return_value=[collided_sprite])
 
         menu_item.on_mouse_exit_event(event)
-        # Line 692 calls on_mouse_enter_event on the submenu key (not exit)
-        submenu_key.on_mouse_enter_event.assert_called_with(event)
+        submenu_key.on_mouse_exit_event.assert_called_with(event)
+        submenu_key.on_mouse_enter_event.assert_not_called()
         assert menu_item.has_focus is False
 
 
@@ -5288,3 +5283,45 @@ class TestConfirmDialogNonTupleRender:
         dialog.rect = pygame.Rect(0, 0, 300, 100)
         dialog.dirty = 1
         dialog.update()  # Should handle non-tuple render results
+
+
+class TestTextWidgetsWithRealSurfaces:
+    """TextSprite and TextBoxSprite on real surfaces and fonts (no pygame mocks)."""
+
+    def test_text_sprite_renders_with_a_pygame_font(self, mocker):
+        """A pygame.font.Font (no render_to) renders through the pygame.font path."""
+        pygame_font = pygame.font.Font(None, 24)
+        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=pygame_font)
+        text_sprite = TextSprite(
+            x=0,
+            y=0,
+            width=60,
+            height=30,
+            background_color=(0, 0, 0),
+            text_color=(255, 255, 255),
+            text='W',
+        )
+
+        text_sprite.update_text('W')
+
+        assert any(text_sprite.image.get_at((x, y))[0] > 128 for x in range(60) for y in range(30))
+
+    def test_text_box_without_its_text_sprite_draws_only_the_border(self):
+        text_box = TextBoxSprite(x=0, y=0, width=40, height=20, name='box')
+        text_box.text_box = None
+        text_box.image.fill((0, 0, 0))
+
+        text_box.update()
+
+        assert text_box.image.get_at((0, 0))[:3] == (128, 128, 128)
+        assert text_box.image.get_at((20, 10))[:3] == (0, 0, 0)
+
+    def test_text_box_without_a_border_draws_none(self):
+        text_box = TextBoxSprite(x=0, y=0, width=40, height=20, name='box')
+        text_box.text_box = None
+        text_box.border_width = 0
+        text_box.image.fill((0, 0, 0))
+
+        text_box.update()
+
+        assert text_box.image.get_at((0, 0))[:3] == (0, 0, 0)

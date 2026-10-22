@@ -2159,3 +2159,59 @@ class TestAnimatedCanvasRendererMethods:
         renderer = AnimatedCanvasRenderer(canvas_sprite)
         result = renderer.get_pixel_size()
         assert result == (8, 8)
+
+
+class TestAnimatedCanvasInterfaceInitWithEmptyOrder:
+    """Test AnimatedCanvasInterface initialization when the load order is empty."""
+
+    def test_empty_animation_order_falls_back_to_the_first_animation(self):
+        """Animations with an empty recorded order start on the first animation key."""
+        animated_sprite = AnimatedSprite()
+        surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
+        animated_sprite._animations = {
+            'run': [SpriteFrame(surface)],
+            'idle': [SpriteFrame(surface)],
+        }
+        animated_sprite._animation_order = []
+        canvas_sprite = SimpleNamespace(animated_sprite=animated_sprite)
+
+        interface = AnimatedCanvasInterface(canvas_sprite)
+
+        assert interface.current_animation == 'run'
+
+
+class TestDrawControllerIndicatorsOnlyWithoutControllers:
+    """Test _draw_controller_indicators_only when no controller is in canvas mode."""
+
+    def test_hidden_frame_without_controllers_draws_nothing(self):
+        """With the frame hidden and no controller scene, the canvas image is left as it was."""
+        image = pygame.Surface((16, 16), pygame.SRCALPHA)
+        image.fill((1, 2, 3, 255))
+        canvas_sprite = SimpleNamespace(
+            pixels_across=2,
+            pixels_tall=2,
+            pixel_width=8,
+            pixel_height=8,
+            image=image,
+            parent_scene=None,
+        )
+        renderer = AnimatedCanvasRenderer(canvas_sprite)
+
+        renderer._draw_controller_indicators_only([RED, GREEN, BLUE, MAGENTA])
+
+        width, height = image.get_size()
+        assert all(
+            tuple(image.get_at((pixel_x, pixel_y))) == (1, 2, 3, 255)
+            for pixel_y in range(height)
+            for pixel_x in range(width)
+        )
+
+
+class TestGetPixelColorWithoutCanvas:
+    """Test _get_pixel_color_at_position when the renderer has no canvas."""
+
+    def test_missing_canvas_reads_as_black(self):
+        """Without a canvas sprite every position reads as black."""
+        renderer = AnimatedCanvasRenderer(None)
+
+        assert renderer._get_pixel_color_at_position(0, 0) == (0, 0, 0)

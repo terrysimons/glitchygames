@@ -335,7 +335,7 @@ class TestMenuItemMouseMotionEvent:
 
         collided_sprite = mocker.Mock()
         collided_sprite.name = 'NewFile'
-        # Empty sub-menu so the inner loop (which iterates dict keys) is a no-op
+        # No sub-items of its own (TestMenuItemNestedSubMenus covers those)
         collided_sprite.menu_items = {}
         menu_item.menu_items['NewFile'] = collided_sprite
 
@@ -377,7 +377,7 @@ class TestMenuItemMouseEnterEvent:
 
         sub_item = mocker.Mock()
         sub_item.name = 'NewFile'
-        # Empty sub-menu items so the inner loop is a no-op
+        # No sub-items of its own (TestMenuItemNestedSubMenus covers those)
         sub_item.menu_items = {}
         menu_item.menu_items['NewFile'] = sub_item
 
@@ -421,7 +421,7 @@ class TestMenuItemMouseExitEvent:
 
         sub_item = mocker.Mock()
         sub_item.name = 'NewFile'
-        # Empty sub-menu items so the inner loop is a no-op
+        # No sub-items of its own (TestMenuItemNestedSubMenus covers those)
         sub_item.menu_items = {}
         menu_item.menu_items['NewFile'] = sub_item
 
@@ -560,3 +560,152 @@ class TestMenuItemLeftMouseButtonDownEvent:
         menu_item.on_left_mouse_button_down_event(event)
 
         sub_item.on_left_mouse_button_down_event.assert_called_once_with(event)
+
+
+class TestMenuItemNestedSubMenus:
+    """A collided sub-item's own sub-items get the event too (they are the dict's values)."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker, mock_pygame_patches):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def _menu_with_nested_item(mocker):
+        """A real MenuItem whose collided sub-item has a sub-item of its own.
+
+        Returns:
+            The menu item, the collided sub-item and its own sub-item.
+
+        """
+        menu_item = MenuItem(
+            x=0, y=0, width=100, height=30, name='FileMenu', groups=_RealLayeredDirty()
+        )
+        nested_item = mocker.Mock(name='RecentFile')
+        sub_item = mocker.Mock(name='OpenRecent')
+        sub_item.name = 'OpenRecent'
+        sub_item.menu_items = {'RecentFile': nested_item}
+        menu_item.menu_items['OpenRecent'] = sub_item
+        mocker.patch('pygame.sprite.spritecollide', return_value=[sub_item])
+        return menu_item, sub_item, nested_item
+
+    @staticmethod
+    def _event(mocker):
+        event = mocker.Mock()
+        event.pos = (50, 15)
+        return event
+
+    def test_motion_reaches_nested_sub_items(self, mocker):
+        """It iterated the dict's keys (names) and called the handler on a string."""
+        menu_item, sub_item, nested_item = self._menu_with_nested_item(mocker)
+        event = self._event(mocker)
+
+        menu_item.on_mouse_motion_event(event)
+
+        sub_item.on_mouse_motion_event.assert_called_once_with(event)
+        nested_item.on_mouse_motion_event.assert_called_once_with(event)
+
+    def test_enter_reaches_nested_sub_items(self, mocker):
+        menu_item, sub_item, nested_item = self._menu_with_nested_item(mocker)
+        event = self._event(mocker)
+
+        menu_item.on_mouse_enter_event(event)
+
+        sub_item.on_mouse_enter_event.assert_called_once_with(event)
+        nested_item.on_mouse_enter_event.assert_called_once_with(event)
+
+    def test_exit_sends_exit_to_nested_sub_items(self, mocker):
+        """Leaving the menu leaves its nested items too (it sent them an enter event)."""
+        menu_item, sub_item, nested_item = self._menu_with_nested_item(mocker)
+        event = self._event(mocker)
+
+        menu_item.on_mouse_exit_event(event)
+
+        sub_item.on_mouse_exit_event.assert_called_once_with(event)
+        nested_item.on_mouse_exit_event.assert_called_once_with(event)
+        nested_item.on_mouse_enter_event.assert_not_called()
+
+
+class TestMenuHandlersIgnoreOtherSprites:
+    """Collided sprites that are not this menu's items (or not MenuItems) get no event."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker, mock_pygame_patches):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def _stranger(mocker):
+        """A collided sprite that is neither registered nor a MenuItem.
+
+        Returns:
+            The mock sprite.
+
+        """
+        stranger = mocker.Mock(name='Stranger')
+        stranger.name = 'Stranger'
+        mocker.patch('pygame.sprite.spritecollide', return_value=[stranger])
+        return stranger
+
+    @staticmethod
+    def _event(mocker):
+        event = mocker.Mock()
+        event.pos = (50, 15)
+        return event
+
+    @pytest.mark.parametrize(
+        'handler_name',
+        [
+            'on_mouse_exit_event',
+            'on_left_mouse_button_down_event',
+            'on_left_mouse_button_up_event',
+        ],
+    )
+    def test_menubar_ignores_a_stranger(self, mocker, handler_name):
+        menubar = _create_menubar(mocker)
+        stranger = self._stranger(mocker)
+        event = self._event(mocker)
+
+        getattr(menubar, handler_name)(event)
+
+        assert stranger.mock_calls == []
+
+    @pytest.mark.parametrize(
+        'handler_name',
+        [
+            'on_mouse_motion_event',
+            'on_mouse_enter_event',
+            'on_mouse_exit_event',
+            'on_left_mouse_button_up_event',
+        ],
+    )
+    def test_menu_item_ignores_a_stranger(self, mocker, handler_name):
+        menu_item = MenuItem(
+            x=0, y=0, width=100, height=30, name='FileMenu', groups=_RealLayeredDirty()
+        )
+        stranger = self._stranger(mocker)
+        post_event = mocker.patch('glitchygames.ui.menus.post_event')
+        event = self._event(mocker)
+
+        getattr(menu_item, handler_name)(event)
+
+        assert stranger.mock_calls == []
+        post_event.assert_not_called()
+
+
+class TestMenuItemWithoutGroups:
+    """A MenuItem made without groups gets a group of its own."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker, mock_pygame_patches):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def test_menu_item_without_groups_keeps_its_sprites_in_a_new_group(self, mocker):
+        mocker.patch('pygame.sprite.LayeredDirty', _RealLayeredDirty)
+
+        first_item = MenuItem(x=0, y=0, width=100, height=30, name='FileMenu', groups=None)
+        second_item = MenuItem(x=0, y=0, width=100, height=30, name='EditMenu', groups=None)
+
+        assert isinstance(first_item.all_sprites, _RealLayeredDirty)
+        assert first_item.all_sprites is not second_item.all_sprites

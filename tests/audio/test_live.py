@@ -199,6 +199,48 @@ class TestLiveVoiceStopping:
         voice.update()
         assert len(rendered_chunks) == 1
 
+    def test_parameters_read_back_and_changes_after_stopping_are_ignored(
+        self, channel, rendered_chunks
+    ):
+        voice = _voice(channel, low_pass_cutoff=2000.0)
+        voice.volume = 0.25
+        voice.low_pass_cutoff = 1000.0
+        voice.tremolo = Tremolo(rate_hz=5.0, depth=0.5)
+        assert voice.frequency == 220.0
+        assert voice.volume == 0.25
+        assert voice.low_pass_cutoff == 1000.0
+        assert voice.tremolo == Tremolo(rate_hz=5.0, depth=0.5)
+
+        voice.start()
+        voice.stop_now()
+        voice.volume = 0.9
+        voice.low_pass_cutoff = None
+        voice.tremolo = None
+
+        assert voice.volume == 0.25
+        assert voice.low_pass_cutoff == 1000.0
+        assert voice.tremolo == Tremolo(rate_hz=5.0, depth=0.5)
+
+    def test_stop_before_start_does_nothing(self, channel, rendered_chunks):
+        voice = _voice(channel)
+        voice.stop(fade_out=0.1)
+        assert voice.state is VoiceState.IDLE
+        voice.start()
+        assert voice.state is VoiceState.PLAYING
+
+    def test_fade_longer_than_a_chunk_keeps_fading(self, channel, rendered_chunks):
+        voice = _voice(channel, volume=1.0)
+        voice.start()
+        voice.stop(fade_out=0.25)
+        voice.update()
+        assert voice.state is VoiceState.FADING
+        assert abs(rendered_chunks[-1][-1]) > 0.0  # Not silent yet
+        channel.get_queue.return_value = None
+        voice.update()
+        voice.update()
+        assert voice.state is VoiceState.DRAINING
+        assert abs(rendered_chunks[-1][-1]) < 1e-9
+
     def test_underrun_recovers(self, channel, rendered_chunks, mocker):
         """Review focus 5: a long hitch drains the channel; the voice restarts."""
         debug = mocker.patch.object(live.log, 'debug')
@@ -348,3 +390,11 @@ class TestLiveAudio:
         )
         voice.start()
         assert not voice.is_playing
+
+    def test_no_mixer_warning_is_logged_once(self, mocker):
+        mocker.patch('pygame.mixer.get_init', return_value=None)
+        warning = mocker.patch.object(live.log, 'warning')
+        audio = LiveAudio(channel_indices=())
+        for _ in range(2):
+            audio.create_voice(owner='scene', waveform=Waveform.SINE, frequency=100.0)
+        warning.assert_called_once_with('Audio unavailable; live voices are silent')

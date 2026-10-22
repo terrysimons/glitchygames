@@ -223,6 +223,12 @@ class TestFreezing:
         assert hash(resting) == hash(snapshot_with(controller_axes={3: [0]}))
         assert hash(resting) != hash(pressed)
 
+    def test_a_snapshot_never_equals_another_type(self):
+        """Comparing with a non-snapshot is NotImplemented, so Python falls back to identity."""
+        snapshot = snapshot_with()
+        assert snapshot.__eq__(object()) is NotImplemented
+        assert snapshot != {'pressed_scancodes': frozenset()}
+
 
 class TestCurrentInput:
     """current_input() is the frame's snapshot."""
@@ -319,6 +325,14 @@ class TestChanges:
         live = snapshot_with(pressed_scancodes=frozenset({LEFT_ARROW_SCANCODE}))
         assert live.held_key_codes is None
         assert held_key_codes(snapshot=live) == frozenset({pygame.K_LEFT})
+
+    def test_recorded_key_codes_win_over_this_keymap(self):
+        """A snapshot rebuilt from a recording answers with the recording machine's key codes."""
+        replayed = snapshot_with(
+            pressed_scancodes=frozenset({LEFT_ARROW_SCANCODE}),
+            held_key_codes=frozenset({pygame.K_a}),
+        )
+        assert held_key_codes(snapshot=replayed) == frozenset({pygame.K_a})
 
     def test_a_removed_device_is_recorded_and_removed(self):
         """A device that disappears is recorded as None and removed on rebuild."""

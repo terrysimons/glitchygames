@@ -47,14 +47,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-21
 - **Files**: `glitchygames/api/routes/health.py:26`, `glitchygames/services/renderer_service.py`
 
-### 114. Clearing the Voice Assistant's Conversation Mid-Request Leaves a History Starting With an Answer
-- **Description**: `_ask_ai` runs on a background thread; a `clear_conversation()` on the main thread while it waits empties the history, and the answer is then appended to the empty history, which starts with an assistant message
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found fixing #105 (by reading)
-- **Date Reported**: 2026-10-21
-- **Files**: `glitchygames/audio/voice_assistant.py`
-
 ### 115. A Scene's AnimatedSprites Advance a Fixed 16 ms per Rendered Frame (Suspected)
 - **Description**: `Scene.update()` (`scenes/scene.py:2968-2978`) calls `sprite.update()` without a dt, and `AnimatedSprite.update(dt=0.016)` defaults it, so a plain `AnimatedSprite` in a scene's group animates by frames rendered, not by time: slower than real time below 62.5 FPS, faster above it
 - **Status**: Active
@@ -80,13 +72,55 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-21
 - **Files**: `glitchygames/bitmappy/editor.py:701-704`, `glitchygames/bitmappy/animated_canvas.py`
 
-### 121. Unpickling a HashableEvent Fails (Suspected)
-- **Description**: `HashableEvent.__setstate__` (`events/base.py`, about line 551) calls `hash((self.type, self.__dict__))`, and a dict cannot be hashed
+### 133. An AnimatedSprite's Image Loses Per-Pixel Alpha and Magenta Transparency
+- **Description**: `_update_surface_and_mark_dirty` -> `_get_current_surface` -> `_create_optimized_surface` (`sprites/animated.py` ~706-733) rebuilds the image of any frame with a `pixels` list (every TOML frame) as a plain Surface with no SRCALPHA and no colorkey; its "RGBA pixel" branch equals the RGB one. With `examples/foo2.toml`, the frame image has alpha 137 but `sprite.image` has 255 and no colorkey
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Details**: Very likely the cause of the CLAUDE.md caveat that TOML AnimatedSprites keep magenta opaque. A fix changes visible-pixel hitboxes and so the golden traces and replays; needs a decision
+- **Files**: `glitchygames/sprites/animated.py:706-733`
+
+### 134. A HashableEvent's Own Hash Shows Up as One of Its Attributes
+- **Description**: `HashableEvent` stores its hash in `__dict__` (`_HashableEvent__hash`), so `len()`, iteration, `keys()` and `repr` include it: `len(HashableEvent(KEYDOWN, key=1)) == 3`
 - **Status**: Active
 - **Priority**: Low
-- **Reporter**: Found fixing #88 (by reading, not run)
-- **Date Reported**: 2026-10-21
-- **Files**: `glitchygames/events/base.py`
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/events/base.py:339`
+
+### 135. Dialog Scenes Ignore Their `groups` Argument
+- **Description**: `NewCanvasDialogScene`, `LoadDialogScene` and `SaveDialogScene` always pass a new `LayeredDirty()`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/ui/dialogs.py` 344-346, 394-397, 446-449
+
+### 136. A Menu With No Item Rects Raises ValueError
+- **Description**: `max()` over the items' rects raises when none has one (`menus.py:527`), which also makes 531->539 unreachable
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/ui/menus.py:527`
+
+### 137. Frame Extraction Reports Non-PNG Data as a Success With 0 Frames
+- **Description**: `/sprites/extract-frames` returns `success=True` with no frames for arbitrary bytes, because `APNG.from_bytes` accepts garbage
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/api/routes/sprites.py`
+
+### 138. Smaller Findings From the 100% Coverage Audit
+- **Description**: Inconsistencies none of which breaks a feature
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Details**: (1) `replay/driver.py` `_recorded_start` (958-966): a bad or missing `recorded_at` is refused with the right exit code but without the "The recording is malformed" prefix other header refusals use. (2) `scenes/scene.py` ~2593-2597: a scene with a `VERSION` but no `NAME` gets the caption `' v2.1'`. (3) `scenes/scene.py` 1930-1935: an exception between `push_scoped_sources` and setting `_playback_session` would leave the scoped doors pushed (only `take_redelivered_events()` runs there today). (4) `SlideTransition` with an unknown direction draws nothing while `WipeTransition` reveals the new scene; neither validates `direction` (tests pin current behaviour). (5) `fonts/font_manager.py:164`: with freetype missing, `set_default_resolution` would raise after the fallback anyway. (6) `AnimatedCanvasSprite.previous_animation` into an animation with no frames leaves the canvas but switches the film strip to it. (7) Dead code found by the audit (not deleted; listed per module in the audit notes): the canvas panning system in `animated_canvas.py`, `film_strip.py` `_get_stale_frame_surface`/`_update_film_tabs`, the triforce indicator forwarders, `editor.py` `deflate`, `ui/sliders.py` `update_color_well`, `animated.py` `_create_surface_from_toml_pixels`
+- **Files**: see Details
 
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
@@ -187,6 +221,106 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `glitchygames/input/state.py`
 
 ## Resolved Bugs
+
+### 125. A Truncated APNG Upload Gave a Server Error
+- **Description**: `_extract_apng_frames` caught only ValueError; APNG data cut off inside a chunk header raises `struct.error`, so `/sprites/extract-frames` answered HTTP 500 instead of `success=False, "Invalid APNG file: ..."`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/api/routes/sprites.py:513`
+- **Date Resolved**: 2026-10-22
+- **Solution**: `struct.error` is caught too. Test: `TestExtractFramesErrors::test_truncated_apng_is_an_unsuccessful_response`
+
+### 126. Clearing Controller Indicators Left Them Pushing New Ones Aside
+- **Description**: `VisualCollisionManager.clear_all_indicators` cleared only the main `indicators` dict; the film strip, canvas and slider dicts and their collision groups kept the cleared indicators, so a new indicator placed where one stood was still offset (15, -15)
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/indicators/collision.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Every location's dicts and groups are cleared. Tests: `TestClearAllIndicatorsClearsEveryLocation`
+
+### 127. The Indicator Collision Summary Always Reported 0
+- **Description**: `get_collision_summary` counted the legacy `collision_groups` dict, which nothing fills
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/indicators/collision.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It counts the three per-location group dicts. Tests: `TestCollisionSummaryCountsLocationGroups`
+
+### 128. `bitmappy --font-system pygame` Crashed the Film Strip
+- **Description**: The film strip's label rendering called `font.render(text, fgcolor=..., size=12)`, the freetype form; a `pygame.font.Font` raised TypeError (missing `antialias`), and the `pygame.font` branches after it could never run
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/film_strip_layout.py`, `glitchygames/bitmappy/film_strip_rendering.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: One helper, `render_label_text(*, text, color)` in `film_strip_layout.py`, tells freetype fonts apart by `render_to` (as `ui/text_widgets.py` does). Tests: `TestCalculateAnimationLayouts::test_label_width_follows_the_name_with_the_pygame_font_system`, `TestLabelsWithThePygameFontSystem`
+
+### 129. Comparing an Event With a Non-Event Raised TypeError
+- **Description**: `HashableEvent.__ne__` negated `__eq__`'s NotImplemented, and Python 3.14 raises on `bool(NotImplemented)`, so `event != "x"` raised
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/events/base.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: `__ne__` returns NotImplemented. Test: `TestHashableEventEquality::test_comparison_with_a_non_event_is_not_implemented`
+
+### 130. Saved Action Maps Lost Every Gamepad Button in Joystick Mode
+- **Description**: In joystick mode (the default) `ActionMap.to_dict()` dropped JOYBUTTONDOWN bindings, from both `controller_button=` and `joystick_button=`, so after a save and load those actions had no gamepad button
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/input/action_map.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: They are saved as `'JoyButtonDown'` and restored with `joystick_button=`. Test: `TestPersistence::test_joystick_mode_gamepad_buttons_survive_a_round_trip`
+
+### 131. Nested Menus Crashed on Mouse Motion, and Leaving a Menu Entered Its Submenus
+- **Description**: `MenuItem.on_mouse_motion_event`, `on_mouse_enter_event` and `on_mouse_exit_event` iterated the `menu_items` dict's keys (names), calling handlers on strings (AttributeError for any nested submenu); the exit handler also sent submenus an enter event
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/ui/menus.py` (~679, 712, 744)
+- **Date Resolved**: 2026-10-22
+- **Solution**: They iterate `.values()`, and exit sends exit. Tests: `tests/ui/test_menubar_events.py::TestMenuItemNestedSubMenus`; the widget tests that worked around it with mock dict keys were rewritten
+
+### 132. `Sprite.break_when` Registered the Wrong Type and Broke on Every Sprite
+- **Description**: `break_when(sprite_type=X)` registered the class it was called on instead of X; with any type registered, `Sprite.__init__` called `breakpoint()` for every sprite (and again on a match), and logged `<any>`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/sprites/sprite.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It registers `str(sprite_type)`, breaks only on a match and logs the matched type. Tests: `TestSpriteBreakWhen`
+
+### 114. Clearing the Voice Assistant's Conversation Mid-Request Leaves a History Starting With an Answer
+- **Description**: `_ask_ai` runs on a background thread; a `clear_conversation()` on the main thread while it waits empties the history, and the answer is then appended to the empty history, which starts with an assistant message
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found fixing #105 (by reading)
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/audio/voice_assistant.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Every change to the history holds `self._lock` (never across the network call); an answer is added only while its question is still the last entry, and trimming deletes in place. Test: `TestPipeline::test_clearing_mid_request_leaves_no_answer_without_its_question` (a successful and a failed reply)
+
+### 121. Unpickling a HashableEvent Fails
+- **Description**: `HashableEvent.__setstate__` (`events/base.py`, about line 551) calls `hash((self.type, self.__dict__))`, and a dict cannot be hashed
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found fixing #88 (by reading, not run)
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/events/base.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Confirmed: `__reduce__` rebuilt the event without its `type` and `__setstate__` hashed a dict. Both now rebuild it as `__init__` does, so a restored event equals the original and hashes the same. Test: `TestHashableEventCopyAndPickle::test_pickle_round_trip_keeps_attributes_equality_and_hash`
 
 ### 122. After a `--headless` Restart, the Scene Manager Drew on the Closed Display
 - **Description**: A scene manager made before the engine (pygame started first) kept the surface of the display it saw then. When `--headless` restarted a display on a real video driver, the engine opened a new one but never handed it over, so the first scene's background blit failed with "Surface is not initialized"

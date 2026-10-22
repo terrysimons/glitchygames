@@ -533,3 +533,128 @@ class TestMultiLineTextBoxMouseUpEvent:
         textbox.on_mouse_up_event(event)
 
         assert textbox.is_active is False
+
+
+BACKGROUND_COLOR = (32, 32, 32, 200)
+
+
+def _real_textbox(text=''):
+    """A MultiLineTextBox on real surfaces and the real font (no pygame mocks).
+
+    Returns:
+        The text box.
+    """
+    return MultiLineTextBox(
+        x=TEST_TEXTBOX_X,
+        y=TEST_TEXTBOX_Y,
+        width=TEST_TEXTBOX_WIDTH,
+        height=TEST_TEXTBOX_HEIGHT,
+        name='real_textbox',
+        text=text,
+    )
+
+
+def _has_text_pixels(surface, *, top, bottom):
+    """Return whether any pixel in rows top..bottom-1 (inside the border) is bright text.
+
+    Returns:
+        True when a text pixel is found.
+    """
+    return any(surface.get_at((x, y))[0] > 128 for y in range(top, bottom) for x in range(5, 60))
+
+
+class TestMultiLineTextBoxRealRendering:
+    """update() drawing on real surfaces."""
+
+    def test_empty_text_draws_only_the_background_and_border(self):
+        textbox = _real_textbox()
+
+        textbox.update()
+
+        assert not _has_text_pixels(textbox.image, top=2, bottom=TEST_TEXTBOX_HEIGHT - 2)
+        # No scrollbar either: its column is background
+        assert textbox.image.get_at((TEST_TEXTBOX_WIDTH - 6, 10)) == BACKGROUND_COLOR
+
+    def test_a_blank_line_is_skipped_but_keeps_its_height(self):
+        textbox = _real_textbox(text='A\n\nB')
+        line_height = textbox._get_line_height()
+
+        textbox.update()
+
+        assert _has_text_pixels(textbox.image, top=5, bottom=5 + line_height)
+        assert not _has_text_pixels(textbox.image, top=5 + line_height, bottom=5 + 2 * line_height)
+        assert _has_text_pixels(textbox.image, top=5 + 2 * line_height, bottom=5 + 3 * line_height)
+
+    def test_cursor_blinks_off_after_the_blink_interval(self):
+        textbox = _real_textbox(text='A')
+        textbox.is_active = True
+        textbox.cursor_visible = True
+        textbox.cursor_blink_time -= textbox.cursor_blink_rate
+
+        textbox.update()
+
+        assert textbox.cursor_visible is False
+        # The cursor would be drawn just after the text, from row 5 down
+        line_height = textbox._get_line_height()
+        cursor_x = textbox._get_text_width('A') + 5
+        assert all(
+            textbox.image.get_at((cursor_x, y)) == BACKGROUND_COLOR
+            for y in range(6, 5 + line_height)
+        )
+
+
+class TestMultiLineTextBoxRealEvents:
+    """Event handling that leaves the text box unchanged."""
+
+    def test_paste_without_pyperclip_changes_nothing(self, mocker):
+        textbox = _real_textbox(text='keep')
+        textbox.is_active = True
+        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_CTRL)
+
+        textbox.on_key_down_event(_make_key_event(mocker, pygame.K_v, unicode_char='\x16'))
+
+        assert textbox._original_text == 'keep'
+
+    def test_a_control_character_is_not_typed(self, mocker):
+        textbox = _real_textbox(text='keep')
+        textbox.is_active = True
+
+        textbox.on_key_down_event(_make_key_event(mocker, pygame.K_F1, unicode_char='\x1b'))
+        textbox.on_key_down_event(_make_key_event(mocker, pygame.K_LSHIFT, unicode_char=''))
+
+        assert textbox._original_text == 'keep'
+        assert textbox.cursor_pos == len('keep')
+
+    def test_motion_keeps_the_hover_state_it_already_has(self, mocker):
+        textbox = _real_textbox(text='keep')
+        inside = textbox.rect.center
+        outside = (textbox.rect.right + 50, textbox.rect.bottom + 50)
+
+        textbox.is_hovered = True
+        textbox.dirty = 0
+        textbox.on_mouse_motion_event(mocker.Mock(pos=inside))
+        assert textbox.is_hovered is True
+        assert textbox.dirty == 0
+
+        textbox.is_hovered = False
+        textbox.on_mouse_motion_event(mocker.Mock(pos=outside))
+        assert textbox.is_hovered is False
+        assert textbox.dirty == 0
+
+    @pytest.mark.parametrize(
+        'wheel_event',
+        [
+            pytest.param(pygame.event.Event(pygame.MOUSEWHEEL), id='no_y_or_button'),
+            pytest.param(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=2), id='middle'),
+        ],
+    )
+    def test_a_wheel_event_without_a_direction_does_not_scroll(self, wheel_event):
+        textbox = _real_textbox(text='line\n' * 40)
+        textbox.scroll_offset = 3
+        MockFactory.install_frame_input(mouse_position=textbox.rect.center)
+
+        textbox.on_mouse_wheel_event(wheel_event)
+
+        assert textbox.scroll_offset == 3
+        assert textbox.scrollbar.scroll_offset == 3

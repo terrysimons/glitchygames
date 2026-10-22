@@ -352,6 +352,27 @@ class TestHashableEventEquality:
         event_b = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0)
         assert (event_a != event_b) is False
 
+    def test_event_equals_itself(self, mock_pygame_patches):
+        """The identity check answers before the attribute comparison."""
+        event = HashableEvent(pygame.USEREVENT, value=float('nan'))
+        assert event.__eq__(event) is True
+
+    def test_comparison_with_a_non_event_is_not_implemented(self, mock_pygame_patches):
+        """Python then falls back to identity, so an event never equals a plain dict."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        assert event.__eq__({'type': pygame.KEYDOWN, 'key': pygame.K_a}) is NotImplemented
+        assert event != {'type': pygame.KEYDOWN, 'key': pygame.K_a}
+
+    def test_events_that_contain_themselves_compare_without_recursing(self, mock_pygame_patches):
+        """The recursion guard ends the comparison of self-referencing events."""
+        event_a = HashableEvent(pygame.USEREVENT, score=1)
+        event_b = HashableEvent(pygame.USEREVENT, score=1)
+        event_a['parent'] = event_a
+        event_b['parent'] = event_b
+
+        assert event_a == event_b
+        assert not HashableEvent._comparing_ids
+
 
 class TestHashableEventStringRepresentations:
     """Test HashableEvent.__repr__ and __str__ methods."""
@@ -559,17 +580,38 @@ class TestHashableEventCopyAndPickle:
         assert isinstance(reduced, tuple)
         assert reduced[0] is HashableEvent
 
-    def test_setstate_raises_type_error(self, mock_pygame_patches):
-        """__setstate__ has a bug: it hashes self.__dict__ (a dict, unhashable).
+    def test_pickle_round_trip_keeps_attributes_equality_and_hash(self, mock_pygame_patches):
+        """BUGS.md #121: an unpickled event equals the original and hashes the same.
 
-        BUG: __setstate__ uses hash((self.type, self.__dict__)) but __init__ uses
-        hash((self.type, tuple(self.__dict__.keys()))). The dict is not hashable,
-        so __setstate__ always raises TypeError.
+        The test rebuilds the event the way pickle does, without importing pickle.
+
+        __reduce__ rebuilt the event without its type and __setstate__ hashed a dict, so
+        unpickling raised TypeError.
         """
-        event = HashableEvent(pygame.USEREVENT)
-        state = {'type': pygame.KEYDOWN, 'key': pygame.K_a, 'mod': 0}
-        with pytest.raises(TypeError, match='unhashable type'):
-            event.__setstate__(state)
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+
+        # What pickle.loads does with what pickle.dumps took from __reduce__
+        rebuild, arguments, state = event.__reduce__()
+        restored_event = rebuild(*arguments)
+        restored_event.__setstate__(state)
+
+        assert restored_event == event
+        assert hash(restored_event) == hash(event)
+        assert restored_event.type == pygame.KEYDOWN
+        assert restored_event.key == pygame.K_a
+        assert restored_event.unicode == 'a'
+        assert {event: 'cached'}[restored_event] == 'cached'
+
+    def test_setstate_replaces_the_events_attributes(self, mock_pygame_patches):
+        """__setstate__ makes the event the one the state describes, hash included."""
+        event = HashableEvent(pygame.USEREVENT, stale='gone')
+        expected_event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0)
+
+        event.__setstate__({'type': pygame.KEYDOWN, 'key': pygame.K_a, 'mod': 0})
+
+        assert event == expected_event
+        assert hash(event) == hash(expected_event)
+        assert 'stale' not in event
 
 
 class TestHashableEventWithVariousTypes:
@@ -1006,6 +1048,15 @@ class TestEventSystemUtilities:
         # Should raise UnhandledEventError
         with pytest.raises(UnhandledEventError, match='Unhandled event'):
             unhandled_event(mock_game, event)
+
+    def test_unhandled_event_without_game_options_is_silent(self, mock_pygame_patches, mocker):
+        """A game without an options dict (a standalone stub) neither raises nor logs."""
+        game_without_options = object()
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
+
+        unhandled_event(game_without_options, HashableEvent(pygame.KEYDOWN, key=pygame.K_a))
+
+        assert mock_log.mock_calls == []
 
     def test_unhandled_event_with_missing_options(self, mock_pygame_patches, mocker):
         """Test unhandled_event with missing options."""

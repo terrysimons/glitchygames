@@ -130,6 +130,21 @@ class TestLoadErrors:
         with pytest.raises(SaveCorruptedError, match='invalid version'):
             saves.load('slot_1')
 
+    def test_a_file_that_cannot_be_read_is_not_reported_as_corrupt(
+        self, tmp_path: Path, mocker
+    ) -> None:
+        """An OSError reading the file passes through: the save is unreadable, not corrupt."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        mocker.patch.object(
+            type(tmp_path), 'read_text', side_effect=PermissionError(13, 'Permission denied')
+        )
+
+        with pytest.raises(PermissionError, match='Permission denied'):
+            saves.load('slot_1')
+        # list_slots skips the unreadable file instead of raising
+        assert saves.list_slots() == []
+
 
 class TestLoadRaw:
     """Tests for load_raw() which returns the full envelope."""
@@ -175,6 +190,41 @@ class TestLoadRaw:
         old_save.write_text(json.dumps(envelope), encoding='utf-8')
         raw = saves.load_raw('old')
         assert raw['data'] == {'legacy': True}
+
+
+class TestSaveDirectory:
+    """Where a DiskSaveManager keeps its files."""
+
+    def test_an_explicit_save_directory_is_used(self, tmp_path: Path) -> None:
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        assert saves.save_dir == tmp_path
+        assert saves.save('slot_1', {'score': 1}).parent == tmp_path
+
+    def test_the_default_save_directory_is_the_platform_one(self, tmp_path: Path, mocker) -> None:
+        """Without save_dir, the directory comes from get_save_directory(app_name)."""
+        get_save_directory = mocker.patch(
+            'glitchygames.state.manager.get_save_directory', return_value=tmp_path / 'platform'
+        )
+        saves = DiskSaveManager(app_name='test-game')
+        assert saves.save_dir == tmp_path / 'platform'
+        get_save_directory.assert_called_once_with('test-game')
+
+
+class TestEngineVersion:
+    """The engine version written into each save's metadata."""
+
+    def test_an_uninstalled_engine_is_recorded_as_unknown(self, tmp_path: Path, mocker) -> None:
+        """Running from a source tree with no installed package metadata: 'unknown'."""
+        import importlib.metadata
+
+        mocker.patch.object(
+            importlib.metadata,
+            'version',
+            side_effect=importlib.metadata.PackageNotFoundError('glitchygames'),
+        )
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 1})
+        assert saves.load_raw('slot_1')['_meta']['engine_version'] == 'unknown'
 
 
 class TestExistsAndDelete:
@@ -262,6 +312,13 @@ class TestListSlots:
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         (tmp_path / 'stray.json').write_bytes(b'\xff\xfe{')
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
+    def test_skips_files_whose_metadata_is_not_a_table(self, tmp_path: Path) -> None:
+        """list_slots() skips a file whose metadata is not a mapping (here a list)."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'stray.json').write_text('{"_meta": [1], "data": {}}', encoding='utf-8')
         assert [slot.name for slot in saves.list_slots()] == ['slot_1']
 
     def test_skips_files_with_a_non_numeric_version(self, tmp_path: Path) -> None:

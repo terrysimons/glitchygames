@@ -53,7 +53,11 @@ class RecordedThread:
 
 
 class FakeAIClient:
-    """Stands in for aisuite.Client: answers scripted replies and records the requests."""
+    """Stands in for aisuite.Client: answers scripted replies and records the requests.
+
+    A reply may be a string, an exception to raise, or a callable run during the request (to act
+    while the request is in flight) whose result is used as the reply.
+    """
 
     def __init__(self, *, replies, requests):
         """Answer from `replies` (consumed in order) and append each request to `requests`."""
@@ -66,6 +70,8 @@ class FakeAIClient:
     def _create(self, *, model, messages):
         self._requests.append({'model': model, 'messages': [dict(item) for item in messages]})
         reply = self._replies.pop(0)
+        if callable(reply):
+            reply = reply()
         if isinstance(reply, Exception):
             raise reply
         message = types.SimpleNamespace(content=reply)
@@ -387,6 +393,31 @@ class TestPipeline:
             {'role': 'user', 'content': HEARD_TEXT},
             {'role': 'assistant', 'content': AI_ANSWER},
         ]
+
+    @pytest.mark.parametrize('reply', [AI_ANSWER, RuntimeError('rate limited')])
+    def test_clearing_mid_request_leaves_no_answer_without_its_question(
+        self, assistant, recognizer, ai_replies, reply
+    ):
+        """BUGS.md #114: a clear during a request never leaves a history starting with an answer.
+
+        The answer (or failure) arrives after clear_conversation() emptied the history, so the
+        next request must carry only its own question.
+        """
+
+        def clear_then_reply():
+            assistant.clear_conversation()
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        ai_replies.replies.extend([AI_ANSWER, clear_then_reply, 'Hello again.'])
+
+        assistant._run_pipeline(b'')
+        assistant._run_pipeline(b'')
+
+        assert assistant._conversation == []
+        assistant._run_pipeline(b'')
+        assert ai_replies.requests[2]['messages'][1:] == [{'role': 'user', 'content': HEARD_TEXT}]
 
     def test_unheard_speech_reports_an_error(
         self, assistant, controller, recognizer, delivered, caplog

@@ -1784,6 +1784,19 @@ class TestConfirmDialogUpdate:
 
         assert dialog.hover_button is None
 
+    def test_update_skips_render_when_clean_and_hover_unchanged(self, mocker):
+        """With no hover change and nothing dirty, update draws nothing."""
+        dialog = _create_confirm_dialog(mocker)
+        dialog.hover_button = None
+        dialog.dirty = 0
+        MockFactory.install_frame_input(mouse_position=(0, 0))
+        mock_render = mocker.patch.object(dialog, 'render')
+
+        dialog.update()
+
+        mock_render.assert_not_called()
+        assert dialog.dirty == 0
+
     def test_update_calls_render_when_dirty(self, mocker):
         """Test update calls render when dialog is dirty."""
         dialog = _create_confirm_dialog(mocker)

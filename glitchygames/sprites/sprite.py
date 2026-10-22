@@ -52,8 +52,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         # If none, break always.
         if sprite_type is not None:
-            LOG.info('Register break when sprite_type==%s', cls)
-            cls.SPRITE_BREAKPOINTS.append(str(cls))
+            # Register the type asked for (not cls): __init__ compares str(type(self)) with it
+            LOG.info('Register break when sprite_type==%s', sprite_type)
+            cls.SPRITE_BREAKPOINTS.append(str(sprite_type))
         else:
             LOG.info('Register break when sprite_type==<any>')
 
@@ -149,10 +150,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
                 breakpoint()  # ruff: ignore[debugger]
             else:
                 for sprite_type in self.SPRITE_BREAKPOINTS:
-                    # This breakpoint is intentional
-                    breakpoint()  # ruff: ignore[debugger]
                     if str(type(self)) == sprite_type:
-                        self.log.info('Break when sprite_type==<any>')
+                        self.log.info(f'Break when sprite_type=={sprite_type}')
 
                         # This breakpoint is intentional
                         breakpoint()  # ruff: ignore[debugger]

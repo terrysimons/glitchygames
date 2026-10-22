@@ -502,7 +502,12 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
             bool: The comparison result.
 
         """
-        return not self.__eq__(other)
+        equal = self.__eq__(other)
+        # NotImplemented in a boolean context raises TypeError since Python 3.14: hand it back
+        # so Python falls back to the reflected comparison, then identity
+        if equal is NotImplemented:
+            return NotImplemented
+        return not equal
 
     @override
     def __repr__(self: Self) -> str:
@@ -551,12 +556,21 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
             tuple: The result.
 
         """
-        return (self.__class__, (), self.__dict__)
+        # The type is the one required constructor argument (BUGS.md #121)
+        return (self.__class__, (self.type,), dict(self.__dict__))
 
     def __setstate__(self: Self, state: dict[str, Any]) -> None:  # ty: ignore[invalid-type-form]
-        """Set the state of the object."""
-        self.__dict__.update(state)
-        self.__hash = hash((self.type, self.__dict__))
+        """Set the state of the object.
+
+        The event is rebuilt from the state's attributes exactly as __init__ builds it, so it
+        equals and hashes like the event the state came from (BUGS.md #121: this hashed a dict).
+        """
+        attributes = dict(state)
+        event_type = attributes.pop('type')
+        # The stored hash is recomputed by __init__, never carried over
+        attributes.pop('_HashableEvent__hash', None)
+        self.__dict__.clear()
+        HashableEvent.__init__(self, event_type, **attributes)
 
     def __getattr__(self: Self, name: str) -> Any:
         """Allow dynamic attribute access for event fields.

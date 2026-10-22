@@ -214,3 +214,31 @@ class TestSpriteFactory:
         result = SpriteFactory._get_toml_data('test.toml')
         assert 'sprite' in result
         assert result['sprite']['pixels'] == [1, 2, 3, 4, 5, 6]
+
+
+class TestSpriteFactoryAnalyzeFrameSections:
+    """_analyze_toml_file looks for frame tables in every animation (real files)."""
+
+    def test_analyze_toml_file_animation_without_frames(self, tmp_path):
+        """Animation tables with no frame tables report no frame sections."""
+        sprite_file = tmp_path / 'frameless.toml'
+        sprite_file.write_text(
+            '[[animation]]\nnamespace = "idle"\n\n[[animation]]\nnamespace = "walk"\n',
+            encoding='utf-8',
+        )
+        result = SpriteFactory._analyze_toml_file(str(sprite_file))
+        assert result['has_animation_sections'] is True
+        assert result['has_frame_sections'] is False
+        assert result['has_sprite_pixels'] is False
+
+    def test_analyze_toml_file_finds_frames_in_a_later_animation(self, tmp_path):
+        """A frame table in any animation, not just the first, counts as a frame section."""
+        sprite_file = tmp_path / 'late_frames.toml'
+        sprite_file.write_text(
+            '[[animation]]\nnamespace = "idle"\n\n'
+            '[[animation]]\nnamespace = "walk"\n\n'
+            '[[animation.frame]]\npixels = "#"\n',
+            encoding='utf-8',
+        )
+        result = SpriteFactory._analyze_toml_file(str(sprite_file))
+        assert result['has_frame_sections'] is True

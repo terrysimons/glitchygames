@@ -128,6 +128,18 @@ class TestRegistry:
     def test_live_sources_are_the_default(self):
         assert isinstance(active_sources(), LiveSources)
 
+    def test_live_sources_draw_no_overlay(self):
+        """Live play has no overlay: draw_overlay leaves the surface's pixels as they were."""
+        sources = LiveSources(random_seed=1)
+        surface = pygame.Surface((8, 4))
+        surface.fill((10, 20, 30))
+        pixels_before = pygame.image.tobytes(surface, 'RGB')
+
+        sources.draw_overlay(surface=surface)
+
+        assert not sources.draws_overlay
+        assert pygame.image.tobytes(surface, 'RGB') == pixels_before
+
     def test_installed_sources_become_active_and_are_told(self):
         sources = ScriptedSources()
         install_sources(sources=sources)

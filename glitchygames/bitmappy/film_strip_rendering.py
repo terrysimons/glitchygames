@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.bitmappy.film_strip_layout import render_label_text
 from glitchygames.clock import frame_clock_milliseconds
 from glitchygames.color import RGB_COMPONENT_COUNT
-from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.film_strip import FilmStripWidget
@@ -557,12 +557,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             self.render_editing_label(label_surface, anim_rect)
         else:
             # Add animation name text
-            font = FontManager.get_font()
-            text = font.render(anim_name, fgcolor=(255, 255, 255), size=12)
-            if isinstance(text, tuple):  # freetype returns (surface, rect)
-                text, text_rect = text
-            else:  # pygame.font returns surface
-                text_rect = text.get_rect()
+            text, text_rect = render_label_text(text=anim_name, color=(255, 255, 255))
             text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
             label_surface.blit(text, text_rect)
 
@@ -590,16 +585,11 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             self.widget.cursor_visible = not self.widget.cursor_visible
             self.widget.cursor_blink_time = current_time
 
-        font = FontManager.get_font()
         text_color = (200, 220, 255)  # Light blue for editing
         display_text = self.widget.editing_text
 
         if display_text:
-            text = font.render(display_text, fgcolor=text_color, size=12)
-            if isinstance(text, tuple):  # freetype returns (surface, rect)
-                text, text_rect = text
-            else:  # pygame.font returns surface
-                text_rect = text.get_rect()
+            text, text_rect = render_label_text(text=display_text, color=text_color)
             text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
             label_surface.blit(text, text_rect)
 

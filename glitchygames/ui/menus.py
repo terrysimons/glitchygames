@@ -676,7 +676,9 @@ class MenuItem(BitmappySprite):
                 )
                 collided_sprite.on_mouse_motion_event(event)
 
-                for submenu in collided_sprite.menu_items:
+                # menu_items maps names to items: iterate the items (iterating the dict gave
+                # the names, strings without handlers)
+                for submenu in collided_sprite.menu_items.values():
                     submenu.on_mouse_motion_event(event)
 
         self.has_focus = False
@@ -709,7 +711,7 @@ class MenuItem(BitmappySprite):
                 )
                 collided_sprite.on_mouse_enter_event(event)
 
-                for submenu in collided_sprite.menu_items:
+                for submenu in collided_sprite.menu_items.values():
                     submenu.on_mouse_enter_event(event)
 
         self.has_focus = True
@@ -741,8 +743,9 @@ class MenuItem(BitmappySprite):
                 )
                 collided_sprite.on_mouse_exit_event(event)
 
-                for submenu in collided_sprite.menu_items:
-                    submenu.on_mouse_enter_event(event)
+                # Leaving the item leaves its sub-items too (this sent them an enter event)
+                for submenu in collided_sprite.menu_items.values():
+                    submenu.on_mouse_exit_event(event)
 
         self.has_focus = False
         self.dirty = 1

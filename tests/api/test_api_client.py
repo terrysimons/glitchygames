@@ -368,6 +368,40 @@ pixels = "##"
         captured = capsys.readouterr()
         assert 'Animation: walk' in captured.out
 
+    def test_animated_frame_without_pixels_is_left_out(self, capsys):
+        """A frame with no pixels gets no preview; the frames around it still do."""
+        toml_content = """
+[[animation]]
+namespace = "walk"
+
+[[animation.frame]]
+pixels = ""
+
+[[animation.frame]]
+pixels = "#"
+
+[colors."#"]
+red = 255
+green = 0
+blue = 0
+"""
+        display_sprite_ascii(toml_content)
+
+        printed = capsys.readouterr().out
+        assert 'Animation: walk (2 frames)' in printed
+        assert 'Frame 0' not in printed
+        assert 'Frame 1' in printed
+
+    def test_static_sprite_without_pixels_prints_no_preview(self, capsys):
+        """A static sprite with no pixels prints no preview heading."""
+        toml_content = """
+[sprite]
+name = "empty"
+"""
+        display_sprite_ascii(toml_content)
+
+        assert 'Sprite Preview' not in capsys.readouterr().out
+
 
 class TestCreateApngFromFrames:
     """Tests for the create_apng_from_frames function."""
@@ -465,6 +499,18 @@ class TestSaveFilesLocally:
         assert len(saved) == 1
         # Should use 'sprite' as fallback
         assert 'sprite' in saved[0]
+
+    def test_save_empty_sprite_name_uses_sprite(self, tmp_path):
+        """An empty sprite name, which sanitizes to nothing, saves as 'sprite'."""
+        response = {'sprite_name': '', 'toml_content': 'test'}
+
+        saved = save_files_locally(
+            response=response,
+            output_path=str(tmp_path),
+            output_formats=['toml'],
+        )
+
+        assert saved == [str(tmp_path / 'sprite-001' / 'sprite.toml')]
 
 
 class TestMainCli:
@@ -1339,6 +1385,24 @@ class TestHandleGenerateSprite:
 
         assert result == ExitCode.SUCCESS
         mock_save.assert_called_once()
+
+    def test_output_path_with_nothing_to_save_logs_and_prints_nothing(
+        self, mocker, tmp_path, caplog, capsys
+    ):
+        """With --output-path but no savable content, no files are listed and no TOML printed."""
+        parsed_args = self._make_parsed_args(mocker, output_path=str(tmp_path))
+        mocker.patch(
+            'glitchygames.api.client.generate_sprite',
+            return_value={'success': True, 'sprite_name': 'test'},
+        )
+        mocker.patch('glitchygames.api.client.display_sprite_ascii')
+
+        with caplog.at_level(logging.INFO, logger='glitchygames.api.client'):
+            result = _handle_generate_sprite(parsed_args, ['toml'])
+
+        assert result == ExitCode.SUCCESS
+        assert 'Saved files:' not in caplog.text
+        assert not capsys.readouterr().out
 
 
 class TestMainCliExtended:

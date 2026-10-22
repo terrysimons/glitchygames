@@ -2286,6 +2286,12 @@ class TestSceneBackgroundColor:
         scene.background_color = (255, 0, 0)
         assert scene.background_color == (255, 0, 0, 0)
 
+    def test_an_rgba_background_color_keeps_its_alpha(self, mock_pygame_patches):
+        """An RGBA colour is kept as given; only RGB colours get alpha 0 appended."""
+        scene = Scene()
+        scene.background_color = (*RED, 255)
+        assert scene.background_color == (*RED, 255)
+
 
 class TestSceneUpdate:
     """Test Scene.update() method."""

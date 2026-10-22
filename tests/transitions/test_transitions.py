@@ -103,6 +103,27 @@ class TestTransitionLifecycle:
         # ease_in_quad at 0.5 = 0.25 (not 0.5)
         assert transition.eased_progress < transition.progress
 
+    def test_update_after_completion_reports_done_without_advancing(
+        self, surfaces: tuple, mocker
+    ) -> None:
+        """A completed transition stays complete and no longer calls on_update."""
+        old, new, _screen = surfaces
+        on_update = mocker.Mock()
+        transition = Transition(duration=0.5, on_update=on_update)
+        transition.start(old, new)
+        assert transition.update(0.5) is True
+        on_update.reset_mock()
+        assert transition.update(0.5) is True
+        assert transition.state == TransitionState.COMPLETE
+        on_update.assert_not_called()
+
+    def test_update_before_start_reports_done(self) -> None:
+        """An idle transition has nothing to run, so update reports it finished."""
+        transition = Transition(duration=1.0)
+        assert transition.update(0.1) is True
+        assert transition.state == TransitionState.IDLE
+        assert transition.progress == 0.0
+
     def test_render_does_not_crash_before_start(self, surfaces: tuple) -> None:
         """Render before start is a no-op (no crash)."""
         _old, _new, screen = surfaces
@@ -185,6 +206,23 @@ class TestSlideTransition:
         slide.start(old, new)
         assert slide.update(0.9) is True
 
+    def test_unknown_direction_draws_nothing(self, surfaces: tuple) -> None:
+        """A direction the slide does not know leaves the screen untouched.
+
+        Unlike WipeTransition (which falls back to a full reveal), SlideTransition draws
+        neither scene for an unknown direction.
+        """
+        old, new, screen = surfaces
+        old.fill((255, 0, 0))
+        new.fill((0, 0, 255))
+        screen.fill((0, 255, 0))
+        slide = SlideTransition(direction='diagonal', duration=1.0, easing='linear')
+        slide.start(old, new)
+        slide.update(0.25)
+        slide.render(screen)
+        for corner in ((0, 0), (199, 0), (0, 149), (199, 149)):
+            assert screen.get_at(corner)[:3] == (0, 255, 0)
+
     def test_slide_up_for_elevator(self, surfaces: tuple) -> None:
         """Slide up (elevator transition) works without error."""
         old, new, screen = surfaces
@@ -206,6 +244,19 @@ class TestWipeTransition:
             wipe.start(old, new)
             wipe.update(0.25)
             wipe.render(screen)
+
+    def test_unknown_direction_reveals_the_whole_new_scene(self, surfaces: tuple) -> None:
+        """A direction the wipe does not know shows the new scene in full at once."""
+        old, new, screen = surfaces
+        old.fill((255, 0, 0))
+        new.fill((0, 0, 255))
+        screen.fill((0, 255, 0))
+        wipe = WipeTransition(direction='diagonal', duration=1.0, easing='linear')
+        wipe.start(old, new)
+        wipe.update(0.25)
+        wipe.render(screen)
+        for corner in ((0, 0), (199, 0), (0, 149), (199, 149)):
+            assert screen.get_at(corner)[:3] == (0, 0, 255)
 
     def test_completes_in_duration(self, surfaces: tuple) -> None:
         """Wipe completes after the specified duration."""

@@ -60,6 +60,15 @@ class TestTweenSequence:
         sequence = TweenSequence()
         assert sequence.is_complete is True
 
+    def test_update_after_completion_changes_nothing(self):
+        """A finished sequence reports done and leaves its target at the final value."""
+        target = SimpleTarget(value=0.0)
+        sequence = TweenSequence(_make_tween(target, end_value=50.0, duration=0.5))
+        assert sequence.update(0.5) is True
+        target.value = 7.0
+        assert sequence.update(0.5) is True
+        assert target.value == 7.0
+
     def test_cancel_stops_all(self):
         """Cancel stops the entire sequence."""
         target = SimpleTarget(value=0.0)
@@ -105,6 +114,15 @@ class TestTweenGroup:
         """Empty group is immediately complete."""
         group = TweenGroup()
         assert group.is_complete is True
+
+    def test_update_after_completion_changes_nothing(self):
+        """A finished group reports done and no longer drives its targets."""
+        target = SimpleTarget(value=0.0)
+        group = TweenGroup(_make_tween(target, end_value=100.0, duration=0.5))
+        assert group.update(0.5) is True
+        target.value = 3.0
+        assert group.update(0.5) is True
+        assert target.value == 3.0
 
     def test_cancel_stops_all(self):
         """Cancel stops all tweens in the group."""

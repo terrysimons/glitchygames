@@ -2745,3 +2745,309 @@ class TestConvertStaticToAnimated:
         animated_sprite = canvas._convert_static_to_animated(object(), 2, 2)
 
         assert animated_sprite._animations['idle'][0].get_pixel_data() == [MAGENTA_RGB] * 4
+
+
+class TestNavigationEdges:
+    """Test frame and animation navigation where there is nothing to move to."""
+
+    def test_frame_steps_on_an_unknown_animation_change_nothing(self):
+        """next_frame and previous_frame keep the frame for an animation not in the sprite."""
+        canvas, _ = _make_real_canvas()
+        canvas.current_animation = 'missing'
+        canvas.current_frame = 1
+
+        canvas.next_frame()
+        canvas.previous_frame()
+
+        assert (canvas.current_animation, canvas.current_frame) == ('missing', 1)
+
+    def test_animation_steps_without_animations_change_nothing(self):
+        """next_animation and previous_animation do nothing when the sprite has no animations."""
+        canvas, animated_sprite = _make_real_canvas()
+        animated_sprite._animations = {}
+        canvas.current_frame = 1
+
+        canvas.next_animation()
+        canvas.previous_animation()
+
+        assert (canvas.current_animation, canvas.current_frame) == ('idle', 1)
+
+    def test_previous_animation_without_frames_asks_for_frame_zero(self):
+        """Stepping back to an animation with no frames tells the scene to show its frame 0."""
+        canvas, animated_sprite = _make_real_canvas()
+        animated_sprite._animations = {'empty': [], **animated_sprite._animations}
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        canvas.current_frame = 2
+
+        canvas.previous_animation()
+
+        assert parent_scene.film_strip_coordinator.notifications[-1] == (
+            'switch_to_film_strip',
+            ('empty', 0),
+        )
+        assert (canvas.current_animation, canvas.current_frame) == ('idle', 2)
+
+    def test_set_frame_out_of_range_changes_nothing(self):
+        """A frame index past the end of the animation is ignored."""
+        canvas, animated_sprite = _make_real_canvas()
+        canvas.current_frame = 1
+
+        canvas.set_frame(7)
+
+        assert canvas.current_frame == 1
+        assert animated_sprite.current_frame == 0
+
+
+class TestCopyPasteOutOfRange:
+    """Test frame copy and paste when the current frame does not exist."""
+
+    def test_copy_of_a_missing_frame_fills_no_clipboard(self):
+        """Copying a frame index past the end leaves the clipboard empty."""
+        canvas, _ = _make_real_canvas()
+        canvas.current_frame = 9
+
+        canvas.copy_current_frame()
+
+        assert not hasattr(canvas, '_clipboard')
+
+    def test_paste_onto_a_missing_frame_changes_no_frame(self):
+        """Pasting with a frame index past the end writes nowhere."""
+        canvas, animated_sprite = _make_real_canvas()
+        canvas._clipboard = [RED_RGBA] * PIXEL_COUNT
+        canvas.current_frame = 9
+
+        canvas.paste_to_current_frame()
+
+        for frame in animated_sprite._animations['idle']:
+            assert RED_RGBA not in frame.get_pixel_data()
+
+
+class TestPanningEdges:
+    """Test panning helpers with missing frame data."""
+
+    def test_reset_panning_on_an_unknown_animation_keeps_the_canvas_pixels(self):
+        """Resetting panning for an animation not in the sprite reloads nothing."""
+        canvas, _ = _make_real_canvas()
+        canvas.current_animation = 'missing'
+        canvas.pixels = [GREEN_RGBA] * PIXEL_COUNT
+
+        canvas.reset_panning()
+
+        assert canvas.pixels == [GREEN_RGBA] * PIXEL_COUNT
+
+    def test_storing_original_data_without_pixels_stores_nothing(self):
+        """With no canvas pixels there is no original frame data to remember."""
+        canvas, _ = _make_real_canvas()
+        frame_key = canvas._get_current_frame_key()
+        canvas._frame_panning[frame_key] = {
+            'pan_x': 0,
+            'pan_y': 0,
+            'original_pixels': None,
+            'active': False,
+        }
+        canvas.pixels = []
+
+        canvas._store_original_frame_data_for_frame(frame_key)
+
+        assert canvas._frame_panning[frame_key]['original_pixels'] is None
+
+
+class TestDragEdges:
+    """Test drag handling with no drag frame, no scene or extra pixels."""
+
+    def test_rebuild_ignores_pixels_past_the_image(self):
+        """Pixels beyond width x height are not drawn into the frame image."""
+        canvas, animated_sprite = _make_real_canvas()
+        frame = animated_sprite._animations['idle'][0]
+        frame.pixels = [RED_RGBA] * PIXEL_COUNT + [GREEN_RGBA] * 3
+
+        canvas._rebuild_frame_image_from_pixels(frame)
+
+        image = frame.image
+        assert all(
+            tuple(image.get_at((pixel_x, pixel_y))) == RED_RGBA
+            for pixel_y in range(CANVAS_SIZE)
+            for pixel_x in range(CANVAS_SIZE)
+        )
+
+    def test_drag_on_an_unknown_animation_without_a_scene_still_paints_the_canvas(self):
+        """A drag with no frame to cache and no scene paints the canvas and redraws every third."""
+        canvas, _ = _make_real_canvas()
+        canvas.current_animation = 'missing'
+        canvas.parent_scene = None
+        canvas.active_color = RED_RGBA
+
+        for pixel_x in range(3):
+            canvas.dirty = 0
+            screen_x, screen_y = _canvas_position(canvas, pixel_x=pixel_x, pixel_y=0)
+            canvas.on_left_mouse_drag_event(_event_at(x=screen_x, y=screen_y), None)
+
+        assert canvas._drag_frame is None
+        assert canvas.pixels[:3] == [RED_RGBA] * 3
+        assert canvas.dirty == 1
+
+    def test_sync_of_a_frame_without_pixels_changes_nothing(self):
+        """A drag frame with an empty pixel list is not synced."""
+        canvas, _ = _make_real_canvas()
+        synced = []
+        canvas._drag_frame = type(
+            'EmptyFrame',
+            (),
+            {'pixels': [], 'set_pixel_data': lambda self, pixels: synced.append(pixels)},
+        )()
+
+        canvas._sync_drag_frame_surface()
+
+        assert synced == []
+
+    def test_cleanup_with_no_drag_frame_forgets_it(self):
+        """Cleaning up after a drag with no frame drops the drag frame reference."""
+        canvas, _ = _make_real_canvas()
+        canvas._drag_active = True
+        canvas._drag_frame = None
+
+        canvas._cleanup_drag_state()
+
+        assert canvas._drag_active is False
+        assert not hasattr(canvas, '_drag_frame')
+
+    def test_cleanup_redraws_a_stale_frame_and_clears_the_flag(self):
+        """A stale drag frame is redrawn from its pixels and stops being stale."""
+        canvas, animated_sprite = _make_real_canvas()
+        frame = animated_sprite._animations['idle'][0]
+        frame.pixels[0] = RED_RGBA
+        frame._image_stale = True
+        canvas._drag_frame = frame
+        canvas._drag_redraw_counter = 2
+
+        canvas._cleanup_drag_state()
+
+        assert tuple(frame.image.get_at((0, 0))) == RED_RGBA
+        assert not hasattr(frame, '_image_stale')
+        assert not hasattr(canvas, '_drag_redraw_counter')
+
+    def test_mouse_up_without_drag_pixels_or_scene_syncs_the_frame(self):
+        """Releasing a drag with no batched pixels and no scene still updates the frame image."""
+        canvas, animated_sprite = _make_real_canvas()
+        frame = animated_sprite._animations['idle'][0]
+        canvas.parent_scene = None
+        canvas._drag_active = True
+        canvas._drag_pixels = {}
+        canvas._drag_frame = frame
+        canvas.pixels[0] = GREEN_RGBA
+        frame.pixels[0] = GREEN_RGBA
+
+        canvas.on_left_mouse_button_up_event(pygame.event.Event(pygame.MOUSEBUTTONUP, pos=(0, 0)))
+
+        assert tuple(frame.image.get_at((0, 0))) == GREEN_RGBA
+        assert canvas._drag_active is False
+
+
+class TestHoverEdges:
+    """Test mouse motion that changes no hover state."""
+
+    def test_moving_over_the_border_without_a_hovered_pixel_keeps_it_clear(self, mocker):
+        """Over the canvas but off the pixel grid, with no hovered pixel, nothing is redrawn."""
+        mocker.patch('pygame.mouse.set_visible')
+        canvas, _ = _make_real_canvas()
+        canvas.is_hovered = True
+        canvas.rect.width += PIXEL_WIDTH
+        canvas.dirty = 0
+
+        canvas.on_mouse_motion_event(_event_at(x=canvas.rect.right - 1, y=canvas.rect.y + 1))
+
+        assert canvas.hovered_pixel is None
+        assert canvas.dirty == 0
+
+    def test_moving_elsewhere_while_not_hovering_changes_nothing(self, mocker):
+        """Outside the canvas, with no hover state to clear, nothing is redrawn."""
+        set_visible = mocker.patch('pygame.mouse.set_visible')
+        canvas, _ = _make_real_canvas()
+        canvas.dirty = 0
+
+        canvas.on_mouse_motion_event(_event_at(x=0, y=0))
+
+        assert canvas.is_hovered is False
+        assert canvas.dirty == 0
+        set_visible.assert_not_called()
+
+
+class TestCanvasSurfacesWithShortPixels:
+    """Test the canvas surfaces when the pixel list is shorter than the grid."""
+
+    def test_build_surface_leaves_missing_pixels_transparent(self):
+        """Grid cells with no pixel stay fully transparent in the built surface."""
+        canvas, _ = _make_real_canvas()
+        canvas.pixels = [RED_RGBA] * 2
+
+        surface = canvas._build_surface_from_canvas_pixels()
+
+        assert tuple(surface.get_at((1, 0))) == RED_RGBA
+        assert tuple(surface.get_at((2, 0)))[3] == 0
+
+    def test_canvas_surface_leaves_missing_pixels_transparent(self):
+        """Grid cells with no pixel stay fully transparent in the film strip surface."""
+        canvas, _ = _make_real_canvas()
+        canvas.pixels = [BLUE_RGBA] * 2
+
+        surface = canvas.get_canvas_surface()
+
+        assert tuple(surface.get_at((1, 0))) == BLUE_RGBA
+        assert tuple(surface.get_at((3, 3)))[3] == 0
+
+
+class TestSpriteStateEdges:
+    """Test loading and saving helpers on sprites with little data."""
+
+    def test_sprite_without_animations_is_not_single_frame(self):
+        """A sprite with no animations is not a single-frame animation."""
+        canvas, animated_sprite = _make_real_canvas()
+        animated_sprite._animations = {}
+
+        assert canvas._is_single_frame_animation() is False
+
+    def test_frames_without_pixel_lists_are_left_alone_by_the_save_sync(self):
+        """A frame with no pixel list keeps its image when frames are synced before saving."""
+        canvas, animated_sprite = _make_real_canvas()
+        frame = animated_sprite._animations['idle'][0]
+        frame.pixels = []
+        frame.image.fill(GREEN_RGBA)
+
+        canvas._sync_all_frames_pixel_data()
+
+        assert frame.pixels == []
+        assert tuple(frame.image.get_at((0, 0))) == GREEN_RGBA
+
+    def test_loaded_sprite_without_animations_or_size_keeps_the_canvas_size(self, mocker):
+        """A loaded sprite with no animations and no get_size does not resize the canvas."""
+        canvas, _ = _make_real_canvas()
+        resize = mocker.patch.object(canvas, '_resize_canvas_to_sprite_size')
+
+        canvas._check_and_resize_canvas(AnimatedSprite())
+
+        resize.assert_not_called()
+
+    def test_static_sprite_of_the_canvas_size_is_not_resized(self, mocker):
+        """A static sprite already the canvas size leaves the canvas as it is."""
+        canvas, _ = _make_real_canvas()
+        resize = mocker.patch.object(canvas, '_resize_canvas_to_sprite_size')
+        static_sprite = type(
+            'StaticSprite',
+            (),
+            {'_animations': {}, 'get_size': lambda self: (CANVAS_SIZE, CANVAS_SIZE)},
+        )()
+
+        canvas._check_and_resize_canvas(static_sprite)
+
+        resize.assert_not_called()
+
+    def test_sprite_without_a_current_animation_is_not_started(self):
+        """A loaded sprite with no current animation is not played."""
+        canvas, _ = _make_real_canvas()
+        loaded_sprite = AnimatedSprite()
+
+        canvas._setup_animation_state(loaded_sprite)
+
+        assert not canvas.current_animation
+        assert loaded_sprite.is_playing is False

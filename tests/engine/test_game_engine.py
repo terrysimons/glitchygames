@@ -36,6 +36,7 @@ Covers:
 """
 
 import argparse
+import logging
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -48,11 +49,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
-from glitchygames.engine.game_engine import non_negative_int, unit_interval
+from glitchygames.engine import game_engine as game_engine_module
+from glitchygames.engine.game_engine import non_negative_int, non_negative_percent, unit_interval
 from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import advance_frame_clock, install_sources
 from tests.mocks import MockFactory
+from tests.replay.replay_helpers import tamper_first_sprite_rect
+from tests.world.test_gameplay_replay import (
+    press_keys_while_held,
+    record_session,
+    replay_session_with_arguments,
+)
 
 
 def _make_engine(mocker, mock_pygame_patches, mock_game_args):
@@ -969,6 +977,25 @@ class TestProcessUnimplementedEvent:
 
         engine.process_unimplemented_event(event)
         # Should have been logged without error
+        assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
+
+    def test_event_type_1543_when_the_controller_system_cannot_answer(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """SDL cannot count controllers (subsystem not initialized): logged, never raised."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        mocker.patch('pygame.event.event_name', return_value='Unknown')
+        mocker.patch(
+            'pygame._sdl2.controller.get_count',
+            side_effect=pygame.error('controller system not initialized'),
+        )
+        event = events.HashableEvent(1543)
+
+        with caplog.at_level(logging.DEBUG, logger='game.engine'):
+            engine.process_unimplemented_event(event)
+
+        assert 'Controller system not initialized' in caplog.text
         assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
 
 
@@ -2194,6 +2221,30 @@ class TestProcessControllerEvent:
         result = engine.process_controller_event(event)
         assert result is True
 
+    def test_controller_sensor_update(self, mock_pygame_patches, mock_game_args, mocker):
+        """CONTROLLERSENSORUPDATE goes to the controller manager's sensor handler."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine.controller_manager = mocker.Mock()
+
+        event = mocker.Mock()
+        event.type = pygame.CONTROLLERSENSORUPDATE
+
+        result = engine.process_controller_event(event)
+        assert result is True
+        engine.controller_manager.on_controller_sensor_update_event.assert_called_once_with(event)
+
+    def test_controller_event_in_joystick_mode_is_not_handled(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Joystick input mode has no controller manager: controller events are not handled."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine.controller_manager = None
+
+        event = mocker.Mock()
+        event.type = pygame.CONTROLLERBUTTONDOWN
+
+        assert engine.process_controller_event(event) is False
+
     def test_controller_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
         """Test process_controller_event returns False for unknown controller events."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -2559,6 +2610,25 @@ class TestShakeAndAudioArguments:
         with pytest.raises(argparse.ArgumentTypeError):
             non_negative_int(text)
 
+    @pytest.mark.parametrize(('text', 'expected'), [('0', 0.0), ('12.5', 12.5)])
+    def test_non_negative_percent_accepts_zero_and_up(self, text, expected):
+        """--max-processing-slowdown takes any finite percentage >= 0."""
+        assert non_negative_percent(text) == expected
+
+    @pytest.mark.parametrize(
+        ('text', 'reason'),
+        [
+            ('fast', 'is not a number'),
+            ('-1', 'must be a finite number >= 0'),
+            ('inf', 'must be a finite number >= 0'),
+            ('nan', 'must be a finite number >= 0'),
+        ],
+    )
+    def test_non_negative_percent_rejects(self, text, reason):
+        """Non-numeric, negative and non-finite text is refused with its reason."""
+        with pytest.raises(argparse.ArgumentTypeError, match=reason):
+            non_negative_percent(text)
+
     def test_non_negative_int_accepts_zero(self):
         """Test non_negative_int accepts zero (a zero-size voice pool is valid)."""
         assert non_negative_int('0') == 0
@@ -2653,6 +2723,44 @@ class TestFpsHistogramArgument:
 
         mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
 
+    def test_an_unknown_histogram_mode_is_logged_and_the_run_goes_on(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """A mode the performance manager refuses (set in OPTIONS, not parsed) never ends a run."""
+        from glitchygames.performance import performance_manager
+
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        mocker.patch('glitchygames.engine.game_engine.create_timer')
+        # The real manager is process-wide: put its settings back after the test
+        mocker.patch.object(performance_manager, '_trim_percent', performance_manager._trim_percent)
+        mocker.patch.object(
+            performance_manager, '_histogram_mode', performance_manager._histogram_mode
+        )
+        histogram_mode_before = performance_manager._histogram_mode
+        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        mocker.patch.object(
+            GameEngine,
+            'OPTIONS',
+            {
+                'profile': False,
+                'timer_backend': 'fast',
+                'perf_trim_percent': 7.5,
+                'fps_histogram': 'sideways',
+            },
+        )
+        engine.scene_manager = mocker.Mock()
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+
+        with caplog.at_level(logging.DEBUG, logger=engine.log.name):
+            engine.start()
+
+        assert 'FPS histogram mode configuration failed' in caplog.text
+        assert "Unknown FPS histogram mode 'sideways'" in caplog.text
+        assert performance_manager._histogram_mode == histogram_mode_before
+        assert performance_manager._trim_percent == 7.5
+        engine._shutdown.assert_called_once()
+
     def test_start_sets_the_mode_even_when_set_trim_percent_raises(
         self, mock_pygame_patches, mock_game_args, mocker
     ):
@@ -2679,3 +2787,30 @@ class TestFpsHistogramArgument:
         engine.start()
 
         mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+
+
+class TestReplayRestartExitStatus:
+    """A watched replay's restart exits with the status the restarted replays ended with."""
+
+    def test_a_status_no_exit_code_names_is_passed_through(self, mocker, tmp_path, caplog):
+        """A restarted replay that ends with a game's own status (42) ends this run with it."""
+        game_own_exit_status = 42
+        relaunch = mocker.patch.object(
+            game_engine_module, 'relaunch_replay', return_value=game_own_exit_status
+        )
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        # Space starts the replay; it pauses after the divergent frame 3, and , steps back
+        press_keys_while_held(mocker=mocker, keys=(pygame.K_SPACE, pygame.K_COMMA))
+
+        with (
+            caplog.at_level(logging.INFO, logger=GameEngine.log.name),
+            pytest.raises(SystemExit) as exit_info,
+        ):
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=()
+            )
+
+        relaunch.assert_called_once()
+        assert exit_info.value.code == game_own_exit_status
+        assert f'Exiting with {ExitCode.describe_status(game_own_exit_status)}' in caplog.text

@@ -9,7 +9,7 @@ import contextlib
 import dataclasses
 import logging
 import random
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 import pytest
@@ -24,6 +24,7 @@ from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import random_stream
 from glitchygames.recording import SCENE_START_FIELD, post_event, post_input_event
+from glitchygames.replay.driver import DEFAULT_REPLAY_OPTIONS, ReplaySources
 from glitchygames.replay.playback import (
     PlaybackOptions,
     PlaybackSources,
@@ -34,7 +35,12 @@ from glitchygames.replay.playback import (
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.sources import active_sources, has_scoped_sources, take_redelivered_events
+from glitchygames.sources import (
+    active_sources,
+    has_scoped_sources,
+    install_sources,
+    take_redelivered_events,
+)
 from glitchygames.state import open_saves
 from glitchygames.supervision import PLAYBACK_KIND
 from glitchygames.tracing import read_trace_result
@@ -66,7 +72,12 @@ from tests.world.test_frame_integration import (
     running_scene,
     step,
 )
-from tests.world.test_gameplay_replay import cut_off_after_frame
+from tests.world.test_gameplay_replay import (
+    FakeMeasuredClock,
+    cut_off_after_frame,
+    minimal_sources,
+    recorded_frame,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -488,6 +499,64 @@ class TestPlaybackErrors:
         start_record = dict(frames[0][SCENE_START_FIELD])
         del start_record['scene_module']
         assert SceneStart.from_json(start_record).scene_module is None
+
+
+class TestPlaybackSourcesDefersToTheInstalledDoors:
+    """The scope's doors leave holds, stops, the overlay and the frame's end to the base."""
+
+    @staticmethod
+    def _scope_over_a_watched_replay(
+        *, mocker: MockerFixture
+    ) -> tuple[PlaybackSources, ReplaySources, ReplaySources]:
+        """Return a scope's doors over a watched replay (the base), and both replays.
+
+        Returns:
+            The scope's doors, the installed watched replay and the replay the scope plays.
+
+        """
+        FakeMeasuredClock(mocker=mocker)
+        base = minimal_sources(
+            frames=[recorded_frame(frame_number=index) for index in range(3)],
+            options=DEFAULT_REPLAY_OPTIONS,
+        )
+        install_sources(sources=base)
+        played = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        scope = PlaybackSources(base=base, replay=played, exit_on_input=False)
+        return scope, base, played
+
+    def test_holds_stops_and_the_overlay_are_the_installed_doors(self, mocker: MockerFixture):
+        scope, base, _played = self._scope_over_a_watched_replay(mocker=mocker)
+        base.controls.paused = True
+        # Paused, the watched replay holds the loop: the scope says so too
+        assert scope.hold_frame()
+        surface = pygame.Surface((320, 240))
+        base_surface = pygame.Surface((320, 240))
+        scope.draw_overlay(surface=surface)
+        base.draw_overlay(surface=base_surface)
+        assert pygame.image.tobytes(surface, 'RGB') == pygame.image.tobytes(base_surface, 'RGB')
+        assert not scope.stop_requested
+        base.controls.handle_key(key=pygame.K_ESCAPE)
+        assert scope.hold_frame()
+        assert base.stop_requested
+        assert scope.stop_requested
+
+    def test_end_frame_compares_then_lets_the_installed_doors_end_the_frame(
+        self, mocker: MockerFixture
+    ):
+        scope, base, played = self._scope_over_a_watched_replay(mocker=mocker)
+        scope.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        assert scope.frames_played == 1
+        assert played.result.frames_replayed == 1
+        assert base.result.frames_replayed == 1
+
+    def test_the_installed_doors_end_the_frame_even_when_the_comparison_fails(
+        self, mocker: MockerFixture
+    ):
+        scope, base, _played = self._scope_over_a_watched_replay(mocker=mocker)
+        mocker.patch.object(scope, 'compare_frame', side_effect=RuntimeError('comparison failed'))
+        with pytest.raises(RuntimeError, match='comparison failed'):
+            scope.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        assert base.result.frames_replayed == 1
 
 
 class TestPlaybackSourcesServeTheRecording:
@@ -1401,6 +1470,19 @@ class TestScenesThatBeganMidRun:
             )
         assert 'cannot be aligned' in caplog.text
 
+    def test_an_unreadable_scene_start_is_refused(self, tmp_path, caplog):
+        """A scene start that does not validate (an unknown field) starts nothing."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        frames[0][SCENE_START_FIELD]['unknown_field'] = 1
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager, header=header, frames=frames, then=manager.active_scene
+            )
+            step(manager)
+            assert manager.playback_session is None
+        assert 'frame 0 holds an unusable scene start' in caplog.text
+
 
 KEY_RELEASE = pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicode='', scancode=0)
 
@@ -1475,6 +1557,48 @@ class TestPlaybacksBackToBack:
             assert outcome_reason(manager) == 'end_of_recording'
 
 
+class CleanupFailingCountingScene(CountingScene):
+    """A counting scene whose cleanup() raises while ``FAILS_CLEANUP`` is True."""
+
+    FAILS_CLEANUP = False
+
+    @override
+    def cleanup(self: Self) -> None:
+        """Clean up, then fail when asked to.
+
+        Raises:
+            RuntimeError: While ``FAILS_CLEANUP`` is True.
+
+        """
+        super().cleanup()
+        if self.FAILS_CLEANUP:
+            message = 'the played scene could not clean up'
+            raise RuntimeError(message)
+
+
+class PlaybackEndingSupervisor:
+    """A live supervisor that asks the scene manager to end the playback on a chosen frame."""
+
+    def __init__(self: Self, *, manager: SceneManager, frame_number: int) -> None:
+        """Watch for ``frame_number``.
+
+        Args:
+            manager: The running scene manager.
+            frame_number: The frame whose supervisor slot asks.
+
+        """
+        self.manager = manager
+        self.frame_number = frame_number
+        self.has_asked = False
+
+    def on_frame(self: Self, *, frame_number: int, scene: Any) -> None:
+        """Ask on the chosen frame (implements glitchygames.supervision.Supervisor)."""
+        del scene
+        if frame_number == self.frame_number:
+            self.has_asked = True
+            self.manager.end_playback()
+
+
 class TestScopeHousekeeping:
     """The requesting scene is forgotten, teardown drops held posts, events keep their order."""
 
@@ -1530,6 +1654,75 @@ class TestScopeHousekeeping:
             step(manager)
             assert [event.type for event in pump.spy_return] == [pygame.USEREVENT, pygame.KEYUP]
 
+    def test_an_untracked_post_queued_before_the_scope_comes_back_after_it(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """A custom event posted outside post_event, before the scope: held, then redelivered."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            # Untracked: internal by its type alone (a custom type)
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, {'untracked': True}))
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+            pump = mocker.spy(engine, '_pump_events')
+            step(manager)
+            assert [(event.type, event.dict) for event in pump.spy_return] == [
+                (pygame.USEREVENT, {'untracked': True})
+            ]
+
+    def test_an_untracked_post_during_the_scope_is_the_playbacks_and_diverges(self, tmp_path):
+        """A custom event posted outside post_event mid-scope goes to the replay's merge.
+
+        The recording has no such event, so the replay reports it as an unexpected internal
+        event and the scope ends there.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            assert manager.playback_session is not None
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, {'untracked': True}))
+            step(manager)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'diverged'
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is not None
+            assert result.divergence.field == 'unexpected internal event'
+
+    def test_a_played_scene_whose_cleanup_fails_is_logged_and_the_live_game_returns(
+        self, tmp_path, mocker: MockerFixture, caplog
+    ):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=CleanupFailingCountingScene
+        )
+        mocker.patch.object(CleanupFailingCountingScene, 'FAILS_CLEANUP', new=True)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES + 1)
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            assert outcome_reason(manager) == 'end_of_recording'
+        failures = [
+            record
+            for record in caplog.records
+            if record.getMessage() == 'The playback scene failed to clean up'
+        ]
+        assert len(failures) == 1
+        assert failures[0].exc_info is not None
+        assert 'the played scene could not clean up' in str(failures[0].exc_info[1])
+
     def test_a_cut_off_recording_ends_as_truncated(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         cut_off_after_frame(recording_path=recording_path, frame_number=SHORT_RECORDED_FRAMES - 1)
@@ -1556,6 +1749,47 @@ class TestPlayRecordingDemos:
             assert manager.active_scene is title_scene
             assert manager.playback_session is None
             assert outcome_reason(manager) == 'end_of_recording'
+
+    def test_a_key_in_the_demos_last_frame_ends_it_as_exit_input(self, tmp_path):
+        """Two reasons to end in one frame: the first found (the key, at the pump) is kept."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            title_scene = manager.active_scene
+            manager.play_recording(path=recording_path, then=title_scene)
+            # The scope's frames: the last recorded one reads the press
+            step(manager, frames=SHORT_RECORDED_FRAMES - 1)
+            session = manager.playback_session
+            assert session is not None
+            assert session.sources.frames_played == SHORT_RECORDED_FRAMES - 1
+            step(manager, press(pygame.K_SPACE))
+            assert manager.playback_session is None
+            assert manager.active_scene is title_scene
+            assert outcome_reason(manager) == 'exit_input'
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.end_reason == 'end_of_recording'
+
+    def test_the_games_end_playback_after_the_exit_press_keeps_exit_input(self, tmp_path):
+        """A live supervisor's end_playback() in the frame a key ended the demo changes nothing.
+
+        The press is pumped before the supervisor slot, so the first reason found is the
+        press: the game's request in the same frame does not replace it.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            title_scene = manager.active_scene
+            manager.play_recording(path=recording_path, then=title_scene)
+            step(manager)
+            assert manager.playback_session is not None
+            supervisor = PlaybackEndingSupervisor(
+                manager=manager, frame_number=manager.frame_number
+            )
+            manager.add_supervisor(supervisor=supervisor)
+            step(manager, press(pygame.K_SPACE))
+            assert supervisor.has_asked
+            assert manager.playback_session is None
+            assert manager.active_scene is title_scene
+            assert outcome_reason(manager) == 'exit_input'
 
     def test_any_key_ends_the_demo(self, tmp_path, mocker: MockerFixture):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
@@ -1602,6 +1836,25 @@ class TestPlayRecordingDemos:
             step(manager)
             assert manager.playback_session is None
         assert 'No demo: no scene class named NoSuchScene' in caplog.text
+
+    def test_a_recording_whose_header_saves_are_not_a_mapping_is_logged(self, tmp_path, caplog):
+        """The playback's saves start from the header's: a header that holds none is refused."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        header['saves'] = ['not', 'a', 'mapping']
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=manager.active_scene,
+            )
+            step(manager)
+            assert manager.playback_session is None
+        assert (
+            'No demo: the recording cannot be replayed: '
+            "The recording header saves is not a mapping: ['not', 'a', 'mapping']"
+        ) in caplog.text
 
     def test_a_diverging_demo_ends_early_and_says_so(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=20)

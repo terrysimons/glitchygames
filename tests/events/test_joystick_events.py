@@ -120,6 +120,20 @@ class TestJoystickManagerInitExceptionPaths:
         assert manager.game == mock_game
         assert len(manager.joysticks) == 0
 
+    def test_init_skips_a_joystick_that_vanished_before_it_opened(self, mocker, caplog):
+        """Unplugged between the count and the open: that joystick is skipped, the next kept."""
+        _setup_joystick_patches(mocker, joystick_count=2)
+        mocker.patch(
+            'pygame.joystick.Joystick',
+            side_effect=[pygame.error('gone'), _make_joystick_mock(mocker, get_instance_id=5)],
+        )
+
+        with caplog.at_level('WARNING', logger='game.joysticks'):
+            manager = JoystickEventManager(game=mocker.Mock())
+
+        assert 'Joystick 0 vanished before it could be opened' in caplog.text
+        assert list(manager.joysticks) == [5]
+
     def test_init_joystick_get_id_pygame_error(self, mocker):
         """Test that pygame.error in get_id is caught (lines 297-298)."""
         mock_game = mocker.Mock()
@@ -317,6 +331,38 @@ class TestJoystickDeviceAddedExceptionPaths:
         # The devices door cannot describe the device, so the instance id lookup's open
         # fails (falling back to event.device_index as the key) and so does the proxy's:
         # the device is gone, so nothing is tracked and the handler does not raise.
+        assert manager.joysticks == {}
+
+    def test_device_added_debug_info_survives_instance_id_error(self, mocker, caplog):
+        """A get_instance_id failure in the debug log is logged as None; the device is tracked.
+
+        The door's open describes the joystick (first call) and the instance id lookup reads it
+        (second call); the third call is the debug block's.
+        """
+        _setup_joystick_patches(mocker, joystick_count=0)
+        manager = JoystickEventManager(game=mocker.Mock())
+        mock_js = _make_joystick_mock(mocker)
+        mock_js.get_instance_id.side_effect = _fail_on_call(
+            call_number=3, error=pygame.error('no instance'), value=7
+        )
+        mocker.patch('pygame.joystick.Joystick', return_value=mock_js)
+
+        with caplog.at_level('DEBUG', logger='game.joysticks'):
+            manager.on_joy_device_added_event(HashableEvent(pygame.JOYDEVICEADDED, device_index=0))
+
+        assert 'DEVICEADDED index=0 get_id=0 instance_id=None' in caplog.text
+        assert 7 in manager.joysticks
+
+    def test_device_added_without_device_index_is_ignored(self, mocker, caplog):
+        _setup_joystick_patches(mocker, joystick_count=0)
+        manager = JoystickEventManager(game=mocker.Mock())
+        joystick_constructor = mocker.patch('pygame.joystick.Joystick')
+
+        with caplog.at_level('DEBUG', logger='game.joysticks'):
+            manager.on_joy_device_added_event(HashableEvent(pygame.JOYDEVICEADDED))
+
+        assert 'DEVICEADDED event has no device_index attribute' in caplog.text
+        joystick_constructor.assert_not_called()
         assert manager.joysticks == {}
 
 

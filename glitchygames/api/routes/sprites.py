@@ -495,6 +495,8 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
         data
 
     """
+    import struct
+
     from apng import APNG
 
     # Decode the base64 APNG data
@@ -507,10 +509,11 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
             error=f'Invalid base64 data: {e}',
         )
 
-    # Parse the APNG
+    # Parse the APNG. The apng package reads chunk headers with struct, so data cut off inside
+    # one raises struct.error (not a ValueError subclass)
     try:
         apng: APNG = APNG.from_bytes(apng_bytes)
-    except (ValueError, OSError) as e:
+    except (ValueError, OSError, struct.error) as e:
         LOG.warning('Failed to parse APNG: %s', e)
         return ApngExtractResponse(
             success=False,

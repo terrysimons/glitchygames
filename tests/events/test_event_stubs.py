@@ -617,6 +617,14 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_touchpad_up_event(event)
 
+    def test_on_controller_sensor_update_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_sensor_update_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.base.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERSENSORUPDATE, instance_id=0, sensor=1, data=[])
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_sensor_update_event(event)
+
 
 class TestDropEventStubs:
     """Test DropEventStubs methods raise UnhandledEventError."""

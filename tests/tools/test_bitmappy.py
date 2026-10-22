@@ -595,6 +595,30 @@ class TestLoadAiTrainingData:
         assert len(ai_training_state['data']) == 0
         ai_training_state['data'] = original_data
 
+    def test_toml_files_in_the_directory_become_training_data(self, mocker, tmp_path, caplog):
+        """Each TOML sprite in the directory is loaded, logged and added as an example."""
+        (tmp_path / 'block.toml').write_text(
+            '[sprite]\nname = "block"\npixels = """\n##\n##\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n',
+            encoding='utf-8',
+        )
+        mocker.patch('glitchygames.bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
+        mocker.patch.dict(ai_training_state, {'data': [], 'format': None})
+
+        with caplog.at_level(logging.INFO, logger='game.tools.bitmappy'):
+            load_ai_training_data()
+
+        training_data = ai_training_state['data']
+        assert isinstance(training_data, list)
+        assert ai_training_state['format'] == 'toml'
+        assert [example['name'] for example in training_data] == ['block']
+        messages = [record.getMessage() for record in caplog.records]
+        assert 'Found 1 TOML sprite config files' in messages
+        assert any(
+            message.startswith('Loaded "block" (filename: block.toml') for message in messages
+        )
+        assert 'Total AI training data loaded: 1 sprites' in messages
+
 
 # ---------------------------------------------------------------------------
 # TestCheckOllamaModelStatus
@@ -1198,8 +1222,14 @@ class TestAiWorkerShutdown:
         engine_class.return_value.start.side_effect = deliver_signal_while_running
         shut_down_workers = mocker.patch.object(bitmappy, 'shut_down_running_ai_workers')
 
-        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
-            bitmappy.main()
+        # main() sets the editor's logger to INFO for the process; later tests need it back
+        editor_logger = logging.getLogger('game.tools.bitmappy')
+        level_before_main = editor_logger.level
+        try:
+            with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+                bitmappy.main()
+        finally:
+            editor_logger.setLevel(level_before_main)
 
         assert exit_info.value.code == ExitCode.TERMINATED
         assert f'Received signal {signal.SIGTERM}' in caplog.text

@@ -10,6 +10,8 @@ Covers uncovered regions including:
 - Multi-controller methods
 """
 
+import argparse
+import logging
 import time
 from types import SimpleNamespace
 
@@ -2626,6 +2628,15 @@ class TestRightMouseButtonSampling:
 
         assert _slider_values(mock_editor) == (128, 64, 32, 255)
 
+    def test_sprite_without_a_right_click_handler_is_skipped(self, mock_editor, mocker):
+        """A sprite under the cursor with no right click handler lets the canvas sample."""
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[SimpleNamespace()])
+        mock_editor.canvas.pixels[0] = (11, 22, 33, 44)
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(1, 25)))
+
+        assert _slider_values(mock_editor) == (11, 22, 33, 44)
+
     def test_canvas_rgba_pixel_sets_all_four_sliders(self, mock_editor, mocker):
         """A right click on the canvas samples the RGBA pixel under the cursor."""
         unhandling_sprite = mocker.Mock()
@@ -2940,6 +2951,44 @@ class TestSceneLifecycleAndUpdate:
         mock_editor.update()
 
         update_canvas.assert_not_called()
+
+    def test_animated_canvas_update_on_the_same_frame_keeps_the_last_frame(
+        self,
+        mock_editor,
+        mocker,
+    ):
+        """Two updates on the same frame leave the remembered frame unchanged."""
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'update_film_strip_animation_timing'
+        )
+        mocker.patch.object(mock_editor.controller_handler, 'render_visual_indicators')
+        mock_editor.canvas.animated_sprite.current_frame = 2
+
+        mock_editor._update_animated_canvas()
+        mock_editor._update_animated_canvas()
+
+        assert mock_editor._last_animation_frame == 2
+        assert mock_editor.canvas.update_animation.call_count == 2
+
+    def test_voice_cleanup_stops_and_drops_the_voice_manager(self, mock_editor):
+        """A running voice manager is stopped and forgotten."""
+        stopped = []
+        mock_editor.voice_manager = SimpleNamespace(stop_listening=lambda: stopped.append(True))
+
+        mock_editor._cleanup_voice_recognition()
+
+        assert stopped == [True]
+        assert mock_editor.voice_manager is None
+
+    def test_voice_cleanup_without_a_voice_manager_does_nothing(self, mock_editor, mocker):
+        """With no voice manager, cleanup logs nothing and leaves it None."""
+        mock_editor.voice_manager = None
+        log_info = mocker.patch.object(mock_editor.log, 'info')
+
+        mock_editor._cleanup_voice_recognition()
+
+        assert mock_editor.voice_manager is None
+        log_info.assert_not_called()
 
     def test_voice_cleanup_failure_is_logged_and_kept(self, mock_editor, mocker):
         """A voice manager that fails to stop is kept and the failure logged."""
@@ -3268,6 +3317,44 @@ class TestEventHandlingAndDeflate:
         confirmation_dialog.handle_mouse_down.assert_not_called()
         assert mock_editor.confirmation_dialog is confirmation_dialog
 
+    def test_click_the_dialog_does_not_handle_keeps_it_open(self, mock_editor, mocker):
+        """A click inside the dialog that it does not handle leaves the dialog open."""
+        confirmation_dialog = mocker.Mock()
+        confirmation_dialog.rect = pygame.Rect(100, 100, 200, 100)
+        confirmation_dialog.handle_mouse_down.return_value = False
+        mock_editor.confirmation_dialog = confirmation_dialog
+        mock_editor.all_sprites = []
+        mocker.patch.object(
+            bitmappy,
+            'current_input',
+            return_value=SimpleNamespace(mouse_position=(150, 130)),
+        )
+
+        mock_editor.handle_event(_make_event(type=pygame.MOUSEBUTTONDOWN))
+
+        confirmation_dialog.handle_mouse_down.assert_called_once_with((50, 30))
+        assert mock_editor.confirmation_dialog is confirmation_dialog
+
+    def test_key_down_is_logged(self, mock_editor, caplog):
+        """A KEYDOWN reaching handle_event is logged with its key."""
+        mock_editor.confirmation_dialog = None
+
+        with caplog.at_level(logging.DEBUG, logger=mock_editor.log.name):
+            mock_editor.handle_event(_make_event(type=pygame.KEYDOWN, key=pygame.K_a))
+
+        assert f'KEYDOWN event received in handle_event: key={pygame.K_a}' in caplog.messages
+
+    def test_window_leave_skips_sprites_without_a_handler(self, mock_editor, mocker):
+        """Only sprites with a leave-window handler hear that the mouse left the window."""
+        mock_editor.confirmation_dialog = None
+        listening_sprite = mocker.Mock()
+        mock_editor.all_sprites = [SimpleNamespace(), listening_sprite]
+        event = _make_event(type=pygame.WINDOWLEAVE)
+
+        mock_editor.handle_event(event)
+
+        listening_sprite.on_mouse_leave_window_event.assert_called_once_with(event)
+
     def test_drop_file_goes_to_file_io(self, mock_editor, mocker):
         """A dropped file is handed to the file I/O manager."""
         mock_editor._file_io = mocker.Mock()
@@ -3318,3 +3405,26 @@ class TestDelegation:
         mock_editor._submit_pixel_changes_if_ready()
 
         delegate.assert_called_once()
+
+
+class TestEditorConstructionAndArguments:
+    """Tests for BitmapEditorScene construction defaults and command line arguments."""
+
+    def test_missing_options_default_to_a_32_by_32_canvas(self, mock_pygame_patches, mocker):
+        """Constructing the editor with no options gives the default 32x32 size."""
+        mocker.patch.object(bitmappy_setup.EditorSetup, 'setup_menu_bar')
+
+        scene = BitmapEditorScene(options=None)  # type: ignore[arg-type]
+
+        assert scene.options['size'] == '32x32'
+
+    def test_arguments_add_version_and_size(self):
+        """The editor adds --version and --size (default 32x32) to the parser."""
+        parser = argparse.ArgumentParser()
+
+        BitmapEditorScene.args(parser)
+
+        assert parser.parse_args([]).size == '32x32'
+        parsed = parser.parse_args(['--size', '16x8', '--version'])
+        assert parsed.size == '16x8'
+        assert parsed.version is True

@@ -7,6 +7,7 @@ slider dragging, text input, value validation, and color well display.
 import sys
 from pathlib import Path
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -697,3 +698,36 @@ class TestSliderColorWellIntegration:
         assert color_well.red == TEST_MAX_VALUE
         assert color_well.green == TEST_DEFAULT_VALUE
         assert color_well.blue == TEST_VALUE_64
+
+
+class TestSliderSpriteWithRealSurfaces:
+    """SliderSprite built on real pygame surfaces (no pygame mocks)."""
+
+    @pytest.fixture
+    def slider(self):
+        """A real slider.
+
+        Returns:
+            The slider.
+
+        """
+        return SliderSprite(x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT)
+
+    def test_typing_a_key_that_is_not_a_hex_digit_is_ignored(self, slider, mocker):
+        slider.text_sprite.is_active = True
+        slider.text_sprite.text = '1'
+
+        slider.text_sprite.on_key_down_event(mocker.Mock(key=pygame.K_z, unicode='z'))
+
+        assert slider.text_sprite.text == '1'
+        assert slider.text_sprite.is_active is True
+
+    def test_update_redraws_the_track_only_when_dirty(self, slider):
+        slider.dirty = 2
+        slider.update()
+        slider.image.fill((1, 2, 3))
+        slider.dirty = 0
+
+        slider.update()
+
+        assert slider.image.get_at((0, 0))[:3] == (1, 2, 3)

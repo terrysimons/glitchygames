@@ -7,6 +7,7 @@ import collections
 import gzip
 import importlib.metadata
 import json
+import logging
 import os
 import re
 import signal
@@ -34,6 +35,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
 from glitchygames.process import run_command
 from glitchygames.recording import (
@@ -43,6 +45,8 @@ from glitchygames.recording import (
     SCENE_START_FIELD,
     GameplayRecorder,
     RecordingSources,
+    UnrepresentableValue,
+    event_to_record,
     pending_internal_posts,
     post_event,
     post_input_event,
@@ -192,6 +196,7 @@ if __name__ == '__main__':
 # digest to the --replay-digest path (the last argument), then a clean summary line
 DIGEST_WRITING_CHILD_SOURCE = """\
 import json
+import logging
 import os
 import sys
 
@@ -996,6 +1001,20 @@ class TestReplayDoors:
             'device_enumeration': frame['device_enumeration'],
         }
 
+    def test_a_frame_past_the_recordings_end_hands_a_rebaseline_nothing(self):
+        """A frame the recording does not have took no saves, devices or histories from it."""
+        frame = recorded_frame(frame_number=0)
+        frame['saves_opened'] = {'game': {}}
+        frame['content_hash'] = ['0123456789abcdef']
+        frame['processing_seconds'] = [0.002]
+        sources = minimal_sources(frames=[frame])
+        assert sources.recording.recorded_frame_histories(frame_index=0) == {
+            'content_hash': ['0123456789abcdef'],
+            'processing_seconds': [0.002],
+        }
+        assert sources.recording.recorded_frame_fields(frame_index=1) == {}
+        assert sources.recording.recorded_frame_histories(frame_index=1) == {}
+
     def test_recorded_options_override_all_but_the_local_ones(self):
         options = {'resolution': '640x480', 'log_level': 'debug', 'replay_trace': 'here'}
         apply_recorded_options(
@@ -1309,6 +1328,35 @@ class TestRefusals:
         refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
         assert len(refusals) == 1
         assert 'The recording is malformed' in refusals[0].getMessage()
+
+    @pytest.mark.parametrize(
+        ('change', 'reason'),
+        [
+            pytest.param(
+                lambda trace: trace.update(recorded_at='yesterday'),
+                "recorded_at 'yesterday' is not ISO 8601",
+                id='unreadable start time',
+            ),
+            pytest.param(
+                lambda trace: trace.pop('recorded_at'),
+                'has no recorded_at start time (found None)',
+                id='no start time',
+            ),
+        ],
+    )
+    def test_a_header_without_a_readable_start_time_is_unusable_input(
+        self, mocker, tmp_path, caplog, change, reason
+    ):
+        """The replay's wall clock starts at recorded_at: without it the recording is refused."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(recording_path=recording_path, change=change)
+        caplog.clear()
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert reason in refusals[0].getMessage()
 
     def test_unsupported_format_version_is_refused_without_a_traceback(
         self, mocker, tmp_path, caplog
@@ -1920,6 +1968,17 @@ class TestReplayReport:
         # A plain replay's exit is its result's, as before
         assert result.exit_code(policy=ReplayExitPolicy.RESULT) == ExitCode.SUCCESS
 
+    def test_undelivered_inputs_add_up_and_keep_the_first_frame(self):
+        """Each frame's unpumped events add to the count; the first frame noted stays first."""
+        result = ReplayResult(frames_replayed=9, frames_recorded=9)
+        result.note_undelivered_inputs(frame_index=2, count=0)
+        assert result.first_undelivered_input_frame is None
+        result.note_undelivered_inputs(frame_index=3, count=2)
+        result.note_undelivered_inputs(frame_index=6, count=1)
+        assert result.undelivered_input_count == 3
+        assert result.first_undelivered_input_frame == 3
+        assert result.has_lost_input
+
     def test_a_rebaseline_whose_frames_differ_still_succeeds(self):
         """Differing frames are the point of a rebaseline; only lost input is reported."""
         result = ReplayResult(
@@ -2223,6 +2282,18 @@ class TestRealInputBlocking:
         finally:
             pygame.event.set_allowed([pygame.KEYDOWN, pygame.KEYUP])
 
+    def test_blocking_again_while_active_keeps_the_first_snapshot(self):
+        """A second block() takes no new snapshot, so restore() still gives the original state."""
+        block = EventTypeBlock(event_types=(pygame.KEYDOWN,))
+        try:
+            block.block()
+            # Blocked by the first block(): a fresh snapshot now would say it was blocked
+            block.block()
+            block.restore()
+            assert not pygame.event.get_blocked(pygame.KEYDOWN)
+        finally:
+            pygame.event.set_allowed([pygame.KEYDOWN])
+
 
 class TestWatched:
     """A watched replay: recorded pacing, the viewer's keys, pauses and the start screen."""
@@ -2333,6 +2404,33 @@ class TestWatched:
         assert sources.controls.banner is not None
         assert sources.controls.banner.startswith('Diverged at frame 3')
         assert sources.result.end_reason == 'diverged'
+        GoldenTraceSceneManager.uninstall()
+
+    def test_frames_stepped_past_a_divergence_run_but_are_not_compared(self, mocker, tmp_path):
+        """Paused at the divergence, a step runs the next frame; the result stays the first one."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        sources = harness_replay_sources(manager=manager)
+        for _ in range(4):
+            manager.dt = sources.frame_seconds(measured=0.0)
+            manager.run_frame()
+        assert sources.controls.paused
+        divergence = sources.result.divergence
+        frame_number_before_step = manager.frame_number
+        FakeMeasuredClock(mocker=mocker)
+        # The harness ran the frames without the start screen's Space: leave it now
+        sources.controls.handle_key(key=pygame.K_SPACE)
+        assert sources.controls.paused
+        assert sources.hold_frame()  # paused: the tick closes with no inner frame
+        sources.controls.handle_key(key=pygame.K_PERIOD)
+        assert not sources.hold_frame()  # the step runs one inner frame
+        manager.dt = sources.frame_seconds(measured=0.0)
+        manager.run_frame()
+        assert manager.frame_number == frame_number_before_step + 1
+        assert sources.result.end_reason == 'diverged'
+        assert sources.result.divergence is divergence
+        assert sources.result.frames_replayed == 4
         GoldenTraceSceneManager.uninstall()
 
     def test_watched_replay_pauses_at_the_end(self, mocker, tmp_path):
@@ -2808,6 +2906,23 @@ class TestStepBack:
         install_sources(sources=sources)
         run_until_paused(sources=sources)
         assert sources.controls.current_frame == FIRST_PAUSED_FRAME
+
+    def test_a_run_that_ends_during_its_rebuild_gives_the_music_controls_back(self, mocker):
+        """Uninstalled mid-rebuild (the run ended), pygame's music pause and unpause return."""
+        FakeMeasuredClock(mocker=mocker)
+        pygame_pause = pygame.mixer.music.pause
+        pygame_unpause = pygame.mixer.music.unpause
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=index, dt=0.01) for index in range(20)],
+            options=ReplayOptions(pause_at_frame=10),
+        )
+        install_sources(sources=sources)
+        assert not sources.hold_frame()  # rebuilding: frame 0 runs unheld
+        # The rebuild follows the game's music calls through its own wrappers
+        assert pygame.mixer.music.pause is not pygame_pause
+        reset_sources()
+        assert pygame.mixer.music.pause is pygame_pause
+        assert pygame.mixer.music.unpause is pygame_unpause
 
     def test_step_back_ends_the_run_with_a_restart_at_the_previous_frame(self, mocker):
         FakeMeasuredClock(mocker=mocker)
@@ -3597,6 +3712,205 @@ class TestEventMerge:
             event.type == pygame.KEYDOWN and event.key == pygame.K_z for event in delivered
         )
         assert not any(event.type == pygame.WINDOWFOCUSLOST for event in delivered)
+
+
+# A recorded external joystick button press of a device instance, by reference
+def joystick_button_record(*, instance_id: int) -> dict[str, Any]:
+    """Return a recorded external JOYBUTTONDOWN whose ``joy`` references a joystick instance.
+
+    Returns:
+        The event record.
+
+    """
+    return {
+        'type': pygame.JOYBUTTONDOWN,
+        'name': 'JoyButtonDown',
+        'origin': EXTERNAL_ORIGIN,
+        'attributes': {
+            'instance_id': instance_id,
+            'button': 0,
+            'joy': {'__ref__': 'joystick', 'instance_id': instance_id},
+        },
+    }
+
+
+def resume_bridge_record() -> dict[str, Any]:
+    """Return a recorded resume bridge: the scene resumed in its frame after a playback scope.
+
+    Returns:
+        The bridge record (``ResumeBridge``'s fields).
+
+    """
+    return {
+        'frame_clock_seconds': 0.25,
+        'fps_event_seconds': 0.0,
+        'earlier_internal_event_count': 0,
+        'input_before': {},
+    }
+
+
+class TestRecordedBatchMerging:
+    """Each pump's batch: the recording's events merged with the replayed code's posts."""
+
+    def test_under_real_fps_a_recorded_fps_event_with_no_live_one_is_not_a_divergence(self):
+        """--replay-fps real does not compare FPS events: a recorded one may go unposted."""
+        fps_record = event_to_record(
+            event=pygame.event.Event(FPSEVENT, {'fps': 60.0}), origin=INTERNAL_ORIGIN
+        )
+        frame = {**recorded_frame(frame_number=0), 'event_batches': [[fps_record]]}
+        sources = minimal_sources(
+            frames=[frame], options=ReplayOptions(headless=True, fps_source=REAL_REPLAY_FPS)
+        )
+        install_sources(sources=sources)
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+
+        assert batch == []
+        assert sources.result.divergence is None
+
+    def test_under_real_fps_a_live_fps_event_the_recording_lacks_is_delivered(self):
+        """A live FPS event left over is delivered, and is not a divergence under real FPS."""
+        frame = {**recorded_frame(frame_number=0), 'event_batches': [[]]}
+        sources = minimal_sources(
+            frames=[frame], options=ReplayOptions(headless=True, fps_source=REAL_REPLAY_FPS)
+        )
+        install_sources(sources=sources)
+        post_event(pygame.event.Event(FPSEVENT, {'fps': 59.0}))
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+
+        assert [(event.type, event.fps) for event in batch] == [(FPSEVENT, 59.0)]
+        assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
+        assert sources.result.divergence is None
+
+    def test_a_recorded_joystick_reference_maps_to_the_opened_stand_in(self):
+        """A served joystick event carries the stand-in the replayed code opened for it."""
+        descriptor = DeviceDescriptor(
+            kind=JOYSTICK_KIND,
+            device_index=0,
+            instance_id=5,
+            name='Recorded pad',
+            guid=None,
+            axis_count=2,
+            button_count=4,
+            hat_count=0,
+            ball_count=0,
+        )
+        frame = {
+            **recorded_frame(frame_number=0),
+            'devices_opened': [descriptor.to_json()],
+            'event_batches': [[joystick_button_record(instance_id=5)]],
+        }
+        sources = minimal_sources(frames=[frame])
+        install_sources(sources=sources)
+        joystick = sources.devices().open_joystick(device_index=0)
+
+        (event,) = sources.pump_events()
+
+        assert event.type == pygame.JOYBUTTONDOWN
+        assert event.joy is joystick
+        assert event.button == 0
+        assert sources.last_batch_origins() == [EXTERNAL_ORIGIN]
+
+    def test_an_unrepresentable_recorded_value_is_injected_as_recorded_and_noted_once(self, caplog):
+        """A value the recording could not hold is delivered as its marker, logged once a type."""
+        record = {
+            'type': pygame.USEREVENT,
+            'name': 'UserEvent',
+            'origin': EXTERNAL_ORIGIN,
+            'attributes': {'sprite': {'__unrepresentable__': 'game.Sprite'}},
+        }
+        frame = {**recorded_frame(frame_number=0), 'event_batches': [[record], [record]]}
+        sources = minimal_sources(frames=[frame])
+        install_sources(sources=sources)
+
+        with caplog.at_level(logging.DEBUG, logger=driver_module.LOG.name):
+            batches = [sources.pump_events(), sources.pump_events()]
+
+        assert [event.sprite for batch in batches for event in batch] == [
+            UnrepresentableValue(type_name='game.Sprite'),
+            UnrepresentableValue(type_name='game.Sprite'),
+        ]
+        notes = [
+            record
+            for record in caplog.records
+            if 'unrepresentable game.Sprite' in record.getMessage()
+        ]
+        assert len(notes) == 1
+
+    def test_a_start_frames_redelivered_event_without_its_device_is_dropped(self, caplog):
+        """A playback's held joystick event whose device was never opened is not delivered."""
+        frame = {
+            **recorded_frame(frame_number=0),
+            'redelivered_events': [joystick_button_record(instance_id=7)],
+            'event_batches': [[]],
+        }
+        sources = minimal_sources(
+            frames=[frame], options=ReplayOptions(headless=True, serves_redelivered_events=True)
+        )
+        install_sources(sources=sources)
+
+        batch = sources.pump_events()
+
+        assert batch == []
+        assert 'instance 7 has no device; dropped' in caplog.text
+
+    def test_a_resumed_frames_redelivered_events_are_served_and_matched(self, caplog):
+        """After a scope the held events come first; a held post not made again diverges.
+
+        The held external event is served from the recording (dropped here: its device was
+        never opened); the held internal post must be posted again by the replayed code.
+        """
+        user_post = pygame.event.Event(pygame.USEREVENT, {'goal': 1})
+        resumed_frame = {
+            **recorded_frame(frame_number=1),
+            'resume_bridge': resume_bridge_record(),
+            'redelivered_events': [
+                joystick_button_record(instance_id=7),
+                event_to_record(event=user_post, origin=INTERNAL_ORIGIN),
+            ],
+            'event_batches': [[]],
+        }
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0), resumed_frame])
+        install_sources(sources=sources)
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        assert sources.frame_bridge is not None
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=1, dt=0.25, scene=None, control_events=[])
+
+        assert batch == []
+        assert 'instance 7 has no device; dropped' in caplog.text
+        divergence = sources.result.divergence
+        assert divergence is not None
+        assert (divergence.frame_number, divergence.kind, divergence.field) == (
+            1,
+            EVENT_DIVERGENCE,
+            'missing internal event',
+        )
+
+    def test_a_resumed_frames_held_post_made_again_is_delivered_first(self):
+        """The held internal post, posted again by the replayed code, comes before the batch."""
+        user_post = pygame.event.Event(pygame.USEREVENT, {'goal': 1})
+        resumed_frame = {
+            **recorded_frame(frame_number=1),
+            'resume_bridge': resume_bridge_record(),
+            'redelivered_events': [event_to_record(event=user_post, origin=INTERNAL_ORIGIN)],
+            'event_batches': [[]],
+        }
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0), resumed_frame])
+        install_sources(sources=sources)
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        post_event(user_post)
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=1, dt=0.25, scene=None, control_events=[])
+
+        assert [(event.type, event.goal) for event in batch] == [(pygame.USEREVENT, 1)]
+        assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
+        assert sources.result.divergence is None
 
 
 class TestReferences:

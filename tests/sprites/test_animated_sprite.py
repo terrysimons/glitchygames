@@ -928,6 +928,44 @@ class TestFrameManager:
         assert sprite.frame_manager.get_frame_count() == 0
 
 
+class TestFrameManagerEdgeCases:
+    """FrameManager with a stale animation name or a hookless observer."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @pytest.fixture
+    def animated_sprite(self):
+        """Create an AnimatedSprite with a two-frame 'walk' animation.
+
+        Returns:
+            An AnimatedSprite with a 'walk' animation.
+        """
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
+        frames = [SpriteFrame(surface, duration=FRAME_DURATION) for _ in range(2)]
+        sprite.add_animation('walk', frames)
+        return sprite
+
+    def test_set_frame_without_a_known_animation_is_refused(self, animated_sprite):
+        """set_frame refuses while the current animation names no loaded animation."""
+        animated_sprite.frame_manager._current_animation = 'removed'
+        assert animated_sprite.frame_manager.set_frame(0) is False
+        assert animated_sprite.frame_manager.current_frame == 0
+
+    def test_observer_without_a_frame_change_hook_is_skipped(self, animated_sprite, mocker):
+        """Observers lacking a callable on_frame_change are passed over; the rest are told."""
+        animated_sprite.frame_manager.current_animation = 'walk'
+        silent_observer = type('SilentObserver', (), {'on_frame_change': None})()
+        listening_observer = mocker.Mock()
+        animated_sprite.frame_manager.add_observer(silent_observer)
+        animated_sprite.frame_manager.add_observer(listening_observer)
+        animated_sprite.frame_manager.current_frame = 1
+        listening_observer.on_frame_change.assert_called_once_with('frame', 0, 1)
+
+
 class TestAnimatedSpriteProperties:
     """Test AnimatedSprite property accessors."""
 
@@ -3367,3 +3405,428 @@ class TestTransitionData:
         sprite.transition_data[0]['when'] = tricky_when
 
         assert self._saved_transitions(sprite, tmp_path)[0]['when'] == tricky_when
+
+
+class TestTomlValueFormatting:
+    """The module's TOML writers produce values tomllib reads back unchanged."""
+
+    @staticmethod
+    def _read_back(written_value: str) -> object:
+        """Parse one written TOML value.
+
+        Returns:
+            object: The value tomllib reads.
+
+        """
+        import tomllib
+
+        return tomllib.loads(f'value = {written_value}\n')['value']
+
+    def test_basic_string_escapes_control_characters_and_delete(self):
+        """Control characters without a short escape, and DEL, use unicode escapes."""
+        original = 'a\x01b\x1fc\x7f'
+        written = glitchygames.sprites.animated.toml_basic_string(original)
+        assert written == '"a\\u0001b\\u001Fc\\u007F"'
+        assert self._read_back(written) == original
+
+    def test_multiline_string_escapes_control_characters_and_keeps_newlines(self):
+        """A multi-line string keeps inner newlines literal and escapes other controls."""
+        original = 'first\x02line\nsecond\x7fline'
+        written = glitchygames.sprites.animated.toml_multiline_basic_string(original)
+        assert '\\u0002' in written
+        assert '\\u007F' in written
+        assert 'line\nsecond' in written
+        assert self._read_back(written) == original
+
+    @pytest.mark.parametrize(
+        ('key', 'expected'),
+        [('idle_left-2', 'idle_left-2'), ('has space', '"has space"'), ('', '""')],
+    )
+    def test_key_is_bare_only_when_toml_allows_it(self, key, expected):
+        """Keys with only bare-key characters stay bare; anything else is quoted."""
+        assert glitchygames.sprites.animated.toml_key(key) == expected
+
+    @pytest.mark.parametrize(
+        ('value', 'expected'),
+        [
+            (True, 'true'),
+            (False, 'false'),
+            (42, '42'),
+            (0.25, '0.25'),
+            (float('inf'), 'inf'),
+            (float('-inf'), '-inf'),
+            ('a"b', '"a\\"b"'),
+        ],
+    )
+    def test_scalar_round_trips(self, value, expected):
+        """Booleans, integers, floats and strings are written in TOML syntax."""
+        written = glitchygames.sprites.animated.toml_scalar(value)
+        assert written == expected
+        assert self._read_back(written) == value
+
+    def test_scalar_nan_is_written_as_nan(self):
+        """NaN is written as TOML's nan (which never equals itself)."""
+        written = glitchygames.sprites.animated.toml_scalar(float('nan'))
+        assert written == 'nan'
+        assert math.isnan(cast('float', self._read_back(written)))
+
+    def test_scalar_refuses_other_types(self):
+        """A list (or any non-scalar) cannot be written as a scalar."""
+        with pytest.raises(TypeError, match='list'):
+            glitchygames.sprites.animated.toml_scalar([1, 2])
+
+
+class TestAnimatedSpriteWithoutUsableFrames:
+    """Geometry falls back sensibly when there is no frame, or frames share nothing."""
+
+    @staticmethod
+    def _frame(*, width: int, hitbox: pygame.Rect) -> SpriteFrame:
+        """A fully opaque frame with an explicit hitbox.
+
+        Returns:
+            SpriteFrame: The frame.
+
+        """
+        surface = pygame.Surface((width, 8), pygame.SRCALPHA)
+        surface.fill((10, 20, 30, 255))
+        return SpriteFrame(surface, duration=FRAME_DURATION, hitbox=hitbox)
+
+    def test_hitbox_without_a_frame_is_the_unscaled_sprite_rect(self):
+        """With no frame the hitbox is the sprite's own rect, already in drawn pixels."""
+        sprite = AnimatedSprite()
+        sprite.hitbox_scale = 3
+        assert sprite.hitbox == pygame.Rect(0, 0, sprite.rect.width, sprite.rect.height)
+
+    def test_draw_offset_without_a_frame_is_zero(self):
+        """An anchored sprite with no frame is drawn where it is authored."""
+        sprite = AnimatedSprite()
+        sprite.frame_anchor = FrameAnchor.BOTTOM
+        assert sprite.draw_offset == (0, 0)
+
+    def test_common_range_without_frames_is_the_current_hitbox_range(self):
+        """Without frames, common_hitbox_x_range is the hitbox's own x-range."""
+        sprite = AnimatedSprite()
+        assert sprite.common_hitbox_x_range() == (0, sprite.rect.width)
+
+    def test_common_range_of_frames_sharing_no_column_is_the_current_hitbox_range(self):
+        """Frames whose hitboxes do not overlap horizontally fall back to the current hitbox."""
+        sprite = AnimatedSprite()
+        left_frame = self._frame(width=16, hitbox=pygame.Rect(0, 0, 4, 8))
+        right_frame = self._frame(width=16, hitbox=pygame.Rect(10, 0, 6, 8))
+        sprite.add_animation('left', [left_frame])
+        sprite.add_animation('right', [right_frame])
+        sprite.set_animation('right')
+        assert sprite.common_hitbox_x_range() == (10, 16)
+
+
+class TestAnimatedSpriteAnimationEditing:
+    """Replacing, removing and restoring animations (real pygame surfaces)."""
+
+    @staticmethod
+    def _solid_frame(color: tuple[int, int, int]) -> SpriteFrame:
+        """A 2x1 frame of one color.
+
+        Returns:
+            SpriteFrame: The frame.
+
+        """
+        surface = pygame.Surface((2, 1))
+        surface.fill(color)
+        return SpriteFrame(surface, duration=FRAME_DURATION)
+
+    def test_animation_data_setter_replaces_every_animation(self):
+        """Assigning animation_data swaps the frames the frame manager can select."""
+        sprite = AnimatedSprite()
+        sprite.add_animation('walk', [self._solid_frame((255, 0, 0))])
+        run_frame = self._solid_frame((0, 255, 0))
+        sprite.animation_data = {'run': [run_frame]}
+        assert sprite.frame_manager.set_animation('walk') is False
+        assert sprite.frame_manager.set_animation('run') is True
+        assert sprite.get_current_frame() is run_frame
+
+    def test_removing_an_unknown_animation_changes_nothing(self):
+        """remove_animation of a name the sprite does not have is a no-op."""
+        sprite = AnimatedSprite()
+        sprite.add_animation('walk', [self._solid_frame((255, 0, 0))])
+        sprite.remove_animation('missing')
+        assert list(sprite.animation_data) == ['walk']
+        assert sprite.current_animation == 'walk'
+
+    def test_restore_without_loop_flag_or_interval_sets_only_the_position(self, tmp_path):
+        """Restoring an animation that had no loop flag or interval adds neither."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+        strike_frames = list(sprite.animation_data['strike'])
+        sprite.remove_animation('strike')
+        sprite.add_animation('strike', strike_frames)
+
+        sprite.restore_animation_settings('strike', position=0, loop_flag=None, frame_interval=None)
+
+        assert list(sprite.animation_data) == ['strike', 'idle']
+        assert sprite.animation_order == ['strike', 'idle']
+        assert 'strike' not in sprite._loop_flags
+        assert 'strike' not in sprite._animation_frame_intervals
+
+    def test_switching_to_an_empty_animation_keeps_the_current_image(self):
+        """An animation with no frames has nothing to show, so the image stays as it was."""
+        sprite = AnimatedSprite()
+        sprite.add_animation('walk', [self._solid_frame((255, 0, 0))])
+        sprite.set_animation('walk')
+        shown_image = sprite.image
+        sprite.add_animation('empty', [])
+        sprite.set_animation('empty')
+        assert sprite.current_animation == 'empty'
+        assert sprite.image is shown_image
+
+    def test_pixel_data_beyond_the_frame_size_is_ignored(self):
+        """A frame whose pixel list is longer than its surface draws only what fits."""
+        frame = self._solid_frame((0, 0, 0))
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        surface = AnimatedSprite._create_optimized_surface(frame)
+        assert surface.get_size() == (2, 1)
+        assert surface.get_at((0, 0))[:3] == (255, 0, 0)
+        assert surface.get_at((1, 0))[:3] == (0, 255, 0)
+
+
+STATIC_SPRITE_WITH_UNDEFINED_GLYPH_TOML = """[sprite]
+name = "undefined_glyph"
+pixels = \"\"\"
+#?
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+"""
+
+ANIMATION_WITH_EMPTY_FRAMES_TOML = """[sprite]
+name = "empty_frames"
+
+[[animation]]
+namespace = "walk"
+frame_interval = 0.1
+
+[[animation.frame]]
+namespace = "walk"
+frame_index = 0
+pixels = \"\"\"
+\"\"\"
+
+[[animation.frame]]
+namespace = "walk"
+frame_index = 1
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation]]
+namespace = "blank"
+frame_interval = 0.1
+
+[[animation.frame]]
+namespace = "blank"
+frame_index = 0
+pixels = \"\"\"
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+"""
+
+RAGGED_FRAME_TOML = """[sprite]
+name = "ragged"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.1
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+#..
+#.
+#..
+#..#
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 255
+blue = 255
+"""
+
+
+class TestTomlLoadingFallbacks:
+    """Loading tolerates undefined glyphs, empty frames and ragged rows (real files)."""
+
+    @staticmethod
+    def _load(tmp_path, toml_text: str) -> AnimatedSprite:
+        """Write toml_text to a file and load it.
+
+        Returns:
+            AnimatedSprite: The loaded sprite.
+
+        """
+        toml_file = tmp_path / 'sprite.toml'
+        toml_file.write_text(toml_text, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    def test_undefined_glyph_in_a_static_sprite_becomes_magenta(self, tmp_path):
+        """A static sprite's glyph with no [colors] entry is drawn and stored as magenta."""
+        sprite = self._load(tmp_path, STATIC_SPRITE_WITH_UNDEFINED_GLYPH_TOML)
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels == [(0, 0, 0), (255, 0, 255)]
+        assert frame.image.get_at((1, 0))[:3] == (255, 0, 255)
+
+    def test_empty_frames_are_skipped_and_an_empty_animation_is_dropped(self, tmp_path):
+        """Frames without pixels are left out; an animation with none left is not loaded."""
+        sprite = self._load(tmp_path, ANIMATION_WITH_EMPTY_FRAMES_TOML)
+        assert list(sprite.animation_data) == ['walk']
+        assert len(sprite.animation_data['walk']) == 1
+        assert sprite.animation_data['walk'][0].pixels == [(0, 0, 0)]
+
+    def test_ragged_rows_are_normalized_to_the_most_common_width(self, tmp_path, caplog):
+        """Short rows are padded with their last glyph and long rows are cut, with a warning."""
+        with caplog.at_level(logging.WARNING):
+            sprite = self._load(tmp_path, RAGGED_FRAME_TOML)
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.image.get_size() == (3, 4)
+        black, white = (0, 0, 0), (255, 255, 255)
+        assert frame.pixels == [
+            black, white, white,
+            black, white, white,
+            black, white, white,
+            black, white, white,
+        ]  # fmt: skip
+        assert 'Inconsistent line lengths' in caplog.text
+
+
+EXPLICIT_OPAQUE_ALPHA_TOML = """[sprite]
+name = "opaque_alpha"
+pixels = \"\"\"
+Z.
+\"\"\"
+
+[colors."Z"]
+red = 10
+green = 20
+blue = 30
+alpha = 255
+
+[colors."."]
+red = 200
+green = 100
+blue = 50
+"""
+
+
+class TestSaveKeepsLoadedGlyphs:
+    """Saving reuses the glyphs a loaded file chose and gives new colors unused ones."""
+
+    def test_explicitly_opaque_color_keeps_its_glyph(self, tmp_path):
+        """A color written with alpha = 255 is saved under its original glyph."""
+        import tomllib
+
+        source_file = tmp_path / 'opaque.toml'
+        source_file.write_text(EXPLICIT_OPAQUE_ALPHA_TOML, encoding='utf-8')
+        saved_file = tmp_path / 'saved.toml'
+        AnimatedSprite(str(source_file)).save(str(saved_file), 'toml')
+
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert saved['colors']['Z'] == {'red': 10, 'green': 20, 'blue': 30}
+        assert saved['sprite']['pixels'].strip() == 'Z.'
+
+    def test_new_color_gets_a_glyph_the_loaded_file_did_not_use(self, tmp_path):
+        """A color added after loading skips glyphs the file already assigned."""
+        import tomllib
+
+        source_file = tmp_path / 'two_colors.toml'
+        source_file.write_text(
+            '[sprite]\nname = "two"\n\n[[animation]]\nnamespace = "idle"\n\n'
+            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\n'
+            'pixels = """\n.a\n"""\n\n'
+            '[colors."."]\nred = 1\ngreen = 2\nblue = 3\n\n'
+            '[colors."a"]\nred = 4\ngreen = 5\nblue = 6\n',
+            encoding='utf-8',
+        )
+        sprite = AnimatedSprite(str(source_file))
+        added_surface = pygame.Surface((2, 1))
+        added_surface.fill((7, 8, 9))
+        added_frame = SpriteFrame(added_surface, duration=FRAME_DURATION)
+        added_frame.pixels = [(7, 8, 9), (7, 8, 9)]
+        sprite.add_frame('idle', added_frame)
+
+        saved_file = tmp_path / 'saved.toml'
+        sprite.save(str(saved_file), 'toml')
+
+        saved_colors = tomllib.loads(saved_file.read_text(encoding='utf-8'))['colors']
+        assert saved_colors['.'] == {'red': 1, 'green': 2, 'blue': 3}
+        assert saved_colors['a'] == {'red': 4, 'green': 5, 'blue': 6}
+        new_glyphs = [glyph for glyph in saved_colors if glyph not in {'.', 'a'}]
+        assert len(new_glyphs) == 1
+        assert saved_colors[new_glyphs[0]] == {'red': 7, 'green': 8, 'blue': 9}
+
+
+class TestDebugFrameImageData:
+    """The frame-dump debug helper logs what it can and survives what it cannot read."""
+
+    def test_unreadable_image_is_logged_and_skipped(self, mocker, caplog):
+        """If the image cannot be read as an array, that is logged and nothing else."""
+        mocker.patch.object(
+            pygame.surfarray, 'array3d', side_effect=pygame.error('unsupported format')
+        )
+        sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((2, 2)))
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite._debug_frame_image_data(frame)
+        assert 'Could not get pixel data from image: unsupported format' in caplog.text
+        assert 'Image surface size' not in caplog.text
+
+    def test_empty_image_logs_its_size_but_no_sample(self, caplog):
+        """A zero-width image has no pixel to sample."""
+        sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((0, 2)))
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite._debug_frame_image_data(frame)
+        assert 'Image surface size: (0, 2)' in caplog.text
+        assert 'Sample pixel data' not in caplog.text
+
+
+class TestStaticSaveHitbox:
+    """A single-frame save writes the frame's own hitbox when the sprite has no default."""
+
+    def test_frame_hitbox_is_promoted_to_the_sprite_hitbox(self, tmp_path):
+        """With no sprite-level hitbox, the only frame's hitbox is saved as [sprite.hitbox]."""
+        import tomllib
+
+        surface = pygame.Surface((4, 4))
+        surface.fill((10, 20, 30))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION, hitbox=pygame.Rect(1, 0, 2, 4))
+        frame.pixels = [(10, 20, 30)] * 16
+        sprite = AnimatedSprite()
+        sprite.add_animation('idle', [frame])
+        assert sprite.default_hitbox is None
+
+        saved_file = tmp_path / 'static.toml'
+        sprite.save(str(saved_file), 'toml')
+
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert saved['sprite']['hitbox'] == {
+            'offset_x': 1,
+            'offset_y': 0,
+            'width': 2,
+            'height': 4,
+        }
+        assert AnimatedSprite(str(saved_file)).hitbox == pygame.Rect(1, 0, 2, 4)

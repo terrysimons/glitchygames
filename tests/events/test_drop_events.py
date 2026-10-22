@@ -454,3 +454,21 @@ class TestDropEventManagerCoverage:
         # Should not raise exception
         proxy.on_drop_text_event(event)
         mock_game.on_drop_text_event.assert_called_once_with(event)
+
+
+class TestDropEventManagerWithoutVideo:
+    """Constructing the manager before pygame's video system is up."""
+
+    def test_unallowed_events_are_logged_and_the_manager_still_works(self, mocker, caplog):
+        """set_allowed raises 'video system not initialized' before pygame.display.init()."""
+        mocker.patch(
+            'pygame.event.set_allowed',
+            side_effect=pygame.error('video system not initialized'),
+        )
+        game = mocker.Mock()
+
+        with caplog.at_level('DEBUG', logger='game.events.drop_events'):
+            manager = DropEventManager(game=game)
+
+        assert manager.game is game
+        assert 'Failed to set allowed drop events: pygame not fully initialized' in caplog.text

@@ -383,6 +383,72 @@ def test_a_failed_live_enumeration_is_recorded_and_fails_the_same_in_replay(mock
         replay.is_controller(device_index=4)
 
 
+@pytest.mark.parametrize(
+    ('pygame_target', 'call', 'arguments', 'device_index'),
+    [
+        ('pygame.joystick.get_count', 'joystick_count', {}, None),
+        ('pygame._sdl2.controller.get_count', 'controller_count', {}, None),
+        ('pygame._sdl2.controller.name_forindex', 'name_for_index', {'device_index': 3}, 3),
+        ('pygame._sdl2.controller.Controller', 'open_controller', {'device_index': 3}, 3),
+    ],
+)
+def test_every_failed_live_call_is_recorded_and_fails_the_same_in_replay(
+    mocker, pygame_target, call, arguments, device_index
+):
+    """Each enumeration or open that raises live is remembered, then raises again in replay."""
+    mocker.patch(pygame_target, create=True, side_effect=pygame.error('SDL is gone'))
+    live = LiveDeviceRegistry()
+
+    with pytest.raises(pygame.error, match='SDL is gone'):
+        getattr(live, call)(**arguments)
+
+    answers = live.take_enumeration_answers()
+    assert answers == [
+        EnumerationAnswer(call=call, device_index=device_index, value=None, error='SDL is gone')
+    ]
+    replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=answers)
+    with pytest.raises(pygame.error, match='SDL is gone'):
+        getattr(replay, call)(**arguments)
+
+
+def test_live_is_controller_answer_is_remembered(mocker):
+    """A live is_controller answer is returned as a bool and remembered for the recorder."""
+    mocker.patch('pygame._sdl2.controller.is_controller', return_value=1)
+    live = LiveDeviceRegistry()
+
+    assert live.is_controller(device_index=2) is True
+    assert live.take_enumeration_answers() == [
+        EnumerationAnswer(call='is_controller', device_index=2, value=True)
+    ]
+
+
+def test_replay_stand_ins_drop_hardware_requests():
+    """Quit, balls, LEDs and rumble touch no hardware: answers match pygame's for no device."""
+    joystick = ReplayJoystick(descriptor=PAD)
+    joystick.init()
+    joystick.quit()
+    assert joystick.get_init() is False
+    assert joystick.get_ball(0) == (0, 0)
+    assert joystick.set_led((0, 255, 0)) is False
+
+    controller = ReplayController(descriptor=PAD)
+    controller.init()
+    assert controller.get_init() is True
+    controller.quit()
+    assert controller.get_init() is False
+    assert controller.rumble(0.5, 0.5, 100) is True
+
+
+def test_replay_registry_has_no_enumeration_answers_to_hand_out():
+    """A rebaseline copies answers from the source recording, so the replay hands out none."""
+    registry = ReplayDeviceRegistry(
+        descriptors=[PAD],
+        enumeration_answers=[EnumerationAnswer(call='joystick_count', device_index=None, value=1)],
+    )
+    assert registry.joystick_count() == 1
+    assert registry.take_enumeration_answers() == []
+
+
 def test_descriptors_sharing_a_device_index_are_all_kept_in_order(caplog):
     """A reused device index (unplug, replug) keeps both devices, warns, and counts both."""
     replugged = DeviceDescriptor(

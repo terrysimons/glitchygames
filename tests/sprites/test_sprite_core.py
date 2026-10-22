@@ -690,6 +690,26 @@ class TestSpriteCallbackHandlers:
         event = mocker.Mock()
         sprite.on_right_mouse_button_down_event(event)
 
+    @pytest.mark.parametrize(
+        'handler_name',
+        [
+            'on_left_mouse_button_up_event',
+            'on_right_mouse_button_up_event',
+            'on_left_mouse_button_down_event',
+            'on_right_mouse_button_down_event',
+        ],
+    )
+    def test_callbacks_for_other_events_are_not_fired(self, mocker, handler_name):
+        """A sprite with callbacks, but none for this button event, calls none and logs nothing."""
+        sprite = Sprite(x=0, y=0, width=10, height=10)
+        other_callback = mocker.Mock()
+        sprite.callbacks['on_mouse_motion_event'] = other_callback
+        mock_log = mocker.patch.object(sprite, 'log')
+        event = mocker.Mock()
+        getattr(sprite, handler_name)(event)
+        other_callback.assert_not_called()
+        mock_log.debug.assert_not_called()
+
     def test_on_left_mouse_button_up_with_empty_callbacks(self, mocker):
         """Test on_left_mouse_button_up_event with empty callbacks dict."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
@@ -756,6 +776,31 @@ class TestSpriteBreakWhen:
         Sprite.break_when(sprite_type=Sprite)
         assert Sprite.SPRITE_BREAKPOINTS is not None
         assert len(Sprite.SPRITE_BREAKPOINTS) == 1
+
+    def test_registered_type_breaks_only_when_that_type_is_created(self, mocker, caplog):
+        """break_when(sprite_type=X) stops in the debugger for X only, once per sprite."""
+
+        class WatchedSprite(Sprite):
+            """The sprite type the breakpoint is registered for."""
+
+        breakpoint_hook = mocker.patch('sys.breakpointhook')
+        Sprite.break_when(sprite_type=WatchedSprite)
+
+        Sprite(x=0, y=0, width=10, height=10)
+        breakpoint_hook.assert_not_called()
+
+        with caplog.at_level('INFO', logger='game.sprites'):
+            WatchedSprite(x=0, y=0, width=10, height=10)
+        breakpoint_hook.assert_called_once()
+        assert 'WatchedSprite' in caplog.messages[-1]
+
+    def test_any_sprite_breakpoint_stops_for_every_sprite(self, mocker):
+        """break_when() with no type stops once for every sprite created."""
+        breakpoint_hook = mocker.patch('sys.breakpointhook')
+        Sprite.break_when()
+        Sprite(x=0, y=0, width=10, height=10)
+        Sprite(x=0, y=0, width=10, height=10)
+        assert breakpoint_hook.call_count == 2
 
 
 class TestBitmappySpriteBasics:
@@ -1538,6 +1583,19 @@ class TestBitmappySpriteInitRealPygame:
         groups = pygame.sprite.LayeredDirty()
         sprite = BitmappySprite(x=0, y=0, width=8, height=8, groups=groups)
         assert sprite is not None
+
+    @pytest.mark.parametrize(('width', 'height'), [(0, 8), (8, 0), (0, 0)])
+    def test_bitmappy_sprite_without_file_or_size_cannot_be_created(self, mocker, width, height):
+        """With no filename and a zero width or height there is no surface to make."""
+        mocker.patch.object(BitmappySprite, 'log')  # Sprite logs the zero size as an error
+        with pytest.raises(pygame.error, match='Can'):
+            BitmappySprite(x=0, y=0, width=width, height=height)
+
+    def test_singleton_bitmappy_sprite_joins_the_groups_it_is_given(self):
+        """A singleton sprite created with groups is added to those groups."""
+        groups = pygame.sprite.LayeredDirty()
+        sprite = SingletonBitmappySprite(x=0, y=0, width=8, height=8, groups=groups)
+        assert sprite.groups() == [groups]
 
     def test_bitmappy_sprite_init_with_filename(self, tmp_path):
         """Test BitmappySprite init with filename loads sprite (lines 889-892)."""

@@ -295,6 +295,34 @@ class TestSliderEvents:
 
         assert editor.alpha_slider.text_sprite.text == '171'
 
+    def test_event_from_an_unknown_slider_changes_no_slider(self, editor):
+        """A trigger named after no color slider changes none, and the colors stay in step."""
+        trigger = events.HashableEvent(0, name='Hue', value=100)
+
+        editor.slider_manager.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
+
+        assert (
+            editor.red_slider.value,
+            editor.green_slider.value,
+            editor.blue_slider.value,
+            editor.alpha_slider.value,
+        ) == (0, 0, 0, 255)
+        assert editor.color_well.active_color == (0, 0, 0, 255)
+        assert editor.canvas.active_color == (0, 0, 0, 255)
+
+    def test_tab_change_skips_sliders_without_a_text_box(self, editor):
+        """A slider without a text box is skipped; the others still change format."""
+        del editor.red_slider.text_sprite
+        editor.slider_manager.on_slider_event(
+            event=events.HashableEvent(0),
+            trigger=events.HashableEvent(0, name='G', value=171),
+        )
+
+        editor.slider_manager.on_tab_change_event('%X')
+
+        assert not hasattr(editor.red_slider, 'text_sprite')
+        assert editor.green_slider.text_sprite.text == 'AB'
+
     def test_color_well_event_changes_nothing(self, editor):
         """The color well event only logs; the colors stay as they were."""
         editor.slider_manager.on_color_well_event(events.HashableEvent(0), None)

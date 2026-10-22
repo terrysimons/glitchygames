@@ -283,6 +283,26 @@ class TestScrollbarHandleMouseMotion:
 
         assert scrollbar.scroll_offset >= 0
 
+    def test_drag_on_a_track_no_taller_than_its_thumb_does_not_scroll(self):
+        """A track shorter than the minimum thumb (20 px) has no room to drag in."""
+        scrollbar = Scrollbar(
+            x=SCROLLBAR_X,
+            y=SCROLLBAR_Y,
+            width=SCROLLBAR_WIDTH,
+            height=15,
+            total_items=TOTAL_ITEMS,
+            visible_items=VISIBLE_ITEMS,
+            scroll_offset=5,
+        )
+        scrollbar.is_dragging = True
+        scrollbar.drag_start_y = SCROLLBAR_Y
+        scrollbar.drag_start_offset = 5
+
+        result = scrollbar.handle_mouse_motion((SCROLLBAR_X + 4, SCROLLBAR_Y + 40))
+
+        assert result is True
+        assert scrollbar.scroll_offset == 5
+
     def test_motion_when_not_visible_returns_false(self):
         """Test motion when scrollbar is not visible clears hover and returns False."""
         scrollbar = _create_scrollbar(total_items=5, visible_items=10)

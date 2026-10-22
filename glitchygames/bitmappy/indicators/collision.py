@@ -524,9 +524,19 @@ class VisualCollisionManager:
             LOG.debug('Set size for controller %s to %s', controller_id, size)
 
     def clear_all_indicators(self) -> None:
-        """Clear all visual indicators."""
+        """Clear all visual indicators, in every location, and their collision groups.
+
+        Clearing only the main dict left the location dicts holding the cleared indicators, so a
+        new indicator where they stood was still offset to avoid them.
+        """
         self.indicators.clear()
+        self.film_strip_indicators.clear()
+        self.canvas_indicators.clear()
+        self.slider_indicators.clear()
         self.collision_groups.clear()
+        self.film_strip_collision_groups.clear()
+        self.canvas_collision_groups.clear()
+        self.slider_collision_groups.clear()
         self.position_cache.clear()
         LOG.debug('Cleared all indicators')
 
@@ -537,14 +547,21 @@ class VisualCollisionManager:
             Dictionary with collision information
 
         """
+        # Collision groups are kept per location (_update_collision_groups never fills the
+        # legacy collision_groups dict), so the summary counts every location's groups
+        location_collision_groups = [
+            *self.film_strip_collision_groups.values(),
+            *self.canvas_collision_groups.values(),
+            *self.slider_collision_groups.values(),
+        ]
         summary = {
             'total_indicators': len(self.indicators),
-            'collision_groups': len(self.collision_groups),
+            'collision_groups': len(location_collision_groups),
             'groups_with_collisions': 0,
             'position_cache_size': len(self.position_cache),
         }
 
-        for controller_ids in self.collision_groups.values():
+        for controller_ids in location_collision_groups:
             if len(controller_ids) > 1:
                 summary['groups_with_collisions'] += 1
 

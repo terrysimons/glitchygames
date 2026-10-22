@@ -81,6 +81,14 @@ class TestGravityBehavior:
             body.tick(dt=1.0 / 60.0)
         assert body.velocity_y <= 800.0 + 0.1  # Small tolerance
 
+    def test_step_that_would_overshoot_lands_exactly_on_terminal_velocity(self):
+        """A step that would pass terminal velocity is scaled to reach it exactly."""
+        body = PhysicsBody()
+        body.add_behavior(GravityBehavior(strength=1200.0, terminal_velocity=800.0))
+        body.velocity_y = 790.0  # One 1/60 s step of full gravity would reach 810
+        body.tick(dt=1.0 / 60.0)
+        assert body.velocity_y == pytest.approx(800.0)
+
     def test_no_terminal_velocity(self):
         """With terminal_velocity=0, speed is uncapped."""
         body = PhysicsBody()
@@ -421,6 +429,43 @@ class TestComposability:
         # Should have landed again
         assert body.on_ground is True
         assert body.world_y == pytest.approx(352.0)
+
+    def test_get_behavior_returns_none_when_no_behavior_matches(self):
+        """Looking up a behavior type the body does not have gives None."""
+        body = PhysicsBody()
+        body.add_behavior(GravityBehavior())
+        assert body.get_behavior(FrictionBehavior) is None
+
+    def test_behavior_context_is_merged_into_animation_context(self):
+        """A behavior with get_context adds its variables to the animation context."""
+
+        class DashingBehavior:
+            """Behavior that contributes no force, only an animation variable."""
+
+            def compute_force(self, body: PhysicsBody, dt: float) -> tuple[float, float]:
+                """Contribute no force.
+
+                Returns:
+                    A zero force.
+
+                """
+                return (0.0, 0.0)
+
+            def get_context(self, body: PhysicsBody) -> dict[str, object]:
+                """Report whether the body is dashing.
+
+                Returns:
+                    The extra animation variables.
+
+                """
+                return {'is_dashing': abs(body.velocity_x) > 100.0}
+
+        body = PhysicsBody()
+        body.add_behavior(DashingBehavior())
+        body.velocity_x = 250.0
+        context = body.get_animation_context()
+        assert context['is_dashing'] is True
+        assert context['is_moving'] is True
 
     def test_add_remove_behavior(self):
         """Behaviors can be added and removed at runtime."""

@@ -285,6 +285,30 @@ class TestStreamStates:
         assert numpy_stream('late.numpy') is held_numpy
         assert (held_random.random(), held_numpy.random()) == expected
 
+    def test_a_capture_taken_before_any_seeding_drops_later_streams(self, mocker):
+        """Restoring a seedless capture drops later streams; they are made anew on first use.
+
+        Nothing has seeded the run yet (the fresh_random_streams fixture), so the capture holds
+        no master seed. Streams made after it cannot be reseeded, so the restore drops them from
+        the registry: the next lookup makes a new stream from the master seed drawn then.
+        """
+        states = capture_stream_states()
+        reset_streams(seed=TEST_SEED)
+        held_random = random_stream('late')
+        held_numpy = numpy_stream('late.numpy')
+        restore_stream_states(states=states)
+        mocker.patch('glitchygames.randomness.secrets.randbits', return_value=TEST_SEED + 1)
+
+        late_random = random_stream('late')
+        late_numpy = numpy_stream('late.numpy')
+
+        assert late_random is not held_random
+        assert late_numpy is not held_numpy
+        assert engine_random_seed() == TEST_SEED + 1
+        reset_streams(seed=TEST_SEED + 1)
+        assert late_random.random() == random_stream('late').random()
+        assert late_numpy.random() == numpy_stream('late.numpy').random()
+
     def test_states_are_json_safe(self):
         """The capture reads back from JSON exactly (lists, not tuples)."""
         reset_streams(seed=TEST_SEED)
