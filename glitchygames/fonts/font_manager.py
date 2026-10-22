@@ -74,6 +74,41 @@ from glitchygames.events import FontEvents, ResourceManager  # ruff: ignore[modu
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())
 
+# The bundled Bitstream Vera fonts (permissively licensed, see bitstream_vera/COPYRIGHT.TXT).
+# This module lives in glitchygames/fonts/, next to bitstream_vera/ (bitmappy.spec bundles it
+# at glitchygames/fonts/bitstream_vera for PyInstaller builds).
+BUNDLED_FONT_DIRECTORY = Path(__file__).parent / 'bitstream_vera'
+
+# The engine's default font: the bundled Vera, loaded from its file. Loading it never asks
+# pygame for system fonts, so it needs no fontconfig scan (which warns when fc-list is missing
+# or times out under load) and renders the same on every machine (BUGS.md #156).
+DEFAULT_FONT_NAME = 'Vera'
+
+# Bundled font names (lowercase) and their files. A font_name matching one of these (in any
+# case) loads the bundled file; any other name is a system font, looked up with SysFont.
+BUNDLED_FONT_FILE_NAMES: dict[str, str] = {
+    'vera': 'Vera.ttf',
+    'verabd': 'VeraBd.ttf',
+    'verait': 'VeraIt.ttf',
+    'verabi': 'VeraBI.ttf',
+}
+
+
+def bundled_font_path(*, font_name: str) -> Path | None:
+    """Return the file of a bundled font, or None when the name is not a bundled font.
+
+    Args:
+        font_name: A font name, in any case (e.g. 'Vera', 'VeraBd').
+
+    Returns:
+        The bundled font's file, or None for any other name (a system font).
+
+    """
+    file_name = BUNDLED_FONT_FILE_NAMES.get(font_name.lower())
+    if file_name is None:
+        return None
+    return BUNDLED_FONT_DIRECTORY / file_name
+
 
 class FontManager(ResourceManager):
     """A font manager for handling fonts in the game.
@@ -200,7 +235,15 @@ class FontManager(ResourceManager):
         """
         group = parser.add_argument_group('Font Options')
 
-        group.add_argument('--font-name', default='arial')
+        group.add_argument(
+            '--font-name',
+            default=DEFAULT_FONT_NAME,
+            help=(
+                f'Font to use (default: the bundled {DEFAULT_FONT_NAME}; the bundled variants are '
+                "Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's "
+                'fonts)'
+            ),
+        )
         group.add_argument('--font-size', type=int, default=14)
         group.add_argument('--font-bold', action='store_true', default=False)
         group.add_argument('--font-italic', action='store_true', default=False)
@@ -241,7 +284,7 @@ class FontManager(ResourceManager):
 
         # Provide default font configuration if not set
         if 'font_name' not in font_config:
-            font_config['font_name'] = 'arial'
+            font_config['font_name'] = DEFAULT_FONT_NAME
         if 'font_size' not in font_config:
             font_config['font_size'] = 14
 
@@ -255,8 +298,18 @@ class FontManager(ResourceManager):
         log.info(f'Loading Font: {font_config["font_name"]}')
         log.info(f'Font Size: {font_config["font_size"]}')
 
-        try:
+        # A bundled font loads from its file: no system font scan (BUGS.md #156).
+        font_path = bundled_font_path(font_name=font_config['font_name'])
+        if font_path is not None:
             loaded_font: GameFont = cast(
+                'GameFont',
+                pygame.freetype.Font(file=font_path, size=font_config['font_size']),
+            )
+            FontManager._font_cache[cache_key] = loaded_font
+            return loaded_font
+
+        try:
+            loaded_font = cast(
                 'GameFont',
                 pygame.freetype.SysFont(
                     name=font_config['font_name'],
@@ -271,12 +324,14 @@ class FontManager(ResourceManager):
             # BUG: pygame's documentation claims that passing None as the font name
             # will load the default font, but this raises TypeError ("not a file object")
             # in PyInstaller-packaged games. Load the bundled Vera.ttf instead.
-            # This module lives in glitchygames/fonts/, next to bitstream_vera/ (bitmappy.spec
-            # bundles it at glitchygames/fonts/bitstream_vera)
-            font_path = Path(__file__).parent / 'bitstream_vera' / 'Vera.ttf'
+            # (BUNDLED_FONT_DIRECTORY says where bitmappy.spec bundles it.) The fallback keeps
+            # the requested size (it used to load at 12 whatever was asked for).
             loaded_font = cast(
                 'GameFont',
-                pygame.freetype.Font(file=font_path, size=12),
+                pygame.freetype.Font(
+                    file=BUNDLED_FONT_DIRECTORY / BUNDLED_FONT_FILE_NAMES['vera'],
+                    size=font_config['font_size'],
+                ),
             )
 
         # Cache the result
@@ -299,7 +354,7 @@ class FontManager(ResourceManager):
 
         # Provide default font configuration if not set
         if 'font_name' not in font_config:
-            font_config['font_name'] = 'arial'
+            font_config['font_name'] = DEFAULT_FONT_NAME
         if 'font_size' not in font_config:
             font_config['font_size'] = 14
 
@@ -310,9 +365,19 @@ class FontManager(ResourceManager):
         if cache_key in FontManager._font_cache:
             return FontManager._font_cache[cache_key]
 
+        # A bundled font loads from its file: no system font scan (BUGS.md #156).
+        font_path = bundled_font_path(font_name=font_config['font_name'])
+        if font_path is not None:
+            loaded_font: GameFont = cast(
+                'GameFont',
+                pygame.font.Font(font_path, font_config['font_size']),
+            )
+            FontManager._font_cache[cache_key] = loaded_font
+            return loaded_font
+
         try:
             # Try to load system font
-            loaded_font: GameFont = cast(
+            loaded_font = cast(
                 'GameFont',
                 pygame.font.SysFont(font_config['font_name'], font_config['font_size']),
             )
@@ -395,14 +460,10 @@ class FontManager(ResourceManager):
         """
         config: dict[str, Any] = {'font_size': size}
 
-        # Get pygame.font
-        pygame_font = cls.get_font('pygame', config)
-        pygame_render_result = pygame_font.render(text, fgcolor=(255, 255, 255))
-        pygame_surface: pygame.Surface = (
-            pygame_render_result[0]
-            if isinstance(pygame_render_result, tuple)
-            else pygame_render_result
-        )
+        # Get pygame.font. Its render takes (text, antialias, color) positionally, not
+        # freetype's fgcolor keyword (which raised TypeError on a real pygame.font.Font).
+        pygame_font = cast('pygame.font.Font', cls.get_font('pygame', config))
+        pygame_surface: pygame.Surface = pygame_font.render(text, True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
 
         # Get pygame.freetype
         freetype_font = cls.get_font('freetype', config)

@@ -163,8 +163,10 @@ class SliderManager:
         label_height = 16  # Height for text labels
 
         from glitchygames.fonts import FontManager
+        from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 
-        monospace_config = {'font_name': 'Courier', 'font_size': 14}
+        # The bundled Vera rather than the system's Courier (no system font scan: BUGS.md #156)
+        label_font_config = {'font_name': DEFAULT_FONT_NAME, 'font_size': 14}
 
         # Alpha slider label
         self.alpha_label = TextSprite(
@@ -179,7 +181,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.alpha_label.font = FontManager.get_font(font_config=monospace_config)
+        self.alpha_label.font = FontManager.get_font(font_config=label_font_config)
 
         # Red slider label
         self.red_label = TextSprite(
@@ -194,7 +196,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.red_label.font = FontManager.get_font(font_config=monospace_config)
+        self.red_label.font = FontManager.get_font(font_config=label_font_config)
 
         # Green slider label
         self.green_label = TextSprite(
@@ -209,7 +211,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.green_label.font = FontManager.get_font(font_config=monospace_config)
+        self.green_label.font = FontManager.get_font(font_config=label_font_config)
 
         # Blue slider label
         self.blue_label = TextSprite(
@@ -224,7 +226,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.blue_label.font = FontManager.get_font(font_config=monospace_config)
+        self.blue_label.font = FontManager.get_font(font_config=label_font_config)
 
     def _create_slider_sprites(
         self,

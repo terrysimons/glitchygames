@@ -15,6 +15,7 @@ import pygame
 # glitchygames.events.voice guards its own optional speech_recognition import,
 # so this import always succeeds
 from glitchygames.events.voice import VoiceEventManager
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.ui import (
     MenuBar,
@@ -542,7 +543,8 @@ class EditorSetup:
         if not hasattr(self.editor, '_initialized'):
             self.editor.log.info(f'Game Options: {self.editor.options}')
 
-            # Override font to use a cleaner system font
-            self.editor.options['font_name'] = 'arial'
+            # The bundled Vera: the same on every machine, with no system font scan (which
+            # warns without fontconfig or when it times out: BUGS.md #156)
+            self.editor.options['font_name'] = DEFAULT_FONT_NAME
             self.editor.log.info(f'Font overridden to: {self.editor.options["font_name"]}')
             self.editor._initialized = True  # pyright: ignore[reportPrivateUsage]

@@ -6,13 +6,14 @@ This module contains the InputBox, InputDialog, and ConfirmDialog widget classes
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, cast, override
 
 import pygame
 from pygame import Rect
 
 from glitchygames.clock import frame_clock_seconds
 from glitchygames.fonts import FontManager, GameFont
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import current_input
 from glitchygames.sprites import (
     BitmappySprite,
@@ -93,7 +94,13 @@ class InputBox(Sprite):
         self.rect.y = y + self.offset_y
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
-        self.font = pygame.font.SysFont('Times', 14)
+        # The bundled default font, loaded from its file through FontManager (cached): never a
+        # system font scan (BUGS.md #156). It is a pygame.font font: render() below takes
+        # (text, antialias, color).
+        self.font = cast(
+            'pygame.font.Font',
+            FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}),
+        )
         self.text = text
         self.text_image = self.font.render(self.text, True, self.color)  # ruff: ignore[boolean-positional-value-in-call]
         self.is_active = False
