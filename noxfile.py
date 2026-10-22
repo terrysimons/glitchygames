@@ -213,6 +213,18 @@ def lint_docs(session: nox.Session) -> None:
     _lint_docs(session)
 
 
+@nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
+def docs_deploy(session: nox.Session) -> None:
+    """Build the docs strictly and publish them to GitHub Pages (pushes the gh-pages branch).
+
+    https://terrysimons.github.io/glitchygames/ serves the gh-pages branch; ``mkdocs
+    gh-deploy`` builds the site, commits it there and pushes it. Run it from what should be
+    published (usually main after a merge); a warning stops it before anything is pushed.
+    """
+    _install_from_lockfile(session)
+    session.run('mkdocs', 'gh-deploy', '--strict')
+
+
 @nox.session(venv_backend='none', name='lint-yaml', default=False)
 def lint_yaml(session: nox.Session) -> None:
     """Lint YAML files with yamllint."""

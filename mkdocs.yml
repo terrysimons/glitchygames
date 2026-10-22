@@ -1,5 +1,6 @@
 site_name: GlitchyGames
-site_url: https://glitchygames.github.io
+# Where GitHub Pages serves the gh-pages branch (nox -s docs-deploy)
+site_url: https://terrysimons.github.io/glitchygames/
 repo_url: https://github.com/terrysimons/glitchygames
 repo_name: glitchygames
 

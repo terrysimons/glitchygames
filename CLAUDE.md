@@ -95,6 +95,9 @@ nox -s safety-scan         # Run safety only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build wheel (.whl) only
+
+# --- Docs ---
+nox -s docs-deploy         # Publish the docs to https://terrysimons.github.io/glitchygames/ (pushes gh-pages)
 ```
 
 ### Running Bitmappy (Pixel Art Editor)

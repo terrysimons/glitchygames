@@ -4,10 +4,11 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 `feature/gameplay-replay` sessions (2026-10-17 to 2026-10-20) and not done yet. One line per item, with where it is detailed. Review, then promote items into
 `plans/engine-audit.md`, a plan, or BUGS.md, or delete them.
 
-## Gameplay replay wrap-up (needs the user)
+## Gameplay replay wrap-up (done)
 
-`feature/gameplay-replay` is done, reviewed and committed (97 commits on `80134d1` up to
-`34c99ff`, the 2026-10-20/21 close-out), not pushed. What is left waits on the user:
+Merged 2026-10-22: `feature/engine-world-space` as PR #94 (`cd5e5f97`) and
+`feature/gameplay-replay` as PR #95 (`bb51239d`), both with GitHub's "Squash and merge"; the
+local branches are deleted. The decisions made on the way, for the record:
 
 - ~~**Decide `--rebaseline`'s exit code when input was not delivered.**~~ **Done** 2026-10-20
   (the user chose a new code): `ExitCode.REBASELINE_INPUT_LOST` (7); NEW is still written, and
@@ -29,11 +30,10 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
     processing-time comparison was built instead (below).
   - Live supervisors' posts made during a scope are re-posted after it, behind the events the
     scope held: **kept** (it is what lets a supervisor end a playback and then post).
-- **Push the branch, open the PR and merge it with GitHub's "Squash and merge"** (the user's
-  workflow: no squashing in the branch, so no backup branch is needed). GitHub makes one
-  commit on `main` and leaves the branch's commits alone, so the hashes BUGS.md, this file and
-  the plans cite (`fead138`, `77ed933` and others) stay valid while the branch exists, and on
-  the PR's Commits tab after the branch is deleted.
+- ~~**Push the branch, open the PR and merge it with GitHub's "Squash and merge"**~~ **Done**
+  2026-10-22 (PR #95). The branch's commit hashes that BUGS.md, this file and the plans cite
+  (`fead138`, `77ed933` and others) stay on PR #95's Commits tab (and on
+  `origin/feature/gameplay-replay` until it is deleted).
 - ~~**Delete the plan workspace**~~ **Done** 2026-10-20, after an audit put everything worth
   keeping into the plans, docs and module docstrings (the plans stay in `plans/`).
 - ~~**Review and commit the close-out fixes**~~ **Done** 2026-10-21 (`34c99ff`): BUGS.md #79,
