@@ -336,6 +336,18 @@ def test(session: nox.Session) -> None:
     session.run('pytest', *args, env=env)
 
 
+@nox.session(python=['3.14'], reuse_venv=False, name='timer-report', default=False)
+def timer_report(session: nox.Session) -> None:
+    """Report this machine's timer accuracy (diagnostic; always succeeds).
+
+    The same command on every OS: scripts/timer_report.py detects the OS itself (macOS's
+    kern.hv_vmm_present, Linux's hypervisor CPU flag) for whether it runs in a VM, then measures
+    the CPU share and how late FastTimer, time.sleep and spin-only sleeps wake.
+    """
+    session.install('.')
+    session.run('python', 'scripts/timer_report.py')
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""

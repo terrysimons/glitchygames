@@ -84,6 +84,7 @@ nox -s static-analysis-ty           # Run ty only
 # --- Testing ---
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
+nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
 
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)

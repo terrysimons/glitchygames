@@ -9,24 +9,36 @@ import pytest
 
 from glitchygames.timing import FastTimer, create_timer
 
-# The accuracy tests claim, with 99.999% confidence, that the timer's median overshoot (how late
-# it usually wakes, which is what the timer controls) is under the bound. The tail is not
-# tested: it is how long the OS takes to reschedule a busy process (p99 7 ms, max 9 ms on macOS
-# with every core busy), so it measures the machine; the engine reports it with
-# --log-timer-jitter instead.
+# The accuracy tests compare FastTimer with the OS's own sleep, in pairs: each pair is one
+# FastTimer sleep and one plain time.sleep of the same length, taken back to back (alternating
+# which goes first). They claim, with 99.999% confidence, that the median of
+# (FastTimer overshoot - OS sleep overshoot) is under PAIRED_TOLERANCE_NS: FastTimer wakes no
+# later than the OS's sleep would. FastTimer sleeps less than the OS sleep does (it sleeps to
+# 1 ms before the deadline, then spins), so whatever delays a sleep delays it no more.
+#
+# Why paired, not an absolute bound: the machine decides how late any sleep wakes. On macOS with
+# every core busy, about 3% of 3 ms sleeps overshot 5 ms; a CircleCI macOS job (2026-10-21)
+# woke at least 29 of 100 spaced sleeps 15 ms or more late while spin-only sleeps in the same
+# job stayed accurate (a sleep-specific delay: timer coalescing or the VM's timer, or heavy time
+# sharing); at background priority (taskpolicy -b) macOS wakes every sleep 55-65 ms late. No
+# timer can wake before the OS lets it, so an absolute bound tests the machine. A pair shares the
+# machine's state (load clusters over tens of milliseconds; a coarse OS timer delays both), so
+# the difference tests the timer: it fails when FastTimer is the slower of the two.
 #
 # The claim is distribution-free: sorted, the MEDIAN_UPPER_BOUND_RANK-th smallest of
-# INDEPENDENT_SAMPLES independent overshoots is at or above the true median with probability at
-# least CONFIDENCE (the binomial sign test), so asserting it is under the bound is wrong at most
-# 1 time in 100,000. Independence: on macOS with every core busy, a late 3 ms sleep made the next
-# few late 45-64% of the time (16% otherwise), back to the baseline after about 60 ms (the
-# longest late run was 15 sleeps, about 45 ms), so the samples are SAMPLE_SPACING_SECONDS apart.
-# A good timer fails only if 29 or more of the 100 samples are over the bound: with 3% of sleeps
-# over 5 ms (measured, every core busy) that is about 1e-20, with 10% about 1e-7, with 20% about
-# 2e-2 (then 150 samples would be needed). Each test takes about 7.5 s, nearly all of it waiting.
+# INDEPENDENT_SAMPLES independent differences is at or above the true median with probability at
+# least CONFIDENCE (the binomial sign test), so asserting it is under the tolerance is wrong at
+# most 1 time in 100,000. Independence: on macOS with every core busy, a late 3 ms sleep made
+# the next few late 45-64% of the time (16% otherwise), back to the baseline after about 60 ms
+# (the longest late run was 15 sleeps, about 45 ms), so the pairs are SAMPLE_SPACING_SECONDS
+# apart. A good timer fails only if 29 or more of the 100 pairs are over the tolerance: with 10%
+# of pairs over it that is about 1e-7. The tail is not tested (the OS's rescheduling time); the
+# engine reports it with --log-timer-jitter. Each test takes about 8 s, nearly all of it waiting.
 CONFIDENCE = 0.99999
 INDEPENDENT_SAMPLES = 100
 SAMPLE_SPACING_SECONDS = 0.075
+# Scheduling jitter allowed between the two sleeps of a pair
+PAIRED_TOLERANCE_NS = 1_000_000
 
 
 def _median_upper_bound_rank(*, samples: int, confidence: float) -> int:
@@ -53,22 +65,53 @@ MEDIAN_UPPER_BOUND_RANK = _median_upper_bound_rank(
 )
 
 
-def _median_overshoot_upper_bound_ns(*, timer: FastTimer, sleep_ns: int) -> int:
-    """Measure INDEPENDENT_SAMPLES spaced sleeps; return a CONFIDENCE upper bound on the median.
+def _timer_overshoot_ns(*, timer: FastTimer, sleep_ns: int) -> int:
+    """Sleep once with the timer.
 
     Returns:
-        The MEDIAN_UPPER_BOUND_RANK-th smallest overshoot past each deadline, in nanoseconds.
+        How far past its deadline the timer woke, in nanoseconds.
 
     """
-    overshoots = []
-    for _ in range(INDEPENDENT_SAMPLES):
-        # Unmeasured gap: a burst of load that made the last sleep late is over by now
+    deadline = timer.ns_now() + sleep_ns
+    woke = timer.sleep_until_next(deadline)
+    assert woke >= deadline
+    return woke - deadline
+
+
+def _os_sleep_overshoot_ns(*, timer: FastTimer, sleep_ns: int) -> int:
+    """Sleep once with the OS's plain time.sleep, timed on the timer's clock.
+
+    Returns:
+        How far past the requested length the sleep lasted, in nanoseconds.
+
+    """
+    started = timer.ns_now()
+    time.sleep(sleep_ns / 1e9)
+    return timer.ns_now() - started - sleep_ns
+
+
+def _paired_difference_upper_bound_ns(*, timer: FastTimer, sleep_ns: int) -> int:
+    """Measure INDEPENDENT_SAMPLES spaced pairs; return a CONFIDENCE upper bound on the median.
+
+    Each pair's difference is the timer's overshoot minus the OS sleep's; the two sleeps
+    alternate which goes first, so neither always wakes into the other's aftermath.
+
+    Returns:
+        The MEDIAN_UPPER_BOUND_RANK-th smallest difference, in nanoseconds.
+
+    """
+    differences = []
+    for pair_index in range(INDEPENDENT_SAMPLES):
+        # Unmeasured gap: a burst of load that delayed the last pair is over by now
         time.sleep(SAMPLE_SPACING_SECONDS)
-        deadline = timer.ns_now() + sleep_ns
-        woke = timer.sleep_until_next(deadline)
-        assert woke >= deadline
-        overshoots.append(woke - deadline)
-    return sorted(overshoots)[MEDIAN_UPPER_BOUND_RANK - 1]
+        if pair_index % 2 == 0:
+            timer_overshoot = _timer_overshoot_ns(timer=timer, sleep_ns=sleep_ns)
+            os_overshoot = _os_sleep_overshoot_ns(timer=timer, sleep_ns=sleep_ns)
+        else:
+            os_overshoot = _os_sleep_overshoot_ns(timer=timer, sleep_ns=sleep_ns)
+            timer_overshoot = _timer_overshoot_ns(timer=timer, sleep_ns=sleep_ns)
+        differences.append(timer_overshoot - os_overshoot)
+    return sorted(differences)[MEDIAN_UPPER_BOUND_RANK - 1]
 
 
 def test_median_upper_bound_rank_is_the_sign_test_rank():
@@ -79,12 +122,6 @@ def test_median_upper_bound_rank_is_the_sign_test_rank():
     assert tail_at_rank <= 1 - CONFIDENCE < tail_one_lower
 
 
-def _os_overshoot_ns_default() -> int:
-    if sys.platform.startswith('win'):
-        return 20_000_000
-    return 5_000_000
-
-
 def test_factory_fast_backend_instantiates():
     """Test that create_timer with 'fast' returns a FastTimer instance."""
     t = create_timer('fast', {'sleep_granularity_ns': 1_000_000, 'windows_timer_1ms': False})
@@ -92,17 +129,17 @@ def test_factory_fast_backend_instantiates():
 
 
 def test_fast_timer_basic_sleep_accuracy():
-    """Test that FastTimer sleep accuracy is within OS-specific bounds."""
+    """Sleep+spin wakes no later than the OS's own sleep of the same length (3 ms)."""
     t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=False)
-    overshoot = _median_overshoot_upper_bound_ns(timer=t, sleep_ns=3_000_000)  # 3ms
-    assert overshoot < _os_overshoot_ns_default()
+    difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=3_000_000)
+    assert difference < PAIRED_TOLERANCE_NS
 
 
 def test_fast_timer_spin_tighten_accuracy():
-    """Test that spin-only mode achieves tight sleep accuracy."""
+    """Spin-only mode wakes no later than the OS's own sleep of the same length (1 ms)."""
     t = FastTimer(sleep_granularity_ns=0, windows_timer_1ms=False)
-    overshoot = _median_overshoot_upper_bound_ns(timer=t, sleep_ns=1_000_000)  # 1ms
-    assert overshoot < _os_overshoot_ns_default()
+    difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=1_000_000)
+    assert difference < PAIRED_TOLERANCE_NS
 
 
 @pytest.mark.skipif(
@@ -110,7 +147,7 @@ def test_fast_timer_spin_tighten_accuracy():
     reason='Windows-only timing resolution test',
 )
 def test_fast_timer_windows_1ms_option_tighter():
-    """Test that Windows 1ms timer resolution yields tighter sleep accuracy."""
+    """With the Windows 1 ms timer resolution, wakes no later than the OS's own sleep (3 ms)."""
     t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=True)
-    overshoot = _median_overshoot_upper_bound_ns(timer=t, sleep_ns=3_000_000)  # 3ms
-    assert overshoot < 5_000_000
+    difference = _paired_difference_upper_bound_ns(timer=t, sleep_ns=3_000_000)
+    assert difference < PAIRED_TOLERANCE_NS

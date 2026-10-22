@@ -104,6 +104,18 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s lint-docs
 
+  nox-timer-report:
+    steps:
+      # Diagnostic only (always succeeds): whether this machine is a VM, its CPU share, and how
+      # late it wakes sleeping code; the timing tests judge, this explains their numbers. The
+      # nox session detects the OS itself
+      - run:
+          name: "Timer report (diagnostic)"
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s timer-report
+
   nox-test:
     steps:
       # Tests run (and report) even when an earlier lint or format step failed, so a lint
@@ -220,6 +232,7 @@ jobs:
       - nox-lint
       - nox-static-analysis
       - nox-lint-docs
+      - nox-timer-report
       - nox-test
       - nox-security-scan
       - nox-performance-test
@@ -249,6 +262,7 @@ jobs:
       - nox-lint
       - nox-static-analysis
       - nox-lint-docs
+      - nox-timer-report
       - nox-test
       - nox-security-scan
       - nox-performance-test
@@ -315,6 +329,15 @@ jobs:
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv run nox -s lint-docs
+      # Diagnostic only, as in nox-timer-report
+      - run:
+          name: "Timer report (diagnostic)"
+          when: always
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s timer-report
       # Tests run (and report) even when an earlier step failed, as in nox-test
       - run:
           name: "Tests (pytest + coverage)"
