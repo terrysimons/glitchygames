@@ -647,9 +647,12 @@ class DiskSaveManager(SaveManager):
         try:
             # Write to temp file in the same directory (same filesystem
             # guarantees atomic replace)
+            # newline='\n': never translated, so a save has the same bytes (and size) on
+            # every OS; Windows would otherwise write \r\n (reading accepts either)
             with tempfile.NamedTemporaryFile(
                 mode='w',
                 encoding='utf-8',
+                newline='\n',
                 dir=target_path.parent,
                 suffix='.tmp',
                 delete=False,

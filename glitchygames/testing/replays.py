@@ -312,6 +312,20 @@ class ReplayItem(pytest.Item):
         )
         pytest.fail(message, pytrace=False)
 
+    @override
+    def reportinfo(self: Self) -> tuple[Path, int, str]:
+        """Locate the item for reports: the recording, at its first line.
+
+        pytest reports a skip made at the item's location (a skip marker, or pytest-benchmark's
+        ``--benchmark-only`` skipping every non-benchmark item) at this line, and refuses None,
+        the default for an item that is not a Python function.
+
+        Returns:
+            The recording's path, line 0 (the first) and the item's name.
+
+        """
+        return self.path, 0, self.name
+
 
 def pytest_collect_file(file_path: Path, parent: pytest.Collector) -> ReplayFile | None:
     """Collect a ``.jsonl.gz`` anywhere under ``fixtures/replays/`` as a ReplayFile.

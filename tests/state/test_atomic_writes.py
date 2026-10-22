@@ -24,6 +24,20 @@ class TestAtomicWrites:
         envelope = json.loads(content)
         assert envelope['data'] == {'score': 100}
 
+    def test_save_file_has_the_same_bytes_on_every_os(self, tmp_path: Path) -> None:
+        """A save's newlines are written as LF, never translated (Windows would write CRLF).
+
+        Its size is then the same everywhere, so the replay sandbox, which counts the
+        content's UTF-8 bytes, lists every slot exactly as the disk store does.
+        """
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100, 'name': 'café'})
+
+        raw = (tmp_path / 'slot_1.json').read_bytes()
+        assert b'\r' not in raw
+        assert b'\n' in raw
+        assert saves.list_slots()[0].size_bytes == len(raw)
+
     def test_no_temp_files_left_on_success(self, tmp_path: Path) -> None:
         """No .tmp files remain after a successful save."""
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)

@@ -45,6 +45,16 @@ def pytest_collection_finish(session):
         item.path.unlink()
 """
 
+# A conftest for the inner run that skips every item by marker, reported at the item's location
+SKIP_EVERY_ITEM_BY_MARKER = """
+import pytest
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        item.add_marker(pytest.mark.skip(reason='skipped by marker'))
+"""
+
 
 def game_directory(*, pytester: pytest.Pytester, console_script: str) -> Path:
     """Make ``fixtures/replays/<console_script>/`` under pytester's path (if it is not there).
@@ -121,6 +131,20 @@ def test_matching_recording_passes(pytester):
         pytester=pytester, arguments=('--collect-only', '-q', FIXTURES_DIRECTORY_NAME)
     )
     collected.stdout.fnmatch_lines(['fixtures/replays/paddleslap/rally.jsonl.gz::paddleslap/rally'])
+
+
+def test_a_recording_can_be_skipped_from_a_marker(pytester):
+    """A skip reported at the item's location works for a recording (as --benchmark-only does).
+
+    pytest reports such a skip at ``reportinfo()``'s line, which must not be None.
+    """
+    copy_fixture_into(pytester=pytester, console_script='paddleslap', name='rally.jsonl.gz')
+    pytester.makeconftest(SKIP_EVERY_ITEM_BY_MARKER)
+
+    result = run_pytest(pytester=pytester)
+
+    result.assert_outcomes(skipped=1)
+    assert 'INTERNALERROR' not in result.stdout.str()
 
 
 def test_unknown_game_directory_fails_at_collection(pytester):

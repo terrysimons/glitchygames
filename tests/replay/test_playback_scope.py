@@ -404,7 +404,7 @@ class TestPlaybackErrors:
 
     def test_an_unreadable_recording_starts_nothing(self, tmp_path, caplog):
         not_a_recording = tmp_path / 'not-a-recording.jsonl.gz'
-        not_a_recording.write_text('not gzip')
+        not_a_recording.write_text('not gzip', encoding='utf-8')
         with running_scene(CountingScene) as manager:
             assert not start_playback_from_recording(
                 manager=manager, path=tmp_path / 'missing.jsonl.gz', then=manager.active_scene

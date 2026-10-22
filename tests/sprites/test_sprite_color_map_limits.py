@@ -326,7 +326,7 @@ class TestCharacterLimitEnforcement:
         assert toml_file.exists()
 
         # Check that universal characters are used
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
         assert '[colors."."]' in content  # Black should map to '.'
         assert '[colors.a]' in content  # Red should map to 'a'
 
@@ -402,7 +402,7 @@ class TestCharacterLimitEnforcement:
         assert toml_file.exists()
 
         # Check TOML content
-        toml_content = toml_file.read_text()
+        toml_content = toml_file.read_text(encoding='utf-8')
         assert '[sprite]' in toml_content
         assert 'name = "test_consistency"' in toml_content
         assert 'pixels =' in toml_content
@@ -435,7 +435,7 @@ class TestCharacterLimitEnforcement:
         toml_file = self.temp_path / 'test_sequential.toml'
         sprite.save(str(toml_file), 'toml')
 
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Should have TOML structure with individual color sections
         assert '[sprite]' in content

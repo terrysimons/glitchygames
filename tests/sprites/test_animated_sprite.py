@@ -466,7 +466,7 @@ class TestSpriteFactorySave:
         assert filename.exists()
 
         # Verify content
-        content = filename.read_text()
+        content = filename.read_text(encoding='utf-8')
         # Since it's detected as single-frame, it uses the sprite name
         assert 'name = "TestAnimatedSprite"' in content
         assert '[colors]' in content
@@ -1597,7 +1597,7 @@ green = 255
 blue = 255
 """
         toml_file = tmp_path / 'static.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -1778,7 +1778,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'animated.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -1815,7 +1815,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'timing.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -2284,7 +2284,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'inconsistent.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -2330,7 +2330,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'empty.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -2879,7 +2879,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'hitbox.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -2916,7 +2916,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'frame_hitbox.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -2949,7 +2949,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'no_hitbox.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
@@ -2974,7 +2974,7 @@ blue = 0
         save_path = tmp_path / 'hitbox_save.toml'
         sprite.save(str(save_path), 'toml')
 
-        content = save_path.read_text()
+        content = save_path.read_text(encoding='utf-8')
         assert '[sprite.hitbox]' in content
         assert 'offset_x = 1' in content
         assert 'offset_y = 0' in content
@@ -2988,7 +2988,8 @@ blue = 0
         toml_file.write_text(
             source.read_text(encoding='utf-8').replace(
                 '[sprite]\n', '[sprite]\nframe_anchor = "bottom"\n', 1
-            )
+            ),
+            encoding='utf-8',
         )
         sprite = AnimatedSprite(str(toml_file))
         assert sprite.frame_anchor is FrameAnchor.BOTTOM
@@ -3001,7 +3002,7 @@ blue = 0
         sprite.save(str(save_path), 'toml')
         reloaded = AnimatedSprite(str(save_path))
 
-        assert 'frame_anchor = "bottom"' in save_path.read_text()
+        assert 'frame_anchor = "bottom"' in save_path.read_text(encoding='utf-8')
         assert reloaded.frame_anchor is FrameAnchor.BOTTOM
         assert reloaded.default_hitbox == sprite.default_hitbox
         assert {
@@ -3024,7 +3025,7 @@ blue = 0
         save_path = tmp_path / 'plain.toml'
         sprite.save(str(save_path), 'toml')
 
-        assert 'frame_anchor' not in save_path.read_text()
+        assert 'frame_anchor' not in save_path.read_text(encoding='utf-8')
 
     def test_static_sprite_frame_anchor_is_written(self, tmp_path):
         """The single-frame (static) save path writes frame_anchor too."""
@@ -3039,7 +3040,7 @@ blue = 0
         save_path = tmp_path / 'static.toml'
         sprite.save(str(save_path), 'toml')
 
-        assert 'frame_anchor = "top_left"' in save_path.read_text()
+        assert 'frame_anchor = "top_left"' in save_path.read_text(encoding='utf-8')
 
     def test_save_per_frame_hitbox(self, tmp_path):
         """Saving sprite with per-frame hitbox writes [animation.frame.hitbox]."""
@@ -3061,7 +3062,7 @@ blue = 0
         save_path = tmp_path / 'frame_hitbox_save.toml'
         sprite.save(str(save_path), 'toml')
 
-        content = save_path.read_text()
+        content = save_path.read_text(encoding='utf-8')
         assert '[animation.frame.hitbox]' in content
         assert 'offset_x = 0' in content
         assert 'offset_y = 1' in content
@@ -3081,7 +3082,7 @@ blue = 0
         save_path = tmp_path / 'no_hitbox_save.toml'
         sprite.save(str(save_path), 'toml')
 
-        content = save_path.read_text()
+        content = save_path.read_text(encoding='utf-8')
         assert '[sprite.hitbox]' not in content
         assert '[animation.frame.hitbox]' not in content
 

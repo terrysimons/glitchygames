@@ -283,6 +283,14 @@ class SelfTerminatingGame(Scene):
 if __name__ == '__main__':
     GameEngine(game=SelfTerminatingGame).start()
 """
+# Windows delivers no SIGTERM: os.kill(pid, SIGTERM) calls TerminateProcess with exit code 15,
+# so no handler runs (only CTRL_C_EVENT and CTRL_BREAK_EVENT are delivered; SIGBREAK, its real
+# external stop, has its own tests)
+SKIP_WITHOUT_A_DELIVERABLE_SIGTERM = pytest.mark.skipif(
+    sys.platform == 'win32',
+    reason='os.kill(SIGTERM) is TerminateProcess on Windows: no handler can run',
+)
+
 # A child game that only runs a few frames is killed after this long
 SIGNAL_CHILD_TIMEOUT_SECONDS = 120.0
 
@@ -1041,6 +1049,7 @@ class TestRecordingEdgeCases:
             pass
         assert 'SDL may own SIGINT and SIGTERM' in caplog.text
 
+    @SKIP_WITHOUT_A_DELIVERABLE_SIGTERM
     def test_a_real_sigterm_ends_a_live_run_as_terminated_not_as_a_quit(self, tmp_path):
         """End to end, without recording: the engine's handler, not SDL's QUIT, ends the run."""
         game_file = tmp_path / 'self_terminating_game.py'
@@ -1048,6 +1057,7 @@ class TestRecordingEdgeCases:
         process = run_self_terminating_game(game_file=game_file, extra_arguments=())
         assert process.returncode == ExitCode.TERMINATED, process.stdout
 
+    @SKIP_WITHOUT_A_DELIVERABLE_SIGTERM
     def test_a_real_sigterm_ends_a_recording_run_as_terminated_not_as_a_quit(self, tmp_path):
         """End to end: a delivered SIGTERM is never an SDL QUIT event, in the run or the file."""
         game_file = tmp_path / 'self_terminating_game.py'

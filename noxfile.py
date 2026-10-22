@@ -286,6 +286,30 @@ def static_analysis(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
+# cgroup v2's CPU limit: "<quota> <period>" in microseconds, or "max <period>" for no limit
+_CGROUP_CPU_MAX = Path('/sys/fs/cgroup/cpu.max')
+
+
+def _usable_cpu_count() -> int:
+    """Count the CPUs this process may use: its CPU set, capped by a container's CPU quota.
+
+    A container sees the host's CPUs (CircleCI's small Linux executor has 1 vCPU on a host
+    with dozens), so the count alone would start dozens of test workers in its 2 GB.
+
+    Returns:
+        The usable CPU count, at least 1.
+
+    """
+    cpus = os.process_cpu_count() or 1
+    try:
+        quota, period = _CGROUP_CPU_MAX.read_text(encoding='utf-8').split()
+    except OSError, ValueError:
+        return cpus
+    if quota == 'max':
+        return cpus
+    return max(1, min(cpus, int(quota) // int(period)))
+
+
 @nox.session(python=['3.14'], reuse_venv=False)
 def test(session: nox.Session) -> None:
     """Run tests."""
@@ -299,13 +323,11 @@ def test(session: nox.Session) -> None:
         'SDL_AUDIODRIVER': os.environ.get('SDL_AUDIODRIVER', 'dummy'),
     }
 
-    # In CI, limit xdist workers to half the CPU count to avoid resource exhaustion.
+    # In CI, limit xdist workers to half the CPUs the job may use, to avoid resource exhaustion.
     # Locally, -n auto (from pyproject.toml addopts) uses all cores.
     args: list[str] = []
     if os.environ.get('CI') == 'true':
-        import multiprocessing
-
-        half_cpus = max(1, multiprocessing.cpu_count() // 2)
+        half_cpus = max(1, _usable_cpu_count() // 2)
         args.extend(['-n', str(half_cpus)])
 
     # Run tests with coverage — all coverage reports (term, html, xml, json, lcov)
