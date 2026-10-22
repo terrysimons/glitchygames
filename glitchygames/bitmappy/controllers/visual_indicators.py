@@ -759,6 +759,6 @@ class VisualIndicators:
                 indicator.size,
             )
             pygame.draw.rect(screen, indicator.color, rect)
-        elif indicator.shape.value == 'circle':
-            # Draw circle (slider indicator)
+        else:
+            # Draw circle (slider indicator): CIRCLE is the only other IndicatorShape
             pygame.draw.circle(screen, indicator.color, (final_x, final_y), indicator.size // 2)

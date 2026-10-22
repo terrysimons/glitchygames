@@ -2756,26 +2756,6 @@ class TestRenderingMethods:
         assert result.get_height() == 100
 
 
-class TestGetActiveControllerSelections:
-    """Test _get_active_controller_selections method."""
-
-    def test_no_parent_scene_returns_empty(self):
-        """Test returns empty list when no parent scene."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.current_animation = 'idle'
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-    def test_no_controller_selections_returns_empty(self, mocker):
-        """Test returns empty list when parent has no controller_selections."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.current_animation = 'idle'
-        mock_parent = mocker.Mock(spec=['canvas'])
-        widget.parent_scene = mock_parent
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-
 class TestDumpAnimationDebugState:
     """Test _dump_animation_debug_state and _dump_animated_sprite_debug methods."""
 
@@ -3017,26 +2997,29 @@ class TestCreateFilmTabs:
 
 
 class TestDrawMultiControllerIndicatorsNew:
-    """Test _draw_multi_controller_indicators_new method."""
+    """Test FilmStripRendering.draw_multi_controller_indicators_new early returns."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_no_sprite_returns_early(self):
-        """Test returns early with no animated sprite."""
+    def test_no_sprite_draws_nothing(self, mocker):
+        """With no animated sprite no indicator is drawn."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
+        draw_indicators = mocker.spy(widget.renderer, 'draw_multi_controller_indicators')
         surface = pygame.Surface((500, 200), pygame.SRCALPHA)
-        widget._draw_multi_controller_indicators_new(surface)  # Should not raise
 
-    def test_no_animation_returns_early(self):
-        """Test returns early with empty current_animation."""
+        widget.renderer.draw_multi_controller_indicators_new(surface)
+
+        draw_indicators.assert_not_called()
+
+    def test_no_animation_draws_nothing(self, mocker):
+        """With an empty current animation no indicator is drawn."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.animated_sprite = AnimatedSprite()
         widget.current_animation = ''
+        draw_indicators = mocker.spy(widget.renderer, 'draw_multi_controller_indicators')
         surface = pygame.Surface((500, 200), pygame.SRCALPHA)
-        widget._draw_multi_controller_indicators_new(surface)  # Should not raise
+
+        widget.renderer.draw_multi_controller_indicators_new(surface)
+
+        draw_indicators.assert_not_called()
 
 
 class TestGetFrameImageForRendering:
@@ -3604,106 +3587,47 @@ class TestFilmStripRenderWithHover:
         # Should not raise; hover effect is drawn
 
 
-class TestFilmStripGetActiveControllerSelections:
-    """Test _get_active_controller_selections (lines 2099-2117)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_no_parent_scene_returns_empty(self):
-        """Test returns empty list when no parent_scene."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-    def test_with_active_controller_selection(self, mocker):
-        """Test returns selections for active controllers matching animation."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        # Mock parent_scene with controller_selections
-        mock_selection = mocker.Mock()
-        mock_selection.is_active.return_value = True
-        mock_selection.get_selection.return_value = ('idle', 0)
-
-        # Mock controller info
-        mock_controller_info = mocker.Mock()
-        mock_controller_info.controller_id = 0
-        mock_controller_info.color = (255, 0, 0)
-
-        widget.parent_scene = mocker.Mock()
-        widget.parent_scene.controller_selections = {0: mock_selection}
-        widget.parent_scene.multi_controller_manager = mocker.Mock()
-        widget.parent_scene.multi_controller_manager.controllers = {0: mock_controller_info}
-
-        result = widget._get_active_controller_selections()
-        assert len(result) == 1
-        assert result[0]['controller_id'] == 0
-        assert result[0]['color'] == (255, 0, 0)
-
-    def test_with_inactive_controller_selection(self, mocker):
-        """Test skips inactive controller selections (line 2100)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        mock_selection = mocker.Mock()
-        mock_selection.is_active.return_value = False
-
-        widget.parent_scene = mocker.Mock()
-        widget.parent_scene.controller_selections = {0: mock_selection}
-
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-    def test_with_wrong_animation_controller(self, mocker):
-        """Test skips controllers selecting different animation (line 2103)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        mock_selection = mocker.Mock()
-        mock_selection.is_active.return_value = True
-        mock_selection.get_selection.return_value = ('walk', 0)  # Different animation
-
-        widget.parent_scene = mocker.Mock()
-        widget.parent_scene.controller_selections = {0: mock_selection}
-
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-
 class TestFilmStripDrawMultiControllerIndicators:
-    """Test _draw_multi_controller_indicators color priority (lines 2218-2230, 2275-2284)."""
+    """Test FilmStripRendering.draw_multi_controller_indicators on a real surface."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    INDICATOR_ROW_Y = 46  # 4 px above the frame at y=50
+
+    @staticmethod
+    def make_widget_with_one_frame() -> FilmStripWidget:
+        """Build a widget showing one 'idle' frame laid out at (50, 50, 64, 64).
+
+        Returns:
+            The widget.
+
+        """
+        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
+        sprite.add_animation('idle', [SpriteFrame(surface)])
+        widget.set_animated_sprite(sprite)
+        widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
+        return widget
+
+    def indicator_colors(
+        self,
+        *,
+        surface: pygame.Surface,
+        centers_x: tuple[int, ...],
+    ) -> list[tuple[int, ...]]:
+        """Read the RGB colours of the indicator row at the given x positions.
+
+        Returns:
+            The colours.
+
+        """
+        return [
+            tuple(surface.get_at((center_x, self.INDICATOR_ROW_Y)))[:3] for center_x in centers_x
+        ]
 
     def test_controller_color_priority_sorting(self):
-        """Test controller selections are sorted by color priority."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        # Set up frame layout for the test
-        widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
-
+        """The keyboard comes first, then controllers in red, green, blue, yellow order."""
+        widget = self.make_widget_with_one_frame()
         render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
-
-        # Create controller selections with various colors
         controller_selections = [
             {'controller_id': 3, 'frame': 0, 'color': (255, 255, 0)},  # Yellow (priority 3)
             {'controller_id': 0, 'frame': 0, 'color': (255, 0, 0)},  # Red (priority 0)
@@ -3711,59 +3635,62 @@ class TestFilmStripDrawMultiControllerIndicators:
             {'controller_id': 1, 'frame': 0, 'color': (0, 255, 0)},  # Green (priority 1)
         ]
 
-        widget._draw_multi_controller_indicators(render_surface, 'idle', 0, controller_selections)
-        # Should draw all indicators without error
+        widget.renderer.draw_multi_controller_indicators(
+            render_surface, 'idle', 0, controller_selections
+        )
 
-    def test_unknown_controller_color_priority(self):
-        """Test unknown controller colors get priority 999 (lines 2227-2228)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
-
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
-
-        # Unknown color
-        controller_selections = [
-            {'controller_id': 0, 'frame': 0, 'color': (128, 128, 128)},  # Unknown color
+        # Five indicators 8 px apart, centred on the frame's centre (x=82)
+        assert self.indicator_colors(surface=render_surface, centers_x=(66, 74, 82, 90, 98)) == [
+            (255, 255, 255),
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 255, 0),
         ]
 
-        widget._draw_multi_controller_indicators(render_surface, 'idle', 0, controller_selections)
+    def test_unknown_controller_color_sorts_last(self):
+        """A colour outside the controller palette sorts after the known colours."""
+        widget = self.make_widget_with_one_frame()
+        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        controller_selections = [
+            {'controller_id': 4, 'frame': 0, 'color': (200, 100, 50)},  # Unknown colour
+            {'controller_id': 0, 'frame': 0, 'color': (255, 0, 0)},
+        ]
+
+        widget.renderer.draw_multi_controller_indicators(
+            render_surface, 'other', -1, controller_selections
+        )
+
+        assert self.indicator_colors(surface=render_surface, centers_x=(78, 86)) == [
+            (255, 0, 0),
+            (200, 100, 50),
+        ]
 
     def test_keyboard_and_controller_indicators(self):
-        """Test drawing both keyboard and controller indicators (lines 2308-2315)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
-
+        """A keyboard and a controller on one frame sit 4 px either side of its centre."""
+        widget = self.make_widget_with_one_frame()
         render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
-
         controller_selections = [
             {'controller_id': 0, 'frame': 0, 'color': (255, 0, 0)},
         ]
 
-        # keyboard_animation matches current_animation, so keyboard indicator drawn too
-        widget._draw_multi_controller_indicators(render_surface, 'idle', 0, controller_selections)
+        widget.renderer.draw_multi_controller_indicators(
+            render_surface, 'idle', 0, controller_selections
+        )
 
-    def test_no_selections_returns_early(self):
-        """Test returns early with no selections (line 2292)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
+        assert self.indicator_colors(surface=render_surface, centers_x=(78, 86)) == [
+            (255, 255, 255),
+            (255, 0, 0),
+        ]
 
+    def test_no_selections_draws_nothing(self):
+        """With no keyboard selection on this animation and no controllers, nothing is drawn."""
+        widget = self.make_widget_with_one_frame()
         render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
 
-        # No matching keyboard or controller
-        widget._draw_multi_controller_indicators(render_surface, 'other', -1, [])
+        widget.renderer.draw_multi_controller_indicators(render_surface, 'other', -1, [])
+
+        assert render_surface.get_bounding_rect().size == (0, 0)
 
 
 class TestFilmStripHandleAddDeleteAnimationTab:

@@ -164,95 +164,73 @@ class TestGetCurrentColor:
     """Tests for get_current_color()."""
 
     def test_returns_color_from_sliders(self, mock_editor):
-        """Test that slider values are returned as an RGB tuple."""
+        """Test that slider values are returned as an RGBA tuple, alpha included."""
         mock_editor.red_slider.value = 100
         mock_editor.green_slider.value = 150
         mock_editor.blue_slider.value = 200
+        mock_editor.alpha_slider.value = 128
         result = mock_editor.get_current_color()
-        assert result == (100, 150, 200)
+        assert result == (100, 150, 200, 128)
 
     def test_returns_white_when_no_sliders(self, mock_editor):
-        """Test fallback to white when sliders are missing."""
+        """Test fallback to opaque white when sliders are missing."""
         del mock_editor.red_slider
         del mock_editor.green_slider
         del mock_editor.blue_slider
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
+
+    def test_returns_white_without_the_alpha_slider(self, mock_editor):
+        """Test fallback to opaque white when only the alpha slider is missing."""
+        del mock_editor.alpha_slider
+        result = mock_editor.get_current_color()
+        assert result == (255, 255, 255, 255)
 
     def test_returns_white_on_value_error(self, mock_editor):
         """Test fallback to white when slider values raise ValueError."""
         mock_editor.red_slider.value = 'invalid'
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
 
     def test_returns_white_on_attribute_error(self, mock_editor):
         """Test fallback to white when slider has no .value attribute."""
         mock_editor.red_slider = object()  # No .value attribute
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
 
     def test_zero_slider_values(self, mock_editor):
-        """Test that zero slider values produce black."""
+        """Test that zero slider values produce transparent black."""
         mock_editor.red_slider.value = 0
         mock_editor.green_slider.value = 0
         mock_editor.blue_slider.value = 0
+        mock_editor.alpha_slider.value = 0
         result = mock_editor.get_current_color()
-        assert result == (0, 0, 0)
+        assert result == (0, 0, 0, 0)
 
     def test_max_slider_values(self, mock_editor):
-        """Test that max slider values produce white."""
+        """Test that max slider values produce opaque white."""
         mock_editor.red_slider.value = 255
         mock_editor.green_slider.value = 255
         mock_editor.blue_slider.value = 255
+        mock_editor.alpha_slider.value = 255
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
 
 
-class TestUpdateColorWellFromSliders:
-    """Tests for update_color_well_from_sliders()."""
+class TestApplyColor:
+    """Tests for apply_color()."""
 
-    def test_updates_color_well_active_color(self, mock_editor):
-        """Test that color well receives RGBA from sliders."""
-        mock_editor.red_slider.value = 10
-        mock_editor.green_slider.value = 20
-        mock_editor.blue_slider.value = 30
-        mock_editor.alpha_slider.value = 200
-        mock_editor.update_color_well_from_sliders()
+    def test_sets_sliders_color_well_and_canvas(self, mock_editor):
+        """Test that the sliders, the color well and the canvas take the RGBA color."""
+        mock_editor.apply_color(red=10, green=20, blue=30, alpha=200)
+        assert (
+            mock_editor.red_slider.value,
+            mock_editor.green_slider.value,
+            mock_editor.blue_slider.value,
+            mock_editor.alpha_slider.value,
+        ) == (10, 20, 30, 200)
         assert mock_editor.color_well.active_color == (10, 20, 30, 200)
-
-    def test_marks_color_well_dirty(self, mock_editor):
-        """Test that color well dirty flag is set."""
-        mock_editor.update_color_well_from_sliders()
-        assert mock_editor.color_well.dirty == 1
-
-    def test_marks_scene_dirty(self, mock_editor):
-        """Test that the scene dirty flag is set."""
-        mock_editor.dirty = 0
-        mock_editor.update_color_well_from_sliders()
-        assert mock_editor.dirty == 1
-
-    def test_calls_force_redraw_if_available(self, mock_editor):
-        """Test that force_redraw() is called when color_well has it."""
-        mock_editor.update_color_well_from_sliders()
-        mock_editor.color_well.force_redraw.assert_called_once()
-
-    def test_no_color_well_does_not_crash(self, mock_editor):
-        """Test graceful handling when color_well is None."""
-        mock_editor.color_well = None
-        mock_editor.update_color_well_from_sliders()  # Should not raise
-
-    def test_no_color_well_attribute_does_not_crash(self, mock_editor):
-        """Test graceful handling when color_well attribute is missing."""
-        del mock_editor.color_well
-        mock_editor.update_color_well_from_sliders()  # Should not raise
-
-    def test_fallback_slider_values_when_missing(self, mock_editor):
-        """Test that missing sliders default to 0."""
-        del mock_editor.red_slider
-        del mock_editor.alpha_slider
-        mock_editor.update_color_well_from_sliders()
-        # red and alpha default to 0
-        assert mock_editor.color_well.active_color == (0, 64, 32, 0)
+        assert mock_editor.canvas.active_color == (10, 20, 30, 200)
 
 
 class TestInitializeSliderValues:
@@ -1320,34 +1298,25 @@ class TestPaintAndTrackPixel:
 class TestResetCanvasForNewFile:
     """Tests for _reset_canvas_for_new_file()."""
 
-    def test_resets_dimensions(self, mock_editor, mocker):
+    def test_resets_dimensions(self, mock_editor):
         """Test that canvas dimensions are reset."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
         mock_editor._reset_canvas_for_new_file(16, 16, 8)
         assert mock_editor.canvas.pixels_across == 16
         assert mock_editor.canvas.pixels_tall == 16
         assert mock_editor.canvas.pixel_width == 8
         assert mock_editor.canvas.pixel_height == 8
 
-    def test_fills_with_magenta(self, mock_editor, mocker):
+    def test_fills_with_magenta(self, mock_editor):
         """Test that canvas pixels are filled with magenta transparent."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
         mock_editor._reset_canvas_for_new_file(4, 4, 2)
         assert len(mock_editor.canvas.pixels) == 16
         assert all(pixel == (255, 0, 255, 255) for pixel in mock_editor.canvas.pixels)
         assert all(dirty is True for dirty in mock_editor.canvas.dirty_pixels)
 
-    def test_resets_panning(self, mock_editor, mocker):
-        """Test that panning state is reset."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
-        mock_editor.canvas._panning_active = True
-        mock_editor.canvas.pan_offset_x = 50
-        mock_editor.canvas.pan_offset_y = 30
+    def test_ends_the_pan_in_progress(self, mock_editor):
+        """Test that a pan gesture of the old canvas is ended."""
         mock_editor._reset_canvas_for_new_file(32, 32, 4)
-        mock_editor.canvas.reset_panning.assert_called_once()
-        assert mock_editor.canvas._panning_active is False
-        assert mock_editor.canvas.pan_offset_x == 0
-        assert mock_editor.canvas.pan_offset_y == 0
+        mock_editor.canvas.end_panning.assert_called_once()
 
 
 # ===========================================================================

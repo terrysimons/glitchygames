@@ -45,15 +45,10 @@ class FakeEditor:
         self.green_slider = FakeSlider(value=100)
         self.blue_slider = FakeSlider(value=100)
         self.slider_events: list[tuple[str, int]] = []
-        self.color_well_updates = 0
 
     def on_slider_event(self, event: Any, trigger: Any) -> None:
-        """Record the slider event the delegate sends."""
+        """Record the slider event the delegate sends (it updates the color well)."""
         self.slider_events.append((trigger.name, trigger.value))
-
-    def update_color_well_from_sliders(self) -> None:
-        """Count color well refreshes."""
-        self.color_well_updates += 1
 
 
 def _make_handler(*, mode: ControllerMode | None = ControllerMode.R_SLIDER):
@@ -239,7 +234,7 @@ class TestContinuousSliderAdjustment:
         handler.slider.update_slider_continuous_adjustments()
 
         assert editor.red_slider.value == 101
-        assert editor.color_well_updates == 0
+        assert editor.slider_events == [('R', 101)]
 
     @pytest.mark.parametrize(
         ('held_seconds', 'expected_level', 'expected_step'),
@@ -251,7 +246,7 @@ class TestContinuousSliderAdjustment:
         expected_level,
         expected_step,
     ):
-        """Each acceleration level doubles the step, and the color well is refreshed."""
+        """Each acceleration level doubles the step, and each step updates the color."""
         handler, editor = _make_handler()
         handler.slider.start_slider_continuous_adjustment(CONTROLLER_ID, 1)
         advance_frame_clock(seconds=held_seconds)
@@ -261,7 +256,7 @@ class TestContinuousSliderAdjustment:
         adjustment_data = handler.slider_continuous_adjustments[CONTROLLER_ID]
         assert adjustment_data['acceleration_level'] == expected_level
         assert editor.red_slider.value == 101 + expected_step
-        assert editor.color_well_updates == 1
+        assert editor.slider_events == [('R', 101), ('R', 101 + expected_step)]
 
     def test_update_caps_the_step_at_eight(self):
         """A shoulder-held adjustment of 8 never steps more than 8, however accelerated."""
@@ -273,7 +268,7 @@ class TestContinuousSliderAdjustment:
 
         assert editor.red_slider.value == 100 - 8 - 8
 
-    def test_update_outside_slider_mode_does_not_refresh_the_color_well(self):
+    def test_update_outside_slider_mode_does_not_change_the_color(self):
         """A controller that left the slider modes mid-hold changes no slider or color well."""
         handler, editor = _make_handler()
         handler.slider.start_slider_continuous_adjustment(CONTROLLER_ID, 1)
@@ -286,7 +281,7 @@ class TestContinuousSliderAdjustment:
         handler.slider.update_slider_continuous_adjustments()
 
         assert editor.red_slider.value == 101
-        assert editor.color_well_updates == 0
+        assert editor.slider_events == [('R', 101)]
 
 
 class TestSliderPreviousAndNext:

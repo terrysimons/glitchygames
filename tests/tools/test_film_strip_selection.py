@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.film_strip import FilmStripWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_FRAME_COUNT_2 = 2
@@ -26,15 +25,6 @@ TEST_FRAME_COUNT_2 = 2
 
 class TestFilmStripSelection:
     """Test film strip selection behavior."""
-
-    def _create_mock_surface(self):
-        """Create a mock surface using MockFactory.
-
-        Returns:
-            object: The result.
-
-        """
-        return MockFactory.create_pygame_surface_mock()
 
     @pytest.fixture
     def mock_pygame_patches(self, mocker):
@@ -382,154 +372,3 @@ class TestFilmStripSelection:
 
         # Verify the strip's selected_frame is updated to match the global selection
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
-
-    def test_triangle_indicator_draws_below_frame(
-        self,
-        film_strip_widget,
-        mock_pygame_patches,
-        mocker,
-    ):
-        """Test that the triangle indicator is drawn below the active animation frame."""
-        # Set up: frame 2 is the active animation frame
-        film_strip_widget.current_animation = 'walk'
-        # Mock get_current_preview_frame to return frame 2
-        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=2)
-
-        # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
-
-        # Create a mock surface
-        mock_surface = self._create_mock_surface()
-
-        # Call the triangle indicator drawing method
-        film_strip_widget._draw_triforce_indicator(mock_surface)
-
-        # Verify pygame.draw.polygon was called
-        assert mock_draw.polygon.called
-
-        # Verify it was called twice (filled triangle + border)
-        assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
-
-    def test_triangle_indicator_uses_correct_colors(
-        self,
-        film_strip_widget,
-        mock_pygame_patches,
-        mocker,
-    ):
-        """Test that the triangle indicator uses the correct colors."""
-        # Set up: frame 0 is the active animation frame
-        film_strip_widget.current_animation = 'walk'
-        # Mock get_current_preview_frame to return frame 0
-        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=0)
-
-        # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
-
-        # Create a mock surface
-        mock_surface = self._create_mock_surface()
-
-        # Call the triangle indicator drawing method
-        film_strip_widget._draw_triforce_indicator(mock_surface)
-
-        # Verify pygame.draw.polygon was called twice (filled + border)
-        assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
-
-    def test_triangle_indicator_size_and_position(
-        self,
-        film_strip_widget,
-        mock_pygame_patches,
-        mocker,
-    ):
-        """Test that the triangle indicator has the correct size and position."""
-        # Set up: frame 1 is the active animation frame
-        film_strip_widget.current_animation = 'walk'
-        # Mock get_current_preview_frame to return frame 1
-        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=1)
-
-        # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
-
-        # Create a mock surface
-        mock_surface = self._create_mock_surface()
-
-        # Call the triangle indicator drawing method
-        film_strip_widget._draw_triforce_indicator(mock_surface)
-
-        # Verify pygame.draw.polygon was called twice (filled + border)
-        assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
-
-    def test_triangle_indicator_skips_when_no_animation(
-        self,
-        film_strip_widget,
-        mock_pygame_patches,
-    ):
-        """Test that triangle indicator is not drawn when there's no current animation.
-
-        The production code returns early when current_animation is empty,
-        since there are no frames to indicate.
-        """
-        # Set up: no current animation
-        film_strip_widget.current_animation = ''
-
-        # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
-
-        # Create a mock surface
-        mock_surface = self._create_mock_surface()
-
-        # Call the triangle indicator drawing method
-        film_strip_widget._draw_triforce_indicator(mock_surface)
-
-        # Should NOT draw when there is no current animation
-        assert not mock_draw.polygon.called
-
-    def test_triangle_indicator_skips_when_no_sprite(self, film_strip_widget, mock_pygame_patches):
-        """Test that triangle indicator is not drawn when there's no animated sprite.
-
-        The production code returns early when animated_sprite is None,
-        since there are no frames to indicate.
-        """
-        # Set up: no animated sprite
-        film_strip_widget.animated_sprite = None
-        film_strip_widget.current_animation = 'walk'
-
-        # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
-
-        # Create a mock surface
-        mock_surface = self._create_mock_surface()
-
-        # Call the triangle indicator drawing method
-        film_strip_widget._draw_triforce_indicator(mock_surface)
-
-        # Should NOT draw when there is no animated sprite
-        assert not mock_draw.polygon.called
-
-    def test_triangle_indicator_draws_when_frame_not_found(
-        self,
-        film_strip_widget,
-        mock_pygame_patches,
-        mocker,
-    ):
-        """Test that triangle indicator is drawn at default position.
-
-        Tests when frame layout is not found.
-        """
-        # Set up: frame layout doesn't exist
-        film_strip_widget.current_animation = 'walk'
-        # Mock get_current_preview_frame to return frame 5 (doesn't exist in frame_layouts)
-        film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=5)
-
-        # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches['draw']
-
-        # Create a mock surface
-        mock_surface = self._create_mock_surface()
-
-        # Call the triangle indicator drawing method
-        film_strip_widget._draw_triforce_indicator(mock_surface)
-
-        # Verify pygame.draw.polygon was called (triangle should always be drawn)
-        assert mock_draw.polygon.called
-        # Filled + border
-        assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2

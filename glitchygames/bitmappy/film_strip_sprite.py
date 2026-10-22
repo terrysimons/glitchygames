@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, override
 
 import pygame
 
-from glitchygames import events
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.input.state import current_input
 from glitchygames.sprites import BitmappySprite
@@ -14,6 +13,7 @@ from glitchygames.sprites import BitmappySprite
 from .constants import LOG
 
 if TYPE_CHECKING:
+    from glitchygames import events
     from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
     from glitchygames.bitmappy.editor import BitmapEditorScene
     from glitchygames.sprites.animated import SpriteFrame
@@ -354,9 +354,7 @@ class FilmStripSprite(BitmappySprite):
         if not (hasattr(self, 'parent_scene') and self.parent_scene):
             return
 
-        for channel_name, channel_value in [('R', red), ('G', green), ('B', blue), ('A', alpha)]:
-            trigger = events.HashableEvent(0, name=channel_name, value=channel_value)
-            self.parent_scene.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
+        self.parent_scene.apply_color(red=red, green=green, blue=blue, alpha=alpha)
 
         LOG.info(
             f'FilmStripSprite: Updated sliders with sampled color R:{red}, G:{green},'

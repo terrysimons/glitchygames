@@ -297,17 +297,10 @@ class TestResetCanvasForNewFile:
         assert all(p == (255, 0, 255, 255) for p in mock_editor.canvas.pixels)
         assert all(mock_editor.canvas.dirty_pixels)
 
-    def test_resets_panning_if_available(self, mock_editor, mocker):
-        """Calls reset_panning if available on canvas."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
-        mock_editor.canvas._panning_active = True
-        mock_editor.canvas.pan_offset_x = 5
-        mock_editor.canvas.pan_offset_y = 10
+    def test_ends_the_pan_in_progress(self, mock_editor):
+        """Ends the old canvas's pan gesture."""
         mock_editor._reset_canvas_for_new_file(8, 8, 10)
-        mock_editor.canvas.reset_panning.assert_called_once()
-        assert mock_editor.canvas._panning_active is False
-        assert mock_editor.canvas.pan_offset_x == 0
-        assert mock_editor.canvas.pan_offset_y == 0
+        mock_editor.canvas.end_panning.assert_called_once()
 
 
 class TestOnNewFileEvent:
@@ -439,7 +432,7 @@ class TestOnLeftMouseButtonDownEvent:
         """Clicking outside sliders deactivates slider text boxes."""
         mocker.patch.object(mock_editor, 'sprites_at_position', return_value=[])
         mocker.patch.object(mock_editor._slider_manager, 'detect_clicked_slider', return_value=None)
-        mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mocker.patch.object(mock_editor._slider_manager, 'commit_slider_text_boxes')
         mocker.patch.object(
             mock_editor.film_strip_coordinator,
             'is_mouse_in_film_strip_area',
@@ -447,13 +440,15 @@ class TestOnLeftMouseButtonDownEvent:
         )
         event = _make_event(pos=(400, 300))
         mock_editor.on_left_mouse_button_down_event(event)
-        assert mock_editor._slider_manager.commit_and_deactivate_slider.call_count == 3
+        mock_editor._slider_manager.commit_slider_text_boxes.assert_called_once_with(
+            event=event, clicked_slider=None
+        )
 
     def test_starts_film_strip_drag(self, mock_editor, mocker):
         """Clicking in film strip area starts drag scrolling."""
         mocker.patch.object(mock_editor, 'sprites_at_position', return_value=[])
         mocker.patch.object(mock_editor._slider_manager, 'detect_clicked_slider', return_value=None)
-        mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mocker.patch.object(mock_editor._slider_manager, 'commit_slider_text_boxes')
         mocker.patch.object(
             mock_editor.film_strip_coordinator,
             'is_mouse_in_film_strip_area',
@@ -715,18 +710,6 @@ class TestOnKeyDownEvent:
 class TestOnKeyUpEvent:
     """Tests for on_key_up_event."""
 
-    def test_ctrl_shift_arrow_commits_panned_buffer(self, mock_editor, mocker):
-        """Ctrl+Shift+Arrow key release commits panned buffer."""
-        mocker.patch.object(
-            mock_editor._frame_operations,
-            'commit_panned_buffer',
-        )
-        event = mocker.Mock()
-        event.key = pygame.K_LEFT
-        event.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
-        mock_editor.on_key_up_event(event)
-        mock_editor._frame_operations.commit_panned_buffer.assert_called_once()
-
     def test_non_ctrl_shift_arrow_passes_to_parent(self, mock_editor, mocker):
         """Non-Ctrl+Shift key releases pass to parent."""
         mocker.patch.object(BitmapEditorScene.__bases__[0], 'on_key_up_event', create=True)
@@ -970,31 +953,6 @@ class TestHandleRedo:
 
 
 # ===========================================================================
-# 11. Canvas Panning
-# ===========================================================================
-
-
-class TestHandleCanvasPanning:
-    """Tests for FrameOperationManager.handle_canvas_panning."""
-
-    def test_delegates_to_canvas_pan(self, mock_editor, mocker):
-        """Panning delegates to canvas.pan_canvas."""
-        mock_editor.canvas.pan_canvas = mocker.Mock()
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
-        mock_editor.canvas.pan_canvas.assert_called_once_with(1, 0)
-
-    def test_no_canvas_warns(self, mock_editor):
-        """No canvas doesn't crash."""
-        mock_editor.canvas = None
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
-
-    def test_canvas_without_pan_warns(self, mock_editor):
-        """Canvas without pan_canvas method doesn't crash."""
-        del mock_editor.canvas.pan_canvas
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
-
-
-# ===========================================================================
 # 12. Copy / Paste Frame
 # ===========================================================================
 
@@ -1105,15 +1063,8 @@ class TestHandleSliderTextInput:
 
     def test_no_active_slider_returns_false(self, mock_editor, mocker):
         """No active slider text box returns False."""
-        # Remove text_sprite attribute from all sliders so they appear inactive
-        mock_editor.red_slider = mocker.Mock(spec=['value'])
-        mock_editor.red_slider.value = 128
-        mock_editor.green_slider = mocker.Mock(spec=['value'])
-        mock_editor.green_slider.value = 64
-        mock_editor.blue_slider = mocker.Mock(spec=['value'])
-        mock_editor.blue_slider.value = 32
-        mock_editor.alpha_slider = mocker.Mock(spec=['value'])
-        mock_editor.alpha_slider.value = 255
+        for slider in mock_editor._slider_manager.channel_sliders():
+            slider.text_sprite.is_active = False
         result = mock_editor._slider_manager.handle_slider_text_input(mocker.Mock())
         assert result is False
 
@@ -1777,23 +1728,16 @@ class TestScrollFilmStrips:
 # ===========================================================================
 
 
-class TestUpdateColorWellFromSliders:
-    """Tests for update_color_well_from_sliders."""
+class TestApplyColor:
+    """Tests for apply_color."""
 
-    def test_updates_color_well(self, mock_editor):
-        """Updates color well with slider values."""
-        mock_editor.red_slider.value = 100
-        mock_editor.green_slider.value = 150
-        mock_editor.blue_slider.value = 200
-        mock_editor.alpha_slider.value = 128
-        mock_editor.update_color_well_from_sliders()
+    def test_sets_sliders_color_well_and_canvas(self, mock_editor):
+        """The sliders, the color well and the canvas all take the color."""
+        mock_editor.apply_color(red=100, green=150, blue=200, alpha=128)
+        assert mock_editor.red_slider.value == 100
+        assert mock_editor.alpha_slider.value == 128
         assert mock_editor.color_well.active_color == (100, 150, 200, 128)
-        assert mock_editor.dirty == 1
-
-    def test_no_color_well_no_crash(self, mock_editor):
-        """No color well doesn't crash."""
-        mock_editor.color_well = None
-        mock_editor.update_color_well_from_sliders()
+        assert mock_editor.canvas.active_color == (100, 150, 200, 128)
 
 
 class TestIsAnyControllerInSliderMode:
@@ -2122,7 +2066,7 @@ class TestDetectClickedSlider:
         mock_editor.red_slider.text_sprite = mocker.Mock()
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(100, 100, 50, 20)
         result = mock_editor._slider_manager.detect_clicked_slider((110, 110))
-        assert result == 'red'
+        assert result is mock_editor.red_slider
 
     def test_no_slider_clicked(self, mock_editor):
         """Returns None when no slider clicked."""
@@ -2131,6 +2075,7 @@ class TestDetectClickedSlider:
         mock_editor.red_slider.text_sprite.rect.collidepoint.return_value = False
         mock_editor.green_slider.text_sprite.rect.collidepoint.return_value = False
         mock_editor.blue_slider.text_sprite.rect.collidepoint.return_value = False
+        mock_editor.alpha_slider.text_sprite.rect.collidepoint.return_value = False
         result = mock_editor._slider_manager.detect_clicked_slider((0, 0))
         assert result is None
 
@@ -2254,22 +2199,6 @@ class TestSubmitPixelChangesIfReady:
         mock_editor._frame_operations.submit_pixel_changes_if_ready()
         mock_editor.canvas_operation_tracker.add_frame_pixel_changes.assert_not_called()
         mock_editor.canvas_operation_tracker.add_pixel_changes.assert_not_called()
-
-
-# ===========================================================================
-# 29. On Color Well Event
-# ===========================================================================
-
-
-class TestOnColorWellEvent:
-    """Tests for on_color_well_event."""
-
-    def test_logs_event(self, mock_editor, mocker):
-        """Color well event is logged."""
-        event = _make_event()
-        trigger = mocker.Mock()
-        mock_editor.on_color_well_event(event, trigger)
-        # Should not crash - just logs
 
 
 # ===========================================================================

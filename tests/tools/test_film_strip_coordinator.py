@@ -127,6 +127,8 @@ class _ControllerHandlerStandIn:
 
     def __init__(self):
         self.reinitialized_with = []
+        # The film strips read this when they render (no controller in film strip mode)
+        self.film_strip_controller_selections = {}
 
     def reinitialize_multi_controller_system(self, preserved_selections):
         """Remember each reinitialization."""

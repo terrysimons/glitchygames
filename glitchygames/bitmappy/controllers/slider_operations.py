@@ -245,31 +245,8 @@ class SliderOperations:
                 delta = adjustment_data['direction'] * (2**acceleration_level)
                 delta = max(-8, min(8, delta))  # Cap at +/-8
 
-                # Apply the adjustment
+                # Apply the adjustment (it updates the color well through on_slider_event)
                 self._slider_adjust_value(controller_id, delta)
-
-                # Update color well during continuous adjustment
-                controller_mode = self.handler.editor.mode_switcher.get_controller_mode(
-                    controller_id,
-                )
-                self.handler.log.debug(
-                    f'DEBUG: Continuous adjustment - controller {controller_id} mode:'
-                    f' {controller_mode.value if controller_mode else "None"}',
-                )
-                if controller_mode and controller_mode.value in {
-                    'r_slider',
-                    'g_slider',
-                    'b_slider',
-                }:
-                    self.handler.log.debug(
-                        'DEBUG: Calling _update_color_well_from_sliders during continuous '
-                        'adjustment',
-                    )
-                    self.handler.editor.update_color_well_from_sliders()
-                else:
-                    self.handler.log.debug(
-                        'DEBUG: Not updating color well - controller not in slider mode',
-                    )
 
                 # Update last adjustment time
                 adjustment_data['last_adjustment'] = current_time

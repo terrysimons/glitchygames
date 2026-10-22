@@ -12,11 +12,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-from glitchygames import events
-from glitchygames.color import (
-    MAX_COLOR_CHANNEL_VALUE,
-    RGBA_COMPONENT_COUNT,
-)
+from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites import (
     BitmappySprite,
 )
@@ -26,15 +22,21 @@ from glitchygames.ui import (
     TabControlSprite,
     TextSprite,
 )
+from glitchygames.ui.sliders import DECIMAL_INPUT_FORMAT, format_channel
 
 from .constants import (
-    LOG,
     MAX_COLOR_VALUE,
     MIN_COLOR_VALUE,
 )
 
 if TYPE_CHECKING:
+    from glitchygames import events
+
     from .protocols import EditorContext
+
+# The editor attributes holding the four channel sliders, in R, G, B, A order: every loop
+# over the sliders (text format, click-away commits, typed keys) goes through this tuple
+CHANNEL_SLIDER_ATTRIBUTES = ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider')
 
 
 class SliderManager:
@@ -247,7 +249,7 @@ class SliderManager:
             y=slider_y_positions['alpha'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
+            parent=self.editor,
             groups=self.editor.all_sprites,
         )
 
@@ -257,7 +259,7 @@ class SliderManager:
             y=slider_y_positions['red'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
+            parent=self.editor,
             groups=self.editor.all_sprites,
         )
 
@@ -267,7 +269,7 @@ class SliderManager:
             y=slider_y_positions['green'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
+            parent=self.editor,
             groups=self.editor.all_sprites,
         )
 
@@ -277,7 +279,7 @@ class SliderManager:
             y=slider_y_positions['blue'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
+            parent=self.editor,
             groups=self.editor.all_sprites,
         )
 
@@ -406,40 +408,35 @@ class SliderManager:
 
         """
         # Initialize slider input format (default to decimal)
-        self.editor.slider_input_format = '%d'
+        self.editor.slider_input_format = DECIMAL_INPUT_FORMAT
 
         # Update text box widths to fit between slider end and color well start
         text_box_width = color_well_x - text_label_x + 4  # Make 4 pixels wider
         # Shrink text boxes vertically by 4 pixels
         text_box_height = 16  # Original was 20, now 16 (4 pixels smaller)
 
-        for slider in (
-            self.editor.alpha_slider,
-            self.editor.red_slider,
-            self.editor.green_slider,
-            self.editor.blue_slider,
-        ):
+        for slider in self.channel_sliders():
             slider.text_sprite.width = text_box_width
             slider.text_sprite.height = text_box_height
             # Force text sprites to update with new dimensions
             slider.text_sprite.update_text(slider.text_sprite.text)
 
     def _initialize_slider_values(self) -> None:
-        """Initialize slider default values and sync with color well."""
-        self.editor.alpha_slider.value = 255
-        self.editor.red_slider.value = 0
-        self.editor.blue_slider.value = 0
-        self.editor.green_slider.value = 0
+        """Start the editor's color at opaque black."""
+        self.apply_color(red=0, green=0, blue=0, alpha=MAX_COLOR_VALUE)
 
-        self.editor.color_well.active_color = (
-            self.editor.red_slider.value,
-            self.editor.green_slider.value,
-            self.editor.blue_slider.value,
-            self.editor.alpha_slider.value,
+    def channel_sliders(self) -> tuple[SliderSprite, ...]:
+        """Return the editor's channel sliders that exist, in R, G, B, A order.
+
+        Returns:
+            tuple[SliderSprite, ...]: The sliders (none before setup_sliders_and_color_well).
+
+        """
+        return tuple(
+            slider
+            for slider_attribute in CHANNEL_SLIDER_ATTRIBUTES
+            if (slider := getattr(self.editor, slider_attribute, None)) is not None
         )
-
-        if hasattr(self.editor, 'canvas') and self.editor.canvas:
-            self.editor.canvas.active_color = self.editor.color_well.active_color  # type: ignore[assignment]
 
     # ──────────────────────────────────────────────────────────────────────
     # Hover effects
@@ -628,8 +625,7 @@ class SliderManager:
 
         # Update text box hover effects (white borders)
         # Check if mouse is hovering over any slider text boxes (use absolute coordinates)
-        slider_names = ['alpha_slider', 'red_slider', 'green_slider', 'blue_slider']
-        for slider_name in slider_names:
+        for slider_name in CHANNEL_SLIDER_ATTRIBUTES:
             text_hovered = self._is_slider_text_hovered(slider_name, mouse_pos)
             self._update_slider_text_hover_border(slider_name, is_text_hovered=text_hovered)
 
@@ -638,14 +634,12 @@ class SliderManager:
     # ──────────────────────────────────────────────────────────────────────
 
     def on_slider_event(self, event: events.HashableEvent, trigger: events.HashableEvent) -> None:
-        """Handle the slider event.
+        """Handle the slider event: set the named channel (clamped to 0-255) via apply_color.
 
         Args:
             event (pygame.event.Event): The pygame event.
-            trigger (HashableEvent): The slider trigger (typically a SliderSprite).
-
-        Raises:
-            None
+            trigger (HashableEvent): The slider trigger, with the channel's name ('R', 'G', 'B'
+                or 'A') and its new value.
 
         """
         value = trigger.value
@@ -659,46 +653,18 @@ class SliderManager:
             value = MAX_COLOR_VALUE
             trigger.value = MAX_COLOR_VALUE  # pyright: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
 
-        if trigger.name == 'R':
-            self.editor.red_slider.value = value
-            self.log.debug('Updated red slider to: %s', value)
-        elif trigger.name == 'G':
-            self.editor.green_slider.value = value
-            self.log.debug('Updated green slider to: %s', value)
-        elif trigger.name == 'B':
-            self.editor.blue_slider.value = value
-            self.log.debug('Updated blue slider to: %s', value)
-        elif trigger.name == 'A':
-            self.editor.alpha_slider.value = value
-            self.log.debug('Updated alpha slider to: %s', value)
+        color = {
+            'R': self.editor.red_slider.value,
+            'G': self.editor.green_slider.value,
+            'B': self.editor.blue_slider.value,
+            'A': self.editor.alpha_slider.value,
+        }
+        if trigger.name in color:
+            color[trigger.name] = value
+        else:
+            self.log.debug('Slider event from unknown slider %s changes no slider', trigger.name)
 
-        # Update slider text to reflect current tab format
-        # This handles slider clicks - text input is handled by SliderSprite itself
-        self._update_slider_text_format()
-
-        # Debug: Log current slider values
-        self.log.debug(
-            f'Current slider values - R: {self.editor.red_slider.value}, '
-            f'G: {self.editor.green_slider.value}, B: {self.editor.blue_slider.value}, A:'
-            f' {self.editor.alpha_slider.value}',
-        )
-
-        self.editor.color_well.active_color = (
-            self.editor.red_slider.value,
-            self.editor.green_slider.value,
-            self.editor.blue_slider.value,
-            self.editor.alpha_slider.value,
-        )
-        self.editor.canvas.active_color = (  # type: ignore[assignment]
-            self.editor.red_slider.value,
-            self.editor.green_slider.value,
-            self.editor.blue_slider.value,
-            self.editor.alpha_slider.value,
-        )
-
-    def on_color_well_event(self, _event: events.HashableEvent, _trigger: object) -> None:
-        """Handle the color well event."""
-        self.log.info('COLOR WELL EVENT')
+        self.apply_color(red=color['R'], green=color['G'], blue=color['B'], alpha=color['A'])
 
     def _update_slider_text_format(self, tab_format: str | None = None) -> None:
         """Update slider text display format.
@@ -709,128 +675,51 @@ class SliderManager:
 
         """
         if tab_format is None:
-            tab_format = getattr(self.editor, 'slider_input_format', '%d')
+            tab_format = self.editor.slider_input_format
 
         # Every slider with a text box follows the tab, alpha included (BUGS.md #110 item 4)
-        for slider_name in ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider'):
-            slider = getattr(self.editor, slider_name, None)
-            if slider is None or not hasattr(slider, 'text_sprite'):
-                continue
-            if tab_format == '%X':
-                # Convert to hex
-                slider.text_sprite.text = f'{slider.value:02X}'
-            else:
-                # Convert to decimal
-                slider.text_sprite.text = str(slider.value)
+        for slider in self.channel_sliders():
+            slider.text_sprite.text = format_channel(slider.value, tab_format)
             slider.text_sprite.update_text(slider.text_sprite.text)
 
     # ──────────────────────────────────────────────────────────────────────
     # Interaction
     # ──────────────────────────────────────────────────────────────────────
 
-    def detect_clicked_slider(self, mouse_pos: tuple[int, int]) -> str | None:
+    def detect_clicked_slider(self, mouse_pos: tuple[int, int]) -> SliderSprite | None:
         """Detect which slider text box was clicked.
 
         Args:
             mouse_pos: The mouse position (x, y)
 
         Returns:
-            The name of the clicked slider ("red", "green", "blue") or None.
+            The channel slider (alpha included) whose text box is under the mouse, or None.
 
         """
-        slider_names = ['red', 'green', 'blue']
-        for name in slider_names:
-            slider_attr = f'{name}_slider'
-            if (
-                hasattr(self.editor, slider_attr)
-                and hasattr(getattr(self.editor, slider_attr), 'text_sprite')
-                and getattr(self.editor, slider_attr).text_sprite.rect.collidepoint(mouse_pos)
-            ):
-                return name
+        for slider in self.channel_sliders():
+            if slider.text_sprite.rect.collidepoint(mouse_pos):
+                return slider
         return None
 
-    def _format_slider_text(self, value: int) -> str:
-        """Format a channel value for a slider text box in the active tab's format.
-
-        Args:
-            value: The channel value.
-
-        Returns:
-            str: The value in hex ('FF') on the hex tab, otherwise in decimal ('255').
-
-        """
-        if self.editor.slider_input_format == '%X':
-            return f'{value:02X}'
-        return str(value)
-
-    def commit_and_deactivate_slider(
+    def commit_slider_text_boxes(
         self,
-        slider: SliderSprite,
-        clicked_slider: str | None,
-        slider_name: str,
+        *,
+        event: events.HashableEvent,
+        clicked_slider: SliderSprite | None,
     ) -> None:
-        """Commit the slider text value and deactivate the text sprite.
+        """Commit the typed text of every editing slider text box except the clicked one.
 
-        Commits the current text input on a slider's text sprite, parsing as hex or
-        decimal as appropriate, then deactivates the text sprite.
+        A click elsewhere commits a text box as Enter does (SliderSprite.commit_text), so the
+        color follows; the alpha text box is included.
 
         Args:
-            slider: The slider object with text_sprite attribute
-            clicked_slider: Name of the slider that was clicked, or None
-            slider_name: Name of this slider ("red", "green", "blue")
+            event: The mouse event of the click.
+            clicked_slider: The slider whose text box was clicked (it keeps editing), or None.
 
         """
-        if not (
-            hasattr(slider, 'text_sprite')
-            and slider.text_sprite.is_active
-            and (clicked_slider != slider_name or clicked_slider is None)
-        ):
-            return
-
-        # Commit any uncommitted value before deactivating
-        if not slider.text_sprite.text.strip():
-            # If empty, restore original value (in the active tab's format, not always decimal)
-            slider.text_sprite.text = self._format_slider_text(slider.original_value)
-        else:
-            # Try to commit the current text value - parse as hex on the hex tab or if it
-            # contains hex letters, otherwise decimal
-            try:
-                text = slider.text_sprite.text.strip().lower()
-                # On the hex tab "10" is 16, not 10 (BUGS.md #110 item 3)
-                is_hex = self.editor.slider_input_format == '%X' or any(
-                    character in 'abcdef' for character in text
-                )
-                new_value = int(text, 16) if is_hex else int(text)
-
-                if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
-                    slider.value = new_value
-                    # Update original value for future validations
-                    slider.original_value = new_value
-                    # Convert text to appropriate format based on selected tab
-                    LOG.debug(
-                        f'DEBUG: Current slider_input_format: {self.editor.slider_input_format}',
-                    )
-                    if self.editor.slider_input_format == '%X':
-                        slider.text_sprite.text = f'{new_value:02X}'
-                        LOG.debug(
-                            f'DEBUG: Converting {new_value} to hex: {slider.text_sprite.text}',
-                        )
-                    else:
-                        slider.text_sprite.text = str(new_value)
-                        LOG.debug(
-                            f'DEBUG: Converting {new_value} to decimal: {slider.text_sprite.text}',
-                        )
-                    slider.text_sprite.update_text(slider.text_sprite.text)
-                    slider.text_sprite.dirty = 2  # Force redraw
-                else:
-                    # Invalid range, restore original
-                    slider.text_sprite.text = self._format_slider_text(slider.original_value)
-            except ValueError:
-                # Invalid input, restore original
-                slider.text_sprite.text = self._format_slider_text(slider.original_value)
-
-        slider.text_sprite.is_active = False
-        slider.text_sprite.update_text(slider.text_sprite.text)
+        for slider in self.channel_sliders():
+            if slider.text_sprite.is_active and slider is not clicked_slider:
+                slider.commit_text(event=event)
 
     def handle_slider_text_input(self, event: events.HashableEvent) -> bool | None:
         """Handle text input for active slider text boxes.
@@ -843,14 +732,8 @@ class SliderManager:
             or False if no slider text box was active.
 
         """
-        sliders = ['red_slider', 'green_slider', 'blue_slider', 'alpha_slider']
-        for slider_name in sliders:
-            slider = getattr(self.editor, slider_name, None)
-            if (
-                slider is not None
-                and hasattr(slider, 'text_sprite')
-                and slider.text_sprite.is_active
-            ):
+        for slider in self.channel_sliders():
+            if slider.text_sprite.is_active:
                 slider.text_sprite.on_key_down_event(event)
                 # If escape was pressed, consume the event to prevent game quit
                 if event.key == pygame.K_ESCAPE:
@@ -862,11 +745,14 @@ class SliderManager:
     # Color API
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_current_color(self) -> tuple[int, ...]:
+    def get_current_color(self) -> tuple[int, int, int, int]:
         """Get the current color from the color picker.
 
+        Controller painting uses it, so it is the RGBA color mouse painting uses
+        (canvas.active_color), alpha included.
+
         Returns:
-            tuple: The current color.
+            tuple: The current (red, green, blue, alpha) color.
 
         """
         # Get color from sliders if available
@@ -874,73 +760,60 @@ class SliderManager:
             hasattr(self.editor, 'red_slider')
             and hasattr(self.editor, 'green_slider')
             and hasattr(self.editor, 'blue_slider')
+            and hasattr(self.editor, 'alpha_slider')
         ):
             try:
                 red = int(self.editor.red_slider.value)
                 green = int(self.editor.green_slider.value)
                 blue = int(self.editor.blue_slider.value)
+                alpha = int(self.editor.alpha_slider.value)
                 self.log.debug(
-                    'DEBUG: _get_current_color() returning color from sliders: (%s, %s, %s)',
+                    'DEBUG: _get_current_color() returning color from sliders: (%s, %s, %s, %s)',
                     red,
                     green,
                     blue,
+                    alpha,
                 )
             except (ValueError, AttributeError) as e:
                 self.log.debug('DEBUG: _get_current_color() error getting slider values: %s', e)
             else:
-                return (red, green, blue)
+                return (red, green, blue, alpha)
 
-        # Default to white if sliders not available
+        # Default to opaque white if sliders not available
         self.log.debug('DEBUG: _get_current_color() sliders not available, returning white')
-        return (255, 255, 255)
+        return (255, 255, 255, 255)
 
-    def update_color_well_from_sliders(self) -> None:
-        """Update the color well with current slider values."""
-        self.log.debug('DEBUG: _update_color_well_from_sliders called')
-        if hasattr(self.editor, 'color_well') and self.editor.color_well:
-            # Get current slider values
-            red_value = self.editor.red_slider.value if hasattr(self.editor, 'red_slider') else 0
-            green_value = (
-                self.editor.green_slider.value if hasattr(self.editor, 'green_slider') else 0
-            )
-            blue_value = self.editor.blue_slider.value if hasattr(self.editor, 'blue_slider') else 0
-            alpha_value = (
-                self.editor.alpha_slider.value if hasattr(self.editor, 'alpha_slider') else 0
-            )
+    def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
+        """Set the editor's color: the one way to change it.
 
-            self.log.debug(
-                'DEBUG: Slider values - R:%s, G:%s, B:%s, A:%s',
-                red_value,
-                green_value,
-                blue_value,
-                alpha_value,
-            )
-            self.log.debug(
-                f'DEBUG: Color well before update: {self.editor.color_well.active_color}',
-            )
+        Sets the four sliders (each clamps to 0-255 and shows its value in the text box's
+        format), then the color well and the canvas color, from the sliders' values.
 
-            # Update color well
-            self.editor.color_well.active_color = (red_value, green_value, blue_value, alpha_value)
+        Args:
+            red: The red channel.
+            green: The green channel.
+            blue: The blue channel.
+            alpha: The alpha channel.
 
-            # Force color well to redraw
-            if hasattr(self.editor.color_well, 'dirty'):
-                self.editor.color_well.dirty = 1
+        """
+        self.editor.red_slider.value = red
+        self.editor.green_slider.value = green
+        self.editor.blue_slider.value = blue
+        self.editor.alpha_slider.value = alpha
 
-            # Also dirty the main scene to ensure redraw
-            self.editor.dirty = 1
+        color = (
+            self.editor.red_slider.value,
+            self.editor.green_slider.value,
+            self.editor.blue_slider.value,
+            self.editor.alpha_slider.value,
+        )
+        self.log.debug('Color set to R:%s, G:%s, B:%s, A:%s', *color)
 
-            # Force color well to update its display
-            if hasattr(self.editor.color_well, 'force_redraw'):
-                self.editor.color_well.force_redraw()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
-
-            self.log.debug(
-                'DEBUG: Updated color well to (%s, %s, %s)',
-                red_value,
-                green_value,
-                blue_value,
-            )
-        else:
-            self.log.debug('DEBUG: No color_well found or color_well is None')
+        self.editor.color_well.active_color = color
+        # The canvas exists before the sliders in the editor; editors without one (tests)
+        # have only the color well
+        if getattr(self.editor, 'canvas', None) is not None:
+            self.editor.canvas.active_color = color  # type: ignore[assignment]
 
     def sample_color_from_screen(self, screen_pos: tuple[int, int]) -> None:
         """Sample color directly from the screen (RGB only, ignores alpha).
@@ -970,17 +843,7 @@ class SliderManager:
             )
 
             # Update all sliders with the sampled RGB values and default alpha
-            trigger = events.HashableEvent(0, name='R', value=red)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='G', value=green)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='B', value=blue)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='A', value=alpha)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
+            self.apply_color(red=red, green=green, blue=blue, alpha=alpha)
 
             self.log.info(
                 'Updated sliders with screen color R:%s, G:%s, B:%s, A:%s',
@@ -1025,7 +888,7 @@ class SliderManager:
         """Handle tab control format change.
 
         Args:
-            tab_format (str): The selected format ("%d" or "%H")
+            tab_format (str): The selected format ("%d" for decimal or "%X" for hex)
 
         """
         self.log.info('Tab control changed to format: %s', tab_format)

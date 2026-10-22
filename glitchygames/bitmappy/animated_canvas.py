@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Self, override
 
 import pygame
 
@@ -21,10 +21,13 @@ from .constants import (
     LOG,
     MIN_PIXEL_DISPLAY_SIZE,
 )
+from .panning import PanSession, can_pan_to, shift_pixels
 from .pixel_sprite import BitmapPixelSprite
 from .utils import detect_file_format
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from glitchygames import events
     from glitchygames.bitmappy.editor import BitmapEditorScene
 
@@ -80,8 +83,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Initialize pixel arrays and color settings
         self._initialize_pixel_arrays()
 
-        # Initialize panning system
-        self._initialize_simple_panning()
+        # No pan gesture in progress yet
+        self._initialize_panning()
 
         # Initialize canvas surface and UI components
         self._initialize_canvas_surface(x, y, width, height, groups)  # type: ignore[arg-type]
@@ -196,165 +199,128 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             f' {self.pixels_across}x{self.pixels_tall})',
         )
 
-    def _compute_panned_pixels(self, frame_pixels: list[tuple[int, ...]]) -> list[tuple[int, ...]]:
-        """Compute panned pixel data by shifting source coordinates.
+    def _initialize_panning(self) -> None:
+        """Start with no pan in progress (see glitchygames/bitmappy/panning.py)."""
+        self.pan_session: PanSession | None = None
 
-        Args:
-            frame_pixels: Original pixel data from the frame.
+    def _current_sprite_frame(self) -> SpriteFrame | None:
+        """Return the frame the canvas shows, or None when it shows no frame.
 
         Returns:
-            New pixel list with panning offsets applied.
+            The frame, or None.
 
         """
-        frame_width = len(frame_pixels) // self.pixels_tall if self.pixels_tall > 0 else 0
-        transparent = (255, 0, 255)
-        panned_pixels: list[tuple[int, ...]] = []
+        frames = self.animated_sprite.animations
+        if self.current_animation in frames and 0 <= self.current_frame < len(
+            frames[self.current_animation],
+        ):
+            return frames[self.current_animation][self.current_frame]
+        return None
 
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                source_x = x - self.pan_offset_x
-                source_y = y - self.pan_offset_y
+    def pan_canvas(self, delta_x: int, delta_y: int) -> None:
+        """Move the shown frame's pixels one step, as part of the pan gesture in progress.
 
-                if not (0 <= source_x < frame_width and 0 <= source_y < self.pixels_tall):
-                    panned_pixels.append(transparent)
-                    continue
+        The first step of a gesture (or the first on another frame) starts a new
+        PanSession from the frame's pixels. If the frame changed since the last step (an
+        edit made during the gesture), the gesture continues from the edited pixels, so
+        the edit is kept. A step that would move the gesture's source pixels more than
+        MAX_PAN_DISTANCE is ignored. The moved pixels are written into the frame.
 
-                source_index = source_y * frame_width + source_x
-                if source_index < len(frame_pixels):
-                    panned_pixels.append(frame_pixels[source_index])
-                else:
-                    panned_pixels.append(transparent)
+        Args:
+            delta_x: Horizontal step (-1 left, 0, or 1 right).
+            delta_y: Vertical step (-1 up, 0, or 1 down).
 
-        return panned_pixels
-
-    def _pan_frame_data(self) -> None:
-        """Pan the frame data directly by shifting pixels within the frame."""
-        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
-            return
-
-        current_animation = self.current_animation
-        current_frame = self.current_frame
-
-        if current_animation not in self.animated_sprite.frames:
-            return
-        if current_frame >= len(self.animated_sprite.frames[current_animation]):
-            return
-
-        frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-        if not (hasattr(frame, 'get_pixel_data') and hasattr(frame, 'set_pixel_data')):
+        """
+        frame = self._current_sprite_frame()
+        if frame is None:
+            self.log.debug('No frame shown - nothing to pan')
             return
 
         frame_pixels = frame.get_pixel_data()
-        panned_pixels = self._compute_panned_pixels(frame_pixels)
+        session = self.pan_session
+        if session is None or not session.is_for(
+            animation=self.current_animation,
+            frame_index=self.current_frame,
+        ):
+            session = PanSession.starting_from(
+                animation=self.current_animation,
+                frame_index=self.current_frame,
+                pixels=frame_pixels,
+            )
+        elif tuple(frame_pixels) != session.panned_pixels:
+            session = session.rebased_on(pixels=frame_pixels)
 
-        frame.set_pixel_data(panned_pixels)
-        self.pixels = panned_pixels.copy()
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        # Clear surface cache
-        if hasattr(self.animated_sprite, '_surface_cache'):
-            cache_key = f'{current_animation}_{current_frame}'
-            if cache_key in self.animated_sprite._surface_cache:  # type: ignore[reportPrivateUsage]
-                del self.animated_sprite._surface_cache[cache_key]  # type: ignore[reportPrivateUsage]
-
-        self.log.debug(f'Frame data panned: offset=({self.pan_offset_x}, {self.pan_offset_y})')
-
-    def _initialize_simple_panning(self) -> None:
-        """Initialize the simple panning system for the canvas."""
-        # Frame-specific panning state - each frame has its own panning
-        # Format: {frame_key: {'pan_x': int, 'pan_y': int,
-        #          'original_pixels': list, 'active': bool}}
-        self._frame_panning: dict[str, dict[str, Any]] = {}
-
-        self.log.debug('Simple panning system initialized with frame-specific state')
-
-    def _get_current_frame_key(self) -> str:
-        """Get a unique key for the current frame.
-
-        Returns:
-            str: The current frame key.
-
-        """
-        return f'{self.current_animation}_{self.current_frame}'
-
-    def _store_original_frame_data_for_frame(self, frame_key: str) -> None:
-        """Store the original frame data for a specific frame."""
-        if hasattr(self, 'pixels') and self.pixels:
-            self._frame_panning[frame_key]['original_pixels'] = list(self.pixels)
-            self.log.debug('Stored original frame data for %s', frame_key)
-
-    def _apply_panning_view_for_frame(self, frame_key: str) -> None:
-        """Apply panning transformation for a specific frame."""
-        frame_state = self._frame_panning[frame_key]
-        if frame_state['original_pixels'] is None:
+        new_offset_x = session.offset_x + delta_x
+        new_offset_y = session.offset_y + delta_y
+        if not can_pan_to(offset_x=new_offset_x, offset_y=new_offset_y):
+            self.log.debug('Cannot pan to (%s, %s) - out of bounds.', new_offset_x, new_offset_y)
+            self.pan_session = session
             return
 
-        # Create panned view by shifting pixels
-        panned_pixels: list[tuple[int, ...]] = []
-
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                # Calculate source coordinates (where to read from in original)
-                source_x = x - frame_state['pan_x']
-                source_y = y - frame_state['pan_y']
-
-                # Check if source is within bounds
-                if 0 <= source_x < self.pixels_across and 0 <= source_y < self.pixels_tall:
-                    source_index = source_y * self.pixels_across + source_x
-                    if source_index < len(frame_state['original_pixels']):
-                        panned_pixels.append(frame_state['original_pixels'][source_index])
-                    else:
-                        panned_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    panned_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with panned view
-        self.pixels = panned_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        self.log.debug(
-            f'Applied panning view for {frame_key}: offset=({frame_state["pan_x"]},'
-            f' {frame_state["pan_y"]})',
+        frame_width, frame_height = frame.get_size()
+        panned_pixels = shift_pixels(
+            pixels=session.source_pixels,
+            width=frame_width,
+            height=frame_height,
+            offset_x=new_offset_x,
+            offset_y=new_offset_y,
+        )
+        self.pan_session = session.moved_to(
+            offset_x=new_offset_x,
+            offset_y=new_offset_y,
+            panned_pixels=panned_pixels,
+        )
+        self.replace_frame_pixels(
+            animation=self.current_animation,
+            frame_index=self.current_frame,
+            pixels=panned_pixels,
         )
 
-    def reset_panning(self) -> None:
-        """Reset panning for the current frame."""
-        frame_key = self._get_current_frame_key()
+    def end_panning(self) -> PanSession | None:
+        """End the pan gesture in progress, leaving the frame as the gesture left it.
 
-        # Clear panning state for current frame
-        if frame_key in self._frame_panning:
-            self._frame_panning[frame_key] = {
-                'pan_x': 0,
-                'pan_y': 0,
-                'original_pixels': None,
-                'active': False,
-            }
+        Returns:
+            The finished gesture (for undo), or None if none was in progress.
 
-        # Reload the original frame data
-        current_animation = self.current_animation
-        current_frame = self.current_frame
+        """
+        finished_session = self.pan_session
+        self.pan_session = None
+        return finished_session
 
-        if current_animation in self.animated_sprite.frames and current_frame < len(
-            self.animated_sprite.frames[current_animation],
-        ):
-            frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-            self.pixels = frame.get_pixel_data().copy()
+    def replace_frame_pixels(
+        self,
+        *,
+        animation: str,
+        frame_index: int,
+        pixels: Sequence[tuple[int, ...]],
+    ) -> bool:
+        """Replace all of a frame's pixels, keeping the canvas and film strips in step.
+
+        Args:
+            animation: The frame's animation.
+            frame_index: The frame's index.
+            pixels: The new pixels, row by row.
+
+        Returns:
+            True if the frame exists and was changed, False otherwise.
+
+        """
+        frames = self.animated_sprite.animations
+        if animation not in frames or not 0 <= frame_index < len(frames[animation]):
+            self.log.warning('Frame %s[%s] not found - pixels not replaced', animation, frame_index)
+            return False
+
+        frames[animation][frame_index].set_pixel_data(pixels)
+        self.animated_sprite.clear_surface_cache()
+
+        if animation == self.current_animation and frame_index == self.current_frame:
+            self.pixels = list(pixels)
             self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1
 
-        self.log.debug('Panning reset for frame %s', frame_key)
-
-    def is_panning_active(self) -> bool:
-        """Check if panning is active for the current frame.
-
-        Returns:
-            bool: True if is panning active, False otherwise.
-
-        """
-        frame_key = self._get_current_frame_key()
-        if frame_key in self._frame_panning:
-            return self._frame_panning[frame_key]['active']
-        return False
+        if self.parent_scene:
+            self.parent_scene.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
+        return True
 
     def _initialize_canvas_surface(
         self,
@@ -1337,8 +1303,10 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             # Load the sprite from file
             loaded_sprite = self._load_sprite_from_file(filename)
 
-            # Set the loaded sprite as the current animated sprite
+            # Set the loaded sprite as the current animated sprite. A pan gesture of the
+            # previous sprite must not carry over: its frames are gone.
             self.animated_sprite = loaded_sprite
+            self.end_panning()
 
             # Check if canvas needs resizing and resize if necessary
             self._check_and_resize_canvas(loaded_sprite)
@@ -1476,10 +1444,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             loaded_sprite: The loaded sprite to update UI components with
 
         """
-        self._mark_film_strips_dirty()
-        self._clear_existing_film_strips()
-
-        # Film strips will be created by the parent scene
+        # The film strips are rebuilt by the parent scene's film strip coordinator
+        # (on_sprite_loaded below)
 
         # Notify parent scene about sprite load
         LOG.debug(
@@ -1501,25 +1467,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 f' {hasattr(self, "on_sprite_loaded")}',
             )
             self.log.debug('No parent scene or callback found')
-
-    def _mark_film_strips_dirty(self) -> None:
-        """Mark all film strips and sprites as dirty for redraw."""
-        if hasattr(self, 'film_strips') and self.film_strips:  # type: ignore[attr-defined]
-            for film_strip in self.film_strips.values():  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                film_strip.mark_dirty()  # type: ignore[union-attr]
-        if hasattr(self, 'film_strip_sprites') and self.film_strip_sprites:  # type: ignore[attr-defined]
-            for film_strip_sprite in self.film_strip_sprites.values():  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                film_strip_sprite.dirty = 1
-
-    def _clear_existing_film_strips(self) -> None:
-        """Clear existing film strips and remove their sprites from groups."""
-        if hasattr(self, 'film_strips') and self.film_strips:  # type: ignore[attr-defined]
-            for film_strip_sprite in self.film_strip_sprites.values():  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                if hasattr(film_strip_sprite, 'groups') and film_strip_sprite.groups():  # type: ignore[union-attr]
-                    for group in film_strip_sprite.groups():  # type: ignore[union-attr]
-                        group.remove(film_strip_sprite)  # type: ignore[union-attr]
-            self.film_strips.clear()  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-            self.film_strip_sprites.clear()  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
 
     def _setup_animation_state(self, loaded_sprite: AnimatedSprite) -> None:
         """Set up animation state after loading a sprite.
@@ -1948,178 +1895,3 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 ])
 
         self.log.info('Flood fill completed: filled %s pixels', filled_pixels)
-
-    def _initialize_panning_system(self) -> None:
-        """Initialize the panning system for the canvas."""
-        # Panning state
-        self.pan_offset_x = 0  # Horizontal pan offset in pixels
-        self.pan_offset_y = 0  # Vertical pan offset in pixels
-
-        # Buffer dimensions (larger than canvas to allow panning)
-        # Add extra space around the canvas for panning
-        self.buffer_width = self.pixels_across + 20  # Extra 10 pixels on each side
-        self.buffer_height = self.pixels_tall + 20  # Extra 10 pixels on each side
-
-        # Viewport dimensions (same as canvas dimensions)
-        self.viewport_width = self.pixels_across
-        self.viewport_height = self.pixels_tall
-
-        # Panning state flag
-        self._panning_active = False
-
-        # Initialize buffer with transparent pixels
-        self._buffer_pixels = [
-            (255, 0, 255, 255) for _ in range(self.buffer_width * self.buffer_height)
-        ]
-
-        # Copy current canvas pixels to center of buffer
-        if hasattr(self, 'pixels') and self.pixels:
-            buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-            buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-
-            for y in range(self.pixels_tall):
-                for x in range(self.pixels_across):
-                    buffer_x = buffer_center_x + x
-                    buffer_y = buffer_center_y + y
-                    buffer_index = buffer_y * self.buffer_width + buffer_x
-                    canvas_index = y * self.pixels_across + x
-
-                    if buffer_index < len(self._buffer_pixels) and canvas_index < len(self.pixels):
-                        self._buffer_pixels[buffer_index] = self.pixels[canvas_index]  # type: ignore[index] # ty: ignore[invalid-assignment]
-
-        self.log.debug(
-            f'Panning system initialized: buffer={self.buffer_width}x{self.buffer_height},'
-            f' viewport={self.viewport_width}x{self.viewport_height}',
-        )
-
-    def pan_canvas(self, delta_x: int, delta_y: int) -> None:
-        """Pan the canvas by the given delta values.
-
-        Args:
-            delta_x: Horizontal panning delta (-1, 0, or 1)
-            delta_y: Vertical panning delta (-1, 0, or 1)
-
-        """
-        # Get current frame key
-        frame_key = self._get_current_frame_key()
-
-        # Get current pan offset from frame state (or default to 0, 0)
-        if frame_key in self._frame_panning:
-            current_pan_x = self._frame_panning[frame_key]['pan_x']
-            current_pan_y = self._frame_panning[frame_key]['pan_y']
-        else:
-            current_pan_x = 0
-            current_pan_y = 0
-
-        # Calculate new pan offset
-        new_pan_x = current_pan_x + delta_x
-        new_pan_y = current_pan_y + delta_y
-
-        # Check if panning is within bounds
-        if self._can_pan(new_pan_x, new_pan_y):
-            # Initialize frame panning state if needed
-            if frame_key not in self._frame_panning:
-                self._frame_panning[frame_key] = {
-                    'pan_x': 0,
-                    'pan_y': 0,
-                    'original_pixels': None,
-                    'active': False,
-                }
-
-            frame_state = self._frame_panning[frame_key]
-            frame_state['pan_x'] = new_pan_x
-            frame_state['pan_y'] = new_pan_y
-            frame_state['active'] = True
-
-            # Store original frame data if this is the first pan for this frame
-            if frame_state['original_pixels'] is None:
-                self._store_original_frame_data_for_frame(frame_key)
-
-            # Apply panning transformation to show panned view
-            self._apply_panning_view_for_frame(frame_key)
-            self.dirty = 1
-        else:
-            self.log.debug('Cannot pan to (%s, %s) - out of bounds.', new_pan_x, new_pan_y)
-
-    def _store_original_frame_data(self) -> None:
-        """Store the original frame data before any panning."""
-        if hasattr(self, 'pixels') and self.pixels:
-            self._original_frame_pixels = list(self.pixels)
-            self.log.debug('Stored original frame data for panning')
-
-    def _apply_panning_view(self) -> None:
-        """Apply panning transformation to show the panned view."""
-        if not hasattr(self, '_original_frame_pixels'):
-            return
-
-        # Create panned view by shifting pixels
-        panned_pixels: list[tuple[int, ...]] = []
-
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                # Calculate source coordinates (where to read from in original)
-                source_x = x - self.pan_offset_x
-                source_y = y - self.pan_offset_y
-
-                # Check if source is within bounds
-                if 0 <= source_x < self.pixels_across and 0 <= source_y < self.pixels_tall:
-                    source_index = source_y * self.pixels_across + source_x
-                    if source_index < len(self._original_frame_pixels):
-                        panned_pixels.append(self._original_frame_pixels[source_index])
-                    else:
-                        panned_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    panned_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with panned view
-        self.pixels = panned_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        self.log.debug(f'Applied panning view: offset=({self.pan_offset_x}, {self.pan_offset_y})')
-
-    def _can_pan(self, new_pan_x: int, new_pan_y: int) -> bool:
-        """Check if the new pan offset is within the allowed bounds.
-
-        Returns:
-            bool: True if the condition is met, False otherwise.
-
-        """
-        # For now, allow panning within reasonable bounds
-        # Later we can add more sophisticated bounds checking
-        max_pan = 10  # Maximum pan distance
-        return abs(new_pan_x) <= max_pan and abs(new_pan_y) <= max_pan
-
-    def _update_viewport_pixels(self) -> None:
-        """Update the viewport pixels based on current panning offset."""
-        if not self._panning_active:
-            return
-
-        # Clear viewport pixels
-        viewport_pixels: list[tuple[int, ...]] = []
-
-        # Calculate buffer center offset
-        buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-        buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-
-        # Fill viewport with pixels from buffer at pan offset
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                buffer_x = buffer_center_x + x + self.pan_offset_x
-                buffer_y = buffer_center_y + y + self.pan_offset_y
-
-                # Check if buffer coordinates are within bounds
-                if 0 <= buffer_x < self.buffer_width and 0 <= buffer_y < self.buffer_height:
-                    pixel_index = buffer_y * self.buffer_width + buffer_x
-                    if pixel_index < len(self._buffer_pixels):
-                        viewport_pixels.append(self._buffer_pixels[pixel_index])
-                    else:
-                        viewport_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    viewport_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with viewport data
-        self.pixels = viewport_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        # Force redraw to update the visual display including borders
-        self.force_redraw()

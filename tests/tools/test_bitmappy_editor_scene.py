@@ -1025,31 +1025,6 @@ class TestSynchronizeCanvasState:
         update_film_strips.assert_called_once_with('default', 0)
 
 
-# ===========================================================================
-# 17. Canvas Panning
-# ===========================================================================
-
-
-class TestCanvasPanning:
-    """Tests for FrameOperationManager.handle_canvas_panning."""
-
-    def test_no_canvas(self, mock_editor):
-        """Warns when canvas is not available."""
-        mock_editor.canvas = None
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
-
-    def test_delegates_to_pan_canvas(self, mock_editor):
-        """Delegates to canvas pan_canvas method."""
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=-1)
-        mock_editor.canvas.pan_canvas.assert_called_once_with(1, -1)
-
-    def test_canvas_without_pan_method(self, mock_editor):
-        """Warns when canvas does not support panning."""
-        mock_editor.canvas.pan_canvas = None
-        del mock_editor.canvas.pan_canvas
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
-
-
 class TestSingleClickTimer:
     """Tests for FrameOperationManager.check_single_click_timer (frame-clock debounce)."""
 
@@ -1335,22 +1310,6 @@ class TestDialogEvents:
         mock_editor.on_save_dialog_event(event)
         assert mock_editor.next_scene is not None
         assert mock_editor.dirty == 1
-
-
-# ===========================================================================
-# 23. Color Well Event
-# ===========================================================================
-
-
-class TestOnColorWellEvent:
-    """Tests for on_color_well_event."""
-
-    def test_logs_event(self, mock_editor, mocker):
-        """Logs color well event."""
-        event = _make_event()
-        trigger = mocker.Mock()
-        mock_editor.on_color_well_event(event=event, trigger=trigger)
-        # Should not raise
 
 
 # ===========================================================================
@@ -2106,14 +2065,10 @@ class TestResetCanvasForNewFile:
         assert mock_editor.canvas.pixel_width == 20
         assert len(mock_editor.canvas.pixels) == 256
 
-    def test_resets_panning(self, mock_editor, mocker):
-        """Resets panning state."""
-        mock_editor.canvas._panning_active = True
-        mock_editor.canvas.pan_offset_x = 10
-        mock_editor.canvas.pan_offset_y = 5
+    def test_ends_the_pan_in_progress(self, mock_editor):
+        """Ends the old canvas's pan gesture."""
         mock_editor._reset_canvas_for_new_file(32, 32, 10)
-        assert mock_editor.canvas._panning_active is False
-        assert mock_editor.canvas.pan_offset_x == 0
+        mock_editor.canvas.end_panning.assert_called_once()
 
 
 # ===========================================================================
@@ -2208,19 +2163,19 @@ class TestDetectClickedSlider:
         """Detects click on red slider text sprite."""
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(270, 550, 50, 10)
         result = mock_editor._slider_manager.detect_clicked_slider((280, 555))
-        assert result == 'red'
+        assert result is mock_editor.red_slider
 
     def test_detects_green_slider(self, mock_editor):
         """Detects click on green slider text sprite."""
         mock_editor.green_slider.text_sprite.rect = pygame.Rect(270, 560, 50, 10)
         result = mock_editor._slider_manager.detect_clicked_slider((280, 565))
-        assert result == 'green'
+        assert result is mock_editor.green_slider
 
     def test_detects_blue_slider(self, mock_editor):
         """Detects click on blue slider text sprite."""
         mock_editor.blue_slider.text_sprite.rect = pygame.Rect(270, 570, 50, 10)
         result = mock_editor._slider_manager.detect_clicked_slider((280, 575))
-        assert result == 'blue'
+        assert result is mock_editor.blue_slider
 
     def test_no_slider_clicked(self, mock_editor):
         """Returns None when no slider is clicked."""
@@ -2525,17 +2480,6 @@ class TestUpdateAiSpritePositionDuringTransition:
 class TestNewCanvasCreation:
     """Tests for _reset_canvas_for_new_file, _create_fresh_animated_sprite and on_new_file_event."""
 
-    def test_reset_canvas_without_panning_attributes(self, mock_editor):
-        """A canvas with no panning support is reset without gaining panning attributes."""
-        mock_editor.canvas = SimpleNamespace()
-
-        mock_editor._reset_canvas_for_new_file(4, 2, 8)
-
-        assert mock_editor.canvas.pixels == [(255, 0, 255, 255)] * 8
-        assert mock_editor.canvas.dirty_pixels == [True] * 8
-        assert not hasattr(mock_editor.canvas, 'pan_offset_x')
-        assert not hasattr(mock_editor.canvas, '_panning_active')
-
     def test_fresh_animated_sprite_is_one_magenta_frame(self, mock_editor):
         """The fresh sprite has a single magenta 'default' frame and a matching canvas image."""
         mock_editor._create_fresh_animated_sprite(3, 2, 10)
@@ -2742,9 +2686,11 @@ class TestOnLeftMouseButtonDownEvent:
     def test_clicked_slider_gets_the_click_and_drag_scroll_starts(self, mock_editor, mocker):
         """A click on a slider's text box reaches that slider, and film strip dragging starts."""
         mocker.patch.object(
-            mock_editor._slider_manager, 'detect_clicked_slider', return_value='green'
+            mock_editor._slider_manager,
+            'detect_clicked_slider',
+            return_value=mock_editor.green_slider,
         )
-        mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mocker.patch.object(mock_editor._slider_manager, 'commit_slider_text_boxes')
         mocker.patch.object(
             mock_editor.film_strip_coordinator,
             'is_mouse_in_film_strip_area',
@@ -2764,22 +2710,23 @@ class TestOnLeftMouseButtonDownEvent:
         assert mock_editor.film_strip_drag_start_offset == 3
 
     def test_missing_sliders_are_skipped(self, mock_editor, mocker):
-        """Sliders the editor does not have are neither committed nor clicked."""
+        """Sliders the editor does not have are not committed; the alpha text box is."""
         del mock_editor.red_slider
         del mock_editor.blue_slider
-        mocker.patch.object(
-            mock_editor._slider_manager, 'detect_clicked_slider', return_value='red'
-        )
-        commit = mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mock_editor.green_slider.text_sprite.is_active = True
+        mock_editor.alpha_slider.text_sprite.is_active = True
+        mocker.patch.object(mock_editor._slider_manager, 'detect_clicked_slider', return_value=None)
         mocker.patch.object(
             mock_editor.film_strip_coordinator,
             'is_mouse_in_film_strip_area',
             return_value=False,
         )
+        event = _make_event(pos=(15, 552))
 
-        mock_editor.on_left_mouse_button_down_event(_make_event(pos=(15, 552)))
+        mock_editor.on_left_mouse_button_down_event(event)
 
-        assert [call.args[2] for call in commit.call_args_list] == ['green']
+        mock_editor.green_slider.commit_text.assert_called_once_with(event=event)
+        mock_editor.alpha_slider.commit_text.assert_called_once_with(event=event)
         assert mock_editor.is_dragging_film_strips is False
 
 
@@ -3255,12 +3202,12 @@ class TestUndoRedoFallbacks:
 
 
 # ===========================================================================
-# 61. Event Handling, Drop Files and Deflate
+# 61. Event Handling and Drop Files
 # ===========================================================================
 
 
-class TestEventHandlingAndDeflate:
-    """Tests for handle_event's confirmation dialog, file drops and deflate."""
+class TestEventHandlingAndDropFiles:
+    """Tests for handle_event's confirmation dialog and file drops."""
 
     def test_confirmation_dialog_click_is_consumed(self, mock_editor, mocker):
         """A click the confirmation dialog handles closes it and stops the event."""
@@ -3356,21 +3303,6 @@ class TestEventHandlingAndDeflate:
         mock_editor.on_drop_file_event(event)
 
         mock_editor._file_io.on_drop_file_event.assert_called_once_with(event)
-
-    def test_deflate_returns_an_empty_config(self, mock_editor):
-        """Deflate reads the image's pixels and returns the (unimplemented) empty config."""
-        mock_editor.name = 'test sprite'
-        mock_editor.image = pygame.Surface((2, 2))
-
-        assert mock_editor.deflate() == {}
-
-    def test_deflate_of_an_empty_image_raises(self, mock_editor):
-        """Deflating an image with no pixels raises the pixel reader's ValueError."""
-        mock_editor.name = 'empty sprite'
-        mock_editor.image = pygame.Surface((0, 0))
-
-        with pytest.raises(ValueError, match='Empty pixel data'):
-            mock_editor.deflate()
 
 
 # ===========================================================================

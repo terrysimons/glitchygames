@@ -843,14 +843,6 @@ class TestDrawVisualIndicator:
         assert screen.get_at((25, 20))[:3] == RED
         assert screen.get_at((20, 15))[:3] == BLACK
 
-    def test_unsupported_shape_draws_nothing(self, handler, screen):
-        """A diamond has no drawing, so the screen stays black."""
-        handler.indicators._draw_visual_indicator(
-            screen=screen, indicator=self.make_indicator(IndicatorShape.DIAMOND)
-        )
-
-        assert pygame.transform.average_color(screen)[:3] == BLACK
-
     def test_hidden_indicator_draws_nothing(self, handler, screen):
         """A hidden indicator is not drawn."""
         handler.indicators._draw_visual_indicator(

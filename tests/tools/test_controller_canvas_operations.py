@@ -925,3 +925,68 @@ class TestCanvasJumps:
         getattr(handler.canvas, jump_method)(CONTROLLER_ID, 8)
 
         assert position.position == (2, 2)
+
+
+class TestControllerPaintColorInTheRealEditor:
+    """Controller painting uses the same RGBA color as mouse painting, in the real editor."""
+
+    @staticmethod
+    def _editor_with_half_transparent_red():
+        """Build a real editor whose sliders pick (255, 0, 0, 128), with a canvas controller.
+
+        Returns:
+            The editor, with controller CONTROLLER_ID in canvas mode at (2, 2).
+
+        """
+        from glitchygames import events
+        from glitchygames.bitmappy.editor import BitmapEditorScene
+
+        editor = BitmapEditorScene(options={})
+        for channel_name, channel_value in (('R', 255), ('G', 0), ('B', 0), ('A', 128)):
+            editor.on_slider_event(
+                event=events.HashableEvent(0),
+                trigger=events.HashableEvent(0, name=channel_name, value=channel_value),
+            )
+        editor.mode_switcher.register_controller(CONTROLLER_ID, ControllerMode.CANVAS)
+        editor.mode_switcher.save_controller_position(CONTROLLER_ID, (2, 2))
+        return editor
+
+    def test_controller_paints_the_alpha_the_mouse_paints(self):
+        """A controller-painted pixel carries the alpha slider's value, like canvas.active_color.
+
+        The controller used to paint the RGB slider values only, so its pixels were opaque.
+        """
+        editor = self._editor_with_half_transparent_red()
+
+        editor.controller_handler.canvas_paint_at_controller_position(CONTROLLER_ID)
+
+        assert editor.canvas.active_color == (255, 0, 0, 128)
+        assert editor.canvas.canvas_interface.get_pixel_at(2, 2) == (255, 0, 0, 128)
+
+    def test_controller_lines_paint_the_alpha_too(self):
+        """Horizontal and vertical controller lines paint the RGBA color as well."""
+        editor = self._editor_with_half_transparent_red()
+        _start_drag(editor.controller_handler)
+
+        editor.controller_handler.canvas.canvas_paint_horizontal_line(CONTROLLER_ID, 2)
+        editor.controller_handler.canvas.canvas_paint_vertical_line(CONTROLLER_ID, 2)
+
+        # The horizontal line paints (2, 2) and (3, 2) and leaves the cursor at (4, 2), where
+        # the vertical line paints (4, 2) and (4, 3)
+        canvas_interface = editor.canvas.canvas_interface
+        for painted_position in ((2, 2), (3, 2), (4, 2), (4, 3)):
+            assert canvas_interface.get_pixel_at(*painted_position) == (255, 0, 0, 128)
+
+    def test_painting_a_pixel_already_that_color_is_skipped(self):
+        """A second paint of the same pixel records nothing more for undo.
+
+        The debounce compared the RGBA pixel with the RGB slider color, so it never matched
+        and every repeat paint was tracked again.
+        """
+        editor = self._editor_with_half_transparent_red()
+        drag_info = _start_drag(editor.controller_handler)
+
+        editor.controller_handler.canvas_paint_at_controller_position(CONTROLLER_ID)
+        editor.controller_handler.canvas_paint_at_controller_position(CONTROLLER_ID)
+
+        assert len(drag_info['pixels_drawn']) == 1

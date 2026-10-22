@@ -35,8 +35,8 @@ def _create_blank_frame_mock(width, height, duration=0.5):
 def _mock_parent_scene(animated_sprite, mocker):
     """Create a properly configured parent scene mock.
 
-    Sets up canvas.animated_sprite so that film_strip._update_film_tabs()
-    can iterate _animations.keys() without hitting 'Mock is not iterable'.
+    Sets up canvas.animated_sprite so that film_strip._create_film_tabs()
+    can iterate animations.keys() without hitting 'Mock is not iterable'.
 
     Returns:
         object: The result.

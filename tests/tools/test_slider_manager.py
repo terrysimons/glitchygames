@@ -29,6 +29,10 @@ class _EditorStandIn:
         self.canvas = SimpleNamespace(active_color=None, pixels_across=32, pixel_width=16)
         self.dirty = 0
 
+    def on_slider_event(self, event, trigger) -> None:
+        """Pass a slider's value change to the slider manager, as the editor does."""
+        self.slider_manager.on_slider_event(event=event, trigger=trigger)
+
 
 @pytest.fixture
 def screen():
@@ -310,28 +314,30 @@ class TestSliderEvents:
         assert editor.color_well.active_color == (0, 0, 0, 255)
         assert editor.canvas.active_color == (0, 0, 0, 255)
 
-    def test_tab_change_skips_sliders_without_a_text_box(self, editor):
-        """A slider without a text box is skipped; the others still change format."""
-        del editor.red_slider.text_sprite
-        editor.slider_manager.on_slider_event(
-            event=events.HashableEvent(0),
-            trigger=events.HashableEvent(0, name='G', value=171),
-        )
+    def test_tab_change_before_setup_changes_nothing(self, screen):
+        """With no sliders yet, a tab change only records the format."""
+        editor_stand_in = _EditorStandIn(screen=screen)
+        slider_manager = SliderManager(editor_stand_in)  # type: ignore[arg-type]
 
-        editor.slider_manager.on_tab_change_event('%X')
+        slider_manager.on_tab_change_event('%X')
 
-        assert not hasattr(editor.red_slider, 'text_sprite')
+        assert editor_stand_in.slider_input_format == '%X'
+        assert slider_manager.channel_sliders() == ()
+
+    def test_tab_change_uses_the_current_format_when_none_is_given(self, editor):
+        """Without a format, the slider text follows the editor's current format."""
+        editor.green_slider.value = 171
+        editor.slider_input_format = '%X'
+
+        editor.slider_manager._update_slider_text_format()
+
         assert editor.green_slider.text_sprite.text == 'AB'
 
-    def test_color_well_event_changes_nothing(self, editor):
-        """The color well event only logs; the colors stay as they were."""
-        editor.slider_manager.on_color_well_event(events.HashableEvent(0), None)
 
-        assert editor.color_well.active_color == (0, 0, 0, 255)
+class TestCommitSliderTextBoxes:
+    """Test committing typed text when a slider's text box loses focus (a click elsewhere)."""
 
-
-class TestCommitAndDeactivateSlider:
-    """Test committing typed text when a slider's text box loses focus."""
+    CLICK = events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(1, 1), button=1)
 
     @staticmethod
     def _activate_with_text(slider, text):
@@ -340,17 +346,19 @@ class TestCommitAndDeactivateSlider:
         slider.text_sprite.is_active = True
         slider.text_sprite.text = text
 
-    def test_decimal_text_commits_value(self, editor):
-        """Decimal text sets the slider value and deactivates the text box."""
+    def test_decimal_text_commits_value_and_color(self, editor):
+        """Decimal text sets the slider value, the colors follow, and the box deactivates."""
         slider = editor.red_slider
         self._activate_with_text(slider, '120')
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'red')
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=None)
 
         assert slider.value == 120
         assert slider.original_value == 120
         assert slider.text_sprite.text == '120'
         assert slider.text_sprite.is_active is False
+        assert editor.color_well.active_color == (120, 0, 0, 255)
+        assert editor.canvas.active_color == (120, 0, 0, 255)
 
     def test_hex_text_commits_value_shown_in_hex_format(self, editor):
         """Text with hex letters is parsed as hex and shown in hex in hex format."""
@@ -358,7 +366,9 @@ class TestCommitAndDeactivateSlider:
         slider = editor.green_slider
         self._activate_with_text(slider, 'ff')
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, 'red', 'green')
+        editor.slider_manager.commit_slider_text_boxes(
+            event=self.CLICK, clicked_slider=editor.red_slider
+        )
 
         assert slider.value == 255
         assert slider.text_sprite.text == 'FF'
@@ -370,7 +380,7 @@ class TestCommitAndDeactivateSlider:
         slider = editor.green_slider
         self._activate_with_text(slider, '10')
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'green')
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=None)
 
         assert slider.value == 16
         assert slider.text_sprite.text == '10'
@@ -380,10 +390,21 @@ class TestCommitAndDeactivateSlider:
         slider = editor.green_slider
         self._activate_with_text(slider, '10')
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'green')
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=None)
 
         assert slider.value == 10
         assert slider.text_sprite.text == '10'
+
+    def test_alpha_text_is_committed_too(self, editor):
+        """The alpha text box is committed like the color channels."""
+        slider = editor.alpha_slider
+        self._activate_with_text(slider, '64')
+
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=None)
+
+        assert slider.value == 64
+        assert slider.text_sprite.is_active is False
+        assert editor.color_well.active_color == (0, 0, 0, 64)
 
     @pytest.mark.parametrize('typed_text', ['', '   ', '999', 'zz'])
     def test_empty_out_of_range_or_invalid_text_restores_original(self, editor, typed_text):
@@ -392,7 +413,7 @@ class TestCommitAndDeactivateSlider:
         slider.value = 42
         self._activate_with_text(slider, typed_text)
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'blue')
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=None)
 
         assert slider.value == 42
         assert slider.text_sprite.text == '42'
@@ -406,7 +427,7 @@ class TestCommitAndDeactivateSlider:
         slider.value = 42
         self._activate_with_text(slider, typed_text)
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'blue')
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=None)
 
         assert slider.value == 42
         assert slider.text_sprite.text == '2A'
@@ -417,7 +438,7 @@ class TestCommitAndDeactivateSlider:
         slider = editor.red_slider
         self._activate_with_text(slider, '7')
 
-        editor.slider_manager.commit_and_deactivate_slider(slider, 'red', 'red')
+        editor.slider_manager.commit_slider_text_boxes(event=self.CLICK, clicked_slider=slider)
 
         assert slider.text_sprite.is_active is True
         assert slider.text_sprite.text == '7'
@@ -433,7 +454,10 @@ class TestInteraction:
 
         blue_text_center = _center_of(editor.blue_slider.text_sprite.rect)
 
-        assert slider_manager.detect_clicked_slider(blue_text_center) == 'blue'
+        alpha_text_center = _center_of(editor.alpha_slider.text_sprite.rect)
+
+        assert slider_manager.detect_clicked_slider(blue_text_center) is editor.blue_slider
+        assert slider_manager.detect_clicked_slider(alpha_text_center) is editor.alpha_slider
         assert slider_manager.detect_clicked_slider(_outside_everything()) is None
 
     def test_text_input_returns_false_when_no_text_box_active(self, editor):
@@ -471,60 +495,58 @@ class TestInteraction:
 
 
 class TestColorApi:
-    """Test reading the current color and syncing the color well."""
+    """Test reading the current color and setting it with apply_color."""
 
     def test_get_current_color_reads_sliders(self, editor):
-        """The current color is the RGB slider values."""
-        editor.red_slider.value = 10
-        editor.green_slider.value = 20
-        editor.blue_slider.value = 30
+        """The current color is the RGBA slider values, alpha included."""
+        editor.slider_manager.apply_color(red=10, green=20, blue=30, alpha=40)
 
-        assert editor.slider_manager.get_current_color() == (10, 20, 30)
+        assert editor.slider_manager.get_current_color() == (10, 20, 30, 40)
 
     def test_get_current_color_defaults_to_white_without_sliders(self, screen):
-        """With no sliders the current color is white."""
+        """With no sliders the current color is opaque white."""
         slider_manager = SliderManager(_EditorStandIn(screen=screen))  # type: ignore[arg-type]
 
-        assert slider_manager.get_current_color() == (255, 255, 255)
+        assert slider_manager.get_current_color() == (255, 255, 255, 255)
 
     def test_get_current_color_defaults_to_white_on_bad_slider_value(self, editor):
-        """A slider value that is not a number falls back to white."""
+        """A slider value that is not a number falls back to opaque white."""
         editor.red_slider = SimpleNamespace(value='not a number')
 
-        assert editor.slider_manager.get_current_color() == (255, 255, 255)
+        assert editor.slider_manager.get_current_color() == (255, 255, 255, 255)
 
-    def test_update_color_well_from_sliders_copies_rgba(self, editor):
-        """The color well takes the four slider values and the scene is marked dirty."""
-        editor.red_slider.value = 1
-        editor.green_slider.value = 2
-        editor.blue_slider.value = 3
-        editor.alpha_slider.value = 4
-        editor.color_well.dirty = 0
+    def test_apply_color_sets_sliders_text_color_well_and_canvas(self, editor):
+        """apply_color sets the four sliders, their text, the color well and the canvas."""
+        editor.slider_input_format = '%X'
 
-        editor.slider_manager.update_color_well_from_sliders()
+        editor.slider_manager.apply_color(red=1, green=2, blue=171, alpha=4)
 
-        assert editor.color_well.active_color == (1, 2, 3, 4)
+        assert [slider.value for slider in editor.slider_manager.channel_sliders()] == [
+            1,
+            2,
+            171,
+            4,
+        ]
+        assert editor.blue_slider.text_sprite.text == 'AB'
+        assert editor.color_well.active_color == (1, 2, 171, 4)
         assert editor.color_well.dirty == 1
-        assert editor.dirty == 1
+        assert editor.canvas.active_color == (1, 2, 171, 4)
 
-    def test_update_color_well_without_sliders_uses_zero(self, editor):
-        """Missing sliders count as zero; a plain well without dirty or redraw still updates."""
-        for slider_attribute in ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider'):
-            delattr(editor, slider_attribute)
-        editor.color_well = SimpleNamespace(active_color=None)
+    def test_apply_color_clamps_through_the_sliders(self, editor):
+        """Out-of-range channels are clamped by the sliders before the colors are set."""
+        editor.slider_manager.apply_color(red=-3, green=300, blue=0, alpha=255)
 
-        editor.slider_manager.update_color_well_from_sliders()
+        assert editor.color_well.active_color == (0, 255, 0, 255)
+        assert editor.canvas.active_color == (0, 255, 0, 255)
 
-        assert editor.color_well.active_color == (0, 0, 0, 0)
-        assert editor.dirty == 1
+    def test_apply_color_without_a_canvas_sets_the_color_well(self, editor):
+        """An editor without a canvas still gets its sliders and color well set."""
+        editor.canvas = None
 
-    def test_update_color_well_does_nothing_without_color_well(self, editor):
-        """No color well means nothing is updated."""
-        editor.color_well = None
+        editor.slider_manager.apply_color(red=5, green=6, blue=7, alpha=8)
 
-        editor.slider_manager.update_color_well_from_sliders()
-
-        assert editor.dirty == 0
+        assert editor.color_well.active_color == (5, 6, 7, 8)
+        assert editor.canvas is None
 
 
 class TestSampleColorFromScreen:
@@ -596,3 +618,131 @@ class TestControllerSliderMode:
         )
 
         assert editor.slider_manager.is_any_controller_in_slider_mode() is False
+
+
+@pytest.fixture
+def real_editor(screen, mocker):
+    """Build a real Bitmappy editor on the real display, with a fresh controller manager.
+
+    Returns:
+        BitmapEditorScene: The editor.
+
+    """
+    from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+    from glitchygames.bitmappy.editor import BitmapEditorScene
+
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def _click(editor, position: tuple[int, int]) -> None:
+    """Press the left mouse button on the editor at a screen position."""
+    editor.on_left_mouse_button_down_event(
+        events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1),
+    )
+
+
+def _type_into_text_box(editor, slider, text: str) -> None:
+    """Click a slider's text box, then type the text into it through the editor's keys."""
+    _click(editor, _center_of(slider.text_sprite.rect))
+    assert slider.text_sprite.is_active is True
+    for character in text:
+        editor.on_key_down_event(
+            events.HashableEvent(
+                pygame.KEYDOWN,
+                key=pygame.key.key_code(character),
+                unicode=character,
+                mod=0,
+                scancode=0,
+            ),
+        )
+
+
+class TestClickAwayCommitInTheRealEditor:
+    """Typed slider text committed by clicking elsewhere, in the real editor."""
+
+    def test_click_away_commit_changes_the_color_too(self, real_editor):
+        """Clicking away from typed red text sets the color well and canvas color, as Enter does.
+
+        The click-away commit used to set only the slider value, so the color well and the
+        canvas kept painting the old color.
+        """
+        _type_into_text_box(real_editor, real_editor.red_slider, '200')
+
+        _click(real_editor, _center_of(real_editor.green_slider.text_sprite.rect))
+
+        assert real_editor.red_slider.value == 200
+        assert real_editor.red_slider.text_sprite.is_active is False
+        assert real_editor.color_well.active_color == (200, 0, 0, 255)
+        assert real_editor.canvas.active_color == (200, 0, 0, 255)
+
+    def test_click_away_commits_the_alpha_text_box(self, real_editor):
+        """Clicking away from typed alpha text commits it and stops the box taking keys.
+
+        The click-away loop covered only R, G and B, so the alpha box stayed active.
+        """
+        _type_into_text_box(real_editor, real_editor.alpha_slider, '128')
+
+        _click(real_editor, _center_of(real_editor.red_slider.text_sprite.rect))
+
+        assert real_editor.alpha_slider.text_sprite.is_active is False
+        assert real_editor.alpha_slider.value == 128
+        assert real_editor.color_well.active_color == (0, 0, 0, 128)
+        assert real_editor.canvas.active_color == (0, 0, 0, 128)
+        assert real_editor.red_slider.text_sprite.is_active is True
+
+
+class TestSliderModeIndicatorsInTheRealEditor:
+    """A controller in a slider mode is shown once, centred on its own slider."""
+
+    CONTROLLER_ID = 0
+    CONTROLLER_YELLOW = (255, 255, 0)
+
+    def _put_controller_in_red_slider_mode(self, editor) -> None:
+        """Connect a yellow controller and switch it to the red slider mode, as L2/R2 do."""
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo, ControllerStatus
+        from glitchygames.bitmappy.controllers.modes import ControllerMode
+        from glitchygames.clock import elapsed_seconds
+
+        manager = editor.multi_controller_manager
+        manager.controllers[self.CONTROLLER_ID] = ControllerInfo(
+            controller_id=self.CONTROLLER_ID,
+            instance_id=self.CONTROLLER_ID,
+            status=ControllerStatus.ACTIVE,
+            color=self.CONTROLLER_YELLOW,
+        )
+        # Just scanned: no joystick is plugged in, so a scan now would disconnect it
+        manager.last_scan_time = elapsed_seconds()
+        editor.controller_handler.render_visual_indicators()
+        editor.mode_switcher.controller_modes[self.CONTROLLER_ID].switch_to_mode(
+            ControllerMode.R_SLIDER,
+            elapsed_seconds(),
+        )
+        editor.controller_handler.update_controller_visual_indicator_for_mode(
+            self.CONTROLLER_ID,
+            ControllerMode.R_SLIDER,
+        )
+        editor.controller_handler.render_visual_indicators()
+
+    def test_only_the_controllers_slider_shows_its_indicator(self, real_editor, screen):
+        """The indicator is drawn centred on the red slider, and on no other slider.
+
+        The slider widget used to draw every slider-mode indicator again at the top-left of
+        all four sliders.
+        """
+        self._put_controller_in_red_slider_mode(real_editor)
+        screen.fill((0, 0, 0))
+
+        real_editor.all_sprites.update()
+        real_editor.all_sprites.draw(screen)
+
+        red_center = _center_of(real_editor.red_slider.rect)
+        assert tuple(screen.get_at(red_center))[:3] == self.CONTROLLER_YELLOW
+        for slider in (
+            real_editor.alpha_slider,
+            real_editor.red_slider,
+            real_editor.green_slider,
+            real_editor.blue_slider,
+        ):
+            top_left_inside = (slider.rect.x + 1, slider.rect.y + 1)
+            assert tuple(screen.get_at(top_left_inside))[:3] != self.CONTROLLER_YELLOW

@@ -1659,12 +1659,12 @@ class TestFilmStripSpriteUpdateColorSliders:
         sprite._update_color_sliders(255, 128, 0, 200)
 
     def test_with_parent_scene(self, pygame_mocks, mock_groups):
-        """Calls on_slider_event for each RGBA channel."""
+        """Sets the scene's color once, with all four RGBA channels."""
         sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
         mock_scene = MagicMock()
         sprite.parent_scene = mock_scene
         sprite._update_color_sliders(100, 150, 200, 250)
-        assert mock_scene.on_slider_event.call_count == 4
+        mock_scene.apply_color.assert_called_once_with(red=100, green=150, blue=200, alpha=250)
 
 
 # ---------------------------------------------------------------------------
@@ -1725,7 +1725,7 @@ class TestFilmStripSpriteSampleColorFromFrame:
         mock_scene = MagicMock()
         sprite.parent_scene = mock_scene
         sprite._sample_color_from_frame('idle', 0, 20, 20)
-        assert mock_scene.on_slider_event.call_count == 4
+        mock_scene.apply_color.assert_called_once_with(red=255, green=0, blue=0, alpha=128)
 
     def test_successful_color_sampling_rgb(self, pygame_mocks, mock_groups):
         """Successfully samples an RGB color (no alpha)."""
@@ -1742,7 +1742,7 @@ class TestFilmStripSpriteSampleColorFromFrame:
         mock_scene = MagicMock()
         sprite.parent_scene = mock_scene
         sprite._sample_color_from_frame('idle', 0, 20, 20)
-        assert mock_scene.on_slider_event.call_count == 4
+        mock_scene.apply_color.assert_called_once_with(red=0, green=255, blue=0, alpha=255)
 
 
 # ---------------------------------------------------------------------------

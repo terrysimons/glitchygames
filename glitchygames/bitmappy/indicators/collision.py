@@ -28,7 +28,6 @@ class IndicatorShape(Enum):
     TRIANGLE = 'triangle'
     CIRCLE = 'circle'
     SQUARE = 'square'
-    DIAMOND = 'diamond'
 
 
 class LocationType(Enum):

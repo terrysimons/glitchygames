@@ -102,7 +102,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found by the 100% coverage audit
 - **Date Reported**: 2026-10-22
-- **Details**: (1) `replay/driver.py` `_recorded_start` (958-966): a bad or missing `recorded_at` is refused with the right exit code but without the "The recording is malformed" prefix other header refusals use. (2) `scenes/scene.py` ~2593-2597: a scene with a `VERSION` but no `NAME` gets the caption `' v2.1'`. (3) `scenes/scene.py` 1930-1935: an exception between `push_scoped_sources` and setting `_playback_session` would leave the scoped doors pushed (only `take_redelivered_events()` runs there today). (4) `SlideTransition` with an unknown direction draws nothing while `WipeTransition` reveals the new scene; neither validates `direction` (tests pin current behaviour). (5) Resolved: the unreachable freetype fallbacks in `fonts/font_manager.py` were removed. (6) `AnimatedCanvasSprite.previous_animation` into an animation with no frames leaves the canvas but switches the film strip to it. (7) Dead code found by the audit (not deleted; listed per module in the audit notes): the canvas panning system in `animated_canvas.py`, `film_strip.py` `_get_stale_frame_surface`/`_update_film_tabs`, the triforce indicator forwarders, `editor.py` `deflate`, `ui/sliders.py` `update_color_well`, `animated.py` `_create_surface_from_toml_pixels`
+- **Details**: (1) `replay/driver.py` `_recorded_start` (958-966): a bad or missing `recorded_at` is refused with the right exit code but without the "The recording is malformed" prefix other header refusals use. (2) `scenes/scene.py` ~2593-2597: a scene with a `VERSION` but no `NAME` gets the caption `' v2.1'`. (3) `scenes/scene.py` 1930-1935: an exception between `push_scoped_sources` and setting `_playback_session` would leave the scoped doors pushed (only `take_redelivered_events()` runs there today). (4) `SlideTransition` with an unknown direction draws nothing while `WipeTransition` reveals the new scene; neither validates `direction` (tests pin current behaviour). (5) Resolved: the unreachable freetype fallbacks in `fonts/font_manager.py` were removed. (6) `AnimatedCanvasSprite.previous_animation` into an animation with no frames leaves the canvas but switches the film strip to it. (7) Resolved 2026-10-22: the dead code the audit found was deleted (#146, #147, #148, `animated.py` and `editor.deflate`), apart from `_create_surface_from_toml_pixels`, now the live frame builder (#133)
 - **Files**: see Details
 
 ### 141. A Third Controller on a Cached Indicator Position Lands on the First
@@ -139,14 +139,74 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Files**: `glitchygames/sprites/animated.py`
 
-### 145. A Serial Run of the World and Replay Tests Segfaults in a Live-Voice Test
-- **Description**: `uv run pytest tests/world tests/replay -n 0 -p no:randomly` segfaults in `tests/replay/test_playback_scope.py::TestLiveVoicesThroughAPlayback::test_a_live_scenes_voice_survives_the_scope` while the SDL audio thread runs (Python frame `randomness.stream_seed`), then hangs in the signal path (`quit_game`); the test and its file pass alone
+### 150. Undo History Survives Loading Another Sprite
+- **Description**: Nothing clears undo history on load: paint on sprite A, load sprite B with the same animation name, press Ctrl+Z, and A's stroke is written into B
 - **Status**: Active
 - **Priority**: High
-- **Reporter**: Found by the guards agent and the serial memory run
+- **Reporter**: Found by the dead-code audit follow-ups
 - **Date Reported**: 2026-10-22
-- **Details**: Suspected cause: the uncommitted conftest change that stopped quitting and re-initializing pygame after every test (it kept the mixer and its audio thread alive across tests). A serial memory run hung at the same place for 3 hours. Under investigation
-- **Files**: `tests/conftest.py`, `glitchygames/audio/live.py`
+- **Details**: Related: `UndoRedoManager.clear_history` never clears the per-frame stacks (`frame_undo_stacks`/`frame_redo_stacks`) and has no callers. Confirmed by script
+- **Files**: `glitchygames/bitmappy/history/undo_redo.py`, `editor.py`
+
+### 151. Frame Paste Undoes Out of Order With Paint
+- **Description**: Frame paste goes on the global undo stack while paint goes on per-frame stacks; `handle_undo` tries the frame stack first, so after paint then paste, Ctrl+Z undoes the paint before the paste
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/history/undo_redo.py`
+
+### 152. Redo Pressed Mid-Pan Applies Inside the Gesture
+- **Description**: Ctrl+Shift+Z while an arrow is still held applies the redo inside a pan gesture; undoing the gesture still restores its starting pixels, but the redo stack is not cleared until the gesture ends
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/editor.py` (`handle_undo`/`handle_redo`)
+
+### 153. Controllers Cannot Adjust Alpha
+- **Description**: There is no alpha slider mode: `is_any_controller_in_slider_mode`, slider navigation and the indicators know only R, G and B
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/controllers/`
+
+### 154. Film Strip Triangles May Lag a Moving Controller
+- **Description**: A film strip sprite re-renders only when dirty; `render_visual_indicators` updates selections every frame, but nothing confirms a controller moving between frames always marks the strip dirty (unchecked)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: Suspected; needs a real-editor test
+- **Files**: `glitchygames/bitmappy/film_strip_rendering.py`
+
+### 155. Smaller Slider Findings
+- **Description**: Deferred improvements and minor findings from the slider work
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: (1) Slider gradients are redrawn every frame (dirty 2, ~1024 line draws): pre-render once. (2) TabControlSprite rebuilds its font every update after its first click. (3) A channel enum instead of strings. (4) Tidy-ups: `trigger.value` mutation in `on_slider_event`, the try/except and hasattr in `get_current_color`, DEBUG f-strings, `MIN/MAX_COLOR_VALUE` vs `MAX_COLOR_CHANNEL_VALUE`. (5) Controller line painting leaves the cursor one past the last painted pixel (maybe intended; pinned). (6) `AnimatedCanvasSprite.active_color` is inferred as a literal tuple (an `assignment` ignore remains in `apply_color`)
+- **Files**: see Details
+
+### 156. The Default Font Is Looked Up Among the Machine's System Fonts
+- **Description**: `FontManager` (and `ui/inputs.py`, two examples) load `SysFont('arial')` and friends, so pygame scans the system's fonts with fontconfig (`/usr/X11/bin/fc-list` on a Mac with XQuartz) under a short timeout. Under load the scan times out with a UserWarning ("System fonts cannot be loaded"), which the suite turns into a failure (`TestClearWithoutStrips::test_new_strips_are_made`, 2026-10-22, during a concurrent serial run), and text renders in whatever "arial" each machine has although the project bundles Bitstream Vera
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found running two full suites at once
+- **Date Reported**: 2026-10-22
+- **Details**: Text width depends on the font, so text sprites' rects (and any trace or test that measures them) can differ between machines. A fix: load the bundled Vera by default and use system fonts only when a game names one
+- **Files**: `glitchygames/fonts/font_manager.py:261`, `:317`, `glitchygames/ui/inputs.py:96`
+
+### 157. A Hypothesis Property Test Fails Its Deadline on a Busy Machine
+- **Description**: `TestPaletteRoundtrip::test_double_roundtrip_is_stable` took 277 ms against hypothesis's default 200 ms deadline while another suite ran (DeadlineExceeded); it passes on a quiet machine
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found running two full suites at once
+- **Date Reported**: 2026-10-22
+- **Details**: The deadline is a speed heuristic, not a correctness check; CI machines can be as loaded. Options: a hypothesis settings profile without a deadline for the suite, or per-test `deadline=None` where the work is file I/O
+- **Files**: `tests/test_hypothesis_properties.py`
 
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
@@ -247,6 +307,57 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `glitchygames/input/state.py`
 
 ## Resolved Bugs
+
+### 146. Canvas Panning Showed Nothing While Held, Lost Paint and Leaked Between Sprites
+- **Description**: Ctrl+Shift+Arrow panning: the renderer showed the pan only after key-up (it checked a flag only a dead first draft set); releasing Ctrl or Shift before the arrow never committed (canvas and frame out of step); each pan shifted the pixels captured before the frame's first pan, so paint made after it vanished; loading another sprite kept the panning state, carrying the old sprite's pixels into the next pan; a pan was not undoable; the fill was RGB magenta inside RGBA pixel data
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/panning.py` (new), `animated_canvas.py`, `frame_operations.py`, `canvas_interfaces.py`, `editor.py`, `history/commands.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Each pan step writes the moved pixels into the frame (canvas, frame, film strip and saves always agree); a gesture runs from the first press until an arrow, Ctrl or Shift key comes up and becomes one undo step (`CanvasPanCommand`); loading or a new canvas ends it; the fill matches the pixel data. The dead first draft (shadowed since the 2025-10-25 panning commit) and `BitmapEditorScene.deflate` are deleted. Tests: `tests/tools/test_canvas_panning.py::TestPanningInTheRealEditor` (real editor and key events). Behaviour change: pixels pushed off the edge come back only through undo once a gesture ends. README documents Ctrl+Shift+Arrow
+
+### 147. Controller Triangles Over Film Strip Frames Never Drew
+- **Description**: `draw_multi_controller_indicators_new` read `parent_scene.film_strip_controller_selections`, which moved to `editor.controller_handler`, and the data had changed from a list per animation to a dict by controller id; its test faked the old shape
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/film_strip_rendering.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It reads `controller_handler.film_strip_controller_selections`. Tests: `TestControllerIndicatorsInTheEditor` (real editor and controllers, real pixels). The superseded triforce indicator and uncalled film strip wrappers are deleted
+
+### 148. Slider Click-Away Commits Moved the Slider but Not the Colour, and Skipped Alpha
+- **Description**: Clicking away to commit typed slider text set only the slider value (the colour well and canvas kept the old colour), and the alpha text box was left out of click-away commits, so it stayed active and kept taking keystrokes
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/ui/sliders.py`, `glitchygames/bitmappy/slider_manager.py`, `editor.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Enter and click-away share `SliderSprite.commit_text`, driven over all four channel sliders. Tests: `TestClickAwayCommitInTheRealEditor`
+
+### 149. Controller Painting Ignored the Alpha Slider
+- **Description**: `SliderManager.get_current_color` returned RGB only, so controller painting dropped the alpha slider while mouse painting used RGBA; its "already this colour" check compared RGBA with RGB, never matched, and recorded every repeat paint for undo
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/slider_manager.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It returns RGBA. Tests: `TestControllerPaintColorInTheRealEditor`. Also: one `apply_color` for every colour change, one channel formatter and parser, the sliders' duplicate indicator drawing (at each slider's top-left) removed, dead slider code deleted
+
+### 145. A Serial Run of the World and Replay Tests Segfaults in a Live-Voice Test
+- **Description**: `uv run pytest tests/world tests/replay -n 0 -p no:randomly` segfaults in `tests/replay/test_playback_scope.py::TestLiveVoicesThroughAPlayback::test_a_live_scenes_voice_survives_the_scope` while the SDL audio thread runs (Python frame `randomness.stream_seed`), then hangs in the signal path (`quit_game`); the test and its file pass alone
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Found by the guards agent and the serial memory run
+- **Date Reported**: 2026-10-22
+- **Details**: A serial memory run hung at the same place for 3 hours. Cause: `reserve_live_voice_pool` grew the mixer by the pool size for every `GameEngine` made; once pygame stayed initialized across tests, the run's mixer reached ~1,500 channels, and each `set_num_channels` reallocated pygame's channel table while SDL's audio thread was still finishing an earlier test's live voice on it (heap corruption, crashing in unrelated code: `stream_seed`, `json` decoding)
+- **Files**: `tests/conftest.py`, `glitchygames/audio/live.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: `reserve_live_voice_pool` remembers the channel count it grew the mixer to and reuses the pool when the mixer still has it (a restarted mixer grows again); the test conftest stops every mixer channel after each test, so no sound plays into the next. Tests: `TestPoolReservation::test_reserving_again_on_the_same_mixer_reuses_the_pool`, `test_a_restarted_mixer_gets_its_pool_again`. The serial world and replay run passes (941), the mixer ending at 12 channels instead of 1,492
 
 ### 139. Switching Animation on Frame 0 Kept the Old Image
 - **Description**: `_update_surface_and_mark_dirty` compared only the frame index; FrameManager resets the frame to 0 on an animation change, so `set_animation('walk')` then `set_animation('jump')` kept walk's image (and did not mark the sprite dirty)

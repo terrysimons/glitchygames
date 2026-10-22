@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from glitchygames import events
 from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
@@ -20,7 +19,6 @@ from glitchygames.color import (
 from glitchygames.engine import ExitCode, GameEngine
 from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.input.state import current_input
-from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.ui.dialogs import (
     LoadDialogScene,
@@ -41,12 +39,14 @@ from .file_io import FileIOManager
 from .film_strip_coordinator import FilmStripCoordinator
 from .frame_operations import FrameOperationManager
 from .indicators.collision import VisualCollisionManager
+from .panning import PAN_GESTURE_KEYS
 from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
 
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames import events
     from glitchygames.events.voice import VoiceEventManager
     from glitchygames.sprites.animated import AnimatedSprite
     from glitchygames.ui import (
@@ -347,15 +347,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)
         self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
-        # Reset viewport/panning system
-        if hasattr(self.canvas, 'reset_panning'):
-            self.canvas.reset_panning()
-        if hasattr(self.canvas, '_panning_active'):
-            self.canvas._panning_active = False  # type: ignore[reportPrivateUsage]
-        if hasattr(self.canvas, 'pan_offset_x'):
-            self.canvas.pan_offset_x = 0
-        if hasattr(self.canvas, 'pan_offset_y'):
-            self.canvas.pan_offset_y = 0
+        # A pan gesture of the old canvas must not carry over to the new one
+        self.canvas.end_panning()
 
     def _create_fresh_animated_sprite(self, width: int, height: int, pixel_size: int) -> None:
         """Create a fresh animated sprite and update the canvas.
@@ -458,10 +451,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.next_scene = save_dialog_scene
         self.dirty = 1
 
-    def on_color_well_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
-        """Handle the color well event by delegating to SliderManager."""
-        self._slider_manager.on_color_well_event(event, trigger)
-
     def on_slider_event(
         self: Self,
         event: events.HashableEvent,
@@ -515,17 +504,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             )
 
             # Update sliders with RGB values and default alpha
-            trigger = events.HashableEvent(0, name='R', value=red)
-            self.on_slider_event(event=event, trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='G', value=green)
-            self.on_slider_event(event=event, trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='B', value=blue)
-            self.on_slider_event(event=event, trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='A', value=alpha)
-            self.on_slider_event(event=event, trigger=trigger)
+            self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
         except IndexError:
             pass
 
@@ -595,9 +574,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         )
 
         # Update all sliders with the sampled RGBA values
-        for name, value in [('R', red), ('G', green), ('B', blue), ('A', alpha)]:
-            trigger = events.HashableEvent(0, name=name, value=value)
-            self.on_slider_event(event=event, trigger=trigger)
+        self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
         return True
 
     @override
@@ -620,22 +597,13 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Check if click is on any slider text box and deactivate others
         clicked_slider = self._slider_manager.detect_clicked_slider(event.pos)
 
-        # Deactivate all slider text boxes except the one clicked (if any)
-        # Also commit values when clicking outside of any slider text box
-        for slider_name in ('red', 'green', 'blue'):
-            slider_attr = f'{slider_name}_slider'
-            if hasattr(self, slider_attr):
-                self._slider_manager.commit_and_deactivate_slider(
-                    getattr(self, slider_attr),
-                    clicked_slider,
-                    slider_name,
-                )
+        # Commit and deactivate every editing slider text box (alpha included) except the one
+        # clicked (if any), as Enter would
+        self._slider_manager.commit_slider_text_boxes(event=event, clicked_slider=clicked_slider)
 
         # If a slider text box was clicked, also trigger the slider's normal behavior
         if clicked_slider is not None:
-            slider_attr = f'{clicked_slider}_slider'
-            if hasattr(self, slider_attr):
-                getattr(self, slider_attr).on_left_mouse_button_down_event(event)
+            clicked_slider.on_left_mouse_button_down_event(event)
 
         # Handle other sprite clicks
         for sprite in sprites:
@@ -947,30 +915,22 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
     @override
     def on_key_up_event(self, event: events.HashableEvent) -> None:
-        """Handle key release events."""
-        # Get modifier keys
-        mod = event.mod if hasattr(event, 'mod') else 0
+        """Handle key release events.
 
-        # Check if this is a Ctrl+Shift+Arrow key release
+        Releasing any key of Ctrl+Shift+Arrow (in any order) ends the pan gesture in
+        progress and records it as one undoable step.
+        """
         if (
-            (mod & pygame.KMOD_CTRL)
-            and (mod & pygame.KMOD_SHIFT)
+            event.key in PAN_GESTURE_KEYS
             and hasattr(self, 'canvas')
             and self.canvas
-            and event.key in {pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN}
+            and self.canvas.pan_session is not None
         ):
-            self.log.debug('Ctrl+Shift+Arrow key released - committing panned buffer')
-            self._frame_operations.commit_panned_buffer()
-            return
+            self.log.debug('Pan key released - finishing the pan')
+            self._frame_operations.finish_canvas_panning()
 
         # Call parent class handler
         super().on_key_up_event(event)
-
-        # Keep the panning state active so user can continue panning
-        # Don't clear _original_frame_pixels, pan_offset_x, pan_offset_y, or _panning_active
-        # The viewport will continue to show the panned view
-
-        self.log.debug('Panned buffer committed, panning state preserved for continued panning')
 
     def _handle_film_strip_text_input(self, event: events.HashableEvent) -> bool | None:
         """Handle text input for film strips in text editing mode.
@@ -1408,60 +1368,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 if hasattr(sprite, 'on_mouse_leave_window_event'):
                     sprite.on_mouse_leave_window_event(event)
 
-    def deflate(self: Self) -> dict[str, Any]:
-        """Deflate a sprite to a Bitmappy config file.
-
-        Returns:
-            dict: The result.
-
-        Raises:
-            StopIteration: If the RGB triplet generator produces no data.
-
-        """
-        try:
-            self.log.debug(f'Starting deflate for {self.name}')
-            self.log.debug(f'Image dimensions: {self.image.get_size()}')
-
-            # Note: This deflate method is incomplete - configparser was removed
-            # as we only support TOML format now. This needs to be reimplemented
-            # to generate TOML output using the toml library.
-            config: dict[str, Any] = {}
-
-            # Get the raw pixel data and log its size
-            pixel_string = pygame.image.tobytes(self.image, 'RGB')
-            self.log.debug(f'Raw pixel string length: {len(pixel_string)}')
-
-            # Log the first few bytes of pixel data
-            self.log.debug(f'First 12 bytes of pixel data: {list(pixel_string[:12])}')
-
-            # Create the generator and log initial state
-            raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
-            self.log.debug('Created RGB triplet generator')
-
-            # Try to get the first triplet
-            try:
-                first_triplet = next(raw_pixels)
-                self.log.debug('First RGB triplet: %s', first_triplet)
-                # Reset generator
-                raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
-            except StopIteration:
-                self.log.exception('Generator empty on first triplet!')
-                raise
-
-            # Now proceed with the rest of deflate
-            raw_pixels = list(raw_pixels)
-            self.log.debug(f'Converted {len(raw_pixels)} RGB triplets to list')
-
-            # Continue with original deflate code...
-            colors = set(raw_pixels)
-            self.log.debug(f'Found {len(colors)} unique colors')
-
-        except Exception:
-            self.log.exception('Error in deflate')
-            raise
-        else:
-            return config
-
     # ──────────────────────────────────────────────────────────────────────
     # Film strip delegation (methods extracted to film_strip_coordinator.py)
     # These satisfy the EditorContext protocol so other subsystems can call them.
@@ -1517,18 +1423,18 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     # Color state methods (used by both keyboard and controller handlers)
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_current_color(self) -> tuple[int, ...]:
+    def get_current_color(self) -> tuple[int, int, int, int]:
         """Get the current color by delegating to SliderManager.
 
         Returns:
-            tuple: The current color from the sliders.
+            tuple: The current (red, green, blue, alpha) color from the sliders.
 
         """
         return self._slider_manager.get_current_color()
 
-    def update_color_well_from_sliders(self) -> None:
-        """Update the color well by delegating to SliderManager."""
-        self._slider_manager.update_color_well_from_sliders()
+    def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
+        """Set the editor's color (sliders, color well and canvas) via SliderManager."""
+        self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
 
     # ──────────────────────────────────────────────────────────────────────
     # Controller event delegation (methods extracted to controllers/event_handler.py)

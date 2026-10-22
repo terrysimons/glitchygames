@@ -73,6 +73,7 @@ uv run bitmappy --target-fps=120
 |-----|--------|
 | Control+click | Flood fill |
 | O | Toggle onion skinning |
+| Control+Shift+Arrow | Move the current frame's pixels one pixel that way (hold to repeat, up to 10 pixels per press-and-hold; pixels moved past the edge are dropped when the keys come up; Control+Z undoes the whole move) |
 | B (controller) | Undo |
 | X (controller) | Redo |
 | Y (controller) | Mode-specific toggle |

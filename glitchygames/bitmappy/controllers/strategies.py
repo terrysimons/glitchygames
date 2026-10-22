@@ -397,8 +397,8 @@ class SliderModeStrategy:
     def handle_button_up(self, controller_id: int, button: int) -> None:
         """Handle a controller button release in slider mode.
 
-        Stops continuous slider adjustment on D-pad/shoulder release and
-        updates the color well.
+        Stops continuous slider adjustment on D-pad/shoulder release (each adjustment
+        already updated the color well, through on_slider_event).
         """
         handler = self.handler
 
@@ -409,4 +409,3 @@ class SliderModeStrategy:
             pygame.CONTROLLER_BUTTON_RIGHTSHOULDER,
         }:
             handler.stop_slider_continuous_adjustment(controller_id)
-            handler.editor.update_color_well_from_sliders()

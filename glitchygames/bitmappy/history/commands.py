@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from glitchygames.bitmappy.history.undo_redo import OperationType
 
 LOG = logging.getLogger(__name__)
@@ -247,6 +249,68 @@ class FloodFillCommand(_ApplyingUndoRedoGuard):
         except Exception:
             LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
+
+
+class CanvasPanCommand(_ApplyingUndoRedoGuard):
+    """Command for one pan gesture (Ctrl+Shift+Arrow) that moved a frame's pixels."""
+
+    def __init__(
+        self,
+        editor: Any,
+        *,
+        animation: str,
+        frame: int,
+        old_pixels: Sequence[tuple[int, ...]],
+        new_pixels: Sequence[tuple[int, ...]],
+    ) -> None:
+        """Initialize a canvas-pan command.
+
+        Args:
+            editor: The editor context.
+            animation: Animation name.
+            frame: Frame index.
+            old_pixels: The frame's pixels before the pan (for undo).
+            new_pixels: The frame's pixels after the pan (for execute/redo).
+
+        """
+        from glitchygames.bitmappy.history.undo_redo import OperationType
+
+        self.editor = editor
+        self.animation = animation
+        self.frame = frame
+        self.old_pixels = tuple(old_pixels)
+        self.new_pixels = tuple(new_pixels)
+        self.operation_type = OperationType.CANVAS_PAN
+        self.timestamp: float = wall_clock_epoch_seconds()
+        self.description = f'Pan {animation}[{frame}]'
+
+    def execute(self) -> bool:
+        """Re-apply the pan (set the frame's pixels to the panned pixels).
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._guard_execute(self.editor, lambda: self._apply_pixels(self.new_pixels))
+
+    def undo(self) -> bool:
+        """Reverse the pan (restore the frame's pixels from before it).
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._guard_execute(self.editor, lambda: self._apply_pixels(self.old_pixels))
+
+    def _apply_pixels(self, pixels: Sequence[tuple[int, ...]]) -> bool:
+        if not self.editor.canvas:
+            LOG.warning('Canvas not available for undoing or redoing a pan')
+            return False
+        return self.editor.canvas.replace_frame_pixels(
+            animation=self.animation,
+            frame_index=self.frame,
+            pixels=pixels,
+        )
 
 
 # ---------------------------------------------------------------------------

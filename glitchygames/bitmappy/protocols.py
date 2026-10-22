@@ -140,12 +140,12 @@ class EditorContext(Protocol):
         """Perform a redo operation."""
         ...
 
-    def get_current_color(self) -> tuple[int, ...]:
-        """Get the current drawing color from the sliders."""
+    def get_current_color(self) -> tuple[int, int, int, int]:
+        """Get the current RGBA drawing color from the sliders."""
         ...
 
-    def update_color_well_from_sliders(self) -> None:
-        """Update the color well widget with current slider values."""
+    def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
+        """Set the drawing color: the sliders, the color well and the canvas color."""
         ...
 
     def update_film_strip_visibility(self) -> None:

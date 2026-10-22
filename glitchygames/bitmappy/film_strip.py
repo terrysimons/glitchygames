@@ -551,16 +551,6 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         """Dump animated sprite debug info."""
         self.animation.dump_animated_sprite_debug()
 
-    @staticmethod
-    def _get_stale_frame_surface(frame: SpriteFrame) -> pygame.Surface | None:
-        """Build a surface from pixel data when the cached image is stale.
-
-        Returns:
-            pygame.Surface | None: The surface.
-
-        """
-        return FilmStripAnimation.get_stale_frame_surface(frame)
-
     # ---- Rendering delegate forwarding (internal) ----
 
     def render_frame_thumbnail(
@@ -627,35 +617,6 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
     def _draw_film_sprockets(self, surface: pygame.Surface) -> None:
         """Draw film strip sprockets on the main background."""
         self.renderer.draw_film_sprockets(surface)
-
-    def _draw_multi_controller_indicators(
-        self,
-        surface: pygame.Surface,
-        keyboard_animation: str,
-        keyboard_frame: int,
-        controller_selections: list[dict[str, Any]],
-    ) -> None:
-        """Draw indicators for keyboard and multiple controllers."""
-        self.renderer.draw_multi_controller_indicators(
-            surface, keyboard_animation, keyboard_frame, controller_selections
-        )
-
-    def _draw_triforce_indicator(self, surface: pygame.Surface) -> None:
-        """Draw triangle indicators for keyboard and multi-controller selections."""
-        self.renderer.draw_triforce_indicator(surface)
-
-    def _draw_multi_controller_indicators_new(self, surface: pygame.Surface) -> None:
-        """Draw multi-controller indicators using the controller selections system."""
-        self.renderer.draw_multi_controller_indicators_new(surface)
-
-    def _get_active_controller_selections(self) -> list[dict[str, Any]]:
-        """Get active controller selections for the current animation.
-
-        Returns:
-            list[dict[str, Any]]: The selections.
-
-        """
-        return self.renderer.get_active_controller_selections()
 
     def _draw_preview_triangle(self, surface: pygame.Surface, preview_rect: pygame.Rect) -> None:
         """Draw a triangle underneath the animation preview."""
@@ -780,10 +741,6 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
     def _insert_frame_at_tab(self, tab: FilmTabWidget) -> None:
         """Insert a new frame at the position specified by the tab."""
         self.event_handler.insert_frame_at_tab(tab)
-
-    def _update_film_tabs(self) -> None:
-        """Update film tabs (alias for create_film_tabs)."""
-        self.layout.create_film_tabs()
 
 
 class FilmTabWidget:

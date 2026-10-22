@@ -819,7 +819,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         current_animation: str,
         current_frame: int,
     ) -> list[tuple[int, ...]]:
-        """Get pixel data for the current frame, accounting for panning.
+        """Get pixel data for the current frame.
+
+        Panning writes each step into the frame (AnimatedCanvasSprite.pan_canvas), so the
+        frame's own pixels are what to draw while a pan is in progress too.
 
         Returns:
             List of pixel tuples for the current frame.
@@ -827,19 +830,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         """
         frame = frames[current_animation][current_frame]
 
-        # Use panned pixel data if panning is active, otherwise use original frame data
-        if (
-            hasattr(self.canvas_sprite, '_panning_active')
-            and self.canvas_sprite._panning_active
-            and hasattr(self.canvas_sprite, 'pixels')
-        ):
-            frame_pixels = self.canvas_sprite.pixels
-            LOG.debug(
-                'DEBUG: Using panned canvas pixels: '
-                f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}',
-            )
-        elif hasattr(frame, 'get_pixel_data'):
+        if hasattr(frame, 'get_pixel_data'):
             frame_pixels = frame.get_pixel_data()
             LOG.debug(
                 'DEBUG: Using frame.get_pixel_data(): '

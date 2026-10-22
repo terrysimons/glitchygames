@@ -35,8 +35,6 @@ class TestOnionSkinningRendering:
         self.canvas_sprite.current_animation = 'test_animation'
         self.canvas_sprite.current_frame = 1
 
-        # Ensure panning is not active so we use frame pixel data
-        self.canvas_sprite._panning_active = False
         # Set parent_scene to None so hasattr checks pass but truthiness is False
         self.canvas_sprite.parent_scene = None
         # Set hovered_pixel to None so hover drawing is skipped
@@ -244,8 +242,6 @@ class TestOnionSkinningIntegration:
         canvas_sprite.current_animation = 'test_animation'
         canvas_sprite.current_frame = 1
 
-        # Ensure panning is not active so we use frame pixel data
-        canvas_sprite._panning_active = False
         # Set parent_scene to None so hasattr checks pass but truthiness is False
         canvas_sprite.parent_scene = None
         # Set hovered_pixel to None so hover drawing is skipped

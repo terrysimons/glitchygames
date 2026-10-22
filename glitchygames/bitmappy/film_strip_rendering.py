@@ -685,44 +685,6 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         # Draw multi-controller indicators using new unified system
         self.draw_multi_controller_indicators_new(surface)
 
-    def get_active_controller_selections(self) -> list[dict[str, Any]]:
-        """Get active controller selections for the current animation.
-
-        Returns:
-            List of dicts with controller_id, frame, and color.
-
-        """
-        selections: list[dict[str, Any]] = []
-        if not (
-            hasattr(self.widget, 'parent_scene')
-            and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'controller_selections')
-        ):
-            return selections
-
-        for (
-            controller_id,
-            controller_selection,
-        ) in self.widget.parent_scene.controller_selections.items():
-            if not controller_selection.is_active():
-                continue
-            animation, frame = controller_selection.get_selection()
-            if animation != self.widget.current_animation:
-                continue
-            # Get controller color
-            controller_info = None
-            for info in self.widget.parent_scene.multi_controller_manager.controllers.values():
-                if info.controller_id == controller_id:
-                    controller_info = info
-                    break
-            if controller_info:
-                selections.append({
-                    'controller_id': controller_id,
-                    'frame': frame,
-                    'color': controller_info.color,
-                })
-        return selections
-
     def draw_multi_controller_indicators_new(self, surface: pygame.Surface) -> None:
         """Draw multi-controller indicators using the controller selections system."""
         # Check if this film strip has any selections
@@ -741,66 +703,24 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             keyboard_animation = self.widget.parent_scene.selected_animation
             keyboard_frame = self.widget.parent_scene.selected_frame
 
-        # Get controller selections from the parent scene
+        # Get controller selections from the editor's controller handler: per animation, a
+        # dict keyed by controller id, already filtered to controllers in film strip mode
+        # with a real colour (VisualIndicators._update_film_strip_controller_selections)
         controller_selections: list[dict[str, Any]] = []
         if (
             hasattr(self.widget, 'parent_scene')
             and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'film_strip_controller_selections')
+            and hasattr(self.widget.parent_scene, 'controller_handler')
         ):
-            # Use the pre-filtered controller selections from the parent scene
-            controller_selections = self.widget.parent_scene.film_strip_controller_selections.get(
-                self.widget.current_animation,
-                [],
+            selections_by_animation = (
+                self.widget.parent_scene.controller_handler.film_strip_controller_selections
+            )
+            controller_selections = list(
+                selections_by_animation.get(self.widget.current_animation, {}).values(),
             )
 
         # Draw all indicators using the existing system
         # (collision avoidance handles both keyboard and controllers)
-        self.draw_multi_controller_indicators(
-            surface,
-            keyboard_animation,
-            keyboard_frame,
-            controller_selections,
-        )
-
-    def draw_triforce_indicator(self, surface: pygame.Surface) -> None:
-        """Draw triangle indicators for keyboard and multi-controller selections."""
-        LOG.debug(
-            f'Drawing triforce indicator for animation: {self.widget.current_animation}',
-        )
-
-        # Check if this film strip has any selections
-        if not self.widget.animated_sprite or not self.widget.current_animation:
-            LOG.debug('No animated sprite or current animation')
-            return
-
-        # Get keyboard selection info
-        keyboard_animation = ''
-        keyboard_frame = -1
-        if (
-            hasattr(self.widget, 'parent_scene')
-            and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'selected_animation')
-            and hasattr(self.widget.parent_scene, 'selected_frame')
-        ):
-            keyboard_animation = self.widget.parent_scene.selected_animation
-            keyboard_frame = self.widget.parent_scene.selected_frame
-            # Only print if state changed
-            if (
-                hasattr(self.widget.parent_scene, '_last_debug_keyboard_animation')
-                and hasattr(self.widget.parent_scene, '_last_debug_keyboard_frame')
-                and (
-                    self.widget.parent_scene._last_debug_keyboard_animation != keyboard_animation
-                    or self.widget.parent_scene._last_debug_keyboard_frame != keyboard_frame
-                )
-            ):
-                self.widget.parent_scene._last_debug_keyboard_animation = keyboard_animation
-                self.widget.parent_scene._last_debug_keyboard_frame = keyboard_frame
-
-        # Get multi-controller selections
-        controller_selections = self.get_active_controller_selections()
-
-        # Draw all indicators
         self.draw_multi_controller_indicators(
             surface,
             keyboard_animation,

@@ -33,6 +33,7 @@ class OperationType(Enum):
     CANVAS_BRUSH_STROKE = 'canvas_brush_stroke'
     CANVAS_FLOOD_FILL = 'canvas_flood_fill'
     CANVAS_COLOR_CHANGE = 'canvas_color_change'
+    CANVAS_PAN = 'canvas_pan'
 
     # Film strip operations
     FILM_STRIP_FRAME_ADD = 'film_strip_frame_add'

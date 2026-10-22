@@ -836,7 +836,6 @@ class TestGetCurrentFramePixelsDefaultHandling:
         canvas_sprite.image = pygame.Surface((CANVAS_SIZE * 10, CANVAS_SIZE * 10))
         canvas_sprite.pixel_width = 10
         canvas_sprite.pixel_height = 10
-        canvas_sprite._panning_active = False
 
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = [RED] * PIXEL_COUNT
@@ -858,7 +857,6 @@ class TestGetCurrentFramePixelsDefaultHandling:
         canvas_sprite.image = pygame.Surface((CANVAS_SIZE * 10, CANVAS_SIZE * 10))
         canvas_sprite.pixel_width = 10
         canvas_sprite.pixel_height = 10
-        canvas_sprite._panning_active = False
 
         # Frame without get_pixel_data but with pixels attribute
         frame = mocker.Mock(spec=['pixels'])
@@ -880,7 +878,6 @@ class TestGetCurrentFramePixelsDefaultHandling:
         canvas_sprite.image = pygame.Surface((CANVAS_SIZE * 10, CANVAS_SIZE * 10))
         canvas_sprite.pixel_width = 10
         canvas_sprite.pixel_height = 10
-        canvas_sprite._panning_active = False
 
         # Frame without get_pixel_data or pixels
         frame = mocker.Mock(spec=[])
@@ -892,28 +889,6 @@ class TestGetCurrentFramePixelsDefaultHandling:
 
         assert len(result) == PIXEL_COUNT
         assert result[0] == (255, 0, 255)
-
-    def test_get_current_frame_pixels_uses_panned_pixels_when_active(self, mocker):
-        """Test _get_current_frame_pixels uses panned canvas pixels when panning active."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = CANVAS_SIZE
-        canvas_sprite.pixels_tall = CANVAS_SIZE
-        canvas_sprite.pixels = [BLUE] * PIXEL_COUNT
-        canvas_sprite.image = pygame.Surface((CANVAS_SIZE * 10, CANVAS_SIZE * 10))
-        canvas_sprite.pixel_width = 10
-        canvas_sprite.pixel_height = 10
-        canvas_sprite._panning_active = True
-
-        frame = mocker.Mock()
-        frame.get_pixel_data.return_value = [RED] * PIXEL_COUNT
-
-        frames = {'idle': [frame]}
-
-        renderer = AnimatedCanvasRenderer(canvas_sprite)
-        result = renderer._get_current_frame_pixels(frames, 'idle', 0)
-
-        # Should use canvas_sprite.pixels (panned), not frame data
-        assert result == [BLUE] * PIXEL_COUNT
 
 
 class TestHasActiveControllersInCanvasMode:
@@ -1560,8 +1535,6 @@ class TestCanvasRendererDrawIndicatorsOnlyPath:
         canvas_sprite.image = mocker.Mock()
         canvas_sprite.current_animation = 'idle'
         canvas_sprite.current_frame = 0
-        # Disable panning so _get_current_frame_pixels uses frame.get_pixel_data() instead
-        canvas_sprite._panning_active = False
 
         # Set up parent_scene with selected_frame_visible = False
         parent_scene = mocker.Mock()

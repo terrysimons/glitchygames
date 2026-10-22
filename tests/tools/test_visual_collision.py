@@ -246,9 +246,9 @@ class TestVisualCollisionManagerModifiers:
         manager = VisualCollisionManager()
         manager.add_controller_indicator(0, 0, (255, 0, 0), (10, 10))
 
-        manager.set_indicator_shape(0, IndicatorShape.DIAMOND)
+        manager.set_indicator_shape(0, IndicatorShape.CIRCLE)
 
-        assert manager.indicators[0].shape == IndicatorShape.DIAMOND
+        assert manager.indicators[0].shape == IndicatorShape.CIRCLE
 
     def test_set_indicator_size(self):
         """Test setting indicator size."""
@@ -765,7 +765,7 @@ class TestIndicatorChangesForUnknownControllers:
 
         manager.set_indicator_visibility(7, visible=False)
         manager.set_indicator_color(7, (1, 2, 3))
-        manager.set_indicator_shape(7, IndicatorShape.DIAMOND)
+        manager.set_indicator_shape(7, IndicatorShape.CIRCLE)
         manager.set_indicator_size(7, 99)
 
         assert list(manager.indicators) == [0]

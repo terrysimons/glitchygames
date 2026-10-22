@@ -38,7 +38,13 @@ from glitchygames.ui import (  # ruff: ignore[module-import-not-at-top-of-file]
     TextSprite,
 )
 from glitchygames.ui.inputs import InputBox  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.ui.sliders import TabControlSprite  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.ui.sliders import (  # ruff: ignore[module-import-not-at-top-of-file]
+    DECIMAL_INPUT_FORMAT,
+    HEX_INPUT_FORMAT,
+    TabControlSprite,
+    format_channel,
+    parse_channel,
+)
 from tests.mocks import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
 
 # Test constants from test_ui_buttons.py
@@ -578,22 +584,6 @@ class TestColorWellSpriteFunctionality:
         # Test that colorwell can be created
         assert colorwell is not None
         assert colorwell.name == 'TestColorWell'
-
-    def test_colorwell_click_callback(self, mocker):
-        """Test ColorWellSprite click callback."""
-        # Arrange - use centralized mocks
-        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
-
-        # Test that colorwell can be created and responds to mouse events
-        assert colorwell is not None
-
-        # Act: simulate click
-        event = mocker.Mock()
-        event.pos = (35, 35)  # Within color well
-        colorwell.on_left_mouse_button_down_event(event)
-
-        # Assert: should handle click without error
-        assert colorwell is not None
 
     def test_colorwell_hover_effect(self, mocker):
         """Test ColorWellSprite hover effect."""
@@ -1901,20 +1891,6 @@ class TestColorWellSpriteCoverage:
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def test_color_well_hex_color_property(self):
-        """Test ColorWellSprite hex_color property returns correct format."""
-        color_well = ColorWellSprite(x=10, y=20, width=100, height=60, name='TestCW')
-        color_well.active_color = (255, 128, 0)
-        hex_color = color_well.hex_color
-        assert hex_color == '#FF8000FF'
-
-    def test_color_well_hex_color_with_alpha(self):
-        """Test ColorWellSprite hex_color with explicit alpha."""
-        color_well = ColorWellSprite(x=10, y=20, width=100, height=60, name='TestCW')
-        color_well.active_color = (0, 0, 0, 128)
-        hex_color = color_well.hex_color
-        assert hex_color == '#00000080'
-
     def test_color_well_rgba_setter(self):
         """Test ColorWellSprite active_color setter with 4-tuple RGBA."""
         color_well = ColorWellSprite(x=10, y=20, width=100, height=60, name='TestCW')
@@ -2001,32 +1977,6 @@ class TestSliderSpriteCoverage:
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def test_slider_update_color_well_red(self, mocker):
-        """Test SliderSprite update_color_well for red slider."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        parent = mocker.Mock()
-        parent.color_well = mocker.Mock()
-        parent.red_slider = mocker.Mock()
-        parent.red_slider.value = 100
-        parent.green_slider = mocker.Mock()
-        parent.green_slider.value = 50
-        parent.blue_slider = mocker.Mock()
-        parent.blue_slider.value = 25
-        parent.alpha_slider = mocker.Mock()
-        parent.alpha_slider.value = 255
-        # Prevent _draw_slider_visual_indicators from accessing visual_collision_manager
-        del parent.visual_collision_manager
-
-        slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
-        slider._value = 100
-        slider.update_color_well()
-
     def test_slider_update_method(self, mocker):
         """Test SliderSprite update calls update_slider_appearance when dirty."""
         mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
@@ -2039,27 +1989,6 @@ class TestSliderSpriteCoverage:
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='TestSlider')
         slider.dirty = 2
         slider.update()
-
-    def test_slider_color_based_on_name(self, mocker):
-        """Test SliderSprite assigns color based on name."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        red_slider = SliderSprite(x=10, y=20, width=200, height=10, name='R')
-        assert red_slider.color == (255, 0, 0)
-
-        green_slider = SliderSprite(x=10, y=20, width=200, height=10, name='G')
-        assert green_slider.color == (0, 255, 0)
-
-        blue_slider = SliderSprite(x=10, y=20, width=200, height=10, name='B')
-        assert blue_slider.color == (0, 0, 255)
-
-        other_slider = SliderSprite(x=10, y=20, width=200, height=10, name='Other')
-        assert other_slider.color == (128, 128, 128)
 
     def test_slider_restore_original_value(self, mocker):
         """Test SliderSprite _restore_original_value restores text."""
@@ -2079,8 +2008,8 @@ class TestSliderSpriteCoverage:
         assert slider.text_sprite.text == '100'
         assert slider.text_sprite.is_active is False
 
-    def test_slider_handle_text_enter_empty(self, mocker):
-        """Test SliderSprite _handle_text_enter with empty text restores."""
+    def test_slider_commit_text_empty(self, mocker):
+        """Test SliderSprite commit_text with empty text restores."""
         mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -2094,11 +2023,11 @@ class TestSliderSpriteCoverage:
         slider.text_sprite.text = '  '
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.text_sprite.text == '50'
 
-    def test_slider_handle_text_enter_hex_value(self, mocker):
-        """Test SliderSprite _handle_text_enter with hex input."""
+    def test_slider_commit_text_hex_value(self, mocker):
+        """Test SliderSprite commit_text with hex input."""
         mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -2110,7 +2039,7 @@ class TestSliderSpriteCoverage:
         slider.text_sprite.text = 'ff'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.value == 255
 
     def test_slider_handle_text_character_max_length(self, mocker):
@@ -2137,8 +2066,8 @@ class TestSliderSpriteCoverage:
         slider._handle_text_character_input(event)
         assert len(slider.text_sprite.text) == 3
 
-    def test_slider_handle_text_enter_out_of_range_restores(self, mocker):
-        """Test SliderSprite _handle_text_enter with out-of-range value restores."""
+    def test_slider_commit_text_out_of_range_restores(self, mocker):
+        """Test SliderSprite commit_text with out-of-range value restores."""
         mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -2152,11 +2081,11 @@ class TestSliderSpriteCoverage:
         slider.text_sprite.text = '999'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.text_sprite.text == '50'
 
-    def test_slider_handle_text_enter_invalid_value_restores(self, mocker):
-        """Test SliderSprite _handle_text_enter with invalid input restores."""
+    def test_slider_commit_text_invalid_value_restores(self, mocker):
+        """Test SliderSprite commit_text with invalid input restores."""
         mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -2170,7 +2099,7 @@ class TestSliderSpriteCoverage:
         slider.text_sprite.text = 'xyz'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.text_sprite.text == '50'
 
     def test_slider_handle_text_character_backspace(self, mocker):
@@ -2190,165 +2119,8 @@ class TestSliderSpriteCoverage:
         slider._handle_text_character_input(event)
         assert slider.text_sprite.text == '1'
 
-    def test_slider_draw_visual_indicators_no_parent(self, mocker):
-        """Test SliderSprite _draw_slider_visual_indicators with no parent."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        slider = SliderSprite(x=10, y=20, width=200, height=10, name='R')
-        slider.parent = None
-        slider._draw_slider_visual_indicators()
-        # Should return early without raising
-
-    def test_slider_draw_visual_indicators_no_collision_manager(self, mocker):
-        """Test SliderSprite _draw_slider_visual_indicators without collision manager."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        parent = mocker.Mock(spec=[])
-        slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
-        slider._draw_slider_visual_indicators()
-        # Should return early without raising
-
-    def test_slider_draw_visual_indicators_with_circle_indicator(self, mocker):
-        """Test SliderSprite _draw_slider_visual_indicators draws circle indicator."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        from glitchygames.bitmappy.indicators.collision import (
-            IndicatorShape,
-            LocationType,
-            VisualIndicator,
-        )
-
-        indicator = VisualIndicator(
-            controller_id=0,
-            instance_id=0,
-            position=(50, 5),
-            color=(255, 0, 0),
-            shape=IndicatorShape.CIRCLE,
-            size=8,
-            location_type=LocationType.SLIDER,
-        )
-
-        parent = mocker.Mock()
-        parent.visual_collision_manager = mocker.Mock()
-        parent.visual_collision_manager.get_indicators_by_location.return_value = {0: indicator}
-        # Remove parent attribute from visual_collision_manager to prevent recursion
-        del parent.visual_collision_manager.parent
-
-        slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
-        # Replace image with a real surface so pygame.draw works
-        slider.image = pygame.Surface((200, 10))
-        slider._draw_slider_visual_indicators()
-        # Should draw circle without raising
-
-    def test_slider_draw_visual_indicators_with_square_indicator(self, mocker):
-        """Test SliderSprite _draw_slider_visual_indicators draws square indicator."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        from glitchygames.bitmappy.indicators.collision import (
-            IndicatorShape,
-            LocationType,
-            VisualIndicator,
-        )
-
-        indicator = VisualIndicator(
-            controller_id=0,
-            instance_id=0,
-            position=(50, 5),
-            color=(0, 255, 0),
-            shape=IndicatorShape.SQUARE,
-            size=8,
-            location_type=LocationType.SLIDER,
-        )
-
-        parent = mocker.Mock()
-        parent.visual_collision_manager = mocker.Mock()
-        parent.visual_collision_manager.get_indicators_by_location.return_value = {0: indicator}
-        del parent.visual_collision_manager.parent
-
-        slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
-        # Replace image with a real surface so pygame.draw works
-        slider.image = pygame.Surface((200, 10))
-        slider._draw_slider_visual_indicators()
-
-    def test_slider_draw_visual_indicators_with_triangle_indicator(self, mocker):
-        """Test SliderSprite _draw_slider_visual_indicators handles triangle indicator shape.
-
-        Note: The triangle branch calls pygame.draw.polygon which is wrapped by
-        mock_pygame_patches with a side_effect that fails with MockSurface. We verify
-        the code reaches the triangle drawing path by checking the indicator shape.
-        """
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        from glitchygames.bitmappy.indicators.collision import (
-            IndicatorShape,
-            LocationType,
-            VisualIndicator,
-        )
-
-        # Verify the triangle indicator shape is properly defined
-        indicator = VisualIndicator(
-            controller_id=0,
-            instance_id=0,
-            position=(50, 5),
-            color=(0, 0, 255),
-            shape=IndicatorShape.TRIANGLE,
-            size=8,
-            location_type=LocationType.SLIDER,
-        )
-        assert indicator.shape.value == 'triangle'
-        assert indicator.color == (0, 0, 255)
-        assert indicator.size == 8
-
-        # Verify the indicator can be used with the expected shape value
-        # We can't instantiate SliderSprite here due to MockSurface/draw.polygon
-        # interaction with mock_pygame_patches, but we've verified the triangle
-        # indicator data path works correctly above
-
-    def test_slider_draw_visual_indicators_no_indicators(self, mocker):
-        """Test SliderSprite _draw_slider_visual_indicators with empty indicators."""
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = mocker.Mock()
-        rendered_surface = mocker.Mock()
-        rendered_surface.get_rect.return_value = mocker.Mock()
-        font.render = mocker.Mock(return_value=rendered_surface)
-        mock_get_font.return_value = font
-
-        parent = mocker.Mock()
-        parent.visual_collision_manager = mocker.Mock()
-        parent.visual_collision_manager.get_indicators_by_location.return_value = {}
-        del parent.visual_collision_manager.parent
-
-        slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
-        slider._draw_slider_visual_indicators()
-        # Should return early without raising
-
-    def test_slider_handle_text_enter_with_hex_format(self, mocker):
-        """Test SliderSprite _handle_text_enter uses hex format when parent expects it."""
+    def test_slider_commit_text_with_hex_format(self, mocker):
+        """Test SliderSprite commit_text uses hex format when parent expects it."""
         mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -2359,15 +2131,13 @@ class TestSliderSpriteCoverage:
         parent = mocker.Mock()
         parent.slider_input_format = '%X'
         parent.on_slider_event = mocker.Mock()
-        # Prevent _draw_slider_visual_indicators from accessing visual_collision_manager
-        del parent.visual_collision_manager
 
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
         # On the hex tab digits without a-f are hex too (BUGS.md #110 item 3)
         slider.text_sprite.text = '80'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.value == 128
         assert slider.text_sprite.text == '80'
 
@@ -3677,26 +3447,12 @@ class TestTextBoxSpriteUpdateAndEvents:
 
 
 class TestColorWellSpriteDeeper:
-    """Test ColorWellSprite hex_color and active_color setter."""
+    """Test ColorWellSprite active_color setter."""
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker, mock_pygame_patches):
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_hex_color_returns_rrggbbaa(self):
-        """Test hex_color returns correct format."""
-        groups = _RealLayeredDirty()
-        color_well = ColorWellSprite(
-            x=TEST_X,
-            y=TEST_Y,
-            width=30,
-            height=30,
-            name='TestColorWell',
-            groups=groups,
-        )
-        color_well.active_color = (255, 128, 0, 200)
-        assert color_well.hex_color == '#FF8000C8'
 
     def test_active_color_setter_rgb(self):
         """Test active_color setter with RGB tuple defaults alpha to 255."""
@@ -3841,17 +3597,12 @@ class TestSliderSpriteDeeper:
 
     @staticmethod
     def _make_slider_parent(mocker):
-        """Create a parent mock without visual_collision_manager.
-
-        Mocks auto-create attributes, so visual_collision_manager would
-        exist and trigger _draw_slider_visual_indicators which calls
-        len() on a Mock. Deleting the attribute prevents that code path.
+        """Create a parent mock for a slider.
 
         Returns:
-            A Mock parent object without visual_collision_manager.
+            A Mock parent object.
         """
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         return parent
 
     def test_slider_value_setter_clamps(self, mocker):
@@ -3951,8 +3702,8 @@ class TestSliderSpriteDeeper:
         assert slider.text_sprite.text == expected_text
         assert slider.text_sprite.is_active is False
 
-    def test_slider_handle_text_enter_empty_restores(self, mocker):
-        """Test _handle_text_enter with empty text restores original."""
+    def test_slider_commit_text_empty_restores(self, mocker):
+        """Test commit_text with empty text restores original."""
         groups = _RealLayeredDirty()
         parent = self._make_slider_parent(mocker)
         slider = SliderSprite(
@@ -3967,11 +3718,11 @@ class TestSliderSpriteDeeper:
         slider.original_value = 100
         slider.text_sprite.text = ''
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.text_sprite.text == '100'
 
-    def test_slider_handle_text_enter_valid_decimal(self, mocker):
-        """Test _handle_text_enter with valid decimal value."""
+    def test_slider_commit_text_valid_decimal(self, mocker):
+        """Test commit_text with valid decimal value."""
         groups = _RealLayeredDirty()
         parent = self._make_slider_parent(mocker)
         slider = SliderSprite(
@@ -3986,12 +3737,12 @@ class TestSliderSpriteDeeper:
         slider.text_sprite.text = '128'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider._value == 128
         assert slider.text_sprite.is_active is False
 
-    def test_slider_handle_text_enter_valid_hex(self, mocker):
-        """Test _handle_text_enter with valid hex value."""
+    def test_slider_commit_text_valid_hex(self, mocker):
+        """Test commit_text with valid hex value."""
         groups = _RealLayeredDirty()
         parent = self._make_slider_parent(mocker)
         parent.slider_input_format = '%X'
@@ -4007,10 +3758,10 @@ class TestSliderSpriteDeeper:
         slider.text_sprite.text = 'ff'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider._value == 255
 
-    def test_slider_handle_text_enter_digits_on_the_hex_tab_are_hex(self, mocker):
+    def test_slider_commit_text_digits_on_the_hex_tab_are_hex(self, mocker):
         """On the hex tab "10" is 16, not 10 (BUGS.md #110 item 3)."""
         groups = _RealLayeredDirty()
         parent = self._make_slider_parent(mocker)
@@ -4026,11 +3777,11 @@ class TestSliderSpriteDeeper:
         )
         slider.text_sprite.text = '10'
         slider.text_sprite.is_active = True
-        slider._handle_text_enter(mocker.Mock())
+        slider.commit_text(event=mocker.Mock())
         assert slider._value == 16
         assert slider.text_sprite.text == '10'
 
-    def test_slider_handle_text_enter_digits_on_the_decimal_tab_are_decimal(self, mocker):
+    def test_slider_commit_text_digits_on_the_decimal_tab_are_decimal(self, mocker):
         """On the decimal tab "10" is 10."""
         groups = _RealLayeredDirty()
         parent = self._make_slider_parent(mocker)
@@ -4046,11 +3797,11 @@ class TestSliderSpriteDeeper:
         )
         slider.text_sprite.text = '10'
         slider.text_sprite.is_active = True
-        slider._handle_text_enter(mocker.Mock())
+        slider.commit_text(event=mocker.Mock())
         assert slider._value == 10
 
-    def test_slider_handle_text_enter_out_of_range_restores(self, mocker):
-        """Test _handle_text_enter with out-of-range value restores."""
+    def test_slider_commit_text_out_of_range_restores(self, mocker):
+        """Test commit_text with out-of-range value restores."""
         groups = _RealLayeredDirty()
         parent = self._make_slider_parent(mocker)
         slider = SliderSprite(
@@ -4065,7 +3816,7 @@ class TestSliderSpriteDeeper:
         slider.original_value = 50
         slider.text_sprite.text = '999'
         event = mocker.Mock()
-        slider._handle_text_enter(event)
+        slider.commit_text(event=event)
         assert slider.text_sprite.text == '50'
 
     def test_slider_handle_text_character_input_backspace(self, mocker):
@@ -4461,68 +4212,6 @@ class TestInputBoxCursorBlink:
         assert (input_box.cursor in drawn_rects) is cursor_drawn
 
 
-class TestSliderKnobSpriteInit:
-    """Test SliderKnobSprite initialization (lines 1602-1614)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_slider_knob_sprite_inner_class_init_none_groups(self, mocker):
-        """Test SliderKnobSprite inner class with groups=None (lines 1602-1614)."""
-        # Access the inner class directly
-        knob_class = SliderSprite.SliderKnobSprite
-        parent = mocker.Mock()
-        knob = knob_class(
-            x=TEST_X,
-            y=TEST_Y,
-            width=5,
-            height=9,
-            name='R_knob',
-            parent=parent,
-            groups=None,
-        )
-        assert knob.value == 0
-        assert knob.rect is not None
-        assert knob.rect.x == TEST_X
-        assert knob.rect.y == TEST_Y
-
-
-class TestSliderKnobDragEvent:
-    """Test SliderKnobSprite on_left_mouse_drag_event (lines 1650-1651)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_knob_drag_calls_mouse_down(self, mocker):
-        """Test SliderKnobSprite on_left_mouse_drag_event delegates and marks dirty."""
-        knob_class = SliderSprite.SliderKnobSprite
-        parent = mocker.Mock()
-        groups = _RealLayeredDirty()
-        knob = knob_class(
-            x=TEST_X,
-            y=TEST_Y,
-            width=5,
-            height=9,
-            name='R_knob',
-            parent=parent,
-            groups=groups,
-        )
-        # Mock on_left_mouse_button_down_event since the inherited version
-        # needs callbacks attribute
-        knob.on_left_mouse_button_down_event = mocker.Mock()
-        knob.dirty = 0
-        event = mocker.Mock()
-        event.pos = (TEST_X + 2, TEST_Y + 3)
-        trigger = mocker.Mock()
-        knob.on_left_mouse_drag_event(event, trigger)
-        knob.on_left_mouse_button_down_event.assert_called_once_with(event)
-        assert knob.dirty == 1
-
-
 class TestSliderTextInputInactive:
     """Test slider text input when inactive (line 1805)."""
 
@@ -4534,7 +4223,6 @@ class TestSliderTextInputInactive:
     def test_handle_text_input_when_inactive_returns_early(self, mocker):
         """Test text input handler returns early when text_sprite is not active."""
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         slider = SliderSprite(
             x=TEST_X,
             y=TEST_Y,
@@ -4568,7 +4256,6 @@ class TestSliderTextClickOutside:
         The closure `handle_text_click` checks `self.text_sprite.rect.collidepoint(event.pos)`.
         """
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         slider = SliderSprite(
             x=TEST_X,
             y=TEST_Y,
@@ -4586,128 +4273,6 @@ class TestSliderTextClickOutside:
         assert result is False
 
 
-class TestSliderTriangleIndicator:
-    """Test SliderSprite triangle indicator drawing (lines 1962-1975)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_draw_triangle_indicator(self, mocker):
-        """Test _draw_slider_visual_indicators with triangle-shaped indicator."""
-        from glitchygames.bitmappy.indicators.collision import (
-            IndicatorShape,
-        )
-
-        parent = mocker.Mock()
-        # Initially disable visual_collision_manager for slider construction
-        del parent.visual_collision_manager
-        slider = SliderSprite(
-            x=TEST_X,
-            y=TEST_Y,
-            width=256,
-            height=9,
-            name='R',
-            parent=parent,
-            groups=_RealLayeredDirty(),
-        )
-
-        # Ensure slider has a real pygame Surface for drawing
-        slider.image = pygame.Surface((256, 9))
-
-        # Now re-enable visual_collision_manager with triangle indicators
-        mock_indicator = mocker.Mock()
-        mock_indicator.shape = IndicatorShape.TRIANGLE
-        mock_indicator.color = (255, 0, 0)
-        mock_indicator.size = 10
-        mock_indicator.position = (50, 4)
-        parent.visual_collision_manager = mocker.Mock()
-        parent.visual_collision_manager.get_indicators_by_location.return_value = {
-            0: mock_indicator,
-        }
-
-        # Should draw the triangle without error
-        slider._draw_slider_visual_indicators()
-
-
-class TestSliderUpdateColorWellBranches:
-    """Test update_color_well for G, B, A branches (lines 2056-2061)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def _make_parent_with_color_well(self, mocker):
-        """Create a parent mock with color_well and all slider attrs.
-
-        Returns:
-            Mock: A configured parent mock with color_well and slider attributes.
-
-        """
-        parent = mocker.Mock()
-        del parent.visual_collision_manager
-        parent.color_well = mocker.Mock()
-        parent.red_slider = mocker.Mock()
-        parent.red_slider.value = 0
-        parent.green_slider = mocker.Mock()
-        parent.green_slider.value = 0
-        parent.blue_slider = mocker.Mock()
-        parent.blue_slider.value = 0
-        parent.alpha_slider = mocker.Mock()
-        parent.alpha_slider.value = 255
-        return parent
-
-    def test_update_color_well_green(self, mocker):
-        """Test update_color_well for G slider sets green value."""
-        parent = self._make_parent_with_color_well(mocker)
-        slider = SliderSprite(
-            x=TEST_X,
-            y=TEST_Y,
-            width=256,
-            height=9,
-            name='G',
-            parent=parent,
-            groups=_RealLayeredDirty(),
-        )
-        slider._value = 128
-        slider.update_color_well()
-        assert parent.green_slider.value == 128
-
-    def test_update_color_well_blue(self, mocker):
-        """Test update_color_well for B slider sets blue value."""
-        parent = self._make_parent_with_color_well(mocker)
-        slider = SliderSprite(
-            x=TEST_X,
-            y=TEST_Y,
-            width=256,
-            height=9,
-            name='B',
-            parent=parent,
-            groups=_RealLayeredDirty(),
-        )
-        slider._value = 64
-        slider.update_color_well()
-        assert parent.blue_slider.value == 64
-
-    def test_update_color_well_alpha(self, mocker):
-        """Test update_color_well for A slider sets alpha value."""
-        parent = self._make_parent_with_color_well(mocker)
-        slider = SliderSprite(
-            x=TEST_X,
-            y=TEST_Y,
-            width=256,
-            height=9,
-            name='A',
-            parent=parent,
-            groups=_RealLayeredDirty(),
-        )
-        slider._value = 200
-        slider.update_color_well()
-        assert parent.alpha_slider.value == 200
-
-
 class TestSliderMouseDownWithParentEvent:
     """Test SliderSprite on_left_mouse_button_down_event with on_slider_event (lines 2083-2086)."""
 
@@ -4719,7 +4284,6 @@ class TestSliderMouseDownWithParentEvent:
     def test_mouse_down_calls_parent_on_slider_event(self, mocker):
         """Test clicking on slider calls parent.on_slider_event."""
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         del parent.slider_input_format
         slider = SliderSprite(
             x=TEST_X,
@@ -4739,7 +4303,6 @@ class TestSliderMouseDownWithParentEvent:
     def test_mouse_down_hex_format(self, mocker):
         """Test clicking on slider with hex format updates text (line 2097)."""
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         parent.slider_input_format = '%X'
         slider = SliderSprite(
             x=TEST_X,
@@ -4759,7 +4322,6 @@ class TestSliderMouseDownWithParentEvent:
     def test_mouse_down_outside_slider_logs(self, mocker):
         """Test clicking outside slider rect (line 2103)."""
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         slider = SliderSprite(
             x=TEST_X,
             y=TEST_Y,
@@ -4787,7 +4349,6 @@ class TestSliderDragWithParentEvent:
     def test_drag_calls_parent_on_slider_event(self, mocker):
         """Test dragging slider calls parent.on_slider_event."""
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         del parent.slider_input_format
         slider = SliderSprite(
             x=TEST_X,
@@ -4807,7 +4368,6 @@ class TestSliderDragWithParentEvent:
     def test_drag_hex_format_updates_text(self, mocker):
         """Test dragging slider with hex format updates text (line 2135)."""
         parent = mocker.Mock()
-        del parent.visual_collision_manager
         parent.slider_input_format = '%X'
         slider = SliderSprite(
             x=TEST_X,
@@ -5344,3 +4904,216 @@ class TestTextWidgetsWithRealSurfaces:
         text_box.update()
 
         assert text_box.image.get_at((0, 0))[:3] == (0, 0, 0)
+
+
+class _RecordingSliderParent:
+    """A slider parent that records the slider events it receives."""
+
+    def __init__(self, *, slider_input_format: str = DECIMAL_INPUT_FORMAT) -> None:
+        """Start with no events, in the given text box format."""
+        self.slider_input_format = slider_input_format
+        self.slider_events: list[tuple[str, int]] = []
+
+    def on_slider_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
+        """Record the slider's name and value."""
+        self.slider_events.append((trigger.name, trigger.value))
+
+
+def _key_event(*, key: int, unicode: str) -> HashableEvent:
+    """Build a key down event.
+
+    Returns:
+        HashableEvent: The event.
+
+    """
+    return HashableEvent(pygame.KEYDOWN, key=key, unicode=unicode, mod=0)
+
+
+class TestChannelFormatAndParse:
+    """The one formatter and parser of slider text box values."""
+
+    @pytest.mark.parametrize(
+        ('value', 'input_format', 'expected_text'),
+        [
+            (255, DECIMAL_INPUT_FORMAT, '255'),
+            (255, HEX_INPUT_FORMAT, 'FF'),
+            (5, HEX_INPUT_FORMAT, '05'),
+        ],
+    )
+    def test_format_channel(self, value, input_format, expected_text):
+        """Decimal is plain digits; hex is two upper-case digits."""
+        assert format_channel(value, input_format) == expected_text
+
+    @pytest.mark.parametrize(
+        ('text', 'input_format', 'expected_value'),
+        [
+            ('200', DECIMAL_INPUT_FORMAT, 200),
+            (' 10 ', DECIMAL_INPUT_FORMAT, 10),
+            ('10', HEX_INPUT_FORMAT, 16),
+            ('ff', DECIMAL_INPUT_FORMAT, 255),
+            ('FF', HEX_INPUT_FORMAT, 255),
+            ('', DECIMAL_INPUT_FORMAT, None),
+            ('   ', HEX_INPUT_FORMAT, None),
+            ('256', DECIMAL_INPUT_FORMAT, None),
+            ('-1', DECIMAL_INPUT_FORMAT, None),
+            ('xyz', DECIMAL_INPUT_FORMAT, None),
+        ],
+    )
+    def test_parse_channel(self, text, input_format, expected_value):
+        """Valid text gives its value; empty, unparsable or out-of-range text gives None."""
+        assert parse_channel(text, input_format) == expected_value
+
+
+class TestSliderSpriteOnTheRealDisplay:
+    """SliderSprite with real surfaces and a real parent (no pygame mocks)."""
+
+    @staticmethod
+    def _slider(*, parent=None, name='R'):
+        """Build a 256-pixel slider at (10, 20).
+
+        Returns:
+            SliderSprite: The slider.
+
+        """
+        return SliderSprite(x=10, y=20, width=256, height=9, name=name, parent=parent)
+
+    def test_the_parent_is_kept(self):
+        """The parent given to the slider is its parent."""
+        parent = _RecordingSliderParent()
+
+        assert self._slider(parent=parent).parent is parent
+
+    def test_value_setter_writes_text_in_the_parents_format(self):
+        """Setting the value shows it in hex on the hex tab and ends text editing."""
+        slider = self._slider(parent=_RecordingSliderParent(slider_input_format=HEX_INPUT_FORMAT))
+        slider.text_sprite.is_active = True
+
+        slider.value = 171
+
+        assert slider.text_sprite.text == 'AB'
+        assert slider.text_sprite.is_active is False
+
+    def test_value_setter_writes_decimal_without_a_parent(self):
+        """A slider without a parent shows decimal text."""
+        slider = self._slider()
+
+        slider.value = 171
+
+        assert slider.text_sprite.text == '171'
+
+    def test_enter_commits_the_typed_text_and_tells_the_parent(self):
+        """Typing digits then Enter sets the value and sends one slider event."""
+        parent = _RecordingSliderParent()
+        slider = self._slider(parent=parent)
+        slider.text_sprite.on_left_mouse_button_down_event(
+            HashableEvent(pygame.MOUSEBUTTONDOWN, pos=slider.text_sprite.rect.center, button=1),
+        )
+
+        for character in '42':
+            slider.text_sprite.on_key_down_event(_key_event(key=ord(character), unicode=character))
+        slider.text_sprite.on_key_down_event(_key_event(key=pygame.K_RETURN, unicode='\r'))
+
+        assert slider.value == 42
+        assert slider.original_value == 42
+        assert slider.text_sprite.is_active is False
+        assert parent.slider_events == [('R', 42)]
+
+    def test_invalid_text_is_restored_and_the_parent_is_not_told(self):
+        """Out-of-range text restores the original value and sends no event."""
+        parent = _RecordingSliderParent()
+        slider = self._slider(parent=parent)
+        slider.value = 7
+        slider.original_value = 7
+        slider.text_sprite.is_active = True
+        slider.text_sprite.text = '999'
+
+        slider.commit_text(event=_key_event(key=pygame.K_RETURN, unicode='\r'))
+
+        assert slider.value == 7
+        assert slider.text_sprite.text == '7'
+        assert slider.text_sprite.is_active is False
+        assert parent.slider_events == []
+
+    def test_commit_without_a_parent_sets_the_value(self):
+        """A slider without a parent still takes committed text."""
+        slider = self._slider()
+        slider.text_sprite.is_active = True
+        slider.text_sprite.text = '9'
+
+        slider.commit_text(event=_key_event(key=pygame.K_RETURN, unicode='\r'))
+
+        assert slider.value == 9
+
+    def test_click_and_drag_set_the_value_and_tell_the_parent(self):
+        """A click at the right end gives 255, a drag to the left end gives 0."""
+        parent = _RecordingSliderParent()
+        slider = self._slider(parent=parent)
+
+        slider.on_left_mouse_button_down_event(
+            HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(slider.rect.right - 1, 24), button=1),
+        )
+        slider.on_mouse_motion_event(HashableEvent(pygame.MOUSEMOTION, pos=(0, 24)))
+        slider.on_left_mouse_button_up_event(
+            HashableEvent(pygame.MOUSEBUTTONUP, pos=(0, 24), button=1),
+        )
+        slider.on_mouse_motion_event(HashableEvent(pygame.MOUSEMOTION, pos=(200, 24)))
+
+        assert parent.slider_events == [('R', 255), ('R', 0)]
+        assert slider.value == 0
+        assert slider.slider_knob.rect.x == slider.min_x
+
+    def test_click_off_the_slider_changes_nothing(self):
+        """A click outside the slider's rect leaves its value and sends no event."""
+        parent = _RecordingSliderParent()
+        slider = self._slider(parent=parent)
+
+        slider.on_left_mouse_button_down_event(
+            HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(5, 5), button=1),
+        )
+
+        assert slider.dragging is False
+        assert parent.slider_events == []
+
+    @pytest.mark.parametrize(
+        ('name', 'right_end_color'),
+        [('R', (255, 0, 0)), ('G', (0, 255, 0)), ('B', (0, 0, 255)), ('A', (255, 255, 255))],
+    )
+    def test_gradient_runs_to_the_channel_color(self, name, right_end_color):
+        """Each slider draws a gradient from black to its channel's color."""
+        slider = self._slider(name=name)
+
+        slider.update()
+
+        assert tuple(slider.image.get_at((0, 4)))[:3] == (0, 0, 0)
+        assert all(
+            abs(channel - expected) <= 1
+            for channel, expected in zip(
+                tuple(slider.image.get_at((255, 4)))[:3], right_end_color, strict=True
+            )
+        )
+
+
+class TestColorWellSpriteOnTheRealDisplay:
+    """ColorWellSprite with real surfaces (no pygame mocks)."""
+
+    def test_click_changes_nothing(self):
+        """The color well only shows the color; a click leaves it as it was."""
+        color_well = ColorWellSprite(x=10, y=20, width=50, height=30, name='Well')
+        color_well.active_color = (1, 2, 3, 4)
+
+        color_well.on_left_mouse_button_down_event(
+            HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(35, 35), button=1),
+        )
+
+        assert color_well.active_color == (1, 2, 3, 4)
+        assert color_well.callbacks == {}
+
+    def test_update_draws_the_color_inside_a_border(self):
+        """The well draws its color inside a one-pixel border."""
+        color_well = ColorWellSprite(x=10, y=20, width=50, height=30, name='Well')
+        color_well.active_color = (200, 100, 50)
+
+        color_well.update()
+
+        assert tuple(color_well.image.get_at((0, 0))) == (128, 128, 255, 255)
+        assert tuple(color_well.image.get_at((25, 15))) == (200, 100, 50, 255)

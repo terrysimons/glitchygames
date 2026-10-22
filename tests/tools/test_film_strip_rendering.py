@@ -7,8 +7,15 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy import onion_skinning
+from glitchygames.bitmappy.controllers.manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
+)
+from glitchygames.bitmappy.controllers.modes import ControllerMode
+from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.film_strip import FilmStripWidget
-from glitchygames.clock import frame_clock_milliseconds
+from glitchygames.clock import elapsed_seconds, frame_clock_milliseconds
 from glitchygames.fonts import FontManager
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
@@ -388,23 +395,167 @@ class TestRender:
 
         assert film_strip.force_redraw is False
 
-    def test_scene_controller_selections_are_drawn_above_their_frame(
-        self,
-        film_strip_with_two_frames,
-    ):
-        """A controller selection from the scene draws a triangle in its colour over the frame."""
-        film_strip = film_strip_with_two_frames
-        film_strip.parent_scene = SimpleNamespace(
-            film_strip_controller_selections={
-                'idle': [{'controller_id': 1, 'frame': 1, 'color': (0, 255, 0)}],
-            },
+
+KEYBOARD_WHITE = (255, 255, 255)
+CONTROLLER_RED = (255, 0, 0)
+CONTROLLER_GREEN = (0, 255, 0)
+INDICATOR_SPACING = 8
+
+
+@pytest.fixture
+def real_editor(mocker) -> BitmapEditorScene:
+    """Build a real Bitmappy editor on the real display, with a fresh controller manager.
+
+    The editor starts with one animation ('strip_1') of one frame, selected by the keyboard.
+
+    Returns:
+        The editor.
+
+    """
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def connect_film_strip_controller(
+    *,
+    editor: BitmapEditorScene,
+    controller_id: int,
+    color: tuple[int, int, int],
+    animation: str,
+    frame: int,
+) -> None:
+    """Connect a controller, let the editor register it, and select a frame with it.
+
+    The editor registers a new controller in film strip mode
+    (VisualIndicators._register_new_controllers); the frame is then selected and the
+    indicators updated again, as the editor's update does every frame.
+
+    Args:
+        editor: The editor.
+        controller_id: The controller's id (also its instance id).
+        color: The controller's colour.
+        animation: The animation to select.
+        frame: The frame to select.
+
+    """
+    manager = editor.multi_controller_manager
+    manager.controllers[controller_id] = ControllerInfo(
+        controller_id=controller_id,
+        instance_id=controller_id,
+        status=ControllerStatus.ACTIVE,
+        color=color,
+    )
+    # Just scanned: no joystick is plugged in, so a scan now would disconnect it
+    manager.last_scan_time = elapsed_seconds()
+    editor.controller_handler.render_visual_indicators()
+    editor.controller_selections[controller_id].set_selection(animation, frame)
+    editor.controller_handler.render_visual_indicators()
+
+
+def indicator_row_colors(
+    *,
+    editor: BitmapEditorScene,
+    animation: str,
+    frame: int,
+    offsets: tuple[int, ...],
+) -> list[tuple[int, ...]]:
+    """Redraw the animation's film strip sprite and read the indicator row over a frame.
+
+    Indicators sit 4 px above the frame, INDICATOR_SPACING apart, centred as a group on
+    the frame's centre.
+
+    Args:
+        editor: The editor.
+        animation: The film strip's animation.
+        frame: The frame whose indicator row to read.
+        offsets: The x offsets from the frame's centre to read.
+
+    Returns:
+        The RGB colours at those offsets.
+
+    """
+    film_strip_sprite = editor.film_strip_sprites[animation]
+    film_strip_sprite.force_redraw()
+    frame_rect = editor.film_strips[animation].frame_layouts[animation, frame]
+    return [
+        tuple(film_strip_sprite.image.get_at((frame_rect.centerx + offset, frame_rect.top - 4)))[:3]
+        for offset in offsets
+    ]
+
+
+class TestControllerIndicatorsInTheEditor:
+    """Test that film strip controllers draw their triangles in a real editor."""
+
+    def test_film_strip_controller_draws_its_triangle_beside_the_keyboard(self, real_editor):
+        """A controller on the keyboard's frame draws its triangle to the right of the white one."""
+        animation = real_editor.selected_animation
+        assert animation
+        connect_film_strip_controller(
+            editor=real_editor,
+            controller_id=0,
+            color=CONTROLLER_RED,
+            animation=animation,
+            frame=0,
         )
-        surface = pygame.Surface(film_strip.rect.size, pygame.SRCALPHA)
 
-        film_strip.renderer.render(surface)
+        half_spacing = INDICATOR_SPACING // 2
+        row_colors = indicator_row_colors(
+            editor=real_editor,
+            animation=animation,
+            frame=0,
+            offsets=(-half_spacing, half_spacing),
+        )
 
-        frame_rect = film_strip.frame_layouts['idle', 1]
-        assert tuple(surface.get_at((frame_rect.centerx, frame_rect.top - 4)))[:3] == (0, 255, 0)
+        assert row_colors == [KEYBOARD_WHITE, CONTROLLER_RED]
+
+    def test_controllers_on_one_frame_are_spread_in_color_order(self, real_editor):
+        """Two controllers and the keyboard on one frame draw three spaced triangles."""
+        animation = real_editor.selected_animation
+        assert animation
+        for controller_id, color in ((1, CONTROLLER_GREEN), (0, CONTROLLER_RED)):
+            connect_film_strip_controller(
+                editor=real_editor,
+                controller_id=controller_id,
+                color=color,
+                animation=animation,
+                frame=0,
+            )
+
+        row_colors = indicator_row_colors(
+            editor=real_editor,
+            animation=animation,
+            frame=0,
+            offsets=(-INDICATOR_SPACING, 0, INDICATOR_SPACING),
+        )
+
+        assert row_colors == [KEYBOARD_WHITE, CONTROLLER_RED, CONTROLLER_GREEN]
+
+    def test_controller_in_canvas_mode_draws_no_triangle(self, real_editor):
+        """A controller that left film strip mode leaves only the keyboard's triangle."""
+        animation = real_editor.selected_animation
+        assert animation
+        connect_film_strip_controller(
+            editor=real_editor,
+            controller_id=0,
+            color=CONTROLLER_RED,
+            animation=animation,
+            frame=0,
+        )
+        real_editor.mode_switcher.controller_modes[0].switch_to_mode(
+            ControllerMode.CANVAS, elapsed_seconds()
+        )
+        real_editor.controller_handler.render_visual_indicators()
+
+        half_spacing = INDICATOR_SPACING // 2
+        row_colors = indicator_row_colors(
+            editor=real_editor,
+            animation=animation,
+            frame=0,
+            offsets=(-half_spacing, 0, half_spacing),
+        )
+
+        assert row_colors[1] == KEYBOARD_WHITE
+        assert CONTROLLER_RED not in row_colors
 
 
 class TestDrawUnifiedIndicators:

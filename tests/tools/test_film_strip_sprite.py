@@ -279,23 +279,24 @@ OTHER_COLOR = (200, 100, 50, 255)
 
 
 class RecordingParentScene:
-    """A parent scene stand-in that keeps the colour slider values it is sent."""
+    """A parent scene stand-in that keeps the colour it is sent."""
 
     def __init__(self) -> None:
         """Start with no slider values and no frame insertions."""
         self.slider_values: dict[str, int] = {}
         self.inserted_frames: list[tuple[str, int]] = []
 
-    def on_slider_event(self, event: events.HashableEvent, trigger: events.HashableEvent) -> None:
-        """Keep the value sent for one slider.
+    def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
+        """Keep the color sent, by slider name.
 
         Args:
-            event: The slider event (unused).
-            trigger: The trigger naming the slider and its value.
+            red: The red channel.
+            green: The green channel.
+            blue: The blue channel.
+            alpha: The alpha channel.
 
         """
-        del event
-        self.slider_values[trigger.name] = trigger.value
+        self.slider_values = {'R': red, 'G': green, 'B': blue, 'A': alpha}
 
     def on_frame_inserted(self, animation: str, frame_index: int) -> None:
         """Keep a frame insertion notification.
