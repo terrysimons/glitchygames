@@ -1222,7 +1222,6 @@ class TestProcessAiRequest:
         loop's caught exception types, so propagating them kills the worker process and
         the UI never receives a response.
         """
-        mocker.patch('glitchygames.bitmappy.ai_worker.backoff', None)
         client = mocker.Mock()
         client.chat.completions.create.side_effect = ProviderStatusError(
             'Your credit balance is too low to access the Anthropic API.',
@@ -1251,21 +1250,6 @@ class TestCreateAiRetryDecorator:
         decorator = _create_ai_retry_decorator(logger)
         assert callable(decorator)
 
-    def test_no_op_when_backoff_unavailable(self, logger, mocker):
-        """Test no-op decorator when backoff module is not available."""
-        mocker.patch('glitchygames.bitmappy.ai_worker.backoff', None)
-        decorator = _create_ai_retry_decorator(logger)
-
-        # The no-op decorator should return the function unchanged
-        def sample_function():
-            return 'result'
-
-        decorated = decorator(sample_function)
-        assert decorated is sample_function
-
-    @pytest.mark.filterwarnings(
-        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
-    )
     def test_does_not_retry_client_errors(self, logger, mocker):
         """Test that 4xx errors like billing/auth failures are not retried."""
         sleep = mocker.patch('time.sleep')
@@ -1284,9 +1268,6 @@ class TestCreateAiRetryDecorator:
         assert call_count == 1
         sleep.assert_not_called()
 
-    @pytest.mark.filterwarnings(
-        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
-    )
     def test_retries_rate_limit_errors(self, logger, mocker):
         """Test that 429 rate-limit errors are still retried."""
         mocker.patch('time.sleep')

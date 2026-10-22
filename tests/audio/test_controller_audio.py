@@ -148,11 +148,16 @@ class FakeHidDevice:
     """Stands in for hid.device: open succeeds only for the listed product ids."""
 
     def __init__(
-        self, *, openable_product_ids, write_result=controller_audio.DS_OUTPUT_REPORT_SIZE
+        self,
+        *,
+        openable_product_ids,
+        write_result=controller_audio.DS_OUTPUT_REPORT_SIZE,
+        write_error=None,
     ):
-        """Open only `openable_product_ids`; writes answer `write_result`."""
+        """Open only `openable_product_ids`; writes answer `write_result` or raise `write_error`."""
         self.openable_product_ids = openable_product_ids
         self.write_result = write_result
+        self.write_error = write_error
         self.opened_product_ids: list[int] = []
         self.written_reports: list[bytes] = []
         self.closed = False
@@ -171,8 +176,10 @@ class FakeHidDevice:
         self.opened_product_ids.append(product_id)
 
     def write(self, report):
-        """Record the report and answer the scripted byte count."""
+        """Record the report, then raise `write_error` or answer the scripted byte count."""
         self.written_reports.append(report)
+        if self.write_error is not None:
+            raise self.write_error
         return self.write_result
 
     def close(self):
@@ -347,6 +354,23 @@ class TestEnableDualSenseSpeaker:
         assert hid_device.closed is True
         assert 'Failed to send speaker enable HID report' in caplog.text
 
+    @pytest.mark.parametrize(
+        'write_error', [OSError('device disconnected'), ValueError('not open')]
+    )
+    def test_write_that_raises_returns_false_and_closes(self, mocker, caplog, write_error):
+        """A write that raises closes the device and only fails the enable (BUGS.md #108)."""
+        hid_device = FakeHidDevice(
+            openable_product_ids={controller_audio.DUALSENSE_PRODUCT_ID}, write_error=write_error
+        )
+        mocker.patch.object(
+            controller_audio, 'hidapi', types.SimpleNamespace(device=lambda: hid_device)
+        )
+
+        with caplog.at_level(logging.WARNING, logger='game.audio.controller'):
+            assert controller_audio.enable_dualsense_speaker() is False
+        assert hid_device.closed is True
+        assert 'Failed to send speaker enable HID report' in caplog.text
+
 
 class TestFindDeviceByName:
     """find_device_by_name returns the first device whose name contains the controller's."""
@@ -499,6 +523,22 @@ class TestControllerAudioConstruction:
         assert audio.capture_device_id == 'mic'
         assert audio.playback_device_id == 'speaker'
         enable_speaker.assert_not_called()
+
+    def test_failed_hid_write_keeps_the_controller_audio(self, fake_miniaudio, mocker):
+        """A HID write that raises loses only the speaker enable, not the controller's audio."""
+        hid_device = FakeHidDevice(
+            openable_product_ids={controller_audio.DUALSENSE_PRODUCT_ID},
+            write_error=OSError('device disconnected'),
+        )
+        mocker.patch.object(
+            controller_audio, 'hidapi', types.SimpleNamespace(device=lambda: hid_device)
+        )
+
+        audio = controller_audio.ControllerAudio.for_controller(DUALSENSE_NAME)
+
+        assert audio is not None
+        assert audio.has_microphone is True
+        assert hid_device.closed is True
 
     def test_dualsense_without_a_speaker_skips_the_hid_enable(self, mocker, enable_speaker):
         """No playback device: no speaker to enable."""

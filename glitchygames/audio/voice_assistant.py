@@ -291,12 +291,20 @@ class VoiceAssistant:
             log.warning('aisuite not available')
             return None
 
-        # Build messages with conversation context
-        self._conversation.append({'role': 'user', 'content': user_text})
+        # Trim the history to the turns kept before the question joins it. The history holds
+        # whole user/assistant pairs (a failed request removes its question below), so dropping
+        # whole pairs from the front keeps it starting with a user message, which some
+        # providers require (BUGS.md #105). With the answer, at most max turns are kept.
+        kept_entry_count = (self._max_conversation_turns - 1) * 2
+        if len(self._conversation) > kept_entry_count:
+            dropped_entry_count = len(self._conversation) - kept_entry_count
+            # Round up to a whole pair
+            dropped_entry_count += dropped_entry_count % 2
+            self._conversation = self._conversation[dropped_entry_count:]
 
-        # Trim conversation to max turns
-        if len(self._conversation) > self._max_conversation_turns * 2:
-            self._conversation = self._conversation[-self._max_conversation_turns * 2 :]
+        # Build messages with conversation context
+        question = {'role': 'user', 'content': user_text}
+        self._conversation.append(question)
 
         messages: list[dict[str, str]] = [
             {'role': 'system', 'content': self._system_prompt},
@@ -313,6 +321,10 @@ class VoiceAssistant:
             response_text: str = response.choices[0].message.content
         except Exception:
             log.exception('AI request failed')
+            # An unanswered question would make the next request send two user messages in a
+            # row (BUGS.md #105). Compared by identity: an earlier question may have the same text
+            if self._conversation and self._conversation[-1] is question:
+                self._conversation.pop()
             return None
         else:
             self._conversation.append({'role': 'assistant', 'content': response_text})

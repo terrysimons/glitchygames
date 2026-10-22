@@ -131,8 +131,16 @@ def enable_dualsense_speaker(
     # Byte 38: audio_flags2 — speaker preamp gain (+6dB)
     report[38] = preamp_gain
 
-    bytes_written: int = device.write(bytes(report))  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-    device.close()  # pyright: ignore[reportUnknownMemberType]
+    # hidapi answers -1 for a failed write, or raises (OSError; ValueError for a device that is
+    # not open, e.g. disconnected). Either way the device is closed and only the speaker enable
+    # fails: an exception escaping here would lose the controller's whole audio (BUGS.md #108)
+    try:
+        bytes_written: int = device.write(bytes(report))  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+    except OSError, ValueError:
+        log.warning('Failed to send speaker enable HID report', exc_info=True)
+        return False
+    finally:
+        device.close()  # pyright: ignore[reportUnknownMemberType]
 
     if bytes_written < 0:
         log.warning('Failed to send speaker enable HID report')

@@ -7,12 +7,14 @@ palette: Manages the custom color palette file format used by the engine.
 from __future__ import annotations
 
 import configparser
-import json
 import sys
 from pathlib import Path
-from typing import Any, ClassVar, Self, cast
+from typing import TYPE_CHECKING, ClassVar, Self, cast
 
 from pygame import Color
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 # A color-like value: either a pygame Color or an RGB/RGBA tuple.
 ColorLike = Color | tuple[int, int, int] | tuple[int, int, int, int]
@@ -37,7 +39,6 @@ class ColorPalette:
 
         """
         self._colors: list[ColorLike] | None = colors
-        self._size = 0
 
         if not self._colors and filename:
             script_path = Path(sys.argv[0]).parent
@@ -51,9 +52,6 @@ class ColorPalette:
                     )
                     break
 
-        if self._colors:
-            self._size = len(self._colors) - 1
-
     def get_color(self: Self, palette_index: int) -> ColorLike | None:
         """Return PyGame Color from the palette at the specified index.
 
@@ -61,15 +59,14 @@ class ColorPalette:
             palette_index: The index of the color to return.
 
         Returns:
-            A PyGame Color object in the format tuple[R: int, G: int, B: int]
+            A PyGame Color object in the format tuple[R: int, G: int, B: int], or None for an
+            index past the last color.
 
         """
-        if self._size:
-            return (
-                self._colors[palette_index]
-                if self._colors and palette_index <= self._size
-                else None
-            )
+        # The palette's size is always the color list's length, so colors appended by
+        # set_color are seen and a one-color palette answers its color (BUGS.md #103)
+        if self._colors:
+            return self._colors[palette_index] if palette_index < len(self._colors) else None
 
         # Return Magenta if our palette isn't set
         return Color(255, 0, 255)
@@ -84,7 +81,7 @@ class ColorPalette:
         """
         if self._colors is None:
             self._colors = []
-        if palette_index < self._size:
+        if palette_index < len(self._colors):
             self._colors[palette_index] = new_color
         else:
             self._colors.append(new_color)
@@ -136,16 +133,28 @@ class PaletteUtility:
         return PaletteUtility.load_palette_from_config(config)
 
     @staticmethod
-    def write_palette_to_file(config_data: dict[str, Any], output_file: Path) -> None:
-        """Write a GlitchyGames palette to a file.
+    def write_palette_to_file(
+        config_data: configparser.ConfigParser | Mapping[str, Mapping[str, str]],
+        output_file: Path,
+    ) -> None:
+        """Write a GlitchyGames palette to a file, in the format load_palette_from_file reads.
+
+        Palette files are ConfigParser files (see resources/README.md and the bundled
+        resources/*.palette), so a written palette loads back (BUGS.md #104).
 
         Args:
-            config_data: A ConfigParser object containing palette data.
+            config_data: Palette data: a ConfigParser (e.g. from create_palette_data) or a
+                mapping of section names to their keys and values.
             output_file: The path to the palette file to write.
 
         """
+        if isinstance(config_data, configparser.ConfigParser):
+            palette_config = config_data
+        else:
+            palette_config = configparser.ConfigParser()
+            palette_config.read_dict(config_data)
         with Path.open(Path(output_file), 'w') as file_obj:
-            file_obj.write(json.dumps(config_data))
+            palette_config.write(file_obj)
 
     @staticmethod
     def parse_rgb_data_in_file(rgb_data_file: Path) -> list[Color]:
@@ -215,22 +224,23 @@ class System(ColorPalette):
     def __init__(self: Self) -> None:
         """Create a system color palette object."""
         super().__init__(colors=[], filename=SYSTEM)
+        # Indexes follow the order of resources/system.palette (BUGS.md #102)
         self.BLACK = self.get_color(0)
-        self.MAROON = self.get_color(1)
-        self.GREEN = self.get_color(2)
-        self.OLIVE = self.get_color(3)
-        self.NAVY = self.get_color(4)
-        self.PURPLE = self.get_color(5)
-        self.TEAL = self.get_color(6)
-        self.SILVER = self.get_color(7)
-        self.GREY = self.get_color(8)
-        self.RED = self.get_color(9)
-        self.LIME = self.get_color(10)
-        self.YELLOW = self.get_color(11)
-        self.BLUE = self.get_color(12)
-        self.MAGENTA = self.get_color(13)
-        self.CYAN = self.get_color(14)
-        self.WHITE = self.get_color(15)
+        self.WHITE = self.get_color(1)
+        self.RED = self.get_color(2)
+        self.LIME = self.get_color(3)
+        self.BLUE = self.get_color(4)
+        self.YELLOW = self.get_color(5)
+        self.CYAN = self.get_color(6)
+        self.MAGENTA = self.get_color(7)
+        self.SILVER = self.get_color(8)
+        self.GREY = self.get_color(9)
+        self.MAROON = self.get_color(10)
+        self.OLIVE = self.get_color(11)
+        self.GREEN = self.get_color(12)
+        self.PURPLE = self.get_color(13)
+        self.TEAL = self.get_color(14)
+        self.NAVY = self.get_color(15)
 
 
 class Vga(ColorPalette):

@@ -131,6 +131,47 @@ blue = 0
         service = RendererService()
         assert RendererService.pygame_initialized is True
 
+    def test_preset_sdl_drivers_are_kept(self, mocker):
+        """A driver already chosen is kept; only an unset one defaults to dummy.
+
+        The same rule as tests/conftest.py's.
+        """
+        mocker.patch.object(RendererService, 'pygame_initialized', new=False)
+        pygame_init = mocker.patch.object(pygame, 'init')
+        mocker.patch.object(pygame.display, 'set_mode')
+        mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'kept-driver'})
+        os.environ.pop('SDL_AUDIODRIVER', None)
+
+        RendererService._ensure_pygame_initialized()
+
+        pygame_init.assert_called_once_with()
+        assert os.environ['SDL_VIDEODRIVER'] == 'kept-driver'
+        assert os.environ['SDL_AUDIODRIVER'] == 'dummy'
+
+    def test_pygame_is_initialized_again_after_pygame_quit(self, mocker):
+        """The class flag alone is not trusted: after pygame.quit() pygame is started again."""
+        mocker.patch.object(RendererService, 'pygame_initialized', new=True)
+        mocker.patch.object(pygame, 'get_init', return_value=False)
+        pygame_init = mocker.patch.object(pygame, 'init')
+        mocker.patch.object(pygame.display, 'get_surface', return_value=None)
+        set_mode = mocker.patch.object(pygame.display, 'set_mode')
+
+        RendererService._ensure_pygame_initialized()
+
+        pygame_init.assert_called_once_with()
+        set_mode.assert_called_once_with((1, 1), pygame.HIDDEN)
+        assert RendererService.pygame_initialized is True
+
+    def test_initialized_pygame_is_not_started_again(self, mocker):
+        """With the flag set and pygame running, nothing is initialized."""
+        mocker.patch.object(RendererService, 'pygame_initialized', new=True)
+        mocker.patch.object(pygame, 'get_init', return_value=True)
+        pygame_init = mocker.patch.object(pygame, 'init')
+
+        RendererService._ensure_pygame_initialized()
+
+        pygame_init.assert_not_called()
+
     def test_render_from_toml_static(self, sample_static_toml):
         """Test rendering a static sprite from TOML."""
         service = RendererService()
@@ -473,15 +514,15 @@ class TestRenderAllFrames:
         """An empty animations dict renders nothing."""
         assert renderer._render_all_frames(types.SimpleNamespace(frames={})) == ([], [])
 
-    def test_manager_without_an_animation_is_not_restored(self, renderer):
-        """A frame manager that started with no animation is left where rendering ended."""
+    def test_manager_without_an_animation_is_restored(self, renderer):
+        """A frame manager that started with no animation is put back to none (BUGS.md #110)."""
         image_frame = types.SimpleNamespace(image=_solid_surface((1, 1, 1, 255)))
         manager = FakeFrameManager(current_animation=None, current_frame=0)
         sprite = FakeAnimatedSprite({'a': [image_frame, image_frame]}, frame_manager=manager)
 
         renderer._render_all_frames(sprite)
 
-        assert (manager.current_animation, manager.current_frame) == ('a', 1)
+        assert (manager.current_animation, manager.current_frame) == (None, 0)
 
     def test_manager_is_restored_after_a_failure(self, renderer, mocker):
         """A failure while rendering still restores the frame manager."""

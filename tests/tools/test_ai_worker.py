@@ -20,6 +20,18 @@ LOG = logging.getLogger('test.ai_worker')
 OLLAMA_MODEL = 'ollama:tiny-model'
 
 
+@pytest.fixture(autouse=True)
+def isolate_the_ai_worker_logger(mocker):
+    """Keep the stderr handler a worker run adds to 'game.ai' out of later tests.
+
+    run_ai_worker is a child process's entry point and adds its own stderr handler to the
+    'game.ai' logger (_setup_ai_worker_logging). Run in the test process, that handler would
+    outlive the test and print every later 'game.ai' record past pytest's log capture.
+    """
+    worker_logger = logging.getLogger('game.ai')
+    mocker.patch.object(worker_logger, 'handlers', new=[])
+
+
 def _response_with_content(content: str | None) -> SimpleNamespace:
     """Build a chat completion response with one choice holding ``content``.
 
@@ -313,6 +325,19 @@ class TestMakeAiApiCall:
             },
         ]
 
+    def test_the_api_call_arguments_are_logged_at_debug_level(self, mocker, caplog):
+        """The request's arguments (the whole prompt) are diagnostics, not a critical event."""
+        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
+        completions = FakeCompletions(response=_response_with_content('[sprite]'))
+
+        with caplog.at_level(logging.DEBUG, logger=LOG.name):
+            ai_worker._make_ai_api_call(_request(), _client_with(completions), LOG)
+
+        argument_records = [
+            record for record in caplog.records if record.getMessage().startswith('API call kwargs')
+        ]
+        assert [record.levelno for record in argument_records] == [logging.DEBUG]
+
     def test_ollama_gets_the_download_timeout(self, mocker):
         """Ollama models get the long timeout, since the first call may download the model."""
         mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
@@ -344,32 +369,76 @@ class TestMakeAiApiCall:
             ai_worker._make_ai_api_call(_request(), _client_with(SimpleNamespace()), LOG)
 
 
-@pytest.fixture
-def without_backoff(mocker):
-    """Run AI calls without the backoff package (the worker's no-retry fallback).
+class RetryableError(Exception):
+    """An error the retry decorator retries (a server error, by status code)."""
 
-    backoff's decorator calls asyncio.iscoroutinefunction, which Python 3.14 deprecates, and
-    the suite turns warnings into errors, so calls are made through the no-op decorator.
+    status_code = HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def _retrying(*, outcomes: list[object]) -> tuple[object, list[float], list[int]]:
+    """Decorate a call that answers ``outcomes`` in turn (raising the exceptions among them).
+
+    Returns:
+        The decorated call, the waits it would sleep (recorded, not slept) and its call count.
+
     """
-    mocker.patch.object(ai_worker, 'backoff', None)
+    waits: list[float] = []
+    calls: list[int] = []
+
+    def api_call() -> object:
+        calls.append(len(calls) + 1)
+        outcome = outcomes[len(calls) - 1]
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    decorated = ai_worker._create_ai_retry_decorator(LOG)(api_call)
+    decorated.retry.sleep = waits.append  # type: ignore[attr-defined]
+    return decorated, waits, calls
 
 
 class TestCreateAiRetryDecorator:
-    """Test _create_ai_retry_decorator."""
+    """Test _create_ai_retry_decorator: exponential retries of retryable AI errors."""
 
-    def test_without_backoff_the_function_is_returned_unchanged(self, without_backoff):
-        """With backoff unavailable, the decorator is a no-op."""
+    def test_a_retryable_error_is_retried_with_exponential_waits(self):
+        """Server errors are retried after AI_BASE_DELAY, then twice that, and so on."""
+        decorated, waits, calls = _retrying(
+            outcomes=[RetryableError('busy'), RetryableError('busy'), 'answer']
+        )
 
-        def api_call() -> str:
-            return 'answer'
+        assert decorated() == 'answer'
+        assert len(calls) == 3
+        assert waits == [ai_worker.AI_BASE_DELAY, 2 * ai_worker.AI_BASE_DELAY]
 
-        assert ai_worker._create_ai_retry_decorator(LOG)(api_call) is api_call
+    def test_it_gives_up_after_the_last_attempt_and_reraises(self, caplog):
+        """After AI_MAX_RETRIES attempts the last error is raised and the give-up is logged."""
+        decorated, waits, calls = _retrying(
+            outcomes=[RetryableError(f'busy {index}') for index in range(ai_worker.AI_MAX_RETRIES)]
+        )
+
+        with caplog.at_level(logging.ERROR, logger=LOG.name), pytest.raises(RetryableError):
+            decorated()
+
+        assert len(calls) == ai_worker.AI_MAX_RETRIES
+        assert len(waits) == ai_worker.AI_MAX_RETRIES - 1
+        assert all(wait <= ai_worker.AI_MAX_DELAY for wait in waits)
+        assert 'failed permanently' in caplog.text
+
+    def test_a_non_retryable_error_is_not_retried(self):
+        """A client error (bad request) is raised at once, with no wait."""
+        decorated, waits, calls = _retrying(outcomes=[ValueError('bad request')])
+
+        with pytest.raises(ValueError, match='bad request'):
+            decorated()
+
+        assert len(calls) == 1
+        assert waits == []
 
 
 class TestProcessAiRequest:
     """Test _process_ai_request."""
 
-    def test_successful_call_returns_the_content(self, without_backoff):
+    def test_successful_call_returns_the_content(self):
         """The first choice's content is returned."""
         completions = FakeCompletions(response=_response_with_content('[sprite]\nname = "x"'))
 
@@ -377,7 +446,7 @@ class TestProcessAiRequest:
 
         assert response == AIResponse(content='[sprite]\nname = "x"')
 
-    def test_api_error_becomes_an_error_response(self, without_backoff):
+    def test_api_error_becomes_an_error_response(self):
         """An error from the API is reported back as an error response, not raised."""
         completions = FakeCompletions(error=ValueError('bad request'))
 
@@ -410,7 +479,7 @@ class TestExtractExampleSizeBranches:
 class TestRunAiWorker:
     """Test the worker loop, run in-process with thread queues."""
 
-    def test_requests_are_answered_until_the_shutdown_message(self, mocker, without_backoff):
+    def test_requests_are_answered_until_the_shutdown_message(self, mocker):
         """Each request gets a response tagged with its id; None stops the loop."""
         completions = FakeCompletions(response=_response_with_content('[sprite]'))
         mocker.patch.object(

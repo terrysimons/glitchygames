@@ -241,10 +241,10 @@ class TestTemplateBuildingOnDisk:
     """
 
     def test_repo_file_names_the_remote_template(self, mocker, tmp_path):
-        """A template directory with a .repo file builds from the location written in it."""
+        """A .repo file's location is used without its line's newline (BUGS.md #107)."""
         remote_template_directory = tmp_path / 'remote_template'
         remote_template_directory.mkdir()
-        (remote_template_directory / '.repo').write_text('gh:user/repo')
+        (remote_template_directory / '.repo').write_text('gh:user/repo\n')
         mocker.patch('glitchygames.templates.game.path', tmp_path)
         cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
 

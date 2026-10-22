@@ -92,20 +92,24 @@ class RendererService:
     def _ensure_pygame_initialized(cls) -> None:
         """Ensure pygame is initialized in headless mode.
 
-        This is done once per process using a class variable.
+        The class variable records that this service started pygame, but pygame.quit() (from
+        anywhere) does not reset it, so pygame.get_init() is checked as well and a quit pygame
+        is started again (BUGS.md #110).
         """
-        if cls.pygame_initialized:
-            return
-
-        # Set headless mode before importing/initializing pygame
-        os.environ['SDL_VIDEODRIVER'] = 'dummy'
-        os.environ['SDL_AUDIODRIVER'] = 'dummy'
+        # Headless by default, set before importing/initializing pygame. A driver already chosen
+        # is kept, the same rule as tests/conftest.py's (BUGS.md #110)
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
         import pygame
 
+        if cls.pygame_initialized and pygame.get_init():
+            return
+
         pygame.init()
-        # Create a dummy display surface (required even in headless mode)
-        pygame.display.set_mode((1, 1), pygame.HIDDEN)
+        # Create a dummy display surface (required even in headless mode), unless one exists
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((1, 1), pygame.HIDDEN)
 
         cls.pygame_initialized = True
         LOG.info('Pygame initialized in headless mode')
@@ -396,26 +400,30 @@ class RendererService:
 
         # Check if sprite has frame_manager for state restoration
         has_frame_manager = hasattr(sprite, 'frame_manager')
-        original_animation = None
-        original_frame = None
 
         if has_frame_manager:
-            original_animation = sprite.frame_manager.current_animation
-            original_frame = sprite.frame_manager.current_frame
-
-        try:
+            frame_manager = sprite.frame_manager
+            original_animation = frame_manager.current_animation
+            original_frame = frame_manager.current_frame
+            try:
+                frames_base64, rendered_frames = self._render_animation_frames(
+                    sprite,
+                    all_animations,
+                    scale,
+                    has_frame_manager=has_frame_manager,
+                )
+            finally:
+                # Restore the original state in every case, whatever the starting animation
+                # (BUGS.md #110). The animation first: setting it resets the frame
+                frame_manager.current_animation = original_animation
+                frame_manager.current_frame = original_frame
+        else:
             frames_base64, rendered_frames = self._render_animation_frames(
                 sprite,
                 all_animations,
                 scale,
                 has_frame_manager=has_frame_manager,
             )
-        finally:
-            # Restore original state
-            if has_frame_manager and original_animation is not None:
-                sprite.frame_manager.current_animation = original_animation
-                assert original_frame is not None
-                sprite.frame_manager.current_frame = original_frame
 
         LOG.debug(f'Rendered {len(frames_base64)} total frames')
         return frames_base64, rendered_frames

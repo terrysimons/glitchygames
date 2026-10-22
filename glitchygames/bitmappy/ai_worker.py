@@ -43,11 +43,7 @@ try:
 except ImportError, AttributeError:
     ai = None
 
-# Try to import backoff for retry logic
-try:
-    import backoff
-except ImportError:
-    backoff = None
+import tenacity
 
 if TYPE_CHECKING:
     import multiprocessing
@@ -521,40 +517,50 @@ def _create_ai_retry_decorator(
 ) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Create a retry decorator for AI requests with exponential backoff.
 
+    A retryable error (a server error, a timeout, rate limiting) is retried up to
+    AI_MAX_RETRIES attempts in all, waiting AI_BASE_DELAY, then twice that, and so on, at most
+    AI_MAX_DELAY; a non-retryable one (``_is_non_retryable_ai_error``) is raised at once. The
+    last error is raised when the attempts run out. (tenacity replaced backoff, whose decorator
+    calls ``asyncio.iscoroutinefunction``, deprecated in Python 3.14; its ``base=AI_BASE_DELAY``
+    of 1.0 was the exponent's base, so every wait had been about 1 second.)
+
+    Args:
+        log: The worker's logger, for each retry and the final give-up.
+
     Returns:
-        object: The result.
+        The decorator.
 
     """
-    if backoff is None:
-        # If backoff is not available, return a no-op decorator
-        def no_op_decorator(func: Callable[..., object]) -> Callable[..., object]:
-            return func
 
-        return no_op_decorator
+    def should_retry(error: BaseException) -> bool:
+        if _is_non_retryable_ai_error(error):
+            log.error(f'AI request failed permanently (not retryable): {error}')
+            return False
+        return True
 
-    def giveup_handler(details: dict[str, Any]) -> None:
-        """Handle final failure after all retries."""
-        log.error(
-            f'AI request failed permanently after {details["tries"]} attempts:'
-            f' {details["exception"]}',
-        )
-
-    def backoff_handler(details: dict[str, Any]) -> None:
-        """Handle backoff between retries."""
+    def log_retry(retry_state: tenacity.RetryCallState) -> None:
+        wait = retry_state.next_action.sleep if retry_state.next_action else 0.0
+        error = retry_state.outcome.exception() if retry_state.outcome else None
         log.warning(
-            f'AI request failed (attempt {details["tries"]}), retrying in {details["wait"]:.1f}s:'
-            f' {details["exception"]}',
+            f'AI request failed (attempt {retry_state.attempt_number}), retrying in {wait:.1f}s:'
+            f' {error}',
         )
 
-    return backoff.on_exception(
-        backoff.expo,
-        (Exception,),  # Catch all exceptions for retry
-        max_tries=AI_MAX_RETRIES,
-        base=AI_BASE_DELAY,
-        max_value=AI_MAX_DELAY,
-        giveup=_is_non_retryable_ai_error,
-        on_giveup=giveup_handler,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-        on_backoff=backoff_handler,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+    def give_up(retry_state: tenacity.RetryCallState) -> object:
+        error = retry_state.outcome.exception() if retry_state.outcome else None
+        log.error(
+            f'AI request failed permanently after {retry_state.attempt_number} attempts: {error}'
+        )
+        # Raise the last attempt's own error, as before (not tenacity's RetryError)
+        assert retry_state.outcome is not None
+        return retry_state.outcome.result()
+
+    return tenacity.retry(
+        stop=tenacity.stop_after_attempt(AI_MAX_RETRIES),
+        wait=tenacity.wait_exponential(multiplier=AI_BASE_DELAY, max=AI_MAX_DELAY),
+        retry=tenacity.retry_if_exception(should_retry),
+        before_sleep=log_retry,
+        retry_error_callback=give_up,
     )
 
 
@@ -607,7 +613,8 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
                 log.warning('No timeout parameter found in API call signature')
                 log.debug(f'Available parameters: {list(sig.parameters.keys())}')
 
-        log.critical('API call kwargs: %s', api_kwargs)
+        # Diagnostics (the whole request, prompt included), not an event of any severity
+        log.debug('API call kwargs: %s', api_kwargs)
         response = client.chat.completions.create(**api_kwargs)
     except Exception:
         end_time = measured_seconds()
