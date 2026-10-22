@@ -5,8 +5,8 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
-from unittest.mock import MagicMock
 
 import pygame
 import pytest
@@ -38,7 +38,6 @@ from glitchygames.bitmappy.sprite_inspection import (
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
 from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.exit_codes import ExitCode
-from tests.mocks import MockFactory
 
 LOG = logging.getLogger('test.bitmappy_coverage')
 
@@ -46,7 +45,7 @@ LOG = logging.getLogger('test.bitmappy_coverage')
 class TestBitmappyFunctionality:
     """Test bitmappy module functionality."""
 
-    def test_bitmappy_classes_exist(self, mock_pygame_patches):
+    def test_bitmappy_classes_exist(self):
         """Test that the editor's scene and sprite classes are importable from their modules."""
         from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
@@ -61,7 +60,7 @@ class TestBitmappyFunctionality:
         # editor re-exports AnimatedCanvasSprite from its own module
         assert bitmappy.AnimatedCanvasSprite is AnimatedCanvasSprite
 
-    def test_bitmappy_exceptions(self, mock_pygame_patches):
+    def test_bitmappy_exceptions(self):
         """Test bitmappy exception classes.
 
         Raises:
@@ -75,14 +74,14 @@ class TestBitmappyFunctionality:
         with pytest.raises(GGUnhandledMenuItemError):
             raise GGUnhandledMenuItemError(msg)
 
-    def test_bitmappy_ai_classes(self, mock_pygame_patches):
+    def test_bitmappy_ai_classes(self):
         """Test bitmappy AI classes."""
         from glitchygames.bitmappy.models import AIRequest, AIResponse
 
         assert callable(AIRequest)
         assert callable(AIResponse)
 
-    def test_bitmappy_sprite_inheritance(self, mock_pygame_patches):
+    def test_bitmappy_sprite_inheritance(self):
         """Test that the editor's sprites are BitmappySprites and its scene is a Scene."""
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
         from glitchygames.scenes import Scene
@@ -94,19 +93,19 @@ class TestBitmappyFunctionality:
         assert issubclass(BitmappySprite, pygame.sprite.DirtySprite)
         assert issubclass(bitmappy.BitmapEditorScene, Scene)
 
-    def test_bitmappy_scene_inheritance(self, mock_pygame_patches):
+    def test_bitmappy_scene_inheritance(self):
         """Test bitmappy scene inheritance."""
         # Test that BitmapEditorScene exists and is callable
         assert callable(bitmappy.BitmapEditorScene)
 
-    def test_bitmappy_module_imports(self, mock_pygame_patches):
+    def test_bitmappy_module_imports(self):
         """Test bitmappy module imports."""
         # Test that bitmappy module exists and has expected attributes
         assert hasattr(bitmappy, '__file__')
         assert hasattr(bitmappy, '__name__')
         assert bitmappy.__name__ == 'glitchygames.bitmappy.editor'
 
-    def test_bitmappy_module_structure(self, mock_pygame_patches):
+    def test_bitmappy_module_structure(self):
         """Test bitmappy module structure."""
         # Test that module has expected attributes
         assert hasattr(bitmappy, '__file__')
@@ -120,12 +119,6 @@ def clear_pixel_cache():
     BitmapPixelSprite.PIXEL_CACHE.clear()
     yield
     BitmapPixelSprite.PIXEL_CACHE.clear()
-
-
-@pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests."""
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 @pytest.fixture
@@ -153,69 +146,69 @@ class TestSpriteHasPerPixelAlpha:
         sprite = object()
         assert _sprite_has_per_pixel_alpha(sprite) is False  # type: ignore[invalid-argument-type]
 
-    def test_empty_animations(self):
+    def test_empty_animations(self, mocker):
         """Sprite with empty _animations returns False."""
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {}
         assert _sprite_has_per_pixel_alpha(sprite) is False
 
-    def test_rgb_pixels_only(self):
+    def test_rgb_pixels_only(self, mocker):
         """All RGB pixels (no alpha component) should return False."""
-        frame = MagicMock()
+        frame = mocker.MagicMock()
         frame.get_pixel_data.return_value = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {'idle': [frame]}
         assert _sprite_has_per_pixel_alpha(sprite) is False
 
-    def test_rgba_pixels_all_opaque(self):
+    def test_rgba_pixels_all_opaque(self, mocker):
         """All RGBA pixels with alpha=255 should return False."""
-        frame = MagicMock()
+        frame = mocker.MagicMock()
         frame.get_pixel_data.return_value = [
             (255, 0, 0, 255),
             (0, 255, 0, 255),
             (0, 0, 255, 255),
         ]
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {'idle': [frame]}
         assert _sprite_has_per_pixel_alpha(sprite) is False
 
-    def test_rgba_pixel_with_non_opaque_alpha(self):
+    def test_rgba_pixel_with_non_opaque_alpha(self, mocker):
         """RGBA pixel with alpha != 255 should return True."""
-        frame = MagicMock()
+        frame = mocker.MagicMock()
         frame.get_pixel_data.return_value = [
             (255, 0, 0, 255),
             (0, 255, 0, 128),
             (0, 0, 255, 255),
         ]
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {'idle': [frame]}
         assert _sprite_has_per_pixel_alpha(sprite) is True
 
-    def test_alpha_zero_detected(self):
+    def test_alpha_zero_detected(self, mocker):
         """RGBA pixel with alpha=0 (fully transparent) should return True."""
-        frame = MagicMock()
+        frame = mocker.MagicMock()
         frame.get_pixel_data.return_value = [(0, 0, 0, 0)]
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {'default': [frame]}
         assert _sprite_has_per_pixel_alpha(sprite) is True
 
-    def test_multiple_animations_second_has_alpha(self):
+    def test_multiple_animations_second_has_alpha(self, mocker):
         """Alpha in a second animation should still be detected."""
-        frame_opaque = MagicMock()
+        frame_opaque = mocker.MagicMock()
         frame_opaque.get_pixel_data.return_value = [(255, 0, 0, 255)]
-        frame_transparent = MagicMock()
+        frame_transparent = mocker.MagicMock()
         frame_transparent.get_pixel_data.return_value = [(0, 0, 0, 100)]
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {'idle': [frame_opaque], 'walk': [frame_transparent]}
         assert _sprite_has_per_pixel_alpha(sprite) is True
 
-    def test_multiple_frames_last_has_alpha(self):
+    def test_multiple_frames_last_has_alpha(self, mocker):
         """Alpha in a later frame should still be detected."""
-        frame1 = MagicMock()
+        frame1 = mocker.MagicMock()
         frame1.get_pixel_data.return_value = [(255, 0, 0, 255)]
-        frame2 = MagicMock()
+        frame2 = mocker.MagicMock()
         frame2.get_pixel_data.return_value = [(0, 0, 0, 50)]
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite._animations = {'idle': [frame1, frame2]}
         assert _sprite_has_per_pixel_alpha(sprite) is True
 
@@ -276,30 +269,30 @@ class TestGetSpriteColorCount:
         sprite = object()
         assert _get_sprite_color_count(sprite) == 0  # type: ignore[invalid-argument-type]
 
-    def test_color_map_attribute(self):
+    def test_color_map_attribute(self, mocker):
         """Sprite with color_map returns its length."""
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite.color_map = {'#': (0, 0, 0), '.': (255, 255, 255), 'X': (255, 0, 0)}
         # Remove _color_map so hasattr check for color_map comes first
         del sprite._color_map
         assert _get_sprite_color_count(sprite) == 3
 
-    def test_private_color_map_attribute(self):
+    def test_private_color_map_attribute(self, mocker):
         """Sprite with _color_map (no public) returns its length."""
-        sprite = MagicMock(spec=[])
+        sprite = mocker.MagicMock(spec=[])
         sprite._color_map = {'a': (0, 0, 0), 'b': (255, 255, 255)}
         assert _get_sprite_color_count(sprite) == 2
 
-    def test_empty_color_map(self):
+    def test_empty_color_map(self, mocker):
         """Empty color_map returns 0."""
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite.color_map = {}
         del sprite._color_map
         assert _get_sprite_color_count(sprite) == 0
 
-    def test_color_map_preferred_over_private(self):
+    def test_color_map_preferred_over_private(self, mocker):
         """color_map is checked before _color_map."""
-        sprite = MagicMock()
+        sprite = mocker.MagicMock()
         sprite.color_map = {'#': (0, 0, 0)}
         sprite._color_map = {'a': (0, 0, 0), 'b': (1, 1, 1)}
         assert _get_sprite_color_count(sprite) == 1
@@ -649,11 +642,11 @@ class TestCheckOllamaModelStatus:
 
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         mock_response.status = 500
         mock_response.read.return_value = b'{}'
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.__enter__ = mocker.MagicMock(return_value=mock_response)
+        mock_response.__exit__ = mocker.MagicMock(return_value=False)
         mocker.patch('urllib.request.urlopen', return_value=mock_response)
         result = _check_ollama_model_status(mock_logger)
         assert result['downloaded'] is False
@@ -673,11 +666,11 @@ class TestCheckOllamaModelStatus:
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:testmodel'
         response_data = json.dumps({'models': [{'name': 'testmodel:latest'}]}).encode()
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         mock_response.status = 200
         mock_response.read.return_value = response_data
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.__enter__ = mocker.MagicMock(return_value=mock_response)
+        mock_response.__exit__ = mocker.MagicMock(return_value=False)
         mocker.patch('urllib.request.urlopen', return_value=mock_response)
         result = _check_ollama_model_status(mock_logger)
         assert result['downloaded'] is True
@@ -697,11 +690,11 @@ class TestCheckOllamaModelStatus:
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:newmodel'
         response_data = json.dumps({'models': [{'name': 'othermodel:latest'}]}).encode()
-        mock_response = MagicMock()
+        mock_response = mocker.MagicMock()
         mock_response.status = 200
         mock_response.read.return_value = response_data
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.__enter__ = mocker.MagicMock(return_value=mock_response)
+        mock_response.__exit__ = mocker.MagicMock(return_value=False)
         mocker.patch('urllib.request.urlopen', return_value=mock_response)
         result = _check_ollama_model_status(mock_logger)
         assert result['downloaded'] is False
@@ -894,21 +887,21 @@ class TestGetProviderTimeoutValue:
 class TestConfigureProviderClientTimeout:
     """Tests for _configure_provider_client_timeout function."""
 
-    def test_provider_without_client(self, mock_logger):
+    def test_provider_without_client(self, mock_logger, mocker):
         """Provider without client attribute does nothing."""
-        provider = MagicMock(spec=[])  # No 'client' attribute
+        provider = mocker.MagicMock(spec=[])  # No 'client' attribute
         _configure_provider_client_timeout(mock_logger, 'test_provider', provider, 600)
 
-    def test_client_with_timeout_attribute(self, mock_logger):
+    def test_client_with_timeout_attribute(self, mock_logger, mocker):
         """Sets timeout on provider.client.timeout."""
-        provider = MagicMock()
+        provider = mocker.MagicMock()
         provider.client.timeout = 30
         _configure_provider_client_timeout(mock_logger, 'anthropic', provider, 600)
         assert provider.client.timeout == 600
 
-    def test_client_with_nested_client_timeout(self, mock_logger):
+    def test_client_with_nested_client_timeout(self, mock_logger, mocker):
         """Sets timeout on provider.client._client.timeout when no direct timeout."""
-        provider = MagicMock()
+        provider = mocker.MagicMock()
         # Remove direct timeout attribute
         del provider.client.timeout
         provider.client._client.timeout = 30
@@ -921,7 +914,7 @@ class TestConfigureProviderClientTimeout:
 
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        provider = MagicMock()
+        provider = mocker.MagicMock()
         provider.client.timeout = 30
         provider.client.request_timeout = 30
         provider.client.read_timeout = 30
@@ -940,9 +933,9 @@ class TestConfigureProviderClientTimeout:
 class TestConfigureClientTimeouts:
     """Tests for _configure_client_timeouts function."""
 
-    def test_client_without_providers(self, mock_logger):
+    def test_client_without_providers(self, mock_logger, mocker):
         """Client without _providers attribute logs warning."""
-        client = MagicMock(spec=[])  # No _providers
+        client = mocker.MagicMock(spec=[])  # No _providers
         _configure_client_timeouts(mock_logger, client)
         # Should not raise
 
@@ -952,17 +945,17 @@ class TestConfigureClientTimeouts:
             'glitchygames.bitmappy.ai_worker._get_provider_timeout_value',
             return_value=600,
         )
-        provider = MagicMock()
+        provider = mocker.MagicMock()
         provider.client.timeout = 30
-        client = MagicMock()
+        client = mocker.MagicMock()
         client._providers = {'anthropic': provider}
         _configure_client_timeouts(mock_logger, client)
         assert provider.client.timeout == 600
 
     def test_client_exception_handled(self, mock_logger, mocker):
         """Exception during configuration is handled gracefully."""
-        client = MagicMock()
-        client._providers = MagicMock(side_effect=Exception('config error'))
+        client = mocker.MagicMock()
+        client._providers = mocker.MagicMock(side_effect=Exception('config error'))
         # The items() call raises an exception
         client._providers.items.side_effect = Exception('config error')
         _configure_client_timeouts(mock_logger, client)
@@ -977,52 +970,52 @@ class TestConfigureClientTimeouts:
 class TestConfigureOllamaProvider:
     """Tests for _configure_ollama_provider function."""
 
-    def test_non_ollama_model_skipped(self, mock_logger):
+    def test_non_ollama_model_skipped(self, mock_logger, mocker):
         """Non-ollama model skips provider configuration."""
         import glitchygames.bitmappy.ai_worker as ai_worker_module
 
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        client = MagicMock()
+        client = mocker.MagicMock()
         _configure_ollama_provider(mock_logger, client)
         ai_worker_module.AI_MODEL = original
 
-    def test_client_without_providers_skipped(self, mock_logger):
+    def test_client_without_providers_skipped(self, mock_logger, mocker):
         """Client without _providers skips configuration."""
         import glitchygames.bitmappy.ai_worker as ai_worker_module
 
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        client = MagicMock(spec=[])  # No _providers
+        client = mocker.MagicMock(spec=[])  # No _providers
         _configure_ollama_provider(mock_logger, client)
         ai_worker_module.AI_MODEL = original
 
-    def test_ollama_provider_configured(self, mock_logger):
+    def test_ollama_provider_configured(self, mock_logger, mocker):
         """Ollama provider gets timeout configured."""
         import glitchygames.bitmappy.ai_worker as ai_worker_module
 
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        provider = MagicMock()
+        provider = mocker.MagicMock()
         provider.timeout = 30
         provider.client.timeout = 30
         provider.client.request_timeout = 30
-        client = MagicMock()
+        client = mocker.MagicMock()
         client._providers = {'ollama': provider}
         _configure_ollama_provider(mock_logger, client)
         assert provider.timeout == ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT
         assert provider.client.timeout == ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT
         ai_worker_module.AI_MODEL = original
 
-    def test_non_ollama_provider_in_dict_skipped(self, mock_logger):
+    def test_non_ollama_provider_in_dict_skipped(self, mock_logger, mocker):
         """Non-ollama provider in providers dict is skipped."""
         import glitchygames.bitmappy.ai_worker as ai_worker_module
 
         original = ai_worker_module.AI_MODEL
         ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        anthropic_provider = MagicMock()
+        anthropic_provider = mocker.MagicMock()
         anthropic_provider.timeout = 30
-        client = MagicMock()
+        client = mocker.MagicMock()
         client._providers = {'anthropic': anthropic_provider}
         _configure_ollama_provider(mock_logger, client)
         # anthropic provider should not be modified
@@ -1046,8 +1039,8 @@ class TestInitializeAiClient:
 
     def test_aisuite_available(self, mock_logger, mocker):
         """Returns client when aisuite is available."""
-        mock_ai = MagicMock()
-        mock_client = MagicMock()
+        mock_ai = mocker.MagicMock()
+        mock_client = mocker.MagicMock()
         mock_ai.Client.return_value = mock_client
         mocker.patch('glitchygames.bitmappy.ai_worker.ai', mock_ai)
         mocker.patch('glitchygames.bitmappy.ai_worker._set_ollama_env_timeout')
@@ -1062,8 +1055,8 @@ class TestInitializeAiClient:
 
     def test_aisuite_with_provider_config(self, mock_logger, mocker):
         """Passes provider config to aisuite Client when present."""
-        mock_ai = MagicMock()
-        mock_client = MagicMock()
+        mock_ai = mocker.MagicMock()
+        mock_client = mocker.MagicMock()
         mock_ai.Client.return_value = mock_client
         mocker.patch('glitchygames.bitmappy.ai_worker.ai', mock_ai)
         mocker.patch('glitchygames.bitmappy.ai_worker._set_ollama_env_timeout')
@@ -1089,7 +1082,7 @@ class TestInitializeAiClient:
         has a non-default timeout. aisuite creates providers lazily, so the timeout has to
         be supplied through the Client's provider config up front.
         """
-        mock_ai = MagicMock()
+        mock_ai = mocker.MagicMock()
         mocker.patch('glitchygames.bitmappy.ai_worker.ai', mock_ai)
         mocker.patch('glitchygames.bitmappy.ai_worker._set_ollama_env_timeout')
         mocker.patch(
@@ -1117,10 +1110,10 @@ class TestAiWorker:
         mocker.patch('glitchygames.bitmappy.ai_worker._setup_ai_worker_logging')
         mocker.patch(
             'glitchygames.bitmappy.ai_worker._initialize_ai_client',
-            return_value=MagicMock(),
+            return_value=mocker.MagicMock(),
         )
-        request_queue = MagicMock()
-        response_queue = MagicMock()
+        request_queue = mocker.MagicMock()
+        response_queue = mocker.MagicMock()
         # First call returns None (shutdown signal)
         request_queue.get.return_value = None
         run_ai_worker(request_queue, response_queue)
@@ -1132,14 +1125,14 @@ class TestAiWorker:
         mocker.patch('glitchygames.bitmappy.ai_worker._setup_ai_worker_logging')
         mocker.patch(
             'glitchygames.bitmappy.ai_worker._initialize_ai_client',
-            return_value=MagicMock(),
+            return_value=mocker.MagicMock(),
         )
         mocker.patch(
             'glitchygames.bitmappy.ai_worker._process_ai_request',
             side_effect=ValueError('test error'),
         )
-        request_queue = MagicMock()
-        response_queue = MagicMock()
+        request_queue = mocker.MagicMock()
+        response_queue = mocker.MagicMock()
         test_request = AIRequest(
             prompt='test',
             request_id='req1',
@@ -1161,8 +1154,8 @@ class TestAiWorker:
             'glitchygames.bitmappy.ai_worker._initialize_ai_client',
             side_effect=ImportError('no aisuite'),
         )
-        request_queue = MagicMock()
-        response_queue = MagicMock()
+        request_queue = mocker.MagicMock()
+        response_queue = mocker.MagicMock()
         with pytest.raises(ImportError):
             run_ai_worker(request_queue, response_queue)
 
@@ -1347,7 +1340,7 @@ class TestAiRequestIds:
 class TestScrollArrowSprite:
     """Tests for ScrollArrowSprite class."""
 
-    def test_up_arrow_creation(self, pygame_mocks, mock_groups):
+    def test_up_arrow_creation(self, mock_groups):
         """Up arrow sprite initializes correctly."""
         arrow = ScrollArrowSprite(
             x=10,
@@ -1361,7 +1354,7 @@ class TestScrollArrowSprite:
         assert arrow.name == 'Scroll up Arrow'
         assert arrow.visible is False
 
-    def test_down_arrow_creation(self, pygame_mocks, mock_groups):
+    def test_down_arrow_creation(self, mock_groups):
         """Down arrow sprite initializes correctly."""
         arrow = ScrollArrowSprite(
             x=10,
@@ -1374,7 +1367,7 @@ class TestScrollArrowSprite:
         assert arrow.direction == 'down'
         assert arrow.name == 'Scroll down Arrow'
 
-    def test_plus_arrow_creation(self, pygame_mocks, mock_groups):
+    def test_plus_arrow_creation(self, mock_groups):
         """Plus arrow sprite initializes correctly."""
         arrow = ScrollArrowSprite(
             x=0,
@@ -1386,14 +1379,14 @@ class TestScrollArrowSprite:
         )
         assert arrow.direction == 'plus'
 
-    def test_set_direction_changes(self, pygame_mocks, mock_groups):
+    def test_set_direction_changes(self, mock_groups):
         """set_direction changes direction and redraws."""
         arrow = ScrollArrowSprite(x=0, y=0, width=20, height=20, groups=mock_groups, direction='up')
         arrow.set_direction('down')
         assert arrow.direction == 'down'
         assert arrow.dirty == 1
 
-    def test_set_direction_same_no_change(self, pygame_mocks, mock_groups):
+    def test_set_direction_same_no_change(self, mock_groups):
         """set_direction with same direction does nothing."""
         arrow = ScrollArrowSprite(x=0, y=0, width=20, height=20, groups=mock_groups, direction='up')
         arrow.dirty = 0
@@ -1401,7 +1394,7 @@ class TestScrollArrowSprite:
         # Direction unchanged, dirty should not be set
         assert arrow.dirty == 0
 
-    def test_default_dimensions(self, pygame_mocks, mock_groups):
+    def test_default_dimensions(self, mock_groups):
         """Default dimensions are 20x20."""
         arrow = ScrollArrowSprite(groups=mock_groups)
         assert arrow.rect is not None
@@ -1417,11 +1410,11 @@ class TestScrollArrowSprite:
 class TestFilmStripSpriteGetFramePixelData:
     """Tests for FilmStripSprite._get_frame_pixel_data method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups, animated_sprite=None):
+    def _make_film_strip_sprite(self, mock_groups, mocker, animated_sprite=None):
         """Create a FilmStripSprite with mocked dependencies."""
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         widget.animated_sprite = animated_sprite
         return FilmStripSprite(
             film_strip_widget=widget,
@@ -1432,67 +1425,67 @@ class TestFilmStripSpriteGetFramePixelData:
             groups=mock_groups,
         )
 
-    def test_no_animated_sprite(self, pygame_mocks, mock_groups):
+    def test_no_animated_sprite(self, mock_groups, mocker):
         """Returns None when no animated sprite is available."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=None)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=None)
         result = sprite._get_frame_pixel_data('idle', 0)
         assert result is None
 
-    def test_frame_index_out_of_range(self, pygame_mocks, mock_groups):
+    def test_frame_index_out_of_range(self, mock_groups, mocker):
         """Returns None when frame index is out of range."""
-        animated = MagicMock()
-        animated._animations = {'idle': [MagicMock()]}
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=animated)
+        animated = mocker.MagicMock()
+        animated._animations = {'idle': [mocker.MagicMock()]}
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=animated)
         result = sprite._get_frame_pixel_data('idle', 5)
         assert result is None
 
-    def test_animation_not_found(self, pygame_mocks, mock_groups):
+    def test_animation_not_found(self, mock_groups, mocker):
         """Returns None when animation name is not found."""
-        animated = MagicMock()
-        animated._animations = {'idle': [MagicMock()]}
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=animated)
+        animated = mocker.MagicMock()
+        animated._animations = {'idle': [mocker.MagicMock()]}
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=animated)
         result = sprite._get_frame_pixel_data('walk', 0)
         assert result is None
 
-    def test_frame_with_get_pixel_data(self, pygame_mocks, mock_groups):
+    def test_frame_with_get_pixel_data(self, mock_groups, mocker):
         """Returns pixel data from frame.get_pixel_data()."""
-        frame = MagicMock()
+        frame = mocker.MagicMock()
         pixel_data = [(255, 0, 0, 255), (0, 255, 0, 255)]
         frame.get_pixel_data.return_value = pixel_data
-        animated = MagicMock()
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=animated)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=animated)
         result = sprite._get_frame_pixel_data('idle', 0)
         assert result is not None
         assert result[1] == pixel_data
 
-    def test_frame_with_pixels_attribute(self, pygame_mocks, mock_groups):
+    def test_frame_with_pixels_attribute(self, mock_groups, mocker):
         """Falls back to frame.pixels when no get_pixel_data."""
-        frame = MagicMock(spec=['pixels'])
+        frame = mocker.MagicMock(spec=['pixels'])
         frame.pixels = [(255, 0, 0), (0, 255, 0)]
-        animated = MagicMock()
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=animated)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=animated)
         result = sprite._get_frame_pixel_data('idle', 0)
         assert result is not None
         assert result[1] == [(255, 0, 0), (0, 255, 0)]
 
-    def test_frame_without_pixel_data(self, pygame_mocks, mock_groups):
+    def test_frame_without_pixel_data(self, mock_groups, mocker):
         """Returns None when frame has neither get_pixel_data nor pixels."""
-        frame = MagicMock(spec=[])
-        animated = MagicMock()
+        frame = mocker.MagicMock(spec=[])
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=animated)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=animated)
         result = sprite._get_frame_pixel_data('idle', 0)
         assert result is None
 
-    def test_frame_with_empty_pixel_data(self, pygame_mocks, mock_groups):
+    def test_frame_with_empty_pixel_data(self, mock_groups, mocker):
         """Returns None when pixel data is empty."""
-        frame = MagicMock()
+        frame = mocker.MagicMock()
         frame.get_pixel_data.return_value = []
-        animated = MagicMock()
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups, animated_sprite=animated)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker, animated_sprite=animated)
         result = sprite._get_frame_pixel_data('idle', 0)
         assert result is None
 
@@ -1505,10 +1498,10 @@ class TestFilmStripSpriteGetFramePixelData:
 class TestFilmStripSpriteGetFrameDimensions:
     """Tests for FilmStripSprite._get_frame_dimensions method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         widget.parent_canvas = None
         return FilmStripSprite(
             film_strip_widget=widget,
@@ -1519,27 +1512,27 @@ class TestFilmStripSpriteGetFrameDimensions:
             groups=mock_groups,
         )
 
-    def test_frame_with_image(self, pygame_mocks, mock_groups):
+    def test_frame_with_image(self, mock_groups, mocker):
         """Returns dimensions from frame.image.get_size()."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.image.get_size.return_value = (16, 16)
         assert sprite._get_frame_dimensions(frame) == (16, 16)
 
-    def test_frame_without_image_uses_canvas(self, pygame_mocks, mock_groups):
+    def test_frame_without_image_uses_canvas(self, mock_groups, mocker):
         """Falls back to parent canvas dimensions."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        sprite.film_strip_widget.parent_canvas = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        sprite.film_strip_widget.parent_canvas = mocker.MagicMock()
         sprite.film_strip_widget.parent_canvas.pixels_across = 64
         sprite.film_strip_widget.parent_canvas.pixels_tall = 48
-        frame = MagicMock(spec=[])  # No 'image'
+        frame = mocker.MagicMock(spec=[])  # No 'image'
         assert sprite._get_frame_dimensions(frame) == (64, 48)
 
-    def test_frame_without_image_no_canvas(self, pygame_mocks, mock_groups):
+    def test_frame_without_image_no_canvas(self, mock_groups, mocker):
         """Falls back to default 32x32 when no canvas available."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.film_strip_widget.parent_canvas = None
-        frame = MagicMock(spec=[])
+        frame = mocker.MagicMock(spec=[])
         assert sprite._get_frame_dimensions(frame) == (32, 32)
 
 
@@ -1551,10 +1544,10 @@ class TestFilmStripSpriteGetFrameDimensions:
 class TestFilmStripSpriteFindFrameLayout:
     """Tests for FilmStripSprite._find_frame_layout method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         return FilmStripSprite(
             film_strip_widget=widget,
             x=0,
@@ -1564,17 +1557,17 @@ class TestFilmStripSpriteFindFrameLayout:
             groups=mock_groups,
         )
 
-    def test_frame_found(self, pygame_mocks, mock_groups):
+    def test_frame_found(self, mock_groups, mocker):
         """Returns frame layout when found."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         mock_rect = pygame.Rect(10, 10, 40, 40)
         sprite.film_strip_widget.frame_layouts = {('idle', 0): mock_rect}
         result = sprite._find_frame_layout('idle', 0)
         assert result == mock_rect
 
-    def test_frame_not_found(self, pygame_mocks, mock_groups):
+    def test_frame_not_found(self, mock_groups, mocker):
         """Returns None when frame layout is not found."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.film_strip_widget.frame_layouts = {}
         result = sprite._find_frame_layout('idle', 0)
         assert result is None
@@ -1588,10 +1581,10 @@ class TestFilmStripSpriteFindFrameLayout:
 class TestFilmStripSpriteScreenToPixelCoords:
     """Tests for FilmStripSprite._screen_to_pixel_coords method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         return FilmStripSprite(
             film_strip_widget=widget,
             x=0,
@@ -1601,9 +1594,9 @@ class TestFilmStripSpriteScreenToPixelCoords:
             groups=mock_groups,
         )
 
-    def test_coords_inside_frame(self, pygame_mocks, mock_groups):
+    def test_coords_inside_frame(self, mock_groups, mocker):
         """Returns pixel coordinates when click is inside frame."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         frame_layout = pygame.Rect(10, 10, 40, 40)
         # Click at center of frame
         result = sprite._screen_to_pixel_coords(30, 30, frame_layout, 16, 16)
@@ -1612,16 +1605,16 @@ class TestFilmStripSpriteScreenToPixelCoords:
         assert 0 <= pixel_x < 16
         assert 0 <= pixel_y < 16
 
-    def test_coords_outside_frame(self, pygame_mocks, mock_groups):
+    def test_coords_outside_frame(self, mock_groups, mocker):
         """Returns None when click is outside frame."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         frame_layout = pygame.Rect(10, 10, 40, 40)
         result = sprite._screen_to_pixel_coords(100, 100, frame_layout, 16, 16)
         assert result is None
 
-    def test_coords_at_frame_edge(self, pygame_mocks, mock_groups):
+    def test_coords_at_frame_edge(self, mock_groups, mocker):
         """Coords at frame edge are clamped to valid range."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         frame_layout = pygame.Rect(0, 0, 40, 40)
         result = sprite._screen_to_pixel_coords(0, 0, frame_layout, 16, 16)
         assert result is not None
@@ -1638,10 +1631,10 @@ class TestFilmStripSpriteScreenToPixelCoords:
 class TestFilmStripSpriteUpdateColorSliders:
     """Tests for FilmStripSprite._update_color_sliders method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         return FilmStripSprite(
             film_strip_widget=widget,
             x=0,
@@ -1651,17 +1644,17 @@ class TestFilmStripSpriteUpdateColorSliders:
             groups=mock_groups,
         )
 
-    def test_no_parent_scene(self, pygame_mocks, mock_groups):
+    def test_no_parent_scene(self, mock_groups, mocker):
         """Does nothing when no parent_scene."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.parent_scene = None
         # Should not raise
         sprite._update_color_sliders(255, 128, 0, 200)
 
-    def test_with_parent_scene(self, pygame_mocks, mock_groups):
+    def test_with_parent_scene(self, mock_groups, mocker):
         """Sets the scene's color once, with all four RGBA channels."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        mock_scene = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        mock_scene = mocker.MagicMock()
         sprite.parent_scene = mock_scene
         sprite._update_color_sliders(100, 150, 200, 250)
         mock_scene.apply_color.assert_called_once_with(red=100, green=150, blue=200, alpha=250)
@@ -1675,10 +1668,10 @@ class TestFilmStripSpriteUpdateColorSliders:
 class TestFilmStripSpriteSampleColorFromFrame:
     """Tests for FilmStripSprite._sample_color_from_frame method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         widget.animated_sprite = None
         widget.frame_layouts = {}
         return FilmStripSprite(
@@ -1690,56 +1683,56 @@ class TestFilmStripSpriteSampleColorFromFrame:
             groups=mock_groups,
         )
 
-    def test_no_pixel_data_returns_early(self, pygame_mocks, mock_groups):
+    def test_no_pixel_data_returns_early(self, mock_groups, mocker):
         """Returns early when no pixel data available."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         # No animated sprite, so _get_frame_pixel_data returns None
         sprite._sample_color_from_frame('idle', 0, 20, 20)
         # Should not raise
 
-    def test_no_frame_layout_returns_early(self, pygame_mocks, mock_groups):
+    def test_no_frame_layout_returns_early(self, mock_groups, mocker):
         """Returns early when frame layout not found."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.get_pixel_data.return_value = [(255, 0, 0, 255)]
         frame.image.get_size.return_value = (16, 16)
-        animated = MagicMock()
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
         sprite.film_strip_widget.animated_sprite = animated
         sprite.film_strip_widget.frame_layouts = {}
         sprite._sample_color_from_frame('idle', 0, 20, 20)
         # Should not raise
 
-    def test_successful_color_sampling_rgba(self, pygame_mocks, mock_groups):
+    def test_successful_color_sampling_rgba(self, mock_groups, mocker):
         """Successfully samples an RGBA color."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         pixel_data = [(255, 0, 0, 128)] * 256  # 16x16 pixels
         frame.get_pixel_data.return_value = pixel_data
         frame.image.get_size.return_value = (16, 16)
-        animated = MagicMock()
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
         sprite.film_strip_widget.animated_sprite = animated
         frame_rect = pygame.Rect(0, 0, 40, 40)
         sprite.film_strip_widget.frame_layouts = {('idle', 0): frame_rect}
-        mock_scene = MagicMock()
+        mock_scene = mocker.MagicMock()
         sprite.parent_scene = mock_scene
         sprite._sample_color_from_frame('idle', 0, 20, 20)
         mock_scene.apply_color.assert_called_once_with(red=255, green=0, blue=0, alpha=128)
 
-    def test_successful_color_sampling_rgb(self, pygame_mocks, mock_groups):
+    def test_successful_color_sampling_rgb(self, mock_groups, mocker):
         """Successfully samples an RGB color (no alpha)."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         pixel_data = [(0, 255, 0)] * 256  # 16x16 pixels
         frame.get_pixel_data.return_value = pixel_data
         frame.image.get_size.return_value = (16, 16)
-        animated = MagicMock()
+        animated = mocker.MagicMock()
         animated._animations = {'idle': [frame]}
         sprite.film_strip_widget.animated_sprite = animated
         frame_rect = pygame.Rect(0, 0, 40, 40)
         sprite.film_strip_widget.frame_layouts = {('idle', 0): frame_rect}
-        mock_scene = MagicMock()
+        mock_scene = mocker.MagicMock()
         sprite.parent_scene = mock_scene
         sprite._sample_color_from_frame('idle', 0, 20, 20)
         mock_scene.apply_color.assert_called_once_with(red=0, green=255, blue=0, alpha=255)
@@ -1753,10 +1746,10 @@ class TestFilmStripSpriteSampleColorFromFrame:
 class TestFilmStripSpriteHoverEffects:
     """Tests for FilmStripSprite hover effect methods."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         return FilmStripSprite(
             film_strip_widget=widget,
             x=0,
@@ -1766,31 +1759,31 @@ class TestFilmStripSpriteHoverEffects:
             groups=mock_groups,
         )
 
-    def test_show_frame_hover_effect(self, pygame_mocks, mock_groups):
+    def test_show_frame_hover_effect(self, mock_groups, mocker):
         """Sets hovered_frame and marks dirty."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite._show_frame_hover_effect(('idle', 0))
         assert sprite.film_strip_widget.hovered_frame == ('idle', 0)
         assert sprite.dirty == 1
 
-    def test_show_preview_hover_effect(self, pygame_mocks, mock_groups):
+    def test_show_preview_hover_effect(self, mock_groups, mocker):
         """Sets hovered_preview and marks dirty."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite._show_preview_hover_effect('idle')
         assert sprite.film_strip_widget.hovered_preview == 'idle'
         assert sprite.dirty == 1
 
-    def test_show_strip_hover_effect(self, pygame_mocks, mock_groups):
+    def test_show_strip_hover_effect(self, mock_groups, mocker):
         """Sets strip hover state and marks dirty."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite._show_strip_hover_effect()
         assert sprite.film_strip_widget.hovered_frame is None
         assert sprite.film_strip_widget.is_hovering_strip is True
         assert sprite.dirty == 1
 
-    def test_clear_hover_effects(self, pygame_mocks, mock_groups):
+    def test_clear_hover_effects(self, mock_groups, mocker):
         """Clears all hover state and marks dirty."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite._clear_hover_effects()
         assert sprite.film_strip_widget.hovered_frame is None
         assert sprite.film_strip_widget.hovered_preview is None
@@ -1807,10 +1800,10 @@ class TestFilmStripSpriteHoverEffects:
 class TestFilmStripSpriteOnMouseMotionEvent:
     """Tests for FilmStripSprite.on_mouse_motion_event method."""
 
-    def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
+    def _make_film_strip_sprite(self, mock_groups, mocker):
         from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        widget = MagicMock()
+        widget = mocker.MagicMock()
         widget.get_frame_at_position.return_value = None
         widget.get_preview_at_position.return_value = None
         widget.hovered_preview = None
@@ -1823,55 +1816,55 @@ class TestFilmStripSpriteOnMouseMotionEvent:
             groups=mock_groups,
         )
 
-    def test_motion_over_frame(self, pygame_mocks, mock_groups):
+    def test_motion_over_frame(self, mock_groups, mocker):
         """Mouse over a frame sets frame hover."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.film_strip_widget.get_frame_at_position.return_value = ('idle', 0)
-        event = MagicMock()
+        event = mocker.MagicMock()
         event.pos = (50, 25)
         sprite.on_mouse_motion_event(event)
         assert sprite.film_strip_widget.hovered_frame == ('idle', 0)
         assert sprite.dirty == 1
 
-    def test_motion_over_preview(self, pygame_mocks, mock_groups):
+    def test_motion_over_preview(self, mock_groups, mocker):
         """Mouse over preview area sets preview hover."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.film_strip_widget.get_frame_at_position.return_value = None
         sprite.film_strip_widget.get_preview_at_position.return_value = 'idle'
-        event = MagicMock()
+        event = mocker.MagicMock()
         event.pos = (50, 25)
         sprite.on_mouse_motion_event(event)
         assert sprite.film_strip_widget.hovered_preview == 'idle'
 
-    def test_motion_over_strip_area(self, pygame_mocks, mock_groups):
+    def test_motion_over_strip_area(self, mock_groups, mocker):
         """Mouse over strip area (not frame/preview) sets strip hover."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.film_strip_widget.get_frame_at_position.return_value = None
         sprite.film_strip_widget.get_preview_at_position.return_value = None
         sprite.film_strip_widget.hovered_preview = None
-        event = MagicMock()
+        event = mocker.MagicMock()
         event.pos = (50, 25)
         sprite.on_mouse_motion_event(event)
         assert sprite.film_strip_widget.is_hovering_strip is True
 
-    def test_motion_outside_strip(self, pygame_mocks, mock_groups):
+    def test_motion_outside_strip(self, mock_groups, mocker):
         """Mouse outside film strip clears hover effects."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
-        event = MagicMock()
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
+        event = mocker.MagicMock()
         event.pos = (500, 500)  # Outside the 200x50 rect
         sprite.on_mouse_motion_event(event)
         assert sprite.film_strip_widget.hovered_frame is None
         assert sprite.film_strip_widget.hovered_preview is None
         assert sprite.film_strip_widget.is_hovering_strip is False
 
-    def test_motion_clears_preview_hover_when_leaving_preview(self, pygame_mocks, mock_groups):
+    def test_motion_clears_preview_hover_when_leaving_preview(self, mock_groups, mocker):
         """Leaving preview area clears preview hover."""
-        sprite = self._make_film_strip_sprite(pygame_mocks, mock_groups)
+        sprite = self._make_film_strip_sprite(mock_groups, mocker)
         sprite.film_strip_widget.get_frame_at_position.return_value = None
         sprite.film_strip_widget.get_preview_at_position.return_value = None
         # Simulate that we were previously hovering over a preview
         sprite.film_strip_widget.hovered_preview = 'idle'
-        event = MagicMock()
+        event = mocker.MagicMock()
         event.pos = (50, 25)
         sprite.on_mouse_motion_event(event)
         assert sprite.film_strip_widget.hovered_preview is None
@@ -1885,17 +1878,17 @@ class TestFilmStripSpriteOnMouseMotionEvent:
 class TestAnimatedCanvasSpriteDragMethods:
     """Tests for AnimatedCanvasSprite drag-related methods."""
 
-    def _make_canvas_sprite(self, pygame_mocks, mock_groups):
+    def _make_canvas_sprite(self, mock_groups, mocker):
         """Create an AnimatedCanvasSprite with mocked dependencies."""
         from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 
-        animated_sprite = MagicMock()
+        animated_sprite = mocker.MagicMock()
         animated_sprite.current_animation = 'idle'
         animated_sprite.current_frame = 0
         animated_sprite._animations = {
-            'idle': [MagicMock()],
+            'idle': [mocker.MagicMock()],
         }
-        animated_sprite.frames = {'idle': [MagicMock()]}
+        animated_sprite.frames = {'idle': [mocker.MagicMock()]}
         animated_sprite.is_playing = False
         animated_sprite.is_static_sprite.return_value = False
 
@@ -1916,120 +1909,129 @@ class TestAnimatedCanvasSpriteDragMethods:
             groups=mock_groups,
         )
 
-    def test_cache_drag_frame_first_time(self, pygame_mocks, mock_groups):
+    def test_cache_drag_frame_first_time(self, mock_groups, mocker):
         """Caching drag frame stores frame reference."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         # Remove _drag_frame if it was set during init
         if hasattr(canvas, '_drag_frame'):
             del canvas._drag_frame
         canvas._cache_drag_frame()
         assert hasattr(canvas, '_drag_frame')
 
-    def test_cache_drag_frame_already_cached(self, pygame_mocks, mock_groups):
+    def test_cache_drag_frame_already_cached(self, mock_groups, mocker):
         """Second cache call does not overwrite existing cached frame."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         sentinel = object()
         canvas._drag_frame = sentinel
         canvas._cache_drag_frame()
         assert canvas._drag_frame is sentinel
 
-    def test_get_old_pixel_color_no_drag_frame(self, pygame_mocks, mock_groups):
+    def test_get_old_pixel_color_no_drag_frame(self, mock_groups, mocker):
         """Without drag frame, returns canvas pixel color."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         canvas._drag_frame = None
         canvas.pixels[0] = (100, 200, 50, 255)
         result = canvas._get_old_pixel_color(0)
         assert result == (100, 200, 50, 255)
 
-    def test_get_old_pixel_color_from_drag_frame_pixels(self, pygame_mocks, mock_groups):
+    def test_get_old_pixel_color_from_drag_frame_pixels(self, mock_groups, mocker):
         """With drag frame.pixels, returns frame pixel color."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.pixels = [(10, 20, 30, 255)] * (32 * 32)
         canvas._drag_frame = frame
         result = canvas._get_old_pixel_color(0)
         assert result == (10, 20, 30, 255)
 
-    def test_get_old_pixel_color_fallback_get_pixel_data(self, pygame_mocks, mock_groups):
+    def test_get_old_pixel_color_fallback_get_pixel_data(self, mock_groups, mocker):
         """Falls back to get_pixel_data() when frame has no pixels attribute."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock(spec=['get_pixel_data'])
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock(spec=['get_pixel_data'])
         frame.get_pixel_data.return_value = [(50, 60, 70, 255)] * (32 * 32)
         canvas._drag_frame = frame
         result = canvas._get_old_pixel_color(0)
         assert result == (50, 60, 70, 255)
 
-    def test_update_drag_frame_pixel_no_drag_frame(self, pygame_mocks, mock_groups):
+    def test_update_drag_frame_pixel_no_drag_frame(self, mock_groups, mocker):
         """Does nothing when drag frame is None."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         canvas._drag_frame = None
         canvas._update_drag_frame_pixel(0, (255, 0, 0, 255))
         # Should not raise
 
-    def test_update_drag_frame_pixel_fast_path(self, pygame_mocks, mock_groups):
+    def test_update_drag_frame_pixel_fast_path(self, mock_groups, mocker):
         """Updates pixel directly in frame.pixels."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.pixels = [(0, 0, 0, 255)] * (32 * 32)
         canvas._drag_frame = frame
         canvas._update_drag_frame_pixel(5, (255, 0, 0, 255))
         assert frame.pixels[5] == (255, 0, 0, 255)
 
-    def test_update_drag_frame_pixel_slow_path(self, pygame_mocks, mock_groups):
+    def test_update_drag_frame_pixel_slow_path(self, mock_groups, mocker):
         """Falls back to get/set_pixel_data when no pixels attribute."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock(spec=['get_pixel_data', 'set_pixel_data'])
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock(spec=['get_pixel_data', 'set_pixel_data'])
         frame_pixels = [(0, 0, 0, 255)] * (32 * 32)
         frame.get_pixel_data.return_value = frame_pixels
         canvas._drag_frame = frame
         canvas._update_drag_frame_pixel(5, (255, 0, 0, 255))
         frame.set_pixel_data.assert_called_once()
 
-    def test_clear_surface_cache(self, pygame_mocks, mock_groups):
+    def test_clear_surface_cache(self, mock_groups, mocker):
         """Clears cache entry for current animation frame."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        canvas.animated_sprite._surface_cache = {'idle_0': MagicMock()}
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        canvas.animated_sprite._surface_cache = {'idle_0': mocker.MagicMock()}
         canvas._clear_surface_cache()
         assert 'idle_0' not in canvas.animated_sprite._surface_cache
 
-    def test_clear_surface_cache_no_cache(self, pygame_mocks, mock_groups):
+    def test_clear_surface_cache_no_cache(self, mock_groups, mocker):
         """Does nothing when no surface cache exists."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         if hasattr(canvas.animated_sprite, '_surface_cache'):
             del canvas.animated_sprite._surface_cache
         canvas._clear_surface_cache()
         # Should not raise
 
-    def test_rebuild_frame_image_from_pixels(self, pygame_mocks, mock_groups):
+    def test_rebuild_frame_image_from_pixels(self, mock_groups, mocker):
         """Rebuilds frame image from pixel data."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
-        frame._image = pygame.Surface((4, 4))
-        frame.pixels = [(255, 0, 0, 255)] * 16
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = SimpleNamespace(
+            _image=pygame.Surface((4, 4), pygame.SRCALPHA),
+            # One pixel more than the 4x4 image holds: it must not be drawn anywhere
+            pixels=[(255, 0, 0, 255)] * 15 + [(0, 0, 255, 128), (0, 255, 0, 255)],
+        )
         canvas._rebuild_frame_image_from_pixels(frame)
-        # Should not raise; the image should be updated
+        # The frame's image now shows its pixels, in row-major order
+        assert tuple(frame._image.get_at((0, 0))) == (255, 0, 0, 255)
+        assert tuple(frame._image.get_at((2, 3))) == (255, 0, 0, 255)
+        assert tuple(frame._image.get_at((3, 3))) == (0, 0, 255, 128)
+        rgb_rows = pygame.surfarray.array3d(frame._image).reshape(-1, 3)
+        assert (0, 255, 0) not in {tuple(int(component) for component in row) for row in rgb_rows}
 
-    def test_rebuild_frame_image_no_image(self, pygame_mocks, mock_groups):
+    def test_rebuild_frame_image_no_image(self, mock_groups, mocker):
         """Does nothing when frame has no _image."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock(spec=['pixels'])
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock(spec=['pixels'])
         frame.pixels = [(255, 0, 0, 255)] * 16
         canvas._rebuild_frame_image_from_pixels(frame)
         # Should not raise
 
-    def test_rebuild_frame_image_clears_stale_flag(self, pygame_mocks, mock_groups):
+    def test_rebuild_frame_image_clears_stale_flag(self, mock_groups, mocker):
         """Clears _image_stale flag after rebuild."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
-        frame._image = pygame.Surface((4, 4))
-        frame.pixels = [(255, 0, 0, 255)] * 16
-        frame._image_stale = True
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = SimpleNamespace(
+            _image=pygame.Surface((4, 4)),
+            pixels=[(255, 0, 0, 255)] * 16,
+            _image_stale=True,
+        )
         canvas._rebuild_frame_image_from_pixels(frame)
         assert not hasattr(frame, '_image_stale')
+        assert tuple(frame._image.get_at((3, 3)))[:3] == (255, 0, 0)
 
-    def test_flush_batched_drag_pixels(self, pygame_mocks, mock_groups):
+    def test_flush_batched_drag_pixels(self, mock_groups, mocker):
         """Flushes drag pixel changes to frame."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         canvas._drag_pixels = {
             (0, 0): (0, 0, (0, 0, 0, 255), (255, 0, 0, 255)),
             (1, 0): (1, 0, (0, 0, 0, 255), (0, 255, 0, 255)),
@@ -2039,45 +2041,45 @@ class TestAnimatedCanvasSpriteDragMethods:
         canvas._flush_batched_drag_pixels()
         frame.set_pixel_data.assert_called_once()
 
-    def test_flush_batched_drag_pixels_no_animated_sprite(self, pygame_mocks, mock_groups):
+    def test_flush_batched_drag_pixels_no_animated_sprite(self, mock_groups, mocker):
         """Does nothing when no animated sprite."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         del canvas.animated_sprite
         canvas._drag_pixels = {(0, 0): (0, 0, (0, 0, 0), (255, 0, 0))}
         canvas._flush_batched_drag_pixels()
         # Should not raise
 
-    def test_sync_drag_frame_surface(self, pygame_mocks, mock_groups):
+    def test_sync_drag_frame_surface(self, mock_groups, mocker):
         """Syncs drag frame surface from pixels."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.pixels = [(255, 0, 0, 255)] * 16
         canvas._drag_frame = frame
         canvas._sync_drag_frame_surface()
         frame.set_pixel_data.assert_called_once()
 
-    def test_sync_drag_frame_surface_no_drag_frame(self, pygame_mocks, mock_groups):
+    def test_sync_drag_frame_surface_no_drag_frame(self, mock_groups, mocker):
         """Does nothing when no drag frame."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         if hasattr(canvas, '_drag_frame'):
             del canvas._drag_frame
         canvas._sync_drag_frame_surface()
         # Should not raise
 
-    def test_sync_drag_frame_surface_error_handled(self, pygame_mocks, mock_groups):
+    def test_sync_drag_frame_surface_error_handled(self, mock_groups, mocker):
         """Handles error during frame sync gracefully."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.pixels = [(255, 0, 0, 255)]
         frame.set_pixel_data.side_effect = TypeError('test')
         canvas._drag_frame = frame
         canvas._sync_drag_frame_surface()
         # Should not raise
 
-    def test_submit_drag_pixel_changes_to_undo(self, pygame_mocks, mock_groups):
+    def test_submit_drag_pixel_changes_to_undo(self, mock_groups, mocker):
         """Submits pixel changes to undo system."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        mock_scene = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        mock_scene = mocker.MagicMock()
         mock_scene._applying_undo_redo = False
         mock_scene.current_pixel_changes_dict = {}
         canvas.parent_scene = mock_scene
@@ -2091,9 +2093,9 @@ class TestAnimatedCanvasSpriteDragMethods:
         }
         mock_scene._submit_pixel_changes_if_ready.assert_called_once_with()
 
-    def test_submit_drag_pixel_changes_no_parent_scene(self, pygame_mocks, mock_groups):
+    def test_submit_drag_pixel_changes_no_parent_scene(self, mock_groups, mocker):
         """Does nothing when no parent scene."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         canvas.parent_scene = None
         canvas._drag_pixels = {(0, 0): (0, 0, (0, 0, 0), (255, 0, 0))}
         canvas._submit_drag_pixel_changes_to_undo()
@@ -2108,17 +2110,17 @@ class TestAnimatedCanvasSpriteDragMethods:
 class TestAnimatedCanvasSpriteDragCleanup:
     """Tests for AnimatedCanvasSprite drag cleanup and empty-change handling."""
 
-    def _make_canvas_sprite(self, pygame_mocks, mock_groups):
+    def _make_canvas_sprite(self, mock_groups, mocker):
         """Create an AnimatedCanvasSprite with mocked dependencies."""
         from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 
-        animated_sprite = MagicMock()
+        animated_sprite = mocker.MagicMock()
         animated_sprite.current_animation = 'idle'
         animated_sprite.current_frame = 0
         animated_sprite._animations = {
-            'idle': [MagicMock()],
+            'idle': [mocker.MagicMock()],
         }
-        animated_sprite.frames = {'idle': [MagicMock()]}
+        animated_sprite.frames = {'idle': [mocker.MagicMock()]}
         animated_sprite.is_playing = False
         animated_sprite.is_static_sprite.return_value = False
 
@@ -2139,30 +2141,30 @@ class TestAnimatedCanvasSpriteDragCleanup:
             groups=mock_groups,
         )
 
-    def test_submit_drag_pixel_changes_applying_undo(self, pygame_mocks, mock_groups):
+    def test_submit_drag_pixel_changes_applying_undo(self, mock_groups, mocker):
         """Does nothing during undo/redo application."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        mock_scene = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        mock_scene = mocker.MagicMock()
         mock_scene._applying_undo_redo = True
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {(0, 0): (0, 0, (0, 0, 0), (255, 0, 0))}
         canvas._submit_drag_pixel_changes_to_undo()
         # Should not modify scene
 
-    def test_submit_drag_pixel_changes_empty(self, pygame_mocks, mock_groups):
+    def test_submit_drag_pixel_changes_empty(self, mock_groups, mocker):
         """Does nothing when no pixel changes."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        mock_scene = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        mock_scene = mocker.MagicMock()
         mock_scene._applying_undo_redo = False
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {}
         canvas._submit_drag_pixel_changes_to_undo()
         # Should not raise
 
-    def test_cleanup_drag_state(self, pygame_mocks, mock_groups):
+    def test_cleanup_drag_state(self, mock_groups, mocker):
         """Cleans up all drag-related state."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
-        frame = MagicMock()
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
+        frame = mocker.MagicMock()
         frame.pixels = [(255, 0, 0, 255)] * 16
         frame._image = pygame.Surface((4, 4))
         frame._image_stale = True
@@ -2176,9 +2178,9 @@ class TestAnimatedCanvasSpriteDragCleanup:
         assert not hasattr(canvas, '_drag_redraw_counter')
         assert not hasattr(canvas, '_drag_frame')
 
-    def test_cleanup_drag_state_no_drag_frame(self, pygame_mocks, mock_groups):
+    def test_cleanup_drag_state_no_drag_frame(self, mock_groups, mocker):
         """Cleanup works even without a drag frame."""
-        canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
+        canvas = self._make_canvas_sprite(mock_groups, mocker)
         canvas._drag_active = True
         canvas._drag_pixels = {}
         if hasattr(canvas, '_drag_frame'):

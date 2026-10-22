@@ -10,10 +10,11 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.controllers.visual_indicators import VisualIndicators
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.slider_manager import SliderManager
-from tests.mocks import MockFactory
+from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 
 def _make_event(**kwargs):
@@ -23,6 +24,32 @@ def _make_event(**kwargs):
         A SimpleNamespace with the given attributes.
     """
     return SimpleNamespace(**kwargs)
+
+
+def _make_two_frame_canvas(*, first_frame_color, second_frame_color):
+    """Build a real 2x2 AnimatedCanvasSprite (10x10 screen pixels each) with two frames.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas, showing frame 0 of animation 'idle'.
+
+    """
+    animated_sprite = AnimatedSprite()
+    frames = []
+    for color in (first_frame_color, second_frame_color):
+        frame = SpriteFrame(pygame.Surface((2, 2)))
+        frame.set_pixel_data([color] * 4)
+        frames.append(frame)
+    animated_sprite.add_animation('idle', frames)
+    return AnimatedCanvasSprite(
+        animated_sprite=animated_sprite,
+        name='Two Frame Canvas',
+        x=0,
+        y=0,
+        pixels_across=2,
+        pixels_tall=2,
+        pixel_width=10,
+        pixel_height=10,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -42,17 +69,7 @@ def _ensure_pygame_init():
 
 
 @pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        The mock objects created by MockFactory.
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-
-@pytest.fixture
-def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
+def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:
@@ -180,7 +197,7 @@ def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
     editor._frame_operations = FrameOperationManager(editor)
 
     # -- Screen --
-    editor.screen = mocker.Mock()
+    editor.screen = pygame.display.get_surface()
 
     # -- All sprites --
     editor.all_sprites = []
@@ -618,7 +635,22 @@ class TestOnKeyDownEvent:
         assert result is None
 
     def test_onion_skinning_toggle(self, mock_editor, mocker):
-        """O key toggles onion skinning."""
+        """O key toggles onion skinning and redraws the canvas without the onion layer."""
+        from glitchygames.bitmappy import onion_skinning
+
+        # A fresh real manager, so the toggle does not leak into other tests
+        onion_manager = onion_skinning.OnionSkinningManager()
+        mocker.patch.object(onion_skinning, 'onion_skinning_manager', onion_manager)
+        canvas = _make_two_frame_canvas(
+            first_frame_color=(255, 0, 255, 255),
+            second_frame_color=(255, 255, 255, 255),
+        )
+        onion_manager.toggle_frame_onion_skinning('idle', 1)
+        canvas.force_redraw()
+        # Frame 0 is transparent (magenta), so frame 1 shows through as an onion layer
+        onion_rgb = tuple(canvas.image.get_at((5, 5)))[:3]
+        assert onion_rgb != (255, 0, 255)
+        mock_editor.canvas = canvas
         mock_editor.debug_text = mocker.Mock()
         mock_editor.debug_text.is_active = False
         mocker.patch.object(
@@ -627,22 +659,15 @@ class TestOnKeyDownEvent:
             return_value=False,
         )
         mocker.patch.object(mock_editor, '_handle_film_strip_text_input', return_value=False)
-        onion_mock = mocker.Mock()
-        onion_mock.toggle_global_onion_skinning.return_value = True
-        mocker.patch(
-            'glitchygames.bitmappy.editor.get_onion_skinning_manager',
-            return_value=onion_mock,
-            create=True,
-        )
-        mocker.patch(
-            'glitchygames.bitmappy.onion_skinning.get_onion_skinning_manager',
-            return_value=onion_mock,
-        )
         event = mocker.Mock()
         event.key = pygame.K_o
+
         result = mock_editor.on_key_down_event(event)
+
         assert result is None
-        mock_editor.canvas.force_redraw.assert_called()
+        assert onion_manager.is_global_onion_skinning_enabled() is False
+        # Redrawn without the onion layer: only the magenta background remains
+        assert tuple(canvas.image.get_at((5, 5)))[:3] == (255, 0, 255)
 
     def test_ctrl_z_calls_undo(self, mock_editor, mocker):
         """Ctrl+Z triggers undo."""
@@ -2015,15 +2040,24 @@ class TestSynchronizeCanvasStateAfterUndo:
         mock_editor.canvas.show_frame.assert_called_once_with('default', 0)
 
     def test_valid_state_forces_redraw(self, mock_editor, mocker):
-        """Valid state forces redraw and updates film strips."""
-        mock_editor.canvas.animated_sprite._animations = {
-            'default': [mocker.Mock(), mocker.Mock()],
-        }
-        mock_editor.canvas.current_animation = 'default'
-        mock_editor.canvas.current_frame = 0
-        mocker.patch.object(mock_editor.film_strip_coordinator, 'update_film_strips_for_frame')
+        """Valid state redraws the canvas from the (undone) frame and updates film strips."""
+        canvas = _make_two_frame_canvas(
+            first_frame_color=(255, 255, 255, 255),
+            second_frame_color=(0, 0, 255, 255),
+        )
+        # An undo changed frame 0 behind the canvas's back
+        canvas.animated_sprite._animations['idle'][0].set_pixel_data([(255, 0, 0, 255)] * 4)
+        assert tuple(canvas.image.get_at((5, 5)))[:3] == (255, 255, 255)
+        mock_editor.canvas = canvas
+        update_film_strips = mocker.patch.object(
+            mock_editor.film_strip_coordinator,
+            'update_film_strips_for_frame',
+        )
+
         mock_editor._synchronize_canvas_state_after_undo()
-        mock_editor.canvas.force_redraw.assert_called()
+
+        assert tuple(canvas.image.get_at((5, 5)))[:3] == (255, 0, 0)
+        update_film_strips.assert_called()
 
 
 # ===========================================================================
@@ -2235,38 +2269,68 @@ class TestUpdateCanvasIndicators:
     """
 
     @staticmethod
-    def _make_indicators(
-        mocker, *, active=True, mode='canvas', position_valid=True, has_canvas=True
-    ):
-        """Build VisualIndicators over a stand-in handler with one controller.
+    def _make_indicators(*, active=True, mode='canvas', position_valid=True, has_canvas=True):
+        """Build VisualIndicators over a stand-in editor with one controller and a real canvas.
+
+        The canvas is a real AnimatedCanvasSprite (8x8 pixels of 10x10 screen pixels, all
+        white) whose parent scene is the stand-in editor, so its renderer draws the
+        controller's marker from the same controller state.
 
         Returns:
-            tuple: (VisualIndicators, the stand-in canvas).
+            tuple: (VisualIndicators, the canvas, or None without one).
 
         """
-        controller_selection = mocker.Mock()
-        controller_selection.is_active.return_value = active
-        controller_mode = mocker.Mock()
-        controller_mode.value = mode
-        position = mocker.Mock(is_valid=position_valid, position=(3, 4))
+        controller_selection = SimpleNamespace(is_active=lambda: active)
+        controller_info = SimpleNamespace(controller_id=0, color=(255, 0, 0))
+        editor = SimpleNamespace(
+            controller_selections={0: controller_selection},
+            mode_switcher=SimpleNamespace(
+                get_controller_mode=lambda controller_id: SimpleNamespace(value=mode),
+                get_controller_position=lambda controller_id: SimpleNamespace(
+                    is_valid=position_valid,
+                    position=(3, 4),
+                ),
+            ),
+        )
+        handler = SimpleNamespace(
+            editor=editor,
+            find_controller_info=lambda controller_id: controller_info,
+        )
+        editor.controller_handler = handler
+        canvas = None
+        if has_canvas:
+            animated_sprite = AnimatedSprite()
+            frame = SpriteFrame(pygame.Surface((8, 8)))
+            frame.set_pixel_data([(255, 255, 255, 255)] * 64)
+            animated_sprite.add_animation('idle', [frame])
+            canvas = AnimatedCanvasSprite(
+                animated_sprite=animated_sprite,
+                name='Indicator Canvas',
+                x=0,
+                y=0,
+                pixels_across=8,
+                pixels_tall=8,
+                pixel_width=10,
+                pixel_height=10,
+            )
+            canvas.parent_scene = editor
+            editor.canvas = canvas
+        return VisualIndicators(handler), canvas
 
-        editor = mocker.Mock(spec=['controller_selections', 'mode_switcher', 'canvas'])
-        editor.controller_selections = {0: controller_selection}
-        editor.mode_switcher.get_controller_mode.return_value = controller_mode
-        editor.mode_switcher.get_controller_position.return_value = position
-        if not has_canvas:
-            del editor.canvas
+    def test_controller_in_canvas_mode_forces_redraw(self):
+        """An active controller at a valid canvas position redraws the canvas with its marker."""
+        indicators, canvas = self._make_indicators()
+        image_before = canvas.image
 
-        handler = mocker.Mock()
-        handler.editor = editor
-        handler.find_controller_info.return_value = mocker.Mock(color=(255, 0, 0))
-        return VisualIndicators(handler), getattr(editor, 'canvas', None)
-
-    def test_controller_in_canvas_mode_forces_redraw(self, mocker):
-        """An active controller at a valid canvas position triggers a canvas redraw."""
-        indicators, canvas = self._make_indicators(mocker)
         indicators._update_canvas_indicators()
-        canvas.force_redraw.assert_called_once()
+
+        assert canvas.image is not image_before
+        # The marker sits in cell (3, 4) (screen x 30..39, y 40..49): a red ring, then
+        # the inverse of the white pixel (black)
+        assert tuple(canvas.image.get_at((31, 41)))[:3] == (255, 0, 0)
+        assert tuple(canvas.image.get_at((33, 43)))[:3] == (0, 0, 0)
+        # Other cells are just white
+        assert tuple(canvas.image.get_at((5, 5)))[:3] == (255, 255, 255)
 
     @pytest.mark.parametrize(
         'controller_state',
@@ -2277,13 +2341,16 @@ class TestUpdateCanvasIndicators:
         ],
         ids=['inactive', 'other_mode', 'invalid_position'],
     )
-    def test_no_canvas_controller_means_no_redraw(self, mocker, controller_state):
-        """No controller in canvas mode at a valid position: nothing to redraw."""
-        indicators, canvas = self._make_indicators(mocker, **controller_state)
-        indicators._update_canvas_indicators()
-        canvas.force_redraw.assert_not_called()
+    def test_no_canvas_controller_means_no_redraw(self, controller_state):
+        """No controller in canvas mode at a valid position: the canvas image is left alone."""
+        indicators, canvas = self._make_indicators(**controller_state)
+        image_before = canvas.image
 
-    def test_editor_without_canvas_is_ignored(self, mocker):
+        indicators._update_canvas_indicators()
+
+        assert canvas.image is image_before
+
+    def test_editor_without_canvas_is_ignored(self):
         """Before the canvas exists the update is a no-op instead of an error."""
-        indicators, _ = self._make_indicators(mocker, has_canvas=False)
+        indicators, _ = self._make_indicators(has_canvas=False)
         indicators._update_canvas_indicators()

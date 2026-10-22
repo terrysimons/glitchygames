@@ -55,7 +55,7 @@ def _create_stub_with_options(stub_class):
 class TestWindowEventStubs:
     """Test all WindowEventStubs methods raise UnhandledEventError."""
 
-    def test_on_window_close_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_close_event_raises(self, mocker):
         """on_window_close_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -63,7 +63,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_close_event(event)
 
-    def test_on_window_enter_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_enter_event_raises(self, mocker):
         """on_window_enter_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -71,7 +71,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_enter_event(event)
 
-    def test_on_window_exposed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_exposed_event_raises(self, mocker):
         """on_window_exposed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -79,7 +79,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_exposed_event(event)
 
-    def test_on_window_focus_gained_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_focus_gained_event_raises(self, mocker):
         """on_window_focus_gained_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -87,7 +87,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_focus_gained_event(event)
 
-    def test_on_window_focus_lost_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_focus_lost_event_raises(self, mocker):
         """on_window_focus_lost_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -95,7 +95,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_focus_lost_event(event)
 
-    def test_on_window_hidden_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_hidden_event_raises(self, mocker):
         """on_window_hidden_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -103,7 +103,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_hidden_event(event)
 
-    def test_on_window_hit_test_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_hit_test_event_raises(self, mocker):
         """on_window_hit_test_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -111,7 +111,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_hit_test_event(event)
 
-    def test_on_window_leave_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_leave_event_raises(self, mocker):
         """on_window_leave_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -119,7 +119,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_leave_event(event)
 
-    def test_on_window_maximized_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_maximized_event_raises(self, mocker):
         """on_window_maximized_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -127,7 +127,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_maximized_event(event)
 
-    def test_on_window_minimized_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_minimized_event_raises(self, mocker):
         """on_window_minimized_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -135,7 +135,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_minimized_event(event)
 
-    def test_on_window_moved_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_moved_event_raises(self, mocker):
         """on_window_moved_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -143,7 +143,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_moved_event(event)
 
-    def test_on_window_resized_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_resized_event_raises(self, mocker):
         """on_window_resized_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -151,7 +151,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_resized_event(event)
 
-    def test_on_window_restored_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_restored_event_raises(self, mocker):
         """on_window_restored_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -159,7 +159,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_restored_event(event)
 
-    def test_on_window_shown_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_shown_event_raises(self, mocker):
         """on_window_shown_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -167,7 +167,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_shown_event(event)
 
-    def test_on_window_size_changed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_size_changed_event_raises(self, mocker):
         """on_window_size_changed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -175,7 +175,7 @@ class TestWindowEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_window_size_changed_event(event)
 
-    def test_on_window_take_focus_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_window_take_focus_event_raises(self, mocker):
         """on_window_take_focus_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(WindowEventStubs)
@@ -187,7 +187,7 @@ class TestWindowEventStubs:
 class TestJoystickEventStubs:
     """Test all JoystickEventStubs methods raise UnhandledEventError."""
 
-    def test_on_joy_axis_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_axis_motion_event_raises(self, mocker):
         """on_joy_axis_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -195,7 +195,7 @@ class TestJoystickEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_joy_axis_motion_event(event)
 
-    def test_on_joy_button_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_button_down_event_raises(self, mocker):
         """on_joy_button_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -203,7 +203,7 @@ class TestJoystickEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_joy_button_down_event(event)
 
-    def test_on_joy_button_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_button_up_event_raises(self, mocker):
         """on_joy_button_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -211,7 +211,7 @@ class TestJoystickEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_joy_button_up_event(event)
 
-    def test_on_joy_hat_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_hat_motion_event_raises(self, mocker):
         """on_joy_hat_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -219,7 +219,7 @@ class TestJoystickEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_joy_hat_motion_event(event)
 
-    def test_on_joy_ball_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_ball_motion_event_raises(self, mocker):
         """on_joy_ball_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -227,7 +227,7 @@ class TestJoystickEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_joy_ball_motion_event(event)
 
-    def test_on_joy_device_added_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_device_added_event_raises(self, mocker):
         """on_joy_device_added_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -235,7 +235,7 @@ class TestJoystickEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_joy_device_added_event(event)
 
-    def test_on_joy_device_removed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_joy_device_removed_event_raises(self, mocker):
         """on_joy_device_removed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(JoystickEventStubs)
@@ -247,7 +247,7 @@ class TestJoystickEventStubs:
 class TestAppEventStubs:
     """Test all AppEventStubs methods raise UnhandledEventError."""
 
-    def test_on_app_did_enter_background_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_app_did_enter_background_event_raises(self, mocker):
         """on_app_did_enter_background_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AppEventStubs)
@@ -255,7 +255,7 @@ class TestAppEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_app_did_enter_background_event(event)
 
-    def test_on_app_did_enter_foreground_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_app_did_enter_foreground_event_raises(self, mocker):
         """on_app_did_enter_foreground_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AppEventStubs)
@@ -263,7 +263,7 @@ class TestAppEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_app_did_enter_foreground_event(event)
 
-    def test_on_app_will_enter_background_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_app_will_enter_background_event_raises(self, mocker):
         """on_app_will_enter_background_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AppEventStubs)
@@ -271,7 +271,7 @@ class TestAppEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_app_will_enter_background_event(event)
 
-    def test_on_app_will_enter_foreground_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_app_will_enter_foreground_event_raises(self, mocker):
         """on_app_will_enter_foreground_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AppEventStubs)
@@ -279,7 +279,7 @@ class TestAppEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_app_will_enter_foreground_event(event)
 
-    def test_on_app_low_memory_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_app_low_memory_event_raises(self, mocker):
         """on_app_low_memory_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AppEventStubs)
@@ -287,7 +287,7 @@ class TestAppEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_app_low_memory_event(event)
 
-    def test_on_app_terminating_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_app_terminating_event_raises(self, mocker):
         """on_app_terminating_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AppEventStubs)
@@ -299,7 +299,7 @@ class TestAppEventStubs:
 class TestFontEventStubs:
     """Test FontEventStubs methods raise UnhandledEventError."""
 
-    def test_on_font_changed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_font_changed_event_raises(self, mocker):
         """on_font_changed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(FontEventStubs)
@@ -311,7 +311,7 @@ class TestFontEventStubs:
 class TestMidiEventStubs:
     """Test MidiEventStubs methods raise UnhandledEventError."""
 
-    def test_on_midi_in_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_midi_in_event_raises(self, mocker):
         """on_midi_in_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MidiEventStubs)
@@ -319,7 +319,7 @@ class TestMidiEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_midi_in_event(event)
 
-    def test_on_midi_out_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_midi_out_event_raises(self, mocker):
         """on_midi_out_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MidiEventStubs)
@@ -331,25 +331,25 @@ class TestMidiEventStubs:
 class TestMouseEventStubsFocusUnfocus:
     """Test MouseEventStubs focus/unfocus methods raise UnhandledEventError."""
 
-    def test_on_mouse_focus_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_focus_event_raises(self, mocker):
         """on_mouse_focus_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
         event = HashableEvent(pygame.MOUSEMOTION, pos=(50, 50))
-        entering_focus_object = mocker.Mock()
+        entering_focus_object = pygame.sprite.Sprite()
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_focus_event(event, entering_focus_object)
 
-    def test_on_mouse_unfocus_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_unfocus_event_raises(self, mocker):
         """on_mouse_unfocus_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
         event = HashableEvent(pygame.MOUSEMOTION, pos=(50, 50), rel=(0, 0))
-        leaving_focus_object = mocker.Mock()
+        leaving_focus_object = pygame.sprite.Sprite()
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_unfocus_event(event, leaving_focus_object)
 
-    def test_on_mouse_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_motion_event_raises(self, mocker):
         """on_mouse_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -357,7 +357,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_motion_event(event)
 
-    def test_on_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_button_down_event_raises(self, mocker):
         """on_mouse_button_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -365,7 +365,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_button_down_event(event)
 
-    def test_on_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_button_up_event_raises(self, mocker):
         """on_mouse_button_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -373,7 +373,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_button_up_event(event)
 
-    def test_on_mouse_drag_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_drag_event_raises(self, mocker):
         """on_mouse_drag_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -382,7 +382,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_drag_event(event, trigger)
 
-    def test_on_mouse_drop_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_drop_event_raises(self, mocker):
         """on_mouse_drop_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -391,7 +391,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_drop_event(event, trigger)
 
-    def test_on_left_mouse_drag_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_left_mouse_drag_event_raises(self, mocker):
         """on_left_mouse_drag_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -400,7 +400,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_left_mouse_drag_event(event, trigger)
 
-    def test_on_left_mouse_drop_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_left_mouse_drop_event_raises(self, mocker):
         """on_left_mouse_drop_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -409,7 +409,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_left_mouse_drop_event(event, trigger)
 
-    def test_on_middle_mouse_drag_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_middle_mouse_drag_event_raises(self, mocker):
         """on_middle_mouse_drag_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -418,7 +418,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_middle_mouse_drag_event(event, trigger)
 
-    def test_on_middle_mouse_drop_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_middle_mouse_drop_event_raises(self, mocker):
         """on_middle_mouse_drop_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -427,7 +427,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_middle_mouse_drop_event(event, trigger)
 
-    def test_on_right_mouse_drag_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_right_mouse_drag_event_raises(self, mocker):
         """on_right_mouse_drag_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -436,7 +436,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_drag_event(event, trigger)
 
-    def test_on_right_mouse_drop_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_right_mouse_drop_event_raises(self, mocker):
         """on_right_mouse_drop_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -445,7 +445,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_drop_event(event, trigger)
 
-    def test_on_left_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_left_mouse_button_up_event_raises(self, mocker):
         """on_left_mouse_button_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -453,7 +453,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_left_mouse_button_up_event(event)
 
-    def test_on_middle_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_middle_mouse_button_up_event_raises(self, mocker):
         """on_middle_mouse_button_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -461,7 +461,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_middle_mouse_button_up_event(event)
 
-    def test_on_right_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_right_mouse_button_up_event_raises(self, mocker):
         """on_right_mouse_button_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -469,7 +469,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_button_up_event(event)
 
-    def test_on_left_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_left_mouse_button_down_event_raises(self, mocker):
         """on_left_mouse_button_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -477,7 +477,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_left_mouse_button_down_event(event)
 
-    def test_on_middle_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_middle_mouse_button_down_event_raises(self, mocker):
         """on_middle_mouse_button_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -485,7 +485,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_middle_mouse_button_down_event(event)
 
-    def test_on_right_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_right_mouse_button_down_event_raises(self, mocker):
         """on_right_mouse_button_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -493,7 +493,7 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_button_down_event(event)
 
-    def test_on_mouse_scroll_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_scroll_down_event_raises(self, mocker):
         """on_mouse_scroll_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -505,7 +505,7 @@ class TestMouseEventStubsFocusUnfocus:
 class TestMouseEventStubsScrollWheel:
     """Test MouseEventStubs scroll/wheel methods raise UnhandledEventError."""
 
-    def test_on_mouse_scroll_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_scroll_up_event_raises(self, mocker):
         """on_mouse_scroll_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -513,7 +513,7 @@ class TestMouseEventStubsScrollWheel:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_scroll_up_event(event)
 
-    def test_on_mouse_wheel_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_mouse_wheel_event_raises(self, mocker):
         """on_mouse_wheel_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(MouseEventStubs)
@@ -525,7 +525,7 @@ class TestMouseEventStubsScrollWheel:
 class TestAudioEventStubs:
     """Test AudioEventStubs methods raise UnhandledEventError."""
 
-    def test_on_audio_device_added_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_audio_device_added_event_raises(self, mocker):
         """on_audio_device_added_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AudioEventStubs)
@@ -533,7 +533,7 @@ class TestAudioEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
 
-    def test_on_audio_device_removed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_audio_device_removed_event_raises(self, mocker):
         """on_audio_device_removed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(AudioEventStubs)
@@ -545,7 +545,7 @@ class TestAudioEventStubs:
 class TestControllerEventStubs:
     """Test ControllerEventStubs methods raise UnhandledEventError."""
 
-    def test_on_controller_axis_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_axis_motion_event_raises(self, mocker):
         """on_controller_axis_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -553,7 +553,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_axis_motion_event(event)
 
-    def test_on_controller_button_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_button_down_event_raises(self, mocker):
         """on_controller_button_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -561,7 +561,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_button_down_event(event)
 
-    def test_on_controller_button_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_button_up_event_raises(self, mocker):
         """on_controller_button_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -569,7 +569,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_button_up_event(event)
 
-    def test_on_controller_device_added_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_device_added_event_raises(self, mocker):
         """on_controller_device_added_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -577,7 +577,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_device_added_event(event)
 
-    def test_on_controller_device_remapped_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_device_remapped_event_raises(self, mocker):
         """on_controller_device_remapped_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -585,7 +585,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_device_remapped_event(event)
 
-    def test_on_controller_device_removed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_device_removed_event_raises(self, mocker):
         """on_controller_device_removed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -593,7 +593,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_device_removed_event(event)
 
-    def test_on_controller_touchpad_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_touchpad_down_event_raises(self, mocker):
         """on_controller_touchpad_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -601,7 +601,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_touchpad_down_event(event)
 
-    def test_on_controller_touchpad_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_touchpad_motion_event_raises(self, mocker):
         """on_controller_touchpad_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -609,7 +609,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_touchpad_motion_event(event)
 
-    def test_on_controller_touchpad_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_touchpad_up_event_raises(self, mocker):
         """on_controller_touchpad_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -617,7 +617,7 @@ class TestControllerEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_controller_touchpad_up_event(event)
 
-    def test_on_controller_sensor_update_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_controller_sensor_update_event_raises(self, mocker):
         """on_controller_sensor_update_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(ControllerEventStubs)
@@ -629,7 +629,7 @@ class TestControllerEventStubs:
 class TestDropEventStubs:
     """Test DropEventStubs methods raise UnhandledEventError."""
 
-    def test_on_drop_begin_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_drop_begin_event_raises(self, mocker):
         """on_drop_begin_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(DropEventStubs)
@@ -637,7 +637,7 @@ class TestDropEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_drop_begin_event(event)
 
-    def test_on_drop_file_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_drop_file_event_raises(self, mocker):
         """on_drop_file_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(DropEventStubs)
@@ -645,7 +645,7 @@ class TestDropEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_drop_file_event(event)
 
-    def test_on_drop_text_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_drop_text_event_raises(self, mocker):
         """on_drop_text_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(DropEventStubs)
@@ -653,7 +653,7 @@ class TestDropEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_drop_text_event(event)
 
-    def test_on_drop_complete_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_drop_complete_event_raises(self, mocker):
         """on_drop_complete_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(DropEventStubs)
@@ -665,7 +665,7 @@ class TestDropEventStubs:
 class TestTouchEventStubs:
     """Test TouchEventStubs methods raise UnhandledEventError."""
 
-    def test_on_touch_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_touch_down_event_raises(self, mocker):
         """on_touch_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TouchEventStubs)
@@ -673,7 +673,7 @@ class TestTouchEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_touch_down_event(event)
 
-    def test_on_touch_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_touch_motion_event_raises(self, mocker):
         """on_touch_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TouchEventStubs)
@@ -681,7 +681,7 @@ class TestTouchEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_touch_motion_event(event)
 
-    def test_on_touch_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_touch_up_event_raises(self, mocker):
         """on_touch_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TouchEventStubs)
@@ -689,7 +689,7 @@ class TestTouchEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_touch_up_event(event)
 
-    def test_on_multi_touch_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_multi_touch_down_event_raises(self, mocker):
         """on_multi_touch_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TouchEventStubs)
@@ -697,7 +697,7 @@ class TestTouchEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_multi_touch_down_event(event)
 
-    def test_on_multi_touch_motion_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_multi_touch_motion_event_raises(self, mocker):
         """on_multi_touch_motion_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TouchEventStubs)
@@ -705,7 +705,7 @@ class TestTouchEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_multi_touch_motion_event(event)
 
-    def test_on_multi_touch_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_multi_touch_up_event_raises(self, mocker):
         """on_multi_touch_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TouchEventStubs)
@@ -717,7 +717,7 @@ class TestTouchEventStubs:
 class TestGameEventStubs:
     """Test GameEventStubs methods raise UnhandledEventError."""
 
-    def test_on_active_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_active_event_raises(self, mocker):
         """on_active_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -725,7 +725,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_active_event(event)
 
-    def test_on_fps_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_fps_event_raises(self, mocker):
         """on_fps_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -733,7 +733,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_fps_event(event)
 
-    def test_on_game_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_game_event_raises(self, mocker):
         """on_game_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -741,7 +741,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_game_event(event)
 
-    def test_on_menu_item_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_menu_item_event_raises(self, mocker):
         """on_menu_item_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -749,7 +749,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_menu_item_event(event)
 
-    def test_on_sys_wm_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_sys_wm_event_raises(self, mocker):
         """on_sys_wm_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -757,7 +757,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_sys_wm_event(event)
 
-    def test_on_user_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_user_event_raises(self, mocker):
         """on_user_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -765,7 +765,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_user_event(event)
 
-    def test_on_video_expose_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_video_expose_event_raises(self, mocker):
         """on_video_expose_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -773,7 +773,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_video_expose_event(event)
 
-    def test_on_video_resize_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_video_resize_event_raises(self, mocker):
         """on_video_resize_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -781,7 +781,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_video_resize_event(event)
 
-    def test_on_quit_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_quit_event_raises(self, mocker):
         """on_quit_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -789,7 +789,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_quit_event(event)
 
-    def test_on_render_device_reset_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_render_device_reset_event_raises(self, mocker):
         """on_render_device_reset_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -797,7 +797,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_render_device_reset_event(event)
 
-    def test_on_render_targets_reset_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_render_targets_reset_event_raises(self, mocker):
         """on_render_targets_reset_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -805,7 +805,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_render_targets_reset_event(event)
 
-    def test_on_clipboard_update_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_clipboard_update_event_raises(self, mocker):
         """on_clipboard_update_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -813,7 +813,7 @@ class TestGameEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_clipboard_update_event(event)
 
-    def test_on_locale_changed_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_locale_changed_event_raises(self, mocker):
         """on_locale_changed_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(GameEventStubs)
@@ -825,7 +825,7 @@ class TestGameEventStubs:
 class TestKeyboardEventStubs:
     """Test KeyboardEventStubs methods raise UnhandledEventError."""
 
-    def test_on_key_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_key_down_event_raises(self, mocker):
         """on_key_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(KeyboardEventStubs)
@@ -833,7 +833,7 @@ class TestKeyboardEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_key_down_event(event)
 
-    def test_on_key_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_key_up_event_raises(self, mocker):
         """on_key_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(KeyboardEventStubs)
@@ -841,7 +841,7 @@ class TestKeyboardEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_key_up_event(event)
 
-    def test_on_key_chord_up_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_key_chord_up_event_raises(self, mocker):
         """on_key_chord_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(KeyboardEventStubs)
@@ -850,7 +850,7 @@ class TestKeyboardEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_key_chord_up_event(event, tuple(keys))
 
-    def test_on_key_chord_down_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_key_chord_down_event_raises(self, mocker):
         """on_key_chord_down_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(KeyboardEventStubs)
@@ -863,7 +863,7 @@ class TestKeyboardEventStubs:
 class TestTextEventStubs:
     """Test TextEventStubs methods raise UnhandledEventError."""
 
-    def test_on_text_editing_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_text_editing_event_raises(self, mocker):
         """on_text_editing_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TextEventStubs)
@@ -871,7 +871,7 @@ class TestTextEventStubs:
         with pytest.raises(UnhandledEventError):
             stub.on_text_editing_event(event)
 
-    def test_on_text_input_event_raises(self, mock_pygame_patches, mocker):
+    def test_on_text_input_event_raises(self, mocker):
         """on_text_input_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.base.LOG.error')
         stub = _create_stub_with_options(TextEventStubs)
@@ -883,7 +883,7 @@ class TestTextEventStubs:
 class TestEventInterfaceSubclassHook:
     """Test EventInterface.__subclasshook__ edge cases."""
 
-    def test_subclasshook_with_non_callable_attribute(self, mock_pygame_patches, mocker):
+    def test_subclasshook_with_non_callable_attribute(self, mocker):
         """Test __subclasshook__ when attribute exists but is not callable (line 511)."""
         from glitchygames.events.base import EventInterface
 
@@ -902,7 +902,7 @@ class TestEventInterfaceSubclassHook:
         result = TestInterface.__subclasshook__(ConcreteClass)
         assert result is True  # Attribute exists, counts as implemented
 
-    def test_subclasshook_with_unimplemented_method(self, mock_pygame_patches, mocker):
+    def test_subclasshook_with_unimplemented_method(self, mocker):
         """Test __subclasshook__ when abstract method is NOT implemented (lines 514-515)."""
         from glitchygames.events.base import EventInterface
 

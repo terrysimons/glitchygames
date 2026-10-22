@@ -146,15 +146,9 @@ class BitmappySprite(Sprite):
 
             animated_sprite = SpriteFactory.load_sprite(filename=filename)
 
-            # Convert AnimatedSprite to BitmappySprite format
-            # Get the current frame surface from the animated sprite
-            current_frame = animated_sprite.get_current_frame()
-            if current_frame and hasattr(current_frame, 'surface'):
-                self.image = cast('pygame.Surface', current_frame.surface)  # type: ignore[attr-defined]
-            else:
-                # Fallback: create surface from animated sprite's image
-                assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
-                self.image = animated_sprite.image.copy()
+            # Convert AnimatedSprite to BitmappySprite format: a copy of its current image
+            assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
+            self.image = animated_sprite.image.copy()
 
             self.rect = self.image.get_rect()
             self.name = animated_sprite.name

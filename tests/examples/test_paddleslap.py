@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test paddleslap example using centralized mocks."""
+"""Test the PaddleSlap example game (real pygame, real sprites)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pygame
 import pytest
 
@@ -36,16 +37,12 @@ from glitchygames.game_objects.ball import (
 )
 from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from glitchygames.sources import advance_frame_clock
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.world import position_world_sprites
 
 if TYPE_CHECKING:
     from pytest_mock import MockType
 
 PADDLESLAP_STREAM_TEST_SEED = 41
-
-# The class's autouse MockFactory patches replace pygame.sprite.LayeredDirty with a mock
-# group, so keep the real class for tests that need dt_tick to reach real sprites.
-_RealLayeredDirty = pygame.sprite.LayeredDirty
 
 
 def _reference_stream(name: str) -> random.Random:
@@ -84,19 +81,14 @@ PADDLESLAP_TEST_OPTIONS: dict[str, object] = {
 
 
 class TestPaddleslapExample:
-    """Test paddleslap example using centralized mocks."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    """Test the PaddleSlap example game (real pygame, real sprites)."""
 
     def setup_method(self):
         """Set up test fixtures using centralized mocks."""
         self.mock_options: dict[str, object] = dict(PADDLESLAP_TEST_OPTIONS)
 
     def test_paddleslap_game_initialization(self):
-        """Test that paddleslap game initializes correctly with centralized mocks."""
+        """Test that the PaddleSlap game initializes correctly."""
         # Create the game instance
         game = Game(options=self.mock_options)
 
@@ -304,7 +296,6 @@ class TestPaddleslapExample:
         ball = game.balls[0]
         paddle = game.player1
         paddle.snd = mocker.Mock()
-        game.all_sprites = _RealLayeredDirty(game.player1, game.player2, ball)
         handle_spy = mocker.spy(ball, 'handle_paddle_collision')
         check_overlap_spy = mocker.spy(game.collisions, 'check_overlap')
 
@@ -372,6 +363,45 @@ class TestPaddleslapExample:
 
         handle_spy.assert_not_called()
 
+    def test_the_court_draws_both_paddles_and_the_ball(self):
+        """Drawn for real, the court shows two white paddles and the ball, and nothing else.
+
+        The engine positions the world-space ball from the camera first (as every frame does),
+        then the game's LayeredDirty draws onto a black 32-bit surface (no per-pixel alpha, so
+        the result does not depend on the display's pixel format).
+        """
+        reset_streams(seed=PADDLESLAP_STREAM_TEST_SEED)
+        game = Game(options=self.mock_options)
+        ball = game.balls[0]
+        assert ball.color != (0, 0, 0), 'the ball must differ from the background'
+        position_world_sprites(sprites=game.all_sprites, camera=game.camera, screen_size=(800, 600))
+
+        screen = pygame.Surface((800, 600), depth=32)
+        screen.fill((0, 0, 0))
+        game.all_sprites.draw(screen)
+        pixels = pygame.surfarray.array3d(screen)
+
+        drawn_anywhere = np.zeros((800, 600), dtype=bool)
+        for paddle in (game.player1, game.player2):
+            paddle_pixels = pixels[
+                paddle.rect.left : paddle.rect.right, paddle.rect.top : paddle.rect.bottom
+            ]
+            assert np.all(paddle_pixels == (255, 255, 255)), f'{paddle.name} is not solid white'
+            drawn_anywhere[
+                paddle.rect.left : paddle.rect.right, paddle.rect.top : paddle.rect.bottom
+            ] = True
+
+        ball_box = ball.rect
+        ball_pixels = pixels[ball_box.left : ball_box.right, ball_box.top : ball_box.bottom]
+        ball_box_colors = {
+            tuple(int(channel) for channel in pixel) for pixel in ball_pixels.reshape(-1, 3)
+        }
+        assert ball_box_colors == {(0, 0, 0), ball.color}
+        assert tuple(int(channel) for channel in pixels[ball_box.center]) == ball.color
+        drawn_anywhere[ball_box.left : ball_box.right, ball_box.top : ball_box.bottom] = True
+
+        assert not np.any(pixels[~drawn_anywhere]), 'something was drawn off the sprites'
+
     def test_paddleslap_game_setup(self):
         """Test that the game setup method works correctly."""
         game = Game(options=self.mock_options)
@@ -398,11 +428,6 @@ class TestPaddleslapExample:
 
 class TestPaddleslapSpawnCooldown:
     """PaddleSlap's ball spawn cooldown."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_spawn_cooldown_counts_game_time_only(self, mocker):
         """The spawn cooldown runs on Scene.game_time, so time spent paused never counts.
@@ -435,11 +460,6 @@ class TestPaddleslapSpawnCooldown:
 
 class TestPaddleslapGameOverDemo:
     """PaddleSlap's game-over screen plays the bundled demo when nobody presses anything."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
     def game_over_screen(mocker) -> tuple[PaddleSlapGameOverScene, MockType]:

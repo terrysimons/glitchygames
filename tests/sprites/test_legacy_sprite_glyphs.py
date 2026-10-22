@@ -12,7 +12,6 @@ import pytest
 from scripts.raw_sprite_loader import BitmappyLegacySprite
 
 from glitchygames.sprites import SPRITE_GLYPHS
-from tests.mocks import MockFactory
 
 # Constants for test values
 MAX_RGB_VALUE = 255
@@ -25,17 +24,8 @@ TEST_GRAYSCALE_SIZE = 4
 class TestLegacySpriteGlyphs:
     """Test legacy sprite loader universal character set implementation."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
         """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
@@ -160,8 +150,8 @@ class TestLegacySpriteGlyphs:
 
     def test_legacy_sprite_single_color(self):
         """Test legacy sprite with single color."""
-        # Create surface with single color using centralized mock
-        surface = MockFactory.create_pygame_surface_mock(4, 4)
+        # Create a real surface with a single color
+        surface = pygame.Surface((4, 4))
         surface.fill((255, 0, 0))  # All red
 
         # Create legacy sprite
@@ -179,15 +169,20 @@ class TestLegacySpriteGlyphs:
             'Should have correct sprite name'
         )
 
-        # Test that there's at least one color section
+        # One color, so exactly one color section: the first glyph, mapped to red
         sections = config.sections()
         color_sections = [s for s in sections if s != 'sprite']
-        assert len(color_sections) > 0, 'Should have at least one color section'
+        assert color_sections == [SPRITE_GLYPHS[0]], 'Should have exactly one color section'
+        glyph = color_sections[0]
+        assert (
+            config.getint(glyph, 'red'),
+            config.getint(glyph, 'green'),
+            config.getint(glyph, 'blue'),
+        ) == (255, 0, 0)
 
-        # Test that the pixel data exists and is consistent
+        # Every pixel of the 4x4 surface is that glyph
         pixels = config.get('sprite', 'pixels')
-        assert pixels is not None, 'Should have pixel data'
-        assert len(pixels) > 0, 'Pixel data should not be empty'
+        assert pixels.split('\n') == [glyph * 4] * 4
 
     @staticmethod
     def test_legacy_sprite_pixel_data_consistency():
@@ -232,7 +227,7 @@ class TestLegacySpriteGlyphs:
 
     def test_legacy_sprite_empty_surface(self):
         """Test legacy sprite with empty surface."""
-        # Create empty surface using mocked pygame
+        # Create an empty (0x0) surface
         surface = pygame.Surface((0, 0))
 
         # Create legacy sprite

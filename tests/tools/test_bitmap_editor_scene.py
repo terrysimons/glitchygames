@@ -20,7 +20,6 @@ from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.bitmappy.slider_manager import SliderManager
 from glitchygames.events import HashableEvent
-from tests.mocks import MockFactory
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -37,18 +36,7 @@ def _ensure_pygame_init():
 
 
 @pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The pygame mock objects.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-
-@pytest.fixture
-def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
+def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:

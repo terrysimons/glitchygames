@@ -688,7 +688,11 @@ Features:
 ## Testing Guidelines
 
 - Use `pytest` assertions (not unittest style)
-- Leverage centralized mocks when available
+- Tests use real pygame, the real display and real files (`tmp_path`); there are no shared mocks. Patch
+  only what cannot run in a test (hardware, network, third-party tools such as cookiecutter, the
+  clock, injected failures) with targeted pytest-mock `mocker` calls, and assert on what is drawn
+  (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
+  per-pixel alpha)
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
 - `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`)

@@ -36,13 +36,18 @@ Covers:
 """
 
 import argparse
+import contextlib
 import logging
 import sys
 from collections import OrderedDict
 from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 import pygame
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -53,8 +58,8 @@ from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import non_negative_int, non_negative_percent, unit_interval
 from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import advance_frame_clock, install_sources
-from tests.mocks import MockFactory
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.world.test_gameplay_replay import (
     press_keys_while_held,
@@ -62,34 +67,152 @@ from tests.world.test_gameplay_replay import (
     replay_session_with_arguments,
 )
 
+# The command line every engine in this file starts from: the default display's size
+ENGINE_TEST_ARGUMENTS = ('--resolution', '800x600', '--log-level', 'info')
+# A custom event type no engine handler maps (pygame refuses types past NUMEVENTS)
+UNMAPPED_EVENT_TYPE = pygame.NUMEVENTS - 1
+# Another one, for tests that need two
+OTHER_UNMAPPED_EVENT_TYPE = pygame.NUMEVENTS - 2
+GAME_NAME = 'TestGame'
+GAME_VERSION = '1.0'
 
-def _make_engine(mocker, mock_pygame_patches, mock_game_args):
-    """Create a GameEngine with mocked dependencies.
 
-    Returns:
-        GameEngine: A configured engine instance with mocked game.
+class EngineTestGame(Scene):
+    """A real game scene class for the engine to configure (the engine never builds it here)."""
+
+    NAME = GAME_NAME
+    VERSION = GAME_VERSION
+
+    @classmethod
+    def args(cls, parser: argparse._ArgumentGroup) -> argparse._ArgumentGroup:
+        """Add the game's own command-line option, as a game does.
+
+        Returns:
+            The argument group.
+
+        """
+        parser.add_argument('--test-flag', action='store_true', help='a game option')
+        return parser
+
+
+class NoIconGame(EngineTestGame):
+    """A game whose icon is None: the engine falls back to its own purple icon."""
+
+    icon = None
+
+
+class PlainWindowEngine(GameEngine):
+    """The real GameEngine, opening a plain window instead of a SCALED (or FULLSCREEN) one.
+
+    SDL's dummy video driver has no renderer for SCALED, so pygame warns "no fast renderer
+    available" (an error under pytest's filterwarnings); on a real driver (cocoa, x11) SCALED and
+    FULLSCREEN would change the display every later test on the worker draws on, and FULLSCREEN
+    would take over the screen. mode_flags keeps what the engine chose, so tests can check it;
+    scripts/record_golden_traces.py's GoldenTraceEngine opens its window the same way.
+    """
+
+    @override
+    def initialize_display(self) -> None:
+        """Open the display with no flags, keeping the engine's chosen mode_flags."""
+        requested_mode_flags = self.mode_flags
+        self.mode_flags = 0
+        try:
+            super().initialize_display()
+        finally:
+            self.mode_flags = requested_mode_flags
+
+
+def _override_parsed_options(mocker, option_overrides: dict[str, object]) -> None:
+    """Parse the real command line, then set options no command line can give.
+
+    Args:
+        mocker: pytest-mock's fixture.
+        option_overrides: Option names and the values to give them after parsing.
 
     """
-    mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-    mock_parse_args.return_value = mock_game_args
+    real_parse_args = argparse.ArgumentParser.parse_args
 
-    mock_game = mocker.Mock()
-    mock_game.NAME = 'TestGame'
-    mock_game.VERSION = '1.0'
-    mock_game.TARGET_FPS = None
-    mock_game.args = mocker.Mock(return_value=mocker.Mock())
+    def parse_args_with_overrides(parser, *args, **kwargs):
+        namespace = real_parse_args(parser, *args, **kwargs)
+        for option_name, value in option_overrides.items():
+            setattr(namespace, option_name, value)
+        return namespace
 
-    return GameEngine(game=mock_game)
+    mocker.patch.object(argparse.ArgumentParser, 'parse_args', parse_args_with_overrides)
 
 
-def _raw_event(mocker, event_type, **attributes):
-    """Build a stand-in raw pygame event (mock_pygame_patches replaces pygame.event.Event).
+def _make_engine(
+    mocker,
+    *arguments: str,
+    option_overrides: dict[str, object] | None = None,
+    icon: pygame.Surface | None = None,
+    game: type[Scene] = EngineTestGame,
+):
+    """Construct the real engine for EngineTestGame on the real display.
+
+    Args:
+        mocker: pytest-mock's fixture.
+        *arguments: Command-line arguments after ENGINE_TEST_ARGUMENTS.
+        option_overrides: Options to set after parsing (values no command line can give).
+        icon: The icon to construct the engine with.
+        game: The game scene class.
 
     Returns:
-        Mock: An object with the type and dict a pygame event has.
+        PlainWindowEngine: The engine, constructed (not started).
 
     """
-    return mocker.Mock(type=event_type, dict=dict(attributes))
+    mocker.patch.object(sys, 'argv', ['test_game_engine', *ENGINE_TEST_ARGUMENTS, *arguments])
+    if option_overrides:
+        _override_parsed_options(mocker, option_overrides)
+    return PlainWindowEngine(game=game, icon=icon)
+
+
+def _raw_event(event_type, **attributes):
+    """Build a real raw pygame event, as the live doors read from SDL's queue.
+
+    Returns:
+        pygame.event.Event: The event.
+
+    """
+    return pygame.event.Event(event_type, **attributes)
+
+
+def _assert_active_cursor_is(cursor: list[str]) -> None:
+    """Check SDL's active mouse cursor is the bitmap set_cursor compiles from these rows."""
+    cursor_data, cursor_mask = pygame.cursors.compile(cursor, black='.', white='X', xor='o')
+    active_cursor = pygame.mouse.get_cursor()
+    assert active_cursor.type == 'bitmap'
+    assert active_cursor.data == (
+        (len(cursor[0]), len(cursor)),
+        (0, 0),
+        tuple(cursor_data),
+        tuple(cursor_mask),
+    )
+
+
+@contextlib.contextmanager
+def controller_subsystem(*, initialized: bool) -> Generator[None]:
+    """Run with SDL's real game controller subsystem started or stopped, then put it back.
+
+    Args:
+        initialized: Whether the subsystem is running inside the block.
+
+    Yields:
+        None, while the subsystem is in the asked state.
+
+    """
+    was_initialized = pygame._sdl2.controller.get_init()
+    if initialized:
+        pygame._sdl2.controller.init()
+    else:
+        pygame._sdl2.controller.quit()
+    try:
+        yield
+    finally:
+        if was_initialized:
+            pygame._sdl2.controller.init()
+        else:
+            pygame._sdl2.controller.quit()
 
 
 # ---------------------------------------------------------------------------
@@ -98,113 +221,105 @@ def _raw_event(mocker, event_type, **attributes):
 
 
 class TestGameEngineInitializeArguments:
-    """Test GameEngine.initialize_arguments method."""
+    """Test GameEngine.initialize_arguments method on real command lines."""
 
-    def test_initialize_arguments_parses_options(self, mock_pygame_patches, mocker):
-        """Test initialize_arguments correctly parses command line options."""
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '2.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+    def test_initialize_arguments_parses_options(self, mocker):
+        """initialize_arguments parses the command line into the options it returns."""
+        mocker.patch.object(
+            sys,
+            'argv',
+            ['test_game_engine', '--resolution', '640x480', '--update-type', 'flip', '-f', '30'],
+        )
 
-        mock_args = mocker.Mock()
-        mock_args.log_level = 'INFO'
-        mock_args.target_fps = 60.0
-        mock_args.resolution = '800x600'
-        mock_args.windowed = True
-        mock_args.use_gfxdraw = False
-        mock_args.update_type = 'update'
-        mock_args.profile = False
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_args
+        result = GameEngine.initialize_arguments(EngineTestGame)
 
-        result = GameEngine.initialize_arguments(mock_game)
+        assert result['test_flag'] is False
+        assert result['resolution'] == '640x480'
+        assert result['update_type'] == 'flip'
+        assert result['target_fps'] == 30.0
+        assert result['log_level'] == 'info'
+        assert EngineTestGame.options is result
 
-        assert isinstance(result, dict)
-        assert 'log_level' in result
+    def test_initialize_arguments_adds_the_game_options(self, mocker):
+        """A game's args() class method adds its options to the engine's command line."""
+        mocker.patch.object(sys, 'argv', ['test_game_engine', '--test-flag'])
 
-    def test_initialize_arguments_game_without_args_method(self, mock_pygame_patches, mocker):
-        """Test initialize_arguments when game doesn't implement args()."""
-        mock_game = mocker.Mock(spec=[])  # No methods at all
-        mock_game.NAME = 'NoArgsGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
+        result = GameEngine.initialize_arguments(EngineTestGame)
 
-        mock_args = mocker.Mock()
-        mock_args.log_level = 'INFO'
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_args
+        assert result['test_flag'] is True
 
-        # Should handle AttributeError gracefully
-        result = GameEngine.initialize_arguments(mock_game)
-        assert isinstance(result, dict)
+    def test_initialize_arguments_game_without_args_method(self, mocker, caplog):
+        """A game without an args() class method gets the engine's options only."""
 
-    def test_initialize_arguments_debug_mode(self, mock_pygame_patches, mocker):
-        """Test initialize_arguments enables debug_events for DEBUG log level."""
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'DebugGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+        class NoArgsGame:
+            NAME = 'NoArgsGame'
+            VERSION = '1.0'
+            TARGET_FPS = None
 
-        mock_args = mocker.Mock()
-        mock_args.log_level = 'DEBUG'
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_args
+        mocker.patch.object(sys, 'argv', ['test_game_engine'])
 
-        result = GameEngine.initialize_arguments(mock_game)
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            result = GameEngine.initialize_arguments(NoArgsGame)
+
+        assert result['resolution'] == '800x480'
+        assert 'Game does not implement arguments' in caplog.text
+
+    @pytest.mark.parametrize('log_level', ['DEBUG', 'ERROR', 'CRITICAL'])
+    def test_upper_case_debug_levels_enable_debug_events(self, mocker, log_level):
+        """An upper-case DEBUG, ERROR or CRITICAL level in the options enables debug_events.
+
+        A real command line can never give one (--log-level lower-cases its value: see
+        test_command_line_debug_levels_enable_debug_events), so the parsed options are set
+        directly: this keeps the branch the engine compares against tested.
+        """
+        mocker.patch.object(sys, 'argv', ['test_game_engine'])
+        _override_parsed_options(mocker, {'log_level': log_level})
+
+        result = GameEngine.initialize_arguments(EngineTestGame)
+
         assert result['debug_events'] is True
 
-    def test_initialize_arguments_info_mode(self, mock_pygame_patches, mocker):
-        """Test initialize_arguments disables debug_events for INFO log level."""
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'InfoGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            'Production bug: --log-level lower-cases its value (glitchygames/events/game.py: '
+            'type=str.lower), but GameEngine.initialize_arguments compares it with '
+            "{'DEBUG', 'CRITICAL', 'ERROR'}, so no command line ever enables debug_events"
+        ),
+    )
+    @pytest.mark.parametrize('log_level', ['debug', 'error', 'critical'])
+    def test_command_line_debug_levels_enable_debug_events(self, mocker, log_level):
+        """--log-level debug, error or critical enables debug_events."""
+        mocker.patch.object(sys, 'argv', ['test_game_engine', '--log-level', log_level])
 
-        mock_args = mocker.Mock()
-        mock_args.log_level = 'INFO'
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_args
+        result = GameEngine.initialize_arguments(EngineTestGame)
 
-        result = GameEngine.initialize_arguments(mock_game)
+        assert result['debug_events'] is True
+
+    @pytest.mark.parametrize('log_level', ['info', 'warning'])
+    def test_initialize_arguments_info_mode(self, mocker, log_level):
+        """--log-level info or warning leaves debug_events off."""
+        mocker.patch.object(sys, 'argv', ['test_game_engine', '--log-level', log_level])
+
+        result = GameEngine.initialize_arguments(EngineTestGame)
+
         assert result['debug_events'] is False
 
 
 class TestGameEngineSuggestedResolution:
     """Test GameEngine.suggested_resolution for different platforms."""
 
-    def test_suggested_resolution_returns_tuple(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_suggested_resolution_returns_tuple(self, mocker):
         """Test suggested_resolution returns a tuple of ints."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
         result = engine.suggested_resolution(1024, 768)
         assert isinstance(result, tuple)
         assert len(result) == 2
         assert result == (1024, 768)
 
-    def test_suggested_resolution_linux_arm(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_suggested_resolution_linux_arm(self, mocker):
         """Test suggested_resolution on Linux ARM forces 800x480."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
 
         mocker.patch('platform.system', return_value='Linux')
         mocker.patch('platform.machine', return_value='armv7l')
@@ -216,18 +331,9 @@ class TestGameEngineSuggestedResolution:
 class TestGameEngineResolveSceneName:
     """Test GameEngine._resolve_scene_name_for_error method."""
 
-    def test_resolve_with_current_scene(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_resolve_with_current_scene(self, mocker):
         """Test _resolve_scene_name_for_error with current scene."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.current_scene = mocker.Mock()
         engine.scene_manager.current_scene.NAME = 'ActiveScene'
@@ -235,18 +341,9 @@ class TestGameEngineResolveSceneName:
         result = engine._resolve_scene_name_for_error()
         assert result == 'ActiveScene'
 
-    def test_resolve_with_current_scene_no_name(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_resolve_with_current_scene_no_name(self, mocker):
         """Test _resolve_scene_name_for_error when current scene has no NAME."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.current_scene = mocker.Mock()
         engine.scene_manager.current_scene.NAME = None
@@ -255,18 +352,9 @@ class TestGameEngineResolveSceneName:
         result = engine._resolve_scene_name_for_error()
         assert result == 'FallbackScene'
 
-    def test_resolve_with_previous_scene(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_resolve_with_previous_scene(self, mocker):
         """Test _resolve_scene_name_for_error falls back to previous scene."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.current_scene = None
         engine.scene_manager.previous_scene = mocker.Mock()
@@ -275,18 +363,9 @@ class TestGameEngineResolveSceneName:
         result = engine._resolve_scene_name_for_error()
         assert result == 'PrevScene'
 
-    def test_resolve_with_no_scenes(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_resolve_with_no_scenes(self, mocker):
         """Test _resolve_scene_name_for_error with no scenes returns 'None'."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.current_scene = None
         engine.scene_manager.previous_scene = None
@@ -298,101 +377,49 @@ class TestGameEngineResolveSceneName:
 class TestGameEngineDisplayMethods:
     """Test GameEngine display-related methods."""
 
-    def test_screen_width_property(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_screen_width_property(self, mocker):
         """Test GameEngine screen_width property."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+        engine = _make_engine(mocker)
+        assert engine.screen_width == 800
+        assert engine.screen_width == pygame.display.get_surface().get_width()
 
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
-        width = engine.screen_width
-        assert isinstance(width, int)
-        assert width > 0
-
-    def test_screen_height_property(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_screen_height_property(self, mocker):
         """Test GameEngine screen_height property."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+        engine = _make_engine(mocker)
+        assert engine.screen_height == 600
+        assert engine.screen_height == pygame.display.get_surface().get_height()
 
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+    def test_initialize_display_update_mode(self, mocker):
+        """initialize_display opens the real display at the resolution and presents by update."""
+        engine = _make_engine(mocker, '--resolution', '640x480')
+        assert engine.display_update == pygame.display.update
+        assert engine.screen is pygame.display.get_surface()
+        assert engine.screen.get_size() == (640, 480)
+        assert engine.scene_manager.screen is engine.screen
+        # Windowed: the engine asks for a scaled, resizable window, never fullscreen
+        assert engine.mode_flags & pygame.SCALED
+        assert not engine.mode_flags & pygame.FULLSCREEN
 
-        engine = GameEngine(game=mock_game)
-        height = engine.screen_height
-        assert isinstance(height, int)
-        assert height > 0
-
-    def test_initialize_display_update_mode(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine initialize_display sets update mode."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
-        assert engine.display_update is not None
-
-    def test_initialize_display_flip_mode(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_initialize_display_flip_mode(self, mocker):
         """Test GameEngine initialize_display with flip update type."""
-        mock_game_args.update_type = 'flip'
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker, '--update-type', 'flip')
         assert engine.display_update == pygame.display.flip
 
 
 class TestGameEngineHandleEvent:
     """Test GameEngine.handle_event method."""
 
-    def test_handle_quit_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_handle_quit_event(self, mocker):
         """Test handle_event with QUIT event sets quit_requested."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
-        quit_event = mocker.Mock()
-        quit_event.type = pygame.QUIT
+        engine = _make_engine(mocker)
+        quit_event = events.HashableEvent(pygame.QUIT)
 
         engine.handle_event(quit_event)
         assert engine.scene_manager.quit_requested is True
 
-    def test_handle_event_with_focused_sprites(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_handle_event_with_focused_sprites(self, mocker):
         """Test handle_event routes key events to scene when sprites are focused."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
 
         # Set up a scene with a focused sprite
         mock_sprite = mocker.Mock()
@@ -403,8 +430,7 @@ class TestGameEngineHandleEvent:
         # Mock handle_event on scene_manager since it's a real method
         mock_handle = mocker.patch.object(engine.scene_manager, 'handle_event')
 
-        key_event = mocker.Mock()
-        key_event.type = pygame.KEYDOWN
+        key_event = events.HashableEvent(pygame.KEYDOWN)
         engine.handle_event(key_event)
         mock_handle.assert_called_once_with(key_event)
 
@@ -412,64 +438,37 @@ class TestGameEngineHandleEvent:
 class TestGameEngineShutdown:
     """Test GameEngine._shutdown method."""
 
-    def test_shutdown_completes_without_error(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_shutdown_completes_without_error(self, mocker):
         """Test _shutdown completes without error."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+        engine = _make_engine(mocker)
 
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+        try:
+            engine._shutdown()
 
-        engine = GameEngine(game=mock_game)
-
-        # _shutdown calls pygame.display.quit() and pygame.quit()
-        # In test environments, pygame may already be partially shut down,
-        # so we just verify the method completes without raising
-        engine._shutdown()
-
-        # Re-initialize pygame for other tests
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+            # _shutdown closes the display and quits pygame, for real
+            assert not pygame.display.get_init()
+            assert not pygame.get_init()
+        finally:
+            # Later tests on this worker need pygame and the default display
+            pygame.init()
+            pygame.display.set_mode((800, 600))
 
 
 class TestGameEngineInitializeEventHandlers:
     """Test GameEngine event handler initialization."""
 
-    def test_event_handlers_populated(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_event_handlers_populated(self, mocker):
         """Test that initialize_event_handlers populates EVENT_HANDLERS dict."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
         # After initialization, EVENT_HANDLERS should have entries
         assert len(GameEngine.EVENT_HANDLERS) > 0
 
     def test_input_event_handlers_include_all_types(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test that input event handlers cover controller, keyboard, mouse, etc."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
+        engine = _make_engine(mocker)
 
         # Check that keyboard events are registered
         assert pygame.KEYDOWN in GameEngine.EVENT_HANDLERS
@@ -484,61 +483,49 @@ class TestGameEngineInitializeEventHandlers:
 class TestGameEngineSystemInfo:
     """Test GameEngine system info methods."""
 
-    def test_print_game_info(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_print_game_info(self, mocker, caplog):
         """Test print_game_info logs game title and version."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+        engine = _make_engine(mocker)
 
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_game_info()
 
-        engine = GameEngine(game=mock_game)
-        # Should not raise
-        engine.print_game_info()
+        assert f'Game Title: {GameEngine.NAME}' in caplog.text
+        assert f'Game Version: {GameEngine.VERSION}' in caplog.text
 
-    def test_print_system_info(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test print_system_info logs system details."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+    def test_print_system_info(self, mocker, caplog):
+        """print_system_info logs the real display driver and resolution."""
+        engine = _make_engine(mocker)
 
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_system_info()
 
-        engine = GameEngine(game=mock_game)
-        # Should not raise
-        engine.print_system_info()
+        assert f'Display Driver: {pygame.display.get_driver()}' in caplog.text
+        assert 'Display inited: True' in caplog.text
+        assert f'Initial Resolution: {engine.initial_resolution}' in caplog.text
 
-    def test_initialize_system_icons(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test initialize_system_icons sets window icon and caption."""
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+    def test_initialize_system_icons(self, mocker):
+        """initialize_system_icons sets the real window caption (a game with no icon)."""
+        engine = _make_engine(mocker, game=NoIconGame)
+        pygame.display.set_caption('something else')
 
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-        mock_game.icon = None  # Force fallback to default icon
-
-        engine = GameEngine(game=mock_game)
-        # Should not raise
         engine.initialize_system_icons()
+
+        expected_caption = f'{GameEngine.NAME} v{GameEngine.VERSION}'
+        assert pygame.display.get_caption() == (expected_caption, expected_caption)
 
 
 class TestGameEngineIconWithSurface:
     """Test GameEngine.initialize_icon with a pygame.Surface."""
 
-    def test_initialize_icon_with_surface_directly(self, mocker):
-        """Test initialize_icon sets icon directly when given a Surface."""
-        mock_surface = MockFactory.create_pygame_surface_mock(64, 64)
-        GameEngine.initialize_icon(mock_surface)
-        assert GameEngine.icon == mock_surface
+    def test_engine_constructed_with_a_surface_icon_keeps_it(self, mocker):
+        """GameEngine(icon=surface) makes that real Surface the engine's icon."""
+        icon = pygame.Surface((64, 64))
+        icon.fill((10, 200, 30))
+
+        _make_engine(mocker, icon=icon)
+
+        assert GameEngine.icon is icon
 
 
 # ---------------------------------------------------------------------------
@@ -549,38 +536,36 @@ class TestGameEngineIconWithSurface:
 class TestProcessWindowFocusEvent:
     """Test GameEngine.process_window_focus_event for all window focus types."""
 
-    def test_window_shown(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_shown(self, mocker):
         """Test WINDOWSHOWN dispatches to window_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWSHOWN
+        event = events.HashableEvent(pygame.WINDOWSHOWN)
 
         result = engine.process_window_focus_event(event)
         assert result is True
         engine.window_manager.on_window_shown_event.assert_called_once_with(event)
 
-    def test_window_leave(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_leave(self, mocker):
         """Test WINDOWLEAVE dispatches to window_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWLEAVE
+        event = events.HashableEvent(pygame.WINDOWLEAVE)
 
         result = engine.process_window_focus_event(event)
         assert result is True
         engine.window_manager.on_window_leave_event.assert_called_once_with(event)
 
-    def test_window_focus_gained(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_focus_gained(self, mocker):
         """Test WINDOWFOCUSGAINED dispatches and sets grab."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
+        # Mocked: a real grab would confine the mouse of whoever runs the suite on a real driver
         mock_set_grab = mocker.patch('pygame.event.set_grab')
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWFOCUSGAINED
+        event = events.HashableEvent(pygame.WINDOWFOCUSGAINED)
 
         result = engine.process_window_focus_event(event)
         assert result is True
@@ -588,14 +573,14 @@ class TestProcessWindowFocusEvent:
         mock_set_grab.assert_called_once()
         assert mock_set_grab.call_args[0][0] is True
 
-    def test_window_focus_lost(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_focus_lost(self, mocker):
         """Test WINDOWFOCUSLOST dispatches and releases grab."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
+        # Mocked: a real grab would confine the mouse of whoever runs the suite on a real driver
         mock_set_grab = mocker.patch('pygame.event.set_grab')
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWFOCUSLOST
+        event = events.HashableEvent(pygame.WINDOWFOCUSLOST)
 
         result = engine.process_window_focus_event(event)
         assert result is True
@@ -603,37 +588,34 @@ class TestProcessWindowFocusEvent:
         mock_set_grab.assert_called_once()
         assert mock_set_grab.call_args[0][0] is False
 
-    def test_window_enter(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_enter(self, mocker):
         """Test WINDOWENTER dispatches to window_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWENTER
+        event = events.HashableEvent(pygame.WINDOWENTER)
 
         result = engine.process_window_focus_event(event)
         assert result is True
         engine.window_manager.on_window_enter_event.assert_called_once_with(event)
 
-    def test_window_take_focus(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_take_focus(self, mocker):
         """Test WINDOWTAKEFOCUS dispatches to window_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWTAKEFOCUS
+        event = events.HashableEvent(pygame.WINDOWTAKEFOCUS)
 
         result = engine.process_window_focus_event(event)
         assert result is True
         engine.window_manager.on_window_take_focus_event.assert_called_once_with(event)
 
-    def test_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_unhandled_returns_false(self, mocker):
         """Test unhandled window focus event returns False."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_window_focus_event(event)
         assert result is False
@@ -642,124 +624,113 @@ class TestProcessWindowFocusEvent:
 class TestProcessWindowEvent:
     """Test GameEngine.process_window_event dispatch table."""
 
-    def test_window_size_changed(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_size_changed(self, mocker):
         """Test WINDOWSIZECHANGED dispatches through dispatch table."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWSIZECHANGED
+        event = events.HashableEvent(pygame.WINDOWSIZECHANGED)
 
         result = engine.process_window_event(event)
         assert result is True
         engine.window_manager.on_window_size_changed_event.assert_called_once_with(event)
 
-    def test_window_restored(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_restored(self, mocker):
         """Test WINDOWRESTORED dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWRESTORED
+        event = events.HashableEvent(pygame.WINDOWRESTORED)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_hidden(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_hidden(self, mocker):
         """Test WINDOWHIDDEN dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWHIDDEN
+        event = events.HashableEvent(pygame.WINDOWHIDDEN)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_minimized(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_minimized(self, mocker):
         """Test WINDOWMINIMIZED dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWMINIMIZED
+        event = events.HashableEvent(pygame.WINDOWMINIMIZED)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_maximized(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_maximized(self, mocker):
         """Test WINDOWMAXIMIZED dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWMAXIMIZED
+        event = events.HashableEvent(pygame.WINDOWMAXIMIZED)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_moved(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_moved(self, mocker):
         """Test WINDOWMOVED dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWMOVED
+        event = events.HashableEvent(pygame.WINDOWMOVED)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_close(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_close(self, mocker):
         """Test WINDOWCLOSE dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWCLOSE
+        event = events.HashableEvent(pygame.WINDOWCLOSE)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_exposed(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_exposed(self, mocker):
         """Test WINDOWEXPOSED dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWEXPOSED
+        event = events.HashableEvent(pygame.WINDOWEXPOSED)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_resized(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_resized(self, mocker):
         """Test WINDOWRESIZED dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWRESIZED
+        event = events.HashableEvent(pygame.WINDOWRESIZED)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_window_hit_test(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_window_hit_test(self, mocker):
         """Test WINDOWHITTEST dispatches correctly."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.WINDOWHITTEST
+        event = events.HashableEvent(pygame.WINDOWHITTEST)
 
         result = engine.process_window_event(event)
         assert result is True
 
-    def test_unknown_window_event_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_unknown_window_event_returns_false(self, mocker):
         """Test unhandled window event returns False."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_window_event(event)
         assert result is False
@@ -770,12 +741,10 @@ class TestBuildWindowEventDispatch:
 
     def test_dispatch_table_has_all_window_events(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test dispatch table includes all expected window event types."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.window_manager = mocker.Mock()
 
         dispatch = engine._build_window_event_dispatch()
@@ -805,121 +774,111 @@ class TestBuildWindowEventDispatch:
 class TestProcessGameEvent:
     """Test GameEngine.process_game_event for various game event types."""
 
-    def test_fps_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_fps_event(self, mocker):
         """Test process_game_event dispatches FPSEVENT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = events.FPSEVENT
+        event = events.HashableEvent(events.FPSEVENT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_fps_event.assert_called_once_with(event)
 
-    def test_game_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_game_event(self, mocker):
         """Test process_game_event dispatches GAMEEVENT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = events.GAMEEVENT
+        event = events.HashableEvent(events.GAMEEVENT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_game_event.assert_called_once_with(event)
 
-    def test_menu_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_menu_event(self, mocker):
         """Test process_game_event dispatches MENUEVENT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = events.MENUEVENT
+        event = events.HashableEvent(events.MENUEVENT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_menu_item_event.assert_called_once_with(event)
 
-    def test_active_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_active_event(self, mocker):
         """Test process_game_event dispatches ACTIVEEVENT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.ACTIVEEVENT
+        event = events.HashableEvent(pygame.ACTIVEEVENT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_active_event.assert_called_once_with(event)
 
-    def test_user_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_user_event(self, mocker):
         """Test process_game_event dispatches USEREVENT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.USEREVENT
+        event = events.HashableEvent(pygame.USEREVENT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_user_event.assert_called_once_with(event)
 
-    def test_video_resize_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_video_resize_event(self, mocker):
         """Test process_game_event dispatches VIDEORESIZE."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.VIDEORESIZE
+        event = events.HashableEvent(pygame.VIDEORESIZE)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_video_resize_event.assert_called_once_with(event)
 
-    def test_video_expose_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_video_expose_event(self, mocker):
         """Test process_game_event dispatches VIDEOEXPOSE."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.VIDEOEXPOSE
+        event = events.HashableEvent(pygame.VIDEOEXPOSE)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_video_expose_event.assert_called_once_with(event)
 
-    def test_sys_wm_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_sys_wm_event(self, mocker):
         """Test process_game_event dispatches SYSWMEVENT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.SYSWMEVENT
+        event = events.HashableEvent(pygame.SYSWMEVENT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_sys_wm_event.assert_called_once_with(event)
 
-    def test_quit_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_quit_event(self, mocker):
         """Test process_game_event dispatches QUIT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.QUIT
+        event = events.HashableEvent(pygame.QUIT)
 
         result = engine.process_game_event(event)
         assert result is True
         engine.game_manager.on_quit_event.assert_called_once_with(event)
 
-    def test_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_unhandled_returns_false(self, mocker):
         """Test process_game_event returns False for unknown game events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.game_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_game_event(event)
         assert result is False
@@ -928,71 +887,60 @@ class TestProcessGameEvent:
 class TestProcessUnimplementedEvent:
     """Test GameEngine.process_unimplemented_event method."""
 
-    def test_first_unimplemented_event_is_logged(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_first_unimplemented_event_is_logged(self, mocker):
         """Test first occurrence of an unimplemented event is logged."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         # Clear prior state
         GameEngine.UNIMPLEMENTED_EVENTS.clear()
 
-        event = mocker.Mock()
-        event.type = 55555  # An arbitrary unused event type
+        event = events.HashableEvent(55555)  # An arbitrary unused event type
 
         engine.process_unimplemented_event(event)
         assert 55555 in GameEngine.UNIMPLEMENTED_EVENTS
 
     def test_duplicate_unimplemented_event_not_added_twice(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test duplicate unimplemented events are not appended again."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         GameEngine.UNIMPLEMENTED_EVENTS.clear()
 
-        event = mocker.Mock()
-        event.type = 55556
+        event = events.HashableEvent(55556)
 
         engine.process_unimplemented_event(event)
         engine.process_unimplemented_event(event)
         assert GameEngine.UNIMPLEMENTED_EVENTS.count(55556) == 1
 
-    def test_event_type_1543_debug_logging(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test event type 1543 triggers extended debug logging."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+    def test_event_type_1543_debug_logging(self, mocker, caplog):
+        """Event type 1543 is logged in detail: its contents, the controller count, its ids."""
+        engine = _make_engine(mocker)
         GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        event = events.HashableEvent(1543, device_index=2)  # UNKNOWN_SDL2_EVENT_TYPE_1543
 
-        # Create an event-like object that supports dict() conversion
-        # The code calls dict(event) which requires __iter__ and __getitem__
-        event = mocker.Mock()
-        event.type = 1543  # UNKNOWN_SDL2_EVENT_TYPE_1543
-        # Make the event dict-able by providing __iter__ and keys
-        event_data = {'type': 1543}
-        event.__iter__ = mocker.Mock(return_value=iter(event_data))
-        event.__getitem__ = mocker.Mock(side_effect=event_data.__getitem__)
-        event.keys = mocker.Mock(return_value=event_data.keys())
+        with (
+            controller_subsystem(initialized=True),
+            caplog.at_level(logging.DEBUG, logger='game.engine'),
+        ):
+            engine.process_unimplemented_event(event)
 
-        mocker.patch('pygame.event.event_name', return_value='Unknown')
-        mocker.patch('pygame._sdl2.controller.get_count', return_value=0)
-
-        engine.process_unimplemented_event(event)
-        # Should have been logged without error
         assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert "'device_index': 2" in caplog.text
+        assert 'Current controller count when event 1543 received: ' in caplog.text
+        assert 'Controller system not initialized' not in caplog.text
+        assert 'Event has device_index: True' in caplog.text
+        assert 'Event has guid: False' in caplog.text
 
-    def test_event_type_1543_when_the_controller_system_cannot_answer(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog
-    ):
+    def test_event_type_1543_when_the_controller_system_cannot_answer(self, mocker, caplog):
         """SDL cannot count controllers (subsystem not initialized): logged, never raised."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         GameEngine.UNIMPLEMENTED_EVENTS.clear()
-        mocker.patch('pygame.event.event_name', return_value='Unknown')
-        mocker.patch(
-            'pygame._sdl2.controller.get_count',
-            side_effect=pygame.error('controller system not initialized'),
-        )
         event = events.HashableEvent(1543)
 
-        with caplog.at_level(logging.DEBUG, logger='game.engine'):
+        with (
+            controller_subsystem(initialized=False),
+            caplog.at_level(logging.DEBUG, logger='game.engine'),
+        ):
             engine.process_unimplemented_event(event)
 
         assert 'Controller system not initialized' in caplog.text
@@ -1002,9 +950,9 @@ class TestProcessUnimplementedEvent:
 class TestUnhandledEventTracking:
     """GameEngine keeps per-type statistics of unhandled events and reports them at teardown."""
 
-    def test_counts_and_first_seen_time_per_type(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_counts_and_first_seen_time_per_type(self, mocker):
         """Each type is counted; its first-seen time is the frame clock since the engine started."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         advance_frame_clock(seconds=0.25)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
@@ -1019,12 +967,10 @@ class TestUnhandledEventTracking:
         assert drop_record.count == 1
         assert drop_record.first_seen_seconds == pytest.approx(2.0)
 
-    def test_first_seen_times_count_from_this_engines_start(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_first_seen_times_count_from_this_engines_start(self, mocker):
         """An earlier run's frame clock never leaks in: the engine restarts it (reset_sources)."""
         advance_frame_clock(seconds=500.0)
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         advance_frame_clock(seconds=0.5)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
@@ -1033,11 +979,9 @@ class TestUnhandledEventTracking:
             0.5
         )
 
-    def test_records_attribute_names_of_first_event_only(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_records_attribute_names_of_first_event_only(self, mocker):
         """The first event's attribute names are kept, sorted; values never appear."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         engine.process_unimplemented_event(
             events.HashableEvent(pygame.JOYDEVICEADDED, guid='secret-guid', device_index=3)
@@ -1054,11 +998,9 @@ class TestUnhandledEventTracking:
         assert 'secret-guid' not in report_line
         assert 'attributes: device_index, guid' in report_line
 
-    def test_report_is_sorted_by_count_descending(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_report_is_sorted_by_count_descending(self, mocker):
         """The most frequent type comes first."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         advance_frame_clock(seconds=0.3)
         engine.process_unimplemented_event(
             events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
@@ -1077,11 +1019,9 @@ class TestUnhandledEventTracking:
             ),
         ]
 
-    def test_custom_event_type_appears_with_its_number(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_custom_event_type_appears_with_its_number(self, mocker):
         """An unknown or custom type is reported with its numeric type."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         custom_event_type = 88886
 
         engine.process_unimplemented_event(events.HashableEvent(custom_event_type, payload=1))
@@ -1089,11 +1029,9 @@ class TestUnhandledEventTracking:
         (report_line,) = engine.unhandled_event_report()
         assert f'({custom_event_type}) x1' in report_line
 
-    def test_teardown_logs_the_unhandled_event_table(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog
-    ):
+    def test_teardown_logs_the_unhandled_event_table(self, mocker, caplog):
         """_shutdown logs every unhandled event type with the shutdown statistics."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
         engine.process_unimplemented_event(
@@ -1112,11 +1050,9 @@ class TestUnhandledEventTracking:
             'attributes: device_index, guid'
         ) in engine_messages
 
-    def test_teardown_logs_nothing_when_every_event_was_handled(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog
-    ):
+    def test_teardown_logs_nothing_when_every_event_was_handled(self, mocker, caplog):
         """No unhandled events means no report line at all."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
 
@@ -1129,48 +1065,58 @@ class TestUnhandledEventTracking:
             if record.name == 'game.engine' and 'Unhandled events' in record.getMessage()
         ]
 
+    def test_teardown_without_an_fps_log_interval(self, mocker):
+        """An engine without an FPS log interval leaves the performance manager's as it was.
+
+        --fps-log-interval-ms always gives a number, so the parsed option is set directly.
+        """
+        from glitchygames.performance import performance_manager
+
+        # The real manager is process-wide: put its settings back after the test
+        mocker.patch.object(
+            performance_manager, '_fps_log_interval_ms', performance_manager._fps_log_interval_ms
+        )
+        mocker.patch.object(performance_manager, '_target_fps', performance_manager._target_fps)
+        performance_manager.set_fps_log_interval(250.0)
+        engine = _make_engine(mocker, option_overrides={'fps_log_interval_ms': None})
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+
+        engine._shutdown()
+
+        assert performance_manager._fps_log_interval_ms == 250.0
+        assert performance_manager._target_fps == engine.fps
+
 
 class TestPostGameEvent:
     """Test GameEngine.post_game_event method."""
 
-    def test_post_game_event_posts_to_pygame(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test post_game_event posts a HashableEvent to pygame."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        mock_post = mocker.patch('pygame.event.post')
-
-        # Make pygame.event.Event return a real Event-like object so .type is correct.
-        # The production code calls: pygame.event.Event(events.GAMEEVENT, event_dict)
-        # With mock_pygame_patches, Event() returns a Mock whose .type is also a Mock.
-        # We need Event() to produce an object whose .type equals events.GAMEEVENT.
-        real_event = mocker.Mock()
-        real_event.type = events.GAMEEVENT
-        # The engine tracks code-posted events for its whole run (post_event keeps their
-        # attributes), so the stand-in carries them as a real event does
-        real_event.dict = {'subtype': 'custom_subtype', 'key': 'value'}
-        mocker.patch('pygame.event.Event', return_value=real_event)
+    def test_post_game_event_posts_to_pygame(self, mocker):
+        """post_game_event puts a GAMEEVENT with its subtype and data on SDL's real queue."""
+        engine = _make_engine(mocker)
+        pygame.event.clear(events.GAMEEVENT)
 
         engine.post_game_event('custom_subtype', {'key': 'value'})
-        mock_post.assert_called_once()
-        # Verify the posted event has the correct type
-        posted_event = mock_post.call_args[0][0]
-        assert posted_event.type == events.GAMEEVENT
+
+        (posted_event,) = pygame.event.get(events.GAMEEVENT)
+        assert posted_event.dict == {'subtype': 'custom_subtype', 'key': 'value'}
 
 
 class TestSuppressEvent:
     """Test GameEngine.suppress_event method."""
 
-    def test_suppress_event_does_not_raise(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_suppress_event_does_not_raise(self, mocker):
         """Test suppress_event completes without error."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.suppress_event('arg1', 'arg2', attr='some_event')
 
 
 class TestRegisterGameEvent:
     """Test GameEngine.register_game_event method."""
 
-    def test_register_game_event_stores_callback(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_register_game_event_stores_callback(self, mocker):
         """Test register_game_event stores the callback in registered_events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.registered_events = {}
 
         callback = mocker.Mock()
@@ -1182,18 +1128,18 @@ class TestRegisterGameEvent:
 class TestMissingEvent:
     """Test GameEngine.missing_event method."""
 
-    def test_missing_event_logs_once(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_missing_event_logs_once(self, mocker):
         """Test missing_event logs the method name once."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         GameEngine.MISSING_EVENTS.clear()
         GameEngine.LAST_EVENT_MISS = 'on_some_unknown_event'
 
         engine.missing_event('arg1', kwarg1='val')
         assert 'on_some_unknown_event' in GameEngine.MISSING_EVENTS
 
-    def test_missing_event_not_duplicated(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_missing_event_not_duplicated(self, mocker):
         """Test missing_event does not duplicate entries."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         GameEngine.MISSING_EVENTS.clear()
         GameEngine.LAST_EVENT_MISS = 'on_duplicate_event'
 
@@ -1201,23 +1147,49 @@ class TestMissingEvent:
         engine.missing_event()
         assert GameEngine.MISSING_EVENTS.count('on_duplicate_event') == 1
 
+    def test_an_event_handler_nobody_has_reaches_missing_event(self, mocker):
+        """A handler the engine does not have resolves to missing_event, which notes it once.
+
+        The scene manager hands an on_*_event its active scene lacks to the engine
+        (SceneManager.__getattr__), and the engine's __getattr__ answers it.
+        """
+        engine = _make_engine(mocker)
+        mocker.patch.object(GameEngine, 'LAST_EVENT_MISS', GameEngine.LAST_EVENT_MISS)
+        mocker.patch.object(GameEngine, 'MISSING_EVENTS', [])
+
+        handler = engine.on_never_defined_event
+        handler(events.HashableEvent(pygame.USEREVENT))
+
+        assert handler == engine.missing_event
+        assert GameEngine.LAST_EVENT_MISS == 'on_never_defined_event'
+        assert GameEngine.MISSING_EVENTS == ['on_never_defined_event']
+
+    def test_a_non_event_attribute_the_engine_lacks_raises(self, mocker):
+        """Only on_*_event names fall back to missing_event; anything else is an error."""
+        engine = _make_engine(mocker)
+
+        with pytest.raises(AttributeError, match='not_an_event_handler'):
+            _ = engine.not_an_event_handler
+
 
 class TestProcessEvents:
-    """Test GameEngine.process_events main event loop."""
+    """Test GameEngine.process_events main event loop.
+
+    pygame.event.get, which the live doors read SDL's queue with, is patched to hand over each
+    test's real events: on a real video driver the OS queues events of its own (window, mouse)
+    at any moment, which a test of exact batches cannot allow.
+    """
 
     def test_process_events_with_scene_process_event(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test process_events bypasses engine processing when scene has process_event."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
-        mock_raw_event = mocker.Mock()
-        mock_raw_event.type = pygame.KEYDOWN
-        mock_raw_event.dict = {'key': pygame.K_a}
-        mocker.patch('pygame.event.get', return_value=[mock_raw_event])
+        raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a)
+        # SDL's queue stands in for the keyboard: on a real driver the OS adds its own events
+        mocker.patch('pygame.event.get', return_value=[raw_event])
 
         mock_scene = mocker.Mock()
         mock_scene.process_event = mocker.Mock()
@@ -1225,71 +1197,60 @@ class TestProcessEvents:
 
         result = engine.process_events()
         assert result is True
-        mock_scene.process_event.assert_called_once_with(mock_raw_event)
+        mock_scene.process_event.assert_called_once_with(raw_event)
 
     def test_process_events_handles_event_through_handlers(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test process_events routes events through EVENT_HANDLERS."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
 
-        mock_raw_event = mocker.Mock()
-        mock_raw_event.type = pygame.KEYDOWN
-        mock_raw_event.dict = {'key': pygame.K_a, 'mod': 0, 'unicode': 'a'}
-        mocker.patch('pygame.event.get', return_value=[mock_raw_event])
+        raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+        mocker.patch('pygame.event.get', return_value=[raw_event])
 
-        # Mock the handler
-        mock_handler = mocker.Mock(return_value=True)
-        GameEngine.EVENT_HANDLERS[pygame.KEYDOWN] = mock_handler
+        key_down_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: key_down_handler})
 
         result = engine.process_events()
         assert result is True
+        key_down_handler.assert_called_once()
+        assert key_down_handler.call_args.args[0].key == pygame.K_a
 
     def test_process_events_no_events_returns_false(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test process_events returns False when no events in queue."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch('pygame.event.get', return_value=[])
 
         result = engine.process_events()
         assert result is False
 
-    def test_process_events_unhandled_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_process_events_unhandled_event(self, mocker):
         """Test process_events routes unhandled events to process_unimplemented_event."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
         GameEngine.UNIMPLEMENTED_EVENTS.clear()
 
-        mock_raw_event = mocker.Mock()
-        mock_raw_event.type = 88888  # Unknown event type
-        mock_raw_event.dict = {}
-        mocker.patch('pygame.event.get', return_value=[mock_raw_event])
+        mocker.patch('pygame.event.get', return_value=[_raw_event(UNMAPPED_EVENT_TYPE)])
+        assert UNMAPPED_EVENT_TYPE not in GameEngine.EVENT_HANDLERS
 
-        # Ensure no handler for this type
-        GameEngine.EVENT_HANDLERS.pop(88888, None)
-
-        mocker.patch.object(engine, 'process_unimplemented_event')
         result = engine.process_events()
-        engine.process_unimplemented_event.assert_called_once()
-        assert result is False
 
-    def test_process_events_unhandled_event_does_not_drop_rest_of_batch(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+        assert result is False
+        assert engine.unhandled_events[UNMAPPED_EVENT_TYPE].count == 1
+        assert UNMAPPED_EVENT_TYPE in GameEngine.UNIMPLEMENTED_EVENTS
+
+    def test_process_events_unhandled_event_does_not_drop_rest_of_batch(self, mocker):
         """An unhandled event must not drop the key-down queued after it in the same batch."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
 
-        unhandled_raw_event = _raw_event(mocker, pygame.KEYUP, key=pygame.K_b)
-        key_down_raw_event = _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a)
+        unhandled_raw_event = _raw_event(pygame.KEYUP, key=pygame.K_b)
+        key_down_raw_event = _raw_event(pygame.KEYDOWN, key=pygame.K_a)
         mocker.patch('pygame.event.get', return_value=[unhandled_raw_event, key_down_raw_event])
 
         key_up_handler = mocker.Mock(return_value=False)
@@ -1308,15 +1269,13 @@ class TestProcessEvents:
         assert mock_unimplemented.call_args.args[0].type == pygame.KEYUP
         assert result is False
 
-    def test_process_events_raw_event_scene_receives_every_event_in_order(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_process_events_raw_event_scene_receives_every_event_in_order(self, mocker):
         """A scene with process_event receives all N events of a batch, in order."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         raw_events = [
-            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
-            _raw_event(mocker, pygame.MOUSEMOTION, pos=(1, 2)),
-            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+            _raw_event(pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(pygame.MOUSEMOTION, pos=(1, 2)),
+            _raw_event(pygame.KEYUP, key=pygame.K_a),
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         mock_scene = mocker.Mock()
@@ -1327,18 +1286,16 @@ class TestProcessEvents:
         assert [call.args[0] for call in mock_scene.process_event.call_args_list] == raw_events
         assert result is True
 
-    def test_process_events_unmapped_type_after_handled_event_is_unhandled(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_process_events_unmapped_type_after_handled_event_is_unhandled(self, mocker):
         """An event type missing from EVENT_HANDLERS never inherits the previous result."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
-        unmapped_event_type = 88887
-        GameEngine.EVENT_HANDLERS.pop(unmapped_event_type, None)
+        unmapped_event_type = OTHER_UNMAPPED_EVENT_TYPE
+        assert unmapped_event_type not in GameEngine.EVENT_HANDLERS
 
         raw_events = [
-            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
-            _raw_event(mocker, unmapped_event_type),
+            _raw_event(pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(unmapped_event_type),
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         mocker.patch.dict(
@@ -1352,15 +1309,13 @@ class TestProcessEvents:
         assert mock_unimplemented.call_args.args[0].type == unmapped_event_type
         assert result is False
 
-    def test_process_events_returns_true_only_when_every_event_handled(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_process_events_returns_true_only_when_every_event_handled(self, mocker):
         """The return value is True only if every event of the batch was handled."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [
-            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
-            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+            _raw_event(pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(pygame.KEYUP, key=pygame.K_a),
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         mocker.patch.dict(
@@ -1382,13 +1337,11 @@ class TestProcessEvents:
         assert engine.process_events() is False
         mock_unimplemented.assert_called_once()
 
-    def test_process_events_returns_false_when_every_event_is_discarded(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_process_events_returns_false_when_every_event_is_discarded(self, mocker):
         """No event dispatched (all discarded) is reported as False, like an empty batch."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
-        raw_events = [_raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a)]
+        raw_events = [_raw_event(pygame.KEYDOWN, key=pygame.K_a)]
         mocker.patch('pygame.event.get', return_value=raw_events)
         key_down_handler = mocker.Mock(return_value=True)
         mocker.patch.dict(GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: key_down_handler})
@@ -1400,15 +1353,13 @@ class TestProcessEvents:
         key_down_handler.assert_not_called()
         mock_unimplemented.assert_not_called()
 
-    def test_process_events_discards_only_matching_events(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_process_events_discards_only_matching_events(self, mocker):
         """Kept events are dispatched and decide the result; discarded ones do not count."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
         raw_events = [
-            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
-            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+            _raw_event(pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(pygame.KEYUP, key=pygame.K_a),
         ]
         mocker.patch('pygame.event.get', return_value=raw_events)
         key_down_handler = mocker.Mock(return_value=True)
@@ -1428,60 +1379,52 @@ class TestProcessEvents:
 class TestHandleEventAdditionalPaths:
     """Test GameEngine.handle_event additional code paths."""
 
-    def test_handle_event_no_scene(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_handle_event_no_scene(self, mocker):
         """Test handle_event when active_scene is None."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.active_scene = None
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.KEYDOWN
-        event.key = pygame.K_q
+        event = events.HashableEvent(pygame.KEYDOWN, key=pygame.K_q)
 
         engine.handle_event(event)
         assert engine.scene_manager.quit_requested is True
 
-    def test_handle_event_with_unfocused_sprites(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_handle_event_with_unfocused_sprites(self, mocker):
         """Test handle_event with sprites that are not focused."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mock_sprite = mocker.Mock()
         mock_sprite.is_active = False  # Not focused
         engine.scene_manager.active_scene = mocker.Mock()
         engine.scene_manager.active_scene.all_sprites = [mock_sprite]
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.KEYDOWN
-        event.key = pygame.K_a  # Not quit key
+        event = events.HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
 
         engine.handle_event(event)
         engine.scene_manager.handle_event.assert_called_once_with(event)
 
     def test_handle_event_non_key_event_passes_to_scene_manager(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test non-KEYDOWN events always pass to scene_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.active_scene = mocker.Mock()
         engine.scene_manager.active_scene.all_sprites = []
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MOUSEBUTTONDOWN
+        event = events.HashableEvent(pygame.MOUSEBUTTONDOWN)
 
         engine.handle_event(event)
         engine.scene_manager.handle_event.assert_called_once_with(event)
 
-    def test_handle_event_quit_event(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_handle_event_quit_event(self, mocker):
         """Test QUIT event sets quit_requested without passing to scene_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.QUIT
+        event = events.HashableEvent(pygame.QUIT)
 
         engine.handle_event(event)
         assert engine.scene_manager.quit_requested is True
@@ -1503,19 +1446,33 @@ class TestInitializeIcon:
         GameEngine.initialize_icon(mock_surface)
         assert GameEngine.icon is mock_surface
 
-    def test_initialize_icon_with_path(self, mocker):
-        """Test initialize_icon with a path attempts to load it."""
-        mocker.patch('pygame.image.load', side_effect=FileNotFoundError)
-        # Should not raise due to contextlib.suppress
+    def test_initialize_icon_with_path(self):
+        """A missing icon file is ignored: the icon stays as it was."""
+        original_icon = GameEngine.icon
+
         GameEngine.initialize_icon(Path('/nonexistent/icon.png'))
+
+        assert GameEngine.icon is original_icon
+
+    def test_initialize_icon_loads_an_image_file(self, tmp_path):
+        """An icon path is loaded with the real image loader."""
+        icon_path = tmp_path / 'icon.png'
+        drawn_icon = pygame.Surface((16, 16))
+        drawn_icon.fill((200, 40, 90))
+        pygame.image.save(drawn_icon, icon_path)
+
+        GameEngine.initialize_icon(str(icon_path))
+
+        assert isinstance(GameEngine.icon, pygame.Surface)
+        assert GameEngine.icon.get_size() == (16, 16)
+        assert GameEngine.icon.get_at((8, 8))[:3] == (200, 40, 90)
 
 
 class TestSetCursorWithCustomCursor:
     """Test GameEngine.set_cursor with a custom cursor."""
 
-    def test_set_cursor_with_custom_cursor(self, mocker):
-        """Test set_cursor with a custom cursor list."""
-        mock_set_cursor = mocker.patch('pygame.mouse.set_cursor')
+    def test_set_cursor_with_custom_cursor(self):
+        """set_cursor makes a custom cursor the real active cursor."""
         custom_cursor = [
             'XX      ',
             'XXX     ',
@@ -1528,62 +1485,70 @@ class TestSetCursorWithCustomCursor:
         ]
         result = GameEngine.set_cursor(cursor=custom_cursor)
         assert result == custom_cursor
-        mock_set_cursor.assert_called_once()
+        _assert_active_cursor_is(custom_cursor)
 
 
 class TestInitializeEventManagers:
     """Test GameEngine._initialize_event_managers method."""
 
-    def test_initialize_event_managers_sets_up_all_managers(
-        self,
-        mock_pygame_patches,
-        mock_game_args,
-        mocker,
-    ):
-        """Test _initialize_event_managers creates all required managers."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+    def test_initialize_event_managers_sets_up_all_managers(self, mocker):
+        """_initialize_event_managers builds every manager on the real scene manager and devices.
 
-        # Mock scene_manager with proper OPTIONS dict support
-        mock_scene_manager = mocker.Mock()
-        mock_scene_manager.OPTIONS = {
-            'font_name': 'Vera',
-            'font_size': 24,
-            'font_bold': False,
-            'font_italic': False,
-            'font_antialias': True,
-            'font_dpi': 72,
+        Input mode auto picks joystick on pygame-ce, which blocks controller events at SDL; their
+        blocked state is put back afterwards, so later tests on this worker are unaffected.
+        """
+        from glitchygames.events.audio import AudioEventManager
+        from glitchygames.events.keyboard import KeyboardEventManager
+        from glitchygames.events.mouse import MouseEventManager
+        from glitchygames.events.window import WindowEventManager
+
+        engine = _make_engine(mocker)
+        # As GameEngine.start() does before it builds the managers (put back after the test)
+        mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+        blocked_before = {
+            event_type: pygame.event.get_blocked(event_type)
+            for event_type in events.CONTROLLER_EVENTS
         }
-        engine.scene_manager = mock_scene_manager
+        try:
+            engine._initialize_event_managers()
 
-        # Patch joystick/controller subsystems to avoid deprecated API calls
-        mocker.patch('pygame.joystick.get_count', return_value=0)
-        mocker.patch('pygame.joystick.init')
-        mocker.patch('pygame.joystick.get_init', return_value=True)
-        mocker.patch('pygame._sdl2.controller.init')
-        mocker.patch('pygame._sdl2.controller.get_init', return_value=True)
-        mocker.patch('pygame._sdl2.controller.get_count', return_value=0)
-
-        engine._initialize_event_managers()
-
-        # Check that key managers are set up
-        assert engine.audio_manager is not None
-        assert engine.drop_manager is not None
-        assert engine.touch_manager is not None
-        assert engine.font_manager is not None
-        assert engine.game_manager is not None
-        assert engine.joystick_manager is not None
-        assert engine.keyboard_manager is not None
-        assert engine.midi_manager is not None
-        assert engine.mouse_manager is not None
-        assert engine.window_manager is not None
+            assert isinstance(engine.audio_manager, AudioEventManager)
+            assert isinstance(engine.keyboard_manager, KeyboardEventManager)
+            assert isinstance(engine.mouse_manager, MouseEventManager)
+            assert isinstance(engine.window_manager, WindowEventManager)
+            for manager in (
+                engine.app_manager,
+                engine.drop_manager,
+                engine.touch_manager,
+                engine.font_manager,
+                engine.game_manager,
+                engine.joystick_manager,
+                engine.midi_manager,
+            ):
+                assert manager is not None
+            # --input-mode auto picks joystick on pygame-ce: no controller manager, and SDL
+            # drops controller events
+            assert GameEngine.OPTIONS['input_mode'] == 'joystick'
+            assert engine.controller_manager is None
+            assert all(
+                pygame.event.get_blocked(event_type) for event_type in events.CONTROLLER_EVENTS
+            )
+            # The joysticks are whatever real devices are attached (none on the dummy driver)
+            assert engine.joystick_count == len(engine.joysticks)
+        finally:
+            for event_type, was_blocked in blocked_before.items():
+                if was_blocked:
+                    pygame.event.set_blocked(event_type)
+                else:
+                    pygame.event.set_allowed(event_type)
 
 
 class TestStartMethod:
     """Test GameEngine.start method paths."""
 
-    def test_start_with_no_game_raises(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_start_with_no_game_raises(self, mocker):
         """Test start raises RuntimeError when game is None."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         GameEngine.game = None
 
         with pytest.raises(RuntimeError, match='Game not initialized'):
@@ -1597,9 +1562,9 @@ class TestStartMethod:
 class TestResolveSceneNameForError:
     """Test _resolve_scene_name_for_error additional paths."""
 
-    def test_previous_scene_with_no_name(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_previous_scene_with_no_name(self, mocker):
         """Test falls back to class name when previous scene has NAME=None."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.current_scene = None
         engine.scene_manager.previous_scene = mocker.Mock()
@@ -1613,12 +1578,11 @@ class TestResolveSceneNameForError:
 class TestProcessTextEventUnhandled:
     """Test GameEngine.process_text_event returns False path (line 1250)."""
 
-    def test_unhandled_text_event_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_unhandled_text_event_returns_false(self, mocker):
         """Test process_text_event returns False for unhandled text event types."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
-        event = mocker.Mock()
-        event.type = 99999  # Not TEXTEDITING or TEXTINPUT
+        event = events.HashableEvent(99999)  # Not TEXTEDITING or TEXTINPUT
 
         result = engine.process_text_event(event)
         assert result is False
@@ -1632,37 +1596,34 @@ class TestProcessTextEventUnhandled:
 class TestProcessAudioEvent:
     """Test GameEngine.process_audio_event dispatcher."""
 
-    def test_audio_device_added(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_audio_device_added(self, mocker):
         """Test process_audio_event dispatches AUDIODEVICEADDED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.audio_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.AUDIODEVICEADDED
+        event = events.HashableEvent(pygame.AUDIODEVICEADDED)
 
         result = engine.process_audio_event(event)
         assert result is True
         engine.audio_manager.on_audio_device_added_event.assert_called_once_with(event)
 
-    def test_audio_device_removed(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_audio_device_removed(self, mocker):
         """Test process_audio_event dispatches AUDIODEVICEREMOVED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.audio_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.AUDIODEVICEREMOVED
+        event = events.HashableEvent(pygame.AUDIODEVICEREMOVED)
 
         result = engine.process_audio_event(event)
         assert result is True
         engine.audio_manager.on_audio_device_removed_event.assert_called_once_with(event)
 
-    def test_audio_unhandled_event_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_audio_unhandled_event_returns_false(self, mocker):
         """Test process_audio_event returns False for unknown audio events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.audio_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999  # Unknown event type
+        event = events.HashableEvent(99999)  # Unknown event type
 
         result = engine.process_audio_event(event)
         assert result is False
@@ -1671,83 +1632,76 @@ class TestProcessAudioEvent:
 class TestProcessAppEvent:
     """Test GameEngine.process_app_event dispatcher."""
 
-    def test_app_did_enter_background(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_did_enter_background(self, mocker):
         """Test process_app_event dispatches APP_DIDENTERBACKGROUND."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.APP_DIDENTERBACKGROUND
+        event = events.HashableEvent(pygame.APP_DIDENTERBACKGROUND)
 
         result = engine.process_app_event(event)
         assert result is True
         engine.app_manager.on_app_did_enter_background_event.assert_called_once_with(event)
 
-    def test_app_did_enter_foreground(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_did_enter_foreground(self, mocker):
         """Test process_app_event dispatches APP_DIDENTERFOREGROUND."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.APP_DIDENTERFOREGROUND
+        event = events.HashableEvent(pygame.APP_DIDENTERFOREGROUND)
 
         result = engine.process_app_event(event)
         assert result is True
         engine.app_manager.on_app_did_enter_foreground_event.assert_called_once_with(event)
 
-    def test_app_will_enter_background(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_will_enter_background(self, mocker):
         """Test process_app_event dispatches APP_WILLENTERBACKGROUND."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.APP_WILLENTERBACKGROUND
+        event = events.HashableEvent(pygame.APP_WILLENTERBACKGROUND)
 
         result = engine.process_app_event(event)
         assert result is True
 
-    def test_app_will_enter_foreground(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_will_enter_foreground(self, mocker):
         """Test process_app_event dispatches APP_WILLENTERFOREGROUND."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.APP_WILLENTERFOREGROUND
+        event = events.HashableEvent(pygame.APP_WILLENTERFOREGROUND)
 
         result = engine.process_app_event(event)
         assert result is True
 
-    def test_app_low_memory(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_low_memory(self, mocker):
         """Test process_app_event dispatches APP_LOWMEMORY."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.APP_LOWMEMORY
+        event = events.HashableEvent(pygame.APP_LOWMEMORY)
 
         result = engine.process_app_event(event)
         assert result is True
         engine.app_manager.on_app_low_memory_event.assert_called_once_with(event)
 
-    def test_app_terminating(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_terminating(self, mocker):
         """Test process_app_event dispatches APP_TERMINATING."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.APP_TERMINATING
+        event = events.HashableEvent(pygame.APP_TERMINATING)
 
         result = engine.process_app_event(event)
         assert result is True
         engine.app_manager.on_app_terminating_event.assert_called_once_with(event)
 
-    def test_app_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_app_unhandled_returns_false(self, mocker):
         """Test process_app_event returns False for unknown app events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.app_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_app_event(event)
         assert result is False
@@ -1756,58 +1710,53 @@ class TestProcessAppEvent:
 class TestProcessDropEvent:
     """Test GameEngine.process_drop_event dispatcher."""
 
-    def test_drop_begin(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_drop_begin(self, mocker):
         """Test process_drop_event dispatches DROPBEGIN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.drop_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.DROPBEGIN
+        event = events.HashableEvent(pygame.DROPBEGIN)
 
         result = engine.process_drop_event(event)
         assert result is True
         engine.drop_manager.on_drop_begin_event.assert_called_once_with(event)
 
-    def test_drop_complete(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_drop_complete(self, mocker):
         """Test process_drop_event dispatches DROPCOMPLETE."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.drop_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.DROPCOMPLETE
+        event = events.HashableEvent(pygame.DROPCOMPLETE)
 
         result = engine.process_drop_event(event)
         assert result is True
 
-    def test_drop_file(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_drop_file(self, mocker):
         """Test process_drop_event dispatches DROPFILE."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.drop_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.DROPFILE
+        event = events.HashableEvent(pygame.DROPFILE)
 
         result = engine.process_drop_event(event)
         assert result is True
 
-    def test_drop_text(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_drop_text(self, mocker):
         """Test process_drop_event dispatches DROPTEXT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.drop_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.DROPTEXT
+        event = events.HashableEvent(pygame.DROPTEXT)
 
         result = engine.process_drop_event(event)
         assert result is True
 
-    def test_drop_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_drop_unhandled_returns_false(self, mocker):
         """Test process_drop_event returns False for unknown drop events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.drop_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_drop_event(event)
         assert result is False
@@ -1816,47 +1765,43 @@ class TestProcessDropEvent:
 class TestProcessTouchEvent:
     """Test GameEngine.process_touch_event dispatcher."""
 
-    def test_finger_down(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_finger_down(self, mocker):
         """Test process_touch_event dispatches FINGERDOWN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.touch_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.FINGERDOWN
+        event = events.HashableEvent(pygame.FINGERDOWN)
 
         result = engine.process_touch_event(event)
         assert result is True
         engine.touch_manager.on_touch_down_event.assert_called_once_with(event)
 
-    def test_finger_up(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_finger_up(self, mocker):
         """Test process_touch_event dispatches FINGERUP."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.touch_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.FINGERUP
+        event = events.HashableEvent(pygame.FINGERUP)
 
         result = engine.process_touch_event(event)
         assert result is True
 
-    def test_finger_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_finger_motion(self, mocker):
         """Test process_touch_event dispatches FINGERMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.touch_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.FINGERMOTION
+        event = events.HashableEvent(pygame.FINGERMOTION)
 
         result = engine.process_touch_event(event)
         assert result is True
 
-    def test_touch_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_touch_unhandled_returns_false(self, mocker):
         """Test process_touch_event returns False for unknown touch events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.touch_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_touch_event(event)
         assert result is False
@@ -1865,60 +1810,55 @@ class TestProcessTouchEvent:
 class TestProcessMouseEvent:
     """Test GameEngine.process_mouse_event dispatcher."""
 
-    def test_mouse_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_mouse_motion(self, mocker):
         """Test process_mouse_event dispatches MOUSEMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.mouse_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MOUSEMOTION
+        event = events.HashableEvent(pygame.MOUSEMOTION)
 
         result = engine.process_mouse_event(event)
         assert result is True
         engine.mouse_manager.on_mouse_motion_event.assert_called_once_with(event)
 
-    def test_mouse_button_up(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_mouse_button_up(self, mocker):
         """Test process_mouse_event dispatches MOUSEBUTTONUP."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.mouse_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MOUSEBUTTONUP
+        event = events.HashableEvent(pygame.MOUSEBUTTONUP)
 
         result = engine.process_mouse_event(event)
         assert result is True
 
-    def test_mouse_button_down(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_mouse_button_down(self, mocker):
         """Test process_mouse_event dispatches MOUSEBUTTONDOWN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.mouse_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MOUSEBUTTONDOWN
+        event = events.HashableEvent(pygame.MOUSEBUTTONDOWN)
         event.button = 1
         event.pos = (100, 100)
 
         result = engine.process_mouse_event(event)
         assert result is True
 
-    def test_mouse_wheel(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_mouse_wheel(self, mocker):
         """Test process_mouse_event dispatches MOUSEWHEEL."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.mouse_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MOUSEWHEEL
+        event = events.HashableEvent(pygame.MOUSEWHEEL)
 
         result = engine.process_mouse_event(event)
         assert result is True
 
-    def test_mouse_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_mouse_unhandled_returns_false(self, mocker):
         """Test process_mouse_event returns False for unknown mouse events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.mouse_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_mouse_event(event)
         assert result is False
@@ -1927,36 +1867,33 @@ class TestProcessMouseEvent:
 class TestProcessKeyboardEvent:
     """Test GameEngine.process_keyboard_event dispatcher."""
 
-    def test_key_down(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_key_down(self, mocker):
         """Test process_keyboard_event dispatches KEYDOWN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.keyboard_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.KEYDOWN
+        event = events.HashableEvent(pygame.KEYDOWN)
 
         result = engine.process_keyboard_event(event)
         assert result is True
         engine.keyboard_manager.on_key_down_event.assert_called_once_with(event)
 
-    def test_key_up(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_key_up(self, mocker):
         """Test process_keyboard_event dispatches KEYUP."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.keyboard_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.KEYUP
+        event = events.HashableEvent(pygame.KEYUP)
 
         result = engine.process_keyboard_event(event)
         assert result is True
 
-    def test_keyboard_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_keyboard_unhandled_returns_false(self, mocker):
         """Test process_keyboard_event returns False for unknown keyboard events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.keyboard_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_keyboard_event(event)
         assert result is False
@@ -1965,91 +1902,83 @@ class TestProcessKeyboardEvent:
 class TestProcessJoystickEvent:
     """Test GameEngine.process_joystick_event dispatcher."""
 
-    def test_joy_axis_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_axis_motion(self, mocker):
         """Test process_joystick_event dispatches JOYAXISMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYAXISMOTION
+        event = events.HashableEvent(pygame.JOYAXISMOTION)
 
         result = engine.process_joystick_event(event)
         assert result is True
         engine.joystick_manager.on_joy_axis_motion_event.assert_called_once_with(event)
 
-    def test_joy_ball_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_ball_motion(self, mocker):
         """Test process_joystick_event dispatches JOYBALLMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYBALLMOTION
+        event = events.HashableEvent(pygame.JOYBALLMOTION)
 
         result = engine.process_joystick_event(event)
         assert result is True
 
-    def test_joy_hat_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_hat_motion(self, mocker):
         """Test process_joystick_event dispatches JOYHATMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYHATMOTION
+        event = events.HashableEvent(pygame.JOYHATMOTION)
 
         result = engine.process_joystick_event(event)
         assert result is True
 
-    def test_joy_button_down(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_button_down(self, mocker):
         """Test process_joystick_event dispatches JOYBUTTONDOWN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYBUTTONDOWN
+        event = events.HashableEvent(pygame.JOYBUTTONDOWN)
 
         result = engine.process_joystick_event(event)
         assert result is True
 
-    def test_joy_button_up(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_button_up(self, mocker):
         """Test process_joystick_event dispatches JOYBUTTONUP."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYBUTTONUP
+        event = events.HashableEvent(pygame.JOYBUTTONUP)
 
         result = engine.process_joystick_event(event)
         assert result is True
 
-    def test_joy_device_added(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_device_added(self, mocker):
         """Test process_joystick_event dispatches JOYDEVICEADDED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYDEVICEADDED
+        event = events.HashableEvent(pygame.JOYDEVICEADDED)
 
         result = engine.process_joystick_event(event)
         assert result is True
 
-    def test_joy_device_removed(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joy_device_removed(self, mocker):
         """Test process_joystick_event dispatches JOYDEVICEREMOVED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.JOYDEVICEREMOVED
+        event = events.HashableEvent(pygame.JOYDEVICEREMOVED)
 
         result = engine.process_joystick_event(event)
         assert result is True
 
-    def test_joystick_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_joystick_unhandled_returns_false(self, mocker):
         """Test process_joystick_event returns False for unknown joystick events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.joystick_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_joystick_event(event)
         assert result is False
@@ -2058,35 +1987,32 @@ class TestProcessJoystickEvent:
 class TestProcessMidiEvent:
     """Test GameEngine.process_midi_event dispatcher."""
 
-    def test_midi_in(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_midi_in(self, mocker):
         """Test process_midi_event dispatches MIDIIN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MIDIIN
+        event = events.HashableEvent(pygame.MIDIIN)
 
         result = engine.process_midi_event(event)
         assert result is True
         engine.scene_manager.handle_event.assert_called_once_with(event)
 
-    def test_midi_out(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_midi_out(self, mocker):
         """Test process_midi_event dispatches MIDIOUT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MIDIOUT
+        event = events.HashableEvent(pygame.MIDIOUT)
 
         result = engine.process_midi_event(event)
         assert result is True
 
-    def test_midi_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_midi_unhandled_returns_false(self, mocker):
         """Test process_midi_event returns False for unknown midi events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_midi_event(event)
         assert result is False
@@ -2095,25 +2021,23 @@ class TestProcessMidiEvent:
 class TestProcessTextEvent:
     """Test GameEngine.process_text_event dispatcher."""
 
-    def test_text_editing(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_text_editing(self, mocker):
         """Test process_text_event dispatches TEXTEDITING."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch.object(engine, 'process_unimplemented_event')
 
-        event = mocker.Mock()
-        event.type = pygame.TEXTEDITING
+        event = events.HashableEvent(pygame.TEXTEDITING)
 
         result = engine.process_text_event(event)
         assert result is True
         engine.process_unimplemented_event.assert_called_once_with(event)
 
-    def test_text_input(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_text_input(self, mocker):
         """Test process_text_event dispatches TEXTINPUT."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch.object(engine, 'process_unimplemented_event')
 
-        event = mocker.Mock()
-        event.type = pygame.TEXTINPUT
+        event = events.HashableEvent(pygame.TEXTINPUT)
 
         result = engine.process_text_event(event)
         assert result is True
@@ -2122,136 +2046,122 @@ class TestProcessTextEvent:
 class TestProcessControllerEvent:
     """Test GameEngine.process_controller_event dispatcher."""
 
-    def test_controller_axis_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_axis_motion(self, mocker):
         """Test process_controller_event dispatches CONTROLLERAXISMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERAXISMOTION
+        event = events.HashableEvent(pygame.CONTROLLERAXISMOTION)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_button_down(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_button_down(self, mocker):
         """Test process_controller_event dispatches CONTROLLERBUTTONDOWN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERBUTTONDOWN
+        event = events.HashableEvent(pygame.CONTROLLERBUTTONDOWN)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_button_up(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_button_up(self, mocker):
         """Test process_controller_event dispatches CONTROLLERBUTTONUP."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERBUTTONUP
+        event = events.HashableEvent(pygame.CONTROLLERBUTTONUP)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_touchpad_down(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_touchpad_down(self, mocker):
         """Test process_controller_event dispatches CONTROLLERTOUCHPADDOWN."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERTOUCHPADDOWN
+        event = events.HashableEvent(pygame.CONTROLLERTOUCHPADDOWN)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_touchpad_up(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_touchpad_up(self, mocker):
         """Test process_controller_event dispatches CONTROLLERTOUCHPADUP."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERTOUCHPADUP
+        event = events.HashableEvent(pygame.CONTROLLERTOUCHPADUP)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_touchpad_motion(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_touchpad_motion(self, mocker):
         """Test process_controller_event dispatches CONTROLLERTOUCHPADMOTION."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERTOUCHPADMOTION
+        event = events.HashableEvent(pygame.CONTROLLERTOUCHPADMOTION)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_device_removed(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_device_removed(self, mocker):
         """Test process_controller_event dispatches CONTROLLERDEVICEREMOVED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERDEVICEREMOVED
+        event = events.HashableEvent(pygame.CONTROLLERDEVICEREMOVED)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_device_added(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_device_added(self, mocker):
         """Test process_controller_event dispatches CONTROLLERDEVICEADDED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERDEVICEADDED
+        event = events.HashableEvent(pygame.CONTROLLERDEVICEADDED)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_device_remapped(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_device_remapped(self, mocker):
         """Test process_controller_event dispatches CONTROLLERDEVICEREMAPPED."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERDEVICEREMAPPED
+        event = events.HashableEvent(pygame.CONTROLLERDEVICEREMAPPED)
 
         result = engine.process_controller_event(event)
         assert result is True
 
-    def test_controller_sensor_update(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_sensor_update(self, mocker):
         """CONTROLLERSENSORUPDATE goes to the controller manager's sensor handler."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERSENSORUPDATE
+        event = events.HashableEvent(pygame.CONTROLLERSENSORUPDATE)
 
         result = engine.process_controller_event(event)
         assert result is True
         engine.controller_manager.on_controller_sensor_update_event.assert_called_once_with(event)
 
-    def test_controller_event_in_joystick_mode_is_not_handled(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_controller_event_in_joystick_mode_is_not_handled(self, mocker):
         """Joystick input mode has no controller manager: controller events are not handled."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = None
 
-        event = mocker.Mock()
-        event.type = pygame.CONTROLLERBUTTONDOWN
+        event = events.HashableEvent(pygame.CONTROLLERBUTTONDOWN)
 
         assert engine.process_controller_event(event) is False
 
-    def test_controller_unhandled_returns_false(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_controller_unhandled_returns_false(self, mocker):
         """Test process_controller_event returns False for unknown controller events."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.controller_manager = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = 99999
+        event = events.HashableEvent(99999)
 
         result = engine.process_controller_event(event)
         assert result is False
@@ -2262,37 +2172,30 @@ class TestGameEngineHandleEventDeeper:
 
     def test_handle_event_keydown_q_with_no_focused_sprites(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test handle_event with K_q and no focused sprites sets quit_requested."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.active_scene = mocker.Mock()
         engine.scene_manager.active_scene.all_sprites = []
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.KEYDOWN
-        event.key = pygame.K_q
+        event = events.HashableEvent(pygame.KEYDOWN, key=pygame.K_q)
 
         engine.handle_event(event)
         assert engine.scene_manager.quit_requested is True
 
     def test_handle_event_passes_non_key_events_to_scene_manager(
         self,
-        mock_pygame_patches,
-        mock_game_args,
         mocker,
     ):
         """Test handle_event passes non-key events to scene_manager."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         engine.scene_manager.active_scene = mocker.Mock()
         engine.scene_manager.active_scene.all_sprites = []
         engine.scene_manager.handle_event = mocker.Mock()
 
-        event = mocker.Mock()
-        event.type = pygame.MOUSEMOTION
+        event = events.HashableEvent(pygame.MOUSEMOTION)
 
         engine.handle_event(event)
         engine.scene_manager.handle_event.assert_called_once_with(event)
@@ -2301,21 +2204,21 @@ class TestGameEngineHandleEventDeeper:
 class TestGameEngineSetCursorDefault:
     """Test GameEngine.set_cursor with None for default cursor."""
 
-    def test_set_cursor_with_none_creates_default(self, mocker):
+    def test_set_cursor_with_none_creates_default(self):
         """Test set_cursor with None creates the default cursor."""
-        mock_set_cursor = mocker.patch('pygame.mouse.set_cursor')
         result = GameEngine.set_cursor(cursor=None)
-        assert result is not None
-        assert len(result) > 0
-        mock_set_cursor.assert_called_once()
+
+        assert len(result) == 24
+        assert all(len(row) == 24 for row in result)
+        _assert_active_cursor_is(result)
 
 
 class TestGameEngineSuggestedResolutionLinuxNonArm:
     """Test suggested_resolution on Linux non-ARM returns desired resolution."""
 
-    def test_suggested_resolution_linux_non_arm(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_suggested_resolution_linux_non_arm(self, mocker):
         """Test suggested_resolution on Linux non-ARM returns desired resolution."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         mocker.patch('platform.system', return_value='Linux')
         mocker.patch('platform.machine', return_value='x86_64')
@@ -2327,9 +2230,9 @@ class TestGameEngineSuggestedResolutionLinuxNonArm:
 class TestGameEngineDelMethod:
     """Test GameEngine.__del__ method."""
 
-    def test_del_logs_sprite_counts(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_del_logs_sprite_counts(self, mocker):
         """Test __del__ logs sprite counts without errors."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         # Should not raise
         del engine
 
@@ -2337,53 +2240,21 @@ class TestGameEngineDelMethod:
 class TestGameEngineQuitGame:
     """Test GameEngine.quit_game class method."""
 
-    def test_quit_game_posts_quit_event(self, mock_pygame_patches, mocker):
-        """Test quit_game posts a QUIT event."""
-        mock_post = mocker.patch('pygame.event.post')
+    def test_quit_game_posts_quit_event(self):
+        """quit_game puts one QUIT event on SDL's real queue."""
+        pygame.event.clear(pygame.QUIT)
+
         GameEngine.quit_game()
-        mock_post.assert_called_once()
 
-
-class TestGameEngineInitializeArgumentsLogLevels:
-    """Test initialize_arguments with CRITICAL and ERROR log levels."""
-
-    def test_critical_log_level_enables_debug_events(self, mock_pygame_patches, mocker):
-        """Test CRITICAL log level sets debug_events to True."""
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        mock_args = mocker.Mock()
-        mock_args.log_level = 'CRITICAL'
-        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_args)
-
-        result = GameEngine.initialize_arguments(mock_game)
-        assert result['debug_events'] is True
-
-    def test_error_log_level_enables_debug_events(self, mock_pygame_patches, mocker):
-        """Test ERROR log level sets debug_events to True."""
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'TestGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        mock_args = mocker.Mock()
-        mock_args.log_level = 'ERROR'
-        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_args)
-
-        result = GameEngine.initialize_arguments(mock_game)
-        assert result['debug_events'] is True
+        assert len(pygame.event.get(pygame.QUIT)) == 1
 
 
 class TestGetAttrAttributeError:
     """Test GameEngine.__getattr__ raises AttributeError (line 1532)."""
 
-    def test_non_event_attribute_raises(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_non_event_attribute_raises(self, mocker):
         """Test __getattr__ raises AttributeError for non-event attributes."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         with pytest.raises(AttributeError, match="has no attribute 'some_random_attr'"):
             engine.some_random_attr  # ruff: ignore[useless-expression]
@@ -2392,27 +2263,36 @@ class TestGetAttrAttributeError:
 class TestGameEngineLinuxVideoDriverArgs:
     """Test GameEngine platform-specific video driver args (lines 205-230)."""
 
-    def test_linux_video_drivers(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test Linux video driver choices are set up correctly (lines 205-219)."""
-        mocker.patch('platform.system', return_value='Linux')
+    @staticmethod
+    def _video_driver_choices(mocker, *, system_name: str) -> list[str] | None:
+        """Build the real argument parser as on system_name; return --video-driver's choices.
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        # Engine was created with Linux platform; the parser is internal
-        # Just verify it doesn't raise
+        Returns:
+            The choices of the --video-driver option.
 
-    def test_mac_video_drivers(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test MacOS video driver choices (lines 222-225)."""
-        mocker.patch('platform.system', return_value='MacOS')
+        """
+        mocker.patch('platform.system', return_value=system_name)
+        parser = GameEngine.args(argparse.ArgumentParser())
+        (video_driver_action,) = [
+            action for action in parser._actions if '--video-driver' in action.option_strings
+        ]
+        return video_driver_action.choices
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        # Just verify it doesn't raise
+    def test_linux_video_drivers(self, mocker):
+        """On Linux, --video-driver offers the Linux drivers."""
+        choices = self._video_driver_choices(mocker, system_name='Linux')
+        assert choices is not None
+        assert 'x11' in choices
+        assert 'wayland' in choices
 
-    def test_windows_video_drivers(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test Windows video driver choices (lines 227-230)."""
-        mocker.patch('platform.system', return_value='Windows')
+    def test_mac_video_drivers(self, mocker):
+        """The 'MacOS' branch offers no drivers (platform.system() says 'Darwin' on a Mac)."""
+        assert self._video_driver_choices(mocker, system_name='MacOS') == []
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        # Just verify it doesn't raise
+    def test_windows_video_drivers(self, mocker):
+        """On Windows, --video-driver offers the Windows drivers."""
+        choices = self._video_driver_choices(mocker, system_name='Windows')
+        assert choices == ['windib', 'directx']
 
 
 class TestGameEngineFastEvents:
@@ -2422,7 +2302,7 @@ class TestGameEngineFastEvents:
     We mock the fastevent module to test these legacy code paths.
     """
 
-    def test_use_fastevents_with_old_pygame(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_use_fastevents_with_old_pygame(self, mocker):
         """Test USE_FASTEVENTS is set for old pygame versions (line 341)."""
         # Mock pygame version to be < 2.2 (both major < 2 AND minor < 2)
         mocker.patch.object(pygame.version, 'vernum', (1, 1, 0))
@@ -2432,13 +2312,13 @@ class TestGameEngineFastEvents:
         # The engine sets the class attribute; patching it undoes that at teardown (BUGS.md #65)
         mocker.patch.object(GameEngine, 'USE_FASTEVENTS', new=False)
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         assert engine.USE_FASTEVENTS is True
         mock_fastevent.init.assert_called_once()
 
-    def test_process_events_with_fastevents(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_process_events_with_fastevents(self, mocker):
         """Test process_events uses fastevent.get when USE_FASTEVENTS is True (line 924)."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         # The live doors decide fastevent use when created (glitchygames/live_sources.py)
         install_sources(sources=LiveSources(random_seed=engine.random_seed, use_fastevents=True))
         # Create a fake fastevent module
@@ -2454,33 +2334,36 @@ class TestGameEngineFastEvents:
 class TestGameEngineFullscreen:
     """Test fullscreen mode flags (line 381)."""
 
-    def test_fullscreen_mode_flags(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_fullscreen_mode_flags(self, mocker):
         """Test fullscreen mode sets correct flags (line 381)."""
-        mock_game_args.windowed = False  # Trigger fullscreen
-
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        # --windowed is a store_true flag that defaults to True, so no command line reaches
+        # fullscreen: the parsed option is set directly. PlainWindowEngine never opens it
+        engine = _make_engine(mocker, option_overrides={'windowed': False})
         assert engine.mode_flags & pygame.FULLSCREEN
 
 
 class TestGameEngineInvalidUpdateType:
     """Test invalid update_type logs error (line 424)."""
 
-    def test_invalid_update_type_logs_error(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_invalid_update_type_logs_error(self, mocker, caplog):
         """Test invalid update_type logs an error (line 424)."""
-        mock_game_args.update_type = 'invalid_type'
+        # --update-type only accepts update or flip, so the parsed option is set directly
+        with caplog.at_level(logging.ERROR, logger=GameEngine.log.name):
+            engine = _make_engine(mocker, option_overrides={'update_type': 'invalid_type'})
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        # Engine should still be created, just with an error logged
+        assert 'Screen update type was neither "update" nor "flip".' in caplog.text
+        # The display still opens
+        assert engine.screen is pygame.display.get_surface()
 
 
 class TestGameEngineDel:
     """Test GameEngine __del__ with sprite counters (lines 509-510)."""
 
-    def test_del_logs_sprite_counters(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_del_logs_sprite_counters(self, mocker):
         """Test __del__ iterates sprite counters (lines 509-510)."""
         from glitchygames.sprites import Sprite
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         # Set up some sprite counters
         Sprite.SPRITE_COUNT = 5
@@ -2529,15 +2412,13 @@ class TestGameEngineTimerCalibration:
         engine.start()
         return calls
 
-    def test_a_paced_game_calibrates_before_its_first_frame(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+    def test_a_paced_game_calibrates_before_its_first_frame(self, mocker):
+        engine = _make_engine(mocker)
         calls = self._start_with_timer(engine=engine, mocker=mocker, target_fps=60.0)
         assert calls == ['calibrate', 'first frame']
 
-    def test_an_uncapped_game_does_not_calibrate(self, mock_pygame_patches, mock_game_args, mocker):
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+    def test_an_uncapped_game_does_not_calibrate(self, mocker):
+        engine = _make_engine(mocker)
         calls = self._start_with_timer(engine=engine, mocker=mocker, target_fps=0.0)
         assert calls == ['first frame']
 
@@ -2545,9 +2426,9 @@ class TestGameEngineTimerCalibration:
 class TestGameEngineTimerBackendError:
     """Test timer backend initialization failure (lines 828-830)."""
 
-    def test_timer_backend_value_error(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_timer_backend_value_error(self, mocker):
         """Test timer backend ValueError sets timer to None (lines 828-830)."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         # Mock create_timer to raise ValueError
         mocker.patch(
@@ -2579,15 +2460,22 @@ class TestGameEngineTimerBackendError:
 class TestGameEnginePerformanceImportError:
     """Test performance module ImportError path (lines 784-785)."""
 
-    def test_shutdown_performance_import_error(self, mock_pygame_patches, mock_game_args, mocker):
+    def test_shutdown_performance_import_error(self, mocker):
         """Test _shutdown handles ImportError for performance module (lines 784-785)."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
 
         # Mock the performance import to fail
         mocker.patch.dict('sys.modules', {'glitchygames.performance': None})
 
-        # _shutdown should handle the ImportError gracefully
-        engine._shutdown()
+        try:
+            # _shutdown goes on past the ImportError: it still quits pygame, for real
+            engine._shutdown()
+
+            assert not pygame.get_init()
+        finally:
+            # Later tests on this worker need pygame and the default display
+            pygame.init()
+            pygame.display.set_mode((800, 600))
 
 
 class TestShakeAndAudioArguments:
@@ -2697,11 +2585,9 @@ class TestFpsHistogramArgument:
         )
         assert list(action.choices) == [mode.value for mode in FpsHistogramMode]
 
-    def test_start_passes_the_mode_to_the_performance_manager(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_start_passes_the_mode_to_the_performance_manager(self, mocker):
         """Test start() calls set_histogram_mode with the parsed option."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
         mock_manager = mocker.patch('glitchygames.performance.performance_manager')
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
@@ -2723,13 +2609,11 @@ class TestFpsHistogramArgument:
 
         mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
 
-    def test_an_unknown_histogram_mode_is_logged_and_the_run_goes_on(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog
-    ):
+    def test_an_unknown_histogram_mode_is_logged_and_the_run_goes_on(self, mocker, caplog):
         """A mode the performance manager refuses (set in OPTIONS, not parsed) never ends a run."""
         from glitchygames.performance import performance_manager
 
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
         # The real manager is process-wide: put its settings back after the test
         mocker.patch.object(performance_manager, '_trim_percent', performance_manager._trim_percent)
@@ -2761,11 +2645,9 @@ class TestFpsHistogramArgument:
         assert performance_manager._trim_percent == 7.5
         engine._shutdown.assert_called_once()
 
-    def test_start_sets_the_mode_even_when_set_trim_percent_raises(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_start_sets_the_mode_even_when_set_trim_percent_raises(self, mocker):
         """Test a bad trim value cannot skip setting the histogram mode."""
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
         mock_manager = mocker.patch('glitchygames.performance.performance_manager')
         mock_manager.set_trim_percent.side_effect = ValueError('bad trim')

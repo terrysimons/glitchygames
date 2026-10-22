@@ -13,7 +13,6 @@ from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.file_io import FileIOManager
 from glitchygames.bitmappy.toml_processing import normalize_toml_data
-from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_SIZE_64 = 64
@@ -26,19 +25,16 @@ class TestPNGLoading:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
+        """Set up a BitmapEditorScene and canvas without their heavy setup."""
         # Store mocker first so it's available for use below
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
         # Create a real BitmapEditorScene instance with mocked dependencies
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         self.mock_scene = BitmapEditorScene({})
         self.mock_scene.log = mocker.Mock()
         self.mock_scene.all_sprites = []
-        self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        self.mock_scene.canvas = types.SimpleNamespace(pixels_across=32, pixels_tall=32)
 
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
         mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
@@ -63,8 +59,6 @@ class TestPNGLoading:
 
     def test_detect_png_file_in_load_function(self):
         """Test that PNG files are detected and converted in _load_sprite_from_file."""
-        self._mocker.patch('pygame.image.save')
-
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
             tmp_png_path = Path(tmp_png.name)
         tmp_png_path.write_bytes(b'fake png data')
@@ -101,8 +95,6 @@ class TestPNGLoading:
 
     def test_png_conversion_failure_handling(self):
         """Test that PNG conversion failures are handled gracefully."""
-        self._mocker.patch('pygame.image.save')
-
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
             tmp_png_path = Path(tmp_png.name)
         tmp_png_path.write_bytes(b'fake png data')
@@ -145,11 +137,8 @@ class TestTOMLNormalization:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
+        """Keep the mocker fixture for the tests."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
     def testnormalize_toml_data_with_escaped_newlines(self):
         """Test that escaped newlines are converted to actual newlines."""
@@ -221,11 +210,8 @@ class TestTOMLConstruction:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
+        """Keep the mocker fixture for the tests."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
         # Create a real BitmapEditorScene instance with mocked dependencies
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
@@ -408,17 +394,20 @@ class TestDragAndDropPNG:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
+        """Set up a BitmapEditorScene and canvas without their heavy setup."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
         # Create a real BitmapEditorScene instance with mocked dependencies
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         self.mock_scene = BitmapEditorScene({})
         self.mock_scene.log = mocker.Mock()
-        self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        # A drop lands on the canvas when the mouse is over its rect; this rect covers the
+        # whole mouse range, so the drop is on the canvas wherever the mouse is
+        self.mock_scene.canvas = types.SimpleNamespace(
+            pixels_across=32,
+            pixels_tall=32,
+            rect=pygame.Rect(-100_000, -100_000, 200_000, 200_000),
+        )
 
         # Initialize extracted subsystem managers
         from glitchygames.bitmappy.file_io import FileIOManager
@@ -428,7 +417,6 @@ class TestDragAndDropPNG:
     def test_drag_drop_png_file(self):
         """Test drag and drop of PNG file."""
         # Create a simple PNG
-        self._mocker.patch('pygame.image.save')
 
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
             tmp_png_path = Path(tmp_png.name)
@@ -495,50 +483,38 @@ class TestDragAndDropPNG:
             tmp_file_path.unlink(missing_ok=True)
 
 
+def hundred_colour_pixels():
+    """Build 32x32 pixels cycling through 100 distinct RGB colours.
+
+    Returns:
+        list[tuple[int, int, int]]: The pixels, row by row.
+
+    """
+    pixels = []
+    for pixel_index in range(32 * 32):
+        color_index = pixel_index % 100
+        pixels.append(((color_index * 2) % 256, (color_index * 3) % 256, (color_index * 5) % 256))
+    return pixels
+
+
 class TestColorQuantization:
-    """Test color quantization functionality for AI training."""
+    """Test the frame TOML the AI is trained on, through the real AIManager."""
 
     @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
+    def setup_scene(self, mocker):
+        """Build an editor with a 32x32 canvas of 100 colours and its AI manager."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
-        # Create a real BitmapEditorScene instance with mocked dependencies
+        # A BitmapEditorScene without its heavy setup: the AI manager reads only its canvas
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         self.mock_scene = BitmapEditorScene({})
         self.mock_scene.log = mocker.Mock()
-        self.mock_scene.all_sprites = []
-        self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        self.mock_scene.canvas = types.SimpleNamespace(
+            pixels_across=32,
+            pixels_tall=32,
+            pixels=hundred_colour_pixels(),
+        )
 
-        # Create a real AnimatedCanvasSprite instance with mocked dependencies
-        mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
-        self.mock_canvas = AnimatedCanvasSprite()  # type: ignore[missing-argument]
-        self.mock_canvas.log = mocker.Mock()
-        self.mock_canvas.pixels_across = 32
-        self.mock_canvas.pixels_tall = 32
-
-        # Create test pixels with many unique colors (more than 64)
-        pixels = []
-        for i in range(32 * 32):
-            # Create 100 unique colors to test quantization
-            color_index = i % 100
-            r = (color_index * 2) % 256
-            g = (color_index * 3) % 256
-            b = (color_index * 5) % 256
-            pixels.append((r, g, b))
-
-        self.mock_canvas.pixels = pixels
-        self.mock_canvas.on_load_file_event = mocker.Mock()
-        self.mock_canvas._update_border_thickness = mocker.Mock()
-        self.mock_canvas.force_redraw = mocker.Mock()
-        self.mock_canvas.parent = self.mock_scene
-
-        self.mock_scene.all_sprites = [self.mock_canvas]
-
-        # Initialize extracted AI subsystem manager
         from glitchygames.bitmappy.ai_manager import AIManager
 
         mocker.patch.object(AIManager, '__init__', return_value=None)
@@ -547,436 +523,119 @@ class TestColorQuantization:
         self.mock_scene._ai_integration.log = mocker.Mock()
 
     def test_generate_frame_toml_without_quantization(self):
-        """Test that _generate_frame_toml_content works without quantization."""
-        # Mock the method to return expected content
-        expected_toml = """[sprite]
-name = "current_frame"
-pixels = \"\"\"
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-cccccccccccccccccccccccccccccccc
-dddddddddddddddddddddddddddddddd
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-ffffffffffffffffffffffffffffffff
-gggggggggggggggggggggggggggggggg
-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
-jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj
-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
-llllllllllllllllllllllllllllllll
-mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
-nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
-oooooooooooooooooooooooooooooooo
-pppppppppppppppppppppppppppppppp
-qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
-rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
-ssssssssssssssssssssssssssssssss
-tttttttttttttttttttttttttttttttt
-uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu
-vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
-EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-\"\"\"
+        """Without quantization, a frame of few colours keeps every colour and every pixel."""
+        ten_colours = [(index * 2, index * 3, index * 5) for index in range(10)]
+        pixels = (ten_colours * 103)[: 32 * 32]
 
-[colors."a"]
-red = 0
-green = 0
-blue = 0
-
-[colors."b"]
-red = 2
-green = 3
-blue = 5
-
-[colors."c"]
-red = 4
-green = 6
-blue = 10
-"""
-
-        mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_generate_frame_toml_content',
-        )
-        mock_generate.return_value = expected_toml
-
-        # Call without force_single_char_glyphs
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            self.mock_canvas.pixels,
+            pixels,
             force_single_char_glyphs=False,
         )
 
-        assert toml_content is not None
-        assert '[sprite]' in toml_content
-        assert 'pixels = """' in toml_content
-        assert '[colors.' in toml_content
+        data = tomllib.loads(toml_content)
+        assert data['sprite']['name'] == 'current_frame'
+        colours = {
+            (color['red'], color['green'], color['blue']) for color in data['colors'].values()
+        }
+        assert colours == set(ten_colours)
+        rows = data['sprite']['pixels'].strip().split('\n')
+        assert len(rows) == TEST_SIZE_32
+        glyph_colours = {
+            glyph: (color['red'], color['green'], color['blue'])
+            for glyph, color in data['colors'].items()
+        }
+        assert [glyph_colours[glyph] for glyph in rows[0]] == pixels[:32]
 
-        # Verify the method was called with the correct parameters
-        mock_generate.assert_called_once_with(
-            self.mock_canvas.pixels,
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            'AIManager._generate_frame_toml_content(force_single_char_glyphs=False) writes one '
+            '[colors."<glyph>"] table per colour, but past the 64 sprite glyphs several colours '
+            'share a glyph, so the TOML declares a table twice and cannot be parsed'
+        ),
+    )
+    def test_generate_frame_toml_without_quantization_many_colours_is_valid_toml(self):
+        """Without quantization, more colours than glyphs must still produce valid TOML."""
+        toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
+            self.mock_scene.canvas.pixels,
             force_single_char_glyphs=False,
         )
+
+        data = tomllib.loads(toml_content)
+        assert len(data['colors']) <= TEST_SIZE_64
 
     def test_generate_frame_toml_with_quantization(self):
-        """Test that _generate_frame_toml_content quantizes colors when requested."""
-        # Mock the method to return quantized content (64 colors max)
-        expected_toml = """[sprite]
-name = "current_frame"
-pixels = \"\"\"
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-\"\"\"
-
-[colors."a"]
-red = 0
-green = 0
-blue = 0
-
-[colors."b"]
-red = 2
-green = 3
-blue = 5
-"""
-
-        mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_generate_frame_toml_content',
-        )
-        mock_generate.return_value = expected_toml
-
-        # Call with force_single_char_glyphs=True
+        """With quantization, 100 colours become at most 64 single-character glyphs."""
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            self.mock_canvas.pixels,
+            self.mock_scene.canvas.pixels,
             force_single_char_glyphs=True,
         )
 
-        assert toml_content is not None
-        assert '[sprite]' in toml_content
-        assert 'pixels = """' in toml_content
-        assert '[colors.' in toml_content
-
-        # Should have exactly 64 colors or fewer
-        color_sections = toml_content.count('[colors.')
-        assert color_sections <= TEST_SIZE_64, (
-            f'Expected <= {TEST_SIZE_64} colors, got {color_sections}'
-        )
-
-        # All glyphs should be single characters (no X1, X2, etc.)
-        assert 'X1' not in toml_content
-        assert 'X2' not in toml_content
-        assert 'X10' not in toml_content
-
-        # Verify the method was called with the correct parameters
-        mock_generate.assert_called_once_with(
-            self.mock_canvas.pixels,
-            force_single_char_glyphs=True,
-        )
+        data = tomllib.loads(toml_content)
+        assert 1 < len(data['colors']) <= TEST_SIZE_64
+        assert all(len(glyph) == 1 for glyph in data['colors'])
+        rows = data['sprite']['pixels'].strip().split('\n')
+        assert len(rows) == TEST_SIZE_32
+        assert all(len(row) == TEST_SIZE_32 for row in rows)
+        assert set(''.join(rows)) <= set(data['colors'])
 
     def test_save_current_frame_to_temp_toml_uses_quantization(self):
-        """Test that _save_current_frame_to_temp_toml uses quantization for AI training."""
-        # Mock the _save_current_frame_to_temp_toml method to verify it calls
-        # _generate_frame_toml_content with quantization
-        mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_generate_frame_toml_content',
-        )
-        mock_generate.return_value = (
-            '[sprite]\nname = "test"\npixels = """\naa\nbb\n"""\n\n'
-            "[colors.'a']\nred = 255\ngreen = 0\nblue = 0\n"
-        )
-
-        # Mock the _save_current_frame_to_temp_toml method
-        mock_save = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_save_current_frame_to_temp_toml',
-        )
-        mock_save.return_value = '/tmp/test.toml'  # ruff: ignore[hardcoded-temp-file]
-
-        # Call the method
+        """The frame saved for AI training is quantized to single-character glyphs."""
         temp_path = self.mock_scene._ai_integration._save_current_frame_to_temp_toml()
 
-        # Verify it was called
-        mock_save.assert_called_once()
-        assert temp_path == '/tmp/test.toml'  # ruff: ignore[hardcoded-temp-file]
-
-        # Note: We can't verify the internal call to _generate_frame_toml_content
-        # because _save_current_frame_to_temp_toml is mocked, but the test verifies
-        # the method exists and can be called
+        assert temp_path is not None
+        try:
+            data = tomllib.loads(Path(temp_path).read_text(encoding='utf-8'))
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+        assert len(data['colors']) <= TEST_SIZE_64
+        assert all(len(glyph) == 1 for glyph in data['colors'])
 
     def test_color_quantization_preserves_most_common_colors(self):
-        """Test that quantization preserves the most frequently used colors."""
-        # Create pixels with one very common color and many rare colors
-        pixels = []
-        common_color = (255, 0, 0)  # Red
-        rare_colors = [(i, i, i) for i in range(1, 100)]  # 99 rare colors
-
-        # Add 1000 pixels of the common color
-        pixels.extend([common_color] * 1000)
-
-        # Add 1 pixel of each rare color
-        pixels.extend(rare_colors)
-
-        # Pad to 32x32 = 1024 pixels
-        while len(pixels) < TEST_SIZE_1024:
-            pixels.append(common_color)
-
-        self.mock_canvas.pixels = pixels[:TEST_SIZE_1024]  # Ensure exactly 1024 pixels
-
-        # Mock the method to return content that includes the common color
-        expected_toml = """[sprite]
-name = "current_frame"
-pixels = \"\"\"
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-\"\"\"
-
-[colors."a"]
-red = 255
-green = 0
-blue = 0
-"""
-
-        mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_generate_frame_toml_content',
-        )
-        mock_generate.return_value = expected_toml
+        """Quantization keeps the colour most of the frame is painted in."""
+        common_color = (255, 0, 0)
+        rare_colors = [(index, index, index) for index in range(1, 100)]
+        pixels = ([common_color] * 1000 + rare_colors)[:TEST_SIZE_1024]
 
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             pixels,
             force_single_char_glyphs=True,
         )
 
-        # Parse the TOML
         data = tomllib.loads(toml_content)
-
-        # The common color should be in the quantized palette
-        color_definitions = data.get('colors', {})
-        common_color_found = False
-        for rgb in color_definitions.values():
-            if rgb == {'red': 255, 'green': 0, 'blue': 0}:
-                common_color_found = True
-                break
-
-        assert common_color_found, 'Most common color should be preserved in quantization'
+        assert {'red': 255, 'green': 0, 'blue': 0} in data['colors'].values()
+        assert len(data['colors']) <= TEST_SIZE_64
 
     def test_color_quantization_handles_edge_cases(self):
-        """Test quantization with edge cases like single color."""
-        # Test with single color
+        """A single-colour frame produces exactly one colour."""
         single_color_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * (32 * 32))
-
-        expected_toml = """[sprite]
-name = "current_frame"
-pixels = \"\"\"
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-\"\"\"
-
-[colors."a"]
-red = 255
-green = 0
-blue = 0
-"""
-
-        mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_generate_frame_toml_content',
-        )
-        mock_generate.return_value = expected_toml
 
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             single_color_pixels,
             force_single_char_glyphs=True,
         )
 
-        assert toml_content is not None
         data = tomllib.loads(toml_content)
-        assert len(data.get('colors', {})) == 1
+        assert list(data['colors'].values()) == [{'red': 255, 'green': 0, 'blue': 0}]
 
     def test_color_quantization_with_integer_pixels(self):
-        """Test quantization with integer-packed RGB pixels."""
-        # Create pixels as integers (packed RGB)
-        pixels = []
-        for i in range(32 * 32):
-            r = (i * 2) % 256
-            g = (i * 3) % 256
-            b = (i * 5) % 256
-            # Pack RGB into integer
-            packed_color = (r << 16) | (g << 8) | b
-            pixels.append(packed_color)
+        """Integer-packed RGB pixels are not a canvas pixel format: no TOML is produced.
 
-        self.mock_canvas.pixels = pixels
-
-        expected_toml = """[sprite]
-name = "current_frame"
-pixels = \"\"\"
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-abcdefghijklmnopqrstuvwxyzABCDEF
-\"\"\"
-
-[colors."a"]
-red = 0
-green = 0
-blue = 0
-
-[colors."b"]
-red = 2
-green = 3
-blue = 5
-"""
-
-        mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration,
-            '_generate_frame_toml_content',
-        )
-        mock_generate.return_value = expected_toml
+        The canvas always holds colour tuples; packed integers fail while collecting the
+        colours, which is logged, and the result is an empty string.
+        """
+        pixels = [
+            (((index * 2) % 256) << 16) | (((index * 3) % 256) << 8) | ((index * 5) % 256)
+            for index in range(32 * 32)
+        ]
 
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            pixels,
+            pixels,  # type: ignore[arg-type]
             force_single_char_glyphs=True,
         )
 
-        assert toml_content is not None
-        data = tomllib.loads(toml_content)
-
-        # Should have quantized colors
-        color_count = len(data.get('colors', {}))
-        assert color_count <= TEST_SIZE_64
-
-        # Pixel string should have correct dimensions
-        pixel_string = data['sprite']['pixels']
-        lines = pixel_string.strip().split('\n')
-        assert len(lines) == TEST_SIZE_32
-        for line in lines:
-            assert len(line) == TEST_SIZE_32
+        assert not toml_content
+        self.mock_scene._ai_integration.log.exception.assert_called_once()
 
 
 class TestDescriptionFeature:
@@ -984,11 +643,7 @@ class TestDescriptionFeature:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-
+        """Keep the mocker fixture for the tests."""
         # Store mocker for use in test methods
         self._mocker = mocker
 
@@ -1041,7 +696,7 @@ blue = 255
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
         scene.all_sprites = []
-        scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        scene.canvas = types.SimpleNamespace(pixels_across=32, pixels_tall=32)
 
         # Create a mock debug_text (AI textbox)
         scene.debug_text = self._mocker.Mock()
@@ -1079,7 +734,7 @@ blue = 255
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
         scene.all_sprites = []
-        scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        scene.canvas = types.SimpleNamespace(pixels_across=32, pixels_tall=32)
 
         # Create a mock debug_text (AI textbox)
         scene.debug_text = self._mocker.Mock()
@@ -1117,7 +772,7 @@ blue = 255
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
         scene.all_sprites = []
-        scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        scene.canvas = types.SimpleNamespace(pixels_across=32, pixels_tall=32)
 
         # Create a mock debug_text (AI textbox)
         scene.debug_text = self._mocker.Mock()

@@ -13,23 +13,13 @@ import pytest
 
 from glitchygames.sprites import SPRITE_GLYPHS
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestAnimatedSpriteGlyphs:
     """Test animated sprite universal character set implementation."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
         """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 

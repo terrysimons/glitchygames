@@ -16,8 +16,6 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tests.mocks.test_mock_factory import MockFactory
-
 # Constants for test thresholds
 DEFAULT_FRAME_INTERVAL = 0.5
 EXPECTED_FRAME_COUNT = 2
@@ -42,16 +40,6 @@ def get_resource_path(filename: str) -> str:
 
 class TestAnimationSystemAudit:
     """Test cases that expose animation system issues."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
 
     def test_frame_interval_bug_exposure(self):
         """Test that exposes the frame_interval property bug.

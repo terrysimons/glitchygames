@@ -9,13 +9,14 @@ import tempfile
 import time
 from pathlib import Path
 
+import numpy as np
 import pygame
 import pytest
 
 from glitchygames.sprites import SpriteFactory
 
 # Constants for test thresholds
-PIXEL_INTEGRITY_THRESHOLD = 95.0
+PIXEL_INTEGRITY_THRESHOLD = 100.0  # every pixel draws exactly as expected
 MAX_REASONABLE_DIMENSION = 1000
 MAX_ASPECT_RATIO = 10.0
 MIN_ASPECT_RATIO = 0.1
@@ -61,10 +62,6 @@ class TestExamplesSprites:
         if self.sprites_dir.exists():
             for file_path in self.sprites_dir.glob('*.toml'):
                 self.toml_files.append(file_path)
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        # pygame.quit() is handled by MockFactory teardown
 
     def test_load_all_toml_sprites(self):
         """Test that all TOML sprite files can be loaded."""
@@ -127,22 +124,19 @@ class TestExamplesSprites:
                 surface=sprite.image, background_color=background_color
             )
 
-            # Draw to test surface
-            test_surface = pygame.Surface(sprite.image.get_size())
+            # Draw to a test surface: 32-bit without per-pixel alpha, so the result does not
+            # depend on the display's pixel format
+            test_surface = pygame.Surface(sprite.image.get_size(), depth=32)
             test_surface.fill(background_color)
             test_surface.blit(sprite.image, (0, 0))
 
             drawn_pixels = self._extract_pixel_data(test_surface)
 
             # Calculate match percentage
-            matches = sum(
-                1
-                for orig, drawn in zip(original_pixels, drawn_pixels, strict=True)
-                if orig == drawn
-            )
-            match_percentage = matches / len(original_pixels) * 100
+            pixel_matches = np.all(original_pixels == drawn_pixels, axis=2)
+            match_percentage = float(pixel_matches.mean()) * 100
 
-            assert match_percentage > PIXEL_INTEGRITY_THRESHOLD, (
+            assert match_percentage >= PIXEL_INTEGRITY_THRESHOLD, (
                 f'Pixel integrity too low for {sprite_name}: {match_percentage:.1f}%'
             )
 
@@ -255,7 +249,7 @@ class TestExamplesSprites:
             # Time the rendering
             assert sprite.image is not None
             start_time = time.time()
-            test_surface = pygame.Surface(sprite.image.get_size())
+            test_surface = pygame.Surface(sprite.image.get_size(), depth=32)
             test_surface.blit(sprite.image, (0, 0))
             render_time = time.time() - start_time
 
@@ -273,42 +267,28 @@ class TestExamplesSprites:
         any other pixel keeps its own RGB (the sampled sprites have no translucent colors).
 
         Returns:
-            list[tuple[int, int, int]]: The expected pixels, row by row.
+            np.ndarray: The expected pixels, a (width, height, 3) array.
 
         """
+        rgb_pixels = pygame.surfarray.array3d(surface)
+        is_transparent = np.zeros(surface.get_size(), dtype=bool)
+        if surface.get_flags() & pygame.SRCALPHA:
+            is_transparent |= pygame.surfarray.array_alpha(surface) == 0
         colorkey = surface.get_colorkey()
-        width, height = surface.get_size()
-        pixels = []
-
-        for y in range(height):
-            for x in range(width):
-                pixel = surface.get_at((x, y))
-                is_transparent = pixel.a == 0 or (
-                    colorkey is not None and pixel.rgb == pygame.Color(colorkey).rgb
-                )
-                pixels.append(background_color if is_transparent else (pixel.r, pixel.g, pixel.b))
-
-        return pixels
+        if colorkey is not None:
+            is_transparent |= np.all(rgb_pixels == colorkey[:3], axis=2)
+        rgb_pixels[is_transparent] = background_color
+        return rgb_pixels
 
     @staticmethod
     def _extract_pixel_data(surface):
-        """Extract pixel data from a pygame surface as RGB tuples.
+        """Extract a surface's RGB pixels in bulk.
 
         Returns:
-            object: The result.
+            np.ndarray: A (width, height, 3) array.
 
         """
-        width, height = surface.get_size()
-        pixels = []
-
-        for y in range(height):
-            for x in range(width):
-                pixel = surface.get_at((x, y))
-                # Convert to RGB (ignore alpha)
-                rgb = (pixel.r, pixel.g, pixel.b)
-                pixels.append(rgb)
-
-        return pixels
+        return pygame.surfarray.array3d(surface)
 
 
 if __name__ == '__main__':

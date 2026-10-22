@@ -1,53 +1,103 @@
 """Film strip sprite wrapper tests."""
 
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from glitchygames import events
 from glitchygames.bitmappy import film_strip
 from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
+from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
+from tests.tools.test_film_strip_base import frame_color_for_index, make_real_animated_sprite
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+# The colour FilmStripSprite.force_redraw clears its image to before rendering the strip
+COPPER_BROWN = (100, 70, 55)
+# Frame colours far from magenta and from the strip's own colours
+STRIP_BASE_COLOR = (200, 40, 10)
+SPRITE_X = 10
+SPRITE_Y = 20
+STRIP_WIDTH = 400
+STRIP_HEIGHT = 120
+
+
+def left_click_event(position: tuple[int, int]) -> events.HashableEvent:
+    """Build a real left MOUSEBUTTONDOWN event.
+
+    Returns:
+        The event.
+
+    """
+    return events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1)
+
+
+def make_strip_sprite(*, with_animation: bool = True) -> FilmStripSprite:
+    """Build a film strip sprite at (10, 20) over a real widget.
+
+    Args:
+        with_animation: Whether the widget shows a five-frame 'idle' animation.
+
+    Returns:
+        The film strip sprite.
+
+    """
+    widget = film_strip.FilmStripWidget(SPRITE_X, SPRITE_Y, STRIP_WIDTH, STRIP_HEIGHT)
+    if with_animation:
+        widget.set_animated_sprite(make_real_animated_sprite(base_color=STRIP_BASE_COLOR))
+    return FilmStripSprite(
+        widget,
+        x=SPRITE_X,
+        y=SPRITE_Y,
+        width=STRIP_WIDTH,
+        height=STRIP_HEIGHT,
+        groups=pygame.sprite.LayeredDirty(),
+    )
+
+
+def screen_center_of_frame(sprite: FilmStripSprite, frame_index: int) -> tuple[int, int]:
+    """Return the screen position of the centre of an 'idle' frame's thumbnail.
+
+    Returns:
+        The screen position.
+
+    """
+    assert sprite.film_strip_widget is not None
+    frame_rect = sprite.film_strip_widget.frame_layouts['idle', frame_index]
+    return (sprite.rect.x + frame_rect.centerx, sprite.rect.y + frame_rect.centery)
+
+
+def drawn_thumbnail_color(sprite: FilmStripSprite, frame_index: int) -> tuple[int, int, int]:
+    """Read the colour drawn at the centre of an 'idle' frame's thumbnail in the sprite image.
+
+    Returns:
+        The RGB colour.
+
+    """
+    assert sprite.film_strip_widget is not None
+    frame_rect = sprite.film_strip_widget.frame_layouts['idle', frame_index]
+    return tuple(sprite.image.get_at(frame_rect.center))[:3]
 
 
 class TestFilmStripSprite:
     """Test FilmStripSprite wrapper functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_film_strip_sprite_initialization(self):
         """Test film strip sprite initialization."""
-        # Create a film strip widget
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
 
-        # Create film strip sprite
         sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
-        # Test basic properties
-        assert hasattr(sprite, 'film_strip_widget')
-        assert hasattr(sprite, 'name')
-        assert hasattr(sprite, 'image')
-        assert hasattr(sprite, 'rect')
-        assert hasattr(sprite, 'dirty')
-
-        # Test values
-        assert sprite.film_strip_widget == film_strip_widget
+        assert sprite.film_strip_widget is film_strip_widget
         assert sprite.name == 'Film Strip'
-        # Note: Mock rect properties may not match exact values due to mock setup
-        assert hasattr(sprite.rect, 'x')
-        assert hasattr(sprite.rect, 'y')
-        assert hasattr(sprite.rect, 'width')
-        assert hasattr(sprite.rect, 'height')
+        assert sprite.rect == pygame.Rect(10, 20, 200, 150)
+        assert sprite.image.get_size() == (200, 150)
+        assert sprite.image.get_flags() & pygame.SRCALPHA
+        assert sprite.parent_scene is None
         assert sprite.dirty == 1  # Should be dirty initially
 
     def test_film_strip_sprite_methods(self):
@@ -55,217 +105,181 @@ class TestFilmStripSprite:
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
         sprite = FilmStripSprite(film_strip_widget)
 
-        # Test methods exist
-        assert hasattr(sprite, 'update')
-        assert hasattr(sprite, 'force_redraw')
-        assert hasattr(sprite, 'on_left_mouse_button_down_event')
-        assert hasattr(sprite, 'set_parent_canvas')
-
-        # Test methods are callable
+        # Test methods exist and are callable
         assert callable(sprite.update)
         assert callable(sprite.force_redraw)
         assert callable(sprite.on_left_mouse_button_down_event)
         assert callable(sprite.set_parent_canvas)
 
     def test_film_strip_sprite_update(self):
-        """Test film strip sprite update functionality."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget)
-
-        # Test initial dirty state
+        """Test that update redraws a dirty sprite and leaves dirty for LayeredDirty to reset."""
+        sprite = make_strip_sprite()
+        sprite.image.fill((1, 2, 3, 255))
         assert sprite.dirty == 1
 
-        # FilmStripSprite.update() checks that the sprite is in at least one group
-        # before processing. Mock groups() to return a non-empty list so update proceeds.
-        mock_group = self._mocker.Mock()
-        sprite.groups = self._mocker.Mock(return_value=[mock_group])
-
-        # Test update with dirty flag — force_redraw is called,
-        # dirty stays at 1 until LayeredDirty.draw() resets it
         sprite.update()
+
+        assert drawn_thumbnail_color(sprite, frame_index=1) == frame_color_for_index(
+            base_color=STRIP_BASE_COLOR,
+            frame_index=1,
+        )
+        # dirty stays at 1 until LayeredDirty.draw() resets it
         assert sprite.dirty == 1
 
     def test_film_strip_sprite_force_redraw(self):
-        """Test film strip sprite force redraw."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget)
+        """Test that force redraw clears the image to copper brown, then draws the strip."""
+        sprite = make_strip_sprite(with_animation=False)
+        sprite.image.fill((1, 2, 3, 255))
 
-        # Test force redraw
         sprite.force_redraw()
 
-        # Should have called film_strip_widget.render
-        # The surface should be filled with film background color
-        assert sprite.image is not None
+        # The widget has no sprite to draw, so only the copper brown background shows
+        assert tuple(sprite.image.get_at((0, 0)))[:3] == COPPER_BROWN
+        assert tuple(sprite.image.get_at((STRIP_WIDTH - 1, STRIP_HEIGHT - 1)))[:3] == COPPER_BROWN
 
     def test_film_strip_sprite_mouse_click(self):
-        """Test film strip sprite mouse click handling."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        """Test that a click on a frame thumbnail selects that frame."""
+        sprite = make_strip_sprite()
+        assert sprite.film_strip_widget is not None
 
-        # Create mock event
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (50, 50)  # Within sprite bounds
+        sprite.on_left_mouse_button_down_event(left_click_event(screen_center_of_frame(sprite, 1)))
 
-        # Test click handling
-        sprite.on_left_mouse_button_down_event(mock_event)
-
-        # Should convert coordinates and call film_strip_widget.handle_click
-        # Film strip widget should receive (40, 30) - adjusted for sprite position
+        assert sprite.film_strip_widget.selected_frame == 1
 
     def test_film_strip_sprite_mouse_click_outside_bounds(self):
-        """Test film strip sprite mouse click outside bounds."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        """Test that a click outside the sprite changes nothing."""
+        sprite = make_strip_sprite()
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        canvas = RecordingCanvas()
+        sprite.set_parent_canvas(canvas)  # type: ignore[arg-type]
 
-        # Create mock event outside bounds
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (500, 500)  # Outside sprite bounds
+        sprite.on_left_mouse_button_down_event(left_click_event((500, 500)))
 
-        # Test click handling
-        sprite.on_left_mouse_button_down_event(mock_event)
-
-        # Should not call film_strip_widget.handle_click since click is outside bounds
+        assert widget.selected_frame == 0
+        assert canvas.shown_frames == []
 
     def test_film_strip_sprite_with_animations(self):
-        """Test film strip sprite with animations running."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
+        """Test that a dirty sprite draws every laid-out frame of its animation."""
+        sprite = make_strip_sprite()
+        assert sprite.film_strip_widget is not None
 
-        # Set up mock sprite with animations
-        mock_sprite = MockFactory.create_animated_sprite_mock()
-        film_strip_widget.set_animated_sprite(mock_sprite)
-
-        sprite = FilmStripSprite(film_strip_widget)
-
-        # Test update with animations running
         sprite.update()
 
-        # Should force redraw when animations are running
-        # Dirty flag should remain set to ensure continuous updates
+        for _animation_name, frame_index in sprite.film_strip_widget.frame_layouts:
+            assert drawn_thumbnail_color(sprite, frame_index) == frame_color_for_index(
+                base_color=STRIP_BASE_COLOR,
+                frame_index=frame_index,
+            )
+
+    def test_update_of_a_sprite_in_no_group_releases_its_widget(self):
+        """Test that update() on a sprite in no sprite group drops its widget and draws nothing.
+
+        A sprite outside every group has been removed from the scene; update() lets go of the
+        widget so a stale strip cannot be redrawn.
+        """
+        sprite = make_strip_sprite()
+        # Removed from its group directly (an emptied group), not through kill()
+        for group in sprite.groups():
+            group.remove(sprite)
+        assert sprite.groups() == []
+        sprite.image.fill((1, 2, 3, 255))
+
+        sprite.update()
+
+        assert sprite.film_strip_widget is None
+        assert tuple(sprite.image.get_at((0, 0))) == (1, 2, 3, 255)
 
     def test_film_strip_sprite_parent_canvas(self):
         """Test film strip sprite parent canvas integration."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
         sprite = FilmStripSprite(film_strip_widget)
+        canvas = RecordingCanvas()
 
-        # Test setting parent canvas
-        mock_canvas = self._mocker.Mock()
-        sprite.set_parent_canvas(mock_canvas)
-        assert sprite.parent_canvas == mock_canvas
+        sprite.set_parent_canvas(canvas)  # type: ignore[arg-type]
 
-    def test_film_strip_sprite_click_with_parent_canvas(self, mocker):
-        """Test film strip sprite click with parent canvas."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget)
+        assert sprite.parent_canvas is canvas
 
-        # Set up mock sprite with animations
-        mock_sprite = MockFactory.create_animated_sprite_mock()
-        film_strip_widget.set_animated_sprite(mock_sprite)
+    def test_film_strip_sprite_click_with_parent_canvas(self):
+        """Test that clicking a frame shows it on the parent canvas."""
+        sprite = make_strip_sprite()
+        canvas = RecordingCanvas()
+        sprite.set_parent_canvas(canvas)  # type: ignore[arg-type]
 
-        # Set parent canvas
-        mock_canvas = self._mocker.Mock()
-        sprite.set_parent_canvas(mock_canvas)
+        sprite.on_left_mouse_button_down_event(left_click_event(screen_center_of_frame(sprite, 0)))
 
-        # Create mock event
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (50, 50)
+        assert canvas.shown_frames == [('idle', 0)]
 
-        # Mock the handle_click to return a frame
-        mocker.patch.object(film_strip_widget, 'handle_click', return_value=('idle', 0))
-        sprite.on_left_mouse_button_down_event(mock_event)
+    def test_film_strip_sprite_click_no_frame_selected(self):
+        """Test that a click that selects no frame does not change the parent canvas.
 
-        # Should call parent canvas show_frame
-        mock_canvas.show_frame.assert_called_once_with('idle', 0)
+        A click on the animation label starts renaming the animation and selects no frame.
+        """
+        sprite = make_strip_sprite()
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        canvas = RecordingCanvas()
+        sprite.set_parent_canvas(canvas)  # type: ignore[arg-type]
+        label_rect = widget.animation_layouts['idle']
 
-    def test_film_strip_sprite_click_no_frame_selected(self, mocker):
-        """Test film strip sprite click when no frame is selected."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget)
+        sprite.on_left_mouse_button_down_event(
+            left_click_event((
+                sprite.rect.x + label_rect.centerx,
+                sprite.rect.y + label_rect.centery,
+            )),
+        )
 
-        # Set parent canvas
-        mock_canvas = self._mocker.Mock()
-        sprite.set_parent_canvas(mock_canvas)
-
-        # Create mock event
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (50, 50)
-
-        # Mock the handle_click to return None
-        mocker.patch.object(film_strip_widget, 'handle_click', return_value=None)
-        sprite.on_left_mouse_button_down_event(mock_event)
-
-        # Should not call parent canvas show_frame
-        mock_canvas.show_frame.assert_not_called()
+        assert widget.editing_animation == 'idle'
+        assert canvas.shown_frames == []
 
     def test_film_strip_sprite_continuous_redraw_with_animations(self):
-        """Test that film strip sprite continuously redraws when animations are present."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
+        """Test that a sprite left dirty is redrawn on every update, not just the first."""
+        sprite = make_strip_sprite()
+        expected_color = frame_color_for_index(base_color=STRIP_BASE_COLOR, frame_index=0)
 
-        # Set up mock sprite with animations
-        mock_sprite = MockFactory.create_animated_sprite_mock()
-        film_strip_widget.set_animated_sprite(mock_sprite)
-
-        sprite = FilmStripSprite(film_strip_widget)
-
-        # Reset dirty flag
-        sprite.dirty = 0
-
-        # Update with animations running
-        sprite.update()
-
-        # Should force redraw and keep dirty flag set for continuous updates
-        # This ensures smooth animation previews
+        for _ in range(2):
+            sprite.image.fill((1, 2, 3, 255))
+            sprite.update()
+            assert drawn_thumbnail_color(sprite, frame_index=0) == expected_color
 
     def test_film_strip_sprite_surface_initialization(self):
         """Test film strip sprite surface initialization."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
         sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=200, height=150)
 
-        # Test surface properties
-        assert sprite.image is not None
-        assert hasattr(sprite.image, 'get_width')
-        assert hasattr(sprite.image, 'get_height')
+        assert isinstance(sprite.image, pygame.Surface)
+        assert sprite.image.get_size() == (200, 150)
+        assert sprite.rect.size == (200, 150)
 
-        # Test rect properties
-        assert hasattr(sprite.rect, 'width')
-        assert hasattr(sprite.rect, 'height')
+    def test_film_strip_sprite_coordinate_conversion(self):
+        """Test that screen coordinates are converted to film strip coordinates.
 
-    def test_film_strip_sprite_coordinate_conversion(self, mocker):
-        """Test film strip sprite coordinate conversion."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        The sprite sits at (10, 20), so only a converted position lands on frame 2.
+        """
+        sprite = make_strip_sprite()
+        canvas = RecordingCanvas()
+        sprite.set_parent_canvas(canvas)  # type: ignore[arg-type]
 
-        # Create mock event
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (50, 70)  # Screen coordinates
+        sprite.on_left_mouse_button_down_event(left_click_event(screen_center_of_frame(sprite, 2)))
 
-        # Test coordinate conversion
-        mock_handle_click = mocker.patch.object(film_strip_widget, 'handle_click')
-        # Configure mock to return proper tuple
-        mock_handle_click.return_value = ('idle', 0)
-        sprite.on_left_mouse_button_down_event(mock_event)
-
-        # Should convert screen coordinates to film strip coordinates
-        # Sprite is at (10, 20), so (50, 70) - (10, 20) = (40, 50)
-        mock_handle_click.assert_called_once_with((40, 50), is_shift_click=False)
+        assert canvas.shown_frames == [('idle', 2)]
 
     def test_film_strip_sprite_edge_cases(self):
-        """Test film strip sprite edge cases."""
-        film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = FilmStripSprite(film_strip_widget)
-
-        # Test with None parent canvas
+        """Test that clicks without a parent canvas or without a widget do not crash."""
+        sprite = make_strip_sprite()
+        widget = sprite.film_strip_widget
+        assert widget is not None
         sprite.parent_canvas = None
+        click = left_click_event(screen_center_of_frame(sprite, 1))
 
-        # Create mock event
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (50, 50)
+        # Without a parent canvas the click still selects the frame
+        sprite.on_left_mouse_button_down_event(click)
+        assert widget.selected_frame == 1
 
-        # Should not crash when parent canvas is None
-        sprite.on_left_mouse_button_down_event(mock_event)
-
-        # Test with no film strip widget
+        # Without a widget the click is ignored
         sprite.film_strip_widget = None
-        sprite.on_left_mouse_button_down_event(mock_event)
+        sprite.on_left_mouse_button_down_event(click)
+        assert sprite.film_strip_widget is None
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +290,7 @@ FRAME_PIXELS_ACROSS = 2
 FRAME_PIXELS_TALL = 2
 TOP_LEFT_COLOR = (10, 20, 30, 40)
 OTHER_COLOR = (200, 100, 50, 255)
+BLUE = (0, 0, 255)
 
 
 class RecordingParentScene:
@@ -457,7 +472,16 @@ class TestFilmStripSpriteColorSampling:
         parent_scene = RecordingParentScene()
         sprite.parent_scene = parent_scene  # type: ignore[assignment]
         frame_layout = frame_layout_of(sprite, frame_index=1)
-        MockFactory.install_frame_input()
+        # No keys held: a plain right-click, not a Shift+right-click
+        set_current_input(
+            snapshot=InputSnapshot(
+                pressed_scancodes=frozenset(),
+                modifiers=0,
+                mouse_position=(0, 0),
+                mouse_buttons=(False, False, False),
+                mouse_focused=True,
+            ),
+        )
 
         handled = sprite.on_right_mouse_button_up_event(
             events.HashableEvent(0, pos=(frame_layout.x + 5, frame_layout.y + 5)),
@@ -763,54 +787,54 @@ class TestFilmStripSpriteImageDrops:
             widget.animated_sprite.animations['idle'][0].get_pixel_data() == [(0, 255, 0, 255)] * 4
         )
 
-    def test_replace_fails_when_the_image_cannot_be_converted(self, real_film_strip_sprite, mocker):
+    def test_replace_fails_when_the_image_cannot_be_converted(
+        self,
+        real_film_strip_sprite,
+        tmp_path,
+    ):
         """A drop that cannot be converted leaves the frame in place."""
         sprite = real_film_strip_sprite
         widget = sprite.film_strip_widget
         assert widget is not None
         assert widget.animated_sprite is not None
         original_frame = widget.animated_sprite.animations['idle'][0]
-        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=None)
+        broken_path = tmp_path / 'broken.png'
+        broken_path.write_bytes(b'not a png')
 
-        assert sprite._replace_frame_with_image('dropped.png', 'idle', 0) is False
+        assert sprite._replace_frame_with_image(str(broken_path), 'idle', 0) is False
         assert widget.animated_sprite.animations['idle'][0] is original_frame
 
-    def test_replace_fails_without_an_animated_sprite(self, real_film_strip_sprite, mocker):
+    def test_replace_fails_without_an_animated_sprite(self, real_film_strip_sprite, tmp_path):
         """A widget with no sprite cannot have a frame replaced."""
         sprite = real_film_strip_sprite
         assert sprite.film_strip_widget is not None
         sprite.film_strip_widget.animated_sprite = None
-        mocker.patch.object(
-            sprite,
-            '_convert_image_to_sprite_frame',
-            return_value=make_two_by_two_frame(),
-        )
+        image_path = write_png(path=tmp_path / 'blue.png', size=(2, 2), color=BLUE, alpha=False)
 
-        assert sprite._replace_frame_with_image('dropped.png', 'idle', 0) is False
+        assert sprite._replace_frame_with_image(image_path, 'idle', 0) is False
 
-    def test_replace_fails_for_a_frame_that_does_not_exist(self, real_film_strip_sprite, mocker):
+    def test_replace_fails_for_a_frame_that_does_not_exist(self, real_film_strip_sprite, tmp_path):
         """A frame index past the animation's end is refused."""
         sprite = real_film_strip_sprite
-        mocker.patch.object(
-            sprite,
-            '_convert_image_to_sprite_frame',
-            return_value=make_two_by_two_frame(),
-        )
+        assert sprite.film_strip_widget is not None
+        assert sprite.film_strip_widget.animated_sprite is not None
+        frames_before = list(sprite.film_strip_widget.animated_sprite.animations['idle'])
+        image_path = write_png(path=tmp_path / 'blue.png', size=(2, 2), color=BLUE, alpha=False)
 
-        assert sprite._replace_frame_with_image('dropped.png', 'idle', 5) is False
+        assert sprite._replace_frame_with_image(image_path, 'idle', 5) is False
+        assert sprite.film_strip_widget.animated_sprite.animations['idle'] == frames_before
 
     def test_replacing_the_selected_frame_shows_it_on_the_canvas(
         self,
         real_film_strip_sprite,
-        mocker,
+        tmp_path,
     ):
         """Replacing the frame the scene has selected shows the new frame on the canvas."""
         sprite = real_film_strip_sprite
         widget = sprite.film_strip_widget
         assert widget is not None
         assert widget.animated_sprite is not None
-        new_frame = make_two_by_two_frame()
-        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=new_frame)
+        image_path = write_png(path=tmp_path / 'blue.png', size=(2, 2), color=BLUE, alpha=False)
         parent_scene = RecordingParentScene()
         parent_scene.selected_animation = 'idle'  # type: ignore[attr-defined]
         parent_scene.selected_frame = 1  # type: ignore[attr-defined]
@@ -818,8 +842,11 @@ class TestFilmStripSpriteImageDrops:
         parent_scene.canvas = canvas  # type: ignore[attr-defined]
         sprite.parent_scene = parent_scene  # type: ignore[assignment]
 
-        assert sprite._replace_frame_with_image('dropped.png', 'idle', 1) is True
-        assert widget.animated_sprite.animations['idle'][1] is new_frame
+        assert sprite._replace_frame_with_image(image_path, 'idle', 1) is True
+        new_frame = widget.animated_sprite.animations['idle'][1]
+        # The image is scaled to the scene canvas's 4x3 pixels
+        assert new_frame.get_size() == (4, 3)
+        assert set(new_frame.get_pixel_data()) == {(*BLUE, 255)}
         assert canvas.shown_frames == [('idle', 1)]
 
     def test_canvas_is_not_updated_without_a_parent_scene(self, real_film_strip_sprite):
@@ -828,41 +855,43 @@ class TestFilmStripSpriteImageDrops:
 
         assert sprite._should_update_canvas_frame('idle', 0) is False
 
-    def test_insert_fails_when_the_image_cannot_be_converted(self, real_film_strip_sprite, mocker):
+    def test_insert_fails_when_the_image_cannot_be_converted(
+        self, real_film_strip_sprite, tmp_path
+    ):
         """A drop that cannot be converted adds no frame."""
         sprite = real_film_strip_sprite
-        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=None)
+        broken_path = tmp_path / 'broken.png'
+        broken_path.write_bytes(b'not a png')
 
-        assert sprite._insert_image_as_new_frame('dropped.png', 0, 0) is False
+        assert sprite._insert_image_as_new_frame(str(broken_path), 0, 0) is False
         assert sprite.film_strip_widget is not None
         assert sprite.film_strip_widget.animated_sprite is not None
         assert len(sprite.film_strip_widget.animated_sprite.animations['idle']) == 2
 
-    def test_insert_fails_without_a_current_animation(self, real_film_strip_sprite, mocker):
+    def test_insert_fails_without_a_current_animation(self, real_film_strip_sprite, tmp_path):
         """A widget with no current animation cannot take a new frame."""
         sprite = real_film_strip_sprite
         assert sprite.film_strip_widget is not None
         sprite.film_strip_widget.current_animation = ''
-        mocker.patch.object(
-            sprite,
-            '_convert_image_to_sprite_frame',
-            return_value=make_two_by_two_frame(),
-        )
+        image_path = write_png(path=tmp_path / 'blue.png', size=(2, 2), color=BLUE, alpha=False)
 
-        assert sprite._insert_image_as_new_frame('dropped.png', 0, 0) is False
+        assert sprite._insert_image_as_new_frame(image_path, 0, 0) is False
+        assert sprite.film_strip_widget.animated_sprite is not None
+        assert len(sprite.film_strip_widget.animated_sprite.animations['idle']) == 2
 
-    def test_insert_appends_the_frame_and_tells_the_scene(self, real_film_strip_sprite, mocker):
+    def test_insert_appends_the_frame_and_tells_the_scene(self, real_film_strip_sprite, tmp_path):
         """An inserted frame goes at the end, is selected, and the scene is told."""
         sprite = real_film_strip_sprite
         widget = sprite.film_strip_widget
         assert widget is not None
         assert widget.animated_sprite is not None
-        new_frame = make_two_by_two_frame()
-        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=new_frame)
+        sprite.parent_canvas = RecordingCanvas(pixels_across=2, pixels_tall=2)  # type: ignore[assignment]
+        image_path = write_png(path=tmp_path / 'blue.png', size=(2, 2), color=BLUE, alpha=False)
         parent_scene = RecordingParentScene()
         sprite.parent_scene = parent_scene  # type: ignore[assignment]
 
-        assert sprite._insert_image_as_new_frame('dropped.png', 0, 0) is True
-        assert widget.animated_sprite.animations['idle'][2] is new_frame
+        assert sprite._insert_image_as_new_frame(image_path, 0, 0) is True
+        assert len(widget.animated_sprite.animations['idle']) == 3
+        assert widget.animated_sprite.animations['idle'][2].get_pixel_data() == [(*BLUE, 255)] * 4
         assert parent_scene.inserted_frames == [('idle', 2)]
         assert widget.selected_frame == 2

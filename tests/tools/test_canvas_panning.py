@@ -18,34 +18,24 @@ from glitchygames.bitmappy.panning import (
 )
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.testing.keys import qwerty_scancode
-from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 
 class TestStaticSaveKeepsSpriteMetadata:
     """The canvas single-frame save keeps transitions, name, frame_anchor and hitbox."""
 
     def setup_method(self):
-        """Create a canvas around a mock sprite."""
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        """Create a canvas around a real 8x8 red one-frame sprite (each test replaces it)."""
+        animated_sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((8, 8)))
+        frame.set_pixel_data([(255, 0, 0, 255)] * 64)
+        animated_sprite.add_animation('test_animation', [frame])
         self.canvas = AnimatedCanvasSprite(
-            animated_sprite=MockFactory.create_animated_sprite_mock(
-                config=MockSpriteConfig(
-                    animation_name='test_animation',
-                    frame_size=(8, 8),
-                    pixel_color=(255, 0, 0),
-                    current_frame=0,
-                ),
-            ),
+            animated_sprite=animated_sprite,
             pixels_across=8,
             pixels_tall=8,
             pixel_width=16,
             pixel_height=16,
         )
-
-    def teardown_method(self):
-        """Clean up after tests."""
-        pygame.quit()
 
     def test_static_save_keeps_transitions(self, tmp_path):
         """The canvas's single-frame save path keeps the sprite's transitions."""
@@ -142,9 +132,7 @@ def real_editor(mocker) -> BitmapEditorScene:
     """
     from glitchygames.bitmappy.controllers.manager import MultiControllerManager
 
-    if not pygame.get_init():
-        pygame.init()
-    pygame.display.set_mode((800, 600))
+    # The autouse conftest fixture already opened the real 800x600 display
     mocker.patch.object(MultiControllerManager, '_instance', None)
     return BitmapEditorScene(options={})
 
@@ -631,9 +619,7 @@ def real_canvas() -> AnimatedCanvasSprite:
         The canvas.
 
     """
-    if not pygame.get_init():
-        pygame.init()
-    pygame.display.set_mode((800, 600))
+    # The autouse conftest fixture already opened the real 800x600 display
     frames = []
     for color in (RED_RGBA, GREEN_RGBA):
         frame = SpriteFrame(pygame.Surface((3, 2), pygame.SRCALPHA))

@@ -1,31 +1,51 @@
 """Tests for the Game Over scene functionality."""
 
 import sys
+import types
 from pathlib import Path
 
 import pygame
 import pytest
 
-from glitchygames.examples.paddleslap import Game
-from glitchygames.scenes import SceneManager
+from glitchygames.examples.paddleslap import Game, PaddleSlapGameOverScene
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.testing.keys import qwerty_scancode
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-PATCH_TARGET_GAME_OVER_SCENE = 'glitchygames.scenes.builtin_scenes.game_over_scene.GameOverScene'
+
+def _key_event(*, event_type: int, key: int) -> pygame.event.Event:
+    """Return a real key event for the key, with its US QWERTY scancode.
+
+    Returns:
+        pygame.event.Event: The KEYDOWN or KEYUP event.
+
+    """
+    return pygame.event.Event(
+        event_type, key=key, scancode=qwerty_scancode(key=key), mod=pygame.KMOD_NONE
+    )
+
+
+def _take_quit_events() -> list[pygame.event.Event]:
+    """Remove and return the QUIT events waiting in pygame's real event queue.
+
+    Returns:
+        list[pygame.event.Event]: The QUIT events.
+
+    """
+    return pygame.event.get(eventtype=pygame.QUIT)
+
+
+class RecordingDisplayScene(Scene):
+    """A real scene that a GameOverScene can follow (and restart)."""
+
+    NAME = 'RecordingDisplayScene'
 
 
 class TestGameOverScene:
     """Test the Game Over scene functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        # Reset singleton state for clean test
-        SceneManager._reset()
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_game_over_scene_initialization(self):
         """Test that Game Over scene initializes correctly."""
@@ -43,160 +63,117 @@ class TestGameOverScene:
         # Should have text sprites added
         assert len(scene.all_sprites) > 0
 
-    def test_game_over_scene_has_game_engine_after_switch(self, mocker):
-        """Test that Game Over scene gets game engine reference when switched to.
-
-        Args:
-            mocker: pytest-mock fixture.
-
-        """
-        # Create a mock scene manager with game engine
-        mock_scene_manager = mocker.Mock()
-        mock_game_engine = mocker.Mock()
-        mock_scene_manager.game_engine = mock_game_engine
-
-        # Create Game Over scene
-        game_over_scene = GameOverScene()
-
-        # Simulate the scene manager's _setup_new_scene method
-        if hasattr(mock_scene_manager, 'game_engine') and mock_scene_manager.game_engine:
-            game_over_scene.game_engine = mock_scene_manager.game_engine  # type: ignore[unresolved-attribute]
-
-        # Verify the game engine reference was set
-        assert game_over_scene.game_engine == mock_game_engine  # type: ignore[unresolved-attribute]
-
-    def test_game_over_scene_key_handling(self, mocker):
-        """Test that Game Over scene handles key events correctly.
-
-        Args:
-            mocker: pytest-mock fixture.
-
-        """
+    def test_game_over_scene_draws_its_title_on_the_display(self):
+        """Drawing the set-up scene puts the red GAME OVER title on the real display."""
+        display = pygame.display.get_surface()
+        display.fill((0, 0, 0))
         scene = GameOverScene()
-        scene.scene_manager = mocker.Mock()
+        scene.screen_width = 800
+        scene.screen_height = 600
+        scene.setup()
+        assert scene.text_sprite is not None
+
+        for sprite in scene.all_sprites:
+            display.blit(sprite.image, sprite.rect)
+
+        title_area = display.subsurface(scene.text_sprite.rect)
+        red_title_pixels = pygame.transform.threshold(
+            None,
+            title_area,
+            search_color=(255, 0, 0),
+            threshold=(60, 60, 60, 255),
+            set_behavior=0,
+        )
+        assert red_title_pixels > 0
+        # The title is centred horizontally, a quarter of the way down
+        assert scene.text_sprite.rect.centerx == pytest.approx(400, abs=1)
+        assert scene.text_sprite.rect.centery == pytest.approx(150, abs=1)
+
+    def test_game_over_scene_key_handling(self):
+        """SPACE arms the restart without quitting; ESC posts a real QUIT event."""
+        scene = GameOverScene()
+        _take_quit_events()
 
         # Test SPACE key (restart)
-        space_event = mocker.Mock()
-        space_event.key = pygame.K_SPACE
-        scene.on_key_down_event(space_event)
+        scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_SPACE))
 
         # SPACE only arms the restart (it happens on release); it never quits
         assert scene._space_pressed is True
-        scene.scene_manager.quit.assert_not_called()
+        assert _take_quit_events() == []
 
-        # Test ESC key (quit)
-        esc_event = mocker.Mock()
-        esc_event.key = pygame.K_ESCAPE
-        scene.on_key_down_event(esc_event)
+        # Test ESC key (quit): the scene manager posts QUIT to pygame's queue
+        scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_ESCAPE))
 
-        scene.scene_manager.quit.assert_called_once()
+        assert len(_take_quit_events()) == 1
 
 
 class TestGameOverIntegration:
     """Test Game Over integration with the main game."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    @pytest.fixture
+    def save_directory(self, mocker, tmp_path):
+        """Send PaddleSlap's high-score saves to a temporary directory, not the user's.
 
-    def test_game_over_triggered_when_all_balls_dead(self, mocker):
-        """Test that Game Over is triggered when all balls are dead.
-
-        Args:
-            mocker: pytest-mock fixture.
+        Returns:
+            Path: The directory the saves go to.
 
         """
-        # Mock the GameOverScene import to avoid pygame initialization issues
-        mock_game_over_scene = mocker.Mock()
         mocker.patch(
-            'glitchygames.examples.paddleslap.PaddleSlapGameOverScene',
-            return_value=mock_game_over_scene,
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: tmp_path / app_name,
         )
+        return tmp_path
 
-        # Test the Game Over logic directly without full game setup
-        # Create a minimal game instance
+    def test_game_over_triggered_when_all_balls_dead(self, save_directory):
+        """A frame whose balls are all dead switches PaddleSlap to its Game Over scene."""
         game = Game(options={})
-
-        # Mock the collision detection to prevent memory issues
-        mocker.patch.object(game, '_handle_ball_collisions')
-        mocker.patch('pygame.sprite.collide_rect', return_value=False)
-
-        # Create some mock balls and add them to the game
-        mock_ball1 = mocker.Mock()
-        mock_ball1.alive.return_value = False  # Dead ball
-        mock_ball1.speed = mocker.Mock()
-        mock_ball1.speed.x = 1  # Set speed.x to avoid comparison error
-        mock_ball1.speed.y = 1  # Set speed.y to avoid math operations error
-
-        mock_ball2 = mocker.Mock()
-        mock_ball2.alive.return_value = False  # Dead ball
-        mock_ball2.speed = mocker.Mock()
-        mock_ball2.speed.x = 1  # Set speed.x to avoid comparison error
-        mock_ball2.speed.y = 1  # Set speed.y to avoid math operations error
-
-        game.balls = [mock_ball1, mock_ball2]
+        assert game.balls, 'PaddleSlap serves balls when it is built'
+        for ball in game.balls:
+            ball.kill()
 
         # Run a frame's logic (dt_tick resolves collisions and checks for Game Over)
         game.dt_tick(0.0)
 
-        # Verify that next_scene was set to the mocked GameOverScene
-        assert game.next_scene == mock_game_over_scene
+        assert game.balls == []
+        assert isinstance(game.next_scene, PaddleSlapGameOverScene)
+        assert game.next_scene.final_score == game.rally_count
+        assert game.next_scene.high_scores == [{'score': game.rally_count}]
         assert game.previous_scene == game
+        # The high score was saved in the temporary save directory
+        assert any((save_directory / 'paddleslap').iterdir())
 
     def test_game_over_scene_gets_game_engine_reference(self, mocker):
-        """Test that Game Over scene gets game engine reference from scene manager.
-
-        Args:
-            mocker: pytest-mock fixture.
-
-        """
-        # Mock the GameOverScene to avoid pygame initialization issues
-        mock_game_over_scene = mocker.Mock()
-        mocker.patch(
-            PATCH_TARGET_GAME_OVER_SCENE,
-            return_value=mock_game_over_scene,
-        )
-
-        # Test the scene manager's _setup_new_scene method directly
-        # Create a scene manager with game engine
+        """Switching to a Game Over scene hands it the scene manager's game engine."""
+        # Setting a scene's engine copies the engine's OPTIONS onto the SceneManager class
+        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
         scene_manager = SceneManager()
-        mock_game_engine = mocker.Mock()
-        mock_game_engine.OPTIONS = {
-            'update_type': 'dirty',
-            'fps_refresh_rate': 1,
-            'target_fps': 60,
-            'fps_log_interval_ms': 1000,
-        }
-        scene_manager.game_engine = mock_game_engine
+        # A stand-in engine holding only the options a scene reads from it
+        game_engine = types.SimpleNamespace(
+            OPTIONS={
+                'update_type': 'dirty',
+                'fps_refresh_rate': 1,
+                'target_fps': 60,
+                'fps_log_interval_ms': 1000,
+            }
+        )
+        scene_manager.game_engine = game_engine
+        game_over_scene = GameOverScene()
 
-        # Create a Game Over scene (this will be the mocked version)
-        game_over_scene = mocker.patch(PATCH_TARGET_GAME_OVER_SCENE)()
-
-        # Call the _setup_new_scene method (this is what gets called during scene switching)
+        # Every switch sets the new scene up through _setup_new_scene
         scene_manager._setup_new_scene(game_over_scene)
 
-        # Verify the game engine reference was set
-        assert hasattr(game_over_scene, 'game_engine')
-        assert game_over_scene.game_engine == mock_game_engine
+        assert game_over_scene.game_engine is game_engine
+        assert game_over_scene.text_sprite is not None  # setup() ran
 
 
-class RestartableGame:
-    """A stand-in game class: GameOverScene restarts by constructing the previous scene's class."""
+class RestartableGame(Scene):
+    """A real game scene: GameOverScene restarts by constructing the previous scene's class."""
 
-    def __init__(self, options):
-        """Keep the options the restart passed."""
-        self.options = options
+    NAME = 'RestartableGame'
 
 
 class TestGameOverSceneScoreDisplay:
     """The texts the Game Over scene shows for a final score and a high-score table."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        SceneManager._reset()
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
     def _shown_texts(mocker, scene):
@@ -260,68 +237,63 @@ class TestGameOverSceneScoreDisplay:
 class TestGameOverSceneRestart:
     """Releasing SPACE restarts the game; other keys fall through to the base scene."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        SceneManager._reset()
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @staticmethod
-    def _key_event(mocker, key):
-        """Return a key event stand-in for the given key.
+    def _game_over_after(previous_game: Scene, game_over: GameOverScene) -> SceneManager:
+        """Make previous_game then game_over the real scene manager's active scene.
 
         Returns:
-            Mock: An event with only its key set.
+            SceneManager: The manager, with game_over active and previous_game previous.
 
         """
-        event = mocker.Mock()
-        event.key = key
-        return event
+        scene_manager = SceneManager()
+        scene_manager.switch_to_scene(previous_game)
+        scene_manager.switch_to_scene(game_over)
+        return scene_manager
 
-    def test_space_release_after_press_starts_a_new_game_of_the_previous_class(self, mocker):
+    def test_space_release_after_press_starts_a_new_game_of_the_previous_class(self):
         """SPACE down then up switches to a fresh instance of the previous scene's class."""
         scene = GameOverScene(options={'level': 3})
-        scene.scene_manager = mocker.Mock()
         previous_game = RestartableGame(options={'level': 1})
-        scene.scene_manager.previous_scene = previous_game
+        scene_manager = self._game_over_after(previous_game, scene)
 
-        scene.on_key_down_event(self._key_event(mocker, pygame.K_SPACE))
-        scene.on_key_up_event(self._key_event(mocker, pygame.K_SPACE))
+        scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_SPACE))
+        scene.on_key_up_event(_key_event(event_type=pygame.KEYUP, key=pygame.K_SPACE))
 
-        (new_game,) = scene.scene_manager.switch_to_scene.call_args.args
+        new_game = scene_manager.active_scene
         assert isinstance(new_game, RestartableGame)
         assert new_game is not previous_game
         assert new_game.options is scene.options
         assert scene._space_pressed is False
 
-    def test_space_release_without_a_press_does_not_restart(self, mocker):
+    def test_space_release_without_a_press_does_not_restart(self):
         """A SPACE release whose press this scene never saw is passed to the base scene."""
         scene = GameOverScene()
-        scene.scene_manager = mocker.Mock()
-        scene.scene_manager.previous_scene = RestartableGame(options={})
+        scene_manager = self._game_over_after(RestartableGame(options={}), scene)
 
-        scene.on_key_up_event(self._key_event(mocker, pygame.K_SPACE))
+        scene.on_key_up_event(_key_event(event_type=pygame.KEYUP, key=pygame.K_SPACE))
 
-        scene.scene_manager.switch_to_scene.assert_not_called()
+        assert scene_manager.active_scene is scene
 
-    def test_restart_without_a_previous_scene_warns_and_stays(self, mocker, caplog):
+    def test_restart_without_a_previous_scene_warns_and_stays(self, caplog):
         """With no previous scene to restart, resume logs a warning and switches nowhere."""
         scene = GameOverScene()
-        scene.scene_manager = mocker.Mock()
-        scene.scene_manager.previous_scene = None
+        scene_manager = SceneManager()
+        scene_manager.switch_to_scene(scene)
+        assert scene_manager.previous_scene is None
 
         with caplog.at_level('WARNING'):
             scene.resume()
 
-        scene.scene_manager.switch_to_scene.assert_not_called()
+        assert scene_manager.active_scene is scene
         assert 'No previous scene found to restart' in caplog.text
 
-    def test_other_key_down_goes_to_the_base_scene(self, mocker):
+    def test_other_key_down_goes_to_the_base_scene(self):
         """A key other than SPACE or ESC (here Q) reaches the base scene, which requests quit."""
         scene = GameOverScene()
-        scene.scene_manager = mocker.Mock()
+        _take_quit_events()
 
-        scene.on_key_down_event(self._key_event(mocker, pygame.K_q))
+        scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_q))
 
         assert scene.quit_requested is True
-        scene.scene_manager.quit.assert_not_called()
+        # Q only requests the quit (it quits on release): no QUIT event is posted yet
+        assert _take_quit_events() == []

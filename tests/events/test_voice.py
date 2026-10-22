@@ -6,11 +6,10 @@ import threading
 
 import pytest
 
+from glitchygames.bitmappy.controllers.manager import MultiControllerManager
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.events.voice import VoiceEventManager
-
-pytestmark = pytest.mark.usefixtures('mock_pygame_patches')
 
 
 @pytest.fixture
@@ -1433,51 +1432,92 @@ class TestVoiceRecognitionManagerPositive:
         assert format_args[1] == 'test command'
 
 
+VOICE_COMMAND_PHRASES = (
+    'clear the ai sprite box',
+    'clear ai sprite box',
+    'clear ai box',
+    'clear the ai sprite',
+    'clear ai sprite',
+    'clear the ai sprite window',
+    'clear ai sprite window',
+)
+
+
+@pytest.fixture
+def editor_scene(mocker):
+    """Create a real bitmappy editor scene (real canvas, real text boxes, the real display).
+
+    Returns:
+        BitmapEditorScene: The editor scene.
+
+    """
+    # A fresh controller manager for this editor (it is a singleton)
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def fake_speech_recognition(mocker, *, microphone_available: bool) -> None:
+    """Fake the speech recognition library and the microphone (no real hardware is probed).
+
+    The listen loop is replaced by one that waits for the stop signal, so a started manager runs
+    a real listening thread that hears nothing.
+
+    Args:
+        mocker: The pytest-mock fixture.
+        microphone_available: Whether the fake library finds a microphone.
+
+    """
+    mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
+    fake_speech_library = mocker.patch('glitchygames.events.voice.sr')
+    if microphone_available:
+        fake_speech_library.Microphone.return_value = object()
+    else:
+        fake_speech_library.Microphone.side_effect = OSError('No microphone')
+    mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
+
+    def wait_for_stop(manager: VoiceEventManager) -> None:
+        manager.stop_listening_event.wait(timeout=TIMEOUT_2_SECONDS)
+
+    mocker.patch.object(VoiceEventManager, '_listen_loop', autospec=True, side_effect=wait_for_stop)
+
+
 class TestBitmapEditorSceneVoiceIntegrationNegative:
     """Test voice recognition integration with BitmapEditorScene.
 
     Tests behavior when speech recognition is NOT available.
     """
 
-    def test_voice_recognition_setup_without_speech_recognition(self, mocker):
+    def test_voice_recognition_setup_without_speech_recognition(self, editor_scene, mocker):
         """Test that voice recognition setup fails gracefully without speech recognition."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
 
-        # Create scene instance
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-
         # Call the setup method via the delegate
-        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate = EditorSetup(editor=editor_scene)
         setup_delegate.setup_voice_recognition()
 
         # Should handle missing speech recognition gracefully
-        assert scene.voice_manager is None
+        assert editor_scene.voice_manager is None
 
-    def test_clear_ai_sprite_box_without_voice_recognition(self, mocker):
+    def test_clear_ai_sprite_box_without_voice_recognition(self, editor_scene, caplog):
         """Test that clear AI sprite box works without voice recognition."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-        scene.debug_text = mocker.Mock()
+        editor_scene.debug_text.text = 'A sprite description'
 
-        # Call the clear command
-        scene.clear_ai_sprite_box()
+        with caplog.at_level(logging.INFO):
+            # Call the clear command
+            editor_scene.clear_ai_sprite_box()
 
         # Should work even without voice recognition
-        scene.debug_text.text = ''
-        scene.log.info.assert_called_with('AI sprite box cleared via voice command')
+        assert not editor_scene.debug_text.text
+        assert 'AI sprite box cleared via voice command' in caplog.messages
 
-    def test_voice_recognition_cleanup_without_manager(self, mocker):
+    def test_voice_recognition_cleanup_without_manager(self, editor_scene):
         """Test voice recognition cleanup when no manager exists."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-        # No voice_manager attribute
+        assert getattr(editor_scene, 'voice_manager', None) is None
 
         # Call cleanup - should not raise exception
-        scene._cleanup_voice_recognition()
+        editor_scene._cleanup_voice_recognition()
+
+        assert getattr(editor_scene, 'voice_manager', None) is None
 
 
 class TestBitmapEditorSceneVoiceIntegrationPositive:
@@ -1486,147 +1526,122 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
     Tests behavior when speech recognition IS available.
     """
 
-    def test_voice_recognition_setup_with_mocked_dependencies(self, mocker):
+    def test_voice_recognition_setup_with_mocked_dependencies(self, editor_scene, mocker):
         """Test that voice recognition setup works when speech recognition is available."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
+        fake_speech_recognition(mocker, microphone_available=True)
 
-        # Mock VoiceEventManager so it doesn't probe real hardware
-        mock_voice_manager = mocker.Mock()
-        mock_voice_manager.is_available.return_value = True
-        mock_voice_manager.has_microphone.return_value = True
-        mock_voice_cls = mocker.patch(
-            'glitchygames.bitmappy.editor_setup.VoiceEventManager',
-            return_value=mock_voice_manager,
-        )
-
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-
-        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate = EditorSetup(editor=editor_scene)
         setup_delegate.setup_voice_recognition()
+        try:
+            assert isinstance(editor_scene.voice_manager, VoiceEventManager)
+            assert editor_scene.voice_manager.is_available()
+            assert editor_scene.voice_manager.has_microphone()
+        finally:
+            editor_scene._cleanup_voice_recognition()
 
-        mock_voice_cls.assert_called_once()
-        assert scene.voice_manager is not None
-        assert scene.voice_manager.is_available()
-
-    def test_voice_recognition_setup_without_speech_recognition_expected(self, mocker):
+    def test_voice_recognition_setup_without_speech_recognition_expected(
+        self, editor_scene, mocker
+    ):
         """Test that voice recognition setup handles missing speech recognition gracefully.
 
         This test should pass when speech recognition is not available.
         """
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
-        # Create scene instance
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
 
         # Call the setup method via the delegate
-        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate = EditorSetup(editor=editor_scene)
         setup_delegate.setup_voice_recognition()
 
         # Should handle missing speech recognition gracefully
-        assert scene.voice_manager is None, (
+        assert editor_scene.voice_manager is None, (
             'Voice manager should be None when speech recognition is not available'
         )
 
-    def test_voice_recognition_setup(self, mocker):
-        """Test that voice recognition is set up correctly in BitmapEditorScene."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        mock_voice_class = mocker.patch('glitchygames.bitmappy.editor_setup.VoiceEventManager')
-
-        # Mock the voice manager
-        mock_voice_manager = mocker.Mock()
-        mock_voice_manager.is_available.return_value = True
-        mock_voice_class.return_value = mock_voice_manager
-
-        # Create scene instance
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
+    def test_voice_recognition_setup(self, editor_scene, mocker):
+        """Setup registers every clear command, starts listening, and a command clears the box."""
+        fake_speech_recognition(mocker, microphone_available=True)
 
         # Call the setup method via the delegate
-        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate = EditorSetup(editor=editor_scene)
         setup_delegate.setup_voice_recognition()
+        voice_manager = editor_scene.voice_manager
+        try:
+            # The manager logs to the editor's logger and listens on a real thread
+            assert isinstance(voice_manager, VoiceEventManager)
+            assert voice_manager.log is editor_scene.log
+            assert voice_manager.is_listening
+            assert voice_manager.listen_thread is not None
+            assert voice_manager.listen_thread.is_alive()
+            assert sorted(voice_manager.get_available_commands()) == sorted(VOICE_COMMAND_PHRASES)
 
-        # Verify voice manager was created and configured
-        mock_voice_class.assert_called_once_with(logger=scene.log)
-        mock_voice_manager.register_command.assert_called()
-        mock_voice_manager.start_listening.assert_called_once()
-        assert scene.voice_manager == mock_voice_manager
+            # Each command clears the editor's real AI sprite box
+            for phrase in VOICE_COMMAND_PHRASES:
+                editor_scene.debug_text.text = 'A sprite description'
+                voice_manager._process_command(phrase)
+                assert not editor_scene.debug_text.text
+        finally:
+            editor_scene._cleanup_voice_recognition()
 
-    def test_voice_recognition_setup_no_microphone(self, mocker):
+    def test_voice_recognition_setup_no_microphone(self, editor_scene, mocker):
         """Test voice recognition setup when microphone is not available."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        mock_voice_class = mocker.patch('glitchygames.bitmappy.editor_setup.VoiceEventManager')
-
-        # Mock the voice manager without microphone
-        mock_voice_manager = mocker.Mock()
-        mock_voice_manager.is_available.return_value = False
-        mock_voice_class.return_value = mock_voice_manager
-
-        # Create scene instance
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
+        fake_speech_recognition(mocker, microphone_available=False)
+        thread_count_before = threading.active_count()
 
         # Call the setup method via the delegate
-        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate = EditorSetup(editor=editor_scene)
         setup_delegate.setup_voice_recognition()
 
-        # Verify voice manager was created but not started
-        mock_voice_class.assert_called_once_with(logger=scene.log)
-        mock_voice_manager.register_command.assert_not_called()
-        mock_voice_manager.start_listening.assert_not_called()
-        assert scene.voice_manager is None
+        # The manager was dropped without registering commands or starting a listening thread
+        assert editor_scene.voice_manager is None
+        assert threading.active_count() == thread_count_before
 
-    def test_clear_ai_sprite_box_command(self, mocker):
+    def test_clear_ai_sprite_box_command(self, editor_scene, caplog):
         """Test the clear AI sprite box voice command."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-        scene.debug_text = mocker.Mock()
+        editor_scene.debug_text.text = 'A sprite description'
 
-        # Call the clear command
-        scene.clear_ai_sprite_box()
+        with caplog.at_level(logging.INFO):
+            # Call the clear command
+            editor_scene.clear_ai_sprite_box()
 
         # Verify text was cleared
-        scene.debug_text.text = ''
-        scene.log.info.assert_called_with('AI sprite box cleared via voice command')
+        assert not editor_scene.debug_text.text
+        assert 'AI sprite box cleared via voice command' in caplog.messages
 
-    def test_clear_ai_sprite_box_no_debug_text(self, mocker):
+    def test_clear_ai_sprite_box_no_debug_text(self, editor_scene, caplog):
         """Test clear AI sprite box when debug_text is not available."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-        # No debug_text attribute
+        del editor_scene.debug_text
 
         # Call the clear command
-        scene.clear_ai_sprite_box()
+        with caplog.at_level(logging.WARNING):
+            editor_scene.clear_ai_sprite_box()
 
         # Verify warning was logged
-        scene.log.warning.assert_called_with(
-            'Cannot clear AI sprite box - debug_text not available',
-        )
+        assert 'Cannot clear AI sprite box - debug_text not available' in caplog.messages
 
-    def test_voice_recognition_cleanup(self, mocker):
+    def test_voice_recognition_cleanup(self, editor_scene, mocker):
         """Test voice recognition cleanup."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-        mock_voice_manager = mocker.Mock()
-        scene.voice_manager = mock_voice_manager
+        fake_speech_recognition(mocker, microphone_available=True)
+        EditorSetup(editor=editor_scene).setup_voice_recognition()
+        voice_manager = editor_scene.voice_manager
+        assert voice_manager is not None
+        listen_thread = voice_manager.listen_thread
+        assert listen_thread is not None
+        assert listen_thread.is_alive()
 
         # Call cleanup
-        scene._cleanup_voice_recognition()
+        editor_scene._cleanup_voice_recognition()
 
-        # Verify voice manager was stopped before being set to None
-        mock_voice_manager.stop_listening.assert_called_once()
-        assert scene.voice_manager is None
+        # The voice manager was stopped (its thread ended) before being set to None
+        assert voice_manager.is_listening is False
+        assert voice_manager.stop_listening_event.is_set()
+        assert not listen_thread.is_alive()
+        assert editor_scene.voice_manager is None
 
-    def test_voice_recognition_cleanup_no_manager(self, mocker):
+    def test_voice_recognition_cleanup_no_manager(self, editor_scene):
         """Test voice recognition cleanup when no manager exists."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = mocker.Mock()
-        # No voice_manager attribute
+        editor_scene.voice_manager = None
 
         # Call cleanup - should not raise exception
-        scene._cleanup_voice_recognition()
+        editor_scene._cleanup_voice_recognition()
+
+        assert editor_scene.voice_manager is None

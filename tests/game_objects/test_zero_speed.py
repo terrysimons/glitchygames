@@ -9,6 +9,7 @@ from pathlib import Path
 # Add project root so direct imports work
 sys.path.insert(0, str(Path(__file__).parent))
 
+
 from glitchygames.game_objects.ball import (
     BallSprite,
     SpeedUpAxes,
@@ -18,7 +19,6 @@ from glitchygames.game_objects.ball import (
 )
 from glitchygames.movement import Speed
 from tests.game_objects.ball_helpers import drawn_position
-from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
 SPEED_UP_MULTIPLIER = 1.15
@@ -212,11 +212,8 @@ def _run_continuous_speedup_test(ball, x_speed, y_speed, description, label_inde
     LOG.debug(f'   Result: {result_msg}\n')
 
 
-def test_zero_speed_scenarios(mocker):
+def test_zero_speed_scenarios():
     """Test various scenarios with zero speed components."""
-    # Set up centralized mocks
-    MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     LOG.debug('=== Testing Zero Speed Scenarios ===\n')
 
     # Create a ball with X-only speedup
@@ -285,4 +282,4 @@ def test_zero_speed_scenarios(mocker):
 
 
 if __name__ == '__main__':
-    test_zero_speed_scenarios()  # type: ignore[missing-argument]
+    test_zero_speed_scenarios()

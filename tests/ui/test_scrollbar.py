@@ -9,13 +9,11 @@ import sys
 from pathlib import Path
 
 import pygame
-import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import Scrollbar
-from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants
 SCROLLBAR_X = 290
@@ -45,11 +43,6 @@ def _create_scrollbar(total_items=TOTAL_ITEMS, visible_items=VISIBLE_ITEMS, scro
 
 class TestScrollbarProperties:
     """Test Scrollbar computed properties."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_max_scroll_calculation(self):
         """Test max_scroll is total_items minus visible_items."""
@@ -119,11 +112,6 @@ class TestScrollbarProperties:
 class TestScrollbarHandleMouseDown:
     """Test Scrollbar.handle_mouse_down()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_mouse_down_on_thumb_starts_drag(self):
         """Test clicking on thumb starts drag mode."""
         scrollbar = _create_scrollbar()
@@ -185,11 +173,6 @@ class TestScrollbarHandleMouseDown:
 class TestScrollbarHandleMouseUp:
     """Test Scrollbar.handle_mouse_up()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_mouse_up_clears_drag_state(self):
         """Test mouse up clears is_dragging when dragging."""
         scrollbar = _create_scrollbar()
@@ -211,11 +194,6 @@ class TestScrollbarHandleMouseUp:
 
 class TestScrollbarHandleMouseMotion:
     """Test Scrollbar.handle_mouse_motion()."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_motion_updates_hover_on_thumb(self):
         """Test motion over thumb sets is_hovering."""
@@ -317,11 +295,6 @@ class TestScrollbarHandleMouseMotion:
 class TestScrollbarUpdate:
     """Test Scrollbar.update() method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_syncs_state(self):
         """Test update sets total_items, visible_items, and clamps scroll_offset."""
         scrollbar = _create_scrollbar()
@@ -349,67 +322,84 @@ class TestScrollbarUpdate:
         assert scrollbar.scroll_offset == 0
 
 
+BACKGROUND_COLOR = (255, 0, 255)
+
+
+def _draw_scrollbar(scrollbar):
+    """Draw a scrollbar onto a real surface filled with a background colour.
+
+    Returns:
+        The surface drawn on.
+    """
+    surface = pygame.Surface((
+        SCROLLBAR_X + SCROLLBAR_WIDTH + 2,
+        SCROLLBAR_Y + SCROLLBAR_HEIGHT + 2,
+    ))
+    surface.fill(BACKGROUND_COLOR)
+    scrollbar.draw(surface)
+    return surface
+
+
+def _rgb_at(surface, position):
+    """Return the RGB colour of one pixel (the alpha is not the point here).
+
+    Returns:
+        The (red, green, blue) tuple at the position.
+    """
+    return tuple(surface.get_at(position))[:3]
+
+
 class TestScrollbarDraw:
-    """Test Scrollbar.draw() method."""
+    """Test Scrollbar.draw() method on a real surface."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_draw_when_visible(self, mocker):
-        """Test draw renders track and thumb when visible."""
+    def test_draw_when_visible(self):
+        """Test draw paints the track and the thumb when visible."""
         scrollbar = _create_scrollbar()
-        surface = mocker.Mock()
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
 
-        scrollbar.draw(surface)
+        surface = _draw_scrollbar(scrollbar)
 
-        # Should draw track and thumb (2 calls)
-        assert mock_draw_rect.call_count == 2
+        thumb_rect = scrollbar.get_thumb_rect()
+        track_position = (SCROLLBAR_X + 1, SCROLLBAR_Y + SCROLLBAR_HEIGHT - 1)
+        assert not thumb_rect.collidepoint(track_position)
+        assert _rgb_at(surface, track_position) == scrollbar.track_color
+        assert _rgb_at(surface, thumb_rect.center) == scrollbar.thumb_color
+        # Nothing is drawn outside the scrollbar's rect
+        assert _rgb_at(surface, (SCROLLBAR_X - 1, SCROLLBAR_Y)) == BACKGROUND_COLOR
+        assert _rgb_at(surface, (SCROLLBAR_X + SCROLLBAR_WIDTH, SCROLLBAR_Y)) == BACKGROUND_COLOR
+        assert _rgb_at(surface, (SCROLLBAR_X, SCROLLBAR_Y + SCROLLBAR_HEIGHT)) == BACKGROUND_COLOR
 
-    def test_draw_when_not_visible(self, mocker):
-        """Test draw does nothing when not visible."""
+    def test_draw_when_not_visible(self):
+        """Test draw leaves the surface untouched when not visible."""
         scrollbar = _create_scrollbar(total_items=5, visible_items=10)
-        surface = mocker.Mock()
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
 
-        scrollbar.draw(surface)
+        surface = _draw_scrollbar(scrollbar)
 
-        mock_draw_rect.assert_not_called()
+        rgb_pixels = pygame.surfarray.pixels3d(surface)
+        assert (rgb_pixels == BACKGROUND_COLOR).all()
+        del rgb_pixels
 
-    def test_draw_uses_drag_color_when_dragging(self, mocker):
+    def test_draw_uses_drag_color_when_dragging(self):
         """Test draw uses thumb_drag_color when is_dragging."""
         scrollbar = _create_scrollbar()
         scrollbar.is_dragging = True
-        surface = mocker.Mock()
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
 
-        scrollbar.draw(surface)
+        surface = _draw_scrollbar(scrollbar)
 
-        # The second call should use thumb_drag_color
-        thumb_call = mock_draw_rect.call_args_list[1]
-        assert thumb_call.args[1] == scrollbar.thumb_drag_color
+        assert _rgb_at(surface, scrollbar.get_thumb_rect().center) == scrollbar.thumb_drag_color
 
-    def test_draw_uses_hover_color_when_hovering(self, mocker):
+    def test_draw_uses_hover_color_when_hovering(self):
         """Test draw uses thumb_hover_color when is_hovering."""
         scrollbar = _create_scrollbar()
         scrollbar.is_hovering = True
-        surface = mocker.Mock()
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
 
-        scrollbar.draw(surface)
+        surface = _draw_scrollbar(scrollbar)
 
-        thumb_call = mock_draw_rect.call_args_list[1]
-        assert thumb_call.args[1] == scrollbar.thumb_hover_color
+        assert _rgb_at(surface, scrollbar.get_thumb_rect().center) == scrollbar.thumb_hover_color
 
-    def test_draw_uses_default_color_normally(self, mocker):
+    def test_draw_uses_default_color_normally(self):
         """Test draw uses default thumb_color when not dragging or hovering."""
         scrollbar = _create_scrollbar()
-        surface = mocker.Mock()
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
 
-        scrollbar.draw(surface)
+        surface = _draw_scrollbar(scrollbar)
 
-        thumb_call = mock_draw_rect.call_args_list[1]
-        assert thumb_call.args[1] == scrollbar.thumb_color
+        assert _rgb_at(surface, scrollbar.get_thumb_rect().center) == scrollbar.thumb_color

@@ -15,7 +15,7 @@ from glitchygames.tools.charmap import (
 class TestCharmapFunctionality:
     """Test charmap module functionality."""
 
-    def test_is_defined_non_whitespace_printable_basic(self, mock_pygame_patches):
+    def test_is_defined_non_whitespace_printable_basic(self):
         """Test basic character checking functionality."""
         # Test printable characters
         assert charmap.is_defined_non_whitespace_printable('A') is True
@@ -31,7 +31,7 @@ class TestCharmapFunctionality:
         assert charmap.is_defined_non_whitespace_printable('\x00') is False
         assert charmap.is_defined_non_whitespace_printable('\x1f') is False
 
-    def test_is_defined_non_whitespace_printable_unicode(self, mock_pygame_patches):
+    def test_is_defined_non_whitespace_printable_unicode(self):
         """Test Unicode character handling."""
         # Test Unicode characters
         assert charmap.is_defined_non_whitespace_printable('ñ') is True
@@ -41,7 +41,7 @@ class TestCharmapFunctionality:
         # Test undefined characters
         assert charmap.is_defined_non_whitespace_printable('\udc00') is False
 
-    def test_is_emoji_basic(self, mock_pygame_patches):
+    def test_is_emoji_basic(self):
         """Test emoji detection functionality."""
         # Test emoji characters
         assert charmap.is_emoji('😀') is True
@@ -53,7 +53,7 @@ class TestCharmapFunctionality:
         assert charmap.is_emoji('1') is False
         assert charmap.is_emoji('@') is False
 
-    def test_is_emoji_edge_cases(self, mock_pygame_patches):
+    def test_is_emoji_edge_cases(self):
         """Test emoji detection edge cases."""
         # Test empty string - should raise TypeError
         with pytest.raises(TypeError):
@@ -66,14 +66,14 @@ class TestCharmapFunctionality:
         # single characters. So we'll test with a single character emoji instead
         assert charmap.is_emoji('👨') is True
 
-    def test_emoji_ranges_constant(self, mock_pygame_patches):
+    def test_emoji_ranges_constant(self):
         """Test emoji ranges constant."""
         # Test that emoji ranges are defined
         assert hasattr(charmap, 'EMOJI_RANGES')
         assert isinstance(charmap.EMOJI_RANGES, list)
         assert len(charmap.EMOJI_RANGES) > 0
 
-    def test_is_defined_non_whitespace_printable_valueerror(self, mock_pygame_patches):
+    def test_is_defined_non_whitespace_printable_valueerror(self):
         """Test ValueError handling for invalid input."""
         # Test empty string - should raise TypeError, not ValueError
         with pytest.raises(TypeError):
@@ -83,7 +83,7 @@ class TestCharmapFunctionality:
         with pytest.raises(AttributeError):
             charmap.is_defined_non_whitespace_printable(None)  # type: ignore[arg-type]
 
-    def test_max_chars_constant(self, mock_pygame_patches):
+    def test_max_chars_constant(self):
         """Test max_chars constant."""
         # Test that MAX_CHARS_TO_DISPLAY is defined (actual constant name)
         assert hasattr(charmap, 'MAX_CHARS_TO_DISPLAY')

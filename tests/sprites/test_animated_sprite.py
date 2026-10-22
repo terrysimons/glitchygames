@@ -5,6 +5,7 @@ import math
 import shutil
 import sys
 import tempfile
+import tomllib
 from io import StringIO
 from pathlib import Path
 from typing import cast
@@ -37,14 +38,47 @@ from glitchygames.sprites.pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
-from tests.mocks.test_mock_factory import MockFactory
 
-original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 FRAME_DURATION = 0.5
 FRAME_DURATION_FAST = 0.25
 SURFACE_SIZE = 4
 DEFAULT_SURFACE_SIZE = 32
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+
+
+def _rgb_rows(image):
+    """Return an image's RGB pixels, row by row.
+
+    Returns:
+        list[list[tuple[int, int, int]]]: ``rows[y][x]``.
+
+    """
+    rows = pygame.surfarray.array3d(image).transpose(1, 0, 2).tolist()
+    return [[tuple(pixel) for pixel in row] for row in rows]
+
+
+def _alpha_rows(image):
+    """Return an image's per-pixel alpha values, row by row.
+
+    Returns:
+        list[list[int]]: ``rows[y][x]``.
+
+    """
+    return pygame.surfarray.array_alpha(image).transpose().tolist()
+
+
+def _solid_rgb(image):
+    """Return the one RGB color an image is filled with (fails if it has more than one).
+
+    Returns:
+        tuple[int, int, int]: The image's only color.
+
+    """
+    unique_colors = {pixel for row in _rgb_rows(image) for pixel in row}
+    assert len(unique_colors) == 1, f'expected one color, got {sorted(unique_colors)}'
+    return unique_colors.pop()
 
 
 class TestSpriteStackInterface:
@@ -143,17 +177,8 @@ class TestAnimatedSpriteInterface:
 class TestSpriteFactory:
     """Test the SpriteFactory detection and loading."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
         """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
         self.temp_dir = tempfile.mkdtemp()
 
     def teardown_method(self):
@@ -367,44 +392,25 @@ name = "TestEmptySprite"
             # Skip if BitmappySprite not available in test environment
             pytest.skip('BitmappySprite not available in test environment')
 
-    def test_load_animated_sprite(self, mocker):
+    def test_load_animated_sprite(self):
         """Test loading animated sprite through factory."""
         filename = self.create_animated_sprite_file('animated.toml')
 
-        # AnimatedSprite load is now implemented
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         sprite = SpriteFactory.load_sprite(filename=filename)
         assert isinstance(sprite, AnimatedSprite)
         assert sprite.name == 'TestAnimatedSprite'
 
-    def test_load_mixed_sprite_raises_error(self, mocker):
+    def test_load_mixed_sprite_raises_error(self):
         """Test that loading mixed sprite raises ValueError."""
         filename = self.create_mixed_sprite_file('mixed.toml')
 
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         with pytest.raises(ValueError, match='Invalid sprite file'):
             SpriteFactory.load_sprite(filename=filename)
 
-    def test_load_empty_sprite_raises_error(self, mocker):
+    def test_load_empty_sprite_raises_error(self):
         """Test that loading empty sprite raises ValueError."""
         filename = self.create_empty_sprite_file('empty.toml')
 
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         with pytest.raises(ValueError, match='Invalid sprite file'):
             SpriteFactory.load_sprite(filename=filename)
 
@@ -422,26 +428,17 @@ name = "TestEmptySprite"
 class TestBitmappySpriteLoadDefault:
     """Test BitmappySprite default loading via SpriteFactory."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-    def test_bitmappy_sprite_load_default(self, mocker):
+    def test_bitmappy_sprite_load_default(self):
         """Test that BitmappySprite.load() with no filename loads default sprite."""
-        # Use centralized mocks
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        MockFactory.create_pygame_display_mock()
-
         sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
-        sprite.load()  # Should load default raspberry sprite
-        assert sprite.name == 'Tiley McTile Face'
+        image, rect, name = sprite.load()  # Should load default raspberry sprite
+        assert name == sprite.name == 'Tiley McTile Face'
+        # It returns the default sprite's real image, the same one the factory loads
+        default_sprite = SpriteFactory.load_sprite(filename=None)
+        assert image.get_size() == rect.size == default_sprite.image.get_size()
+        assert pygame.image.tobytes(image, 'RGBA') == pygame.image.tobytes(
+            default_sprite.image, 'RGBA'
+        )
 
 
 class TestSpriteFactorySave:
@@ -694,11 +691,6 @@ class TestExtractPixelColors:
 class TestSpriteFrame:
     """Test SpriteFrame class."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def frame(self):
         """Create a SpriteFrame for testing.
@@ -791,11 +783,6 @@ class TestSpriteFrame:
 
 class TestFrameManager:
     """Test FrameManager class."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def animated_sprite(self):
@@ -931,11 +918,6 @@ class TestFrameManager:
 class TestFrameManagerEdgeCases:
     """FrameManager with a stale animation name or a hookless observer."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def animated_sprite(self):
         """Create an AnimatedSprite with a two-frame 'walk' animation.
@@ -968,11 +950,6 @@ class TestFrameManagerEdgeCases:
 
 class TestAnimatedSpriteProperties:
     """Test AnimatedSprite property accessors."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def sprite_with_animation(self):
@@ -1070,11 +1047,6 @@ class TestAnimatedSpriteProperties:
 class TestAnimatedSpriteControlMethods:
     """Test AnimatedSprite play/pause/stop methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def sprite_with_animation(self):
         """Create an AnimatedSprite with a test animation.
@@ -1153,11 +1125,6 @@ class TestAnimatedSpriteControlMethods:
 
 class TestAnimatedSpriteDataMethods:
     """Test AnimatedSprite animation data methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_add_animation(self):
         """Test adding an animation."""
@@ -1297,11 +1264,6 @@ class TestAnimatedSpriteDataMethods:
 class TestAnimatedSpriteGetItem:
     """Test AnimatedSprite __getitem__ and get_current_frame."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_getitem(self):
         """Test __getitem__ returns frame from named animation."""
         sprite = AnimatedSprite()
@@ -1330,11 +1292,6 @@ class TestAnimatedSpriteGetItem:
 
 class TestAnimatedSpriteNextAnimation:
     """Test AnimatedSprite next_animation property."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_next_animation_wraps(self):
         """Test next_animation wraps around to first animation.
@@ -1373,29 +1330,24 @@ class TestAnimatedSpriteNextAnimation:
 class TestAnimatedSpriteUpdate:
     """Test AnimatedSprite.update() method for animation timing."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
-    def animated_sprite(self, mocker):
+    def animated_sprite(self):
         """Create an AnimatedSprite with multiple frames for update testing.
 
         Returns:
-            An AnimatedSprite with a 'walk' animation and two frames.
+            An AnimatedSprite with a 'walk' animation of two frames: red, then green.
         """
         sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
-        frame1 = SpriteFrame(surface, duration=FRAME_DURATION_FAST)
-        frame2 = SpriteFrame(surface, duration=FRAME_DURATION_FAST)
+        red_surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
+        red_surface.fill(RED)
+        green_surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
+        green_surface.fill(GREEN)
+        frame1 = SpriteFrame(red_surface, duration=FRAME_DURATION_FAST)
+        frame2 = SpriteFrame(green_surface, duration=FRAME_DURATION_FAST)
         sprite.add_animation('walk', [frame1, frame2])
         sprite.set_animation('walk')
         sprite.play()
         sprite.is_looping = True
-        # Mock methods that use surfarray (incompatible with mock surfaces)
-        mocker.patch.object(sprite, '_update_surface_and_mark_dirty')
-        mocker.patch.object(sprite, '_debug_frame_info')
         return sprite
 
     def test_update_advances_frame_timer(self, animated_sprite):
@@ -1406,9 +1358,15 @@ class TestAnimatedSpriteUpdate:
 
     def test_update_changes_frame_when_duration_exceeded(self, animated_sprite):
         """Test update changes frame when frame duration is exceeded."""
-        # Advance past the first frame's duration
+        assert _solid_rgb(animated_sprite.image) == RED
+        animated_sprite.dirty = 0
+
+        # Advance past the first frame's duration: the sprite now draws the green frame
+        # and is marked for redrawing
         animated_sprite.update(FRAME_DURATION_FAST + 0.01)
         assert animated_sprite.current_frame == 1
+        assert _solid_rgb(animated_sprite.image) == GREEN
+        assert animated_sprite.dirty
 
     def test_update_loops_back_to_first_frame(self, animated_sprite):
         """Test update loops back to frame 0 when looping is enabled."""
@@ -1416,6 +1374,7 @@ class TestAnimatedSpriteUpdate:
         animated_sprite.update(FRAME_DURATION_FAST + 0.01)
         animated_sprite.update(FRAME_DURATION_FAST + 0.01)
         assert animated_sprite.current_frame == 0
+        assert _solid_rgb(animated_sprite.image) == RED
 
     def test_update_stops_at_last_frame_when_not_looping(self, animated_sprite):
         """Test update stops at last frame when looping is disabled."""
@@ -1431,6 +1390,7 @@ class TestAnimatedSpriteUpdate:
         initial_frame = animated_sprite.current_frame
         animated_sprite.update(1.0)
         assert animated_sprite.current_frame == initial_frame
+        assert _solid_rgb(animated_sprite.image) == RED
 
     def test_update_does_nothing_with_no_animation(self):
         """Test update does nothing when no animation is set."""
@@ -1441,11 +1401,6 @@ class TestAnimatedSpriteUpdate:
 
 class TestAnimatedSpriteGetCurrentSurface:
     """Test AnimatedSprite._get_current_surface method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_current_surface_no_animation_returns_default(self):
         """Test _get_current_surface returns default surface when no animation."""
@@ -1491,11 +1446,6 @@ class TestAnimatedSpriteGetCurrentSurface:
 class TestAnimatedSpriteCreateOptimizedSurface:
     """Test AnimatedSprite._create_optimized_surface static method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_with_pixel_data_rgb(self):
         """Test creating surface from RGB pixel data."""
         surface = pygame.Surface((2, 2))
@@ -1504,6 +1454,13 @@ class TestAnimatedSpriteCreateOptimizedSurface:
 
         result = AnimatedSprite._create_optimized_surface(frame)
         assert result.get_size() == (2, 2)
+        # Opaque pixels: a plain surface with magenta as its colorkey
+        assert not result.get_flags() & pygame.SRCALPHA
+        assert result.get_colorkey() == (255, 0, 255, 255)
+        assert _rgb_rows(result) == [
+            [(255, 0, 0), (0, 255, 0)],
+            [(0, 0, 255), (255, 255, 0)],
+        ]
 
     def test_with_pixel_data_rgba(self):
         """Test creating surface from RGBA pixel data."""
@@ -1518,15 +1475,27 @@ class TestAnimatedSpriteCreateOptimizedSurface:
 
         result = AnimatedSprite._create_optimized_surface(frame)
         assert result.get_size() == (2, 2)
+        # Translucent pixels: per-pixel alpha; the fully transparent one is stored as
+        # transparent magenta
+        assert result.get_flags() & pygame.SRCALPHA
+        assert _alpha_rows(result) == [[255, 128], [64, 0]]
+        assert _rgb_rows(result) == [
+            [(255, 0, 0), (0, 255, 0)],
+            [(0, 0, 255), (255, 0, 255)],
+        ]
 
     def test_without_pixel_data(self):
         """Test creating surface without pixel data falls back to copy."""
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
+        surface.fill((10, 20, 30))
         frame = SpriteFrame(surface)
         # No pixels attribute
 
         result = AnimatedSprite._create_optimized_surface(frame)
         assert result.get_size() == (SURFACE_SIZE, SURFACE_SIZE)
+        # A copy, not the frame's own surface, with the same pixels
+        assert result is not surface
+        assert _solid_rgb(result) == (10, 20, 30)
 
     def test_with_empty_pixel_data(self):
         """Test creating surface with empty pixel list falls back to copy."""
@@ -1540,11 +1509,6 @@ class TestAnimatedSpriteCreateOptimizedSurface:
 
 class TestAnimatedSpriteAnimationMetadata:
     """Test AnimatedSprite get/set animation metadata methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def sprite_with_animation(self):
@@ -1595,11 +1559,6 @@ class TestAnimatedSpriteAnimationMetadata:
 class TestAnimatedSpriteSave:
     """Test AnimatedSprite save method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_save_toml(self, tmp_path):
         """Test save creates a valid TOML file."""
         sprite = AnimatedSprite()
@@ -1623,11 +1582,6 @@ class TestAnimatedSpriteSave:
 
 class TestAnimatedSpriteLoad:
     """Test AnimatedSprite load method with TOML files."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_static_toml(self, tmp_path):
         """Test loading a static TOML sprite file as single-frame animation."""
@@ -1675,11 +1629,6 @@ blue = 255
 
 class TestAnimatedSpriteBuildColorMap:
     """Test AnimatedSprite.build_color_map static method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_build_color_map_rgb(self):
         """Test _build_color_map with RGB colors."""
@@ -1732,11 +1681,6 @@ class TestAnimatedSpriteBuildColorMap:
 class TestAnimatedSpriteUpdateSurfaceAndMarkDirty:
     """Test AnimatedSprite._update_surface_and_mark_dirty method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_surface_marks_dirty(self):
         """Test _update_surface_and_mark_dirty sets dirty flag."""
         sprite = AnimatedSprite()
@@ -1762,11 +1706,6 @@ class TestAnimatedSpriteUpdateSurfaceAndMarkDirty:
 
 class TestSpriteFrameEdgeCases:
     """Test SpriteFrame edge cases."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_set_pixel_data_larger_than_surface(self):
         """Test set_pixel_data with more pixels than surface can hold."""
@@ -1798,11 +1737,6 @@ class TestSpriteFrameEdgeCases:
 
 class TestAnimatedSpriteLoadAnimatedToml:
     """Test AnimatedSprite loading an animated TOML file."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_animated_toml(self, tmp_path):
         """Test loading an animated TOML file with multiple frames."""
@@ -1948,11 +1882,6 @@ class TestLookupPixelCharRgbRaiseInAlphaMap:
 class TestCreateAlphaSurface:
     """Test create_alpha_surface function."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_creates_srcalpha_surface(self):
         """Test creating an alpha surface with RGBA colors."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 255), '.': (255, 255, 255, 128)}
@@ -1960,29 +1889,32 @@ class TestCreateAlphaSurface:
         surface = create_alpha_surface(2, 2, pixel_lines, color_map)
         assert surface is not None
         assert surface.get_size() == (2, 2)
+        assert surface.get_flags() & pygame.SRCALPHA
+        assert _rgb_rows(surface) == [
+            [(0, 0, 0), (255, 255, 255)],
+            [(255, 255, 255), (0, 0, 0)],
+        ]
+        assert _alpha_rows(surface) == [[255, 128], [128, 255]]
 
     def test_rgb_color_gets_full_alpha(self):
         """Test that RGB colors in the map get alpha=255 added."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0)}
         pixel_lines = ['#']
         surface = create_alpha_surface(1, 1, pixel_lines, color_map)
-        assert surface is not None
+        assert _rgb_rows(surface) == [[(0, 0, 0)]]
+        assert _alpha_rows(surface) == [[255]]
 
     def test_magenta_rgba_stays_opaque(self):
         """Test that magenta RGBA (255,0,255,255) is preserved."""
         color_map: dict[str, tuple[int, ...]] = {'.': (255, 0, 255, 255)}
         pixel_lines = ['.']
         surface = create_alpha_surface(1, 1, pixel_lines, color_map)
-        assert surface is not None
+        assert _rgb_rows(surface) == [[(255, 0, 255)]]
+        assert _alpha_rows(surface) == [[255]]
 
 
 class TestCreateIndexedSurface:
     """Test create_indexed_surface function."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_creates_indexed_surface(self):
         """Test creating an indexed surface with RGB colors."""
@@ -1991,29 +1923,29 @@ class TestCreateIndexedSurface:
         surface = create_indexed_surface(2, 2, pixel_lines, color_map)
         assert surface is not None
         assert surface.get_size() == (2, 2)
+        assert not surface.get_flags() & pygame.SRCALPHA
+        assert _rgb_rows(surface) == [
+            [(0, 0, 0), (255, 255, 255)],
+            [(255, 255, 255), (0, 0, 0)],
+        ]
 
     def test_rgba_opaque_converts_to_rgb(self):
         """Test that opaque RGBA colors are converted to RGB on indexed surface."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 255)}
         pixel_lines = ['#']
         surface = create_indexed_surface(1, 1, pixel_lines, color_map)
-        assert surface is not None
+        assert _rgb_rows(surface) == [[(0, 0, 0)]]
 
     def test_rgba_transparent_becomes_magenta(self):
         """Test that transparent RGBA colors become magenta on indexed surface."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 128)}
         pixel_lines = ['#']
         surface = create_indexed_surface(1, 1, pixel_lines, color_map)
-        assert surface is not None
+        assert _rgb_rows(surface) == [[(255, 0, 255)]]
 
 
 class TestAnimatedSpriteGetTotalFrameCount:
     """Test AnimatedSprite.get_total_frame_count and is_static_sprite."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_total_frame_count_single_animation(self):
         """Test total frame count with one animation."""
@@ -2053,11 +1985,6 @@ class TestAnimatedSpriteGetTotalFrameCount:
 class TestAnimatedSpriteAnyPixelIsMagenta:
     """Test AnimatedSprite._any_pixel_is_magenta."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_no_magenta_rgb_pixels(self):
         """Test returns False when no magenta pixels exist (RGB)."""
         sprite = AnimatedSprite()
@@ -2089,11 +2016,6 @@ class TestAnimatedSpriteAnyPixelIsMagenta:
 class TestAnimatedSpriteClearSurfaceCache:
     """Test AnimatedSprite.clear_surface_cache."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_clear_surface_cache(self):
         """Test clearing the surface cache."""
         sprite = AnimatedSprite()
@@ -2105,11 +2027,6 @@ class TestAnimatedSpriteClearSurfaceCache:
 
 class TestAnimatedSpriteGetAnimationData:
     """Test AnimatedSprite._get_animation_data."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_animation_data_with_animations(self):
         """Test _get_animation_data returns data for each animation."""
@@ -2133,11 +2050,6 @@ class TestAnimatedSpriteGetAnimationData:
 
 class TestAnimatedSpriteDebugFrameInfo:
     """Test AnimatedSprite debug methods for frame info."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_debug_frame_info_no_animation(self):
         """Test _debug_frame_info with no animation set."""
@@ -2185,11 +2097,6 @@ class TestAnimatedSpriteDebugFrameInfo:
 class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
     """Test AnimatedSprite._create_surface_from_toml_pixels."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_rgb_pixels(self):
         """Test surface creation from RGB pixel data."""
         pixels = cast(
@@ -2198,6 +2105,10 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
         )
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
+        assert _rgb_rows(surface) == [
+            [(255, 0, 0), (0, 255, 0)],
+            [(0, 0, 255), (128, 128, 128)],
+        ]
 
     def test_rgba_pixels(self):
         """Test surface creation from RGBA pixel data."""
@@ -2207,17 +2118,19 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
         )
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
+        # Translucent pixels need per-pixel alpha, and each pixel keeps its own alpha
+        assert surface.get_flags() & pygame.SRCALPHA
+        assert pygame.surfarray.array_alpha(surface).transpose().tolist() == [
+            [255, 128],
+            [64, 0],
+        ]
+        assert _rgb_rows(surface)[0] == [(255, 0, 0), (0, 255, 0)]
 
 
 class TestAnimatedSpriteUpdateEdgeCases:
     """Test AnimatedSprite.update edge cases."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_update_with_empty_frames_stops_playing(self, mocker):
+    def test_update_with_empty_frames_stops_playing(self):
         """Test update stops playing when frames list is empty."""
         sprite = AnimatedSprite()
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
@@ -2226,11 +2139,10 @@ class TestAnimatedSpriteUpdateEdgeCases:
         sprite.play()
         # Clear the frames list to trigger empty frames branch
         sprite._animations['walk'] = []
-        mocker.patch.object(sprite, '_update_surface_and_mark_dirty')
         sprite.update(0.1)
         assert sprite._is_playing is False
 
-    def test_update_clamps_frame_index_beyond_bounds(self, mocker):
+    def test_update_clamps_frame_index_beyond_bounds(self):
         """Test update clamps frame index when beyond bounds."""
         sprite = AnimatedSprite()
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
@@ -2239,28 +2151,39 @@ class TestAnimatedSpriteUpdateEdgeCases:
         sprite.play()
         # Force frame index beyond bounds
         sprite.frame_manager._current_frame = 99
-        mocker.patch.object(sprite, '_update_surface_and_mark_dirty')
-        mocker.patch.object(sprite, '_debug_frame_info')
         sprite.update(0.001)
         # Frame should be clamped to valid range
         assert sprite.frame_manager.current_frame == 0
 
-    def test_update_animation_not_in_dict_returns(self, mocker):
+    def test_update_animation_not_in_dict_returns(self):
         """Test update returns when current animation is not in _animations dict."""
         sprite = AnimatedSprite()
         sprite._is_playing = True
         sprite.frame_manager._current_animation = 'nonexistent'
-        mocker.patch.object(sprite, '_update_surface_and_mark_dirty')
         sprite.update(0.1)
 
 
 class TestAnimatedSpriteWriteTomlHelpers:
     """Test TOML writing helper methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_a_frame_with_fewer_pixels_than_its_surface_is_saved_padded(self, tmp_path):
+        """Pixels missing from a frame's pixel list are written as '.' to fill its size."""
+        surface = pygame.Surface((2, 2))
+        frame = SpriteFrame(surface)
+        # Only the first row's pixels are known; the frame's surface is 2x2
+        frame.pixels = [RED, GREEN]
+        sprite = AnimatedSprite()
+        sprite.name = 'short_pixels'
+        sprite.add_animation('idle', [frame, SpriteFrame(pygame.Surface((2, 2)))])
+
+        saved_file = tmp_path / 'short_pixels.toml'
+        sprite.save(str(saved_file), 'toml')
+
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        first_frame_rows = saved['animation'][0]['frame'][0]['pixels'].splitlines()
+        assert len(first_frame_rows) == 2
+        assert len(first_frame_rows[0]) == 2
+        assert first_frame_rows[1] == '..'
 
     def test_write_toml_colors_with_color_order(self):
         """Test _write_toml_colors uses color_order when provided."""
@@ -2325,11 +2248,6 @@ class TestAnimatedSpriteWriteTomlHelpers:
 class TestConvertStaticSpriteInconsistentWidths:
     """Test AnimatedSprite._convert_static_sprite with inconsistent row widths."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_inconsistent_widths_pads_rows(self, tmp_path):
         """Test loading a static sprite with inconsistent row widths pads them."""
         toml_content = """[sprite]
@@ -2355,11 +2273,6 @@ blue = 0
 
 class TestAnimatedSpriteLoadEdgeCases:
     """Test AnimatedSprite load edge cases."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_toml_with_parse_error(self, tmp_path):
         """Test loading a TOML file with invalid content raises ValueError."""
@@ -2401,11 +2314,6 @@ blue = 0
 
 class TestSpriteFrameHitbox:
     """Test SpriteFrame hitbox functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_default_hitbox_is_full_frame(self):
         """SpriteFrame's own hitbox without an explicit one is its full frame rect.
@@ -2449,11 +2357,6 @@ class TestSpriteFrameHitbox:
 
 class TestAnimatedSpriteHitbox:
     """Test AnimatedSprite hitbox resolution."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_hitbox_fallback(self):
         """With no hitbox set anywhere, a fully opaque frame's visible bounds are its rect."""
@@ -3119,11 +3022,6 @@ class TestAnimatedSpriteFrameAnchor:
 class TestHitboxTomlRoundTrip:
     """Test hitbox TOML load/save round-trip."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_load_sprite_level_hitbox(self, tmp_path):
         """Loading TOML with [sprite.hitbox] sets default_hitbox."""
         toml_content = """[sprite]
@@ -3448,11 +3346,6 @@ blue = 255
 class TestPerAnimationLoop:
     """Each animation's own [[animation]] loop flag applies while it plays."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @staticmethod
     def _play_past_the_end(sprite: AnimatedSprite, animation_name: str) -> None:
         """Play an animation for longer than its two 0.1 s frames."""
@@ -3528,11 +3421,6 @@ when = "timer > 0.3"
 
 class TestTransitionData:
     """Loaded [[transition]] sections are kept as data and follow animation renames/deletes."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
     def _load(tmp_path) -> AnimatedSprite:

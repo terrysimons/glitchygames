@@ -20,7 +20,6 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 ALL_TRIGGERS = SpeedUpTrigger.CONTINUOUS | SpeedUpTrigger.PADDLE_BOUNCE | SpeedUpTrigger.WALL_BOUNCE
 
@@ -71,27 +70,23 @@ def _tick_frames(ball: BallSprite, game_seconds: float) -> None:
 def _hit_top_wall(ball: BallSprite) -> None:
     """Place the ball on the top wall, moving into it, away from the corners, and bounce."""
     ball.world_x = SCREEN_CENTER_X
-    ball.world_y = 0.0
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_y = -float(ball._visible_rect().offset_y)
     ball.speed.y = -abs(ball.speed.y)  # a wall only bounces a ball moving into it
     ball._do_bounce()
 
 
 def _hit_left_wall(ball: BallSprite) -> None:
     """Place the ball on the left wall, moving into it, away from the corners, and bounce."""
-    ball.world_x = 0.0
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_x = -float(ball._visible_rect().offset_x)
     ball.world_y = SCREEN_CENTER_Y
     ball.speed.x = -abs(ball.speed.x)  # a wall only bounces a ball moving into it
     ball._do_bounce()
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestSpeedUpTriggersEndToEnd:
     """Each trigger fires through the ball's real event paths, and only when enabled."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_no_triggers_still_allows_manual_speed_up(self):
         """With no triggers, events do nothing but an explicit speed_up() still works."""

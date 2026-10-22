@@ -32,7 +32,6 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
-from tests.mocks import MockFactory
 from tests.signal_handlers import preserved_signal_handlers
 
 
@@ -41,9 +40,10 @@ def _load_lazy_pygame_modules() -> None:
 
     pygame imports `sndarray` and `surfarray` lazily: the module body runs on the first
     attribute access. `sndarray` does `from pygame import mixer` there, so if that first access
-    happens inside a test that patched `pygame.mixer` (MockFactory's pygame patches do), the
-    mock is bound into `pygame.sndarray` for the rest of the process and every later
-    `pygame.sndarray.make_sound` returns a Mock. Loading them here binds the real modules.
+    happens inside a test that patched `pygame.mixer` (e.g. `mocker.patch('pygame.mixer', ...)`),
+    the mock is bound into `pygame.sndarray` for the rest of the process and every later
+    `pygame.sndarray.make_sound` returns a Mock. Loading them here binds the real modules
+    (tests/world/test_mock_isolation.py checks this).
     """
     for lazy_module, attribute_name in (
         (pygame.sndarray, 'make_sound'),
@@ -123,38 +123,6 @@ def pytest_configure(config):
     """Configure pytest to enable strict event handling for all tests."""
     # This ensures that unhandled events cause tests to fail, catching bugs
     # The no_unhandled_events flag is enabled globally in mock_game fixture
-
-
-@pytest.fixture(autouse=True)
-def setup_conditional_pygame_mocks(request, mocker):
-    """Set up pygame mocks conditionally based on test file.
-
-    Uses pytest-mock's mocker fixture for automatic cleanup — no manual
-    teardown needed.
-
-    Yields:
-        dict: The mock pygame patches dictionary, or an empty dict if no mocks are needed.
-
-    """
-    # Check if this is a scene test or game objects test that needs mocks
-    test_file = str(request.node.fspath)
-    needs_mocks = 'scene' in test_file.lower() or 'game_objects' in test_file.lower()
-
-    if needs_mocks:
-        # Ensure pygame is properly initialized for mocks
-        import pygame
-
-        if not pygame.get_init():
-            pygame.init()
-        # Ensure display mode is set (needed after pygame.quit() from other tests)
-        if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
-
-        # Use mocker-based mocks — cleanup is automatic
-        yield MockFactory.setup_pygame_mocks_with_mocker(mocker)
-    else:
-        # No mocks needed for this test
-        yield {}
 
 
 def _reset_all_singleton_instances():
@@ -295,29 +263,6 @@ def mock_game_args(mocker):
 
 
 @pytest.fixture
-def mock_pygame_patches(mocker):
-    """Set up pygame mocks for testing.
-
-    Uses pytest-mock's mocker fixture for automatic cleanup — no manual
-    teardown needed.
-
-    Returns:
-        object: The result.
-
-    """
-    # Ensure pygame is properly initialized for mocks
-    import pygame
-
-    if not pygame.get_init():
-        pygame.init()
-    # Ensure display mode is set (needed after pygame.quit() from other tests)
-    if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
-
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-
-@pytest.fixture
 def mock_game(mocker):
     """Create a mock game scene for testing.
 
@@ -387,51 +332,6 @@ def mock_game_with_args(mock_game: type[Scene]):
             return parser
 
     return MockGameWithArgs
-
-
-@pytest.fixture
-def mock_surface():
-    """Create a mock pygame surface for testing.
-
-    Returns:
-        object: The result.
-
-    """
-    return MockFactory.create_pygame_surface_mock(32, 32)
-
-
-@pytest.fixture
-def mock_joystick_manager():
-    """Create a mock joystick manager for testing.
-
-    Returns:
-        object: The result.
-
-    """
-    return MockFactory.create_joystick_manager_mock(joystick_count=0)  # No joysticks by default
-
-
-@pytest.fixture
-def mock_managers(mocker):
-    """Create mock managers for testing.
-
-    Returns:
-        object: The result.
-
-    """
-    return {
-        'joystick_manager': mocker.Mock(),
-        'font_manager': mocker.Mock(),
-        'game_manager': mocker.Mock(),
-        'keyboard_manager': mocker.Mock(),
-        'midi_manager': mocker.Mock(),
-        'mouse_manager': mocker.Mock(),
-        'window_manager': mocker.Mock(),
-        'audio_manager': mocker.Mock(),
-        'controller_manager': mocker.Mock(),
-        'drop_manager': mocker.Mock(),
-        'touch_manager': mocker.Mock(),
-    }
 
 
 @pytest.fixture(autouse=True)

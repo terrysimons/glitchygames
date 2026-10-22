@@ -25,7 +25,6 @@ from glitchygames.bitmappy.file_io import FileIOManager
 from glitchygames.bitmappy.frame_operations import FrameOperationManager
 from glitchygames.bitmappy.pixel_sprite import BitmapPixelSprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
 
 # Constants
 CANVAS_SIZE = 4
@@ -39,6 +38,18 @@ GREEN_RGBA = (0, 255, 0, 255)
 BLUE_RGBA = (0, 0, 255, 255)
 BLACK_RGBA = (0, 0, 0, 255)
 RED_RGB = (255, 0, 0)
+
+
+@pytest.fixture
+def restore_mouse_cursor():
+    """Show the real mouse cursor again after a test that hovers the canvas (it hides it).
+
+    Yields:
+        None: Control returns to the test while the cursor may be hidden.
+
+    """
+    yield
+    pygame.mouse.set_visible(True)
 
 
 class CanvasConfig(NamedTuple):
@@ -117,11 +128,6 @@ def _make_canvas(mocker, config=DEFAULT_CANVAS_CONFIG):
 class TestInitializeDimensions:
     """Test _initialize_dimensions pure math method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_initialize_dimensions_basic(self, mocker):
         """Test basic dimension initialization returns correct width and height."""
         canvas, _ = _make_canvas(
@@ -189,11 +195,6 @@ class TestInitializeDimensions:
 class TestInitializePixelArrays:
     """Test _initialize_pixel_arrays method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_pixel_array_length(self, mocker):
         """Test pixel array has correct length for canvas size."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
@@ -219,11 +220,6 @@ class TestInitializePixelArrays:
 
 class TestUpdateBorderThickness:
     """Test _update_border_thickness method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_normal_pixel_size_has_border(self, mocker):
         """Test border thickness is 1 for normal pixel sizes."""
@@ -290,11 +286,6 @@ class TestUpdateBorderThickness:
 class TestSetFrame:
     """Test set_frame method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_set_frame_updates_current_frame(self, mocker):
         """Test set_frame changes current_frame."""
         canvas, _ = _make_canvas(mocker)
@@ -349,11 +340,6 @@ class TestSetFrame:
 class TestNextFrame:
     """Test next_frame method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_next_frame_increments(self, mocker):
         """Test next_frame moves to the next frame."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
@@ -372,11 +358,6 @@ class TestNextFrame:
 class TestPreviousFrame:
     """Test previous_frame method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_previous_frame_decrements(self, mocker):
         """Test previous_frame moves to the previous frame."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
@@ -394,11 +375,6 @@ class TestPreviousFrame:
 
 class TestNextAnimation:
     """Test next_animation method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_next_animation_cycles(self, mocker):
         """Test next_animation moves to the next animation."""
@@ -471,11 +447,6 @@ class TestNextAnimation:
 class TestPreviousAnimation:
     """Test previous_animation method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_previous_animation_cycles(self, mocker):
         """Test previous_animation moves to the previous animation."""
         canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
@@ -505,11 +476,6 @@ class TestPreviousAnimation:
 
 class TestShouldTrackFrameSelection:
     """Test _should_track_frame_selection method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_returns_false_without_parent_scene(self, mocker):
         """Test returns False when no parent_scene."""
@@ -572,11 +538,6 @@ class TestShouldTrackFrameSelection:
 class TestGetCurrentFramePixels:
     """Test _get_current_frame_pixels method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_returns_rgba_pixels_from_frame(self, mocker):
         """Test returns RGBA pixel data from current frame."""
         canvas, _ = _make_canvas(mocker)
@@ -623,53 +584,77 @@ class TestGetCurrentFramePixels:
         assert pixels[0] == GREEN_RGBA
 
 
+def _paint_frame_pixel(animated_sprite, *, frame_index, pixel_index, color):
+    """Set one pixel of a frame of the 'idle' animation."""
+    frame = animated_sprite._animations['idle'][frame_index]
+    frame_pixels = list(frame.get_pixel_data())
+    frame_pixels[pixel_index] = color
+    frame.set_pixel_data(frame_pixels)
+
+
+def _rgb_at(surface, x, y):
+    """Read the RGB colour of one surface pixel, ignoring alpha and the pixel format.
+
+    Returns:
+        tuple[int, int, int]: The red, green and blue components.
+
+    """
+    return tuple(surface.get_at((x, y)))[:3]
+
+
+FRAME_ZERO_RGB = (0, 0, 0)  # _make_animated_sprite_with_frames colours frame 0 black
+
+
 class TestForceRedraw:
     """Test force_redraw method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_force_redraw_updates_image(self, mocker):
-        """Test force_redraw generates a new canvas image."""
-        canvas, _ = _make_canvas(mocker)
-        original_image = canvas.image
+        """force_redraw draws the current frame's pixels into the canvas image."""
+        canvas, animated_sprite = _make_canvas(mocker)
+        _paint_frame_pixel(animated_sprite, frame_index=0, pixel_index=0, color=RED_RGBA)
+
         canvas.force_redraw()
-        # force_redraw should produce an image (may or may not be same object)
-        assert canvas.image is not None
+
+        # 16x16 cells: pixel 0 is red, pixel 1 keeps frame 0's black, cell borders are grey
+        assert canvas.image.get_size() == (CANVAS_SIZE * PIXEL_WIDTH, CANVAS_SIZE * PIXEL_HEIGHT)
+        assert _rgb_at(canvas.image, 8, 8) == RED_RGB
+        assert _rgb_at(canvas.image, 24, 8) == FRAME_ZERO_RGB
+        assert _rgb_at(canvas.image, 0, 0) == (64, 64, 64)
 
     def test_force_redraw_uses_renderer(self, mocker):
-        """Test force_redraw delegates to canvas_renderer."""
+        """force_redraw replaces the canvas image with the surface its renderer draws."""
         canvas, _ = _make_canvas(mocker)
-        mock_renderer = mocker.Mock()
-        mock_surface = pygame.Surface((64, 64))
-        mock_renderer.force_redraw.return_value = mock_surface
-        canvas.canvas_renderer = mock_renderer
+        canvas.image = pygame.Surface((1, 1))
 
         canvas.force_redraw()
-        mock_renderer.force_redraw.assert_called_once_with(canvas)
-        assert canvas.image == mock_surface
+
+        assert canvas.image.get_size() == (CANVAS_SIZE * PIXEL_WIDTH, CANVAS_SIZE * PIXEL_HEIGHT)
+        assert _rgb_at(canvas.image, 8, 8) == FRAME_ZERO_RGB
+
+    def test_force_redraw_shows_the_current_frame(self, mocker):
+        """After selecting another frame, force_redraw draws that frame's colours."""
+        canvas, _ = _make_canvas(mocker)
+        canvas.show_frame('idle', 1)
+
+        canvas.force_redraw()
+
+        # _make_animated_sprite_with_frames colours frame 1 (50, 30, 20)
+        assert _rgb_at(canvas.image, 8, 8) == (50, 30, 20)
 
 
 class TestUpdate:
     """Test update method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_redraws_when_dirty(self, mocker):
-        """Test update calls force_redraw when dirty flag is set."""
-        canvas, _ = _make_canvas(mocker)
+        """A dirty canvas redraws on update, so a changed frame pixel shows."""
+        canvas, animated_sprite = _make_canvas(mocker)
+        _paint_frame_pixel(animated_sprite, frame_index=0, pixel_index=5, color=RED_RGBA)
         canvas.dirty = 1
-        mock_renderer = mocker.Mock()
-        mock_renderer.force_redraw.return_value = pygame.Surface((64, 64))
-        canvas.canvas_renderer = mock_renderer
 
         canvas.update()
-        mock_renderer.force_redraw.assert_called()
+
+        # Pixel 5 is cell (1, 1): x/y 16..31
+        assert _rgb_at(canvas.image, 24, 24) == RED_RGB
 
     def test_update_clears_dirty_flag(self, mocker):
         """Test update clears dirty flag after redraw."""
@@ -679,23 +664,22 @@ class TestUpdate:
         assert canvas.dirty == 0
 
     def test_update_does_nothing_when_clean(self, mocker):
-        """Test update does not call force_redraw when clean."""
-        canvas, _ = _make_canvas(mocker)
+        """A clean canvas keeps its image on update, even when the frame changed."""
+        canvas, animated_sprite = _make_canvas(mocker)
+        canvas.dirty = 1
+        canvas.update()
+        image_before = canvas.image
+        _paint_frame_pixel(animated_sprite, frame_index=0, pixel_index=5, color=RED_RGBA)
         canvas.dirty = 0
-        mock_renderer = mocker.Mock()
-        canvas.canvas_renderer = mock_renderer
 
         canvas.update()
-        mock_renderer.force_redraw.assert_not_called()
+
+        assert canvas.image is image_before
+        assert _rgb_at(canvas.image, 24, 24) == FRAME_ZERO_RGB
 
 
 class TestShowFrame:
     """Test show_frame method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_show_frame_updates_current_animation(self, mocker):
         """Test show_frame sets current_animation."""
@@ -723,11 +707,6 @@ class TestShowFrame:
 
 class TestHandleKeyboardEvent:
     """Test handle_keyboard_event method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_left_arrow_calls_previous_frame(self, mocker):
         """Test LEFT arrow key calls previous_frame."""
@@ -767,11 +746,6 @@ class TestHandleKeyboardEvent:
 
 class TestCopyPasteFrame:
     """Test copy_current_frame and paste_to_current_frame methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_copy_stores_pixel_data(self, mocker):
         """Test copy_current_frame stores pixel data in clipboard."""
@@ -814,11 +788,6 @@ class TestCopyPasteFrame:
 class TestIsSingleFrameAnimation:
     """Test _is_single_frame_animation method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_single_frame_returns_true(self, mocker):
         """Test returns True for single animation with single frame."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
@@ -849,11 +818,6 @@ class TestIsSingleFrameAnimation:
 class TestGetCanvasAccessors:
     """Test get_canvas_interface, get_sprite_serializer, get_canvas_renderer."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_canvas_interface(self, mocker):
         """Test get_canvas_interface returns AnimatedCanvasInterface."""
         canvas, _ = _make_canvas(mocker)
@@ -875,11 +839,6 @@ class TestGetCanvasAccessors:
 
 class TestOnPixelUpdateEvent:
     """Test on_pixel_update_event method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_pixel_update_modifies_pixel(self, mocker):
         """Test on_pixel_update_event updates the pixel at the given index."""
@@ -908,11 +867,6 @@ class TestOnPixelUpdateEvent:
 class TestUpdateAnimation:
     """Test update_animation method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_animation_delegates_to_sprite(self, mocker):
         """Test update_animation calls animated_sprite.update with dt."""
         canvas, animated_sprite = _make_canvas(mocker)
@@ -923,11 +877,6 @@ class TestUpdateAnimation:
 
 class TestClearSurfaceCache:
     """Test _clear_surface_cache method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_clears_matching_cache_key(self, mocker):
         """Test _clear_surface_cache removes the current frame's cache entry."""
@@ -947,11 +896,6 @@ class TestClearSurfaceCache:
 
 class TestCleanupDragState:
     """Test _cleanup_drag_state method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_cleanup_clears_drag_active(self, mocker):
         """Test _cleanup_drag_state sets _drag_active to False."""
@@ -982,11 +926,6 @@ class TestCleanupDragState:
 class TestGetCanvasSurface:
     """Test get_canvas_surface method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_returns_surface_of_correct_size(self, mocker):
         """Test get_canvas_surface returns surface with canvas dimensions."""
         canvas, _ = _make_canvas(mocker)
@@ -998,19 +937,16 @@ class TestGetCanvasSurface:
         """Test get_canvas_surface handles magenta pixels without error."""
         canvas, _ = _make_canvas(mocker)
         canvas.pixels = [MAGENTA_RGBA] * PIXEL_COUNT
+        canvas.pixels[1] = RED_RGBA
         surface = canvas.get_canvas_surface()
-        # Should return a valid surface (pixel alpha depends on real vs mocked Surface)
-        assert surface is not None
         assert surface.get_width() == CANVAS_SIZE
+        # Magenta becomes fully transparent for the film strip; other colours stay
+        assert surface.get_at((0, 0)).a == 0
+        assert tuple(surface.get_at((1, 0))) == RED_RGBA
 
 
 class TestHoverTracking:
     """Test hover-related initialization."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_hovered_pixel_starts_none(self, mocker):
         """Test hovered_pixel is initialized to None."""
@@ -1025,11 +961,6 @@ class TestHoverTracking:
 
 class TestBuildSurfaceFromCanvasPixels:
     """Test _build_surface_from_canvas_pixels method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_builds_surface_with_correct_dimensions(self, mocker):
         """Test surface has correct dimensions."""
@@ -1665,9 +1596,8 @@ class TestMouseEditing:
         assert 'animated_sprite_update' in parent_scene.film_strip_coordinator.names()
         assert canvas.dirty == 1
 
-    def test_mouse_motion_tracks_hover_in_and_out(self, mocker):
+    def test_mouse_motion_tracks_hover_in_and_out(self, restore_mouse_cursor):
         """Hovering shows the pixel under the mouse and hides the cursor until leaving."""
-        set_visible = mocker.patch('pygame.mouse.set_visible')
         canvas, _ = _make_real_canvas()
 
         canvas.on_mouse_motion_event(
@@ -1675,6 +1605,7 @@ class TestMouseEditing:
         )
         assert canvas.is_hovered
         assert canvas.hovered_pixel == (1, 0)
+        assert pygame.mouse.get_visible() is False
 
         canvas.rect.width += PIXEL_WIDTH
         canvas.on_mouse_motion_event(_event_at(x=canvas.rect.right - 1, y=canvas.rect.y + 1))
@@ -1684,7 +1615,7 @@ class TestMouseEditing:
         canvas.on_mouse_motion_event(_event_at(x=0, y=0))
         assert not canvas.is_hovered
         assert canvas.hovered_pixel is None
-        assert [call.args for call in set_visible.call_args_list] == [(False,), (True,)]
+        assert pygame.mouse.get_visible() is True
 
 
 class TestDragFrameHelpers:
@@ -2020,7 +1951,8 @@ class TestLoading:
 
     def test_loading_a_different_size_resizes_the_canvas(self, tmp_path):
         """A sprite of another size resizes the canvas to fit it."""
-        pygame.display.set_mode((800, 600))
+        # The size math depends on the 800x600 display the conftest opens
+        assert pygame.display.get_surface().get_size() == (800, 600)
         canvas, _ = _make_real_canvas()
         parent_scene = ParentSceneStandIn()
         canvas.parent_scene = parent_scene
@@ -2037,7 +1969,8 @@ class TestLoading:
 
     def test_resize_changes_only_its_own_canvas(self):
         """A resize sets the canvas's own size, never class-wide state (BUGS.md #110 item 2)."""
-        pygame.display.set_mode((800, 600))
+        # The size math depends on the 800x600 display the conftest opens
+        assert pygame.display.get_surface().get_size() == (800, 600)
         resized_canvas, _ = _make_real_canvas()
         other_canvas, _ = _make_real_canvas()
 
@@ -2053,7 +1986,8 @@ class TestLoading:
 
     def test_large_sprite_gets_the_minimum_pixel_size(self):
         """A 128x128 sprite is drawn with the minimum pixel size."""
-        pygame.display.set_mode((800, 600))
+        # The size math depends on the 800x600 display the conftest opens
+        assert pygame.display.get_surface().get_size() == (800, 600)
         canvas, _ = _make_real_canvas()
 
         canvas._resize_canvas_to_sprite_size(128, 128)
@@ -2428,9 +2362,11 @@ class TestDragEdges:
 class TestHoverEdges:
     """Test mouse motion that changes no hover state."""
 
-    def test_moving_over_the_border_without_a_hovered_pixel_keeps_it_clear(self, mocker):
+    def test_moving_over_the_border_without_a_hovered_pixel_keeps_it_clear(
+        self,
+        restore_mouse_cursor,
+    ):
         """Over the canvas but off the pixel grid, with no hovered pixel, nothing is redrawn."""
-        mocker.patch('pygame.mouse.set_visible')
         canvas, _ = _make_real_canvas()
         canvas.is_hovered = True
         canvas.rect.width += PIXEL_WIDTH
@@ -2441,17 +2377,18 @@ class TestHoverEdges:
         assert canvas.hovered_pixel is None
         assert canvas.dirty == 0
 
-    def test_moving_elsewhere_while_not_hovering_changes_nothing(self, mocker):
+    def test_moving_elsewhere_while_not_hovering_changes_nothing(self, restore_mouse_cursor):
         """Outside the canvas, with no hover state to clear, nothing is redrawn."""
-        set_visible = mocker.patch('pygame.mouse.set_visible')
         canvas, _ = _make_real_canvas()
         canvas.dirty = 0
+        # A cursor hidden by something else stays hidden: the canvas does not show it
+        pygame.mouse.set_visible(False)
 
         canvas.on_mouse_motion_event(_event_at(x=0, y=0))
 
         assert canvas.is_hovered is False
         assert canvas.dirty == 0
-        set_visible.assert_not_called()
+        assert pygame.mouse.get_visible() is False
 
 
 class TestCanvasSurfacesWithShortPixels:

@@ -7,7 +7,20 @@ from pathlib import Path
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.game_objects.ball import BallSprite
+from glitchygames.game_objects.ball import BallSprite, snap_to_pixel
+from tests.game_objects.ball_helpers import (
+    drawn_position,
+    drawn_visible_rect,
+    place_visible_edge_past_wall,
+)
+
+
+def _assert_drawn_at_world_position(ball: BallSprite) -> None:
+    """Assert the engine draws the ball at its snapped world position."""
+    assert drawn_position(ball) == (
+        snap_to_pixel(ball.world_x, ball.pixel_snap_mode),
+        snap_to_pixel(ball.world_y, ball.pixel_snap_mode),
+    )
 
 
 class TestBallBounceConfiguration:
@@ -44,33 +57,29 @@ class TestBallBounceConfiguration:
         """Test that top/bottom bouncing works correctly."""
         ball = BallSprite(bounce_top_bottom=True, bounce_left_right=False)
 
-        # Test top bounce (must set world_y for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.y = 0
-        ball.world_y = 0.0
+        # Test top bounce: the visible circle touches the top wall
+        place_visible_edge_past_wall(ball, wall='top', overshoot=0.0)
         ball.speed.y = -100.0  # Moving up
         initial_speed_x = ball.speed.x
 
         ball._do_bounce()
 
         # Should reverse Y direction, ball reflected inside boundary
-        assert ball.world_y >= 0  # Ball is inside boundary
-        assert ball.rect.y == round(ball.world_y)
+        assert drawn_visible_rect(ball).top >= 0  # Ball is inside boundary
+        _assert_drawn_at_world_position(ball)
         assert ball.speed.y > 0  # Now moving down
         assert ball.speed.x == initial_speed_x  # X unchanged
 
-        # Test bottom bounce
-        ball.rect.y = ball.screen_height - ball.height
-        ball.world_y = float(ball.screen_height - ball.height)
+        # Test bottom bounce: the visible circle touches the bottom wall
+        place_visible_edge_past_wall(ball, wall='bottom', overshoot=0.0)
         ball.speed.y = 100.0  # Moving down
         initial_speed_x = ball.speed.x
 
         ball._do_bounce()
 
         # Should reverse Y direction, ball reflected inside boundary
-        boundary = float(ball.screen_height - ball.height)
-        assert ball.world_y <= boundary  # Ball is inside boundary
-        assert ball.rect.y == round(ball.world_y)
+        assert drawn_visible_rect(ball).bottom <= ball.screen_height  # Ball is inside boundary
+        _assert_drawn_at_world_position(ball)
         assert ball.speed.y < 0  # Now moving up
         assert ball.speed.x == initial_speed_x  # X unchanged
 
@@ -78,33 +87,29 @@ class TestBallBounceConfiguration:
         """Test that left/right bouncing works correctly."""
         ball = BallSprite(bounce_top_bottom=False, bounce_left_right=True)
 
-        # Test left bounce (must set world_x for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.x = 0
-        ball.world_x = 0.0
+        # Test left bounce: the visible circle touches the left wall
+        place_visible_edge_past_wall(ball, wall='left', overshoot=0.0)
         ball.speed.x = -100.0  # Moving left
         initial_speed_y = ball.speed.y
 
         ball._do_bounce()
 
         # Should reverse X direction, ball reflected inside boundary
-        assert ball.world_x >= 0  # Ball is inside boundary
-        assert ball.rect.x == round(ball.world_x)
+        assert drawn_visible_rect(ball).left >= 0  # Ball is inside boundary
+        _assert_drawn_at_world_position(ball)
         assert ball.speed.x > 0  # Now moving right
         assert ball.speed.y == initial_speed_y  # Y unchanged
 
-        # Test right bounce
-        ball.rect.x = ball.screen_width - ball.width
-        ball.world_x = float(ball.screen_width - ball.width)
+        # Test right bounce: the visible circle touches the right wall
+        place_visible_edge_past_wall(ball, wall='right', overshoot=0.0)
         ball.speed.x = 100.0  # Moving right
         initial_speed_y = ball.speed.y
 
         ball._do_bounce()
 
         # Should reverse X direction, ball reflected inside boundary
-        boundary = float(ball.screen_width - ball.width)
-        assert ball.world_x <= boundary  # Ball is inside boundary
-        assert ball.rect.x == round(ball.world_x)
+        assert drawn_visible_rect(ball).right <= ball.screen_width  # Ball is inside boundary
+        _assert_drawn_at_world_position(ball)
         assert ball.speed.x < 0  # Now moving left
         assert ball.speed.y == initial_speed_y  # Y unchanged
 
@@ -147,10 +152,8 @@ class TestBallBounceConfiguration:
         """Test that ball survives when left/right bouncing is enabled."""
         ball = BallSprite(bounce_left_right=True)
 
-        # Move ball to edge (must set world_x for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.x = ball.screen_width - ball.width
-        ball.world_x = float(ball.screen_width - ball.width)
+        # Move the ball's visible circle to the right edge
+        place_visible_edge_past_wall(ball, wall='right', overshoot=0.0)
         ball.speed.x = 100.0  # Moving right
 
         # Should be alive before dt_tick
@@ -169,10 +172,8 @@ class TestBallBounceConfiguration:
         """Test that speed direction is correctly reversed during bounces."""
         ball = BallSprite(bounce_top_bottom=True, bounce_left_right=True)
 
-        # Test top bounce - should reverse Y direction (must set world coords)
-        assert ball.rect is not None
-        ball.rect.y = 0
-        ball.world_y = 0.0
+        # Test top bounce - should reverse Y direction
+        place_visible_edge_past_wall(ball, wall='top', overshoot=0.0)
         ball.speed.y = -100.0
         initial_speed_x = ball.speed.x
 
@@ -184,9 +185,7 @@ class TestBallBounceConfiguration:
 
         # Test left bounce - should reverse X direction
         # Move ball away from top boundary to avoid double-bounce/corner collision
-        ball.rect.x = 0
-        ball.world_x = 0.0
-        ball.rect.y = 100
+        place_visible_edge_past_wall(ball, wall='left', overshoot=0.0)
         ball.world_y = 100.0
         ball.speed.x = -100.0
         initial_speed_y = ball.speed.y

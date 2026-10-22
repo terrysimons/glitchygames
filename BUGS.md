@@ -190,15 +190,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: (1) Slider gradients are redrawn every frame (dirty 2, ~1024 line draws): pre-render once. (2) TabControlSprite rebuilds its font every update after its first click. (3) A channel enum instead of strings. (4) Tidy-ups: `trigger.value` mutation in `on_slider_event`, the try/except and hasattr in `get_current_color`, DEBUG f-strings, `MIN/MAX_COLOR_VALUE` vs `MAX_COLOR_CHANNEL_VALUE`. (5) Controller line painting leaves the cursor one past the last painted pixel (maybe intended; pinned). (6) `AnimatedCanvasSprite.active_color` is inferred as a literal tuple (an `assignment` ignore remains in `apply_color`)
 - **Files**: see Details
 
-### 156. The Default Font Is Looked Up Among the Machine's System Fonts
-- **Description**: `FontManager` (and `ui/inputs.py`, two examples) load `SysFont('arial')` and friends, so pygame scans the system's fonts with fontconfig (`/usr/X11/bin/fc-list` on a Mac with XQuartz) under a short timeout. Under load the scan times out with a UserWarning ("System fonts cannot be loaded"), which the suite turns into a failure (`TestClearWithoutStrips::test_new_strips_are_made`, 2026-10-22, during a concurrent serial run), and text renders in whatever "arial" each machine has although the project bundles Bitstream Vera
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found running two full suites at once
-- **Date Reported**: 2026-10-22
-- **Details**: Text width depends on the font, so text sprites' rects (and any trace or test that measures them) can differ between machines. A fix: load the bundled Vera by default and use system fonts only when a game names one
-- **Files**: `glitchygames/fonts/font_manager.py:261`, `:317`, `glitchygames/ui/inputs.py:96`
-
 ### 157. A Hypothesis Property Test Fails Its Deadline on a Busy Machine
 - **Description**: `TestPaletteRoundtrip::test_double_roundtrip_is_stable` took 277 ms against hypothesis's default 200 ms deadline while another suite ran (DeadlineExceeded); it passes on a quiet machine
 - **Status**: Active
@@ -207,6 +198,132 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Details**: The deadline is a speed heuristic, not a correctness check; CI machines can be as loaded. Options: a hypothesis settings profile without a deadline for the suite, or per-test `deadline=None` where the work is file I/O
 - **Files**: `tests/test_hypothesis_properties.py`
+
+### 161. Middle and Right Mouse Drags Never Reach a Scene
+- **Description**: The mouse event proxy calls the game's `on_middle_mouse_drag_down_event` / `on_right_mouse_drag_down_event`, which a Scene does not have (it has `on_middle_mouse_drag_event` / `on_right_mouse_drag_event`), so through the engine these drags become missing events and never reach a scene or its sprites
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/events/test_mouse_events.py::TestMouseEventProxyDragEvent::test_middle_and_right_drags_reach_a_plain_scenes_drag_handler`. Related, latent: the proxy's drop handlers call `on_*_mouse_drag_up_event` instead of `on_*_mouse_drop_event` (pinned: `TestMouseEventProxyDropEvent`). Possibly intended: buttons 4/5 map to scroll down/up
+- **Files**: `glitchygames/events/mouse.py`
+
+### 162. Editing Text Shows a Box in the Inactive Colour
+- **Description**: `TextSprite.update_text` renders the text with `background_color` but fills the image with the editing grey (50, 50, 50), so an inactive-colour box surrounds the text while editing (the black box in a slider's value field)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/ui/test_ui_text_cursor.py::test_active_text_is_drawn_on_the_editing_background`
+- **Files**: `glitchygames/ui/text_widgets.py`
+
+### 163. MultiLineTextBox Puts the Cursor in the Wrong Place After a Wrap
+- **Description**: `_map_cursor_pos_to_wrapped_text` finds the Nth occurrence of the character under the cursor, but wrapping turned some spaces into newlines, so a cursor on a space after the first wrap maps to a later space or the end (19 wrong positions in the test text); affects where the cursor is drawn and up/down
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/ui/test_ui_text_cursor_wrapping.py::test_cursor_on_a_space_after_a_wrap_is_on_its_own_line_and_column`
+- **Files**: `glitchygames/ui/text_widgets.py`
+
+### 164. Widgets Away From the Origin Draw at Their Screen Position on Their Own Image
+- **Description**: MenuBar draws its background, border and focus outline at `self.rect` (screen coordinates) on its own image, leaving a transparent strip when it is not at (0, 0); TextBoxSprite draws its text the same way, so a text box away from (0, 0) shows no text and keeps stale pixels (the InputDialog prompt)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_ui_menubar.py::test_menubar_not_at_the_origin_draws_its_whole_background`, `test_widgets.py::test_menubar_away_from_the_origin_draws_its_background_on_all_of_itself`, `test_widgets.py::test_text_box_away_from_the_origin_shows_its_text`
+- **Files**: `glitchygames/ui/menus.py`, `glitchygames/ui/text_widgets.py`
+
+### 165. Smaller UI Bugs the Real Display Found
+- **Description**: Bugs pinned by strict xfails in tests/ui
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: (1) A pressed ButtonSprite looks like a released one (its `background_color` is never drawn): `test_pressed_button_is_drawn_in_its_active_color`. (2) CheckboxSprite never runs its click callback (no user in the code base): `test_checkbox_click_runs_its_callback`. (3) `MenuItem.add_menu` puts the first sub-item at y=40, below the dropped-down image, not y=20: `test_add_menu_puts_the_first_sub_item_right_below_the_item`. (4) After a paste the MultiLineTextBox cursor is past the end of the text: `test_handle_paste_leaves_the_cursor_after_the_pasted_text`. (5) Click-to-cursor measures characters by ink width, not advance, drifting 1-2 px per character: `test_mouse_down_in_the_middle_of_a_character_puts_the_cursor_before_it`. (6) InputBox types Escape's character into Save/Load/New file names (unconfirmed against a real key press): `test_dialogs.py::TestInputConfirmationDialogScene::test_escape_key_down_types_nothing`. Not pinned: MenuBar mouse-up calls items' down handlers; a focused MenuBar's outline equals its border; constructor text is never wrapped; freetype line height 14 vs a 20 px cursor; `_render_with_pygame_font` renders twice; InputBox parent-offset code is dead and its initial text colour differs from render()'s
+- **Files**: see Details
+
+### 166. Changing a Scene's Background Colour Leaves Stale Pixels
+- **Description**: Setting `Scene.background_color` after the scene has rendered repaints only the areas sprites dirty; the rest of the display keeps the old colour
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/scenes/test_scene_rendering.py::TestSceneRenderingEdgeCases::test_scene_rendering_with_render_state_changes_manager`. Also: #142 makes `Scene.screenshot` black on displays with per-pixel alpha, so PauseScene's frozen backdrop is black on macOS (pinned on such displays: `TestSceneRendering::test_scene_rendering_with_surface_management_manager`)
+- **Files**: `glitchygames/scenes/scene.py`
+
+### 167. Crash Logs Name the Wrong Scene
+- **Description**: `GameEngine._resolve_scene_name_for_error` reads `scene_manager.current_scene`, which SceneManager does not have (it has `active_scene`): a crash in the first scene is logged as 'None', and one after a switch names the old scene
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/engine/test_engine_lifecycle.py::test_start_method_error_message_with_current_scene`, `..._with_previous_scene`. Also pinned now: #74 (`test_command_line_debug_levels_enable_debug_events`)
+- **Files**: `glitchygames/engine/game_engine.py`
+
+### 168. Clicking a Film Strip's Empty Area Does Nothing in the Editor
+- **Description**: `FilmStripEventHandler.handle_click` (the parent-strip path) tests the strip-local click position against the widget's screen rect; strips sit right of the canvas (x=350), so the click never matches
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_film_strip_selection.py::test_parent_strip_click_selects_itself`, `test_clicking_a_strips_empty_area_on_screen_selects_that_strip`
+- **Files**: `glitchygames/bitmappy/film_strip_events.py`
+
+### 169. Adding an Animation After a Delete Can Replace an Existing One
+- **Description**: `FilmStripCoordinator._add_new_animation` names the new animation `strip_{count+1}`; after a delete that name can still be in use, and that animation's frames are silently replaced
+- **Status**: Active
+- **Priority**: High
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_bitmappy_film_strips.py::test_adding_after_a_delete_does_not_replace_an_existing_animation`
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py`
+
+### 170. The Film Strip Scroll Offset Goes Stale After Deleting an Animation
+- **Description**: The recomputation lives in `_handle_no_remaining_animations`, which `_delete_animation` never calls; deleting strip_3 of 3 leaves offset 1 with strip_1 selected but scrolled out of view (the old tests passed only because `on_sprite_loaded` was a Mock)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_delete_animation_scroll_offset_calculation`, `..._last_strip`, `..._many_strips`. Not pinned: `switch_to_film_strip` sets the strip's `current_frame` but not `selected_frame`; the `is_right_click` onion-skinning branch of `handle_click` cannot be reached from FilmStripSprite (right-clicks sample colour first), although CLAUDE.md says right-clicking frames toggles onion skinning
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py`
+
+### 171. Frame TOML With More Than 64 Colours Is Invalid
+- **Description**: `AIManager._generate_frame_toml_content(force_single_char_glyphs=False)` with more than 64 colours makes several colours share a glyph and writes one `[colors."<glyph>"]` table per colour, declaring the same table twice. Latent: the only production caller passes True
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_bitmappy_png_loading.py::TestColorQuantization::test_generate_frame_toml_without_quantization_many_colours_is_valid_toml`. Also: integer-packed pixels make it log an exception and return '' (pinned as current behaviour; decide whether packed pixels should be supported)
+- **Files**: `glitchygames/bitmappy/ai_manager.py`
+
+### 172. The Ball Draws a Fixed 10 px Circle Whatever Its Size
+- **Description**: `BallSprite.color` draws `pygame.draw.circle(..., 5, 0)`: a radius-5 circle centred in the image whatever the ball's width and height (20x20 by default), so the visible ball and its visible-pixel hitbox are 10x10 inside a 20x20 rect
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Unchanged since the ball was written (4d1863ea); every recording and golden trace was made with it, so changing it changes PaddleSlap's physics and needs reviewed new baselines. The ball physics tests had assumed the whole 20x20 image was visible, which was true only under the mocks
+- **Files**: `glitchygames/game_objects/ball.py:514`
+
+### 173. Smaller Findings From the Real-Display Migration
+- **Description**: Minor findings, none breaking a feature
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: (1) `FontManager` stores `font_bold`/`font_italic` but never uses them. (2) `examples/paddleslap.py` TextSprite/TextBox (~157-196) are never constructed and broken (`FontManager()` without a game raises; a bound method passed as a font name). (3) `examples/dt_demo.py` asks for Calibri (SysFont). (4) `--windowed` defaults to True with no way to turn it off, and `args()` compares `platform.system()` with 'MacOS' (it is 'Darwin'); see #76. (5) `BitmappySprite.__init__` discards its `convert()` result (as #143). (6) Tests that test nothing in production, kept and listed for review: inline-logic tests in `test_pixel_saving.py`, mock-only scroll tests in `test_multi_controller_color_assignment.py`, `test_description_loading_from_toml`, protocol/`hasattr` tests in `test_canvas.py`, `test_clipboard_persistence`, `test_film_strip_sprite_methods`, four ball-to-ball swap tests in `test_collision_scenarios.py`, `test_bitmappy_sprite_save_method`, five creation-only tests in `test_sprite_animation.py`, `test_animation_timing_performance`
+- **Files**: see Details
+
+### 174. Fast Balls Can Pass Through Each Other in PaddleSlap
+- **Description**: Ball-to-ball collisions are checked once per frame with no check along the path between frames. Two balls closing at 10 px or more per frame (the circle's full collision distance) can go from just touching, to centres on the same pixel (where no contact direction exists and the pair is skipped), to touching on the far side, passing straight through each other. A head-on pair at 300 px/s each does it; the 500 px/s speed cap allows faster
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found moving the ball physics tests onto real pygame
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/game_objects/test_ball_collision_physics.py::TestBallCollisionSweepFrameAlignedMeeting::test_head_on_balls_meeting_on_a_frame_collide` (4 angles). A fix (swept collision or sub-stepping) changes PaddleSlap physics and so its golden trace and replay. Note: the moving-pair sweep's 10% velocity-swap tolerance holds only with its 2 px contact phase (the game computes contact directions from whole-pixel centres, so on a 10 px circle a pixel of rounding turns the direction by about 10 degrees)
+- **Files**: `glitchygames/examples/paddleslap.py`, `glitchygames/game_objects/ball.py`
 
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
@@ -249,7 +366,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Medium
 - **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
 - **Date Reported**: 2026-10-19
-- **Details**: Key the proxies by instance id (`ControllerEventProxy._instance_id`, set from the controller's joystick view since Task 6), as `JoystickEventManager` does. The joystick demo's controller-mode tab code treats the keys as device indexes, so it needs updating with it
+- **Details**: Pinned 2026-10-22 by `tests/events/test_events_integration.py::TestEventIntegration::test_reconnected_controller_event_through_engine` (a reconnected controller raises KeyError). Key the proxies by instance id (`ControllerEventProxy._instance_id`, set from the controller's joystick view since Task 6), as `JoystickEventManager` does. The joystick demo's controller-mode tab code treats the keys as device indexes, so it needs updating with it
 - **Files**: `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
 
 ### 72. MultiControllerEnhancements Stores a Duration Where Its Next Call Expects a Timestamp
@@ -307,6 +424,47 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `glitchygames/input/state.py`
 
 ## Resolved Bugs
+
+### 158. `BitmappySprite.load` Had a Branch Only a Mock Could Reach
+- **Description**: `if current_frame and hasattr(current_frame, 'surface')`: `SpriteFrame` has no `surface`, so only the mocked factory's Mock frames reached it; real loads always copied the AnimatedSprite's image
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/sprites/bitmappy_sprite.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: The branch is removed; the load copies the image
+
+### 159. A PaddleSlap Test Wrote High Scores to the Real Save Directory
+- **Description**: `test_game_over_triggered_when_all_balls_dead` saved through the real save path
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Files**: `tests/game_objects/`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It saves under tmp_path
+
+### 160. 14 Tests Were Never Collected
+- **Description**: `tests/sprites/test_rgba_auto_detection.py` named them `testneeds_alpha_channel_*` and `testconvert_pixels_*`, which pytest does not collect
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Files**: `tests/sprites/test_rgba_auto_detection.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Renamed `test_...`; all 14 pass
+
+### 156. The Default Font Is Looked Up Among the Machine's System Fonts
+- **Description**: `FontManager` (and `ui/inputs.py`, two examples) load `SysFont('arial')` and friends, so pygame scans the system's fonts with fontconfig (`/usr/X11/bin/fc-list` on a Mac with XQuartz) under a short timeout. Under load the scan times out with a UserWarning ("System fonts cannot be loaded"), which the suite turns into a failure (`TestClearWithoutStrips::test_new_strips_are_made`, 2026-10-22, during a concurrent serial run), and text renders in whatever "arial" each machine has although the project bundles Bitstream Vera
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found running two full suites at once
+- **Date Reported**: 2026-10-22
+- **Details**: Text width depends on the font, so text sprites' rects (and any trace or test that measures them) can differ between machines. A fix: load the bundled Vera by default and use system fonts only when a game names one
+- **Files**: `glitchygames/fonts/font_manager.py:261`, `:317`, `glitchygames/ui/inputs.py:96`
+- **Date Resolved**: 2026-10-22
+- **Solution**: The default font is the bundled Bitstream Vera (`DEFAULT_FONT_NAME = 'Vera'`, `bundled_font_path`), loaded from its file with no system font scan, for FontManager, `--font-name`, `ui/inputs.py` and Bitmappy (its options and slider labels had named 'arial' and 'Courier'); a game naming another font still gets SysFont. Also fixed: the PyInstaller fallback always loaded size 12, and `compare_font_systems` crashed on a real pygame.font font. Tests: `tests/fonts/test_font_manager.py` (with fontconfig made unavailable), `TestBitmappyFonts`. No golden trace or replay changed
 
 ### 146. Canvas Panning Showed Nothing While Held, Lost Paint and Leaked Between Sprites
 - **Description**: Ctrl+Shift+Arrow panning: the renderer showed the pan only after key-up (it checked a flag only a dead first draft set); releasing Ctrl or Shift before the arrow never committed (canvas and frame out of step); each pan shifted the pixels captured before the frame's first pan, so paint made after it vanished; loading another sprite kept the panning state, carrying the old sprite's pixels into the next pan; a pan was not undoable; the fill was RGB magenta inside RGBA pixel data

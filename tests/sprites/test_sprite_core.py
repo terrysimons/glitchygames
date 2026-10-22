@@ -38,7 +38,6 @@ from glitchygames.sprites import (
     Sprite,
 )
 from glitchygames.sprites.factory import SpriteFactory
-from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
 SPRITE_X = 10
@@ -63,13 +62,19 @@ SPRITE_DT = 0.016
 # ---------------------------------------------------------------------------
 
 
+def _rgb_rows(image):
+    """Return an image's RGB pixels, row by row.
+
+    Returns:
+        list[list[tuple[int, int, int]]]: ``rows[y][x]``.
+
+    """
+    rows = pygame.surfarray.array3d(image).transpose(1, 0, 2).tolist()
+    return [[tuple(pixel) for pixel in row] for row in rows]
+
+
 class TestRootSprite:
     """Test RootSprite class functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_root_sprite_initialization_with_groups(self):
         """Test RootSprite initialization with groups."""
@@ -86,20 +91,13 @@ class TestRootSprite:
         assert isinstance(sprite, RootSprite)
         # When no groups are provided, sprite gets added to a default group
         assert len(sprite.groups()) == 1
-        # Check that the group has the expected methods (works with centralized mocks)
+        # The default group is a real LayeredDirty
         group = sprite.groups()[0]
-        assert hasattr(group, 'add')
-        assert hasattr(group, 'remove')
-        assert hasattr(group, 'draw')
+        assert isinstance(group, pygame.sprite.LayeredDirty)
 
 
 class TestSpriteInitialization:
     """Test Sprite initialization and basic functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_initialization_with_all_parameters(self):
         """Test Sprite initialization with all parameters."""
@@ -131,7 +129,7 @@ class TestSpriteInitialization:
 
     def test_sprite_initialization_with_zero_dimensions(self, mocker):
         """Test Sprite initialization with zero dimensions."""
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(Sprite, 'log')
         sprite = Sprite(x=0, y=0, width=0, height=0)
 
@@ -178,11 +176,6 @@ class TestSpriteInitialization:
 
 class TestSpriteProperties:
     """Test Sprite properties and methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_width_property_getter(self):
         """Test width property getter."""
@@ -249,11 +242,6 @@ class TestSpriteProperties:
 class TestRootSpriteInitialization:
     """Test RootSprite initialization edge cases."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_root_sprite_has_rect_and_image(self):
         """Test RootSprite initializes with rect and image attributes via Sprite subclass.
 
@@ -294,11 +282,6 @@ class TestRootSpriteInitialization:
 
 class TestSpriteCoordinateProperties:
     """Test Sprite x, y and rect coordinate properties."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_x_property_getter(self):
         """Test that x returns rect.x."""
@@ -346,11 +329,6 @@ class TestSpriteCoordinateProperties:
 class TestSpriteDtTick:
     """Test Sprite dt_tick method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_dt_tick_sets_dt(self):
         """Test dt_tick sets dt value."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
@@ -368,11 +346,6 @@ class TestSpriteDtTick:
 
 class TestSpriteEventHandlerStubs:
     """Test that Sprite event handler stubs can be called without errors."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def sprite(self):
@@ -469,11 +442,6 @@ class TestSpriteEventHandlerStubs:
 class TestSpriteEventHandlerStubsExtended:
     """Test additional Sprite event handler stubs (buttons, keys, drag/drop, wheel)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def sprite(self):
         """Create a sprite instance for testing.
@@ -552,11 +520,6 @@ class TestSpriteEventHandlerStubsExtended:
 
 class TestSpriteEventHandlerStubsDragDrop:
     """Test Sprite event handler stubs for system events, drag/drop, and wheel."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def sprite(self):
@@ -640,11 +603,6 @@ class TestSpriteEventHandlerStubsDragDrop:
 
 class TestSpriteCallbackHandlers:
     """Test Sprite event handlers with callbacks registered."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_on_left_mouse_button_up_with_callback(self, mocker):
         """Test on_left_mouse_button_up_event fires callback."""
@@ -739,11 +697,6 @@ class TestSpriteCallbackHandlers:
 class TestSpriteQuitEvent:
     """Test Sprite on_quit_event calls terminate."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_on_quit_event_calls_terminate(self, mocker):
         """Test on_quit_event calls terminate method."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
@@ -756,11 +709,6 @@ class TestSpriteQuitEvent:
 class TestSpriteStr:
     """Test Sprite __str__ method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_str_representation(self):
         """Test __str__ returns a descriptive string."""
         sprite = Sprite(x=0, y=0, width=10, height=10, name='test_sprite')
@@ -771,11 +719,6 @@ class TestSpriteStr:
 
 class TestSpriteBreakWhen:
     """Test Sprite.break_when class method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def teardown_method(self):
         """Reset SPRITE_BREAKPOINTS after each test."""
@@ -823,11 +766,6 @@ class TestSpriteBreakWhen:
 class TestBitmappySpriteBasics:
     """Test BitmappySprite initialization and methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_bitmappy_sprite_init_with_dimensions(self):
         """Test BitmappySprite initialization with width and height."""
         sprite = BitmappySprite(x=10, y=20, width=32, height=32)
@@ -869,11 +807,6 @@ class TestBitmappySpriteBasics:
 
 class TestBitmappySpriteDeflate:
     """Test BitmappySprite deflate and related methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_deflate_empty_surface(self):
         """Test deflate returns minimal config for empty surface."""
@@ -967,11 +900,6 @@ class TestBitmappySpriteDeflate:
 class TestBitmappySpriteInflate:
     """Test BitmappySprite inflate class method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_inflate_creates_surface(self):
         """Test inflate creates a properly sized surface."""
         color_map = {'#': (0, 0, 0), '.': (255, 255, 255)}
@@ -980,15 +908,15 @@ class TestBitmappySpriteInflate:
         assert image.get_size() == (2, 2)
         assert rect.width == 2
         assert rect.height == 2
+        # The surface draws the checkerboard the rows describe
+        assert _rgb_rows(image) == [
+            [(0, 0, 0), (255, 255, 255)],
+            [(255, 255, 255), (0, 0, 0)],
+        ]
 
 
 class TestBitmappySpriteStr:
     """Test BitmappySprite __str__ method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_str_no_filename(self):
         """Test __str__ when no filename is loaded."""
@@ -1006,11 +934,6 @@ class TestBitmappySpriteStr:
 
 class TestBitmappySpriteEventHandlers:
     """Test BitmappySprite event handler overrides."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def bitmappy_sprite(self):
@@ -1080,11 +1003,6 @@ class TestBitmappySpriteEventHandlers:
 class TestSingletonPattern:
     """Test Singleton class."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_singleton_returns_same_instance(self):
         """Test that Singleton returns the same instance."""
         instance1 = Singleton()
@@ -1099,11 +1017,6 @@ class TestSingletonPattern:
 
 class TestBitmappySpriteInflateFromFile:
     """Test BitmappySprite inflate_from_file and load_static_only."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_inflate_from_file_unsupported_format(self, mocker):
         """Test inflate_from_file raises on unsupported format."""
@@ -1129,11 +1042,6 @@ class TestBitmappySpriteInflateFromFile:
 
 class TestBitmappySpriteGeneratePixelRows:
     """Test BitmappySprite _generate_pixel_rows method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_generate_pixel_rows_without_color_map(self):
         """Test _generate_pixel_rows generates both rows and color_map."""
@@ -1165,11 +1073,6 @@ class TestBitmappySpriteGeneratePixelRows:
 class TestSpriteCoordinateAccess:
     """Test Sprite coordinate access via rect."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_rect_x_is_settable(self):
         """Test rect.x can be set directly."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
@@ -1195,11 +1098,6 @@ class TestSpriteCoordinateAccess:
 class TestSpriteNameProperty:
     """Test Sprite name property getter and setter."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_name_getter_returns_name(self):
         """Test name property returns the sprite name."""
         sprite = Sprite(x=0, y=0, width=10, height=10, name='my_sprite')
@@ -1214,11 +1112,6 @@ class TestSpriteNameProperty:
 
 class TestSpriteParentProperty:
     """Test Sprite parent property."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_parent_default_is_none(self):
         """Test default parent is None."""
@@ -1236,11 +1129,6 @@ class TestSpriteParentProperty:
 class TestSpriteUpdateNestedSprites:
     """Test Sprite.update_nested_sprites method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_nested_sprites_does_not_raise(self):
         """Test update_nested_sprites can be called without error."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
@@ -1250,11 +1138,6 @@ class TestSpriteUpdateNestedSprites:
 
 class TestSpriteOnQuitCallsTerminate:
     """Test Sprite.on_quit_event calls terminate."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_on_quit_event_calls_terminate_via_mock(self, mocker):
         """Test on_quit_event invokes terminate method."""
@@ -1267,11 +1150,6 @@ class TestSpriteOnQuitCallsTerminate:
 
 class TestBitmappySpriteCreateColorMapRGBA:
     """Test BitmappySprite._create_color_map with RGBA pixel data."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_create_color_map_with_rgba_pixels(self):
         """Test _create_color_map handles RGBA pixels."""
@@ -1295,11 +1173,6 @@ class TestBitmappySpriteCreateColorMapRGBA:
 class TestBitmappySpriteDeflateRGBA:
     """Test BitmappySprite deflate with RGBA pixel data."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_deflate_with_rgba_pixels(self):
         """Test deflate with RGBA pixel data produces correct config."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
@@ -1320,11 +1193,6 @@ class TestBitmappySpriteDeflateRGBA:
 
 class TestBitmappySpriteInflateFromFileWithToml:
     """Test BitmappySprite inflate_from_file with TOML content."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_inflate_from_file_with_valid_toml(self, mocker, tmp_path):
         """Test inflate_from_file loads a valid TOML sprite file."""
@@ -1356,11 +1224,6 @@ blue = 255
 class TestBitmappySpriteLoadWithFactory:
     """Test BitmappySprite.load with SpriteFactory integration."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_load_falls_back_to_static_on_factory_failure(self, mocker, tmp_path):
         """Test load falls back to _load_static_only when factory fails."""
         toml_content = """[sprite]
@@ -1384,15 +1247,11 @@ blue = 0
         image, _rect, name = sprite.load(str(toml_file))
         assert image is not None
         assert name == 'simple'
+        assert _rgb_rows(image) == [[(0, 0, 0), (0, 0, 0)], [(0, 0, 0), (0, 0, 0)]]
 
 
 class TestSpriteFactoryDetectFileFormat:
     """Test SpriteFactory.detect_file_format."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_detect_toml_format(self):
         """Test detecting TOML file format."""
@@ -1417,11 +1276,6 @@ class TestSpriteFactoryDetectFileFormat:
 
 class TestBitmappySpriteInitWithFilename:
     """Test BitmappySprite initialization with filename."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_init_with_valid_toml_file(self, mocker, tmp_path):
         """Test BitmappySprite init with a valid TOML file loads correctly."""
@@ -1455,11 +1309,6 @@ blue = 255
 class TestBitmappySpriteCreateTomlConfig:
     """Test BitmappySprite._create_toml_config with various inputs."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_create_toml_config_with_pixel_rows_and_color_map(self):
         """Test _create_toml_config with provided pixel rows and color map."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
@@ -1478,11 +1327,6 @@ class TestBitmappySpriteCreateTomlConfig:
 
 class TestBitmappySpriteSave:
     """Test BitmappySprite save method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_save_creates_toml_file(self, tmp_path):
         """Test save creates a valid TOML file."""
@@ -1508,11 +1352,6 @@ class TestBitmappySpriteSave:
 class TestSpriteWidthHeightProperties:
     """Test width and height setters with surface recreation."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_width_setter_same_value_skips(self):
         """Test width setter with same value does not mark dirty."""
         sprite = Sprite(x=0, y=0, width=30, height=40)
@@ -1532,11 +1371,6 @@ class TestSpriteWidthHeightProperties:
 
 class TestBitmappySpriteStrWithPixels:
     """Test BitmappySprite __str__ with actual pixel data."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_str_with_pixels_no_filename(self):
         """Test __str__ with pixels but no filename."""
@@ -1570,11 +1404,7 @@ blue = 0
 
 
 class TestBitmappySpriteInitRealPygame:
-    """Test BitmappySprite.__init__ without mocks to cover lines 871-904.
-
-    The MockFactory patches BitmappySprite.__init__ entirely, so these tests
-    use real pygame to exercise the actual init code paths.
-    """
+    """Test BitmappySprite.__init__ with real pygame (its surface creation paths)."""
 
     def test_bitmappy_sprite_init_with_width_height(self):
         """Test BitmappySprite init with width and height creates surface (lines 871-896)."""
@@ -1805,11 +1635,6 @@ pixels = "   "
 class TestRootSpriteGroupsNone:
     """Test RootSprite with groups=None creates default group (line 72)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_root_sprite_none_groups_creates_layered_dirty(self):
         """Test that passing groups=None creates a default LayeredDirty group."""
         # RootSprite is abstract (MouseEvents), test via Sprite
@@ -1822,11 +1647,6 @@ class TestRootSpriteGroupsNone:
 
 class TestSpriteBreakWhenAlreadyInitialized:
     """Test Sprite.break_when when SPRITE_BREAKPOINTS already initialized (line 100->104)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def teardown_method(self):
         """Reset SPRITE_BREAKPOINTS after each test."""
@@ -1848,11 +1668,6 @@ class TestSpriteBreakWhenAlreadyInitialized:
 
 class TestBitmappySpriteLoadMethod:
     """Test BitmappySprite._load method (line 1096)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_delegates_to_load_static_only(self, tmp_path):
         """Test _load calls _load_static_only."""
@@ -1880,15 +1695,14 @@ blue = 255
         image, _rect, name = sprite._load(str(toml_file))
         assert image is not None
         assert name == 'load_test'
+        assert _rgb_rows(image) == [
+            [(0, 0, 0), (255, 255, 255)],
+            [(255, 255, 255), (0, 0, 0)],
+        ]
 
 
 class TestBitmappySpriteLoadStaticTomlException:
     """Test BitmappySprite._load_static_toml exception handling (lines 1038-1040)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_static_toml_exception_reraises(self, tmp_path):
         """Test _load_static_toml re-raises on exception after logging."""
@@ -1903,11 +1717,6 @@ class TestBitmappySpriteLoadStaticTomlException:
 
 class TestBitmappySpriteLoadStaticTomlNoColors:
     """Test _load_static_toml with no colors section (line 1020->1028)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_static_toml_without_colors_uses_empty_map(self, tmp_path):
         """Test _load_static_toml with no colors section passes empty color_map to inflate.
@@ -1934,11 +1743,6 @@ pixels = \"\"\"
 class TestBitmappySpriteSaveStaticOnlyUnsupported:
     """Test _save_static_only with unsupported format (line 1121)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_save_static_only_unsupported_format_raises(self, tmp_path):
         """Test _save_static_only raises ValueError for unsupported format."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='test')
@@ -1951,11 +1755,6 @@ class TestBitmappySpriteSaveStaticOnlyUnsupported:
 
 class TestBitmappySpriteDeflateNoPixelsAttr:
     """Test deflate when pixels attribute missing (line 1166)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_deflate_without_pixels_attribute(self):
         """Test deflate initializes pixels to empty list if attribute missing."""
@@ -1971,11 +1770,6 @@ class TestBitmappySpriteDeflateNoPixelsAttr:
 
 class TestBitmappySpriteCreateColorMapExceedsGlyphs:
     """Test _create_color_map when unique colors exceed glyph count (line 1351)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_create_color_map_breaks_when_exceeding_glyphs(self):
         """Test _create_color_map stops assigning chars when exceeding available glyphs."""
@@ -1993,11 +1787,6 @@ class TestBitmappySpriteCreateColorMapExceedsGlyphs:
 class TestBitmappySpriteCreateColorMapDangerousChar:
     """Test _create_color_map with unprintable char fallback (line 1355)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_create_color_map_magenta_padding_special_char(self):
         """Test _create_color_map assigns special char for magenta padding (lines 1362-1363)."""
         sprite = BitmappySprite(x=0, y=0, width=3, height=1)
@@ -2010,11 +1799,6 @@ class TestBitmappySpriteCreateColorMapDangerousChar:
 
 class TestBitmappySpriteInflateTomlUnknownChars:
     """Test _inflate_toml with unknown characters in pixel data (line 1428)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_inflate_toml_unknown_char_uses_magenta(self, tmp_path):
         """Test _inflate_toml uses magenta for chars not in color map."""
@@ -2068,21 +1852,9 @@ BA
 class TestBitmappySpriteRenderAnimatedStr:
     """Test BitmappySprite._render_animated_str (lines 1588-1633)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_render_animated_str_with_frames(self, mocker):
+    def test_render_animated_str_with_frames(self):
         """Test _render_animated_str produces output for animation frames."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='anim_test')
-
-        # Mock ASCIIRenderer to avoid import issues
-        mock_renderer_class = mocker.patch(
-            'glitchygames.tools.ascii_renderer.ASCIIRenderer',
-        )
-        mock_renderer_instance = mock_renderer_class.return_value
-        mock_renderer_instance.render_sprite.return_value = 'rendered_frame'
 
         toml_data = {
             'sprite': {'name': 'anim_test'},
@@ -2099,6 +1871,9 @@ class TestBitmappySpriteRenderAnimatedStr:
         result = sprite._render_animated_str(toml_data)
         assert 'Namespace: idle' in result
         assert 'Frame 0' in result
+        # The real ASCII renderer draws the frame's pixel rows
+        assert result.startswith('[sprite]\nname = "anim_test"\n')
+        assert 'pixels = """\n##\n##\n"""' in result
 
     def test_render_animated_str_no_frames(self, mocker):
         """Test _render_animated_str handles animation with no frames."""
@@ -2132,15 +1907,9 @@ class TestBitmappySpriteRenderAnimatedStr:
         result = sprite._render_animated_str(toml_data)
         assert 'No pixels data' in result
 
-    def test_render_animated_str_without_sprite_name(self, mocker):
+    def test_render_animated_str_without_sprite_name(self):
         """Test _render_animated_str works without sprite name header."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='anim_test')
-
-        mock_renderer_class = mocker.patch(
-            'glitchygames.tools.ascii_renderer.ASCIIRenderer',
-        )
-        mock_renderer_instance = mock_renderer_class.return_value
-        mock_renderer_instance.render_sprite.return_value = 'rendered'
 
         toml_data = {
             'animation': [
@@ -2152,17 +1921,14 @@ class TestBitmappySpriteRenderAnimatedStr:
             ],
         }
         result = sprite._render_animated_str(toml_data)
-        # Should not contain [sprite] header since no 'sprite' key
-        assert '[sprite]' not in result
+        # No [sprite] header before the first namespace, since there is no 'sprite' key (the
+        # renderer's own block for each frame has one); the unnamed animation is numbered
+        assert result.startswith('# Namespace: animation_0\n')
+        assert 'pixels = """\n#\n"""' in result
 
 
 class TestBitmappySpriteStrAnimated:
     """Test BitmappySprite.__str__ with animated TOML file (line 1655)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_str_with_animated_toml(self, mocker, tmp_path):
         """Test __str__ delegates to _render_animated_str for animated files."""
@@ -2202,11 +1968,6 @@ pixels = \"\"\"
 class TestSingletonBitmappySpriteExistingInstance:
     """Test SingletonBitmappySprite when instance already exists (line 1706->1708)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def teardown_method(self):
         """Reset singleton instance."""
         SingletonBitmappySprite.__instance__ = None
@@ -2234,11 +1995,6 @@ class TestSingletonBitmappySpriteExistingInstance:
 class TestFocusableSingletonBitmappySpriteExistingInstance:
     """Test FocusableSingletonBitmappySprite existing instance path (line 1756->1758)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def teardown_method(self):
         """Reset singleton instance."""
         FocusableSingletonBitmappySprite.__instance__ = None
@@ -2252,11 +2008,6 @@ class TestFocusableSingletonBitmappySpriteExistingInstance:
 
 class TestSpriteFactoryLoadSpriteNone:
     """Test SpriteFactory.load_sprite with filename=None (line 1812)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_load_sprite_none_uses_default_path(self, mocker):
         """Test load_sprite with None calls _get_default_sprite_path (line 1812).
@@ -2283,11 +2034,6 @@ class TestSpriteFactoryLoadSpriteNone:
 class TestSpriteFactoryAnalyzeFileUnsupported:
     """Test SpriteFactory._analyze_file with unsupported format (line 1874)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_analyze_file_unsupported_format_raises(self):
         """Test _analyze_file raises ValueError for non-TOML files."""
         with pytest.raises(ValueError, match='Unsupported format'):
@@ -2296,11 +2042,6 @@ class TestSpriteFactoryAnalyzeFileUnsupported:
 
 class TestSpriteFactoryAnalyzeTomlFile:
     """Test SpriteFactory._analyze_toml_file animation/frame detection (lines 1894-1918)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_analyze_toml_with_animation_key(self, tmp_path):
         """Test _analyze_toml_file detects animation key (lines 1899-1905)."""
@@ -2372,11 +2113,6 @@ pixels = \"\"\"
 class TestGetPixelString:
     """Test _get_pixel_string helper (line 2013)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_pixel_string_empty(self):
         """Test _get_pixel_string returns empty string when no pixels."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
@@ -2417,11 +2153,6 @@ class TestGetPixelString:
 class TestGetColorMap:
     """Test _get_color_map helper (line 2036->2035)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_color_map_empty(self):
         """Test _get_color_map returns empty dict when no pixels."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
@@ -2456,11 +2187,6 @@ class TestGetColorMap:
 class TestBitmappySpriteDeflatePixelsTruncated:
     """Test deflate truncating pixels when too long (line 1177->1181)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_deflate_truncates_and_creates_color_map(self):
         """Test deflate truncates pixels and creates unique color set (lines 1177-1181)."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='trunc')
@@ -2476,11 +2202,6 @@ class TestBitmappySpriteDeflatePixelsTruncated:
 
 class TestBitmappySpriteGeneratePixelRowsWithColorMap:
     """Test _generate_pixel_rows when color_map is pre-provided (line 1263->1267)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_generate_pixel_rows_with_provided_color_map(self):
         """Test _generate_pixel_rows uses provided color_map instead of generating one."""

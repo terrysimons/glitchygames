@@ -9,12 +9,12 @@ This module tests the three types of collisions:
 import math
 import time
 
+from glitchygames.collision.layers import CollisionManager
 from glitchygames.examples.paddleslap import PADDLESLAP_SPEED_UP
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import speed_up_step_ratio
 from glitchygames.movement import Speed
-
-# MockFactory imported for potential future use
+from tests.game_objects.ball_helpers import drawn_position
 
 # Constants for magic values
 SPEED_3_0 = 3.0
@@ -37,17 +37,30 @@ SPEED_0_5 = 0.5
 TOLERANCE_0_01 = 0.01
 
 
+def _place_on_top_wall(ball: BallSprite) -> None:
+    """Put the ball where its visible circle's top edge touches the top wall.
+
+    The radius-5 circle is inset in the ball's image, and walls meet the circle (the
+    collision rect), so the ball's world_y is minus that inset.
+    """
+    ball.world_y = -float(ball._visible_rect().offset_y)
+
+
+def _place_on_bottom_wall(ball: BallSprite) -> None:
+    """Put the ball where its visible circle's bottom edge touches the bottom wall."""
+    visible_rect = ball._visible_rect()
+    ball.world_y = float(ball.screen_height - visible_rect.height - visible_rect.offset_y)
+
+
 class TestWallCollisions:
     """Test ball bouncing off top and bottom walls."""
 
-    def test_ball_bounces_off_top_wall(self, mock_pygame_patches):
+    def test_ball_bounces_off_top_wall(self):
         """Test ball bounces off top wall with speed reversal."""
         # Setup: Ball moving up towards top wall
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving up and right
-        assert ball.rect is not None
-        ball.rect.y = 0  # At top wall (triggers bounce condition)
-        ball.world_y = 0.0  # Sub-pixel position must also be set
+        _place_on_top_wall(ball)  # At top wall (triggers bounce condition)
 
         # Action: Trigger top wall collision
         ball._do_bounce()
@@ -55,19 +68,16 @@ class TestWallCollisions:
         # Expected: Speed.y reversed, speed.x unchanged, ball inside boundary
         assert ball.speed.x == SPEED_3_0  # Unchanged
         assert ball.speed.y == SPEED_2_0  # Reversed from -2.0 to +2.0
-        assert ball.world_y >= 0  # Ball is inside boundary
-        assert ball.rect.y == round(ball.world_y)
+        assert ball.world_y >= -ball._visible_rect().offset_y  # Ball is inside boundary
+        assert drawn_position(ball)[1] == round(ball.world_y)
 
-    def test_ball_bounces_off_bottom_wall(self, mock_pygame_patches):
+    def test_ball_bounces_off_bottom_wall(self):
         """Test ball bounces off bottom wall with speed reversal."""
         # Setup: Ball moving down towards bottom wall
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_2_0)  # Moving down and right
-        assert ball.rect is not None
-        ball.rect.y = 430  # At bottom wall (430 + 20 = 450 >= 450)
-        ball.world_y = 430.0  # Sub-pixel position must also be set
         ball.screen_height = 450
-        ball.height = 20  # Set ball height for collision calculation
+        _place_on_bottom_wall(ball)  # At bottom wall (triggers bounce condition)
 
         # Action: Trigger bottom wall collision
         ball._do_bounce()
@@ -76,14 +86,14 @@ class TestWallCollisions:
         assert ball.speed.x == SPEED_3_0  # Unchanged
         assert ball.speed.y == SPEED_NEG_2_0  # Reversed from +2.0 to -2.0
 
-    def test_wall_collision_preserves_speed_magnitude(self, mock_pygame_patches):
+    def test_wall_collision_preserves_speed_magnitude(self):
         """Test wall collision preserves total speed magnitude."""
         # Setup: Ball with known speed magnitude
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_4_0)  # Magnitude = 5.0
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_4_0**2)
-        assert ball.rect is not None
-        ball.rect.y = 1  # Near top wall (not at boundary, so no collision expected)
+        ball.world_x = 300.0
+        ball.world_y = 1.0  # Near the top wall, but the visible circle does not touch it
 
         # Action: Trigger wall collision
         ball._do_bounce()
@@ -92,14 +102,12 @@ class TestWallCollisions:
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert abs(final_magnitude - initial_magnitude) < TOLERANCE_0_01  # Within tolerance
 
-    def test_wall_collision_does_not_change_horizontal_speed(self, mock_pygame_patches):
+    def test_wall_collision_does_not_change_horizontal_speed(self):
         """Test wall collision doesn't affect horizontal movement."""
         # Setup: Ball with horizontal and vertical movement
         ball = BallSprite()
         ball.speed = Speed(SPEED_5_0, SPEED_NEG_3_0)  # Moving right and up
-        assert ball.rect is not None
-        ball.rect.y = 0  # At top wall (triggers bounce condition)
-        ball.world_y = 0.0  # Sub-pixel position must also be set
+        _place_on_top_wall(ball)  # At top wall (triggers bounce condition)
 
         # Action: Trigger wall collision
         ball._do_bounce()
@@ -112,7 +120,7 @@ class TestWallCollisions:
 class TestPaddleCollisions:
     """Test ball bouncing off left and right paddles."""
 
-    def test_ball_bounces_off_left_paddle(self, mock_pygame_patches):
+    def test_ball_bounces_off_left_paddle(self):
         """Test ball bounces off left paddle with speed increase."""
         # Setup: Ball moving left towards left paddle
         ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
@@ -136,7 +144,7 @@ class TestPaddleCollisions:
         )
         assert math.isclose(final_magnitude, initial_magnitude * expected_ratio)
 
-    def test_ball_bounces_off_right_paddle(self, mock_pygame_patches):
+    def test_ball_bounces_off_right_paddle(self):
         """Test ball bounces off right paddle with speed increase."""
         # Setup: Ball moving right towards right paddle
         ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
@@ -154,7 +162,7 @@ class TestPaddleCollisions:
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert final_magnitude > initial_magnitude  # Speed increased
 
-    def test_paddle_collision_spawns_new_ball(self, mock_pygame_patches):
+    def test_paddle_collision_spawns_new_ball(self):
         """Test paddle collision spawns a new ball."""
         # This test would require mocking the game instance
         # For now, we'll test the speed_up behavior
@@ -169,7 +177,7 @@ class TestPaddleCollisions:
         assert abs(ball.speed.x) > abs(initial_speed_x)  # Speed magnitude increased
         assert abs(ball.speed.y) > abs(initial_speed_y)  # Speed magnitude increased
 
-    def test_paddle_collision_reverses_horizontal_direction(self, mock_pygame_patches):
+    def test_paddle_collision_reverses_horizontal_direction(self):
         """Test paddle collision reverses horizontal direction."""
         # Setup: Ball moving left
         ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
@@ -187,7 +195,7 @@ class TestPaddleCollisions:
 class TestBallToBallCollisions:
     """Test elastic collisions between balls."""
 
-    def test_ball_to_ball_collision_conserves_energy(self, mock_pygame_patches):
+    def test_ball_to_ball_collision_conserves_energy(self):
         """Test ball-to-ball collision conserves total kinetic energy."""
         # Setup: Two balls with known speeds
         ball1 = BallSprite()
@@ -220,7 +228,7 @@ class TestBallToBallCollisions:
         # Expected: Energy conserved
         assert abs(final_energy - initial_energy) < TOLERANCE_0_01  # Within tolerance
 
-    def test_ball_to_ball_collision_exchanges_momentum(self, mock_pygame_patches):
+    def test_ball_to_ball_collision_exchanges_momentum(self):
         """Test ball-to-ball collision exchanges momentum."""
         # Setup: Ball1 moving, Ball2 stationary
         ball1 = BallSprite()
@@ -243,7 +251,7 @@ class TestBallToBallCollisions:
         assert ball2.speed.x == SPEED_3_0  # Now moving
         assert ball2.speed.y == SPEED_0_0
 
-    def test_ball_to_ball_collision_cooldown(self, mock_pygame_patches):
+    def test_ball_to_ball_collision_cooldown(self):
         """Test ball-to-ball collision has cooldown period."""
         # Setup: Two balls with collision cooldown
         ball1 = BallSprite()
@@ -267,7 +275,7 @@ class TestBallToBallCollisions:
         assert ball1.collision_cooldowns[ball2_id] > current_time - SPEED_2_0_SEPARATION  # type: ignore[unresolved-attribute]
         assert ball2.collision_cooldowns[ball1_id] > current_time - SPEED_2_0_SEPARATION  # type: ignore[unresolved-attribute]
 
-    def test_ball_to_ball_collision_separation(self, mock_pygame_patches):
+    def test_ball_to_ball_collision_separation(self):
         """Test balls separate after collision to prevent sticking."""
         # Setup: Two overlapping balls
         ball1 = BallSprite()
@@ -289,7 +297,7 @@ class TestBallToBallCollisions:
         distance = abs(ball2.rect.x - ball1.rect.x)
         assert distance >= SPEED_2_0_SEPARATION  # Minimum separation
 
-    def test_ball_to_ball_collision_elastic_physics(self, mock_pygame_patches):
+    def test_ball_to_ball_collision_elastic_physics(self):
         """Test ball-to-ball collision follows elastic physics."""
         # Setup: Two balls with known velocities
         ball1 = BallSprite()
@@ -318,14 +326,12 @@ class TestBallToBallCollisions:
 class TestIntegrationCollisions:
     """Test mixed collision scenarios."""
 
-    def test_mixed_collision_scenarios(self, mock_pygame_patches):
+    def test_mixed_collision_scenarios(self):
         """Test sequence of different collision types."""
         # Setup: Ball that will hit wall, then paddle, then another ball
         ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving right and up
-        assert ball.rect is not None
-        ball.rect.y = 0  # At top wall (triggers bounce condition)
-        ball.world_y = 0.0  # Sub-pixel position must also be set
+        _place_on_top_wall(ball)  # At top wall (triggers bounce condition)
 
         # Action 1: Wall collision
         ball._do_bounce()
@@ -340,7 +346,7 @@ class TestIntegrationCollisions:
         assert wall_speed > 0  # Wall collision reversed direction
         assert paddle_speed > SPEED_3_0  # Paddle collision increased speed
 
-    def test_multiple_balls_collision_behavior(self, mock_pygame_patches):
+    def test_multiple_balls_collision_behavior(self):
         """Test multiple balls with various collision types."""
         # Setup: Multiple balls
         ball1 = BallSprite()
@@ -359,9 +365,7 @@ class TestIntegrationCollisions:
 
         # Action: Simulate various collisions
         # Ball1 hits wall (must set world_y for sub-pixel tracking)
-        assert ball1.rect is not None
-        ball1.rect.y = 0  # At top wall (triggers bounce condition)
-        ball1.world_y = 0.0
+        _place_on_top_wall(ball1)  # At top wall (triggers bounce condition)
         ball1._do_bounce()
 
         # Ball2 hits paddle
@@ -377,14 +381,12 @@ class TestIntegrationCollisions:
         assert ball1.speed.x == SPEED_NEG_1_0  # Ball-to-ball collision worked
         assert ball3.speed.x == SPEED_2_0_COLLISION
 
-    def test_collision_edge_cases(self, mock_pygame_patches):
+    def test_collision_edge_cases(self):
         """Test collision behavior at boundaries and extreme speeds."""
         # Setup: Ball at boundary with extreme speed
         ball = BallSprite()
         ball.speed = Speed(SPEED_10_0, SPEED_NEG_1_0)  # Very fast horizontal with vertical movement
-        assert ball.rect is not None
-        ball.rect.y = 0  # At top boundary (triggers bounce condition)
-        ball.world_y = 0.0  # Sub-pixel position must also be set
+        _place_on_top_wall(ball)  # At top boundary (triggers bounce condition)
 
         # Action: Wall collision
         ball._do_bounce()
@@ -395,10 +397,28 @@ class TestIntegrationCollisions:
 
         # Test with very slow speed
         ball.speed = Speed(SPEED_0_1, -SPEED_0_1)
-        ball.rect.y = 0  # At top wall (triggers bounce condition)
-        ball.world_y = 0.0
+        _place_on_top_wall(ball)  # At top wall (triggers bounce condition)
         ball._do_bounce()
 
         # Expected: Collision works with slow speeds too
         assert ball.speed.x == SPEED_0_1
         assert ball.speed.y > 0
+
+
+class TestBallCollisionLayer:
+    """Removing balls from a PaddleSlap-style 'balls' collision layer."""
+
+    def test_removing_a_ball_twice_leaves_the_layer_unchanged(self):
+        """A ball already removed (a dead ball cleaned up twice) is ignored the second time."""
+        collisions = CollisionManager()
+        balls_layer = collisions.add_layer('balls')
+        removed_ball = BallSprite()
+        remaining_ball = BallSprite()
+        balls_layer.add(removed_ball)
+        balls_layer.add(remaining_ball)
+
+        balls_layer.remove(removed_ball)
+        balls_layer.remove(removed_ball)
+
+        assert balls_layer.sprites == [remaining_ball]
+        assert len(balls_layer) == 1

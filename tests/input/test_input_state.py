@@ -150,15 +150,22 @@ class TestLiveCapture:
         )
         assert capture_live_snapshot().pressed_scancodes == frozenset()
 
-    @pytest.mark.usefixtures('mock_pygame_patches')
-    def test_the_centralized_get_pressed_mock_refuses_iteration_like_pygame_ce(self):
-        """The shared mock behaves like ScancodeWrapper, so iterating code fails under it too."""
+    def test_real_get_pressed_refuses_iteration(self):
+        """pygame-ce's real get_pressed() is a ScancodeWrapper that refuses iteration.
+
+        capture_live_snapshot must find held keys by index (as the tests above check with a
+        real ScancodeWrapper); iterating it would raise.
+        """
         pressed = pygame.key.get_pressed()
+        assert isinstance(pressed, pygame.key.ScancodeWrapper)
         assert isinstance(pressed, tuple)
         assert len(pressed) == SCANCODE_COUNT
         with pytest.raises(TypeError, match='Iterating over key states is not supported'):
             iter(pressed)
-        assert pressed.count(True) == 0
+        # Whatever the real keyboard holds, indexing agrees with the tuple's own count
+        assert pressed.count(True) == sum(
+            1 for scancode in range(SCANCODE_COUNT) if pressed[scancode]
+        )
 
 
 class TestFreezing:

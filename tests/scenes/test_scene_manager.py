@@ -10,11 +10,32 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames import events
 from glitchygames.scenes import Scene, SceneManager
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.sprites import Sprite
 
 # Constants for magic values
 FPS_REFRESH_RATE = 1000
+
+
+@pytest.fixture(autouse=True)
+def restore_scene_manager_options(mocker):
+    """Put SceneManager.OPTIONS back after each test.
+
+    Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
+    class; without this, the stand-in engines below would leave their options for later tests.
+    """
+    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
+
+
+def _take_events(event_type: int) -> list[pygame.event.Event]:
+    """Remove and return the events of one type waiting in pygame's real event queue.
+
+    Returns:
+        list[pygame.event.Event]: The events, oldest first.
+
+    """
+    return pygame.event.get(eventtype=event_type)
 
 
 class TestSceneManager:
@@ -103,7 +124,7 @@ class TestSceneManager:
 
         # Mock the scene's required attributes
         mock_scene.all_sprites = mocker.Mock()
-        mock_scene.background = MockFactory.create_pygame_surface_mock()
+        mock_scene.background = pygame.Surface((800, 600))
 
         # Test switching to a scene
         scene_manager.switch_to_scene(mock_scene)
@@ -146,35 +167,41 @@ class TestSceneManager:
         scene_manager.terminate()
 
     def test_scene_manager_quit(self):
-        """Test SceneManager quit method."""
+        """quit() posts one QUIT event to pygame's real event queue."""
         scene_manager = self.scene_manager
+        _take_events(pygame.QUIT)
 
-        # Test quit method (should not raise exceptions)
         scene_manager.quit()
 
-    def test_scene_manager_quit_game(self):
-        """Test SceneManager quit_game method."""
-        scene_manager = self.scene_manager
+        assert len(_take_events(pygame.QUIT)) == 1
 
-        # Test quit_game method (should not raise exceptions)
+    def test_scene_manager_quit_game(self):
+        """quit_game() posts one QUIT event to pygame's real event queue."""
+        scene_manager = self.scene_manager
+        _take_events(pygame.QUIT)
+
         scene_manager.quit_game()
 
-    def test_scene_manager_on_quit_event(self, mocker):
-        """Test SceneManager on_quit_event method."""
+        assert len(_take_events(pygame.QUIT)) == 1
+
+    def test_scene_manager_on_quit_event(self):
+        """A QUIT event sets quit_requested."""
         scene_manager = self.scene_manager
-        mock_event = mocker.Mock()
+        scene_manager.quit_requested = False
 
-        # Test quit event handling
-        scene_manager.on_quit_event(mock_event)
+        scene_manager.on_quit_event(events.HashableEvent(pygame.QUIT))
 
-    def test_scene_manager_on_fps_event(self, mocker):
-        """Test SceneManager on_fps_event method."""
+        assert scene_manager.quit_requested is True
+
+    def test_scene_manager_on_fps_event(self):
+        """An FPS event reaches the active scene, which stores its FPS."""
         scene_manager = self.scene_manager
-        mock_event = mocker.Mock()
-        mock_event.fps = 60
+        scene = Scene()
+        scene_manager.switch_to_scene(scene)
 
-        # Test FPS event handling
-        scene_manager.on_fps_event(mock_event)
+        scene_manager.on_fps_event(events.HashableEvent(events.FPSEVENT, fps=60.0))
+
+        assert scene.fps == 60.0
 
     def test_scene_manager_on_game_event(self, mocker):
         """Test SceneManager on_game_event method."""
@@ -192,8 +219,10 @@ class TestSceneManager:
         }
         scene_manager.game_engine = mock_engine
 
-        # Test game event handling
+        # Test game event handling: the registered callback gets the event
         scene_manager.on_game_event(mock_event)
+
+        mock_engine.registered_events['test_event'].assert_called_once_with(mock_event)
 
     def test_scene_manager_register_game_event(self, mocker):
         """Test SceneManager register_game_event method."""
@@ -262,35 +291,31 @@ class TestPostFpsEvent:
         yield SceneManager()
         SceneManager._reset()
 
-    def test_post_fps_event_reports_the_frame_time_fps(self, scene_manager, mocker):
+    def test_post_fps_event_reports_the_frame_time_fps(self, scene_manager):
         """The FPS event's value is 1 / dt (dt comes through the frame-time door)."""
-        from glitchygames.scenes import scene as scene_module
-
-        posted = mocker.patch.object(scene_module, 'post_event')
-        event_class = mocker.patch.object(scene_module.pygame.event, 'Event')
+        _take_events(events.FPSEVENT)
         scene_manager.dt = 0.02
 
         scene_manager._post_fps_event()
 
-        posted.assert_called_once_with(event_class.return_value)
-        assert event_class.call_args.args[1]['fps'] == pytest.approx(50.0)
+        (fps_event,) = _take_events(events.FPSEVENT)
+        assert fps_event.fps == pytest.approx(50.0)
 
     def test_post_fps_event_with_zero_dt_reports_zero_without_the_pacing_clock(
         self, scene_manager, mocker
     ):
         """A zero dt gives 0.0, never pygame's real-time Clock.get_fps(), so a replay is exact."""
-        from glitchygames.scenes import scene as scene_module
-
-        posted = mocker.patch.object(scene_module, 'post_event')
-        event_class = mocker.patch.object(scene_module.pygame.event, 'Event')
-        get_fps = mocker.patch.object(scene_manager.clock, 'get_fps', return_value=123.0)
+        _take_events(events.FPSEVENT)
+        # A real Clock's methods are read-only; a stand-in with its interface records reads
+        scene_manager.clock = mocker.Mock(spec=pygame.time.Clock)
+        scene_manager.clock.get_fps.return_value = 123.0
         scene_manager.dt = 0.0
 
         scene_manager._post_fps_event()
 
-        posted.assert_called_once_with(event_class.return_value)
-        assert event_class.call_args.args[1]['fps'] == 0.0
-        get_fps.assert_not_called()
+        (fps_event,) = _take_events(events.FPSEVENT)
+        assert fps_event.fps == 0.0
+        scene_manager.clock.get_fps.assert_not_called()
 
 
 class TestSceneManagerInternals:
@@ -324,11 +349,13 @@ class TestSceneManagerInternals:
             assert isinstance(result, bool)
 
     def test_scene_manager_post_fps_event(self):
-        """Test SceneManager _post_fps_event method."""
+        """_post_fps_event posts one FPS event to pygame's real event queue."""
         scene_manager = self.scene_manager
+        _take_events(events.FPSEVENT)
 
-        # Test posting FPS event
         scene_manager._post_fps_event()
+
+        assert len(_take_events(events.FPSEVENT)) == 1
 
     def test_scene_manager_update_scene(self, mocker):
         """Test SceneManager _update_scene method."""
@@ -350,7 +377,7 @@ class TestSceneManagerInternals:
             scene_manager._process_events()
 
     def test_scene_manager_render_scene(self, mocker):
-        """Test SceneManager _render_scene method."""
+        """_render_scene updates the active scene, then renders it onto the real display."""
         scene_manager = self.scene_manager
 
         # _render_scene asserts active_scene is not None, so provide a mock scene
@@ -360,6 +387,25 @@ class TestSceneManagerInternals:
 
         scene_manager._render_scene()
         mock_scene.update.assert_called_once()
+        mock_scene.render.assert_called_once_with(pygame.display.get_surface())
+
+    def test_scene_manager_render_scene_draws_the_active_scene(self):
+        """A real active scene's background and sprites reach the real display."""
+        scene_manager = self.scene_manager
+        display = pygame.display.get_surface()
+        scene = Scene()
+        scene.background_color = (10, 20, 30)
+        sprite = Sprite(x=40, y=50, width=6, height=4)
+        sprite.image.fill((0, 255, 0))
+        scene.all_sprites.add(sprite)
+        scene_manager.switch_to_scene(scene)
+        display.fill((123, 45, 67))
+
+        scene_manager._render_scene()
+
+        sprite_area = display.subsurface((40, 50, 6, 4))
+        assert pygame.transform.average_color(sprite_area)[:3] == (0, 255, 0)
+        assert tuple(display.get_at((5, 5)))[:3] == (10, 20, 30)
 
     def test_scene_manager_update_display(self, mocker):
         """Test SceneManager _update_display method."""
@@ -401,14 +447,14 @@ class TestSceneManagerInternals:
         # Test current scene cleanup
         scene_manager._cleanup_current_scene()
 
-    def test_switch_to_scene_clears_screen_shake(self, mocker):
+    def test_switch_to_scene_clears_screen_shake(self):
         """Review focus 3: pause and game over never inherit a running screen shake."""
         from glitchygames.effects.shake import Shake, ShakeStyle
 
         self.scene_manager.screen_shake.add(
             Shake(style=ShakeStyle.NOISE, strength=5.0, duration=1.0, frequency=5.0)
         )
-        self.scene_manager.switch_to_scene(mocker.Mock())
+        self.scene_manager.switch_to_scene(Scene())
         assert not self.scene_manager.screen_shake.is_active
 
     def test_switch_to_scene_keeps_pulse_but_clears_sustained_rumble(self, mocker):
@@ -416,7 +462,7 @@ class TestSceneManagerInternals:
         device = mocker.Mock()
         self.scene_manager.rumble.set_sustained(low_frequency=0.25, high_frequency=0.05)
         self.scene_manager.rumble.pulse(low_frequency=1.0, high_frequency=0.6, duration=0.8)
-        self.scene_manager.switch_to_scene(mocker.Mock())
+        self.scene_manager.switch_to_scene(Scene())
         assert self.scene_manager.rumble.sustained_levels == (0.0, 0.0)
         self.scene_manager.rumble.update(shakers=[], dt=0.0, devices=lambda: [device])
         device.rumble.assert_called_once_with(1.0, 0.6, 800)

@@ -6,13 +6,17 @@ and class variables.
 
 import argparse
 import math
+import os
 import sys
 from pathlib import Path
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import engine as engine_package
 from glitchygames import timing
@@ -22,114 +26,112 @@ from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
-from tests.mocks import MockFactory
 
 EXPECTED_DEFAULT_TARGET_FPS = 60.01
 EXPECTED_DEFAULT_PERIOD_NS = 16_663_889  # round(1e9 / 60.01)
+
+# Icons the tests save and load
+ICON_SIZE = (32, 32)
+ICON_COLOR = (200, 40, 120)
+OTHER_ICON_COLOR = (10, 220, 30)
+
+# GameEngine.set_cursor's default arrow is 24x24
+DEFAULT_CURSOR_SIZE = 24
+
+# GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
+# 800x600 test display back after the test), no frame pacing, quiet logs
+ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
+
+
+class InitializationTestGame(Scene):
+    """The game scene the engine here is built with."""
+
+    NAME = 'InitializationTestGame'
+    VERSION = '1.0'
+
+
+def assert_active_cursor(cursor: list[str], *, black: str, white: str, xor: str) -> None:
+    """Assert the display's cursor is ``cursor`` compiled with these characters, hotspot 0,0."""
+    cursor_data, cursor_mask = pygame.cursors.compile(cursor, black=black, white=white, xor=xor)
+    size, hotspot, active_data, active_mask = pygame.mouse.get_cursor().data
+    assert size == (len(cursor[0]), len(cursor))
+    assert hotspot == (0, 0)
+    assert active_data == tuple(cursor_data)
+    assert active_mask == tuple(cursor_mask)
+
+
+def save_icon_file(directory: Path, *, color: tuple[int, int, int]) -> Path:
+    """Save a real ICON_SIZE PNG filled with ``color`` in ``directory``.
+
+    Returns:
+        Path: The file.
+
+    """
+    icon_surface = pygame.Surface(ICON_SIZE)
+    icon_surface.fill(color)
+    icon_path = directory / 'icon.png'
+    pygame.image.save(icon_surface, icon_path)
+    return icon_path
+
+
+def surface_rgb(surface: pygame.Surface) -> set[tuple[int, int, int]]:
+    """Return the distinct RGB colors of a surface (alpha left out: formats differ).
+
+    Returns:
+        set[tuple[int, int, int]]: The colors.
+
+    """
+    pixels = pygame.surfarray.array3d(surface)
+    return {tuple(int(channel) for channel in color) for color in pixels.reshape(-1, 3).tolist()}
 
 
 class TestEngineInitialization:
     """Test GameEngine initialization functionality."""
 
-    def _create_mock_args(self, mocker):
-        """Create mock command line arguments.
+    def test_game_engine_initialize_icon_with_surface(self):
+        """A pygame.Surface icon is used as is."""
+        icon_surface = pygame.Surface(ICON_SIZE)
+        icon_surface.fill(ICON_COLOR)
 
-        Returns:
-            object: The result.
+        GameEngine.initialize_icon(icon_surface)
 
-        """
-        mock_args = mocker.Mock()
-        mock_args.fps = 60
-        mock_args.resolution = (800, 600)
-        mock_args.windowed = True
-        mock_args.use_gfxdraw = False
-        mock_args.update_type = 'update'
-        mock_args.fps_refresh_rate = 1
-        mock_args.profile = False
-        mock_args.test_flag = False
-        mock_args.unknown_args = []
-        return mock_args
+        assert GameEngine.icon is icon_surface
 
-    def test_game_engine_initialize_icon_with_surface(self, mocker):
-        """Test GameEngine.initialize_icon with pygame.Surface."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = self._create_mock_args(mocker)
+    def test_game_engine_initialize_icon_with_path(self, tmp_path):
+        """A Path icon is loaded from the image file."""
+        icon_path = save_icon_file(tmp_path, color=ICON_COLOR)
 
-        # Create a mock surface using the centralized mock factory
-        mock_icon = MockFactory.create_pygame_surface_mock(32, 32)
+        GameEngine.initialize_icon(icon_path)
 
-        # Mock pygame.image.load to return our mock surface
-        mocker.patch('pygame.image.load', return_value=mock_icon)
-        # Test the class method
-        GameEngine.initialize_icon(mock_icon)
+        assert isinstance(GameEngine.icon, pygame.Surface)
+        assert GameEngine.icon.get_size() == ICON_SIZE
+        assert surface_rgb(GameEngine.icon) == {ICON_COLOR}
 
-        # Verify the icon was set (it will be the result of pygame.image.load, which is our mock)
-        assert GameEngine.icon == mock_icon
+    def test_game_engine_initialize_icon_with_none(self):
+        """None leaves the default icon in place."""
+        default_icon = GameEngine.icon
 
-    def test_game_engine_initialize_icon_with_path(self, mocker):
-        """Test GameEngine.initialize_icon with Path."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = self._create_mock_args(mocker)
-
-        # Create a mock path
-        mock_path = mocker.Mock()
-        mock_path.__fspath__ = mocker.Mock(return_value='/path/to/icon.png')
-
-        # Mock pygame.image.load to return a mock surface
-        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        mocker.patch('pygame.image.load', return_value=mock_surface)
-        # Test the class method
-        GameEngine.initialize_icon(mock_path)
-
-        # Verify the icon was set
-        assert GameEngine.icon == mock_surface
-
-    def test_game_engine_initialize_icon_with_none(self, mocker):
-        """Test GameEngine.initialize_icon with None."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = self._create_mock_args(mocker)
-
-        # Test the class method with None
         GameEngine.initialize_icon(None)
 
-        # Verify the icon remains unchanged (should be the default)
-        assert GameEngine.icon is not None
+        assert GameEngine.icon is default_icon
+        assert isinstance(GameEngine.icon, pygame.Surface)
 
-    def test_game_engine_icon_file_not_found(self, mocker):
-        """Test GameEngine.initialize_icon when file is not found."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = self._create_mock_args(mocker)
+    def test_game_engine_icon_file_not_found(self, tmp_path):
+        """A missing icon file is ignored: the default icon stays."""
+        default_icon = GameEngine.icon
 
-        # Create a mock path that will cause FileNotFoundError
-        mock_path = mocker.Mock()
-        mock_path.__fspath__ = mocker.Mock(return_value='/nonexistent/path.png')
+        GameEngine.initialize_icon(tmp_path / 'nonexistent.png')
 
-        # Mock pygame.image.load to raise FileNotFoundError
-        mocker.patch('pygame.image.load', side_effect=FileNotFoundError)
-        # Test the class method - should handle FileNotFoundError gracefully
-        GameEngine.initialize_icon(mock_path)
+        assert GameEngine.icon is default_icon
 
-        # Verify the icon remains unchanged (should be the default)
-        assert GameEngine.icon is not None
+    def test_game_engine_icon_with_string_path(self, tmp_path):
+        """A str icon is a path, loaded like a Path."""
+        icon_path = save_icon_file(tmp_path, color=ICON_COLOR)
 
-    def test_game_engine_icon_with_string_path(self, mocker):
-        """Test GameEngine.initialize_icon with string path."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = self._create_mock_args(mocker)
+        GameEngine.initialize_icon(str(icon_path))
 
-        # Mock pygame.image.load to return a mock surface
-        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        mocker.patch('pygame.image.load', return_value=mock_surface)
-        # Test the class method with string path
-        GameEngine.initialize_icon('/path/to/icon.png')
-
-        # Verify the icon was set
-        assert GameEngine.icon == mock_surface
+        assert GameEngine.icon.get_size() == ICON_SIZE
+        assert surface_rgb(GameEngine.icon) == {ICON_COLOR}
 
     def test_game_engine_args(self):
         """Test GameEngine.args method."""
@@ -166,21 +168,15 @@ class TestEngineInitialization:
         assert GameEngine.log is not None
         assert GameEngine.log.name == 'game.engine'
 
-    def test_initialize_icon_with_path(self, mocker):
-        """Test GameEngine.initialize_icon with Path object."""
-        # Create a mock icon file
-        mock_icon_path = Path('test_icon.png')
+    def test_initialize_icon_with_path(self, tmp_path):
+        """A Path icon replaces the previous icon with the loaded image."""
+        default_icon = GameEngine.icon
+        icon_path = save_icon_file(tmp_path, color=OTHER_ICON_COLOR)
 
-        mock_load = mocker.patch('pygame.image.load')
-        mock_surface = mocker.Mock()
-        mock_load.return_value = mock_surface
+        GameEngine.initialize_icon(icon_path)
 
-        # Test with Path object
-        GameEngine.initialize_icon(mock_icon_path)
-
-        # Verify pygame.image.load was called with the path
-        mock_load.assert_called_once_with(mock_icon_path)
-        assert GameEngine.icon == mock_surface
+        assert GameEngine.icon is not default_icon
+        assert surface_rgb(GameEngine.icon) == {OTHER_ICON_COLOR}
 
     def test_initialize_icon_with_none(self):
         """Test GameEngine.initialize_icon with None."""
@@ -192,20 +188,16 @@ class TestEngineInitialization:
         # Verify icon was not changed
         assert GameEngine.icon == original_icon
 
-    def test_initialize_icon_file_not_found(self, mocker):
-        """Test GameEngine.initialize_icon with non-existent file."""
-        mock_icon_path = Path('nonexistent_icon.png')
+    def test_initialize_icon_file_not_found(self, tmp_path):
+        """A missing icon file after a loaded one keeps the loaded one (the error is ignored)."""
+        GameEngine.initialize_icon(save_icon_file(tmp_path, color=ICON_COLOR))
+        loaded_icon = GameEngine.icon
 
-        mock_load = mocker.patch('pygame.image.load')
-        mock_load.side_effect = FileNotFoundError()
+        GameEngine.initialize_icon(Path(tmp_path / 'nonexistent_icon.png'))
 
-        # Test with non-existent file (should suppress error)
-        GameEngine.initialize_icon(mock_icon_path)
+        assert GameEngine.icon is loaded_icon
 
-        # Verify pygame.image.load was called but error was suppressed
-        mock_load.assert_called_once_with(mock_icon_path)
-
-    def test_set_cursor_basic(self, mocker):
+    def test_set_cursor_basic(self):
         """Test GameEngine.set_cursor with basic cursor."""
         # Use cursor data that's divisible by 8
         cursor_data = [
@@ -219,15 +211,13 @@ class TestEngineInitialization:
             '........',
         ]
 
-        # Mock pygame.mouse.set_cursor to avoid video system initialization
-        mock_set_cursor = mocker.patch('pygame.mouse.set_cursor')
         result = GameEngine.set_cursor(cursor_data)
 
-        # Verify cursor was set and returned
+        # The cursor is returned and is the display's cursor now
         assert result == cursor_data
-        mock_set_cursor.assert_called_once()
+        assert_active_cursor(cursor_data, black='.', white='X', xor='o')
 
-    def test_set_cursor_with_colors(self, mocker):
+    def test_set_cursor_with_colors(self):
         """Test GameEngine.set_cursor with custom colors."""
         # Use cursor data that's divisible by 8
         cursor_data = [
@@ -241,8 +231,6 @@ class TestEngineInitialization:
             'WWWWWWWW',
         ]
 
-        # Mock pygame.mouse.set_cursor to avoid video system initialization
-        mock_set_cursor = mocker.patch('pygame.mouse.set_cursor')
         result = GameEngine.set_cursor(
             cursor_data,
             cursor_black='B',
@@ -250,9 +238,16 @@ class TestEngineInitialization:
             cursor_xor='O',
         )
 
-        # Verify cursor was set with custom colors
+        # The cursor, compiled with the custom characters, is the display's cursor now
         assert result == cursor_data
-        mock_set_cursor.assert_called_once()
+        assert_active_cursor(cursor_data, black='B', white='W', xor='O')
+
+    def test_set_cursor_default(self):
+        """No cursor sets and returns the engine's 24x24 default arrow."""
+        result = GameEngine.set_cursor(None)
+
+        assert len(result) == len(result[0]) == DEFAULT_CURSOR_SIZE
+        assert_active_cursor(result, black='.', white='X', xor='o')
 
     def test_engine_options_initialization(self):
         """Test that engine options are properly initialized."""
@@ -433,14 +428,22 @@ class TestGilSwitchInterval:
         """Test the constant: 0.5 ms keeps audio callbacks within the 11.6 ms mixer buffer."""
         assert math.isclose(GIL_SWITCH_INTERVAL_SECONDS, 0.0005, abs_tol=1e-12)
 
-    def test_engine_initialization_sets_switch_interval(
-        self, mocker, mock_pygame_patches, mock_game_args
-    ):
-        """Test that GameEngine sets the interval once, before pygame.init() starts audio."""
-        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
-        set_switch_interval = mocker.patch('sys.setswitchinterval')
-        mock_game = MockFactory.create_game_mock()
+    def test_engine_initialization_sets_switch_interval(self, mocker):
+        """GameEngine sets the interval before pygame.init() starts audio."""
+        sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS * 10)
+        intervals_at_pygame_init: list[float] = []
+        real_pygame_init = pygame.init
 
-        GameEngine(game=mock_game)
+        def pygame_init_noting_the_interval() -> tuple[int, int]:
+            intervals_at_pygame_init.append(sys.getswitchinterval())
+            return real_pygame_init()
 
-        set_switch_interval.assert_called_once_with(GIL_SWITCH_INTERVAL_SECONDS)
+        mocker.patch.object(pygame, 'init', side_effect=pygame_init_noting_the_interval)
+        mocker.patch.object(sys, 'argv', ['test_engine_initialization', *ENGINE_ARGUMENTS])
+        # The engine writes SDL hints to the environment; the test's own values come back after
+        mocker.patch.dict(os.environ)
+
+        GoldenTraceEngine(game=InitializationTestGame)
+
+        assert intervals_at_pygame_init == [pytest.approx(GIL_SWITCH_INTERVAL_SECONDS)]
+        assert sys.getswitchinterval() == pytest.approx(GIL_SWITCH_INTERVAL_SECONDS)

@@ -7,62 +7,48 @@ import math
 import pytest
 
 from glitchygames.game_objects.ball import BallSprite
-from tests.mocks.test_mock_factory import MockFactory
+from tests.game_objects.ball_helpers import drawn_position
 
 LOG = logging.getLogger(__name__)
+
+
+# The ball moves this many pixels per second in every direction
+SPEED_MAGNITUDE = 250.0
+FRAMES_PER_SECOND = 60
+# The playfield centre: a second at SPEED_MAGNITUDE stays clear of every wall from here
+CENTER_X = 400.0
+CENTER_Y = 300.0
 
 
 class TestBallDtTick:
     """Test ball dt_tick method for consistent movement."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_ball_dt_tick(self):
-        """Test ball dt_tick method for consistent movement."""
-        LOG.debug('Testing ball dt_tick method...')
-
-        # Create a ball
+    @pytest.mark.parametrize('direction', [0, 45, 90, 135, 180, 225, 270, 315])
+    def test_ball_dt_tick(self, direction):
+        """A second of 60 FPS ticks moves the ball SPEED_MAGNITUDE pixels along its heading."""
         ball = BallSprite()
+        ball.world_x = CENTER_X
+        ball.world_y = CENTER_Y
+        ball.direction = direction
+        radians = math.radians(direction)
+        ball.speed.x = SPEED_MAGNITUDE * math.cos(radians)
+        ball.speed.y = SPEED_MAGNITUDE * math.sin(radians)
+        frame_seconds = 1.0 / FRAMES_PER_SECOND
 
-        # Test movement in different directions
-        directions = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
-        dt = 1.0 / 60.0  # 60 FPS
+        for _ in range(FRAMES_PER_SECOND):
+            ball.dt_tick(frame_seconds)
 
-        LOG.debug(f'Testing with dt={dt:.4f} (60 FPS)')
-        LOG.debug('Direction | Initial Pos | Final Pos  | Distance | Speed')
-        LOG.debug('----------|-------------|------------|----------|-------')
-
-        assert ball.rect is not None
-        for direction in directions:
-            # Reset ball position to center
-            ball.rect.x = 400
-            ball.rect.y = 300
-
-            # Set direction and calculate speed
-            ball.direction = direction
-            radians = math.radians(direction)
-            # Use fixed speed magnitude
-            speed_magnitude = 250.0
-            ball.speed.x = speed_magnitude * math.cos(radians)
-            ball.speed.y = speed_magnitude * math.sin(radians)
-
-            initial_x, initial_y = ball.rect.x, ball.rect.y
-
-            # Move ball for 1 second (60 frames) using dt_tick
-            for frame in range(60):
-                ball.dt_tick(dt)
-
-            final_x, final_y = ball.rect.x, ball.rect.y
-
-            # Calculate distance moved
-            distance = math.sqrt((final_x - initial_x) ** 2 + (final_y - initial_y) ** 2)
-            actual_speed = distance / 1.0  # distance per second
-
-            LOG.debug(
-                f'{direction:8d}° | ({initial_x:3d},{initial_y:3d})'
-                f'     | ({final_x:3d},{final_y:3d})'
-                f'    | {distance:6.1f} | {actual_speed:6.1f}',
-            )
+        expected_x = CENTER_X + SPEED_MAGNITUDE * math.cos(radians)
+        expected_y = CENTER_Y + SPEED_MAGNITUDE * math.sin(radians)
+        LOG.debug(
+            f'{direction:3d} degrees: ({ball.world_x:.1f}, {ball.world_y:.1f}),'
+            f' expected ({expected_x:.1f}, {expected_y:.1f})'
+        )
+        assert ball.world_x == pytest.approx(expected_x)
+        assert ball.world_y == pytest.approx(expected_y)
+        assert math.dist((CENTER_X, CENTER_Y), (ball.world_x, ball.world_y)) == pytest.approx(
+            SPEED_MAGNITUDE
+        )
+        # The engine draws the ball at its snapped world position
+        assert drawn_position(ball) == (round(expected_x), round(expected_y))
+        assert ball.alive()

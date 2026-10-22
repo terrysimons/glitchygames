@@ -22,7 +22,6 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 RELATIVE_TOLERANCE = 1e-12
 PROGRESSION_STEPS = 20
@@ -57,18 +56,13 @@ def _magnitude(ball: BallSprite) -> float:
 def _bounce_off_top_wall(ball: BallSprite) -> None:
     """Put the ball just past the top wall and run the real boundary bounce."""
     ball.world_x = WALL_TEST_X
-    ball.world_y = -WALL_OVERSHOOT
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_y = -float(ball._visible_rect().offset_y) - WALL_OVERSHOOT
     ball._do_bounce()
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallLogarithmicSpeedUp:
     """Test BallSprite logarithmic speed-up behavior."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_logarithmic_x_speed_up(self):
         """Test X_ONLY logarithmic speed-up scales only speed.x by f(1) = 1 + k * ln 2."""
@@ -320,14 +314,8 @@ class TestBallLogarithmicSpeedUp:
         assert ball.speed.y == pytest.approx(200.0 * expected_factor, rel=RELATIVE_TOLERANCE)
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallLogarithmicCurveProperties:
     """Test the LOGARITHMIC curve over many steps: closed form, tapering growth, caps, reset."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.mark.parametrize('multiplier', [1.01, 1.1, 1.25, 1.5, 2.0, 3.0])
     @pytest.mark.parametrize(

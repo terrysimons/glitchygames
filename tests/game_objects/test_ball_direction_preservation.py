@@ -18,7 +18,6 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 
 def _ball_with_speed_up(**settings_fields) -> BallSprite:
@@ -33,14 +32,6 @@ def _ball_with_speed_up(**settings_fields) -> BallSprite:
 
 class TestBallDirectionPreservation:
     """Test BallSprite direction preservation across different speed-up settings."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        # Mock screen dimensions for consistent testing
-        self.screen_width = 800
-        self.screen_height = 600
 
     def test_linear_speed_up_preserves_direction(self):
         """Test that linear speed-up preserves direction at all angles."""
@@ -177,9 +168,8 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Simulate wall bounce with linear speed-up (must set world_y)
-        assert ball.rect is not None
-        ball.rect.y = 0  # Hit top wall
-        ball.world_y = 0.0
+        # Hit the top wall: the visible circle, inset in the image, touches it
+        ball.world_y = -float(ball._visible_rect().offset_y)
         ball._do_bounce()
 
         # Y should be reversed, but direction should be preserved relative to the bounce
@@ -211,9 +201,8 @@ class TestBallDirectionPreservation:
         ball.speed = Speed(100.0, -200.0)  # moving up, into the top wall
 
         # Simulate wall bounce with logarithmic speed-up (must set world_y)
-        assert ball.rect is not None
-        ball.rect.y = 0  # Hit top wall
-        ball.world_y = 0.0
+        # Hit the top wall: the visible circle, inset in the image, touches it
+        ball.world_y = -float(ball._visible_rect().offset_y)
         ball._do_bounce()
 
         # Speed-up should scale both components equally (preserving angle relative to bounce)

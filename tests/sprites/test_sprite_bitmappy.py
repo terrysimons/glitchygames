@@ -15,7 +15,6 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
-from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants
 EXPECTED_ERROR_COUNT_2 = 2
@@ -25,23 +24,40 @@ EXPECTED_ERROR_COUNT_3 = 3
 class TestBitmappySprite:
     """Test BitmappySprite functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_bitmappy_sprite_initialization_with_filename(self, tmp_path):
+        """A BitmappySprite given a filename loads that file's pixels and size."""
+        sprite_path = tmp_path / 'two_colors.toml'
+        sprite_path.write_text(
+            '[sprite]\n'
+            'name = "two_colors"\n'
+            'pixels = """\n'
+            'RG\n'
+            'GR\n'
+            'RG\n'
+            '"""\n'
+            '[colors.R]\nred = 255\ngreen = 0\nblue = 0\n'
+            '[colors.G]\nred = 0\ngreen = 255\nblue = 0\n',
+            encoding='utf-8',
+        )
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-    def test_bitmappy_sprite_initialization_with_filename(self):
-        """Test BitmappySprite initialization with filename."""
-        sprite = BitmappySprite(filename='test.toml')
+        sprite = BitmappySprite(x=5, y=7, filename=str(sprite_path))
 
         assert isinstance(sprite, BitmappySprite)
-        assert sprite.filename == 'test.toml'
+        assert sprite.filename == str(sprite_path)
+        assert sprite.name == 'two_colors'
+        assert (sprite.width, sprite.height) == (2, 3)
+        assert (sprite.rect.x, sprite.rect.y, sprite.rect.width, sprite.rect.height) == (
+            5,
+            7,
+            2,
+            3,
+        )
+        red, green = [255, 0, 0], [0, 255, 0]
+        assert pygame.surfarray.array3d(sprite.image).transpose(1, 0, 2).tolist() == [
+            [red, green],
+            [green, red],
+            [red, green],
+        ]
 
     def test_bitmappy_sprite_initialization_without_filename(self):
         """Test BitmappySprite initialization without filename."""
@@ -58,11 +74,9 @@ class TestBitmappySprite:
         assert sprite.focusable
 
     def test_bitmappy_sprite_initialization_with_zero_dimensions(self):
-        """Test BitmappySprite initialization with zero dimensions."""
-        sprite = BitmappySprite(x=0, y=0, width=0, height=0)
-
-        assert sprite.width == 0
-        assert sprite.height == 0
+        """A BitmappySprite with no file and no size cannot make its surface."""
+        with pytest.raises(pygame.error, match=r'Can\'t create Surface\(\(0, 0\)\)'):
+            BitmappySprite(x=0, y=0, width=0, height=0)
 
     def test_bitmappy_sprite_load_method(self, mocker):
         """Test BitmappySprite load method."""
@@ -233,24 +247,38 @@ class TestBitmappySprite:
         assert 'Pixels list length mismatch: 2 vs expected 1024' in first_call
         assert 'not found in color_map' in second_call
 
-    def test_bitmappy_sprite_inflate_method(self, mocker):
-        """Test BitmappySprite inflate method."""
+    def test_bitmappy_sprite_inflate_method(self, tmp_path):
+        """inflate_from_file reads a TOML file's name, size and pixels."""
         sprite = BitmappySprite()
+        sprite_path = tmp_path / 'test.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "tiny"\npixels = """\nRG\nG?\n"""\n'
+            '[colors.R]\nred = 255\ngreen = 0\nblue = 0\n'
+            '[colors.G]\nred = 0\ngreen = 255\nblue = 0\n',
+            encoding='utf-8',
+        )
 
-        mock_inflate = mocker.patch('glitchygames.sprites.BitmappySprite._inflate_toml')
-        mock_inflate.return_value = {'pixels': [(255, 0, 0)]}
-        result = sprite.inflate_from_file('test.toml')
-        assert result is not None
+        result = sprite.inflate_from_file(str(sprite_path))
 
-    def test_bitmappy_sprite_save_static_only_method(self, mocker):
-        """Test BitmappySprite save_static_only method."""
-        sprite = BitmappySprite()
+        # '?' has no color, so it becomes magenta
+        assert result == {
+            'pixels': [(255, 0, 0), (0, 255, 0), (0, 255, 0), (255, 0, 255)],
+            'width': 2,
+            'height': 2,
+            'name': 'tiny',
+        }
 
-        mock_deflate = mocker.patch('glitchygames.sprites.BitmappySprite.deflate')
-        mock_deflate.return_value = {'sprite': {'pixels': []}}
-        mock_open = mocker.patch('pathlib.Path.open')
-        sprite._save_static_only('test.toml')
-        mock_open.assert_called_once()
+    def test_bitmappy_sprite_save_static_only_method(self, tmp_path):
+        """_save_static_only writes the sprite's pixels as TOML that loads back the same."""
+        sprite = BitmappySprite(width=2, height=1, name='pair')
+        sprite.pixels = [(255, 0, 0), (0, 0, 255)]
+        saved_path = tmp_path / 'test.toml'
+
+        sprite._save_static_only(str(saved_path))
+
+        reloaded = BitmappySprite().inflate_from_file(str(saved_path))
+        assert reloaded['name'] == 'pair'
+        assert reloaded['pixels'] == [(255, 0, 0), (0, 0, 255)]
 
     def test_bitmappy_sprite_save_static_only_method_unsupported_format(self, mocker):
         """Test BitmappySprite save_static_only method with unsupported format."""
@@ -285,17 +313,6 @@ class TestBitmappySprite:
 
 class TestBitmappySpriteHelpers:
     """Test BitmappySprite helper methods for save, pixel string, and color map."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
 
     def test_bitmappy_sprite_process_pixel_rows_missing_color(self, mocker):
         """Test BitmappySprite process_pixel_rows with missing color."""
@@ -408,55 +425,33 @@ class TestSingleton:
 class TestSingletonBitmappySprite:
     """Test SingletonBitmappySprite functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
     def test_singleton_bitmappy_sprite_creation(self):
         """Test SingletonBitmappySprite creation."""
         sprite = SingletonBitmappySprite()
 
         assert isinstance(sprite, SingletonBitmappySprite)
-        # Test that it has BitmappySprite attributes instead of isinstance check
-        # (Centralized mocks interfere with isinstance() checks)
-        assert hasattr(sprite, 'filename')
-        assert hasattr(sprite, 'focusable')
-        assert hasattr(sprite, 'pixels')
-        assert hasattr(sprite, 'pixels_across')
-        assert hasattr(sprite, 'pixels_tall')
+        assert isinstance(sprite, BitmappySprite)
+        # The default size: a real 32x32 surface
+        assert (sprite.pixels_across, sprite.pixels_tall) == (32, 32)
+        assert sprite.image.get_size() == (32, 32)
+        assert sprite.rect.size == (32, 32)
+        assert not sprite.filename
+        assert sprite.pixels == []
 
 
 class TestFocusableSingletonBitmappySprite:
     """Test FocusableSingletonBitmappySprite functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
 
     def test_focusable_singleton_bitmappy_sprite_creation(self):
         """Test FocusableSingletonBitmappySprite creation."""
         sprite = FocusableSingletonBitmappySprite()
 
         assert isinstance(sprite, FocusableSingletonBitmappySprite)
-        # Test that it has BitmappySprite attributes instead of isinstance check
-        # (Centralized mocks interfere with isinstance() checks)
-        assert hasattr(sprite, 'filename')
-        assert hasattr(sprite, 'focusable')
-        assert hasattr(sprite, 'pixels')
-        assert hasattr(sprite, 'pixels_across')
-        assert hasattr(sprite, 'pixels_tall')
+        assert isinstance(sprite, BitmappySprite)
+        # The default size: a real 32x32 surface
+        assert (sprite.pixels_across, sprite.pixels_tall) == (32, 32)
+        assert sprite.image.get_size() == (32, 32)
+        assert sprite.rect.size == (32, 32)
+        assert not sprite.filename
+        assert sprite.pixels == []
         assert sprite.focusable

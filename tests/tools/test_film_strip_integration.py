@@ -1,18 +1,17 @@
 """Film strip integration tests with animated canvas."""
 
+import pygame
+
+from glitchygames import events
 from glitchygames.bitmappy import editor as bitmappy
 from glitchygames.bitmappy import film_strip
 from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 from glitchygames.sprites import AnimatedSprite
-from tests.mocks.test_mock_factory import MockFactory
 
 # Import constants from base class
 from tests.tools.test_film_strip_base import (
-    CLICK_OFFSET,
     FRAME_DURATION,
     FRAME_INDEX_2,
-    FRAME_SIZE,
-    MAGENTA_PIXELS,
     MIN_FILM_STRIP_WIDTH,
     MIN_HEIGHT_OFFSET,
     PIXEL_SIZE,
@@ -20,7 +19,37 @@ from tests.tools.test_film_strip_base import (
     PIXELS_TALL,
     UPDATE_ITERATIONS,
     FilmStripTestBase,
+    frame_color_for_index,
+    make_real_animated_sprite,
+    make_real_frame,
 )
+
+# A frame colour far from magenta: the film strip draws magenta pixels as transparent
+THUMBNAIL_BASE_COLOR = (200, 40, 10)
+
+
+def left_click_event(*, position: tuple[int, int]) -> events.HashableEvent:
+    """Build a real left MOUSEBUTTONDOWN event.
+
+    Returns:
+        The event.
+
+    """
+    return events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1)
+
+
+def screen_center_of_frame(*, film_strip_sprite, animation_name, frame_index):
+    """Return the screen position of the centre of a frame's thumbnail in a film strip.
+
+    Returns:
+        tuple[int, int]: The screen position.
+
+    """
+    frame_rect = film_strip_sprite.film_strip_widget.frame_layouts[animation_name, frame_index]
+    return (
+        film_strip_sprite.rect.x + frame_rect.centerx,
+        film_strip_sprite.rect.y + frame_rect.centery,
+    )
 
 
 class TestFilmStripIntegration(FilmStripTestBase):
@@ -94,7 +123,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_height_calculation(self):
         """Test film strip height calculation."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -104,7 +133,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -119,11 +148,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_frame_selection_integration(self):
         """Test film strip frame selection integration with canvas."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
         # Clear the current animation to test initial state
-        mock_sprite.current_animation = ''
+        animated_sprite.frame_manager.current_animation = ''
         canvas = bitmappy.AnimatedCanvasSprite(
-            animated_sprite=mock_sprite,
+            animated_sprite=animated_sprite,
             x=0,
             y=0,
             pixels_across=PIXELS_ACROSS,
@@ -137,15 +166,15 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert canvas.current_frame == 0
 
         # Test setting current frame through film strip
-        if mock_sprite._animations:
-            anim_name = next(iter(mock_sprite._animations.keys()))
+        if animated_sprite._animations:
+            anim_name = next(iter(animated_sprite._animations.keys()))
             canvas.show_frame(anim_name, 0)
             assert canvas.current_animation == anim_name
             assert canvas.current_frame == 0
 
-    def test_film_strip_click_integration(self, mocker):
+    def test_film_strip_click_integration(self):
         """Test film strip click integration with canvas."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -155,26 +184,21 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
-        # Get the first film strip and sprite from the new dictionary-based architecture
-        film_strip = next(iter(scene.film_strips.values()))
         film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
+        animation_name = next(iter(animated_sprite.animations))
 
-        # Create mock click event
-        assert film_strip_sprite.rect is not None
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (
-            film_strip_sprite.rect.x + CLICK_OFFSET,
-            film_strip_sprite.rect.y + CLICK_OFFSET,
+        # Click the real thumbnail of frame 1
+        film_strip_sprite.on_left_mouse_button_down_event(
+            left_click_event(
+                position=screen_center_of_frame(
+                    film_strip_sprite=film_strip_sprite,
+                    animation_name=animation_name,
+                    frame_index=1,
+                ),
+            ),
         )
-
-        # Get the actual animation name from the mock sprite
-        animation_name = next(iter(mock_sprite._animations.keys()))
-
-        # Test click handling
-        mocker.patch.object(film_strip, 'handle_click', return_value=(animation_name, 1))
-        film_strip_sprite.on_left_mouse_button_down_event(mock_event)
 
         # Should update canvas to show the selected frame
         assert scene.canvas.current_animation == animation_name
@@ -182,7 +206,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_animation_preview_integration(self):
         """Test film strip animation preview integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -192,7 +216,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -214,23 +238,8 @@ class TestFilmStripIntegration(FilmStripTestBase):
         # Create a real animated sprite with proper frame data
         animated_sprite = AnimatedSprite()
 
-        # Create mock frames with proper image data
-        def create_mock_frame(duration=FRAME_DURATION):
-            frame = self._mocker.Mock()
-            frame.duration = duration
-            frame.image = self._mocker.Mock()
-            frame.image.get_size.return_value = (FRAME_SIZE, FRAME_SIZE)
-            frame.pixels = [MAGENTA_PIXELS] * (FRAME_SIZE * FRAME_SIZE)
-            return frame
-
-        # Add frames to the animated sprite
-        frames = [
-            create_mock_frame(FRAME_DURATION),
-            create_mock_frame(FRAME_DURATION),
-            create_mock_frame(FRAME_DURATION),
-        ]
-        animated_sprite._animations = {'test_anim': frames}
-        animated_sprite._animation_order = ['test_anim']
+        frames = [make_real_frame(duration=FRAME_DURATION) for _ in range(3)]
+        animated_sprite.add_animation('test_anim', frames)
 
         # Use the proper API to set animation
         animated_sprite.set_animation('test_anim')
@@ -263,28 +272,13 @@ class TestFilmStripIntegration(FilmStripTestBase):
         # Create a film strip widget
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 400, 100)
 
-        # Create a mock animated sprite with proper frame durations
-        def create_mock_frame(duration=FRAME_DURATION):
-            frame = self._mocker.Mock()
-            frame.duration = duration
-            return frame
-
-        animated_sprite = self._mocker.Mock()
-        animations_data = {
-            'test_anim': [
-                create_mock_frame(FRAME_DURATION),
-                create_mock_frame(FRAME_DURATION),
-                create_mock_frame(FRAME_DURATION),
-            ],
-        }
-        animated_sprite._animations = animations_data
-        animated_sprite.animations = animations_data
-        animated_sprite._animation_order = ['test_anim']
-        animated_sprite.animation_order = ['test_anim']
-        animated_sprite.current_animation = 'test_anim'
-        animated_sprite.current_frame = 0
-        animated_sprite.is_looping = True
-        animated_sprite.is_playing = True
+        animated_sprite = AnimatedSprite()
+        animated_sprite.add_animation(
+            'test_anim',
+            [make_real_frame(duration=FRAME_DURATION) for _ in range(3)],
+        )
+        animated_sprite.set_animation('test_anim')
+        animated_sprite.play()
 
         # Set up the film strip
         film_strip_widget.set_animated_sprite(animated_sprite)
@@ -312,22 +306,8 @@ class TestFilmStripIntegration(FilmStripTestBase):
         # Create a real animated sprite
         animated_sprite = AnimatedSprite()
 
-        # Create mock frames with proper structure
-        def create_mock_frame(duration=FRAME_DURATION):
-            frame = self._mocker.Mock()
-            frame.duration = duration
-            frame.image = self._mocker.Mock()
-            frame.image.get_size.return_value = (FRAME_SIZE, FRAME_SIZE)
-            frame.pixels = [MAGENTA_PIXELS] * (FRAME_SIZE * FRAME_SIZE)
-            return frame
-
-        frames = [
-            create_mock_frame(FRAME_DURATION),
-            create_mock_frame(FRAME_DURATION),
-            create_mock_frame(FRAME_DURATION),
-        ]
-        animated_sprite._animations = {'test_anim': frames}
-        animated_sprite._animation_order = ['test_anim']
+        frames = [make_real_frame(duration=FRAME_DURATION) for _ in range(3)]
+        animated_sprite.add_animation('test_anim', frames)
 
         # Use the proper API to set animation
         animated_sprite.set_animation('test_anim')
@@ -358,7 +338,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_layout_calculation_integration(self):
         """Test film strip layout calculation integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -368,7 +348,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -384,7 +364,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_scroll_integration(self):
         """Test film strip scroll integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -394,7 +374,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -405,8 +385,8 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert film_strip.scroll_offset >= 0
 
     def test_film_strip_rendering_integration(self):
-        """Test film strip rendering integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        """Test that rendering the film strip draws each frame's thumbnail in its own colour."""
+        animated_sprite = make_real_animated_sprite(base_color=THUMBNAIL_BASE_COLOR)
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -416,18 +396,56 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
-        assert callable(film_strip.render)
-        assert callable(film_strip.render_frame_thumbnail)
-        assert callable(film_strip.render_sprocket_separator)
-        assert callable(film_strip.render_preview)
+        surface = pygame.Surface(film_strip.rect.size, flags=0, depth=32)
+
+        film_strip.render(surface)
+
+        for (animation_name, frame_index), frame_rect in film_strip.frame_layouts.items():
+            assert animation_name == 'idle'
+            drawn_color = tuple(surface.get_at(frame_rect.center))[:3]
+            assert drawn_color == frame_color_for_index(
+                base_color=THUMBNAIL_BASE_COLOR,
+                frame_index=frame_index,
+            )
+
+    def test_film_strip_renders_sprocket_separators_between_animations(self):
+        """Test that a strip showing two animations draws a sprocket separator between them."""
+        film_strip_widget = film_strip.FilmStripWidget(0, 0, 400, 120)
+        film_strip_widget.set_animated_sprite(
+            make_real_animated_sprite(
+                frame_counts={'idle': 2, 'walk': 2},
+                base_color=THUMBNAIL_BASE_COLOR,
+            ),
+        )
+        assert len(film_strip_widget.sprocket_layouts) == 1
+        sprocket_rect = film_strip_widget.sprocket_layouts[0]
+        surface = pygame.Surface(film_strip_widget.rect.size, flags=0, depth=32)
+
+        film_strip_widget.render(surface)
+
+        # A row through the centre of a pair of perforations (one every 8 pixels from y=4)
+        hole_center_y = sprocket_rect.y + 4 + 8 * 6
+        assert hole_center_y < sprocket_rect.bottom - 4
+        sprocket_color = film_strip_widget.sprocket_color
+        border_color = film_strip_widget.frame_border
+
+        def drawn(x):
+            return tuple(surface.get_at((sprocket_rect.x + x, hole_center_y)))[:3]
+
+        assert drawn(0) == border_color
+        assert drawn(film_strip_widget.sprocket_width - 1) == border_color
+        # The left and right perforations, at x=6 and x=14
+        assert drawn(6) == sprocket_color
+        assert drawn(14) == sprocket_color
+        assert drawn(10) == film_strip_widget.film_background
 
     def test_film_strip_parent_canvas_integration(self):
         """Test film strip parent canvas integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -437,7 +455,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip and sprite from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -451,7 +469,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_dirty_flag_integration(self):
         """Test film strip dirty flag integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -461,7 +479,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip and sprite from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -478,12 +496,9 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
     def test_film_strip_multiple_animations_integration(self):
         """Test film strip with multiple animations."""
-        # Create mock sprite with multiple animations using centralized mocks
-        mock_sprite = MockFactory.create_animated_sprite_mock()
-        # Replace all animations with properly configured frame mocks
-        mock_sprite._animations['walk'] = [MockFactory.create_sprite_frame_mock() for _ in range(3)]
-        mock_sprite._animations['jump'] = [MockFactory.create_sprite_frame_mock() for _ in range(2)]
-        mock_sprite._animations['idle'] = [MockFactory.create_sprite_frame_mock() for _ in range(4)]
+        animated_sprite = make_real_animated_sprite(
+            frame_counts={'idle': 4, 'walk': 3, 'jump': 2},
+        )
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -494,32 +509,24 @@ class TestFilmStripIntegration(FilmStripTestBase):
             },
         )
 
-        # Use centralized mock factory to create a proper canvas
-        mock_factory = MockFactory()
-        mock_canvas = mock_factory.create_canvas_mock()
-        scene.canvas = mock_canvas
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        # Each animation gets its own film strip
+        assert set(scene.film_strips) == {'idle', 'walk', 'jump'}
+        assert set(scene.film_strip_sprites) == {'idle', 'walk', 'jump'}
 
-        # In the new multi-film strip architecture, each animation gets its own film strip
-        # So we should have 4 film strips (one for each animation)
-        assert len(scene.film_strips) == len(mock_sprite._animations)
-        assert len(scene.film_strip_sprites) == len(mock_sprite._animations)
-
-        # Each film strip should have layouts for its own animation
-        for film_strip_widget in scene.film_strips.values():
+        # Each film strip lays out every frame of its own animation
+        for animation_name, film_strip_widget in scene.film_strips.items():
             assert len(film_strip_widget.animation_layouts) > 0
-            assert len(film_strip_widget.frame_layouts) > 0
+            assert sorted(film_strip_widget.frame_layouts) == [
+                (animation_name, frame_index)
+                for frame_index in range(len(animated_sprite.animations[animation_name]))
+            ]
 
     def test_film_strip_edge_cases_integration(self):
         """Test film strip edge cases integration."""
-        # Test with empty sprite
-        empty_sprite = self._mocker.Mock()
-        empty_sprite._animations = {}
-        empty_sprite._animation_order = []
-        empty_sprite.frames = {}  # Add frames attribute
-        # Add get_pixel_data method for empty sprite
-        empty_sprite.get_pixel_data.return_value = [(0, 0, 0)] * (FRAME_SIZE * FRAME_SIZE)
+        # A sprite with no animations
+        empty_sprite = AnimatedSprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -535,9 +542,13 @@ class TestFilmStripIntegration(FilmStripTestBase):
         assert len(scene.film_strips) == 0
         assert len(scene.film_strip_sprites) == 0
 
-    def test_film_strip_coordinate_conversion_integration(self, mocker):
-        """Test film strip coordinate conversion integration."""
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+    def test_film_strip_coordinate_conversion_integration(self):
+        """Test that a screen click is converted to the film strip's own coordinates.
+
+        Clicking the screen position of frame 2's thumbnail must select frame 2, which only
+        happens when the click is shifted by the film strip sprite's screen position.
+        """
+        animated_sprite = make_real_animated_sprite()
 
         # Create scene and load sprite to properly initialize film strips
         scene = bitmappy.BitmapEditorScene(
@@ -547,29 +558,22 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             },
         )
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
-        # Get the first film strip and sprite from the new dictionary-based architecture
-        film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
-        film_strip_widget = next(iter(scene.film_strips.values()))
+        film_strip_sprite = scene.film_strip_sprites['idle']
+        # The strip sits away from the screen origin, so a missing conversion is visible
+        assert film_strip_sprite.rect.topleft != (0, 0)
 
-        # Create mock event
-        assert film_strip_sprite.rect is not None
-        mock_event = self._mocker.Mock()
-        mock_event.pos = (
-            film_strip_sprite.rect.x + CLICK_OFFSET,
-            film_strip_sprite.rect.y + CLICK_OFFSET,
+        film_strip_sprite.on_left_mouse_button_down_event(
+            left_click_event(
+                position=screen_center_of_frame(
+                    film_strip_sprite=film_strip_sprite,
+                    animation_name='idle',
+                    frame_index=FRAME_INDEX_2,
+                ),
+            ),
         )
 
-        # Test coordinate conversion
-        mock_handle_click = mocker.patch.object(
-            film_strip_widget,
-            'handle_click',
-            return_value=('idle', 1),
-        )
-        film_strip_sprite.on_left_mouse_button_down_event(mock_event)
-
-        # Should convert screen coordinates to film strip coordinates
-        expected_x = mock_event.pos[0] - film_strip_sprite.rect.x
-        expected_y = mock_event.pos[1] - film_strip_sprite.rect.y
-        mock_handle_click.assert_called_once_with((expected_x, expected_y), is_shift_click=False)
+        assert scene.selected_animation == 'idle'
+        assert scene.selected_frame == FRAME_INDEX_2
+        assert scene.canvas.current_frame == FRAME_INDEX_2

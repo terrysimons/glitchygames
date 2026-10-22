@@ -12,7 +12,6 @@ import pytest
 
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from tests.mocks import MockFactory
 from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
 
 ANIMATION_NAME = 'walk'
@@ -25,15 +24,8 @@ class TestAISStripIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
+        """Keep the mocker fixture for the tests (the real display is already open)."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Initialize pygame for real font operations
-        pygame.init()
-        pygame.display.set_mode((800, 600), pygame.HIDDEN)
 
     def _setup_ai_integration(self, scene: BitmapEditorScene) -> None:
         """Initialize AI integration manager on a mocked scene."""

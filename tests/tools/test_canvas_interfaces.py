@@ -22,7 +22,6 @@ from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
 )
-from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for test values - large canvas (8x8)
 LARGE_CANVAS_SIZE = 8
@@ -43,6 +42,56 @@ GREEN = (0, 255, 0, 255)
 BLUE = (0, 0, 255, 255)
 RED_RGB = (255, 0, 0)
 GREEN_RGB = (0, 255, 0)
+BLUE_RGB = (0, 0, 255)
+WHITE_RGB = (255, 255, 255)
+BORDER_GRAY_RGB = (64, 64, 64)
+
+
+def _rgb_at(surface, x, y):
+    """Read the RGB colour of one surface pixel, ignoring alpha and the pixel format.
+
+    Returns:
+        tuple[int, int, int]: The red, green and blue components.
+
+    """
+    return tuple(surface.get_at((x, y)))[:3]
+
+
+def _every_pixel_rgb(surface):
+    """Collect the distinct RGB colours on a surface, read in bulk.
+
+    Returns:
+        set[tuple[int, int, int]]: Every distinct RGB colour on the surface.
+
+    """
+    rgb_rows = pygame.surfarray.array3d(surface).reshape(-1, 3)
+    return {tuple(int(component) for component in row) for row in rgb_rows}
+
+
+def _static_canvas_stand_in(*, pixels, pixel_size, image, **attributes):
+    """Build the attributes AnimatedCanvasRenderer reads from a canvas without an animated sprite.
+
+    The renderer draws into ``image``, a real surface, so a test reads what was drawn.
+
+    Returns:
+        SimpleNamespace: The canvas stand-in.
+
+    """
+    canvas_attributes = {
+        'pixels_across': CANVAS_SIZE,
+        'pixels_tall': len(pixels) // CANVAS_SIZE,
+        'pixels': pixels,
+        'pixel_width': pixel_size,
+        'pixel_height': pixel_size,
+        'border_thickness': 0,
+        'background_color': (0, 0, 0),
+        'image': image,
+        'hovered_pixel': None,
+        'is_hovered': False,
+        'parent_scene': None,
+    }
+    canvas_attributes.update(attributes)
+    return SimpleNamespace(**canvas_attributes)
 
 
 class TestAnimatedCanvasInterfaces:
@@ -52,7 +101,6 @@ class TestAnimatedCanvasInterfaces:
     def setup_mocks(self, mocker):
         """Set up test fixtures using centralized mocks."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
         # Create a test animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -135,9 +183,15 @@ class TestAnimatedCanvasInterfaces:
         surface = renderer.render(self.canvas)
         assert surface.get_size() == (128, 128)  # 8*16 x 8*16
 
+        # The frame's red/green pattern is drawn, one 16x16 cell per pixel
+        assert _rgb_at(surface, 8, 8) == RED_RGB
+        assert _rgb_at(surface, 24, 8) == GREEN_RGB
+        assert _rgb_at(surface, 8, 24) == RED_RGB
+
         # Test force redraw
         redraw_surface = renderer.force_redraw(self.canvas)
         assert redraw_surface.get_size() == (128, 128)
+        assert _rgb_at(redraw_surface, 120, 120) == GREEN_RGB
 
     def test_animated_canvas_functionality(self):
         """Test that AnimatedCanvasSprite functionality works."""
@@ -176,9 +230,10 @@ class TestAnimatedCanvasInterfaces:
         interface.set_pixel_at(2, 2, (0, 0, 255))  # Blue pixel
         surface = renderer.render(self.canvas)
 
-        # Verify the pixel was set correctly
+        # Verify the pixel was set correctly, and drawn in its 16x16 cell
         blue_pixel = interface.get_pixel_at(2, 2)
         assert blue_pixel == (0, 0, 255, 255)
+        assert _rgb_at(surface, 2 * 16 + 8, 2 * 16 + 8) == BLUE_RGB
 
         # Verify the surface was rendered
         assert surface is not None
@@ -192,7 +247,6 @@ class TestAnimatedCanvasInterfaceEdgeCases:
     def setup_mocks(self, mocker):
         """Set up test fixtures using centralized mocks."""
         self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
         # Create a test animated sprite
         self.animated_sprite = AnimatedSprite()
@@ -270,11 +324,6 @@ class TestMockTrigger:
 
 class TestStaticCanvasInterface:
     """Test StaticCanvasInterface methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def canvas_sprite(self, mocker):
@@ -371,11 +420,6 @@ class TestStaticCanvasInterface:
 class TestStaticSpriteSerializer:
     """Test StaticSpriteSerializer."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_save_delegates_to_sprite(self, mocker):
         """Test save delegates to the sprite's save method."""
         sprite = mocker.Mock()
@@ -392,11 +436,6 @@ class TestStaticSpriteSerializer:
 
 class TestAnimatedCanvasInterfaceInit:
     """Test AnimatedCanvasInterface initialization."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_init_with_animated_sprite_using_animation_order(self, mocker):
         """Test initialization when canvas sprite has animated_sprite with _animation_order."""
@@ -443,11 +482,6 @@ class TestAnimatedCanvasInterfaceInit:
 
 class TestAnimatedCanvasInterfacePixelOps:
     """Test AnimatedCanvasInterface pixel operations."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def animated_interface(self, mocker):
@@ -543,11 +577,6 @@ class TestAnimatedCanvasInterfacePixelOps:
 class TestAnimatedCanvasInterfaceSetPixelAt:
     """Test AnimatedCanvasInterface set_pixel_at with various scenarios."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_set_pixel_at_out_of_bounds(self, mocker):
         """Test set_pixel_at ignores out-of-bounds coordinates."""
         canvas_sprite = mocker.Mock()
@@ -577,11 +606,6 @@ class TestAnimatedCanvasInterfaceSetPixelAt:
 
 class TestAnimatedCanvasInterfaceShouldTrackColorChange:
     """Test AnimatedCanvasInterface _should_track_color_change."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_same_color_not_tracked(self, mocker):
         """Test same color change is not tracked."""
@@ -634,11 +658,6 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChange:
 class TestAnimatedCanvasInterfaceIsControllerDragActive:
     """Test AnimatedCanvasInterface _is_controller_drag_active."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_no_parent_scene(self, mocker):
         """Test returns False when no parent scene."""
         canvas_sprite = mocker.Mock()
@@ -677,11 +696,6 @@ class TestAnimatedCanvasInterfaceIsControllerDragActive:
 class TestAnimatedCanvasInterfaceSetCurrentFrame:
     """Test AnimatedCanvasInterface set_current_frame and get_current_frame."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_set_current_frame(self, mocker):
         """Test set_current_frame updates animation and frame."""
         canvas_sprite = mocker.Mock(spec=[])
@@ -703,11 +717,6 @@ class TestAnimatedCanvasInterfaceSetCurrentFrame:
 class TestAnimatedSpriteSerializer:
     """Test AnimatedSpriteSerializer."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_save_delegates_to_sprite(self, mocker):
         """Test save delegates to the sprite's save method."""
         sprite = mocker.Mock()
@@ -724,11 +733,6 @@ class TestAnimatedSpriteSerializer:
 
 class TestCollectPixelChangeDictionaryTrimming:
     """Test _collect_pixel_change dictionary trimming when exceeding max entries."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_collect_pixel_change_trims_dict_beyond_max(self, mocker):
         """Test that _collect_pixel_change trims dict when exceeding 2000 entries."""
@@ -822,11 +826,6 @@ class TestCollectPixelChangeDictionaryTrimming:
 class TestGetCurrentFramePixelsDefaultHandling:
     """Test AnimatedCanvasRenderer._get_current_frame_pixels default frame handling."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_current_frame_pixels_with_get_pixel_data(self, mocker):
         """Test _get_current_frame_pixels uses get_pixel_data when available."""
         canvas_sprite = mocker.Mock()
@@ -893,11 +892,6 @@ class TestGetCurrentFramePixelsDefaultHandling:
 
 class TestHasActiveControllersInCanvasMode:
     """Test AnimatedCanvasRenderer._has_active_controllers_in_canvas_mode."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_no_parent_scene_returns_false(self, mocker):
         """Test returns False when no parent scene."""
@@ -1008,11 +1002,6 @@ class TestHasActiveControllersInCanvasMode:
 
 class TestGetControllerIndicatorForPixel:
     """Test AnimatedCanvasRenderer._get_controller_indicator_for_pixel."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_no_controller_scene_returns_none(self, mocker):
         """Test returns None when no controller scene."""
@@ -1167,67 +1156,45 @@ class TestGetControllerIndicatorForPixel:
 class TestAnimatedCanvasRendererForceRedraw:
     """Test AnimatedCanvasRenderer force_redraw paths."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_force_redraw_static_fallback(self, mocker):
-        """Test force_redraw falls back to static rendering when no animated_sprite."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = CANVAS_SIZE
-        canvas_sprite.pixels_tall = CANVAS_SIZE
-        canvas_sprite.pixels = [RED] * PIXEL_COUNT
-        canvas_sprite.pixel_width = 10
-        canvas_sprite.pixel_height = 10
-        canvas_sprite.border_thickness = 0
-        canvas_sprite.background_color = (0, 0, 0)
-        canvas_sprite.image = pygame.Surface((40, 40))
-        canvas_sprite.hovered_pixel = None
-        canvas_sprite.is_hovered = False
-        canvas_sprite.parent_scene = None
-        del canvas_sprite.animated_sprite
+    def test_force_redraw_static_fallback(self):
+        """Without an animated_sprite, force_redraw draws the static pixels into the image."""
+        canvas_sprite = _static_canvas_stand_in(
+            pixels=[RED] * PIXEL_COUNT,
+            pixel_size=10,
+            image=pygame.Surface((40, 40)),
+        )
 
         renderer = AnimatedCanvasRenderer(canvas_sprite)
         result = renderer.force_redraw(canvas_sprite)
 
         assert result is canvas_sprite.image
+        assert _every_pixel_rgb(result) == {RED_RGB}
 
-    def test_render_delegates_to_force_redraw(self, mocker):
-        """Test render method delegates to force_redraw."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = CANVAS_SIZE
-        canvas_sprite.pixels_tall = CANVAS_SIZE
-        canvas_sprite.pixels = [RED] * PIXEL_COUNT
-        canvas_sprite.pixel_width = 10
-        canvas_sprite.pixel_height = 10
-        canvas_sprite.border_thickness = 0
-        canvas_sprite.background_color = (0, 0, 0)
-        canvas_sprite.image = pygame.Surface((40, 40))
-        canvas_sprite.hovered_pixel = None
-        canvas_sprite.is_hovered = False
-        canvas_sprite.parent_scene = None
-        del canvas_sprite.animated_sprite
-
-        renderer = AnimatedCanvasRenderer(canvas_sprite)
-        mock_force_redraw = mocker.patch.object(
-            renderer,
-            'force_redraw',
-            return_value=canvas_sprite.image,
+    def test_render_draws_like_force_redraw(self):
+        """Render draws the canvas exactly as force_redraw does."""
+        pixels = [RED, GREEN, BLUE, MAGENTA] * CANVAS_SIZE
+        rendered_sprite = _static_canvas_stand_in(
+            pixels=pixels,
+            pixel_size=10,
+            image=pygame.Surface((40, 40)),
+        )
+        redrawn_sprite = _static_canvas_stand_in(
+            pixels=pixels,
+            pixel_size=10,
+            image=pygame.Surface((40, 40)),
         )
 
-        result = renderer.render(canvas_sprite)
+        rendered = AnimatedCanvasRenderer(rendered_sprite).render(rendered_sprite)
+        redrawn = AnimatedCanvasRenderer(redrawn_sprite).force_redraw(redrawn_sprite)
 
-        mock_force_redraw.assert_called_once_with(canvas_sprite)
+        assert rendered is rendered_sprite.image
+        assert _rgb_at(rendered, 5, 5) == RED_RGB
+        assert _rgb_at(rendered, 15, 5) == GREEN_RGB
+        assert (pygame.surfarray.array3d(rendered) == pygame.surfarray.array3d(redrawn)).all()
 
 
 class TestAnimatedCanvasRendererHelpers:
     """Test AnimatedCanvasRenderer helper methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_pixel_size(self, mocker):
         """Test get_pixel_size returns the pixel dimensions."""
@@ -1306,8 +1273,15 @@ class TestAnimatedCanvasRendererHelpers:
         canvas_sprite.image = pygame.Surface((40, 40), pygame.SRCALPHA)
 
         renderer = AnimatedCanvasRenderer(canvas_sprite)
-        # Should not raise for RGBA pixel (4 components)
-        renderer._draw_pixel_on_canvas((255, 0, 0, 128), 0, 0)
+        renderer._draw_pixel_on_canvas((255, 0, 0, 128), 10, 0)
+
+        image = canvas_sprite.image
+        # The RGBA colour is written as is (alpha included) over the pixel's 10x10 cell only
+        assert tuple(image.get_at((10, 0))) == (255, 0, 0, 128)
+        assert tuple(image.get_at((19, 9))) == (255, 0, 0, 128)
+        assert tuple(image.get_at((9, 0))) == (0, 0, 0, 0)
+        assert tuple(image.get_at((20, 0))) == (0, 0, 0, 0)
+        assert tuple(image.get_at((10, 10))) == (0, 0, 0, 0)
 
     def test_draw_pixel_on_canvas_rgb(self, mocker):
         """Test _draw_pixel_on_canvas converts RGB to RGBA and draws."""
@@ -1317,8 +1291,14 @@ class TestAnimatedCanvasRendererHelpers:
         canvas_sprite.image = pygame.Surface((40, 40), pygame.SRCALPHA)
 
         renderer = AnimatedCanvasRenderer(canvas_sprite)
-        # Should not raise for RGB pixel (3 components)
-        renderer._draw_pixel_on_canvas((255, 0, 0), 0, 0)
+        renderer._draw_pixel_on_canvas((255, 0, 0), 0, 10)
+
+        image = canvas_sprite.image
+        # An RGB colour is drawn fully opaque
+        assert tuple(image.get_at((0, 10))) == (255, 0, 0, 255)
+        assert tuple(image.get_at((9, 19))) == (255, 0, 0, 255)
+        assert tuple(image.get_at((0, 9))) == (0, 0, 0, 0)
+        assert tuple(image.get_at((10, 10))) == (0, 0, 0, 0)
 
     def test_get_frame_pixel_data_with_get_pixel_data(self, mocker):
         """Test _get_frame_pixel_data uses get_pixel_data when available."""
@@ -1360,241 +1340,290 @@ class TestAnimatedCanvasRendererHelpers:
         assert result[0] == (255, 0, 255)
 
 
+def _scene_with_canvas_controller(*, position, color):
+    """Build a scene with one controller in canvas mode at ``position``, drawn in ``color``.
+
+    Returns:
+        SimpleNamespace: The scene stand-in AnimatedCanvasRenderer reads controllers from.
+
+    """
+    controller_info = SimpleNamespace(controller_id=0, color=color)
+    return SimpleNamespace(
+        controller_selections={0: SimpleNamespace()},
+        mode_switcher=SimpleNamespace(
+            get_controller_mode=lambda controller_id: SimpleNamespace(value='canvas'),
+            get_controller_position=lambda controller_id: SimpleNamespace(
+                is_valid=True,
+                position=position,
+            ),
+        ),
+        controller_handler=SimpleNamespace(
+            find_controller_info=lambda controller_id: controller_info,
+        ),
+        selected_frame_visible=True,
+    )
+
+
+def _two_by_two_canvas_stand_in(*, pixels, parent_scene=None, **attributes):
+    """Build a 2x2 canvas of 8x8 cells drawing into a real transparent 16x16 surface.
+
+    Returns:
+        SimpleNamespace: The canvas stand-in.
+
+    """
+    canvas_attributes = {
+        'pixels_across': 2,
+        'pixels_tall': 2,
+        'pixel_width': 8,
+        'pixel_height': 8,
+        'width': 16,
+        'height': 16,
+        'pixels': pixels,
+        'border_thickness': 0,
+        'background_color': (0, 0, 0),
+        'image': pygame.Surface((16, 16), pygame.SRCALPHA),
+        'hovered_pixel': None,
+        'is_hovered': False,
+        'parent_scene': parent_scene,
+    }
+    canvas_attributes.update(attributes)
+    return SimpleNamespace(**canvas_attributes)
+
+
+INDICATOR_RED_RGB = (255, 0, 0)
+TWO_BY_TWO_PIXELS = [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)]
+
+
 class TestCanvasRendererDrawIndicatorsOnly:
-    """Test _draw_controller_indicators_only rendering (lines 679, 887-898)."""
+    """Test _draw_controller_indicators_only rendering."""
 
-    def test_draw_controller_indicators_only(self, mocker):
-        """Test that _draw_controller_indicators_only draws indicators.
-
-        Covers line 679 (call path when selected_frame_visible is False)
-        and lines 887-898 (the method body).
-        """
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = 2
-        canvas_sprite.pixels_tall = 2
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.image = mocker.Mock()
-
+    def test_draw_controller_indicators_only(self):
+        """With the frame hidden, only the controller's box is drawn, over its own pixel."""
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=TWO_BY_TWO_PIXELS,
+            parent_scene=_scene_with_canvas_controller(position=(0, 0), color=INDICATOR_RED_RGB),
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
 
-        # Mock _has_active_controllers_in_canvas_mode to return True
-        mocker.patch.object(renderer, '_has_active_controllers_in_canvas_mode', return_value=True)
-        # Mock _get_controller_indicator_for_pixel to return a color for pixel 0
-        mocker.patch.object(
-            renderer,
-            '_get_controller_indicator_for_pixel',
-            side_effect=lambda i: (255, 0, 0) if i == 0 else None,
-        )
-        # Mock _draw_plus_indicator
-        mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
-
-        frame_pixels = cast(
-            'list[tuple[int, ...]]',
-            [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
+        renderer._draw_controller_indicators_only(
+            cast('list[tuple[int, ...]]', TWO_BY_TWO_PIXELS),
         )
 
-        renderer._draw_controller_indicators_only(frame_pixels)
-
-        # Should have drawn an indicator for pixel 0 only
-        mock_draw_plus.assert_called_once()
+        image = canvas_sprite.image
+        # Outer 1px box in the controller colour at (1, 1)..(6, 6)
+        assert _rgb_at(image, 1, 1) == INDICATOR_RED_RGB
+        assert _rgb_at(image, 6, 6) == INDICATOR_RED_RGB
+        # Inner box in the inverse of the pixel's colour (100, 100, 100)
+        assert _rgb_at(image, 3, 3) == (155, 155, 155)
+        # The pixel itself and every other cell stay undrawn (transparent)
+        assert image.get_at((0, 0)).a == 0
+        assert image.get_at((12, 4)).a == 0
+        assert image.get_at((4, 12)).a == 0
+        assert image.get_at((12, 12)).a == 0
 
 
 class TestCanvasRendererVisibleFrameWithControllerIndicator:
-    """Test _draw_visible_frame_pixels controller indicator path (line 876)."""
+    """Test _draw_visible_frame_pixels with a controller indicator."""
 
-    def test_draw_visible_frame_pixels_with_controller_indicator(self, mocker):
-        """Test drawing visible frame with controller indicator on a non-transparent pixel.
-
-        Covers line 876 where controller_indicator_color is truthy on a
-        non-magenta pixel.
-        """
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = 2
-        canvas_sprite.pixels_tall = 2
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.image = mocker.Mock()
-
+    def test_draw_visible_frame_pixels_with_controller_indicator(self):
+        """Every pixel is drawn, and the controller's box is drawn over pixel 1 only."""
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=TWO_BY_TWO_PIXELS,
+            parent_scene=_scene_with_canvas_controller(position=(1, 0), color=(0, 255, 0)),
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
 
-        mocker.patch.object(renderer, '_has_active_controllers_in_canvas_mode', return_value=True)
-        mocker.patch.object(
-            renderer,
-            '_get_controller_indicator_for_pixel',
-            side_effect=lambda i: (0, 255, 0) if i == 1 else None,
+        renderer._draw_visible_frame_pixels(cast('list[tuple[int, ...]]', TWO_BY_TWO_PIXELS))
+
+        image = canvas_sprite.image
+        # Pixel cells are drawn opaque in their colours (cell corners are outside any box)
+        assert tuple(image.get_at((0, 0))) == (100, 100, 100, 255)
+        assert tuple(image.get_at((8, 0))) == (200, 200, 200, 255)
+        assert tuple(image.get_at((0, 8))) == (50, 50, 50, 255)
+        assert tuple(image.get_at((8, 8))) == (10, 10, 10, 255)
+        # Pixel 1 (cell at x 8..15) carries the green box and the inverse of (200, 200, 200)
+        assert _rgb_at(image, 9, 1) == (0, 255, 0)
+        assert _rgb_at(image, 11, 3) == (55, 55, 55)
+        # Pixel 0 has no box
+        assert _rgb_at(image, 1, 1) == (100, 100, 100)
+        assert _rgb_at(image, 3, 3) == (100, 100, 100)
+
+    def test_transparent_pixel_keeps_background_but_shows_the_indicator(self):
+        """A magenta (transparent) pixel is not drawn, yet a controller on it still shows."""
+        pixels = [(255, 0, 255), (200, 200, 200), (50, 50, 50), (10, 10, 10)]
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=pixels,
+            parent_scene=_scene_with_canvas_controller(position=(0, 0), color=INDICATOR_RED_RGB),
         )
-        mock_draw_pixel = mocker.patch.object(renderer, '_draw_pixel_on_canvas')
-        mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
+        renderer = AnimatedCanvasRenderer(canvas_sprite)
 
-        frame_pixels = cast(
-            'list[tuple[int, ...]]',
-            [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)],
-        )
+        renderer._draw_visible_frame_pixels(cast('list[tuple[int, ...]]', pixels))
 
-        renderer._draw_visible_frame_pixels(frame_pixels)
-
-        # Pixel 1 should have drawn both the pixel and the indicator
-        assert mock_draw_pixel.call_count >= 1
-        mock_draw_plus.assert_called_once()
+        image = canvas_sprite.image
+        assert image.get_at((0, 0)).a == 0
+        assert _rgb_at(image, 1, 1) == INDICATOR_RED_RGB
+        # Inverse of magenta (255, 0, 255)
+        assert _rgb_at(image, 3, 3) == (0, 255, 0)
 
 
 class TestCanvasRendererStaticPixelsWithController:
-    """Test _redraw_static_pixels with controller indicator (lines 936, 939-945)."""
+    """Test _redraw_static_pixels with a controller indicator."""
 
-    def test_static_pixels_with_controller_indicator(self, mocker):
-        """Test that _redraw_static_pixels draws controller indicator when present.
-
-        Covers lines 936, 939-945 where a controller is active on a pixel
-        during static redraw.
-        """
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = 2
-        canvas_sprite.pixels_tall = 2
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.border_thickness = 1
-        canvas_sprite.background_color = (0, 0, 0)
-        canvas_sprite.image = mocker.Mock()
-
+    def test_static_pixels_with_controller_indicator(self):
+        """Static redraw fills the background, draws every pixel, borders and the indicator."""
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=TWO_BY_TWO_PIXELS,
+            parent_scene=_scene_with_canvas_controller(position=(0, 0), color=INDICATOR_RED_RGB),
+            border_thickness=1,
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
 
-        mocker.patch.object(renderer, '_has_active_controllers_in_canvas_mode', return_value=True)
-        mocker.patch.object(
-            renderer,
-            '_get_controller_indicator_for_pixel',
-            side_effect=lambda i: (255, 0, 0) if i == 0 else None,
-        )
-        mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        renderer._redraw_static_pixels(TWO_BY_TWO_PIXELS)
 
-        pixels: list[tuple[int, int, int] | tuple[int, int, int, int]] = [
-            (100, 100, 100),
-            (200, 200, 200),
-            (50, 50, 50),
-            (10, 10, 10),
-        ]
-
-        renderer._redraw_static_pixels(pixels)
-
-        # Should have drawn the indicator for pixel 0
-        mock_draw_plus.assert_called_once()
-        # pygame.draw.rect should have been called for pixels and borders
-        assert mock_draw_rect.call_count >= 1
+        image = canvas_sprite.image
+        # Each cell's 1px border is grey; the cell inside is the pixel colour
+        assert _rgb_at(image, 0, 0) == BORDER_GRAY_RGB
+        assert _rgb_at(image, 8, 8) == BORDER_GRAY_RGB
+        assert _rgb_at(image, 12, 4) == (200, 200, 200)
+        assert _rgb_at(image, 4, 12) == (50, 50, 50)
+        assert _rgb_at(image, 12, 12) == (10, 10, 10)
+        # Pixel 0 carries the controller's box: red ring, then the inverse of (100, 100, 100)
+        assert _rgb_at(image, 1, 1) == INDICATOR_RED_RGB
+        assert _rgb_at(image, 3, 3) == (155, 155, 155)
 
 
 class TestCanvasRendererHoverEffects:
-    """Test _draw_hover_effects (lines 977-983, 993)."""
+    """Test _draw_hover_effects."""
 
-    def test_draw_hover_effects_with_hovered_pixel(self, mocker):
-        """Test that hover effects draw a white border around hovered pixel.
-
-        Covers lines 977-983 where hovered_pixel is set and the white
-        border rect is drawn.
-        """
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = 4
-        canvas_sprite.pixels_tall = 4
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.image = mocker.Mock()
-        canvas_sprite.hovered_pixel = (1, 2)
-
+    def test_draw_hover_effects_with_hovered_pixel(self):
+        """A hovered pixel gets a 2px white border around its cell, and nothing else changes."""
+        image = pygame.Surface((32, 32))
+        image.fill((0, 0, 0))
+        canvas_sprite = SimpleNamespace(
+            pixels_across=4,
+            pixels_tall=4,
+            pixel_width=8,
+            pixel_height=8,
+            image=image,
+            hovered_pixel=(1, 2),
+            is_hovered=False,
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
-
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
 
         renderer._draw_hover_effects()
 
-        # pygame.draw.rect should be called for the hover border
-        mock_draw_rect.assert_called()
-        # Check it was called with white color and the correct rect
-        call_args = mock_draw_rect.call_args
-        assert call_args[0][1] == (255, 255, 255)  # White color
+        # Cell (1, 2) spans x 8..15, y 16..23; the border is its outer 2 pixels
+        assert _rgb_at(image, 8, 16) == WHITE_RGB
+        assert _rgb_at(image, 9, 17) == WHITE_RGB
+        assert _rgb_at(image, 15, 23) == WHITE_RGB
+        assert _rgb_at(image, 10, 18) == (0, 0, 0)
+        # Outside the cell, and the canvas edge (not hovered), stay black
+        assert _rgb_at(image, 7, 16) == (0, 0, 0)
+        assert _rgb_at(image, 0, 0) == (0, 0, 0)
+
+    def test_draw_hover_effects_with_hovered_canvas(self):
+        """A hovered canvas gets a 1px white border around its whole edge."""
+        image = pygame.Surface((32, 32))
+        image.fill((0, 0, 0))
+        canvas_sprite = SimpleNamespace(
+            pixels_across=4,
+            pixels_tall=4,
+            pixel_width=8,
+            pixel_height=8,
+            image=image,
+            hovered_pixel=None,
+            is_hovered=True,
+        )
+        renderer = AnimatedCanvasRenderer(canvas_sprite)
+
+        renderer._draw_hover_effects()
+
+        assert _rgb_at(image, 0, 0) == WHITE_RGB
+        assert _rgb_at(image, 31, 31) == WHITE_RGB
+        assert _rgb_at(image, 16, 0) == WHITE_RGB
+        assert _rgb_at(image, 1, 1) == (0, 0, 0)
 
 
 class TestCanvasRendererDrawIndicatorsOnlyPath:
-    """Test _redraw_animated_sprite path calling _draw_controller_indicators_only."""
+    """Test the _redraw_animated_sprite path when the selected frame is hidden."""
 
-    def test_redraw_animated_sprite_with_hidden_selected_frame(self, mocker):
-        """Test that _redraw_animated_sprite calls _draw_controller_indicators_only when hidden.
-
-        Covers line 679 where selected_frame_visible is False.
-        force_redraw calls _redraw_animated_sprite which eventually calls
-        _draw_controller_indicators_only when selected_frame_visible is False.
-        """
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = 2
-        canvas_sprite.pixels_tall = 2
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        # width/height in pixels needed for pygame.Surface creation in _redraw_animated_sprite
-        canvas_sprite.width = 16  # pixels_across * pixel_width
-        canvas_sprite.height = 16  # pixels_tall * pixel_height
-        canvas_sprite.border_thickness = 0
-        canvas_sprite.image = mocker.Mock()
-        canvas_sprite.current_animation = 'idle'
-        canvas_sprite.current_frame = 0
-
-        # Set up parent_scene with selected_frame_visible = False
-        parent_scene = mocker.Mock()
+    def test_redraw_animated_sprite_with_hidden_selected_frame(self):
+        """With the selected frame hidden, only the magenta background and indicators show."""
+        animated_sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((2, 2)))
+        frame.set_pixel_data(cast('list[tuple[int, ...]]', TWO_BY_TWO_PIXELS))
+        animated_sprite.add_animation('idle', [frame])
+        parent_scene = _scene_with_canvas_controller(position=(1, 1), color=INDICATOR_RED_RGB)
         parent_scene.selected_frame_visible = False
-        canvas_sprite.parent_scene = parent_scene
-
-        # Set up animated_sprite with frames
-        mock_frame = mocker.Mock()
-        mock_frame.get_pixel_data.return_value = [
-            (100, 100, 100),
-            (200, 200, 200),
-            (50, 50, 50),
-            (10, 10, 10),
-        ]
-        canvas_sprite.animated_sprite.frames = {'idle': [mock_frame]}
-
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=TWO_BY_TWO_PIXELS,
+            parent_scene=parent_scene,
+            animated_sprite=animated_sprite,
+            current_animation='idle',
+            current_frame=0,
+            border_thickness=1,
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
 
-        # Mock internal methods
-        mocker.patch.object(renderer, '_render_onion_layers')
-        mock_draw_indicators = mocker.patch.object(renderer, '_draw_controller_indicators_only')
-        mocker.patch.object(renderer, '_draw_hover_effects')
+        result = renderer.force_redraw(canvas_sprite)
 
-        renderer.force_redraw(canvas_sprite)
+        assert result is canvas_sprite.image
+        # The frame's pixels and the grid borders are not drawn: magenta shows through
+        assert _rgb_at(result, 0, 0) == (255, 0, 255)
+        assert _rgb_at(result, 4, 4) == (255, 0, 255)
+        assert _rgb_at(result, 12, 4) == (255, 0, 255)
+        # The controller's box at pixel (1, 1) is drawn: inverse of (10, 10, 10) inside
+        assert _rgb_at(result, 9, 9) == INDICATOR_RED_RGB
+        assert _rgb_at(result, 11, 11) == (245, 245, 245)
 
-        mock_draw_indicators.assert_called_once()
+    def test_redraw_animated_sprite_with_visible_selected_frame(self):
+        """With the selected frame visible, its pixels and the grid borders are drawn."""
+        animated_sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((2, 2)))
+        frame.set_pixel_data(cast('list[tuple[int, ...]]', TWO_BY_TWO_PIXELS))
+        animated_sprite.add_animation('idle', [frame])
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=TWO_BY_TWO_PIXELS,
+            animated_sprite=animated_sprite,
+            current_animation='idle',
+            current_frame=0,
+            border_thickness=1,
+        )
+        renderer = AnimatedCanvasRenderer(canvas_sprite)
+
+        result = renderer.force_redraw(canvas_sprite)
+
+        assert _rgb_at(result, 0, 0) == BORDER_GRAY_RGB
+        assert _rgb_at(result, 4, 4) == (100, 100, 100)
+        assert _rgb_at(result, 12, 4) == (200, 200, 200)
+        assert _rgb_at(result, 4, 12) == (50, 50, 50)
+        assert _rgb_at(result, 12, 12) == (10, 10, 10)
 
 
 class TestCanvasRendererOnionSkinRGBA:
-    """Test onion skin RGBA pixel handling (lines 767-769)."""
+    """Test onion skin pixel transparency."""
 
-    def test_render_onion_layer_rgba_pixels(self, mocker):
-        """Test that RGBA pixels combine alpha with onion transparency.
-
-        Covers lines 767-769 where a pixel has 4 components (RGBA)
-        and the combined alpha is calculated.
-        """
-        # Need real width/height for pygame.Surface creation
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixels_across = 2
-        canvas_sprite.pixels_tall = 2
-        canvas_sprite.pixel_width = 8
-        canvas_sprite.pixel_height = 8
-        canvas_sprite.width = 16  # 2 * 8
-        canvas_sprite.height = 16  # 2 * 8
-        canvas_sprite.image = pygame.Surface((16, 16), pygame.SRCALPHA)
-
+    def test_render_onion_layer_rgba_pixels(self):
+        """Onion pixels combine their own alpha with the onion alpha; magenta is skipped."""
+        canvas_sprite = _two_by_two_canvas_stand_in(pixels=TWO_BY_TWO_PIXELS)
         renderer = AnimatedCanvasRenderer(canvas_sprite)
-
-        # Call _render_onion_frame with RGBA pixels
         frame_pixels = cast(
             'list[tuple[int, ...]]',
-            [(255, 0, 0, 128), (0, 255, 0, 255), (0, 0, 255, 64), (255, 255, 0, 200)],
+            [(255, 0, 0, 128), (0, 255, 0), (255, 0, 255), (255, 255, 0, 200)],
         )
         alpha = 128  # 50% onion transparency
 
         result = renderer._render_onion_frame(frame_pixels, alpha)
 
-        # Should return a Surface
-        assert isinstance(result, pygame.Surface)
+        assert result.get_size() == (16, 16)
+        # RGBA pixel: 128 * 128 / 255 = 64
+        assert tuple(result.get_at((4, 4))) == (255, 0, 0, 64)
+        # RGB pixel: takes the onion alpha
+        assert tuple(result.get_at((12, 4))) == (0, 255, 0, 128)
+        # Magenta pixel: left fully transparent
+        assert result.get_at((4, 12)).a == 0
+        # 200 * 128 / 255 = 100
+        assert tuple(result.get_at((12, 12))) == (255, 255, 0, 100)
 
 
 class TestCanvasControllerIndicatorForPixelSkipPaths:
@@ -1767,11 +1796,6 @@ class TestCanvasSetPixelControllerDragPath:
 class TestAnimatedCanvasInterfaceGetPixelAtAnimated:
     """Test AnimatedCanvasInterface.get_pixel_at with animated sprite frames."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_pixel_at_from_animated_frame(self, mocker):
         """Test get_pixel_at retrieves pixel from animated sprite frame."""
         canvas_sprite = mocker.Mock()
@@ -1838,11 +1862,6 @@ class TestAnimatedCanvasInterfaceGetPixelAtAnimated:
 class TestAnimatedCanvasInterfaceGetOldPixelColor:
     """Test AnimatedCanvasInterface._get_old_pixel_color."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_old_color_from_animated_frame(self, mocker):
         """Test _get_old_pixel_color retrieves from animated frame."""
         canvas_sprite = mocker.Mock()
@@ -1889,11 +1908,6 @@ class TestAnimatedCanvasInterfaceGetOldPixelColor:
 
 class TestAnimatedCanvasInterfaceUpdateFramePixelData:
     """Test AnimatedCanvasInterface._update_frame_pixel_data."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_update_frame_data_in_animated_sprite(self, mocker):
         """Test _update_frame_pixel_data updates animated frame pixel."""
@@ -1962,11 +1976,6 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
 class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
     """Test AnimatedCanvasInterface.set_pixel_at non-skip path."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_set_pixel_at_with_controller_drag_active(self, mocker):
         """Test set_pixel_at logs when controller drag is active."""
         canvas_sprite = mocker.Mock()
@@ -1990,11 +1999,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
 
 class TestAnimatedCanvasInterfaceShouldTrackWithTracker:
     """Test _should_track_color_change with canvas_operation_tracker."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_should_track_with_operation_tracker(self, mocker):
         """Test color change is tracked when operation tracker exists."""
@@ -2029,11 +2033,6 @@ class TestAnimatedCanvasInterfaceShouldTrackWithTracker:
 
 class TestAnimatedCanvasInterfaceCollectPixelChange:
     """Test AnimatedCanvasInterface._collect_pixel_change."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_collect_first_pixel_change_starts_timer(self, mocker):
         """Test collecting first pixel change starts a timer."""
@@ -2080,47 +2079,45 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
 class TestAnimatedCanvasRendererMethods:
     """Test AnimatedCanvasRenderer render and force_redraw methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_render_delegates_to_force_redraw(self, mocker):
-        """Test render calls force_redraw."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.width = CANVAS_SIZE * 8
-        canvas_sprite.height = CANVAS_SIZE * 8
-        canvas_sprite.pixels_across = CANVAS_SIZE
-        canvas_sprite.pixels_tall = CANVAS_SIZE
-        canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.image = pygame.Surface((CANVAS_SIZE * 8, CANVAS_SIZE * 8))
-        del canvas_sprite.animated_sprite
-
+    def test_render_draws_static_pixels_with_borders_and_hover(self):
+        """Render without an animated sprite draws the pixels, their borders and the hover."""
+        canvas_sprite = _static_canvas_stand_in(
+            pixels=[MAGENTA] * PIXEL_COUNT,
+            pixel_size=8,
+            image=pygame.Surface((CANVAS_SIZE * 8, CANVAS_SIZE * 8)),
+            border_thickness=1,
+            hovered_pixel=(3, 3),
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
-        mocker.patch.object(renderer, '_redraw_static_pixels')
-        mocker.patch.object(renderer, '_draw_hover_effects')
 
         result = renderer.render(canvas_sprite)
+
         assert result is canvas_sprite.image
+        assert _rgb_at(result, 4, 4) == (255, 0, 255)
+        assert _rgb_at(result, 0, 0) == BORDER_GRAY_RGB
+        # The hovered cell (3, 3) at x/y 24..31 is outlined in white
+        assert _rgb_at(result, 24, 24) == WHITE_RGB
+        assert _rgb_at(result, 25, 25) == WHITE_RGB
+        assert _rgb_at(result, 28, 28) == (255, 0, 255)
 
-    def test_force_redraw_static_fallback(self, mocker):
-        """Test force_redraw falls back to static rendering."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.width = CANVAS_SIZE * 8
-        canvas_sprite.height = CANVAS_SIZE * 8
-        canvas_sprite.pixels_across = CANVAS_SIZE
-        canvas_sprite.pixels_tall = CANVAS_SIZE
-        canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.image = pygame.Surface((CANVAS_SIZE * 8, CANVAS_SIZE * 8))
-        del canvas_sprite.animated_sprite
-
+    def test_force_redraw_static_fallback_fills_background_first(self):
+        """A static redraw clears the old image to the background before drawing pixels."""
+        image = pygame.Surface((CANVAS_SIZE * 8, CANVAS_SIZE * 8 + 8))
+        image.fill((9, 9, 9))
+        canvas_sprite = _static_canvas_stand_in(
+            pixels=[MAGENTA] * PIXEL_COUNT,
+            pixel_size=8,
+            image=image,
+            background_color=(1, 2, 3),
+        )
         renderer = AnimatedCanvasRenderer(canvas_sprite)
-        mocker.patch.object(renderer, '_redraw_static_pixels')
-        mocker.patch.object(renderer, '_draw_hover_effects')
 
         result = renderer.force_redraw(canvas_sprite)
-        renderer._redraw_static_pixels.assert_called_once()  # type: ignore[unresolved-attribute]
+
         assert result is canvas_sprite.image
+        # The extra row below the pixels shows the background, not the old fill
+        assert _rgb_at(result, 0, CANVAS_SIZE * 8) == (1, 2, 3)
+        assert _rgb_at(result, 0, 0) == (255, 0, 255)
 
     def test_get_pixel_size_returns_tuple(self, mocker):
         """Test get_pixel_size returns pixel dimensions."""

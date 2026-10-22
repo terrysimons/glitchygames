@@ -54,7 +54,6 @@ from glitchygames.bitmappy.toml_processing import (
     parse_toml_robustly,
 )
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
-from tests.mocks import MockFactory
 
 EXPECTED_CALLS_AFTER_ONE_RETRY = 2
 
@@ -82,17 +81,6 @@ def logger():
 
     """
     return logging.getLogger('test.bitmappy_additional')
-
-
-@pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The pygame mock objects.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 # ---------------------------------------------------------------------------

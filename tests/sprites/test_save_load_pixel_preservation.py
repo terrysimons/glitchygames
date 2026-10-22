@@ -4,10 +4,6 @@ import re
 import tempfile
 from pathlib import Path
 
-import pygame
-
-from tests.mocks.test_mock_factory import MockFactory
-
 
 def _strip_hitbox_sections(content: str) -> str:
     """Remove hitbox sections from TOML content for comparison.
@@ -666,20 +662,6 @@ alpha = 200
 
 class TestSaveLoadPixelPreservation:
     """Test that save/load operations preserve pixel data correctly."""
-
-    def setup_method(self):
-        """Set up test fixtures using centralized mocks."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers.values():
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_candle_sprite_save_load_preserves_pixels(self):
         """Test that loading, saving, and reloading a candle sprite preserves all pixels."""

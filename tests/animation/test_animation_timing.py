@@ -8,14 +8,13 @@ import sys
 import time
 from pathlib import Path
 
+import pygame
 import pytest
 
 from glitchygames.sprites import SpriteFactory
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
@@ -44,20 +43,26 @@ MAX_INTERVAL = 10.0
 MAX_ANIMATION_TIME = 60
 PERFORMANCE_THRESHOLD = 0.1
 
+# The solid color of each frame of colors.toml, in order (from its [colors] table)
+COLORS_TOML_FRAME_COLORS = [
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (255, 128, 0),
+    (128, 0, 255),
+    (0, 255, 128),
+    (255, 255, 255),
+]
+
 
 class TestAnimationTiming:
     """Test animation timing and frame intervals."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
         """Set up test fixtures."""
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-
         # Load the colors.toml animation for testing
         self.animation_file = get_resource_path('colors.toml')
 
@@ -256,9 +261,56 @@ class TestAnimationTiming:
                     f'Frame {i} should have same size as first frame'
                 )
 
-                # Check that frame has content (not just transparent)
-                # Should have some non-transparent colors
-                # Not magenta/transparent
+            # Each frame of colors.toml is one solid color, and the frames step through
+            # the file's palette (frame 4 is the magenta transparency key: a blank frame)
+            frame_colors = []
+            for i, frame in enumerate(frames):
+                rgb_pixels = pygame.surfarray.array3d(frame.image).reshape(-1, 3)
+                unique_colors = {tuple(int(channel) for channel in pixel) for pixel in rgb_pixels}
+                assert len(unique_colors) == 1, f'Frame {i} should be one solid color'
+                frame_colors.append(unique_colors.pop())
+            assert frame_colors == COLORS_TOML_FRAME_COLORS
+
+    def test_playback_draws_each_frame_for_its_own_interval(self):
+        """Playing the sprite shows each frame's pixels for that frame's own interval.
+
+        colors.toml's frames last 0.25 s, 0.75 s and 0.66 s: the drawn image must change
+        only when the current frame's interval has run out.
+        """
+        sprite = SpriteFactory.load_sprite(filename=self.animation_file)
+        animation_name = next(iter(sprite.animations.keys()))
+        frames = sprite.animations[animation_name]
+        frame_colors = [
+            pygame.surfarray.array3d(frame.image).tolist() for frame in frames[:MAX_FRAME_COUNT]
+        ]
+        assert len({str(colors) for colors in frame_colors}) == MAX_FRAME_COUNT, (
+            'the first three frames must look different for this test to mean anything'
+        )
+
+        def drawn_colors():
+            return pygame.surfarray.array3d(sprite.image).tolist()
+
+        sprite.play()
+        assert sprite.current_frame == 0
+        assert drawn_colors() == frame_colors[0]
+
+        # Just short of frame 0's 0.25 s: still frame 0
+        sprite.update(0.2)
+        assert sprite.current_frame == 0
+        assert drawn_colors() == frame_colors[0]
+
+        # Past it: frame 1 (0.75 s long) is drawn
+        sprite.update(0.1)
+        assert sprite.current_frame == 1
+        assert drawn_colors() == frame_colors[1]
+
+        # 0.6 s more is still inside frame 1; 0.15 s after that is frame 2
+        sprite.update(0.6)
+        assert sprite.current_frame == 1
+        assert drawn_colors() == frame_colors[1]
+        sprite.update(0.15)
+        assert sprite.current_frame == MAX_FRAME_COUNT - 1
+        assert drawn_colors() == frame_colors[2]
 
     @staticmethod
     def _extract_pixel_data(surface):

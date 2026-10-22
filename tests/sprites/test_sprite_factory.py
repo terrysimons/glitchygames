@@ -9,27 +9,72 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-# Import the original SpriteFactory before mocking
-import glitchygames.sprites
-from glitchygames.sprites import SpriteFactory
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.sprites import AnimatedSprite, BitmappySprite, SpriteFactory, SpriteFrame
 
-original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+
+def _rgb_rows(image):
+    """Return an image's RGB pixels, row by row.
+
+    Returns:
+        list[list[tuple[int, int, int]]]: ``rows[y][x]``.
+
+    """
+    rows = pygame.surfarray.array3d(image).transpose(1, 0, 2).tolist()
+    return [[tuple(pixel) for pixel in row] for row in rows]
+
+
+def _solid_rgb(image):
+    """Return the one RGB color an image is filled with (fails if it has more than one).
+
+    Returns:
+        tuple[int, int, int]: The image's only color.
+
+    """
+    unique_colors = {pixel for row in _rgb_rows(image) for pixel in row}
+    assert len(unique_colors) == 1, f'expected one color, got {sorted(unique_colors)}'
+    return unique_colors.pop()
+
+
+def _two_color_static_sprite():
+    """Create a 2x2 BitmappySprite: red, with a green bottom-right pixel.
+
+    Returns:
+        BitmappySprite: The sprite.
+
+    """
+    sprite = BitmappySprite(width=2, height=2, name='static_two')
+    sprite.image.fill(RED)
+    sprite.image.set_at((1, 1), GREEN)
+    sprite.pixels = [RED, RED, RED, GREEN]
+    return sprite
+
+
+def _two_frame_animated_sprite():
+    """Create an AnimatedSprite with a 'walk' animation: a red frame then a blue one.
+
+    Returns:
+        AnimatedSprite: The sprite.
+
+    """
+    frames = []
+    for color, duration in ((RED, 0.25), (BLUE, 0.5)):
+        surface = pygame.Surface((2, 2))
+        surface.fill(color)
+        frame = SpriteFrame(surface, duration=duration)
+        frame.pixels = [color] * 4
+        frames.append(frame)
+    sprite = AnimatedSprite()
+    sprite.name = 'walker'
+    sprite.add_animation('walk', frames)
+    return sprite
 
 
 class TestSpriteFactory:
     """Test SpriteFactory functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
 
     def test_get_default_sprite_path(self):
         """Test getting default sprite path."""
@@ -71,42 +116,51 @@ class TestSpriteFactory:
         sprite_type = SpriteFactory._determine_type(analysis)
         assert sprite_type == 'error'
 
-    def test_save_sprite_animated(self, mocker):
-        """Test saving animated sprite."""
-        mock_sprite = mocker.Mock()
-        mock_sprite.animations = {}  # Make it look like an AnimatedSprite
+    def test_save_sprite_animated(self, tmp_path):
+        """save_sprite writes an AnimatedSprite's animations; loading draws the same frames."""
+        sprite_path = tmp_path / 'walker.toml'
+        SpriteFactory.save_sprite(
+            sprite=_two_frame_animated_sprite(), filename=str(sprite_path), file_format='toml'
+        )
 
-        mock_save = mocker.patch('glitchygames.sprites.SpriteFactory._save_animated_sprite')
-        SpriteFactory.save_sprite(sprite=mock_sprite, filename='test.toml', file_format='toml')
-        mock_save.assert_called_once()
+        loaded = SpriteFactory.load_sprite(filename=str(sprite_path))
+        assert list(loaded.animations) == ['walk']
+        assert [frame.duration for frame in loaded.animations['walk']] == [0.25, 0.5]
+        assert [_solid_rgb(frame.image) for frame in loaded.animations['walk']] == [
+            RED,
+            BLUE,
+        ]
 
-    def test_save_sprite_static(self, mocker):
-        """Test saving static sprite."""
-        mock_sprite = mocker.Mock()
-        # Explicitly remove animations attribute to make it look like a BitmappySprite
-        # hasattr(mock_sprite, 'animations') should return False
-        del mock_sprite.animations  # Remove the default animations attribute
-        mock_sprite._save = mocker.Mock()  # Add _save method to mock
+    def test_save_sprite_static(self, tmp_path):
+        """save_sprite writes a BitmappySprite's pixels; loading draws the same image."""
+        sprite_path = tmp_path / 'static.toml'
+        SpriteFactory.save_sprite(
+            sprite=_two_color_static_sprite(), filename=str(sprite_path), file_format='toml'
+        )
 
-        mock_save = mocker.patch('glitchygames.sprites.SpriteFactory._save_static_sprite')
-        SpriteFactory.save_sprite(sprite=mock_sprite, filename='test.toml', file_format='toml')
-        mock_save.assert_called_once_with(mock_sprite, 'test.toml', 'toml')
+        loaded = SpriteFactory.load_sprite(filename=str(sprite_path))
+        assert _rgb_rows(loaded.image) == [[RED, RED], [RED, GREEN]]
 
-    def test_save_static_sprite(self, mocker):
-        """Test saving static sprite directly."""
-        mock_sprite = mocker.Mock()
+    def test_save_static_sprite(self, tmp_path):
+        """_save_static_sprite writes the sprite's own TOML (its _save)."""
+        sprite_path = tmp_path / 'static.toml'
+        SpriteFactory._save_static_sprite(_two_color_static_sprite(), str(sprite_path), 'toml')
 
-        mock_save = mocker.patch('glitchygames.sprites.SpriteFactory._save_static_sprite')
-        SpriteFactory._save_static_sprite(mock_sprite, 'test.toml', 'toml')
-        mock_save.assert_called_once()
+        saved_text = sprite_path.read_text(encoding='utf-8')
+        assert 'name = "static_two"' in saved_text
+        loaded = SpriteFactory.load_sprite(filename=str(sprite_path))
+        assert _rgb_rows(loaded.image) == [[RED, RED], [RED, GREEN]]
 
-    def test_save_animated_sprite(self, mocker):
-        """Test saving animated sprite directly."""
-        mock_sprite = mocker.Mock()
+    def test_save_animated_sprite(self, tmp_path):
+        """_save_animated_sprite writes every frame of every animation."""
+        sprite_path = tmp_path / 'walker.toml'
+        SpriteFactory._save_animated_sprite(_two_frame_animated_sprite(), str(sprite_path), 'toml')
 
-        mock_save = mocker.patch('glitchygames.sprites.SpriteFactory._save_animated_sprite')
-        SpriteFactory._save_animated_sprite(mock_sprite, 'test.toml', 'toml')
-        mock_save.assert_called_once()
+        loaded = SpriteFactory.load_sprite(filename=str(sprite_path))
+        assert [_solid_rgb(frame.image) for frame in loaded.animations['walk']] == [
+            RED,
+            BLUE,
+        ]
 
     def test_analyze_file_with_nonexistent_file(self):
         """Test analyzing nonexistent file."""
@@ -161,14 +215,8 @@ class TestSpriteFactory:
         format_type = SpriteFactory.detect_file_format('test.unknown')
         assert format_type == 'unknown'
 
-    def test_load_sprite_invalid_file(self, mocker):
+    def test_load_sprite_invalid_file(self):
         """Test loading sprite from invalid file."""
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename='nonexistent.toml')
 
@@ -183,23 +231,11 @@ class TestSpriteFactory:
             },
         )
 
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         with pytest.raises(ValueError, match='Invalid sprite file'):
             SpriteFactory.load_sprite(filename='mixed.toml')
 
-    def test_sprite_factory_load_sprite_invalid_file(self, mocker):
+    def test_sprite_factory_load_sprite_invalid_file(self):
         """Test SpriteFactory load_sprite with invalid file."""
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         with pytest.raises(FileNotFoundError):
             SpriteFactory.load_sprite(filename='nonexistent.toml')
 

@@ -14,7 +14,6 @@ from scripts.raw_sprite_loader import BitmappyLegacySprite
 
 from glitchygames.sprites import SPRITE_GLYPHS, BitmappySprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks import MockFactory
 
 # Constants for test values
 CHARACTER_LIMIT = 64
@@ -24,17 +23,8 @@ EXPECTED_ERROR_COUNT_2 = 2
 class TestCharacterLimitEnforcement:
     """Test character limit enforcement across all sprite modes."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
         """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
@@ -98,7 +88,7 @@ class TestCharacterLimitEnforcement:
         sprite.pixels_across = 9
         sprite.pixels_tall = 9
 
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(sprite, 'log')
         with pytest.raises(ValueError, match='Too many colors'):
             sprite.save(str(toml_file), 'toml')
@@ -282,7 +272,7 @@ class TestCharacterLimitEnforcement:
         sprite.pixels_across = 13  # 13 * 5 = 65 pixels, exactly matching 65 colors
         sprite.pixels_tall = 5
 
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(sprite, 'log')
         with pytest.raises(ValueError, match='Too many colors'):
             sprite.save(str(self.temp_path / 'test_error.toml'), 'toml')
@@ -353,7 +343,7 @@ class TestCharacterLimitEnforcement:
         # Measure time to detect limit violation
         start_time = time.time()
 
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(sprite, 'log')
         with pytest.raises(ValueError, match='Too many colors'):
             sprite.save(str(self.temp_path / 'test_performance.toml'), 'toml')

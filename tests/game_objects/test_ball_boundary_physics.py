@@ -16,8 +16,12 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
     speed_up_step_ratio,
 )
+from glitchygames.game_objects.sounds import SFX
 from glitchygames.movement import Speed
-from tests.game_objects.ball_helpers import drawn_position
+from tests.game_objects.ball_helpers import drawn_visible_rect, place_visible_edge_past_wall
+
+# How far past a wall the visible circle's edge is put before a frame
+OVERSHOOT = 5.0
 
 
 class TestBallBoundaryPhysics:
@@ -46,12 +50,11 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
         # Simulate movement that would go past top boundary
-        ball.world_y = -5.0  # Past the boundary
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)  # 60 FPS
-        drawn_position(ball)
 
-        # Ball should be repositioned and speed should be positive (downward)
-        assert ball.rect.y >= 0
+        # Ball's visible circle should be repositioned and speed positive (downward)
+        assert drawn_visible_rect(ball).top >= 0
         assert ball.speed.y >= 0
 
     def test_bottom_boundary_bounce(self):
@@ -65,12 +68,11 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, 50.0)  # Moving down
 
         # Simulate movement that would go past bottom boundary
-        ball.world_y = 600.0  # Past the boundary
+        place_visible_edge_past_wall(ball, wall='bottom', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)  # 60 FPS
-        drawn_position(ball)
 
-        # Ball should be repositioned and speed should be negative (upward)
-        assert ball.rect.y + ball.rect.height <= 600
+        # Ball's visible circle should be repositioned and speed negative (upward)
+        assert drawn_visible_rect(ball).bottom <= ball.screen_height
         assert ball.speed.y <= 0
 
     def test_left_boundary_bounce(self):
@@ -84,12 +86,11 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(-50.0, 100.0)  # Moving left
 
         # Simulate movement that would go past left boundary
-        ball.world_x = -5.0  # Past the boundary
+        place_visible_edge_past_wall(ball, wall='left', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)  # 60 FPS
-        drawn_position(ball)
 
-        # Ball should be repositioned and speed should be positive (rightward)
-        assert ball.rect.x >= 0
+        # Ball's visible circle should be repositioned and speed positive (rightward)
+        assert drawn_visible_rect(ball).left >= 0
         assert ball.speed.x >= 0
 
     def test_right_boundary_bounce(self):
@@ -103,12 +104,11 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(50.0, 100.0)  # Moving right
 
         # Simulate movement that would go past right boundary
-        ball.world_x = 800.0  # Past the boundary
+        place_visible_edge_past_wall(ball, wall='right', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)  # 60 FPS
-        drawn_position(ball)
 
-        # Ball should be repositioned and speed should be negative (leftward)
-        assert ball.rect.x + ball.rect.width <= 800
+        # Ball's visible circle should be repositioned and speed negative (leftward)
+        assert drawn_visible_rect(ball).right <= ball.screen_width
         assert ball.speed.x <= 0
 
     def test_no_bounce_when_disabled(self):
@@ -124,7 +124,7 @@ class TestBallBoundaryPhysics:
         initial_speed_y = ball.speed.y
 
         # Simulate movement past boundary
-        ball.world_y = -5.0
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
 
         # Speed should remain unchanged (no bounce)
@@ -141,14 +141,14 @@ class TestBallBoundaryPhysics:
         )
         ball.speed = Speed(-50.0, -50.0)  # Moving up-left
 
-        ball.world_x = -5.0
-        ball.world_y = -5.0
+        place_visible_edge_past_wall(ball, wall='left', overshoot=OVERSHOOT)
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
-        drawn_position(ball)
 
         # Both X and Y should be corrected
-        assert ball.rect.x >= 0
-        assert ball.rect.y >= 0
+        visible_rect = drawn_visible_rect(ball)
+        assert visible_rect.left >= 0
+        assert visible_rect.top >= 0
         assert ball.speed.x >= 0  # Should bounce right
         assert ball.speed.y >= 0  # Should bounce down
 
@@ -165,13 +165,13 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(1000.0, 1000.0)  # Very fast movement
 
         ball.dt_tick(0.016)
-        drawn_position(ball)
 
-        # Ball should not clip through boundaries
-        assert ball.rect.x >= 0
-        assert ball.rect.y >= 0
-        assert ball.rect.x + ball.rect.width <= 800
-        assert ball.rect.y + ball.rect.height <= 600
+        # Ball's visible circle should not clip through boundaries
+        visible_rect = drawn_visible_rect(ball)
+        assert visible_rect.left >= 0
+        assert visible_rect.top >= 0
+        assert visible_rect.right <= ball.screen_width
+        assert visible_rect.bottom <= ball.screen_height
 
     def test_speed_preservation_during_bounce(self):
         """Test that speed magnitude is preserved during bounces."""
@@ -186,7 +186,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
         initial_speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
-        ball.world_y = -5.0
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
 
         # Speed magnitude should be preserved (energy conservation)
@@ -207,13 +207,13 @@ class TestBallBoundaryPhysics:
 
         # Simulate multiple frames of bouncing
         for _ in range(10):
-            ball.world_y = -5.0  # Past boundary
+            place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
             ball.dt_tick(0.016)
-            drawn_position(ball)
 
-            # Ball should always be within bounds
-            assert ball.rect.y >= 0
-            assert ball.rect.y + ball.rect.height <= 600
+            # Ball's visible circle should always be within bounds
+            visible_rect = drawn_visible_rect(ball)
+            assert visible_rect.top >= 0
+            assert visible_rect.bottom <= ball.screen_height
 
     def test_boundary_bounce_with_speed_up(self):
         """Test boundary bounce with speed-up mechanics."""
@@ -234,7 +234,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
         initial_speed_y = abs(ball.speed.y)
 
-        ball.world_y = -5.0
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
 
         # Vertical speed should be increased by the first logarithmic step; X untouched
@@ -257,36 +257,37 @@ class TestBallBoundaryPhysics:
         )
         ball.speed = Speed(0.0, 0.0)  # Zero speed
 
-        ball.world_y = -5.0  # Past boundary
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
-        drawn_position(ball)
 
-        # Ball should be repositioned but speed remains zero
-        assert ball.rect.y >= 0
+        # Ball's visible circle should be repositioned but speed remains zero
+        assert drawn_visible_rect(ball).top >= 0
         assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)
         assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)
 
     def test_boundary_bounce_sound_effects(self, mocker):
         """Test that boundary bounces trigger sound effects."""
+        # Mock the loaded sound: playing it needs no mixer (none under some audio drivers)
+        bounce_sound = mocker.Mock()
+        load_sound = mocker.patch('glitchygames.game_objects.load_sound', return_value=bounce_sound)
         ball = BallSprite(
             x=400,
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            collision_sound='test_sound',
+            collision_sound=SFX.BOUNCE,
         )
-
-        # Mock the sound
-        ball.snd = mocker.Mock()
+        load_sound.assert_called_once_with(SFX.BOUNCE)
+        assert ball.snd is bounce_sound
         # Moving up into the top wall; reset() picks a random direction, and a ball
         # moving away from a wall is moved back inside without bouncing (no sound)
         ball.speed = Speed(0.0, -100.0)
 
-        ball.world_y = -5.0
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
 
         # Sound should be played
-        ball.snd.play.assert_called_once()
+        bounce_sound.play.assert_called_once()
 
     def test_boundary_bounce_debug_logging(self, mocker):
         """Test that boundary bounces generate debug logs."""
@@ -299,7 +300,7 @@ class TestBallBoundaryPhysics:
 
         mock_log = mocker.patch('glitchygames.game_objects.ball.log')
 
-        ball.world_y = -5.0
+        place_visible_edge_past_wall(ball, wall='top', overshoot=OVERSHOOT)
         ball.dt_tick(0.016)
 
         # Debug logging should be called

@@ -1,171 +1,171 @@
 """Test film strip event handling with return value pattern."""
 
-import sys
-from pathlib import Path
-
+import pygame
 import pytest
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from glitchygames import events
+from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.onion_skinning import get_onion_skinning_manager
+from tests.tools.test_film_strip_base import (
+    FRAME_INDEX_2,
+    PIXEL_SIZE,
+    PIXELS_ACROSS,
+    PIXELS_TALL,
+    frame_color_for_index,
+    make_real_animated_sprite,
+)
 
-from glitchygames.bitmappy import film_strip
-from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
-from tests.mocks.test_mock_factory import MockFactory
+# Frame colours far from magenta, so no frame is drawn or sampled as transparent
+BASE_FRAME_COLOR = (200, 40, 10)
+OPAQUE_ALPHA = 255
+
+
+def right_click_event(*, position: tuple[int, int]) -> events.HashableEvent:
+    """Build a real right MOUSEBUTTONUP event.
+
+    Returns:
+        The event.
+
+    """
+    return events.HashableEvent(pygame.MOUSEBUTTONUP, pos=position, button=3)
 
 
 class TestFilmStripEventHandling:
     """Test film strip event handling with return value pattern."""
 
     @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
-        self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def setup_real_editor(self):
+        """Load a five-frame 'idle' animation into a real editor scene."""
+        self.scene = bitmappy.BitmapEditorScene(
+            options={
+                'pixels_across': PIXELS_ACROSS,
+                'pixels_tall': PIXELS_TALL,
+                'pixel_size': PIXEL_SIZE,
+            },
+        )
+        self.scene.film_strip_coordinator.on_sprite_loaded(
+            make_real_animated_sprite(base_color=BASE_FRAME_COLOR),
+        )
+        self.film_strip_sprite = self.scene.film_strip_sprites['idle']
+        self.film_strip_widget = self.film_strip_sprite.film_strip_widget
 
-        # Create a real film strip widget
-        self.film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
+    def screen_position_of_frame(self, frame_index: int) -> tuple[int, int]:
+        """Return the screen position of the centre of a frame's thumbnail.
 
-        # Create film strip sprite
-        self.film_strip_sprite = FilmStripSprite(
-            film_strip_widget=self.film_strip_widget,
-            x=100,
-            y=100,
-            width=200,
-            height=100,
+        Returns:
+            The screen position.
+
+        """
+        frame_rect = self.film_strip_widget.frame_layouts['idle', frame_index]
+        return (
+            self.film_strip_sprite.rect.x + frame_rect.centerx,
+            self.film_strip_sprite.rect.y + frame_rect.centery,
+        )
+
+    def screen_position_off_the_frames(self) -> tuple[int, int]:
+        """Return a screen position inside the film strip that is on no frame.
+
+        Returns:
+            The screen position (the centre of the animation label).
+
+        """
+        label_rect = self.film_strip_widget.animation_layouts['idle']
+        film_position = label_rect.center
+        assert self.film_strip_widget.get_frame_at_position(film_position) is None
+        return (
+            self.film_strip_sprite.rect.x + film_position[0],
+            self.film_strip_sprite.rect.y + film_position[1],
         )
 
     def test_right_click_inside_bounds_returns_true(self):
         """Test that right-click inside film strip bounds returns True."""
-        # Create a mock right-click event inside the film strip
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=self.screen_position_of_frame(0)),
+        )
 
-        # Test that the film strip handles the event
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return True when event is handled
         assert result, 'Film strip should return True when handling event inside bounds'
 
     def test_right_click_outside_bounds_returns_false(self):
         """Test that right-click outside film strip bounds returns False."""
-        # Create a mock right-click event outside the film strip
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (50, 50)  # Outside the film strip bounds
-        event.button = 3  # Right mouse button
+        outside_position = (self.film_strip_sprite.rect.x - 1, self.film_strip_sprite.rect.y - 1)
 
-        # Test that the film strip does not handle the event
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=outside_position),
+        )
 
-        # Should return False when event is not handled
         assert not result, 'Film strip should return False when not handling event outside bounds'
 
     def test_right_click_with_frame_selection_returns_true(self):
-        """Test that right-click on a frame for color sampling returns True."""
-        # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=('animation', 0),
+        """Test that right-click on a frame samples its colour into the editor and returns True."""
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=self.screen_position_of_frame(1)),
         )
 
-        # Create a mock right-click event inside the film strip
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
-
-        # Test that the film strip handles the event
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return True when event is handled
         assert result, 'Film strip should return True when handling frame selection event'
+        expected_color = frame_color_for_index(base_color=BASE_FRAME_COLOR, frame_index=1)
+        assert tuple(self.scene.color_well.active_color) == (*expected_color, OPAQUE_ALPHA)
 
-    def test_right_click_with_onion_skinning_returns_true(self):
-        """Test that right-click for onion skinning returns True."""
-        # Mock the film strip widget to return None for frame selection but handle onion skinning
-        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=None)
-        self.film_strip_widget.handle_click = self._mocker.Mock(return_value=('animation', 0))
+    def test_right_click_off_the_frames_returns_true(self):
+        """Test that a right-click inside the strip but on no frame is still handled.
 
-        # Create a mock right-click event inside the film strip
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
+        It goes to the widget's handle_click (the onion-skinning path), which does nothing
+        off the frames, and the sprite still reports the click as handled.
+        """
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=self.screen_position_off_the_frames()),
+        )
 
-        # Test that the film strip handles the event
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return True when event is handled
-        assert result, 'Film strip should return True when handling onion skinning event'
+        assert result, 'Film strip should return True for a right-click inside its bounds'
 
     def test_right_click_when_invisible_returns_false(self):
         """Test that right-click when sprite is invisible returns False."""
-        # Make the sprite invisible
         self.film_strip_sprite.visible = False
 
-        # Create a mock right-click event inside the film strip
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=self.screen_position_of_frame(0)),
+        )
 
-        # Test that the film strip does not handle the event
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return False when sprite is invisible
         assert not result, 'Film strip should return False when sprite is invisible'
 
     def test_right_click_without_widget_returns_false(self):
         """Test that right-click without widget returns False."""
-        # Remove the widget
+        position = self.screen_position_of_frame(0)
         self.film_strip_sprite.film_strip_widget = None
 
-        # Create a mock right-click event inside the film strip
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=position),
+        )
 
-        # Test that the film strip does not handle the event
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return False when no widget
         assert not result, 'Film strip should return False when no widget'
 
     def test_event_coordinate_conversion(self):
-        """Test that screen coordinates are properly converted to film strip coordinates."""
-        # Mock the film strip widget methods to capture the converted coordinates
-        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=None)
-        self.film_strip_widget.handle_click = self._mocker.Mock(return_value=None)
+        """Test that screen coordinates are converted to film strip coordinates.
 
-        # Create a mock right-click event
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Screen coordinates
-        event.button = 3  # Right mouse button
+        The strip sits away from the screen origin, so only a converted position lands on
+        frame 2 and samples frame 2's colour.
+        """
+        assert self.film_strip_sprite.rect.topleft != (0, 0)
 
-        # Call the event handler
-        self.film_strip_sprite.on_right_mouse_button_up_event(event)
+        self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=self.screen_position_of_frame(FRAME_INDEX_2)),
+        )
 
-        # Verify that handle_click was called with converted coordinates
-        # Screen (150, 150) - Film strip (100, 100) = Film strip (50, 50)
-        self.film_strip_widget.handle_click.assert_called_once_with((50, 50), is_right_click=True)
+        expected_color = frame_color_for_index(
+            base_color=BASE_FRAME_COLOR,
+            frame_index=FRAME_INDEX_2,
+        )
+        assert tuple(self.scene.color_well.active_color) == (*expected_color, OPAQUE_ALPHA)
 
     def test_frame_selection_takes_priority_over_onion_skinning(self):
-        """Test that frame selection for color sampling takes priority over onion skinning."""
-        # Mock the film strip widget to return a frame (color sampling)
-        self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=('animation', 0),
+        """Test that a right-click on a frame samples its colour and leaves onion skinning."""
+        onion_manager = get_onion_skinning_manager()
+        onion_state_before = onion_manager.is_frame_onion_skinned('idle', 1)
+
+        result = self.film_strip_sprite.on_right_mouse_button_up_event(
+            right_click_event(position=self.screen_position_of_frame(1)),
         )
-        self.film_strip_widget.handle_click = self._mocker.Mock(return_value=None)
 
-        # Create a mock right-click event
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)
-        event.button = 3
-
-        # Call the event handler
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return True (handled)
         assert result
-
-        # Should call get_frame_at_position for color sampling
-        self.film_strip_widget.get_frame_at_position.assert_called_once()
-
-        # Should NOT call handle_click for onion skinning
-        self.film_strip_widget.handle_click.assert_not_called()
+        expected_color = frame_color_for_index(base_color=BASE_FRAME_COLOR, frame_index=1)
+        assert tuple(self.scene.color_well.active_color) == (*expected_color, OPAQUE_ALPHA)
+        assert onion_manager.is_frame_onion_skinned('idle', 1) == onion_state_before

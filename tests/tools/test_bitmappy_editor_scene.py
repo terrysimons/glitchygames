@@ -25,7 +25,6 @@ from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandl
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.models import AIRequestState, AIResponse
 from glitchygames.bitmappy.slider_manager import SliderManager
-from tests.mocks import MockFactory
 
 
 def _make_event(**kwargs):
@@ -41,26 +40,6 @@ def _make_event(**kwargs):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _ensure_pygame_init():
-    """Ensure pygame is initialized for all tests in this module."""
-    if not pygame.get_init():
-        pygame.init()
-    if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
-
-
-@pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The mock pygame patches dictionary.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 def _setup_sliders(editor, mocker):
@@ -89,7 +68,9 @@ def _setup_sliders(editor, mocker):
         bbox = mocker.Mock()
         bbox.visible = False
         bbox.rect = pygame.Rect(*bbox_rect)
-        bbox.image = mocker.Mock()
+        # A real, fully transparent surface, as setup_sliders_and_color_well gives each box
+        bbox.image = pygame.Surface(bbox.rect.size, flags=pygame.SRCALPHA, depth=32)
+        bbox.image.fill((0, 0, 0, 0))
         # Bounding boxes are now owned by the SliderManager
         setattr(slider_manager, bbox_name, bbox)
 
@@ -218,7 +199,7 @@ def _setup_ai_state(editor, mocker):
 
 
 @pytest.fixture
-def mock_editor(mocker, pygame_mocks):
+def mock_editor(mocker):
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:
@@ -1855,14 +1836,20 @@ class TestSliderBboxHover:
     """Tests for SliderManager._update_slider_bbox_hover."""
 
     def test_hover_shows_border(self, mock_editor, mocker):
-        """Shows border on hover."""
+        """Hovering draws a 2-pixel border in the colour and leaves the inside transparent."""
         mock_editor._slider_manager._update_slider_bbox_hover(
             'red_slider_bbox',
             is_hovered=True,
             border_color=(255, 0, 0),
         )
-        assert mock_editor._slider_manager.red_slider_bbox.visible is True
-        assert mock_editor._slider_manager.red_slider_bbox.dirty == 1
+        bbox = mock_editor._slider_manager.red_slider_bbox
+        assert bbox.visible is True
+        assert bbox.dirty == 1
+        width, height = bbox.rect.size
+        for border_pixel in ((0, 0), (1, 1), (width - 1, height - 1), (width // 2, 0)):
+            assert tuple(bbox.image.get_at(border_pixel)) == (255, 0, 0, 255)
+        # Alpha is the point here: the box must not cover the slider it surrounds
+        assert bbox.image.get_at((width // 2, height // 2)).a == 0
 
     def test_unhover_hides_border(self, mock_editor, mocker):
         """Hides border on unhover."""
@@ -1875,13 +1862,18 @@ class TestSliderBboxHover:
         assert mock_editor._slider_manager.red_slider_bbox.visible is False
 
     def test_already_visible_no_change(self, mock_editor, mocker):
-        """No change when already hovered and still hovering."""
-        mock_editor._slider_manager.red_slider_bbox.visible = True
+        """No change when already hovered and still hovering: nothing is redrawn."""
+        bbox = mock_editor._slider_manager.red_slider_bbox
+        bbox.visible = True
+        bbox.dirty = 0
         mock_editor._slider_manager._update_slider_bbox_hover(
             'red_slider_bbox',
             is_hovered=True,
             border_color=(255, 0, 0),
         )
+        assert bbox.visible is True
+        assert bbox.dirty == 0
+        assert bbox.image.get_at((0, 0)).a == 0
 
     def test_nonexistent_bbox(self, mock_editor):
         """Does nothing when bbox attribute does not exist."""
@@ -1904,13 +1896,20 @@ class TestSliderTextHoverBorder:
         """Adds white border on hover."""
         mock_editor.red_slider.text_sprite.hover_border_added = False
         del mock_editor.red_slider.text_sprite.hover_border_added
-        mock_editor.red_slider.text_sprite.image = pygame.Surface((50, 10))
+        text_image = pygame.Surface((50, 10), flags=0, depth=32)
+        text_image.fill((0, 0, 0))
+        mock_editor.red_slider.text_sprite.image = text_image
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(0, 0, 50, 10)
         mock_editor._slider_manager._update_slider_text_hover_border(
             'red_slider',
             is_text_hovered=True,
         )
         assert mock_editor.red_slider.text_sprite.hover_border_added is True
+        assert mock_editor.red_slider.text_sprite.dirty == 1
+        # A white 2-pixel border around the text, the inside left as it was
+        for border_pixel in ((0, 0), (1, 1), (49, 9), (25, 0), (0, 5)):
+            assert tuple(text_image.get_at(border_pixel))[:3] == (255, 255, 255)
+        assert tuple(text_image.get_at((25, 5)))[:3] == (0, 0, 0)
 
     def test_remove_hover_border(self, mock_editor, mocker):
         """Removes hover border when no longer hovering."""
@@ -3335,13 +3334,16 @@ class TestDelegation:
 class TestEditorConstructionAndArguments:
     """Tests for BitmapEditorScene construction defaults and command line arguments."""
 
-    def test_missing_options_default_to_a_32_by_32_canvas(self, mock_pygame_patches, mocker):
+    def test_missing_options_default_to_a_32_by_32_canvas(self, mocker):
         """Constructing the editor with no options gives the default 32x32 size."""
-        mocker.patch.object(bitmappy_setup.EditorSetup, 'setup_menu_bar')
+        from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+
+        mocker.patch.object(MultiControllerManager, '_instance', None)
 
         scene = BitmapEditorScene(options=None)  # type: ignore[arg-type]
 
         assert scene.options['size'] == '32x32'
+        assert (scene.canvas.pixels_across, scene.canvas.pixels_tall) == (32, 32)
 
     def test_arguments_add_version_and_size(self):
         """The editor adds --version and --size (default 32x32) to the parser."""
@@ -3353,3 +3355,87 @@ class TestEditorConstructionAndArguments:
         parsed = parser.parse_args(['--size', '16x8', '--version'])
         assert parsed.size == '16x8'
         assert parsed.version is True
+
+
+# ===========================================================================
+# Drawing in the real editor: undo, redo and a new canvas redraw the canvas image
+# ===========================================================================
+
+MAGENTA_RGB = (255, 0, 255)
+PAINT_RGB = (200, 10, 10)
+
+
+@pytest.fixture
+def real_editor(mocker):
+    """Build a real Bitmappy editor on the real display, with a fresh controller manager.
+
+    Returns:
+        BitmapEditorScene: The editor (one 32x32 frame of magenta).
+
+    """
+    from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def _paint_pixel(editor, *, x, y, color):
+    """Paint one canvas pixel with a real mouse press and release."""
+    from glitchygames import events
+
+    canvas = editor.canvas
+    canvas.active_color = color
+    position = (
+        canvas.rect.x + x * canvas.pixel_width + 1,
+        canvas.rect.y + y * canvas.pixel_height + 1,
+    )
+    editor.on_left_mouse_button_down_event(
+        events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1),
+    )
+    editor.on_mouse_button_up_event(
+        events.HashableEvent(pygame.MOUSEBUTTONUP, pos=position, button=1),
+    )
+
+
+def _drawn_rgb_at(editor, *, x, y):
+    """Return the RGB colour the canvas image shows at the centre of a pixel's square.
+
+    Returns:
+        tuple[int, int, int]: The drawn colour.
+
+    """
+    canvas = editor.canvas
+    center = (
+        x * canvas.pixel_width + canvas.pixel_width // 2,
+        y * canvas.pixel_height + canvas.pixel_height // 2,
+    )
+    return tuple(canvas.image.get_at(center))[:3]
+
+
+class TestCanvasRedrawInTheRealEditor:
+    """Undo, redo and a new canvas change what the real canvas image shows."""
+
+    def test_undo_and_redo_redraw_the_painted_pixel(self, real_editor):
+        """Undo draws the pixel's old colour again and redo draws the paint again."""
+        _paint_pixel(real_editor, x=3, y=4, color=(*PAINT_RGB, 255))
+        real_editor.canvas.force_redraw()
+        assert _drawn_rgb_at(real_editor, x=3, y=4) == PAINT_RGB
+
+        real_editor.handle_undo()
+        assert _drawn_rgb_at(real_editor, x=3, y=4) == MAGENTA_RGB
+
+        real_editor.handle_redo()
+        assert _drawn_rgb_at(real_editor, x=3, y=4) == PAINT_RGB
+
+    def test_new_file_draws_a_blank_canvas(self, real_editor):
+        """A new 3x2 file draws every pixel of the new canvas magenta, the old paint gone."""
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+        assert _drawn_rgb_at(real_editor, x=0, y=0) == PAINT_RGB
+
+        real_editor.on_new_file_event('3x2')
+
+        canvas = real_editor.canvas
+        assert (canvas.pixels_across, canvas.pixels_tall) == (3, 2)
+        assert canvas.image.get_size() == (3 * canvas.pixel_width, 2 * canvas.pixel_height)
+        drawn_colors = {_drawn_rgb_at(real_editor, x=x, y=y) for x in range(3) for y in range(2)}
+        assert drawn_colors == {MAGENTA_RGB}

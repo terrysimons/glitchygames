@@ -1,383 +1,225 @@
-"""Test shift-right-click screen sampling functionality."""
+"""Test right-click colour sampling: shift samples the real screen, plain samples pixel data.
 
-import logging
-import sys
-from pathlib import Path
+Every test runs on a real BitmapEditorScene on the real display: the film strip, the canvas
+and the screen are the editor's own, and a sample is observed in the editor's real sliders.
+"""
 
 import pygame
 import pytest
 
-LOG = logging.getLogger(__name__)
+from glitchygames import events
+from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.input.state import InputSnapshot, set_current_input
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+FRAME_COLOR = (10, 20, 30, 200)
+SCREEN_COLOR = (128, 64, 192)
 
-from glitchygames.bitmappy import film_strip  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.bitmappy import film_strip_sprite as film_strip_sprite_module  # ruff: ignore[module-import-not-at-top-of-file]
-from tests.mocks.test_mock_factory import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
+
+@pytest.fixture
+def editor(mocker):
+    """Build a real Bitmappy editor on the real display, with a fresh controller manager.
+
+    Returns:
+        BitmapEditorScene: The editor, with one animation of one blank 32x32 frame.
+
+    """
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def _hold_keys(*, scancodes=frozenset()):
+    """Install this frame's polled input: the given keys held, the mouse idle.
+
+    The autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
+    """
+    set_current_input(
+        snapshot=InputSnapshot(
+            pressed_scancodes=frozenset(scancodes),
+            modifiers=0,
+            mouse_position=(0, 0),
+            mouse_buttons=(False, False, False),
+            mouse_focused=True,
+        ),
+    )
+
+
+def _right_click_up(position):
+    """Build a real right-button-up event at a screen position.
+
+    Returns:
+        events.HashableEvent: The event.
+
+    """
+    return events.HashableEvent(pygame.MOUSEBUTTONUP, pos=position, button=3)
+
+
+def _slider_color(editor):
+    """Read the editor's colour from its four real sliders.
+
+    Returns:
+        tuple[int, int, int, int]: Red, green, blue and alpha.
+
+    """
+    return (
+        editor.red_slider.value,
+        editor.green_slider.value,
+        editor.blue_slider.value,
+        editor.alpha_slider.value,
+    )
+
+
+def _film_strip_and_first_frame_center(editor):
+    """Find the editor's film strip sprite and the screen position of its first frame.
+
+    Returns:
+        tuple: (FilmStripSprite, animation name, (x, y) screen position of frame 0's center).
+
+    """
+    strip_name = next(iter(editor.film_strip_sprites))
+    film_strip_sprite = editor.film_strip_sprites[strip_name]
+    (animation, _frame_index), frame_layout = next(
+        iter(editor.film_strips[strip_name].frame_layouts.items()),
+    )
+    center = (
+        film_strip_sprite.rect.x + frame_layout.centerx,
+        film_strip_sprite.rect.y + frame_layout.centery,
+    )
+    return film_strip_sprite, animation, center
+
+
+def _paint_first_frame(editor, animation, color):
+    """Paint every pixel of the animation's first frame in one colour."""
+    frame = editor.canvas.animated_sprite._animations[animation][0]
+    width, height = frame.get_size()
+    frame.set_pixel_data([color] * (width * height))
 
 
 class TestShiftRightClickSampling:
-    """Test shift-right-click screen sampling functionality."""
+    """Test shift-right-click screen sampling against plain right-click pixel sampling."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_regular_right_click_samples_pixel_data(self, editor):
+        """A plain right-click on a film strip frame samples the frame's pixel (RGBA)."""
+        film_strip_sprite, animation, frame_center = _film_strip_and_first_frame_center(editor)
+        _paint_first_frame(editor, animation, FRAME_COLOR)
+        # The screen under the click holds another colour, which must not be sampled
+        editor.screen.set_at(frame_center, SCREEN_COLOR)
+        _hold_keys()
 
-        # Create a real film strip widget
-        self.film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
+        result = film_strip_sprite.on_right_mouse_button_up_event(_right_click_up(frame_center))
 
-        # Create film strip sprite
-        self.film_strip_sprite = film_strip_sprite_module.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget,
-            x=100,
-            y=100,
-            width=200,
-            height=100,
-        )
-
-        # Create a mock parent scene with _slider_manager.sample_color_from_screen
-        self.parent_scene = mocker.Mock()
-        self.parent_scene.screen = mocker.Mock()
-        self.parent_scene.screen.get_at.return_value = (128, 64, 192, 255)  # RGBA color
-        self.parent_scene.on_slider_event = mocker.Mock()
-
-        # Set up _slider_manager.sample_color_from_screen as a wrapping Mock so
-        # assert_called_once_with works while still executing the logic
-        def _sample_color_impl(screen_pos):
-            try:
-                color = self.parent_scene.screen.get_at(screen_pos)
-                if len(color) == 4:
-                    red, green, blue, _ = color
-                else:
-                    red, green, blue = color
-                alpha = 255
-
-                # Update sliders
-                trigger = pygame.event.Event(0, {'name': 'R', 'value': red})
-                self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-                trigger = pygame.event.Event(0, {'name': 'G', 'value': green})
-                self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-                trigger = pygame.event.Event(0, {'name': 'B', 'value': blue})
-                self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-                trigger = pygame.event.Event(0, {'name': 'A', 'value': alpha})
-                self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-            except pygame.error, ValueError, TypeError:
-                LOG.debug('Failed to sample color from screen at %s', screen_pos)
-
-        self.parent_scene._slider_manager = mocker.Mock()
-        self.parent_scene._slider_manager.sample_color_from_screen = mocker.Mock(
-            side_effect=_sample_color_impl,
-        )
-
-        # Set parent scene reference
-        self.film_strip_sprite.parent_scene = self.parent_scene
-
-        # Ensure rect has real int coordinates since pygame.Surface is mocked
-        # and get_rect() returns Mock attributes instead of real ints
-        self.film_strip_sprite.rect.x = 100  # type: ignore[invalid-assignment]
-        self.film_strip_sprite.rect.y = 100  # type: ignore[invalid-assignment]
-
-    def test_regular_right_click_samples_pixel_data(self, mocker):
-        """Test that regular right-click samples from pixel data (RGBA)."""
-        # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=('animation', 0))
-
-        # Create a mock right-click event (no shift)
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
-
-        # No shift key held this frame
-        MockFactory.install_frame_input()
-
-        # Call the event handler
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return True when event is handled
         assert result, 'Regular right-click should be handled'
+        assert _slider_color(editor) == FRAME_COLOR
 
-        # Should call get_frame_at_position for pixel data sampling
-        self.film_strip_widget.get_frame_at_position.assert_called_once()
+    def test_shift_right_click_samples_screen(self, editor):
+        """A shift-right-click on a film strip frame samples the screen there (RGB, opaque)."""
+        film_strip_sprite, animation, frame_center = _film_strip_and_first_frame_center(editor)
+        _paint_first_frame(editor, animation, FRAME_COLOR)
+        editor.screen.set_at(frame_center, SCREEN_COLOR)
+        _hold_keys(scancodes={pygame.KSCAN_LSHIFT})
 
-    def test_shift_right_click_samples_screen(self, mocker):
-        """Test that shift-right-click samples from screen (RGB only)."""
-        # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=('animation', 0))
+        result = film_strip_sprite.on_right_mouse_button_up_event(_right_click_up(frame_center))
 
-        # Create a mock right-click event
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
-
-        # Left shift held this frame (the sprite reads the frame's polled input)
-        MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
-
-        # Call the event handler
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return True when event is handled
         assert result, 'Shift-right-click should be handled'
+        assert _slider_color(editor) == (*SCREEN_COLOR, 255)
 
-        # Should call the parent scene's slider manager screen sampling method
-        self.parent_scene._slider_manager.sample_color_from_screen.assert_called_once_with((
-            150,
-            150,
-        ))
+    def test_shift_right_click_samples_screen_rgb_only(self, editor):
+        """Sampling the screen takes its RGB and sets the alpha slider to opaque."""
+        editor.screen.set_at((100, 100), SCREEN_COLOR)
+        editor.alpha_slider.value = 7
 
-    def test_shift_right_click_samples_screen_rgb_only(self):
-        """Test that shift-right-click samples screen and converts to RGB only."""
-        # Mock screen color (RGBA)
-        self.parent_scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA with alpha
+        editor._slider_manager.sample_color_from_screen((100, 100))
 
-        # Call the screen sampling method directly
-        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
+        assert _slider_color(editor) == (*SCREEN_COLOR, 255)
 
-        # Should sample from screen
-        self.parent_scene.screen.get_at.assert_called_once_with((100, 100))
+    def test_regular_right_click_canvas_samples_pixel_data(self, editor):
+        """A plain right-click on the canvas samples the canvas pixel there (RGBA)."""
+        canvas = editor.canvas
+        # The top-left corner of canvas pixel (5, 5)
+        click_position = (
+            canvas.rect.x + 5 * canvas.pixel_width,
+            canvas.rect.y + 5 * canvas.pixel_height,
+        )
+        canvas.pixels[5 * canvas.pixels_across + 5] = (255, 128, 64, 200)
+        editor.screen.set_at(click_position, SCREEN_COLOR)
+        _hold_keys()
 
-        # Should update sliders with RGB values and default alpha (255)
-        expected_calls = [
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # R slider
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # G slider
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # B slider
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # A slider
-        ]
-        self.parent_scene.on_slider_event.assert_has_calls(expected_calls, any_order=True)
+        editor.on_right_mouse_button_up_event(_right_click_up(click_position))
 
-    def test_regular_right_click_canvas_samples_pixel_data(self, mocker):
-        """Test that regular right-click on canvas samples pixel data (RGBA)."""
-        # Create a mock scene with canvas
-        scene = self._mocker.Mock()
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.rect = self._mocker.Mock()
-        scene.canvas.rect.collidepoint.return_value = True
-        scene.canvas.rect.x = 0
-        scene.canvas.rect.y = 0
-        scene.canvas.pixel_width = 10
-        scene.canvas.pixel_height = 10
-        scene.canvas.pixels_across = 32
-        scene.canvas.pixels_tall = 32
-        scene.canvas.pixels = [(255, 128, 64, 200)] * (32 * 32)  # RGBA pixels
-        scene.on_slider_event = self._mocker.Mock()
-        scene.screen = self._mocker.Mock()
+        assert _slider_color(editor) == (255, 128, 64, 200)
 
-        # Add the right-click handler method to the mock scene
-        def mock_on_right_mouse_button_up_event(event):
-            # Check if the click is on the canvas to sample canvas pixel data
-            if (
-                hasattr(scene, 'canvas')
-                and scene.canvas
-                and scene.canvas.rect.collidepoint(event.pos)
-            ):
-                canvas_x = (event.pos[0] - scene.canvas.rect.x) // scene.canvas.pixel_width
-                canvas_y = (event.pos[1] - scene.canvas.rect.y) // scene.canvas.pixel_height
+    def test_shift_right_click_canvas_samples_screen(self, editor):
+        """A shift-right-click on the canvas samples the screen there, not the pixel data."""
+        canvas = editor.canvas
+        click_position = (canvas.rect.x + 50, canvas.rect.y + 50)
+        canvas.pixels[5 * canvas.pixels_across + 5] = (255, 128, 64, 200)
+        editor.screen.set_at(click_position, SCREEN_COLOR)
+        _hold_keys(scancodes={pygame.KSCAN_LSHIFT})
 
-                # Check bounds
-                if (
-                    0 <= canvas_x < scene.canvas.pixels_across
-                    and 0 <= canvas_y < scene.canvas.pixels_tall
-                ):
-                    pixel_num = canvas_y * scene.canvas.pixels_across + canvas_x
+        editor.on_right_mouse_button_up_event(_right_click_up(click_position))
 
-                    if pixel_num < len(scene.canvas.pixels):
-                        color = scene.canvas.pixels[pixel_num]
+        assert _slider_color(editor) == (*SCREEN_COLOR, 255)
 
-                        # Handle both RGB and RGBA pixel formats
-                        if len(color) == 4:
-                            red, green, blue, alpha = color
-                        else:
-                            red, green, blue = color
-                            alpha = 255  # Default to opaque for RGB pixels
+    def test_screen_sampling_handles_rgb_format(self, editor):
+        """A screen without an alpha channel (24-bit) is sampled the same way."""
+        editor.screen = pygame.Surface((800, 600), depth=24)
+        editor.screen.set_at((100, 100), SCREEN_COLOR)
 
-                        # Update all sliders with the sampled RGBA values
-                        trigger = pygame.event.Event(0, {'name': 'R', 'value': red})
-                        scene.on_slider_event(event=event, trigger=trigger)
+        editor._slider_manager.sample_color_from_screen((100, 100))
 
-                        trigger = pygame.event.Event(0, {'name': 'G', 'value': green})
-                        scene.on_slider_event(event=event, trigger=trigger)
+        assert _slider_color(editor) == (*SCREEN_COLOR, 255)
 
-                        trigger = pygame.event.Event(0, {'name': 'B', 'value': blue})
-                        scene.on_slider_event(event=event, trigger=trigger)
+    def test_screen_sampling_handles_rgba_format(self, editor):
+        """A screen with per-pixel alpha is sampled for its RGB."""
+        editor.screen = pygame.Surface((800, 600), pygame.SRCALPHA)
+        editor.screen.set_at((100, 100), (*SCREEN_COLOR, 128))
 
-                        trigger = pygame.event.Event(0, {'name': 'A', 'value': alpha})
-                        scene.on_slider_event(event=event, trigger=trigger)
-                        return
+        editor._slider_manager.sample_color_from_screen((100, 100))
 
-        scene.on_right_mouse_button_up_event = mock_on_right_mouse_button_up_event
+        assert _slider_color(editor)[:3] == SCREEN_COLOR
 
-        # Create event
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (50, 50)  # On canvas
+    def test_screen_sampling_ignores_alpha_from_screen(self, editor):
+        """The screen's own alpha is ignored: the sampled colour is always opaque."""
+        editor.screen = pygame.Surface((800, 600), pygame.SRCALPHA)
+        editor.screen.set_at((100, 100), (*SCREEN_COLOR, 128))
 
-        # No shift key held this frame
-        MockFactory.install_frame_input()
+        editor._slider_manager.sample_color_from_screen((100, 100))
 
-        # Call the scene's right-click handler
-        scene.on_right_mouse_button_up_event(event)
+        assert editor.alpha_slider.value == 255
 
-        # Should call on_slider_event for RGBA values
-        assert scene.on_slider_event.call_count == 4  # R, G, B, A
+    def test_shift_right_click_outside_bounds_not_handled(self, editor):
+        """A shift-right-click outside the film strip is not handled and samples nothing."""
+        film_strip_sprite, _animation, _frame_center = _film_strip_and_first_frame_center(editor)
+        outside = (film_strip_sprite.rect.x - 10, film_strip_sprite.rect.y - 10)
+        color_before = _slider_color(editor)
+        _hold_keys(scancodes={pygame.KSCAN_LSHIFT})
 
-    def test_shift_right_click_canvas_samples_screen(self, mocker):
-        """Test that shift-right-click on canvas samples screen (RGB only)."""
-        # Create a mock scene with canvas
-        scene = self._mocker.Mock()
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.rect = self._mocker.Mock()
-        scene.canvas.rect.collidepoint.return_value = True
-        scene.on_slider_event = self._mocker.Mock()
-        scene.screen = self._mocker.Mock()
-        scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA screen color
+        result = film_strip_sprite.on_right_mouse_button_up_event(_right_click_up(outside))
 
-        # Add the _sample_color_from_screen method to the mock scene
-        def _sample_color_impl(screen_pos):
-            color = scene.screen.get_at(screen_pos)
-            if len(color) == 4:
-                red, green, blue, _ = color
-            else:
-                red, green, blue = color
-            alpha = 255
-
-            # Update sliders with simple mock triggers
-            for name, value in [('R', red), ('G', green), ('B', blue), ('A', alpha)]:
-                trigger = self._mocker.Mock()
-                trigger.name = name
-                trigger.value = value
-                scene.on_slider_event(event=self._mocker.Mock(), trigger=trigger)
-
-        scene._sample_color_from_screen = _sample_color_impl
-
-        # Left shift held this frame
-        held_keys = MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
-
-        # Add the right-click handler method to the mock scene
-        def mock_on_right_mouse_button_up_event(event):
-            is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
-                pygame.K_RSHIFT
-            )
-
-            if (
-                hasattr(scene, 'canvas')
-                and scene.canvas
-                and scene.canvas.rect.collidepoint(event.pos)
-                and is_shift_click
-            ):
-                scene._sample_color_from_screen(event.pos)
-                return
-
-        scene.on_right_mouse_button_up_event = mock_on_right_mouse_button_up_event
-
-        # Create event
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (50, 50)  # On canvas
-
-        # Call the scene's right-click handler
-        scene.on_right_mouse_button_up_event(event)
-
-        # Should sample from screen
-        scene.screen.get_at.assert_called_once_with((50, 50))
-
-        # Should call on_slider_event for RGB values with default alpha
-        assert scene.on_slider_event.call_count == 4  # R, G, B, A
-
-    def test_screen_sampling_handles_rgb_format(self):
-        """Test that screen sampling handles RGB format correctly."""
-        # Mock screen color (RGB only)
-        self.parent_scene.screen.get_at.return_value = (128, 64, 192)  # RGB only
-
-        # Call the screen sampling method
-        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
-
-        # Should sample from screen
-        self.parent_scene.screen.get_at.assert_called_once_with((100, 100))
-
-        # Should update sliders (4 calls for R, G, B, A)
-        assert self.parent_scene.on_slider_event.call_count == 4
-
-    def test_screen_sampling_handles_rgba_format(self):
-        """Test that screen sampling handles RGBA format correctly."""
-        # Mock screen color (RGBA)
-        self.parent_scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA
-
-        # Call the screen sampling method
-        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
-
-        # Should sample from screen
-        self.parent_scene.screen.get_at.assert_called_once_with((100, 100))
-
-        # Should update sliders (4 calls for R, G, B, A)
-        assert self.parent_scene.on_slider_event.call_count == 4
-
-    def test_screen_sampling_ignores_alpha_from_screen(self):
-        """Test that screen sampling ignores alpha from screen and uses default."""
-        # Mock screen color with alpha
-        self.parent_scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA with alpha
-
-        # Call the screen sampling method
-        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
-
-        # Should update sliders with RGB from screen but alpha = 255
-        expected_calls = [
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # R slider
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # G slider
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # B slider
-            self._mocker.call(event=self._mocker.ANY, trigger=self._mocker.ANY),  # A slider (255)
-        ]
-        self.parent_scene.on_slider_event.assert_has_calls(expected_calls, any_order=True)
-
-    def test_shift_right_click_outside_bounds_not_handled(self, mocker):
-        """Test that shift-right-click outside film strip bounds is not handled."""
-        # Create a mock right-click event outside bounds
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (50, 50)  # Outside the film strip bounds
-        event.button = 3  # Right mouse button
-
-        # Left shift held this frame
-        MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
-
-        # Call the event handler
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return False when event is not handled
         assert not result, 'Shift-right-click outside bounds should not be handled'
+        assert _slider_color(editor) == color_before
 
-    def test_regular_right_click_outside_bounds_not_handled(self, mocker):
-        """Test that regular right-click outside film strip bounds is not handled."""
-        # Create a mock right-click event outside bounds
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (50, 50)  # Outside the film strip bounds
-        event.button = 3  # Right mouse button
+    def test_regular_right_click_outside_bounds_not_handled(self, editor):
+        """A plain right-click outside the film strip is not handled and samples nothing."""
+        film_strip_sprite, _animation, _frame_center = _film_strip_and_first_frame_center(editor)
+        outside = (film_strip_sprite.rect.x - 10, film_strip_sprite.rect.y - 10)
+        color_before = _slider_color(editor)
+        _hold_keys()
 
-        # No shift key held this frame
-        MockFactory.install_frame_input()
+        result = film_strip_sprite.on_right_mouse_button_up_event(_right_click_up(outside))
 
-        # Call the event handler
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should return False when event is not handled
         assert not result, 'Regular right-click outside bounds should not be handled'
+        assert _slider_color(editor) == color_before
 
-    def test_shift_right_click_without_parent_scene_handles_gracefully(self, mocker):
-        """Test that shift-right-click without parent scene handles gracefully."""
-        # Remove parent scene
-        self.film_strip_sprite.parent_scene = None
+    def test_shift_right_click_without_parent_scene_handles_gracefully(self, editor):
+        """Without a parent scene a shift-right-click is still handled, but samples nothing."""
+        film_strip_sprite, _animation, frame_center = _film_strip_and_first_frame_center(editor)
+        film_strip_sprite.parent_scene = None
+        editor.screen.set_at(frame_center, SCREEN_COLOR)
+        color_before = _slider_color(editor)
+        _hold_keys(scancodes={pygame.KSCAN_LSHIFT})
 
-        # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=('animation', 0))
+        result = film_strip_sprite.on_right_mouse_button_up_event(_right_click_up(frame_center))
 
-        # Create a mock right-click event
-        event = MockFactory.create_pygame_event_mock()
-        event.pos = (150, 150)  # Inside the film strip bounds
-        event.button = 3  # Right mouse button
-
-        # Left shift held this frame
-        MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
-
-        # Call the event handler - should not crash
-        result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
-
-        # Should still return True (event was handled, just no sampling occurred)
         assert result, 'Shift-right-click should be handled even without parent scene'
+        assert _slider_color(editor) == color_before

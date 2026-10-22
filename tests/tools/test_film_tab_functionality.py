@@ -7,12 +7,14 @@ before or after existing frames in film strips.
 import itertools
 
 import pygame
-import pytest
 
-from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
+from glitchygames.bitmappy.film_strip import FilmTabWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
-from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
+from tests.tools.test_film_strip_base import (
+    FRAME_SIZE,
+    FilmStripTestBase,
+    make_real_animated_sprite,
+)
 
 # Additional test constants
 TAB_X = 10
@@ -32,6 +34,26 @@ NEW_FRAME_DURATION = 0.5
 # film_strip_layout.FilmStripLayout.calculate_frame_layouts places frames after the first
 # frame_width + tab_width + 11 pixels apart
 FRAME_GAP_AFTER_TAB = 11
+# FilmTabWidget's colours (film_strip.py)
+TAB_COLOR = (200, 200, 200)
+CLICK_COLOR = (100, 100, 100)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+# FilmTabWidget draws a 2-pixel border
+TAB_BORDER_WIDTH = 2
+
+
+def drawn_tab_colors(*, surface, tab):
+    """Read a rendered tab's fill colour (inside its border) and its border colour.
+
+    Returns:
+        tuple: The (fill, border) RGB colours.
+
+    """
+    inside_border = (tab.rect.x + TAB_BORDER_WIDTH, tab.rect.y + TAB_BORDER_WIDTH)
+    fill_color = tuple(surface.get_at(inside_border))[:3]
+    border_color = tuple(surface.get_at(tab.rect.topleft))[:3]
+    return fill_color, border_color
 
 
 def find_frame_tab(*, film_strip, insertion_type, target_frame_index):
@@ -125,7 +147,7 @@ class TestFilmTabWidget(FilmStripTestBase):
         assert tab.insertion_type == 'before'
         assert tab.target_frame_index == 0
 
-    def test_film_tab_click_handling(self, mock_pygame_patches):
+    def test_film_tab_click_handling(self):
         """Test that film tab handles clicks correctly."""
         tab = FilmTabWidget(x=TAB_X, y=TAB_Y, width=TAB_WIDTH, height=TAB_HEIGHT)
 
@@ -140,7 +162,7 @@ class TestFilmTabWidget(FilmStripTestBase):
         assert not result
         assert not tab.is_clicked
 
-    def test_film_tab_hover_handling(self, mock_pygame_patches):
+    def test_film_tab_hover_handling(self):
         """Test that film tab handles hover correctly."""
         tab = FilmTabWidget(x=TAB_X, y=TAB_Y, width=TAB_WIDTH, height=TAB_HEIGHT)
 
@@ -154,7 +176,7 @@ class TestFilmTabWidget(FilmStripTestBase):
         assert not result
         assert not tab.is_hovered
 
-    def test_film_tab_insertion_type_setting(self, mock_pygame_patches):
+    def test_film_tab_insertion_type_setting(self):
         """Test that insertion type and target frame can be set."""
         tab = FilmTabWidget(x=TAB_X, y=TAB_Y)
 
@@ -166,180 +188,96 @@ class TestFilmTabWidget(FilmStripTestBase):
         assert tab.insertion_type == 'before'
         assert tab.target_frame_index == FRAME_INDEX_2
 
-    def test_film_tab_rendering(self, mock_pygame_patches):
-        """Test that film tab renders without errors."""
+    def test_film_tab_rendering(self):
+        """Test that the tab draws grey with a black border, inverted on hover, dark on click."""
         tab = FilmTabWidget(x=TAB_X, y=TAB_Y, width=TAB_WIDTH, height=TAB_HEIGHT)
-        test_surface = pygame.Surface((100, 100))
+        test_surface = pygame.Surface((100, 100), flags=0, depth=32)
 
-        # Should not raise any exceptions
         tab.render(test_surface)
+        assert drawn_tab_colors(surface=test_surface, tab=tab) == (TAB_COLOR, BLACK)
+        # The plus sign at the centre is drawn in the border colour
+        assert tuple(test_surface.get_at(tab.rect.center))[:3] == BLACK
 
-        # Test with different states
         tab.is_hovered = True
         tab.render(test_surface)
+        assert drawn_tab_colors(surface=test_surface, tab=tab) == (BLACK, WHITE)
+        assert tuple(test_surface.get_at(tab.rect.center))[:3] == WHITE
 
         tab.is_clicked = True
         tab.render(test_surface)
+        assert drawn_tab_colors(surface=test_surface, tab=tab) == (CLICK_COLOR, BLACK)
 
 
 class TestFilmStripTabIntegration(FilmStripTestBase):
-    """Test film tab integration with film strips."""
+    """Test film tab integration with film strips in a real editor scene."""
 
-    @pytest.fixture(autouse=True)
-    def _mock_font_manager(self, mocker):
-        """Mock FontManager.get_font to avoid fc-list timeout on CI."""
-        mock_rect = pygame.Rect(0, 0, 50, 14)
-        real_surface = pygame.Surface((50, 14), pygame.SRCALPHA)
-        mock_font = mocker.Mock()
-        mock_font.get_rect.return_value = mock_rect
-        mock_font.render.return_value = (real_surface, mock_rect)
-        mocker.patch('glitchygames.fonts.font_manager.FontManager.get_font', return_value=mock_font)
-
-    def _create_mock_sprite_with_frames(self):
-        """Create a mock sprite with frames using centralized mocks.
+    def create_idle_strip(self):
+        """Load a five-frame 'idle' animation into a real editor scene.
 
         Returns:
-            object: The result.
+            tuple: The scene and the 'idle' FilmStripWidget.
 
         """
-        mock_sprite = MockFactory.create_animated_sprite_mock(
-            config=MockSpriteConfig(animation_name='idle'),
-        )
-        mock_sprite._animation_order = ['idle']
-
-        # Ensure frames have proper rect attributes for tab positioning
-        for frame in mock_sprite._animations['idle']:
-            if not hasattr(frame, 'rect'):
-                frame.rect = self._mocker.Mock()
-                frame.rect.centerx = 50  # Default center x
-                frame.rect.centery = 50  # Default center y
-                frame.rect.width = FRAME_SIZE
-                frame.rect.height = FRAME_SIZE
-
-        return mock_sprite
+        scene = self.create_optimized_scene()
+        scene.film_strip_coordinator.on_sprite_loaded(make_real_animated_sprite())
+        return scene, scene.film_strips['idle']
 
     def test_film_tabs_creation(self):
-        """Test that film tabs are created correctly."""
-        # Create a mock animated sprite with frames using centralized mocks
-        mock_sprite = self._create_mock_sprite_with_frames()
+        """Test that the strip has a 'before' tab for frame 0 and an 'after' tab per frame."""
+        _scene, film_strip = self.create_idle_strip()
 
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(mock_sprite)
-        film_strip.current_animation = 'idle'
-        film_strip.current_frame = 0
-
-        # Mock parent scene with canvas that has a proper animated_sprite._animations dict
-        mock_scene = self._mocker.Mock()
-        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
-        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
         film_strip.update_layout()
 
-        # Should have tabs for each frame
-        assert len(film_strip.film_tabs) > 0
-
-        # Check that tabs have correct properties
+        # Tabs exist only for the frames laid out in the strip's visible width
+        laid_out_frame_indexes = [frame_index for _name, frame_index in film_strip.frame_layouts]
+        assert laid_out_frame_indexes
+        frame_tabs = [tab for tab in film_strip.film_tabs if type(tab) is FilmTabWidget]
+        assert {(tab.insertion_type, tab.target_frame_index) for tab in frame_tabs} == {
+            ('before', 0),
+            *(('after', frame_index) for frame_index in laid_out_frame_indexes),
+        }
         for tab in film_strip.film_tabs:
             assert tab.insertion_type in {'before', 'after', 'delete'}
             assert tab.target_frame_index >= 0
 
     def test_film_tab_click_handling(self):
-        """Test that film strip handles tab clicks correctly."""
-        # Create a mock animated sprite with frames using centralized mocks
-        mock_sprite = self._create_mock_sprite_with_frames()
+        """Test that clicking the first tab is handled and inserts a frame."""
+        _scene, film_strip = self.create_idle_strip()
+        frame_count = len(film_strip.animated_sprite.animations['idle'])
+        first_tab = film_strip.film_tabs[0]
+        assert type(first_tab) is FilmTabWidget
 
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(mock_sprite)
-        film_strip.current_animation = 'idle'
-        film_strip.current_frame = 0
+        result = film_strip._handle_tab_click(first_tab.rect.center)
 
-        # Mock parent scene with proper canvas dimensions and animated_sprite._animations
-        mock_scene = self._mocker.Mock()
-        mock_scene.canvas.pixels_across = 32
-        mock_scene.canvas.pixels_tall = 32
-        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
-        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Get the first tab
-        if film_strip.film_tabs:
-            first_tab = film_strip.film_tabs[0]
-            assert first_tab.rect is not None
-            tab_pos = (first_tab.rect.centerx, first_tab.rect.centery)
-
-            # Test tab click handling
-            result = film_strip._handle_tab_click(tab_pos)
-            assert result
+        assert result
+        assert len(film_strip.animated_sprite.animations['idle']) == frame_count + 1
 
     def test_film_tab_hover_handling(self):
-        """Test that film strip handles tab hover correctly."""
-        # Create a mock animated sprite with frames using centralized mocks
-        mock_sprite = self._create_mock_sprite_with_frames()
+        """Test that hovering over the first tab marks it, and only it, hovered."""
+        _scene, film_strip = self.create_idle_strip()
+        first_tab = film_strip.film_tabs[0]
 
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(mock_sprite)
-        film_strip.current_animation = 'idle'
-        film_strip.current_frame = 0
+        result = film_strip._handle_tab_hover(first_tab.rect.center)
 
-        # Mock parent scene with canvas that has a proper animated_sprite._animations dict
-        mock_scene = self._mocker.Mock()
-        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
-        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Get the first tab
-        if film_strip.film_tabs:
-            first_tab = film_strip.film_tabs[0]
-            assert first_tab.rect is not None
-            tab_pos = (first_tab.rect.centerx, first_tab.rect.centery)
-
-            # Test tab hover handling
-            result = film_strip._handle_tab_hover(tab_pos)
-            assert result
+        assert result
+        assert first_tab.is_hovered
+        assert not any(tab.is_hovered for tab in film_strip.film_tabs[1:])
 
     def test_film_tab_rendering(self):
-        """Test that film tabs are rendered correctly."""
-        # Create a mock animated sprite with frames using centralized mocks
-        mock_sprite = self._create_mock_sprite_with_frames()
+        """Test that rendering the film strip draws each frame tab where it is laid out."""
+        _scene, film_strip = self.create_idle_strip()
+        test_surface = pygame.Surface(film_strip.rect.size, flags=0, depth=32)
 
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(mock_sprite)
-        film_strip.current_animation = 'idle'
-        film_strip.current_frame = 0
-
-        # Mock parent scene with canvas that has a proper animated_sprite._animations dict
-        mock_scene = self._mocker.Mock()
-        mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
-        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
-        mock_scene.controller_selections = {}
-        mock_scene.multi_controller_manager.controllers = {}
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Clear parent_scene before rendering to avoid deep Mock iteration issues
-        # in the rendering path (controller_selections, multi_controller_manager, etc.)
-        film_strip.parent_scene = None
-
-        # Should not raise any exceptions when rendering
-        test_surface = pygame.Surface((800, 600))
         film_strip.render(test_surface)
 
-        # Check that tabs exist
-        assert len(film_strip.film_tabs) > 0
+        frame_tabs = [tab for tab in film_strip.film_tabs if type(tab) is FilmTabWidget]
+        assert frame_tabs
+        for tab in frame_tabs:
+            # The tab's right border is not covered by the frame thumbnails drawn after it
+            right_border = (tab.rect.right - 1, tab.rect.centery)
+            assert tuple(test_surface.get_at(right_border))[:3] == BLACK
+            inside_right_border = (tab.rect.right - 1 - TAB_BORDER_WIDTH, tab.rect.centery)
+            assert tuple(test_surface.get_at(inside_right_border))[:3] == TAB_COLOR
 
 
 class TestFilmTabFrameInsertion(FilmStripInsertionTestBase):
