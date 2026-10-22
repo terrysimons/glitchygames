@@ -436,12 +436,13 @@ def mock_managers(mocker):
 
 @pytest.fixture(autouse=True)
 def ensure_pygame_graceful_quit():
-    """Ensure pygame is properly initialized before tests and gracefully quit after.
+    """Give every test an initialized pygame with the default display, and isolate its sound.
 
-    This fixture handles the common case where a previous test may have called
-    pygame.quit(), leaving the subsystem in an uninitialized state. It ensures
-    pygame is initialized before each test and gracefully shuts it down afterward,
-    preventing segfaults and resource leaks across test boundaries.
+    pygame stays initialized for the whole run: quitting and re-initializing it after every
+    test cost about 30 ms per test (most of a serial run). Before each test, pygame and the
+    800x600 display are started again if a test quit them. After each test, every mixer
+    channel is stopped, so no sound plays on into the next test (audibly, on a real audio
+    driver), and a display a test resized is set back to the default size.
     """
     import pygame
 
@@ -454,17 +455,9 @@ def ensure_pygame_graceful_quit():
 
     yield
 
-    # Graceful cleanup: quit pygame subsystems that may hold resources,
-    # then reinitialize so the next test starts with a clean state.
-    try:
-        if pygame.get_init():
-            pygame.quit()
-    except pygame.error:
-        pass  # Already quit or never initialized
-
-    # Reinitialize for the next test
-    try:
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-    except pygame.error:
-        pass  # Headless environment
+    if pygame.mixer.get_init() is not None:
+        pygame.mixer.stop()
+    with contextlib.suppress(pygame.error):
+        surface = pygame.display.get_surface() if pygame.get_init() else None
+        if surface is not None and surface.get_size() != (800, 600):
+            pygame.display.set_mode((800, 600))

@@ -1,6 +1,7 @@
 """Tests for real-time synth voices."""
 
 import numpy as np
+import pygame
 import pytest
 
 from glitchygames.audio import live
@@ -62,6 +63,11 @@ def _voice(channel, **overrides):
 class TestPoolReservation:
     """Mixer channel pool reservation."""
 
+    @pytest.fixture(autouse=True)
+    def no_remembered_pool(self, mocker):
+        """Start each test as if no engine had reserved a pool in this process."""
+        mocker.patch.dict(live._pool_grown_mixer_channel_counts, clear=True)
+
     def test_grows_mixer_and_reserves_low_channels(self, mocker):
         mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
         mocker.patch('pygame.mixer.get_num_channels', return_value=8)
@@ -77,6 +83,45 @@ class TestPoolReservation:
     def test_negative_pool_raises(self):
         with pytest.raises(ValueError, match='pool_size'):
             reserve_live_voice_pool(-1)
+
+    def test_reserving_again_on_the_same_mixer_reuses_the_pool(self):
+        """A second engine in one process reuses the pool instead of growing the mixer again.
+
+        Each set_num_channels reallocates pygame's channel table while the audio thread may
+        still be finishing a sound on it; growing it per engine (once per engine test) took the
+        test run's mixer to ~1500 channels and corrupted the heap (BUGS.md #145).
+        """
+        channels_before = pygame.mixer.get_num_channels()
+        try:
+            first = reserve_live_voice_pool(4)
+            channels_after_first = pygame.mixer.get_num_channels()
+
+            second = reserve_live_voice_pool(4)
+
+            assert second == first == (0, 1, 2, 3)
+            assert pygame.mixer.get_num_channels() == channels_after_first
+            assert channels_after_first == channels_before + 4
+        finally:
+            pygame.mixer.set_reserved(0)
+            pygame.mixer.set_num_channels(channels_before)
+
+    def test_a_restarted_mixer_gets_its_pool_again(self):
+        """After the mixer restarts (its channel count back to the default), it grows again."""
+        mixer_settings = pygame.mixer.get_init()
+        assert mixer_settings is not None
+        frequency, size, output_channels = mixer_settings
+        channels_before = pygame.mixer.get_num_channels()
+        try:
+            reserve_live_voice_pool(4)
+            pygame.mixer.quit()
+            pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
+            restarted_count = pygame.mixer.get_num_channels()
+
+            assert reserve_live_voice_pool(4) == (0, 1, 2, 3)
+            assert pygame.mixer.get_num_channels() == restarted_count + 4
+        finally:
+            pygame.mixer.set_reserved(0)
+            pygame.mixer.set_num_channels(channels_before)
 
 
 class TestLiveVoiceRandomSource:
