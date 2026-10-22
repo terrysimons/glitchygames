@@ -123,7 +123,15 @@ class TestImageFormat:
         display = pygame.display.get_surface()
         assert ball.image.get_masks() == display.get_masks()
         assert ball.image.get_bitsize() == display.get_bitsize()
-        assert ball.image.get_colorkey() == (0, 0, 0, 255)
+        # The key's alpha follows the display format (255 on dummy's XRGB, 0 on cocoa's ARGB)
+        assert ball.image.get_colorkey()[:3] == (0, 0, 0)
+        # Drawn, the corners are keyed out and the ball itself is not
+        backdrop = pygame.Surface(ball.image.get_size())
+        backdrop.fill((200, 10, 10))
+        backdrop.blit(ball.image, (0, 0))
+        assert backdrop.get_at((0, 0))[:3] == (200, 10, 10)
+        center = (ball.image.get_width() // 2, ball.image.get_height() // 2)
+        assert backdrop.get_at(center)[:3] != (200, 10, 10)
 
     def test_paddle_image_matches_display_format(self, paddle):
         """The paddle image is likewise in display format and fully drawn."""

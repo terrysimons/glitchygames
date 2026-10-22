@@ -1298,6 +1298,9 @@ class SceneManager(SceneInterface, events.EventManager):
             pixel_offset != (0, 0) or overlay_visible or sources_draw_overlay
         ):
             clean_frame = self.screen.copy()
+            # Copied back, never blended: on real video drivers (cocoa) the display has
+            # per-pixel alpha, and a pixel below 255 would let the overlay show through
+            clean_frame.set_alpha(None)
             if pixel_offset != (0, 0):
                 self.screen.fill(SHAKE_BORDER_COLOR)
                 self.screen.blit(clean_frame, pixel_offset)

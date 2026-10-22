@@ -1101,6 +1101,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.desired_resolution,
             self.mode_flags,
         )
+        # A scene manager made before this display (pygame started first) holds the surface
+        # of the display it saw then, which a --headless restart closed: it draws on this one
+        self.scene_manager.screen = self.screen
 
     def initialize_event_handlers(self: Self) -> None:
         """Initialize event handlers.

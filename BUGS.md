@@ -188,6 +188,36 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 122. After a `--headless` Restart, the Scene Manager Drew on the Closed Display
+- **Description**: A scene manager made before the engine (pygame started first) kept the surface of the display it saw then. When `--headless` restarted a display on a real video driver, the engine opened a new one but never handed it over, so the first scene's background blit failed with "Surface is not initialized"
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found running the suite with `SDL_VIDEODRIVER=cocoa` (the dummy driver never restarts, and reuses its display surface)
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/engine/game_engine.py` (`initialize_display`)
+- **Date Resolved**: 2026-10-21
+- **Solution**: `initialize_display` gives the scene manager the display it opens. Test: `TestHeadless::test_the_scene_manager_draws_on_the_display_the_engine_opens` (closes the display first, as the restart does, on any driver)
+
+### 123. The Status Bar and Debug Overlay Stayed in the Frame on Displays With Per-Pixel Alpha
+- **Description**: `SceneManager._show_frame` draws a shaken or overlaid frame on the display, flips, then blits its clean copy back. On real video drivers (cocoa) the display has per-pixel alpha, so the copy blended instead of copying: pixels below alpha 255 kept the replay status bar or debug overlay in the frame screenshots and dirty-rect updates use, and a SCREEN shake blended such pixels into the border fill
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found running the suite with `SDL_VIDEODRIVER=cocoa` (the dummy display has no alpha channel, so the blit copied)
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/scenes/scene.py` (`_show_frame`)
+- **Date Resolved**: 2026-10-21
+- **Solution**: The clean copy's blending is turned off (`set_alpha(None)`), so it is copied back and shifted exactly. Tests: `TestWatched::test_the_clean_frame_comes_back_exactly_on_a_display_with_per_pixel_alpha`, `TestScreenShakePresentation::test_shaken_frame_on_a_display_with_per_pixel_alpha_is_copied_not_blended` (per-pixel alpha screens, any driver)
+
+### 124. An Opaque RGBA PNG Was Treated as Transparent
+- **Description**: `FileIOManager._detect_png_transparency` took an alpha channel to mean transparency, so an RGBA PNG whose pixels are all opaque (as paint programs often export) was handled as transparent
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found running the suite with `SDL_VIDEODRIVER=cocoa` (a test's "opaque" PNG took the display's alpha format there)
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/bitmappy/file_io.py`
+- **Date Resolved**: 2026-10-21
+- **Solution**: Transparent means a pixel below `ALPHA_TRANSPARENCY_THRESHOLD`, the test the colour sampler uses. Test: `test_alpha_channel_with_only_opaque_pixels_has_no_transparency`; the test helper writes PNGs at explicit depths
+
 ### 116. AI Strip Examples Held Only the Strip's First Frame
 - **Description**: `AIManager._load_temp_toml_as_example` extracted only the first `pixels` block of the saved strip and labelled it static, so the `selected_strip` example sent to the AI had frame 0's pixels with every frame's colours
 - **Status**: Resolved

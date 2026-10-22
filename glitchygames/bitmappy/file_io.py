@@ -287,6 +287,11 @@ class FileIOManager:
         original_image = pygame.image.load(file_path)
         if not (original_image.get_flags() & pygame.SRCALPHA):
             return False, None
+        # An alpha channel alone is not transparency (paint programs export opaque RGBA files):
+        # transparent means a pixel _sample_png_colors would turn magenta
+        alpha_values: Any = pygame.surfarray.array_alpha(original_image)  # type: ignore[reportUnknownMemberType]
+        if alpha_values.min() >= ALPHA_TRANSPARENCY_THRESHOLD:
+            return False, None
 
         converted_size = image.get_size()
         if original_image.get_size() != converted_size:

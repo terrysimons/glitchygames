@@ -367,14 +367,34 @@ def engine_run_environment(mocker) -> Generator[FakePerfCounter]:
     mocker.patch.object(scene_module, 'time', types.SimpleNamespace(perf_counter=fake_perf_counter))
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch.object(pygame, 'quit')
-    mocker.patch.object(pygame.display, 'quit')
+    real_display_quit = pygame.display.quit
+    display_quit = mocker.patch.object(pygame.display, 'quit')
+    # ...but --headless's restart of a display on a real video driver (SDL_VIDEODRIVER=cocoa)
+    # must really close it, or the run stays on that driver
+    enter_headless_mode = game_engine_module.GameEngine._enter_headless_mode
+
+    def enter_headless_mode_closing_the_display(engine: game_engine_module.GameEngine) -> None:
+        display_quit.side_effect = real_display_quit
+        try:
+            enter_headless_mode(engine)
+        finally:
+            display_quit.side_effect = None
+
+    mocker.patch.object(
+        game_engine_module.GameEngine,
+        '_enter_headless_mode',
+        enter_headless_mode_closing_the_display,
+    )
     # --headless sets the SDL driver variables; the test's own values come back afterwards
     mocker.patch.dict(os.environ)
     GoldenTraceSceneManager.install()
     try:
         yield fake_perf_counter
     finally:
-        pygame.event.clear()
+        # A refused --headless run on a real video driver closed the display and opened none:
+        # no video system, no queued events (the next test's autouse fixture opens a display)
+        if pygame.display.get_init():
+            pygame.event.clear()
         GoldenTraceSceneManager.uninstall()
 
 

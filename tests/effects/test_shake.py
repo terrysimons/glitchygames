@@ -364,6 +364,38 @@ class TestScreenShakePresentation:
         assert manager.screen.get_at((10, 10))[:3] == (255, 0, 0)
         assert manager.screen.get_at((30, 1))[:3] == (0, 0, 255)
 
+    def test_shaken_frame_on_a_display_with_per_pixel_alpha_is_copied_not_blended(
+        self, scene_manager_with_screen
+    ):
+        """A shaken frame with per-pixel alpha is presented shifted, not blended away.
+
+        Real video drivers (cocoa) give the display per-pixel alpha: pixels below 255 must
+        still reach the presented frame, not blend into the border fill.
+        """
+        manager, flip, _update = scene_manager_with_screen
+        manager.screen = pygame.Surface(manager.screen.get_size(), pygame.SRCALPHA)
+        manager.screen.fill((0, 0, 255, 0))
+        manager.screen.set_at((10, 10), (255, 0, 0, 0))
+        manager.screen_shake.add(
+            Shake(
+                style=ShakeStyle.BOUNCE,
+                strength=4.0,
+                duration=1.0,
+                frequency=1.0,
+                axis=ShakeAxis.VERTICAL,
+            )
+        )
+        presented = {}
+
+        def capture_flip():
+            presented['marker'] = tuple(manager.screen.get_at((10, 14)))
+            presented['frame'] = tuple(manager.screen.get_at((30, 30)))
+
+        flip.side_effect = capture_flip
+        manager._present_frame(full_update=False)
+        assert presented == {'marker': (255, 0, 0, 0), 'frame': (0, 0, 255, 0)}
+        assert tuple(manager.screen.get_at((10, 10))) == (255, 0, 0, 0)
+
     def test_first_frame_after_shake_is_a_full_flip(self, scene_manager_with_screen):
         manager, flip, update = scene_manager_with_screen
         manager.screen_shake.add(

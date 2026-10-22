@@ -1557,6 +1557,24 @@ class TestHeadless:
         assert len(sleep_spy.call_args_list) == len(pacing_spy.call_args_list)
         assert not capsys.readouterr().out
 
+    def test_the_scene_manager_draws_on_the_display_the_engine_opens(self, mocker):
+        """A scene manager made before the engine never keeps a display the engine replaced.
+
+        With pygame started first on a real video driver, --headless closes that display and
+        the engine opens a new one on the dummy driver; a scene manager installed before then
+        held the closed display's surface, and the first scene's background blit failed with
+        "Surface is not initialized". Closing the display here does what that restart does,
+        on any driver.
+        """
+        close_display = pygame.display.quit
+        with engine_run_environment(mocker):
+            close_display()
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=RUN_ENGINE_ARGUMENTS
+            )
+
+            assert engine.scene_manager.screen is pygame.display.get_surface()
+
     def test_headless_sets_the_dummy_drivers_before_pygame_starts(self, mocker, monkeypatch):
         monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
         monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
@@ -2513,6 +2531,29 @@ class TestWatched:
         assert draw_spy.call_count == 1
         assert pygame.image.tobytes(manager.screen, 'RGB') == clean_frame
         assert not LiveSources(random_seed=RANDOM_SEED).draws_overlay
+        GoldenTraceSceneManager.uninstall()
+
+    def test_the_clean_frame_comes_back_exactly_on_a_display_with_per_pixel_alpha(
+        self, mocker, tmp_path
+    ):
+        """The frame under the status bar is copied back, never blended back over it.
+
+        Real video drivers (cocoa) give the display surface per-pixel alpha, and a scene's
+        pixels can hold alpha below 255 (a background Surface starts at alpha 0): blending the
+        clean copy back then left the status bar in the frame screenshots and dirty-rect
+        updates use. A per-pixel alpha screen with alpha-0 pixels shows it on any driver.
+        """
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        assert manager.screen is not None
+        alpha_screen = pygame.Surface(manager.screen.get_size(), pygame.SRCALPHA)
+        alpha_screen.fill((10, 20, 30, 0))
+        manager.screen = alpha_screen
+        clean_frame = pygame.image.tobytes(alpha_screen, 'RGBA')
+
+        manager._present_held_frame()
+
+        assert pygame.image.tobytes(alpha_screen, 'RGBA') == clean_frame
         GoldenTraceSceneManager.uninstall()
 
 

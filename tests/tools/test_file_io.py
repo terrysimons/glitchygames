@@ -32,7 +32,11 @@ def _write_png(*, path: Path, size: tuple[int, int], fill: tuple[int, ...]) -> P
         The path written.
 
     """
-    surface = pygame.Surface(size, pygame.SRCALPHA if len(fill) == 4 else 0)
+    # Explicit depths: a plain Surface takes the display's format, which has an alpha channel
+    # on real video drivers, so an RGB fill would be saved as RGBA there
+    surface = (
+        pygame.Surface(size, pygame.SRCALPHA, 32) if len(fill) == 4 else pygame.Surface(size, 0, 24)
+    )
     surface.fill(fill)
     pygame.image.save(surface, str(path))
     return path
@@ -483,6 +487,21 @@ class TestDetectPngTransparency:
 
         result = FileIOManager(SimpleNamespace())._detect_png_transparency(
             pygame.Surface((1, 1)),
+            str(png_path),
+        )
+
+        assert result == (False, None)
+
+    def test_alpha_channel_with_only_opaque_pixels_has_no_transparency(self, tmp_path):
+        """An alpha channel alone is not transparency: no pixel is below the threshold.
+
+        Paint programs often export RGBA files whose pixels are all opaque, and a pygame
+        Surface takes the display's format, which has alpha on real video drivers (cocoa).
+        """
+        png_path = _write_png(path=tmp_path / 'opaque-rgba.png', size=(2, 2), fill=(5, 5, 5, 255))
+
+        result = FileIOManager(SimpleNamespace())._detect_png_transparency(
+            pygame.Surface((2, 2)),
             str(png_path),
         )
 
