@@ -4,10 +4,11 @@ This module tests the film tab system that allows users to insert new frames
 before or after existing frames in film strips.
 """
 
+import itertools
+
 import pygame
 import pytest
 
-from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
@@ -19,14 +20,86 @@ TAB_Y = 20
 TAB_WIDTH = 25
 TAB_HEIGHT = 35
 FRAME_INDEX_2 = 2
-MAGENTA_R = 255
-MAGENTA_G = 0
-MAGENTA_B = 255
-FRAME_GAP = 2
-SAMPLE_SIZE = 4
 TARGET_FRAME_5 = 5
-FRAME_DURATION = 0.5
-MIN_FRAMES_FOR_SPACING = 3
+ANIMATION_NAME = 'test_anim'
+MAGENTA = (255, 0, 255)
+FRAME_COLORS = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
+LAST_FRAME_INDEX = len(FRAME_COLORS) - 1
+# Distinct from NEW_FRAME_DURATION so a test can tell inserted frames from loaded ones
+LOADED_FRAME_DURATION = 0.25
+# The blank frames insert_frame_at_tab creates (film_strip_events.py) last 0.5 seconds
+NEW_FRAME_DURATION = 0.5
+# film_strip_layout.FilmStripLayout.calculate_frame_layouts places frames after the first
+# frame_width + tab_width + 11 pixels apart
+FRAME_GAP_AFTER_TAB = 11
+
+
+def find_frame_tab(*, film_strip, insertion_type, target_frame_index):
+    """Find a film strip's frame insertion tab.
+
+    Returns:
+        FilmTabWidget: The tab that inserts at the given position.
+
+    Raises:
+        AssertionError: If the film strip has no such tab.
+
+    """
+    for tab in film_strip.film_tabs:
+        if (
+            type(tab) is FilmTabWidget
+            and tab.insertion_type == insertion_type
+            and tab.target_frame_index == target_frame_index
+        ):
+            return tab
+    message = f'No {insertion_type!r} tab for frame {target_frame_index}'
+    raise AssertionError(message)
+
+
+def strip_frame_colors(*, film_strip):
+    """Read the colour of each frame in the film strip's animation, in order.
+
+    Returns:
+        list[tuple[int, int, int]]: The top-left pixel colour of every frame.
+
+    """
+    return [
+        tuple(frame.image.get_at((0, 0)))[:3]
+        for frame in film_strip.animated_sprite.animations[ANIMATION_NAME]
+    ]
+
+
+def strip_frame_rects(*, film_strip):
+    """Read the laid-out frame rectangles of the film strip's animation, in frame order.
+
+    Returns:
+        list[pygame.Rect]: The frame rectangles.
+
+    """
+    frame_keys = sorted(key for key in film_strip.frame_layouts if key[0] == ANIMATION_NAME)
+    return [film_strip.frame_layouts[frame_key] for frame_key in frame_keys]
+
+
+class FilmStripInsertionTestBase(FilmStripTestBase):
+    """Film strip tests that run frame insertion through a real editor scene."""
+
+    def create_scene_with_colored_strip(self):
+        """Load a three-frame red, green, blue animation into a real editor scene.
+
+        Returns:
+            tuple: The BitmapEditorScene and the animation's FilmStripWidget.
+
+        """
+        animated_sprite = AnimatedSprite()
+        frames = []
+        for frame_color in FRAME_COLORS:
+            frame_surface = pygame.Surface((FRAME_SIZE, FRAME_SIZE))
+            frame_surface.fill(frame_color)
+            frames.append(SpriteFrame(frame_surface, duration=LOADED_FRAME_DURATION))
+        animated_sprite.add_animation(ANIMATION_NAME, frames)
+
+        scene = self.create_optimized_scene()
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
+        return scene, scene.film_strips[ANIMATION_NAME]
 
 
 class TestFilmTabWidget(FilmStripTestBase):
@@ -235,43 +308,6 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
             result = film_strip._handle_tab_hover(tab_pos)
             assert result
 
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
-    def test_frame_insertion_via_tab(self, mocker):
-        """Test that clicking a tab inserts a new frame."""
-        # Create a mock animated sprite with frames using centralized mocks
-        mock_sprite = self._create_mock_sprite_with_frames()
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(mock_sprite)
-        film_strip.current_animation = 'idle'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Get the first tab and simulate click
-        if film_strip.film_tabs:
-            first_tab = film_strip.film_tabs[0]
-
-            # Mock the add_frame method
-            mock_add_frame = mocker.patch.object(mock_sprite, 'add_frame')
-            # Simulate frame insertion
-            film_strip._insert_frame_at_tab(first_tab)
-
-            # Verify that add_frame was called
-            mock_add_frame.assert_called_once()
-
-            # Check that the call was made with correct parameters
-            call_args = mock_add_frame.call_args
-            assert call_args[0][0] == 'idle'  # animation name
-            assert isinstance(call_args[0][1], SpriteFrame)  # new frame
-            assert call_args[0][2] >= 0  # insertion index
-
     def test_film_tab_rendering(self):
         """Test that film tabs are rendered correctly."""
         # Create a mock animated sprite with frames using centralized mocks
@@ -306,395 +342,144 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         assert len(film_strip.film_tabs) > 0
 
 
-class TestFilmTabFrameInsertion(FilmStripTestBase):
+class TestFilmTabFrameInsertion(FilmStripInsertionTestBase):
     """Test frame insertion functionality through film tabs."""
 
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
-    def test_insert_frame_before_first(self):
-        """Test inserting a frame before the first frame."""
-        # Create a real animated sprite with frames
-        animated_sprite = AnimatedSprite()
-
-        # Create frames with different durations
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame3 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-
-        # Add animation with frames
-        animated_sprite.add_animation('test_anim', [frame1, frame2, frame3])
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(animated_sprite)
-        film_strip.current_animation = 'test_anim'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Find the "before" tab for the first frame
-        before_tab = None
-        for tab in film_strip.film_tabs:
-            if tab.insertion_type == 'before' and tab.target_frame_index == 0:
-                before_tab = tab
-                break
-
-        assert before_tab is not None, "Should have a 'before' tab for the first frame"
-
-        # Get initial frame count
-        initial_count = len(animated_sprite._animations['test_anim'])
-
-        # Insert frame
-        film_strip._insert_frame_at_tab(before_tab)
-
-        # Check that frame was inserted
-        new_count = len(animated_sprite._animations['test_anim'])
-        assert new_count == initial_count + 1
-
-        # Check that the new frame is at index 0
-        new_frame = animated_sprite._animations['test_anim'][0]
-        assert isinstance(new_frame, SpriteFrame)
-        assert new_frame.duration == FRAME_DURATION
-
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
-    def test_insert_frame_after_last(self, mock_pygame_patches):
-        """Test inserting a frame after the last frame."""
-        # Create a real animated sprite with frames
-        animated_sprite = AnimatedSprite()
-
-        # Create frames with different durations
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame3 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-
-        # Add animation with frames
-        animated_sprite.add_animation('test_anim', [frame1, frame2, frame3])
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(animated_sprite)
-        film_strip.current_animation = 'test_anim'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Find the "after" tab for the last frame
-        after_tab = None
-        for tab in film_strip.film_tabs:
-            if tab.insertion_type == 'after' and tab.target_frame_index == FRAME_INDEX_2:
-                after_tab = tab
-                break
-
-        assert after_tab is not None, "Should have an 'after' tab for the last frame"
-
-        # Get initial frame count
-        initial_count = len(animated_sprite._animations['test_anim'])
-
-        # Insert frame
-        film_strip._insert_frame_at_tab(after_tab)
-
-        # Check that frame was inserted
-        new_count = len(animated_sprite._animations['test_anim'])
-        assert new_count == initial_count + 1
-
-        # Check that the new frame is at the end
-        new_frame = animated_sprite._animations['test_anim'][-1]
-        assert isinstance(new_frame, SpriteFrame)
-        assert new_frame.duration == FRAME_DURATION
-
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
-    def test_insert_frame_after_middle(self, mock_pygame_patches):
-        """Test inserting a frame after a middle frame."""
-        # Create a real animated sprite with frames
-        animated_sprite = AnimatedSprite()
-
-        # Create frames with different durations
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame3 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-
-        # Add animation with frames
-        animated_sprite.add_animation('test_anim', [frame1, frame2, frame3])
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(animated_sprite)
-        film_strip.current_animation = 'test_anim'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Find the "after" tab for the middle frame (index 1)
-        after_tab = None
-        for tab in film_strip.film_tabs:
-            if tab.insertion_type == 'after' and tab.target_frame_index == 1:
-                after_tab = tab
-                break
-
-        assert after_tab is not None, "Should have an 'after' tab for the middle frame"
-
-        # Get initial frame count
-        initial_count = len(animated_sprite._animations['test_anim'])
-
-        # Insert frame
-        film_strip._insert_frame_at_tab(after_tab)
-
-        # Check that frame was inserted
-        new_count = len(animated_sprite._animations['test_anim'])
-        assert new_count == initial_count + 1
-
-        # Check that the new frame is at the correct position (after frame 1, so at index 2)
-        new_frame = animated_sprite._animations['test_anim'][2]
-        assert isinstance(new_frame, SpriteFrame)
-        assert new_frame.duration == FRAME_DURATION
-
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
-    def test_new_frame_has_magenta_background(self, mock_pygame_patches):
-        """Test that new frames have magenta background as specified."""
-        # Create a real animated sprite with frames
-        animated_sprite = AnimatedSprite()
-
-        # Create frames with different durations
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame3 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-
-        # Add animation with frames
-        animated_sprite.add_animation('test_anim', [frame1, frame2, frame3])
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(animated_sprite)
-        film_strip.current_animation = 'test_anim'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create tabs
-        film_strip.update_layout()
-
-        # Get the first tab
-        first_tab = film_strip.film_tabs[0]
-
-        # Insert frame
-        film_strip._insert_frame_at_tab(first_tab)
-
-        # Check that the new frame has magenta background
-        new_frame = animated_sprite._animations['test_anim'][0]
-        frame_surface = new_frame.image
-
-        # Check a few pixels to ensure they're magenta
-        for x in range(0, min(32, frame_surface.get_width()), SAMPLE_SIZE):
-            for y in range(0, min(32, frame_surface.get_height()), SAMPLE_SIZE):
-                pixel_color = frame_surface.get_at((x, y))
-                assert pixel_color[:3] == (MAGENTA_R, MAGENTA_G, MAGENTA_B), (
-                    f'Pixel at ({x}, {y}) should be magenta'
-                )
-
-    @pytest.mark.skip(reason='Frame spacing logic not yet implemented')
-    def test_frame_spacing_has_2_pixel_gap(self, mock_pygame_patches):
-        """Test that frames have a 2-pixel gap between them after the first frame."""
-        # Create a real animated sprite with frames
-        animated_sprite = AnimatedSprite()
-
-        # Create frames with different durations
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame3 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-
-        # Add animation with frames
-        animated_sprite.add_animation('test_anim', [frame1, frame2, frame3])
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(animated_sprite)
-        film_strip.current_animation = 'test_anim'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create frame layouts
-        film_strip.update_layout()
-
-        # Get frame layouts
-        frame_layouts = film_strip.frame_layouts
-
-        # Should have at least 3 frames for spacing test
-        assert len(frame_layouts) >= MIN_FRAMES_FOR_SPACING, (
-            'Need at least 3 frames to test spacing'
+    # Not in TestFilmStripTabIntegration: its FontManager mock makes building a real
+    # BitmapEditorScene hang
+    def test_frame_insertion_via_tab(self):
+        """Test that clicking a frame's insertion tab inserts a new frame after it."""
+        _scene, film_strip = self.create_scene_with_colored_strip()
+        after_first_tab = find_frame_tab(
+            film_strip=film_strip,
+            insertion_type='after',
+            target_frame_index=0,
         )
 
-        # Get sorted frame keys for the test animation
-        frame_keys = sorted([k for k in frame_layouts if k[0] == 'test_anim'])
+        assert film_strip._handle_tab_click(after_first_tab.rect.center)
 
-        # Test spacing between consecutive frames (after the first)
-        for i in range(1, len(frame_keys)):
-            current_frame = frame_layouts[frame_keys[i]]
-            previous_frame = frame_layouts[frame_keys[i - 1]]
+        red, green, blue = FRAME_COLORS
+        assert strip_frame_colors(film_strip=film_strip) == [red, MAGENTA, green, blue]
 
-            # Calculate the gap between frames
-            # The gap should be: current_frame.x - (previous_frame.x + previous_frame.width)
-            expected_gap = FRAME_GAP  # 2-pixel gap as specified
+    def test_insert_frame_before_first(self):
+        """Test inserting a frame before the first frame."""
+        scene, film_strip = self.create_scene_with_colored_strip()
 
-            # Calculate actual gap
-            previous_frame_end = previous_frame.x + previous_frame.width
-            actual_gap = current_frame.x - previous_frame_end
+        film_strip._insert_frame_at_tab(
+            find_frame_tab(film_strip=film_strip, insertion_type='before', target_frame_index=0),
+        )
 
-            assert actual_gap == expected_gap, (
-                f'Frame {frame_keys[i]} should have {expected_gap}px gap from '
-                f'frame {frame_keys[i - 1]}, but has {actual_gap}px gap'
+        assert strip_frame_colors(film_strip=film_strip) == [MAGENTA, *FRAME_COLORS]
+        new_frame = film_strip.animated_sprite.animations[ANIMATION_NAME][0]
+        assert new_frame.duration == NEW_FRAME_DURATION
+        # The new frame is selected so it can be edited right away
+        assert scene.selected_frame == 0
+
+    def test_insert_frame_after_last(self):
+        """Test inserting a frame after the last frame."""
+        scene, film_strip = self.create_scene_with_colored_strip()
+
+        film_strip._insert_frame_at_tab(
+            find_frame_tab(
+                film_strip=film_strip,
+                insertion_type='after',
+                target_frame_index=LAST_FRAME_INDEX,
+            ),
+        )
+
+        assert strip_frame_colors(film_strip=film_strip) == [*FRAME_COLORS, MAGENTA]
+        new_frame = film_strip.animated_sprite.animations[ANIMATION_NAME][-1]
+        assert new_frame.duration == NEW_FRAME_DURATION
+        assert scene.selected_frame == len(FRAME_COLORS)
+
+    def test_insert_frame_after_middle(self):
+        """Test inserting a frame after a middle frame."""
+        scene, film_strip = self.create_scene_with_colored_strip()
+
+        film_strip._insert_frame_at_tab(
+            find_frame_tab(film_strip=film_strip, insertion_type='after', target_frame_index=1),
+        )
+
+        red, green, blue = FRAME_COLORS
+        assert strip_frame_colors(film_strip=film_strip) == [red, green, MAGENTA, blue]
+        assert scene.selected_frame == FRAME_INDEX_2
+
+    def test_new_frame_has_magenta_background(self):
+        """Test that every pixel of a new frame is the magenta transparency key."""
+        _scene, film_strip = self.create_scene_with_colored_strip()
+
+        film_strip._insert_frame_at_tab(
+            find_frame_tab(film_strip=film_strip, insertion_type='before', target_frame_index=0),
+        )
+
+        new_frame_image = film_strip.animated_sprite.animations[ANIMATION_NAME][0].image
+        assert new_frame_image.get_size() == (FRAME_SIZE, FRAME_SIZE)
+        pixel_colors = pygame.surfarray.array3d(new_frame_image).reshape(-1, 3)
+        assert {tuple(int(channel) for channel in color) for color in pixel_colors} == {MAGENTA}
+
+    def test_frames_are_evenly_spaced(self):
+        """Test that consecutive frames are frame width + tab width + 11 pixels apart."""
+        _scene, film_strip = self.create_scene_with_colored_strip()
+
+        frame_rects = strip_frame_rects(film_strip=film_strip)
+
+        assert len(frame_rects) == len(FRAME_COLORS)
+        expected_stride = film_strip.frame_width + film_strip.tab_width + FRAME_GAP_AFTER_TAB
+        for previous_rect, current_rect in itertools.pairwise(frame_rects):
+            assert current_rect.x - previous_rect.x == expected_stride
+
+    def test_after_tabs_sit_between_frames(self):
+        """Test that each frame's insertion tab lies in the gap before the next frame."""
+        _scene, film_strip = self.create_scene_with_colored_strip()
+
+        frame_rects = strip_frame_rects(film_strip=film_strip)
+
+        before_tab = find_frame_tab(
+            film_strip=film_strip,
+            insertion_type='before',
+            target_frame_index=0,
+        )
+        assert before_tab.rect.right <= frame_rects[0].left
+        for frame_index, (frame_rect, next_frame_rect) in enumerate(
+            itertools.pairwise(frame_rects),
+        ):
+            after_tab = find_frame_tab(
+                film_strip=film_strip,
+                insertion_type='after',
+                target_frame_index=frame_index,
             )
-
-    @pytest.mark.skip(reason='Frame spacing logic not yet implemented')
-    def test_frame_spacing_with_tabs(self, mock_pygame_patches):
-        """Test that frame spacing accounts for tab width plus 2-pixel gap."""
-        # Create a real animated sprite with frames
-        animated_sprite = AnimatedSprite()
-
-        # Create frames with different durations
-        frame1 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame2 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-        frame3 = SpriteFrame(pygame.Surface((32, 32)), duration=FRAME_DURATION)
-
-        # Add animation with frames
-        animated_sprite.add_animation('test_anim', [frame1, frame2, frame3])
-
-        # Create film strip widget
-        film_strip = FilmStripWidget(0, 0, 400, 100)
-        film_strip.set_animated_sprite(animated_sprite)
-        film_strip.current_animation = 'test_anim'
-        film_strip.current_frame = 0
-
-        # Mock parent scene
-        mock_scene = self._mocker.Mock()
-        film_strip.parent_scene = mock_scene
-
-        # Update layout to create frame layouts
-        film_strip.update_layout()
-
-        # Get frame layouts and tabs
-        frame_layouts = film_strip.frame_layouts
-        film_tabs = film_strip.film_tabs
-
-        # Should have frames and tabs
-        assert len(frame_layouts) > 1, 'Need multiple frames to test spacing'
-        assert len(film_tabs) > 0, 'Should have film tabs'
-
-        # Get sorted frame keys for the test animation
-        frame_keys = sorted([k for k in frame_layouts if k[0] == 'test_anim'])
-
-        # Test that spacing formula is correct
-        # Expected spacing: frame_width + tab_width + 2
-        expected_spacing = film_strip.frame_width + film_strip.tab_width + FRAME_GAP
-
-        for i in range(1, len(frame_keys)):
-            current_frame = frame_layouts[frame_keys[i]]
-            previous_frame = frame_layouts[frame_keys[i - 1]]
-
-            # Calculate actual spacing
-            actual_spacing = current_frame.x - previous_frame.x
-
-            assert actual_spacing == expected_spacing, (
-                f'Frame {frame_keys[i]} spacing should be {expected_spacing}px '
-                f'(frame_width + tab_width + 2), but is {actual_spacing}px'
-            )
+            # The tab overlaps its own frame's right edge, never the next frame
+            assert after_tab.rect.left < frame_rect.right
+            assert after_tab.rect.right <= next_frame_rect.left
 
 
-class TestFilmTabSceneIntegration(FilmStripTestBase):
+class TestFilmTabSceneIntegration(FilmStripInsertionTestBase):
     """Test film tab integration with the scene system."""
 
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
     def test_scene_handles_frame_insertion(self):
-        """Test that the scene properly handles frame insertion events."""
-        # Create a real animated sprite
-        animated_sprite = AnimatedSprite()
+        """Test that the scene records a tab insertion so undo removes the frame."""
+        scene, film_strip = self.create_scene_with_colored_strip()
 
-        # Create frames using mocked surfaces
-        mock_surface1 = MockFactory.create_pygame_surface_mock(32, 32)
-        mock_surface2 = MockFactory.create_pygame_surface_mock(32, 32)
-        frame1 = SpriteFrame(mock_surface1, duration=FRAME_DURATION)
-        frame2 = SpriteFrame(mock_surface2, duration=FRAME_DURATION)
+        film_strip._insert_frame_at_tab(
+            find_frame_tab(film_strip=film_strip, insertion_type='after', target_frame_index=0),
+        )
+        assert len(strip_frame_colors(film_strip=film_strip)) == len(FRAME_COLORS) + 1
 
-        # Add animation
-        animated_sprite.add_animation('test_anim', [frame1, frame2])
+        assert scene.undo_redo_manager.undo()
 
-        # Create scene with mock options
-        mock_options = {'size': '800x600'}
-        scene = BitmapEditorScene(mock_options)
-        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
+        assert strip_frame_colors(film_strip=film_strip) == list(FRAME_COLORS)
 
-        # Get the first film strip
-        if hasattr(scene, 'film_strips') and scene.film_strips:
-            film_strip = next(iter(scene.film_strips.values()))
-
-            # Update layout to create tabs
-            film_strip.update_layout()
-
-            # Get the first tab
-            if film_strip.film_tabs:
-                first_tab = film_strip.film_tabs[0]
-
-                # Insert frame
-                film_strip._insert_frame_at_tab(first_tab)
-
-                # Check that the scene was notified
-                assert hasattr(scene, 'on_frame_inserted')
-
-    @pytest.mark.skip(reason='Frame insertion functionality not implemented')
     def test_frame_insertion_updates_canvas(self):
-        """Test that frame insertion updates the canvas if it's the current animation."""
-        # Create a real animated sprite
-        animated_sprite = AnimatedSprite()
+        """Test that frame insertion shows the new, blank frame on the canvas."""
+        scene, film_strip = self.create_scene_with_colored_strip()
+        scene.film_strip_coordinator.switch_to_film_strip(ANIMATION_NAME, 1)
+        assert {pixel[:3] for pixel in scene.canvas.pixels} == {FRAME_COLORS[1]}
 
-        # Create frames using mocked surfaces
-        mock_surface1 = MockFactory.create_pygame_surface_mock(32, 32)
-        mock_surface2 = MockFactory.create_pygame_surface_mock(32, 32)
-        frame1 = SpriteFrame(mock_surface1, duration=FRAME_DURATION)
-        frame2 = SpriteFrame(mock_surface2, duration=FRAME_DURATION)
+        film_strip._insert_frame_at_tab(
+            find_frame_tab(film_strip=film_strip, insertion_type='before', target_frame_index=0),
+        )
 
-        # Add animation
-        animated_sprite.add_animation('test_anim', [frame1, frame2])
-
-        # Create scene with mock options
-        mock_options = {'size': '800x600'}
-        scene = BitmapEditorScene(mock_options)
-        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
-
-        # Set the current animation
-        scene.selected_animation = 'test_anim'
-
-        # Get the first film strip
-        if hasattr(scene, 'film_strips') and scene.film_strips:
-            film_strip = next(iter(scene.film_strips.values()))
-
-            # Update layout to create tabs
-            film_strip.update_layout()
-
-            # Get the first tab
-            if film_strip.film_tabs:
-                first_tab = film_strip.film_tabs[0]
-
-                # Insert frame
-                film_strip._insert_frame_at_tab(first_tab)
-
-                # Check that the canvas was updated
-                if hasattr(scene, 'canvas') and scene.canvas:
-                    assert scene.selected_frame == 0
+        assert scene.selected_animation == ANIMATION_NAME
+        assert scene.selected_frame == 0
+        assert scene.canvas.current_frame == 0
+        assert {pixel[:3] for pixel in scene.canvas.pixels} == {MAGENTA}

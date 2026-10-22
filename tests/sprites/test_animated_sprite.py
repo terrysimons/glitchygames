@@ -218,7 +218,7 @@ blue = 0
         return str(filepath)
 
     def create_mixed_sprite_file(self, filename: str) -> str:
-        """Create a mixed content TOML file (should be invalid).
+        """Create a mixed content TOML file: static pixels and a frame (load_sprite refuses it).
 
         Returns:
             str: The newly created mixed sprite file.
@@ -283,9 +283,13 @@ name = "TestEmptySprite"
         assert analysis['has_frame_sections']
 
     def test_analyze_mixed_sprite(self):
-        """Test analysis of mixed content sprite file."""
-        # Skip this test as mixed content doesn't translate well to TOML format
-        pytest.skip('Mixed content test not applicable to TOML format')
+        """A file with static pixels and a frame reports both: what load_sprite refuses."""
+        filename = self.create_mixed_sprite_file('mixed.toml')
+        analysis = SpriteFactory._analyze_file(filename)
+
+        assert analysis['has_sprite_pixels']
+        assert analysis['has_frame_sections']
+        assert not analysis['has_animation_sections']
 
     def test_analyze_empty_sprite(self):
         """Test analysis of empty sprite file."""
@@ -320,8 +324,18 @@ name = "TestEmptySprite"
 
     @staticmethod
     def test_determine_type_mixed():
-        """Test type determination for mixed content (should be error)."""
-        pytest.skip('Mixed content scenario not applicable to TOML format')
+        """Animation data outranks static pixels.
+
+        Mixed files never get this far: load_sprite refuses them first
+        (test_load_mixed_sprite_raises_error).
+        """
+        analysis = {
+            'has_sprite_pixels': True,
+            'has_animation_sections': True,
+            'has_frame_sections': True,
+        }
+        sprite_type = SpriteFactory._determine_type(analysis)
+        assert sprite_type == 'animated'
 
     @staticmethod
     def test_determine_type_empty():

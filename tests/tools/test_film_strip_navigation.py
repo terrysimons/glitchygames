@@ -285,22 +285,22 @@ class TestFilmStripNavigation(FilmStripTestBase):
         # Should not change offset since "walk" is already visible
         assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
 
-    @pytest.mark.skip(reason='Selection state management not implemented')
     def test_film_strip_selection_state(self):
-        """Test film strip selection state management."""
-        # Set current animation to "walk"
-        self.scene.canvas.current_animation = 'walk'
-        self.scene.canvas.current_frame = 1
+        """Test that the strip of the selected animation is the only one marked selected."""
+        # The editor's global selection is what update_film_strip_selection_state reads
+        self.scene.selected_animation = 'walk'
+        self.scene.selected_frame = 1
 
-        # Update selection state
         self.scene.update_film_strip_selection_state()
 
-        # Check that the correct strip is marked as selected
-        if 'walk' in self.scene.film_strips:
-            walk_strip = self.scene.film_strips['walk']
-            assert walk_strip.is_selected
-            assert walk_strip.current_animation == 'walk'
-            assert walk_strip.current_frame == 1
+        walk_strip = self.scene.film_strips['walk']
+        assert walk_strip.is_selected
+        assert walk_strip.selected_frame == 1
+        for strip_name, strip_widget in self.scene.film_strips.items():
+            # Every strip renders its own animation's sprockets
+            assert strip_widget.current_animation == strip_name
+            if strip_name != 'walk':
+                assert not strip_widget.is_selected
 
     def test_switch_to_film_strip(self):
         """Test switching to a specific film strip."""
@@ -315,16 +315,19 @@ class TestFilmStripNavigation(FilmStripTestBase):
         assert self.scene.canvas.current_animation == 'jump'
         assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
 
-    @pytest.mark.skip(reason='Selection state management not implemented')
     def test_dirty_marking_on_selection_change(self):
-        """Test that selection changes properly mark sprites as dirty."""
-        # Switch to a different strip
+        """Test that switching strips marks the old and new strip sprites for redraw."""
+        self.scene.film_strip_coordinator.switch_to_film_strip('jump', SCROLL_OFFSET_0)
+        for strip_sprite in self.scene.film_strip_sprites.values():
+            strip_sprite.dirty = 0
+
         self.scene.film_strip_coordinator.switch_to_film_strip('attack', SCROLL_OFFSET_0)
 
-        # Check that the film strip sprite is marked as dirty
-        if 'attack' in self.scene.film_strip_sprites:
-            attack_sprite = self.scene.film_strip_sprites['attack']
-            assert attack_sprite.dirty == SCROLL_OFFSET_2
+        # dirty = 1 redraws the sprite once on the next LayeredDirty.draw()
+        assert self.scene.film_strip_sprites['attack'].dirty == 1
+        assert self.scene.film_strip_sprites['jump'].dirty == 1
+        assert self.scene.film_strips['attack'].is_selected
+        assert not self.scene.film_strips['jump'].is_selected
 
     def test_keyboard_navigation_with_auto_scroll(self):
         """Test that keyboard navigation triggers auto-scroll when needed."""

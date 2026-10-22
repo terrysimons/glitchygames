@@ -1,14 +1,23 @@
 """Test suite for hardware-level animation rendering verification.
 
-This module tests that animated sprites properly reach the actual display buffer
-and hardware, providing multiple layers of verification to quickly identify
-where rendering problems occur in the pipeline.
+This module tests that animated sprites properly reach the display surface, providing
+multiple layers of verification to quickly identify where rendering problems occur in the
+pipeline.
+
+The tests draw on a real pygame display: ``tests/conftest.py`` sets ``SDL_VIDEODRIVER`` to
+``dummy``, so ``pygame.display.set_mode`` gives a headless display surface that holds real
+pixels (set ``SDL_VIDEODRIVER=cocoa`` or similar to watch them in a window). They used to
+run on the shared pygame mocks, whose display surface answers black for every pixel, so
+they checked no rendering at all. Pixels are read in bulk with ``pygame.surfarray``: never
+read the screen one ``get_at`` call at a time (BUGS.md #85).
 """
 
 import sys
 import time
+import tomllib
 from pathlib import Path
 
+import numpy as np
 import pygame
 import pytest
 
@@ -17,8 +26,6 @@ from glitchygames.sprites import SpriteFactory
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
@@ -38,11 +45,53 @@ def get_resource_path(filename: str) -> str:
     )
 
 
+def toml_frame_colors(animation_file: str) -> list[tuple[int, int, int]]:
+    """Read the colour of each frame of a sprite file whose frames are one colour each.
+
+    The colours come straight from the TOML, independently of the sprite loader, so they
+    are what the display should show.
+
+    Returns:
+        list[tuple[int, int, int]]: The colour of every frame of the first animation.
+
+    """
+    with Path(animation_file).open(mode='rb') as toml_file:
+        sprite_data = tomllib.load(toml_file)
+    glyph_colors = {
+        glyph: (color['red'], color['green'], color['blue'])
+        for glyph, color in sprite_data['colors'].items()
+    }
+    frame_colors = []
+    for frame in sprite_data['animation'][0]['frame']:
+        frame_glyphs = set(''.join(frame['pixels'].split()))
+        assert len(frame_glyphs) == 1, 'Each frame of the test sprite must be one colour'
+        frame_colors.append(glyph_colors[frame_glyphs.pop()])
+    return frame_colors
+
+
+def region_colors(surface: pygame.Surface, region: pygame.Rect) -> set[tuple[int, int, int]]:
+    """Read the distinct colours inside a region of a surface, in bulk.
+
+    Returns:
+        set[tuple[int, int, int]]: The RGB colours present in the region.
+
+    """
+    region_pixels = pygame.surfarray.array3d(surface.subsurface(region)).reshape(-1, 3)
+    return {tuple(int(channel) for channel in color) for color in np.unique(region_pixels, axis=0)}
+
+
 # Constants for test thresholds
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-MAX_FRAME_COUNT = 3
+BACKGROUND_COLOR = (20, 20, 40)
+# colors.toml: ten one-colour 2x2 frames; frame 0 red for 0.25 s, frame 1 green for 0.75 s,
+# frame 2 blue, ...
+COLORS_FILE = get_resource_path('colors.toml')
+FRAME_COLORS = toml_frame_colors(COLORS_FILE)
+FIRST_FRAME_SECONDS = 0.25
+SECOND_FRAME_SECONDS = 0.75
 MAX_PERFORMANCE_TIME = 2.0
+PERFORMANCE_FRAME_COUNT = 5
 
 
 class HardwareAnimationTestScene(Scene):
@@ -56,399 +105,239 @@ class HardwareAnimationTestScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         # Initialize with minimal options
-        options = {'width': 800, 'height': 600, 'fullscreen': False}
+        options = {'width': SCREEN_WIDTH, 'height': SCREEN_HEIGHT, 'fullscreen': False}
         super().__init__(options=options, groups=groups)
 
         # Set up the scene
-        self.background_color = (20, 20, 40)
+        self.background_color = BACKGROUND_COLOR
         self.fps = 60
         self.animation_file = animation_file
         self.animated_sprite = None
-        self.test_surface = pygame.Surface((800, 600))
 
         # Load the animated sprite
         self._load_animated_sprite()
 
         # Add sprite to the group for rendering
-        if self.animated_sprite:
-            self.all_sprites.add(self.animated_sprite)
+        assert self.animated_sprite is not None
+        self.all_sprites.add(self.animated_sprite)
+
+        # A scene starts on a full background (SceneManager blits it when a scene is set up);
+        # after that, render() only restores the background behind dirty sprites
+        assert self.screen is not None
+        self.screen.blit(self.background, (0, 0))
 
     def _load_animated_sprite(self) -> None:
         """Load the animated sprite from the specified file."""
         self.animated_sprite = SpriteFactory.load_sprite(filename=self.animation_file)
-        if hasattr(self.animated_sprite, 'play'):
-            self.animated_sprite.play()
+        self.animated_sprite.play()
         # Center on screen
         assert self.animated_sprite.rect is not None
         assert self.screen is not None
         self.animated_sprite.rect.center = self.screen.get_rect().center
 
-    def update(self) -> None:
-        """Update the scene and capture frame data."""
-        super().update()
+    def dt_tick(self, dt: float) -> None:
+        """Advance the animation by the frame's dt, as the example games' sprites do."""
+        assert self.animated_sprite is not None
+        self.animated_sprite.update(dt)
 
-        if self.animated_sprite and hasattr(self.animated_sprite, 'update'):
-            # Update with delta time
-            self.animated_sprite.update(self.dt)
+    def update(self) -> None:
+        """Do no animation work in the render phase.
+
+        Scene.update() calls each dirty sprite's update() with no dt, which advances an
+        AnimatedSprite by its default 0.016 s on every rendered frame whatever the frame's
+        real dt. The animation advances only in dt_tick() here (as PapyrusCobra's does), so
+        a test controls exactly how far it moves.
+        """
+
+    def force_display_update(self) -> None:
+        """Render the scene to the display and present it, as the engine's frame does."""
+        self.update()
+        assert self.screen is not None
+        self.render(self.screen)
+        pygame.display.flip()
 
     @staticmethod
-    def capture_hardware_display_buffer() -> list[tuple[int, int, int]]:
-        """Capture pixel data directly from the hardware display buffer.
+    def capture_hardware_display_buffer() -> np.ndarray:
+        """Capture the display surface's pixels in one bulk read.
 
         Returns:
-            list[tuple[int, int, int]]: The result.
+            np.ndarray: The RGB pixels, indexed [x, y, channel].
 
         """
-        # Get the actual display surface that hardware reads
         display_surface = pygame.display.get_surface()
         assert display_surface is not None
+        return pygame.surfarray.array3d(display_surface)
 
-        # Extract pixel data from hardware buffer
-        width, height = display_surface.get_size()
-        pixels = []
-        for y in range(height):
-            for x in range(width):
-                color = display_surface.get_at((x, y))
-                pixels.append((color.r, color.g, color.b))
-
-        return pixels
-
-    def capture_test_surface_pixels(self) -> list[tuple[int, int, int]]:
-        """Capture pixel data from our test surface (scene-level rendering).
+    def compose_expected_frame(self) -> np.ndarray:
+        """Compose, off screen, what the display should show: the background and the sprite.
 
         Returns:
-            list[tuple[int, int, int]]: The result.
+            np.ndarray: The expected RGB pixels, indexed [x, y, channel].
 
         """
-        # Clear the test surface
-        assert self.background_color is not None
-        self.test_surface.fill(self.background_color)
+        assert self.animated_sprite is not None
+        assert self.animated_sprite.image is not None
+        assert self.animated_sprite.rect is not None
+        expected_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        expected_surface.blit(self.background, (0, 0))
+        expected_surface.blit(self.animated_sprite.image, self.animated_sprite.rect)
+        return pygame.surfarray.array3d(expected_surface)
 
-        # Update the scene first
-        self.update()
-
-        # Draw all sprites to the test surface
-        self.all_sprites.draw(self.test_surface)
-
-        # Extract pixel data
-        width, height = self.test_surface.get_size()
-        pixels = []
-        for y in range(height):
-            for x in range(width):
-                color = self.test_surface.get_at((x, y))
-                pixels.append((color.r, color.g, color.b))
-
-        return pixels
-
-    def capture_sprite_pixels(self) -> list[tuple[int, int, int]]:
-        """Capture pixel data directly from the sprite surface.
+    def sprite_area_colors_on_display(self) -> set[tuple[int, int, int]]:
+        """Read the colours the display shows where the sprite is.
 
         Returns:
-            list[tuple[int, int, int]]: The result.
-
-        """
-        if not self.animated_sprite:
-            return []
-
-        # Get the current frame surface
-        if hasattr(self.animated_sprite, 'image'):
-            surface = self.animated_sprite.image
-        else:
-            return []
-
-        assert surface is not None
-
-        # Extract pixel data from the sprite surface
-        width, height = surface.get_size()
-        pixels = []
-        for y in range(height):
-            for x in range(width):
-                color = surface.get_at((x, y))
-                pixels.append((color.r, color.g, color.b))
-
-        return pixels
-
-    def get_sprite_area_from_hardware_buffer(self) -> list[tuple[int, int, int]]:
-        """Get sprite area pixels from the hardware display buffer.
-
-        Returns:
-            list[tuple[int, int, int]]: The sprite area from hardware buffer.
+            set[tuple[int, int, int]]: The RGB colours in the sprite's rect on the display.
 
         """
         display_surface = pygame.display.get_surface()
         assert display_surface is not None
         assert self.animated_sprite is not None
         assert self.animated_sprite.rect is not None
-        sprite_rect = self.animated_sprite.rect
-
-        pixels = []
-        for y in range(int(sprite_rect.top), int(sprite_rect.bottom)):
-            for x in range(int(sprite_rect.left), int(sprite_rect.right)):
-                if 0 <= x < display_surface.get_width() and 0 <= y < display_surface.get_height():
-                    color = display_surface.get_at((x, y))
-                    pixels.append((color.r, color.g, color.b))
-
-        return pixels
-
-    def force_display_update(self) -> None:
-        """Force the display to update and ensure hardware buffer is current."""
-        # Update the scene
-        self.update()
-
-        # Draw to the actual display
-        assert self.screen is not None
-        assert self.background_color is not None
-        self.screen.fill(self.background_color)
-        self.all_sprites.draw(self.screen)
-
-        # Force display update
-        pygame.display.flip()
-
-        # Small delay to ensure hardware buffer is updated
-        time.sleep(0.01)
+        return region_colors(display_surface, self.animated_sprite.rect)
 
 
 class TestAnimationHardware:
     """Test hardware-level animation rendering and display buffer verification."""
 
     @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing.
+    def real_display(self):
+        """Open a real (headless under the dummy video driver) display for each test.
 
-        The mocked display's ``get_at`` answers every pixel black. It is a recording mock, and
-        these tests read the whole 800x600 screen pixel by pixel, so it kept each of the
-        480,000 calls per capture (about 1.3 GB for this file; BUGS.md #85): a plain function
-        gives the same answer without keeping them.
+        Yields:
+            pygame.Surface: The display surface.
+
         """
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        display_surface = pygame.display.get_surface()
-        black = pygame.Color(0, 0, 0, 255)
-        display_surface.get_at = lambda position: black  # ty: ignore[invalid-assignment]
+        pygame.init()
+        yield pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.quit()
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
+    def test_hardware_display_buffer_access(self, real_display):
+        """Test that the scene renders to the real display, background everywhere but the sprite."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
+        assert scene.screen is real_display
 
-        # Load the colors.toml animation for testing
-        self.animation_file = get_resource_path('colors.toml')
-
-    def test_hardware_display_buffer_access(self):
-        """Test that we can access the hardware display buffer."""
-        scene = HardwareAnimationTestScene(self.animation_file)
-
-        # Force display update to ensure hardware buffer is current
         scene.force_display_update()
 
-        # Capture hardware display buffer
-        hardware_pixels = scene.capture_hardware_display_buffer()
-
-        # Verify we can access hardware buffer
-        assert len(hardware_pixels) > 0, 'Should capture hardware buffer data'
-        assert len(hardware_pixels) == SCREEN_WIDTH * SCREEN_HEIGHT, (
-            'Should capture full screen buffer'
-        )
-
-    def test_sprite_visibility_in_hardware_buffer(self):
-        """Test that animated sprite is visible in the hardware display buffer."""
-        scene = HardwareAnimationTestScene(self.animation_file)
-
-        # Force display update
-        scene.force_display_update()
-
-        # Get sprite area from hardware buffer
-        sprite_area_pixels = scene.get_sprite_area_from_hardware_buffer()
-
-        # Check for non-background pixels in sprite area
-        background_color = scene.background_color
-        non_background_pixels = [pixel for pixel in sprite_area_pixels if pixel != background_color]
-
-        # Verify sprite is visible in hardware buffer
-        assert len(non_background_pixels) > 0, 'Sprite should be visible in hardware display buffer'
-
-    def test_hardware_vs_surface_consistency(self):
-        """Test that scene surface matches hardware display buffer."""
-        scene = HardwareAnimationTestScene(self.animation_file)
-
-        # Force display update
-        scene.force_display_update()
-
-        # Capture from both sources
-        hardware_pixels = scene.capture_hardware_display_buffer()
-        surface_pixels = scene.capture_test_surface_pixels()
-
-        # Verify both have data
-        assert len(hardware_pixels) > 0, 'Hardware buffer should have data'
-        assert len(surface_pixels) > 0, 'Surface buffer should have data'
-
-        # For small sprites, check sprite area specifically
-        sprite_area_hardware = scene.get_sprite_area_from_hardware_buffer()
-        sprite_area_surface = []
-
+        display_pixels = scene.capture_hardware_display_buffer()
+        assert display_pixels.shape == (SCREEN_WIDTH, SCREEN_HEIGHT, 3)
+        background_pixel_count = int(np.all(display_pixels == BACKGROUND_COLOR, axis=2).sum())
         assert scene.animated_sprite is not None
         assert scene.animated_sprite.rect is not None
-        sprite_rect = scene.animated_sprite.rect
-        for y in range(int(sprite_rect.top), int(sprite_rect.bottom)):
-            for x in range(int(sprite_rect.left), int(sprite_rect.right)):
-                if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
-                    pixel_index = y * SCREEN_WIDTH + x
-                    if pixel_index < len(surface_pixels):
-                        sprite_area_surface.append(surface_pixels[pixel_index])
+        sprite_area = scene.animated_sprite.rect.width * scene.animated_sprite.rect.height
+        assert background_pixel_count == SCREEN_WIDTH * SCREEN_HEIGHT - sprite_area
 
-        # Verify sprite areas have similar content
-        assert len(sprite_area_hardware) == len(sprite_area_surface), (
-            'Sprite areas should have same pixel count'
+    def test_sprite_visibility_in_hardware_buffer(self):
+        """Test that the sprite's first frame colour is on the display where the sprite is."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
+
+        scene.force_display_update()
+
+        assert scene.sprite_area_colors_on_display() == {FRAME_COLORS[0]}
+
+    def test_hardware_vs_surface_consistency(self):
+        """Test that the display matches the background with the sprite composed on top."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
+
+        scene.force_display_update()
+
+        assert np.array_equal(
+            scene.capture_hardware_display_buffer(), scene.compose_expected_frame()
         )
 
     def test_animation_frame_transitions_in_hardware(self):
-        """Test that animation frame transitions are visible in hardware buffer."""
-        scene = HardwareAnimationTestScene(self.animation_file)
+        """Test that each frame's colour reaches the display as the frame changes."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
+        assert scene.animated_sprite is not None
 
-        if not hasattr(scene.animated_sprite, 'animations') or not scene.animated_sprite.animations:
-            pytest.skip('No animations found')
-
-        # Get all frames from the animation
-        animation_name = next(iter(scene.animated_sprite.animations.keys()))
-        frames = scene.animated_sprite.animations[animation_name]
-
-        if len(frames) < MAX_FRAME_COUNT:
-            pytest.skip('Need at least 3 frames to test transitions')
-
-        # Test frame transitions using sprite pixel data (since centralized mocks
-        # simulate sprite-level behavior rather than hardware-level pixel reading)
-        sprite_frame_data = []
-
-        for i in range(min(5, len(frames))):  # Test first 5 frames
-            # Set the sprite to this specific frame
-            if hasattr(scene.animated_sprite, 'set_frame'):
-                scene.animated_sprite.set_frame(i)
-            elif hasattr(scene.animated_sprite, 'frame_manager'):
-                scene.animated_sprite.frame_manager.set_frame(i)
-
-            # Force display update
+        displayed_colors = []
+        for frame_index in range(len(FRAME_COLORS)):
+            scene.animated_sprite.set_frame(frame_index)
             scene.force_display_update()
+            displayed_colors.append(scene.sprite_area_colors_on_display())
 
-            # Capture sprite pixel data directly from the sprite (which the centralized
-            # mocks properly simulate with different colors for different frames)
-            sprite_pixels = scene.capture_sprite_pixels()
-            sprite_frame_data.append(sprite_pixels)
-
-        # Verify frames have different content
-        unique_frames = {tuple(pixels) for pixels in sprite_frame_data}
-        assert len(unique_frames) > 1, 'Sprite should show different frame content'
+        # Every frame shows, the magenta one included: a TOML AnimatedSprite that is not
+        # converted to alpha draws magenta as an opaque colour (CLAUDE.md, Hitboxes)
+        assert displayed_colors == [{color} for color in FRAME_COLORS]
 
     def test_hardware_rendering_performance(self):
-        """Test that hardware rendering performs within acceptable limits."""
-        scene = HardwareAnimationTestScene(self.animation_file)
+        """Test that rendering and reading back the display performs within acceptable limits."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
+        assert scene.animated_sprite is not None
 
-        # Test sprite rendering performance (since centralized mocks simulate
-        # sprite-level behavior rather than hardware-level pixel reading)
-        start_time = time.time()
-
-        # Simulate multiple sprite captures (more efficient than hardware buffer)
-        for _ in range(5):
+        start_time = time.perf_counter()
+        for frame_index in range(PERFORMANCE_FRAME_COUNT):
+            scene.animated_sprite.set_frame(frame_index)
             scene.force_display_update()
-            scene.capture_sprite_pixels()  # Use sprite-level capture instead
+            scene.capture_hardware_display_buffer()
+        total_time = time.perf_counter() - start_time
 
-        end_time = time.time()
-        total_time = end_time - start_time
-
-        # Verify performance is acceptable (sprite-level operations should be fast)
-        assert total_time < MAX_PERFORMANCE_TIME, (
-            f'Sprite rendering should be fast: {total_time:.3f}s'
-        )
+        assert total_time < MAX_PERFORMANCE_TIME, f'Rendering should be fast: {total_time:.3f}s'
 
     def test_hardware_buffer_integrity(self):
-        """Test that hardware buffer maintains pixel integrity."""
-        scene = HardwareAnimationTestScene(self.animation_file)
-
-        # Force display update
+        """Test that presenting an unchanged scene again leaves the display unchanged."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
         scene.force_display_update()
+        first_capture = scene.capture_hardware_display_buffer()
 
-        # Capture hardware buffer multiple times
-        buffer1 = scene.capture_hardware_display_buffer()
-        time.sleep(0.01)  # Small delay
-        buffer2 = scene.capture_hardware_display_buffer()
+        scene.force_display_update()
+        second_capture = scene.capture_hardware_display_buffer()
 
-        # Verify buffer consistency
-        assert len(buffer1) == len(buffer2), 'Hardware buffer size should be consistent'
-
-        # For static scenes, buffers should be identical
-        # For animated scenes, they might differ slightly
+        assert np.array_equal(first_capture, second_capture)
 
     def test_sprite_positioning_in_hardware_buffer(self):
-        """Test that sprite positioning is correct in hardware buffer."""
-        scene = HardwareAnimationTestScene(self.animation_file)
+        """Test that the drawn pixels sit exactly in the sprite's rect, centred on screen."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
 
-        # Force display update
         scene.force_display_update()
 
-        # Get sprite position and size
+        display_pixels = scene.capture_hardware_display_buffer()
+        drawn_x, drawn_y = np.nonzero(np.any(display_pixels != BACKGROUND_COLOR, axis=2))
+        drawn_rect = pygame.Rect(
+            int(drawn_x.min()),
+            int(drawn_y.min()),
+            int(drawn_x.max() - drawn_x.min()) + 1,
+            int(drawn_y.max() - drawn_y.min()) + 1,
+        )
         assert scene.animated_sprite is not None
-        assert scene.animated_sprite.rect is not None
-        sprite_rect = scene.animated_sprite.rect
-
-        # Verify sprite is within screen bounds
-        assert sprite_rect.left >= 0, 'Sprite should be within screen bounds'
-        assert sprite_rect.top >= 0, 'Sprite should be within screen bounds'
-        assert sprite_rect.right < SCREEN_WIDTH, 'Sprite should be within screen bounds'
-        assert sprite_rect.bottom < SCREEN_HEIGHT, 'Sprite should be within screen bounds'
-
-        # Check that sprite area has content in hardware buffer
-        sprite_area_pixels = scene.get_sprite_area_from_hardware_buffer()
-        assert len(sprite_area_pixels) > 0, 'Sprite area should have pixels in hardware buffer'
+        assert drawn_rect == scene.animated_sprite.rect
+        assert drawn_rect.center == (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 
     def test_hardware_vs_sprite_surface_consistency(self):
-        """Test that hardware buffer matches sprite surface data."""
-        scene = HardwareAnimationTestScene(self.animation_file)
+        """Test that the display's sprite area holds exactly the sprite image's pixels."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
 
-        # Force display update
         scene.force_display_update()
 
-        # Get sprite surface data
-        sprite_pixels = scene.capture_sprite_pixels()
-
-        # Get sprite area from hardware buffer
-        hardware_sprite_pixels = scene.get_sprite_area_from_hardware_buffer()
-
-        # Verify both have data
-        assert len(sprite_pixels) > 0, 'Sprite surface should have data'
-        assert len(hardware_sprite_pixels) > 0, 'Hardware sprite area should have data'
-
-        # For small sprites, the pixel counts should match
-        # This is informational only - no assertion needed
+        assert scene.animated_sprite is not None
+        assert scene.animated_sprite.image is not None
+        assert scene.animated_sprite.rect is not None
+        display_surface = pygame.display.get_surface()
+        assert display_surface is not None
+        sprite_area_pixels = pygame.surfarray.array3d(
+            display_surface.subsurface(scene.animated_sprite.rect),
+        )
+        assert np.array_equal(
+            sprite_area_pixels,
+            pygame.surfarray.array3d(scene.animated_sprite.image),
+        )
 
     def test_animation_timing_affects_hardware_buffer(self):
-        """Test that animation timing affects what appears in hardware buffer."""
-        scene = HardwareAnimationTestScene(self.animation_file)
+        """Test that the display changes frame only once the frame's duration has passed."""
+        scene = HardwareAnimationTestScene(COLORS_FILE)
 
-        if not hasattr(scene.animated_sprite, 'animations') or not scene.animated_sprite.animations:
-            pytest.skip('No animations found')
+        scene.dt_tick(FIRST_FRAME_SECONDS / 2)
+        scene.force_display_update()
+        assert scene.sprite_area_colors_on_display() == {FRAME_COLORS[0]}
 
-        animation_name = next(iter(scene.animated_sprite.animations.keys()))
-        frames = scene.animated_sprite.animations[animation_name]
+        scene.dt_tick(FIRST_FRAME_SECONDS / 2)
+        scene.force_display_update()
+        assert scene.sprite_area_colors_on_display() == {FRAME_COLORS[1]}
 
-        # Test that different frames show different content (using sprite pixel data
-        # since centralized mocks simulate sprite-level behavior)
-        frame_contents = []
+        scene.dt_tick(SECOND_FRAME_SECONDS / 2)
+        scene.force_display_update()
+        assert scene.sprite_area_colors_on_display() == {FRAME_COLORS[1]}
 
-        for i in range(min(3, len(frames))):  # Test first 3 frames
-            # Set frame
-            if hasattr(scene.animated_sprite, 'set_frame'):
-                scene.animated_sprite.set_frame(i)
-            elif hasattr(scene.animated_sprite, 'frame_manager'):
-                scene.animated_sprite.frame_manager.set_frame(i)
-
-            # Force display update
-            scene.force_display_update()
-
-            # Capture sprite pixel data (which centralized mocks properly simulate)
-            sprite_pixels = scene.capture_sprite_pixels()
-            frame_contents.append(sprite_pixels)
-
-        # Verify frames are different
-        unique_contents = {tuple(pixels) for pixels in frame_contents}
-        assert len(unique_contents) > 1, 'Sprite should show different frame content'
-
-
-# Remove unittest.main() since we're using pytest
+        scene.dt_tick(SECOND_FRAME_SECONDS / 2)
+        scene.force_display_update()
+        assert scene.sprite_area_colors_on_display() == {FRAME_COLORS[2]}

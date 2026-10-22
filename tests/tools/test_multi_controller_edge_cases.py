@@ -246,40 +246,36 @@ class TestVisualCollisionEdgeCases:
         # All indicators should exist
         assert len(self.visual_manager.indicators) == 25
 
-    @pytest.mark.skip(
-        reason='VisualCollisionManager is not thread-safe — concurrent updates cause RuntimeError',
-    )
-    def test_position_update_races(self):
-        """Test rapid position updates causing potential race conditions."""
-        # Add indicators
-        for i in range(10):
+    def test_rapid_position_updates(self):
+        """Test many interleaved position updates on the editor's one (main) thread.
+
+        VisualCollisionManager is not thread-safe and does not need to be: the editor
+        updates it only from event handling and frame updates on the main thread, so
+        this states that contract instead of racing worker threads against it.
+        """
+        for controller_id in range(10):
             self.visual_manager.add_controller_indicator(
-                controller_id=i,
-                instance_id=i,
+                controller_id=controller_id,
+                instance_id=controller_id,
                 color=(255, 0, 0),
-                position=(i * 10, i * 10),
+                position=(controller_id * 10, controller_id * 10),
             )
 
-        def position_worker(controller_id):
-            for _ in range(100):
-                x = (controller_id * 10 + _) % 200
-                y = (controller_id * 10 + _) % 200
-                self.visual_manager.update_controller_position(controller_id, (x, y))
-                time.sleep(0.001)
-
-        # Start multiple position update workers
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = []
+        final_positions = {}
+        for update_round in range(100):
             for controller_id in range(5):
-                future = executor.submit(position_worker, controller_id)
-                futures.append(future)
+                position = (
+                    (controller_id * 10 + update_round) % 200,
+                    (controller_id * 10 + update_round) % 200,
+                )
+                self.visual_manager.update_controller_position(controller_id, position)
+                final_positions[controller_id] = position
 
-            # Wait for all workers to complete
-            for future in futures:
-                future.result()
-
-        # All indicators should still exist
         assert len(self.visual_manager.indicators) == 10
+        for controller_id, position in final_positions.items():
+            assert self.visual_manager.indicators[controller_id].position == position
+        # Collision groups follow the final positions: controller 0 ended at (99, 99)
+        assert self.visual_manager.film_strip_collision_groups[99, 99] == [0]
 
     def test_collision_with_negative_positions(self):
         """Test collision avoidance with negative positions."""

@@ -8,7 +8,7 @@ import pytest
 
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.editor_setup import EditorSetup
-from glitchygames.events.voice import SPEECH_RECOGNITION_AVAILABLE, VoiceEventManager
+from glitchygames.events.voice import VoiceEventManager
 
 pytestmark = pytest.mark.usefixtures('mock_pygame_patches')
 
@@ -1132,12 +1132,14 @@ class TestVoiceRecognitionManagerPositive:
         assert manager.microphone is not None
         assert manager.is_available()
 
-    @pytest.mark.skipif(SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is installed')
-    def test_voice_manager_initialization_without_speech_recognition_expected(self):
-        """Test that VoiceRecognitionManager handles missing speech recognition gracefully.
+    def test_voice_manager_initialization_without_speech_recognition_expected(self, mocker):
+        """Without speech_recognition installed, the manager starts with nothing to listen with.
 
-        This test should pass when speech recognition is not available.
+        The module records a failed import as ``SPEECH_RECOGNITION_AVAILABLE = False`` and
+        ``sr = None``; patching both runs this test whether or not the package is installed.
         """
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
+        mocker.patch('glitchygames.events.voice.sr', new=None)
         manager = VoiceEventManager()
         self.voice_managers.append(manager)  # Track for cleanup
 
@@ -1168,21 +1170,23 @@ class TestVoiceRecognitionManagerPositive:
         assert manager.microphone is not None, 'Microphone should be available'
         assert manager.is_available()
 
-    @pytest.mark.skipif(SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is installed')
-    def test_start_listening_without_speech_recognition_expected(self):
-        """Test that voice recognition handles missing speech recognition gracefully.
+    def test_start_listening_without_speech_recognition_expected(self, mocker):
+        """Without speech_recognition installed, start_listening does not start listening.
 
-        This test should pass when speech recognition is not available.
+        Patched as in the test above, so it runs whether or not the package is installed.
         """
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
+        mocker.patch('glitchygames.events.voice.sr', new=None)
         manager = VoiceEventManager()
         self.voice_managers.append(manager)  # Track for cleanup
 
-        # Should handle missing speech recognition gracefully
-        assert manager is not None
+        manager.start_listening()
+
         assert not manager.is_available(), 'Voice recognition should not be available'
         assert manager.recognizer is None, (
             'Recognizer should be None when speech recognition is not available'
         )
+        assert not manager.is_listening
 
     def test_voice_manager_without_microphone(self, mocker, voice_logger):
         """Test VoiceRecognitionManager when microphone is not available."""
