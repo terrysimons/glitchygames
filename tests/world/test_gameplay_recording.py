@@ -464,7 +464,7 @@ def _assert_recording_header(header: dict[str, Any]) -> None:
     assert datetime.fromisoformat(header['recorded_at']).tzinfo is not None
     options = header['options']
     assert options['target_fps'] == 0.0
-    assert options['timer_backend'] == 'fast'
+    assert options['timer_backend'] == 'auto'
     assert options['input_mode'] == 'joystick'
     assert options['resolution'] == RECORDING_RESOLUTION
     assert options['random_seed'] == RANDOM_SEED

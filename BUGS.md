@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 85. One Process Running the Whole Test Suite Grows to 5.2 GB
+- **Description**: `pytest -n 1` (one xdist worker, coverage on) peaked at 5,188 MB resident (macOS `/usr/bin/time -l`, 2026-10-21, 16,339 tests in 13 min). CircleCI's Linux job (`resource_class: small`, 1 vCPU, 2 GB) runs one worker since the worker count follows its CPU quota, so the out-of-memory killer ends that worker part way (`worker 'gw0' crashed`, then a coverage failure from its lost data)
+- **Status**: Active
+- **Priority**: High (the Linux CI job cannot pass)
+- **Reporter**: Found investigating PR #95's Linux failure
+- **Date Reported**: 2026-10-21
+- **Details**: Something accumulates across tests in one process: caches, surfaces or mocks kept alive between tests, or a leak. Not yet located. Short-term options: a larger Linux resource class (`large`, 8 GB, with 2 workers), or more workers per job (each runs a share). Measure per-test growth (e.g. `tracemalloc` snapshots or RSS after each test file) to find the source
+- **Files**: `tests/`, `noxfile.py`, `.circleci/config.yml`
+
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
 - **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done). 2026-10-21: every site outside Bitmappy is narrowed; 62 remain in `glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py` and `tests/tools/` (plan: `plans/2026-10-20-lint-ignores-cleanup.md`, phase 3)
@@ -103,6 +112,16 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `glitchygames/input/state.py`
 
 ## Resolved Bugs
+
+### 86. FastTimer Woke Most Frames 1-2 ms Late on macOS
+- **Description**: FastTimer slept until 1 ms before each frame deadline, assuming a sleep wakes on time. macOS lets a normal-priority sleep run late by a quarter of its length (4 ms wakes 1.01 ms late, 16 ms 4.01 ms; measured 2026-10-21), so an ~11 ms frame sleep woke ~2.75 ms late and frames finished 1.5 ms past their deadline (60 FPS, 4 ms of work: median 1.54 ms, p90 1.85 ms). The average rate held (deadlines do not accumulate lateness); every frame's present jittered. Where sleeps wake much later (a virtual machine, a background process: a flat 85-100 ms), frames fell to about 10 FPS
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found while calibrating timers for the CircleCI macOS timing failure
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/timing.py`, `glitchygames/engine/game_engine.py`, `glitchygames/recording_history.py`
+- **Date Resolved**: 2026-10-21
+- **Solution**: `--timer-backend auto`, the new default: the engine measures the machine's sleep delay as a constant plus a fraction of the sleep's length (`SleepModel`, `measure_sleep_model`) when it starts a paced live game, and FastTimer sizes each sleep so its predicted wake lands `sleep_granularity_ns` before the deadline, spinning the whole wait when no sleep could. Same measurement: frames on time (median 0.000 ms) at 30% CPU instead of 24%; at background priority on time at 92% CPU. A paced recording names its timer (`MeasurementRun.pacing_timer`). `--timer-backend fast` keeps the old behaviour
 
 ### 82. A Recording That Cannot Be Written Part Way Ends the Run as an Internal Error
 - **Description**: An unwritable `--record-trace` (or `--rebaseline` partial, `--replay-digest`) file is refused before the run with one line and `CANNOT_WRITE_OUTPUT` (73), and a digest file that fails at the end exits 73 after the report. But a recording whose writes start failing part way (the disk fills, the file system goes away) raises `OSError` from `GameplayRecorder.record_frame` inside the frame loop, so the run exits `INTERNAL_ERROR` (70) with a traceback

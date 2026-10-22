@@ -26,6 +26,7 @@ from glitchygames.recording_history import (
     stacked_history,
     stacked_measurement_runs,
 )
+from glitchygames.timing import PacingTimer, SleepModel
 
 FRAME = {
     'frame': 3,
@@ -209,6 +210,30 @@ class TestMeasurementRuns:
         newest = measurement_run()
         header = {MEASUREMENT_RUNS_HEADER_FIELD: [{**newest.to_json(), 'git_commit': 'abc123'}]}
         assert latest_measurement_run(header=header) == newest
+
+    def test_a_run_from_before_the_pacing_timer_reads_as_naming_none(self):
+        """Recordings made before pacing_timer existed: their runs read with it None."""
+        newest = measurement_run()
+        stored = newest.to_json()
+        del stored['pacing_timer']
+        run = latest_measurement_run(header={MEASUREMENT_RUNS_HEADER_FIELD: [stored]})
+        assert run is not None
+        assert run.pacing_timer is None
+
+    def test_a_paced_run_stores_its_pacing_timer(self):
+        """The timer a paced run used is written with it, and reads back as it was."""
+        pacing = PacingTimer(
+            backend='fast',
+            sleep_granularity_ns=1_000_000,
+            sleep_model=SleepModel(constant_ns=0, fraction=0.25),
+        )
+        paced = measurement_run().model_copy(
+            update={'processing_paced': True, 'pacing_timer': pacing}
+        )
+        header = {MEASUREMENT_RUNS_HEADER_FIELD: [paced.to_json()]}
+        run = latest_measurement_run(header=header)
+        assert run is not None
+        assert run.pacing_timer == pacing
 
     def test_the_run_before_gets_the_frame_count_of_its_recording(self):
         """Known only once the next run reads it: the newest run's count is its file's."""

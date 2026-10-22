@@ -369,6 +369,17 @@ only replays; Part 2 Task 1).
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
 - Vsync-locked presentation to remove the remaining beat between 60.01 FPS and a 60 Hz display.
+- **Audit defensive attribute lookups for CPU (user request, 2026-10-21), the engine first.**
+  Look for `getattr(self, 'name', default)` / `hasattr` on the engine's own attributes, values
+  computed when they may go unused, and conditional chains re-evaluated every frame. Declare
+  each attribute once in `__init__` and read it directly: a direct read is cheaper than a
+  `getattr` with a default, and it says which state really exists. `GameEngine.measurement_run`
+  was one (the rebaseline names its run before `self.timer` was declared; `self.timer` is now
+  declared first). Counts on 2026-10-21: `getattr(self` 17 times in `scenes/scene.py`
+  (per-frame code), 3 in `engine/game_engine.py`, 4 in `sprites/animated.py`, 6 in
+  `sprites/bitmappy_sprite.py`. Measure the per-frame paths (`SceneManager._run_frame_steps`,
+  the event dispatch) before and after; keep a lookup only where an attribute really may not
+  exist (a duck-typed game object), with a comment saying so.
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.

@@ -172,8 +172,25 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 **Frame Pacing** (`glitchygames/timing.py`)
 - Two timer backends:
-  - `FastTimer` (default): High-resolution `time.perf_counter_ns()` with sleep+spin hybrid
+  - `FastTimer` (default): High-resolution `time.perf_counter_ns()` with sleep+spin hybrid: it
+    sleeps so it wakes `sleep_granularity_ns` (1 ms) before the deadline, then spins the rest
   - `PygameTimer`: Legacy pygame-based timing (whole milliseconds); select with `--timer-backend=pygame`
+- A sleep's delay is modelled as a constant plus a fraction of its length (`SleepModel`): macOS
+  lets a normal-priority sleep run late by 25% of its length, so `--timer-backend fast` (which
+  assumes sleeps wake on time) left most frames 1-2 ms late; at background priority the delay is
+  a flat 85-100 ms. `--timer-backend auto` (the default) measures the model
+  (`measure_sleep_model`: 10 sleeps each of 1 ms and 8 ms, 90th percentiles, about 0.1 s) as the
+  engine starts a paced live game (target FPS > 0, not a replay), else at the first paced frame
+  (uncapped runs and replays never measure), and sizes each
+  sleep so its predicted wake lands `sleep_granularity_ns` before the deadline; when even no
+  sleep would (a delay longer than the wait) it spins the whole wait. Measured on macOS (60 FPS,
+  4 ms of work): fast 1.5 ms late per frame at 24% CPU, auto on time at 30%; at background
+  priority fast ~90 ms late, auto on time at 92% CPU. The choice is logged (`Timer calibrated:
+  fast, final spin 1.0 ms (calibrated: sleeps wake 0.01 ms + 25% of their length late)`) and
+  every recorded run names its timer, paced or not (`MeasurementRun.pacing_timer`; `sleep_model`
+  null when it never measured; the committed recordings from before it were backfilled with
+  `fast`, 1 ms, no model). `nox -s timer-report` shows a
+  machine's sleep accuracy
 - Paced frame time (`dt`, FPS tracking) is always measured with `time.perf_counter()`, and
   `target_fps` may be fractional (the period is `round(1e9 / target_fps)` ns)
 - Default target 60.01 FPS (`DEFAULT_TARGET_FPS` in `glitchygames/timing.py`, re-exported by
@@ -486,7 +503,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `plans/2026-10-20-recording-content-hash-and-history.md`): every recorded frame holds
   newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
   re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
-  lists, and the header `measurement_runs` (each run's provenance: machine, paced, versions,
+  lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions,
   `measured_at` from `GameEngine.measurement_run`, `rebaselined_from`, `hash_scheme`, and
   `frame_count`, filled in when the next run stacks; read leniently, written strictly); index `i`
   is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run

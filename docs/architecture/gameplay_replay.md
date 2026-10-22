@@ -523,7 +523,10 @@ uv run clockwork-keep --replay-trace baseline.jsonl.gz --headless --max-processi
 
 Replays of the same session against such a baseline land within about 1% of it. The latest
 measurement run says whether it paced its frames (`processing_paced`; a live run with a target
-FPS, as recording began), and the report adds a note when the baseline was paced. `--compare-processing` needs `--headless` (a
+FPS, as recording began) and names its frame-pacing timer, paced or not (`pacing_timer`: the
+timer backend, its final spin and the sleep model `--timer-backend auto` measured, null if it
+never did; `glitchygames/timing.py`),
+and the report adds a note when the baseline was paced. `--compare-processing` needs `--headless` (a
 watched replay presents, steps and rebuilds frames as its viewer asks) and is refused
 (`OPTIONS_REFUSED`, 64) with `--audit` and with `--rebaseline` (a rebaseline's NEW records the
 current code's own processing times anyway). The contract is
@@ -539,7 +542,7 @@ Every frame a recorder writes carries two histories, newest first, and the heade
 |---|---|---|---|
 | frame | `content_hash` | the frame's content hash | `CONTENT_HASH_HISTORY_DEPTH` |
 | frame | `processing_seconds` | its processing time (`null` when not measured) | `PROCESSING_SECONDS_HISTORY_DEPTH` |
-| header | `measurement_runs` | the run's provenance: machine, `processing_paced`, engine, pygame and Python versions, `measured_at`, `rebaselined_from`, `hash_scheme`, and `frame_count` (how many frames it wrote; filled in when the next rebaseline stacks onto it, `null` for the newest run, whose count is the file's) | `MEASUREMENT_RUNS_HISTORY_DEPTH` |
+| header | `measurement_runs` | the run's provenance: machine, `processing_paced`, `pacing_timer` (its frame-pacing timer, paced or not: backend, final spin, and the sleep model `--timer-backend auto` measured, `null` if it never did), engine, pygame and Python versions, `measured_at`, `rebaselined_from`, `hash_scheme`, and `frame_count` (how many frames it wrote; filled in when the next rebaseline stacks onto it, `null` for the newest run, whose count is the file's) | `MEASUREMENT_RUNS_HISTORY_DEPTH` |
 
 A fresh recording writes one entry in each. A rebaseline puts its own in front of the replayed
 recording's and drops the oldest past the depth, so index `i` means run `i` in every list. If

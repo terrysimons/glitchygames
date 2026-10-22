@@ -4,7 +4,7 @@
 Builds a single-file executable with all required data files bundled.
 Platform-agnostic — PyInstaller handles OS-specific binary formats automatically:
   - Linux:   dist/bitmappy
-  - macOS:   dist/bitmappy  (set PYINSTALLER_TARGET_ARCH=universal2 for fat binary)
+  - macOS:   dist/bitmappy  (the build machine's architecture; see PYINSTALLER_TARGET_ARCH)
   - Windows: dist/bitmappy.exe
 
 Usage (via nox):
@@ -17,7 +17,11 @@ Usage (direct):
 Environment variables:
     PYINSTALLER_TARGET_ARCH — macOS only. Set to "universal2" to build a fat binary
                               containing both arm64 and x86_64 slices. Requires a
-                              universal2 Python interpreter. Defaults to None (native).
+                              universal2 Python interpreter and every compiled extension
+                              fat; PyInstaller fails otherwise, it does not fall back.
+                              CI cannot: numpy, scipy, pandas, Pillow and pydantic-core
+                              ship arm64-only wheels for Python 3.14 (2026-10-21).
+                              Defaults to None (native).
 """
 
 import os

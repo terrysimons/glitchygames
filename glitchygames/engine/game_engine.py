@@ -97,7 +97,16 @@ from glitchygames.sources import (
 from glitchygames.sprites import Sprite
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.supervision import BREAKPOINT_KIND
-from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
+from glitchygames.timing import (
+    DEFAULT_SLEEP_GRANULARITY_NS,
+    DEFAULT_TARGET_FPS,
+    GIL_SWITCH_INTERVAL_SECONDS,
+    TIMER_BACKEND_AUTO,
+    TIMER_BACKEND_FAST,
+    TIMER_BACKEND_PYGAME,
+    create_timer,
+    pacing_timer_for_options,
+)
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
@@ -471,15 +480,22 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         group.add_argument(
             '--timer-backend',
-            help='timer backend for draw loop pacing (default: fast; pygame is the legacy backend)',
-            choices=['pygame', 'fast'],
-            default='fast',
+            help=(
+                'timer backend for draw loop pacing (default: auto, the fast backend with this '
+                "machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps "
+                'wake on time; pygame is the legacy backend)'
+            ),
+            choices=[TIMER_BACKEND_AUTO, TIMER_BACKEND_FAST, TIMER_BACKEND_PYGAME],
+            default=TIMER_BACKEND_AUTO,
         )
         group.add_argument(
             '--sleep-granularity-ns',
             type=int,
-            help='minimum sleep granularity for pacing (ns); 0 to uncap',
-            default=1_000_000,
+            help=(
+                'how long before each frame deadline the fast backend is to wake from its sleep '
+                'and spin (ns); 0 spins only'
+            ),
+            default=DEFAULT_SLEEP_GRANULARITY_NS,
         )
         group.add_argument(
             '--windows-timer-1ms',
@@ -837,6 +853,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         super().__init__()
+        # The frame-pacing timer, created as the run starts (_configure_timer_and_performance);
+        # declared first, as a rebaseline names its run (measurement_run) before then
+        self.timer: Any = None
 
         self.initialize_icon(icon=icon)
 
@@ -1048,7 +1067,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.window_manager: WindowEventManager
         self.joysticks: list[Any] = []
         self.joystick_count: int = 0
-        self.timer: Any = None
 
     def initialize_display(self: Self) -> None:
         """Initialize the display."""
@@ -1481,6 +1499,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             The run.
 
         """
+        # Every run names its timer, paced or not: the one it has, or (a rebaseline names its run
+        # while the engine starts, before any timer exists; a timer that failed to start) the
+        # one its options make, uncalibrated
+        pacing_timer = (
+            pacing_timer_for_options(options=GameEngine.OPTIONS)
+            if self.timer is None
+            else self.timer.pacing_timer()
+        )
         return MeasurementRun(
             machine=machine_description(),
             processing_paced=processing_paced,
@@ -1490,6 +1516,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             measured_at=datetime.now(tz=UTC).isoformat(),
             rebaselined_from=rebaselined_from,
             hash_scheme=CONTENT_HASH_SCHEME,
+            pacing_timer=pacing_timer,
         )
 
     def trace_recording_header(self: Self) -> dict[str, Any]:
@@ -2096,6 +2123,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 GameEngine.OPTIONS,
             )
             self.log.info(f'Timer backend: {GameEngine.OPTIONS.get("timer_backend")}')
+            # auto measures this machine's sleep model now for a paced live game, so no frame
+            # pays for it (and logs what it chose); a replay never paces with the timer, and an
+            # uncapped run calibrates only if it starts pacing (at its first paced frame)
+            if GameEngine.OPTIONS.get('target_fps', 0) > 0 and self.replay_sources is None:
+                self.timer.calibrate()
         except (ValueError, TypeError, OSError) as timer_error:
             self.timer = None
             self.log.debug(

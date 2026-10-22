@@ -245,10 +245,10 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
-      # Build a universal2 (arm64 + x86_64) fat binary on macOS.
-      # Requires a universal2 Python interpreter from python.org.
-      # If the CI Python is single-arch, PyInstaller falls back to native arch.
-      PYINSTALLER_TARGET_ARCH: "universal2"
+      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
+      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
+      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for Python
+      # 3.14 (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
 
     steps:
       - checkout

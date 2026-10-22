@@ -10,6 +10,8 @@ Prints three things, to tell apart why sleeps wake late:
                 time.sleep, and spin-only. A delay that hits sleeps but not spin-only is the OS or
                 VM waking sleepers late (coarse timers, coalescing); one that hits spin-only too
                 is contention.
+  auto          What ``--timer-backend auto`` would measure here: the sleep model (a constant plus
+                a fraction of each sleep's length) it sizes sleeps with.
 
 Always exits ``ExitCode.SUCCESS``: it reports, it does not judge (the timing tests judge).
 
@@ -29,7 +31,12 @@ from typing import TYPE_CHECKING
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
-from glitchygames.timing import FastTimer
+from glitchygames.timing import (
+    FastTimer,
+    PacingTimer,
+    describe_pacing_timer,
+    measure_sleep_model,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -179,6 +186,12 @@ def main() -> int:
             ),
         )
     )
+    auto_pacing = PacingTimer(
+        backend='fast',
+        sleep_granularity_ns=fast_timer.sleep_granularity_ns,
+        sleep_model=measure_sleep_model(),
+    )
+    emit(f'--timer-backend auto here: {describe_pacing_timer(pacing=auto_pacing)}')
     emit('meaning: sleeps late but spin-only accurate = the OS/VM wakes sleepers late;')
     emit('         spin-only late too (and a low cpu share) = contention for the CPU.')
     return ExitCode.SUCCESS

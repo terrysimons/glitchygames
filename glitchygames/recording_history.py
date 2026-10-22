@@ -12,8 +12,8 @@ carries two newest-first history lists, and the header a third:
   the game's behaviour changed.
 - ``processing_seconds``: the frame's processing time (glitchygames/replay/processing.py),
   rounded to the microsecond; None when it was not measured.
-- ``measurement_runs`` (header): each run's provenance (``MeasurementRun``: machine, pacing,
-  versions, when it measured, what it was rebaselined from, the hash scheme).
+- ``measurement_runs`` (header): each run's provenance (``MeasurementRun``: machine, pacing and
+  its timer, versions, when it measured, what it was rebaselined from, the hash scheme).
 
 A hash entry deeper than ``measurement_runs`` reaches (when ``MEASUREMENT_RUNS_HISTORY_DEPTH``
 is tuned below ``CONTENT_HASH_HISTORY_DEPTH``) has no ``hash_scheme`` to consult: tools must
@@ -33,6 +33,10 @@ import json
 from typing import TYPE_CHECKING, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationError
+
+from glitchygames.timing import (
+    PacingTimer,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.pacing_timer at runtime
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -223,6 +227,10 @@ class MeasurementRun(BaseModel):
         machine: The machine (``glitchygames.replay.processing.machine_description``).
         processing_paced: Whether the run paced its frames as recording began (paced frames
             process slower: no fair baseline for an unpaced replay).
+        pacing_timer: The run's frame-pacing timer (``glitchygames.timing.PacingTimer``: the
+            backend, its final spin, the sleep model ``--timer-backend auto`` measured, or None
+            for a run that never paced), named whether or not the run paced
+            (``processing_paced``); None only for a run from before this field.
         engine_version: The engine's version, or None when not installed.
         pygame_version: pygame's version.
         python_version: Python's version.
@@ -246,6 +254,7 @@ class MeasurementRun(BaseModel):
     rebaselined_from: str | None
     hash_scheme: int
     frame_count: int | None = None
+    pacing_timer: PacingTimer | None = None
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return the run as the header stores it.

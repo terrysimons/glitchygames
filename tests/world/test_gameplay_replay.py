@@ -107,7 +107,7 @@ from glitchygames.sources import (
 )
 from glitchygames.state import DiskSaveManager
 from glitchygames.state.sandbox import open_saves
-from glitchygames.timing import FastTimer
+from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.world import test_gameplay_recording as recording_test_module
@@ -4309,6 +4309,12 @@ def recorded_processing_times(*, path: Path) -> list[float | None]:
     ]
 
 
+# What an unpaced run with the default --timer-backend auto names: the fast backend, never measured
+UNCALIBRATED_FAST_TIMER = PacingTimer(
+    backend='fast', sleep_granularity_ns=DEFAULT_SLEEP_GRANULARITY_NS, sleep_model=None
+)
+
+
 class TestProcessingComparison:
     """--compare-processing: this machine's processing time against the recording's."""
 
@@ -4324,6 +4330,8 @@ class TestProcessingComparison:
         # The harness runs uncapped (--target-fps 0): its frames are not paced
         assert header['options']['target_fps'] == 0.0
         assert run.processing_paced is False
+        # Every run names its timer; nothing paced this one, so auto never measured
+        assert run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert run.rebaselined_from is None
 
     def test_a_run_with_a_target_fps_says_its_frames_are_paced(self, mocker, tmp_path):
@@ -4333,6 +4341,33 @@ class TestProcessingComparison:
         run = latest_measurement_run(header=read_trace_result(path=recording_path).trace)
         assert run is not None
         assert run.processing_paced is True
+        # The default --timer-backend auto: a FastTimer with this machine's sleep model
+        assert run.pacing_timer is not None
+        assert run.pacing_timer.backend == 'fast'
+        assert run.pacing_timer.sleep_granularity_ns == DEFAULT_SLEEP_GRANULARITY_NS
+        assert run.pacing_timer.sleep_model is not None
+
+    def test_a_paced_game_calibrates_its_timer_as_it_starts(self, mocker, tmp_path):
+        """Measured at engine start, before the first frame, so no frame pays for it."""
+        measure = mocker.patch(
+            'glitchygames.timing.measure_sleep_model',
+            return_value=SleepModel(constant_ns=0, fraction=0.25),
+        )
+        record_session(tmp_path=tmp_path, mocker=mocker, extra_arguments=('--target-fps', '60'))
+        measure.assert_called_once_with()
+
+    def test_an_uncapped_run_and_a_replay_never_measure_the_sleep_model(self, mocker, tmp_path):
+        """Nothing paces them, so calibrating would only delay their start."""
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, extra_arguments=('--target-fps', '60')
+        )
+        measure = mocker.patch('glitchygames.timing.measure_sleep_model')
+        record_session(tmp_path=tmp_path / 'uncapped', mocker=mocker)
+        with pytest.raises(SystemExit):
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=('--headless',)
+            )
+        measure.assert_not_called()
 
     def test_the_comparison_is_reported_after_the_replay(self, mocker, tmp_path, capsys):
         with_processing_step(mocker, step=0.001)
@@ -4447,6 +4482,7 @@ class TestProcessingComparison:
         new_run = latest_measurement_run(header=read_trace_result(path=new_path).trace)
         assert new_run is not None
         assert new_run.processing_paced is False
+        assert new_run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert new_run.machine == machine_description()
         assert new_run.rebaselined_from == str(recording_path)
 

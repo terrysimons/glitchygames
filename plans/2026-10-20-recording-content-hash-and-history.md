@@ -98,7 +98,9 @@ matters.
   one entry per run with `machine`, `processing_paced`, the three versions, a new `measured_at`
   (when the run measured) and `rebaselined_from` (the path it was rebaselined from, or null for a
   fresh recording). The top-level `machine` and `processing_paced` added on 2026-10-20 go away;
-  nothing with them has shipped, so this costs no compatibility.
+  nothing with them has shipped, so this costs no compatibility. (Added 2026-10-21: each run also
+  names its `pacing_timer`, its frame-pacing timer whether or not it paced; a run without it
+  reads as null, and the committed recordings were backfilled with `fast`, 1 ms, no model.)
 
 ## Format
 

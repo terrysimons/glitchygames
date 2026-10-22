@@ -2445,6 +2445,52 @@ class TestGameEngineDel:
         Sprite.SPRITE_COUNTERS = OrderedDict()
 
 
+class TestGameEngineTimerCalibration:
+    """--timer-backend auto: a paced game calibrates its timer as the engine starts."""
+
+    def _start_with_timer(self, *, engine, mocker, target_fps):
+        """Start the engine with a mock timer and the given target FPS; return the order of calls.
+
+        Returns:
+            The calls, in order: 'calibrate' (the timer's) and 'first frame' (the scenes').
+
+        """
+        calls = []
+        timer = mocker.Mock()
+        timer.calibrate.side_effect = lambda: calls.append('calibrate')
+        mocker.patch('glitchygames.engine.game_engine.create_timer', return_value=timer)
+        mocker.patch('glitchygames.performance.performance_manager')
+        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        mocker.patch.object(
+            GameEngine,
+            'OPTIONS',
+            {
+                'profile': False,
+                'timer_backend': 'auto',
+                'target_fps': target_fps,
+                'perf_trim_percent': 5.0,
+            },
+        )
+        engine.scene_manager = mocker.Mock()
+        engine.scene_manager.start.side_effect = lambda: calls.append('first frame')
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+        engine.start()
+        return calls
+
+    def test_a_paced_game_calibrates_before_its_first_frame(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        calls = self._start_with_timer(engine=engine, mocker=mocker, target_fps=60.0)
+        assert calls == ['calibrate', 'first frame']
+
+    def test_an_uncapped_game_does_not_calibrate(self, mock_pygame_patches, mock_game_args, mocker):
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        calls = self._start_with_timer(engine=engine, mocker=mocker, target_fps=0.0)
+        assert calls == ['first frame']
+
+
 class TestGameEngineTimerBackendError:
     """Test timer backend initialization failure (lines 828-830)."""
 

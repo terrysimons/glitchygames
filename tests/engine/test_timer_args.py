@@ -9,6 +9,7 @@ import pytest
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
+from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS
 
 
 class DummyGame(Scene):
@@ -92,9 +93,16 @@ def _parse_graphics_arguments(argument_list):
     return parser.parse_args(argument_list)
 
 
-def test_timer_backend_defaults_to_fast():
-    """The fast timer backend is the default."""
-    assert _parse_graphics_arguments([]).timer_backend == 'fast'
+def test_timer_backend_defaults_to_auto():
+    """The default is auto: the fast backend with the machine's sleep delay, 1 ms final spin."""
+    arguments = _parse_graphics_arguments([])
+    assert arguments.timer_backend == 'auto'
+    assert arguments.sleep_granularity_ns == DEFAULT_SLEEP_GRANULARITY_NS
+
+
+def test_timer_backend_accepts_fast():
+    """The fast backend with its fixed 1 ms final spin can still be selected."""
+    assert _parse_graphics_arguments(['--timer-backend=fast']).timer_backend == 'fast'
 
 
 def test_timer_backend_accepts_pygame():

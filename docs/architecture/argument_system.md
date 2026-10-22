@@ -266,8 +266,8 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 | `-r`, `--resolution` | `str` | `800x480` | Display resolution (WxH) |
 | `--use-gfxdraw` | `store_true` | `False` | Use pygame.gfxdraw for rendering |
 | `--update-type` | `choice` | `update` | Display update method: `update` or `flip` |
-| `--timer-backend` | `choice` | `fast` | Timer backend: `fast` or `pygame` (legacy) |
-| `--sleep-granularity-ns` | `int` | `1000000` | Minimum sleep granularity for pacing (ns); 0 to uncap |
+| `--timer-backend` | `choice` | `auto` | Timer backend: `auto` (the fast backend with this machine's sleep delay measured, so each sleep wakes in time), `fast` (assumes sleeps wake on time) or `pygame` (legacy) |
+| `--sleep-granularity-ns` | `int` | `1000000` | How long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only |
 | `--windows-timer-1ms` | `store_true` | `False` | On Windows, request 1ms system timer resolution |
 | `--video-driver` | `choice` | `None` | Platform-specific video driver (see below) |
 | `--random-seed` | `int` | random 64-bit | Master seed for every engine random stream |
@@ -401,8 +401,11 @@ Graphics Options:
   -r, --resolution      the resolution to use (default: 1024x768)
   --use-gfxdraw
   --update-type         update or flip (default: update)
-  --timer-backend       timer backend for draw loop pacing (default: fast; pygame is the legacy backend)
-  --sleep-granularity-ns minimum sleep granularity for pacing (ns); 0 to uncap
+  --timer-backend       timer backend for draw loop pacing (default: auto, the fast backend with this
+                        machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps
+                        wake on time; pygame is the legacy backend)
+  --sleep-granularity-ns how long before each frame deadline the fast backend is to wake from its sleep
+                        and spin (ns); 0 spins only
   --windows-timer-1ms   on Windows, request 1ms system timer resolution
   --random-seed         master seed for every engine random stream (...)
   --screen-shake-intensity, --rumble-intensity, --live-voice-pool
