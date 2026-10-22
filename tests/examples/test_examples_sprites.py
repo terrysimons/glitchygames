@@ -119,13 +119,17 @@ class TestExamplesSprites:
             if sprite is None:
                 continue
 
-            # Test pixel integrity
+            # Test pixel integrity: every visible pixel is drawn as it is, and transparent
+            # pixels (magenta keyed out, alpha 0) show the background (BUGS.md #133)
             assert sprite.image is not None
-            original_pixels = self._extract_pixel_data(sprite.image)
+            background_color = (0, 0, 0)
+            original_pixels = self._expected_drawn_pixels(
+                surface=sprite.image, background_color=background_color
+            )
 
             # Draw to test surface
             test_surface = pygame.Surface(sprite.image.get_size())
-            test_surface.fill((0, 0, 0))
+            test_surface.fill(background_color)
             test_surface.blit(sprite.image, (0, 0))
 
             drawn_pixels = self._extract_pixel_data(test_surface)
@@ -260,6 +264,31 @@ class TestExamplesSprites:
             assert render_time < MAX_RENDER_TIME, (
                 f'{sprite_name} rendering too slow: {render_time:.3f}s'
             )
+
+    @staticmethod
+    def _expected_drawn_pixels(*, surface, background_color):
+        """Return the RGB pixels a surface should draw over an opaque background.
+
+        A fully transparent pixel (alpha 0, or the surface's colorkey) shows the background;
+        any other pixel keeps its own RGB (the sampled sprites have no translucent colors).
+
+        Returns:
+            list[tuple[int, int, int]]: The expected pixels, row by row.
+
+        """
+        colorkey = surface.get_colorkey()
+        width, height = surface.get_size()
+        pixels = []
+
+        for y in range(height):
+            for x in range(width):
+                pixel = surface.get_at((x, y))
+                is_transparent = pixel.a == 0 or (
+                    colorkey is not None and pixel.rgb == pygame.Color(colorkey).rgb
+                )
+                pixels.append(background_color if is_transparent else (pixel.r, pixel.g, pixel.b))
+
+        return pixels
 
     @staticmethod
     def _extract_pixel_data(surface):

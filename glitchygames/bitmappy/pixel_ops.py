@@ -219,9 +219,7 @@ def render_frames_side_by_side(
             width, height = frame.get_size()
             frame_outputs.append([' ' * width] * height)
 
-    if not frame_outputs:
-        return ''
-
+    # frame_outputs has one entry per frame, and there is at least one frame
     # Calculate frame width (visible characters only, excluding ANSI codes)
     frame_width = _get_visible_width(frame_outputs[0][0]) if frame_outputs[0] else 0
     separator_width = len(separator)

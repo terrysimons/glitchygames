@@ -31,12 +31,9 @@ class MidiEventManager(ResourceManager):
             super().__init__(game)
             self.game: Any = game
             # Proxy to game first, then pygame.midi for subsystem queries
-            # (get_count, get_device_info, get_default_input_id, etc.)
-            try:
-                self.proxies = [self.game, pygame.midi]
-            except AttributeError:
-                # pygame.midi may not be available on all platforms
-                self.proxies = [self.game]
+            # (get_count, get_device_info, get_default_input_id, etc.).
+            # pygame.midi is imported at module top, so it is always available here.
+            self.proxies = [self.game, pygame.midi]
 
         @override
         def on_midi_in_event(self: Self, event: HashableEvent) -> None:

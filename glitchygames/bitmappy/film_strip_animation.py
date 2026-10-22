@@ -210,14 +210,7 @@ class FilmStripAnimation:
         accumulated_time = 0.0
         for frame_idx, duration in enumerate(frame_durations):
             if current_time <= accumulated_time + duration:
-                # Ensure the frame index is within bounds
-                if frame_idx >= len(frame_durations):
-                    LOG.error(
-                        'FilmStripWidget: CRITICAL - Frame index '
-                        f'{frame_idx} out of bounds for '
-                        f'{len(frame_durations)} frames',
-                    )
-                    return max(0, len(frame_durations) - 1)
+                # enumerate keeps frame_idx within frame_durations' bounds
                 return frame_idx
             accumulated_time += duration
 
@@ -241,9 +234,8 @@ class FilmStripAnimation:
         ):
             return None
 
+        # (not empty: the check above returned None for empty pixels)
         pixel_data = frame.pixels
-        if not pixel_data:
-            return None
 
         # Get dimensions from existing image if available, or calculate from pixels
         if hasattr(frame, 'image') and frame.image:
@@ -371,14 +363,13 @@ class FilmStripAnimation:
                         f'image={getattr(frame, "image", "None")}',
                     )
 
-        # Dump frame manager state
-        if hasattr(sprite, 'frame_manager'):
-            frame_mgr = sprite.frame_manager
-            LOG.debug('  FrameManager debug info:')
-            LOG.debug(
-                f'    _current_animation: {getattr(frame_mgr, "_current_animation", "None")}',
-            )
-            LOG.debug(
-                f'    _current_frame: {getattr(frame_mgr, "_current_frame", "None")}',
-            )
-            LOG.debug(f'    _observers: {getattr(frame_mgr, "_observers", [])}')
+        # Dump frame manager state (every AnimatedSprite has one, read above)
+        frame_mgr = sprite.frame_manager
+        LOG.debug('  FrameManager debug info:')
+        LOG.debug(
+            f'    _current_animation: {getattr(frame_mgr, "_current_animation", "None")}',
+        )
+        LOG.debug(
+            f'    _current_frame: {getattr(frame_mgr, "_current_frame", "None")}',
+        )
+        LOG.debug(f'    _observers: {getattr(frame_mgr, "_observers", [])}')

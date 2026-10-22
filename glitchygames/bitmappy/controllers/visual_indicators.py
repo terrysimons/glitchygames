@@ -295,9 +295,8 @@ class VisualIndicators:
 
             self.handler.editor.multi_controller_manager = MultiControllerManager()
 
-        # Scan for new controllers
-        if hasattr(self.handler.editor, 'multi_controller_manager'):
-            self.handler.editor.multi_controller_manager.scan_for_controllers()
+        # Scan for new controllers (the manager was created above if it was missing)
+        self.handler.editor.multi_controller_manager.scan_for_controllers()
 
         # Register any new controllers
         self._register_new_controllers()

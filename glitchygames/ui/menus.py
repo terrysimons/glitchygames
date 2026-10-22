@@ -523,9 +523,15 @@ class MenuItem(BitmappySprite):
         self.menu_rect.x = self.rect.x
         self.menu_rect.y = 21
 
-        menu_rects = [self.menu_items[mi].rect for mi in self.menu_items]
-        width = max((r.width + 20) for r in menu_rects if r is not None) * 2.5  # pyright: ignore[reportUnnecessaryComparison]
-        heights = [r.height for r in menu_rects if r is not None]  # pyright: ignore[reportUnnecessaryComparison]
+        # A sub-menu without a rect takes no room; with none, the dropped-down menu keeps this
+        # item's own size (max() over no rects raised ValueError: BUGS.md #136)
+        menu_rects = [
+            self.menu_items[mi].rect
+            for mi in self.menu_items
+            if self.menu_items[mi].rect is not None  # pyright: ignore[reportUnnecessaryComparison]
+        ]
+        width = max((r.width + 20) for r in menu_rects) * 2.5 if menu_rects else self.rect.width
+        heights = [r.height for r in menu_rects]
         height = self.rect.height
 
         if heights:
@@ -551,6 +557,8 @@ class MenuItem(BitmappySprite):
         y_offset = self.rect.height
         for menu_name in self.menu_items:
             menu_item = self.menu_items[menu_name]
+            if menu_item.rect is None:  # pyright: ignore[reportUnnecessaryComparison]
+                continue
             menu_item.rect.y = y_offset
             menu_item.rect.width = menu_item.text.width
             menu_item.rect.height = menu_item.text.height

@@ -698,7 +698,8 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
         # Add a horizontal top tab (delete) at the center of the film strip
         # Show delete button if there's more than one animation
         # (to prevent deleting the last strip)
-        if frames and self.has_valid_canvas_sprite():
+        # (frames is never empty here: an empty animation returned above)
+        if self.has_valid_canvas_sprite():
             animations = list(self.widget.parent_scene.canvas.animated_sprite.animations.keys())
             if len(animations) > 1:
                 # Calculate center x position of the film strip
@@ -712,16 +713,15 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
                 top_tab.set_insertion_type('delete', 0)  # Delete current strip
                 self.widget.film_tabs.append(top_tab)
 
-        # Add a horizontal bottom tab (add) at the center of the film strip
-        if frames:  # Only add bottom tab if there are frames
-            # Calculate center x position of the film strip
-            center_x = self.widget.rect.width // 2
-            bottom_tab = FilmStripTab(
-                x=center_x - 20,  # Center horizontally (40px wide, so 20px offset)
-                y=self.widget.rect.height
-                - 13,  # Position 13 pixels from bottom (moved down 2 pixels)
-                width=40,  # Wider than vertical tabs
-                height=10,  # Shorter than vertical tabs (reduced by half)
-            )
-            bottom_tab.set_insertion_type('after', len(frames) - 1)  # Insert after last frame
-            self.widget.film_tabs.append(bottom_tab)
+        # Add a horizontal bottom tab (add) at the center of the film strip (frames is never
+        # empty here)
+        # Calculate center x position of the film strip
+        center_x = self.widget.rect.width // 2
+        bottom_tab = FilmStripTab(
+            x=center_x - 20,  # Center horizontally (40px wide, so 20px offset)
+            y=self.widget.rect.height - 13,  # Position 13 pixels from bottom (moved down 2 pixels)
+            width=40,  # Wider than vertical tabs
+            height=10,  # Shorter than vertical tabs (reduced by half)
+        )
+        bottom_tab.set_insertion_type('after', len(frames) - 1)  # Insert after last frame
+        self.widget.film_tabs.append(bottom_tab)

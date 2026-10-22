@@ -172,7 +172,7 @@ def oscillator(  # ruff: ignore[too-many-arguments] - mirrors the spec's signatu
         case Waveform.TRIANGLE:
             # Naive: harmonics fall at 12 dB/octave, so aliasing stays negligible
             samples = 1.0 - 4.0 * np.abs(phases - 0.5)
-        case _:
+        case _:  # pragma: no cover - every Waveform is matched above
             assert_never(waveform)
     return samples, end_phase
 

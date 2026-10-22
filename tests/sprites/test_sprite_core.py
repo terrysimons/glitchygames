@@ -274,6 +274,23 @@ class TestRootSpriteInitialization:
         assert isinstance(sprite, RootSprite)
         assert len(sprite.groups()) >= 1
 
+    def test_direct_root_sprite_subclass_without_groups_gets_its_own_group(self):
+        """A RootSprite subclass that passes no groups is put in a new group of its own.
+
+        Sprite makes the group itself before calling RootSprite; a direct subclass relies
+        on RootSprite's default.
+        """
+
+        class DirectRootSprite(RootSprite):
+            """A RootSprite subclass with its mouse handlers left as the stubs."""
+
+        # The 22 abstract mouse handlers do not matter here
+        DirectRootSprite.__abstractmethods__ = frozenset()
+
+        sprite = DirectRootSprite()
+
+        assert len(sprite.groups()) == 1
+
 
 class TestSpriteCoordinateProperties:
     """Test Sprite x, y and rect coordinate properties."""
@@ -1687,6 +1704,28 @@ class TestBitmappySpriteColorMapRealPygame:
         result = sprite._create_color_map()
         # Magenta (255, 0, 255) should be in values
         assert (255, 0, 255) in result.values()
+
+    def test_magenta_past_the_last_glyph_still_gets_a_padding_character(self):
+        """Magenta beyond the glyphs (more colors than glyphs) is mapped to the padding char."""
+        from glitchygames.sprites.constants import SPRITE_GLYPHS
+
+        magenta = (255, 0, 255)
+        glyph_count = len(SPRITE_GLYPHS)
+        # Tuples of ints hash the same in every run, so this set's order is fixed: find a gray
+        # count that puts magenta after the last glyph
+        for gray_count in range(glyph_count, glyph_count * 4):
+            colors = {(gray, gray, gray) for gray in range(gray_count)} | {magenta}
+            if list(colors).index(magenta) >= glyph_count:
+                break
+        else:
+            pytest.fail('no color set puts magenta past the last glyph')
+        sprite = BitmappySprite(x=0, y=0, width=len(colors), height=1)
+        sprite.pixels = list(colors)
+
+        result = sprite._create_color_map()
+
+        padding_char = 'X' if result.get('X') == magenta else '#'
+        assert result[padding_char] == magenta
 
 
 class TestSingletonBitmappySpriteRealPygame:

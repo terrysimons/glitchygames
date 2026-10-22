@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum
+from typing import assert_never
 
 # Fractional pixel at which NEAREST_HALF_UP snapping rounds up
 HALF_PIXEL = 0.5
@@ -53,6 +54,8 @@ def snap_to_pixel(value: float, mode: PixelSnapMode) -> int:
             return math.ceil(value)
         case PixelSnapMode.TRUNCATE:
             return math.trunc(value)
+        case _:  # pragma: no cover - every PixelSnapMode is matched above
+            assert_never(mode)
 
 
 class _ActiveSnapSettings:

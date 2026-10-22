@@ -259,12 +259,13 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         # Handle controller assignment on first button press
         if controller_info.status.value == 'connected':
             controller_id = self.editor.multi_controller_manager.assign_controller(instance_id)
-            if controller_id is not None:
-                # Create controller selection for this controller
-                self.editor.controller_selections[controller_id] = ControllerSelection(
-                    controller_id,
-                    instance_id,
-                )
+            # A known, connected controller is always assigned
+            assert controller_id is not None
+            # Create controller selection for this controller
+            self.editor.controller_selections[controller_id] = ControllerSelection(
+                controller_id,
+                instance_id,
+            )
 
         # Get controller ID for this instance
         controller_id = self.editor.multi_controller_manager.get_controller_id(instance_id)

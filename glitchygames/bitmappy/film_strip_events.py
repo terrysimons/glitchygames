@@ -753,22 +753,17 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         )
         self.set_current_frame(current_animation, insert_index)
 
-        # Also update the canvas to show the new frame
-        if (
-            hasattr(self.widget, 'parent_scene')
-            and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'canvas')
-            and self.widget.parent_scene.canvas
-        ):
-            # Set flag to prevent frame selection tracking during frame creation
-            self.widget.parent_scene._creating_frame = True
-            try:
-                self.widget.parent_scene.canvas.show_frame(current_animation, insert_index)
-                LOG.debug(
-                    f'FilmStripWidget: Updated canvas to show new frame {insert_index}',
-                )
-            finally:
-                self.widget.parent_scene._creating_frame = False
+        # Also update the canvas to show the new frame (the guard at the top of this
+        # method made sure the parent scene has a canvas, which sized the new frame)
+        # Set flag to prevent frame selection tracking during frame creation
+        self.widget.parent_scene._creating_frame = True
+        try:
+            self.widget.parent_scene.canvas.show_frame(current_animation, insert_index)
+            LOG.debug(
+                f'FilmStripWidget: Updated canvas to show new frame {insert_index}',
+            )
+        finally:
+            self.widget.parent_scene._creating_frame = False
 
         # Recalculate layouts to include the new frame
         self.widget.layout.update_layout()
@@ -779,11 +774,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         # Mark as dirty to trigger redraw
         self.widget.mark_dirty()
 
-        # Reset debug timer for new frame dump
-        if hasattr(self.widget, 'debug_start_time'):
-            self.widget.debug_start_time = 0.0
-        if hasattr(self.widget, 'debug_last_dump_time'):
-            self.widget.debug_last_dump_time = 0.0
+        # Reset debug timer for new frame dump (both are set in FilmStripWidget.__init__)
+        self.widget.debug_start_time = 0.0
+        self.widget.debug_last_dump_time = 0.0
 
     def handle_removal_button_click(self, pos: tuple[int, int]) -> bool:
         """Handle clicks on removal buttons.

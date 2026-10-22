@@ -444,14 +444,12 @@ def _extract_png_dimensions(
     """
     import struct
 
-    try:
-        # PNG dimensions are in the IHDR chunk at bytes 16-24
-        if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
-            width = struct.unpack('>I', frame_bytes[16:20])[0]
-            height = struct.unpack('>I', frame_bytes[20:24])[0]
-            return width, height
-    except (struct.error, IndexError, ValueError) as dimension_error:
-        LOG.debug('Could not extract PNG dimensions: %s', dimension_error)
+    # PNG dimensions are in the IHDR chunk at bytes 16-24; with at least 24 bytes each
+    # slice holds exactly the 4 bytes '>I' unpacks, so unpacking cannot fail
+    if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
+        width = struct.unpack('>I', frame_bytes[16:20])[0]
+        height = struct.unpack('>I', frame_bytes[20:24])[0]
+        return width, height
     return default_width, default_height
 
 

@@ -249,18 +249,9 @@ class InputConfirmationDialogScene(Scene):
     def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle confirm events."""
         self.log.info('Confirm: event: %s, trigger: %s', event, trigger)
-        # Get the text from input box before dismissing
-        filename = self.dialog.input_box.text
-        # Dismiss first to restore previous scene
+        # Dismiss to restore the previous scene. The save, load and new-canvas dialogs
+        # override this to hand the input box's text to the canvas.
         self.dismiss()
-        # Then trigger appropriate canvas event based on dialog type
-        if isinstance(self, SaveDialogScene):
-            self.previous_scene.canvas.on_save_file_event(filename)
-        elif isinstance(self, LoadDialogScene):
-            LOG.debug('Dialog calling canvas.on_load_file_event with filename: %s', filename)
-            self.previous_scene.canvas.on_load_file_event(filename)
-        elif isinstance(self, NewCanvasDialogScene):
-            self.previous_scene.canvas.on_new_file_event(filename)
 
     def on_input_box_submit_event(self: Self, control: object) -> None:
         """Handle the input box submit event.

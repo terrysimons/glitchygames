@@ -542,9 +542,8 @@ def clean_ai_response(content: str | None) -> str | None:
     # Remove markdown code blocks
     if cleaned.startswith('```'):
         lines = cleaned.split('\n')
-        # Remove first line if it's a code fence
-        if lines[0].startswith('```'):
-            lines = lines[1:]
+        # Remove the first line: it starts with the code fence just checked
+        lines = lines[1:]
         # Remove last line if it's a code fence
         if lines and lines[-1].strip() == '```':
             lines = lines[:-1]

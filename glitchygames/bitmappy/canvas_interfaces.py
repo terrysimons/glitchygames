@@ -740,11 +740,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Blend each onion frame into the accumulator
         alpha = int(255 * onion_manager.onion_transparency)
         for frame_idx in onion_frames:
-            if frame_idx < len(frames[current_animation]):
-                frame = frames[current_animation][frame_idx]
-                frame_pixels = self._get_frame_pixel_data(frame)
-                frame_surface = self._render_onion_frame(frame_pixels, alpha)
-                onion_accumulator.blit(frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2)
+            # onion_frames comes from range(len(frames[current_animation])): always in bounds
+            frame = frames[current_animation][frame_idx]
+            frame_pixels = self._get_frame_pixel_data(frame)
+            frame_surface = self._render_onion_frame(frame_pixels, alpha)
+            onion_accumulator.blit(frame_surface, (0, 0), special_flags=pygame.BLEND_ALPHA_SDL2)
 
         # Blit the accumulated onion layers onto the main canvas
         self.canvas_sprite.image.blit(onion_accumulator, (0, 0))

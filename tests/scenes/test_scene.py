@@ -1289,6 +1289,66 @@ class TestSceneOnTextSubmitEvent:
 class TestSceneManagerHelpers:
     """Test SceneManager helper methods."""
 
+    def test_a_scene_that_terminates_in_its_logic_finishes_the_frame(
+        self, mock_pygame_patches, mocker
+    ):
+        """terminate() from dt_tick leaves no active scene; the frame still runs to its end."""
+        manager = SceneManager()
+
+        class TerminatingScene(Scene):
+            def dt_tick(self, dt: float) -> None:
+                super().dt_tick(dt)
+                self.scene_manager.terminate()
+
+        manager.switch_to_scene(TerminatingScene())
+        for frame_step in ('update_screen', '_render_scene', '_present_frame'):
+            mocker.patch.object(manager, frame_step)
+
+        manager._run_scene_frame()
+
+        assert manager.active_scene is None
+
+    def test_a_scene_switched_to_without_an_engine_gets_none(self, mock_pygame_patches):
+        """A bare SceneManager (no GameEngine) sets a scene up without handing it an engine."""
+        manager = SceneManager()
+        manager.game_engine = None
+        scene = Scene()
+
+        manager.switch_to_scene(scene)
+
+        assert manager.active_scene is scene
+        assert getattr(scene, 'game_engine', None) is None
+
+    def test_a_scene_interface_stand_in_without_key_press_records_is_switched_to(
+        self, mock_pygame_patches, mocker
+    ):
+        """A scene stand-in that keeps no key-press records is still set up and made active."""
+        manager = SceneManager()
+        stand_in = mocker.Mock()
+        del stand_in._forget_key_presses
+
+        manager.switch_to_scene(stand_in)
+
+        assert manager.active_scene is stand_in
+        stand_in.setup.assert_called_once_with()
+
+    def test_a_transition_frame_without_an_engine_has_no_events_to_process(
+        self, mock_pygame_patches, mocker
+    ):
+        """With no GameEngine (a bare SceneManager), a transition frame still plays."""
+        manager = SceneManager()
+        manager.game_engine = None
+        transition = mocker.Mock()
+        transition.update.return_value = False
+        manager._active_transition = transition
+        for frame_step in ('_update_frame_services', '_present_frame'):
+            mocker.patch.object(manager, frame_step)
+
+        manager._run_frame_contents()
+
+        transition.render.assert_called_once_with(manager.screen)
+        assert manager._active_transition is transition
+
     def test_debug_overlay_mouse_position_comes_from_the_frame_input(
         self, mock_pygame_patches, mocker
     ):

@@ -7,7 +7,7 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
-from typing import TYPE_CHECKING, NamedTuple, Self, override
+from typing import TYPE_CHECKING, NamedTuple, Self, assert_never, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -267,6 +267,8 @@ def speed_up_step_ratio(curve: SpeedUpCurve, multiplier: float, completed_steps:
             return (1.0 + growth * math.log1p(completed_steps + 1)) / (
                 1.0 + growth * math.log1p(completed_steps)
             )
+        case _:  # pragma: no cover - every SpeedUpCurve is matched above
+            assert_never(curve)
 
 
 # The engine random stream every serve draws from (position, side, angle), so a run's seed
@@ -617,6 +619,8 @@ class BallSprite(Sprite):
             case SpeedUpAxes.Y_ONLY:
                 if abs(self.speed.y) > settings.max_speed:
                     self.speed.y = math.copysign(settings.max_speed, self.speed.y)
+            case _:  # pragma: no cover - every SpeedUpAxes is matched above
+                assert_never(settings.axes)
 
     def _advance_continuous_speed_up(self: Self, dt: float) -> None:
         """Advance the CONTINUOUS speed-up timer by dt seconds of game time.
@@ -645,6 +649,8 @@ class BallSprite(Sprite):
             case SpeedUpSchedule.MINIMUM_GAP:
                 self.speed_up()
                 self._continuous_elapsed_time = 0.0
+            case _:  # pragma: no cover - every SpeedUpSchedule is matched above
+                assert_never(settings.schedule)
         # The tolerance can leave a tiny negative remainder
         self._continuous_elapsed_time = max(self._continuous_elapsed_time, 0.0)
 

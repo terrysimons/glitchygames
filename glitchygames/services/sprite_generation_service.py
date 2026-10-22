@@ -170,15 +170,9 @@ class SpriteGenerationService:
                 error='AI returned empty response',
             )
 
-        # Clean and validate the response
+        # Clean and validate the response (cleaning a str always gives a str)
         cleaned_content = clean_ai_response(raw_content)
-
-        if cleaned_content is None:
-            return GenerationResult(
-                success=False,
-                error='AI response was empty after cleaning',
-                raw_response=raw_content,
-            )
+        assert cleaned_content is not None
 
         is_valid, error_message = validate_ai_response(cleaned_content)
 

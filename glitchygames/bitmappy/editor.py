@@ -503,11 +503,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Fallback to screen sampling (RGB only)
         try:
             assert self.screen is not None
-            color = tuple(self.screen.get_at(event.pos))
-            if len(color) == RGBA_COMPONENT_COUNT:
-                red, green, blue, _ = color  # Ignore alpha from screen
-            else:
-                red, green, blue = color
+            # Surface.get_at always returns an RGBA Color; ignore the screen's alpha
+            red, green, blue, _ = tuple(self.screen.get_at(event.pos))
             alpha = 255  # Screen has no alpha, default to opaque
             self.log.info(
                 'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',
@@ -1091,10 +1088,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         """
         # Check if any film strip is in text editing mode before routing to canvas
-        if hasattr(self, 'film_strips'):
-            for film_strip in self.film_strips.values():
-                if hasattr(film_strip, 'editing_animation') and film_strip.editing_animation:
-                    return
+        for film_strip in self.film_strips.values():
+            if hasattr(film_strip, 'editing_animation') and film_strip.editing_animation:
+                return
 
         if hasattr(self, 'canvas') and hasattr(self.canvas, 'handle_keyboard_event'):
             self.log.debug('Routing keyboard event to canvas')
@@ -1194,9 +1190,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                         current_animation,
                         current_frame,
                     )
-                    # Force canvas redraw to show the undone changes
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.force_redraw()
+                    # Force canvas redraw to show the undone changes (a current frame
+                    # was read from the canvas above, so there is one)
+                    self.canvas.force_redraw()
                     return
                 self.log.warning(
                     'Frame-specific undo failed for %s[%s]',
@@ -1318,9 +1314,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                         current_animation,
                         current_frame,
                     )
-                    # Force canvas redraw to show the redone changes
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.force_redraw()
+                    # Force canvas redraw to show the redone changes (a current frame
+                    # was read from the canvas above, so there is one)
+                    self.canvas.force_redraw()
                     return
                 self.log.warning(
                     'Frame-specific redo failed for %s[%s]',

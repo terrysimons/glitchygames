@@ -63,8 +63,8 @@ class FadeTransition(Transition):
             new_surface: Incoming scene.
 
         """
-        if self._overlay is None:
-            return
+        # start() made the overlay; render() draws only after start()
+        assert self._overlay is not None
 
         progress = self.eased_progress
         halfway = 0.5

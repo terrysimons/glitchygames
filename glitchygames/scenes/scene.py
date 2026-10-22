@@ -175,14 +175,8 @@ class SceneManager(SceneInterface, events.EventManager):
         super().__init__()
 
         # Scene manager terminates on self.next_scene = None
-        try:
-            self.screen = pygame.display.get_surface()
-            if self.screen is None:
-                # Display not initialized yet, will be set later
-                self.screen = None
-        except pygame.error:
-            # Display surface quit or not initialized, will be set later
-            self.screen = None
+        # None until the display is initialized (set later); get_surface() never raises
+        self.screen = pygame.display.get_surface()
         self.update_type: str = 'update'
         self.fps_log_interval_ms: int = 1000
         self.target_fps: float = 0.0
@@ -315,13 +309,10 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info(f'Target FPS: {self.target_fps}')
 
         # Configure performance manager with the same log interval and target FPS
-        try:
-            from glitchygames.performance import performance_manager
+        from glitchygames.performance import performance_manager
 
-            performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
-            performance_manager.set_target_fps(self.target_fps)
-        except ImportError:
-            pass  # Performance module not available
+        performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+        performance_manager.set_target_fps(self.target_fps)
 
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
@@ -916,8 +907,9 @@ class SceneManager(SceneInterface, events.EventManager):
     def _finalize_transition(self: Self) -> None:
         """Complete a transition and resume normal scene rendering."""
         self._active_transition = None
-        # Force a full redraw of the active scene
-        if self.active_scene:
+        # Force a full redraw of the active scene (the frame loop stops when there is none, so
+        # a transition never finishes without one)
+        if self.active_scene:  # pragma: no branch - see above
             for sprite in self.active_scene.all_sprites:
                 sprite.dirty = max(sprite.dirty, 1)
 
@@ -974,14 +966,13 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _remove_scope_supervision(self: Self) -> None:
         """Remove the supervisors and control event handlers a playback scope's code added."""
+        # Every scope supervisor and handler is also in the live lists: add_supervisor and
+        # add_control_event_handler add to both, remove_supervisor removes from both
         for supervisor in self._scope_supervisors:
-            if supervisor in self._supervisors:
-                self._supervisors.remove(supervisor)
+            self._supervisors.remove(supervisor)
         self._scope_supervisors.clear()
         for kind, handler in self._scope_control_event_handlers:
-            handlers = self._control_event_handlers.get(kind, [])
-            if handler in handlers:
-                handlers.remove(handler)
+            self._control_event_handlers[kind].remove(handler)
         self._scope_control_event_handlers.clear()
 
     def _run_live_or_scope_code(
@@ -1381,13 +1372,10 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The scene made active.
 
         """
-        try:
-            from glitchygames.performance import performance_manager
+        from glitchygames.performance import performance_manager
 
-            if scene:  # Only track performance for real scenes, not None
-                performance_manager.set_current_scene(scene.NAME)
-        except ImportError:
-            pass  # Performance module not available
+        if scene:  # Only track performance for real scenes, not None
+            performance_manager.set_current_scene(scene.NAME)
 
     def _clear_outgoing_scene_pending_switch(self: Self) -> None:
         """Clear the pending switch of the scene being switched away from.
@@ -1544,25 +1532,20 @@ class SceneManager(SceneInterface, events.EventManager):
             processing_time: Actual processing time in seconds
 
         """
-        try:
-            from glitchygames.performance import performance_manager
+        from glitchygames.performance import performance_manager
 
-            # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
-            #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
-            #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
-            #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
-            #   3. carries over from the previous scene (the clock is shared), so a new
-            #      scene's first samples are stale.
-            # The frame time _finish_frame measured with time.perf_counter() (the full
-            # start-to-start period of the frame just finished), as the doors pass it on
-            # (_performance_frame_seconds).
-            performance_frame_seconds = self._performance_frame_seconds()
-            current_fps = (
-                (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
-            )
-            performance_manager.track_fps_from_event(current_fps, processing_time)
-        except ImportError:
-            pass  # Performance module not available
+        # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
+        #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
+        #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
+        #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
+        #   3. carries over from the previous scene (the clock is shared), so a new
+        #      scene's first samples are stale.
+        # The frame time _finish_frame measured with time.perf_counter() (the full
+        # start-to-start period of the frame just finished), as the doors pass it on
+        # (_performance_frame_seconds).
+        performance_frame_seconds = self._performance_frame_seconds()
+        current_fps = (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
+        performance_manager.track_fps_from_event(current_fps, processing_time)
 
     def start(self: Self) -> None:
         """Start the scene manager.
@@ -1919,7 +1902,9 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         live_scene = self.active_scene
-        if live_scene is None:
+        # Never None in a run: frames run only while a scene is active, and the scope is
+        # entered only while the scene that asked for it is active (_enter_requested_playback)
+        if live_scene is None:  # pragma: no cover - a guard for callers outside the frame loop
             message = f'A {request.kind} playback needs an active scene to return to'
             raise RuntimeError(message)
         session = request.begin_session(
@@ -2029,9 +2014,10 @@ class SceneManager(SceneInterface, events.EventManager):
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
-            if self._live_rumble_behind_scope is not None:
-                self.rumble = self._live_rumble_behind_scope
-                self._live_rumble_behind_scope = None
+            # _enter_playback set it right after the session, with nothing in between to fail
+            assert self._live_rumble_behind_scope is not None
+            self.rumble = self._live_rumble_behind_scope
+            self._live_rumble_behind_scope = None
             self._clear_frame_effects()
             # The display shows the playback's last frame: the live scene's first presented
             # frame updates all of it, not only its own dirty rects
@@ -2474,7 +2460,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 pygame.display.update()
             else:
                 pygame.display.update(self.active_scene.rects)
-        elif self.update_type == 'flip':
+        elif self.update_type == 'flip':  # pragma: no branch - --update-type: update or flip
             pygame.display.flip()
 
     def _log_quit_info(self) -> None:
@@ -2511,8 +2497,8 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if next_scene:
             self.log.info('Setting up new scene %s.', next_scene)
-            # Ensure the new scene has access to the game engine
-            if hasattr(self, 'game_engine') and self.game_engine:
+            # Ensure the new scene has access to the game engine (a bare SceneManager has none)
+            if self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             # A press recorded before the scene was left (an ESC that paused it, released in
             # the pause scene) must not let a later release quit. Looked up by name, like
@@ -3066,12 +3052,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             focused_sprites: List of sprites to unfocus
 
         """
+        # Every focused sprite has is_active (_get_focused_sprites)
         for sprite in focused_sprites:
-            if hasattr(sprite, 'is_active'):
-                self.log.debug(f'Unfocusing {type(sprite).__name__}')
-                sprite.is_active = False
-                if hasattr(sprite, 'on_focus_lost'):
-                    sprite.on_focus_lost()
+            self.log.debug(f'Unfocusing {type(sprite).__name__}')
+            sprite.is_active = False
+            if hasattr(sprite, 'on_focus_lost'):
+                sprite.on_focus_lost()
 
     def _handle_focus_management(self, collided_sprites: list[Any]) -> None:
         """Handle focus management for mouse clicks.
@@ -3200,7 +3186,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # been left must not quit from here. Each release consumes its press.
         event_key: int | None = getattr(event, 'key', None)
         was_pressed_in_scene = event_key is not None and event_key in self._keys_pressed_in_scene
-        if event_key is not None:
+        if event_key is not None:  # pragma: no branch - a key release always has a key
             self._keys_pressed_in_scene.discard(event_key)
 
         # Only process quit keys if no sprites are focused

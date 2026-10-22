@@ -26,7 +26,7 @@ try:
     import speech_recognition as sr
 
     SPEECH_RECOGNITION_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - speech_recognition is an optional package
     sr = None
     SPEECH_RECOGNITION_AVAILABLE = False  # pyright: ignore[reportConstantRedefinition]
 

@@ -12,12 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-# Try to import voice recognition, but don't fail if it's not available
-try:
-    from glitchygames.events.voice import VoiceEventManager
-except ImportError:
-    VoiceEventManager = None
-
+# glitchygames.events.voice guards its own optional speech_recognition import,
+# so this import always succeeds
+from glitchygames.events.voice import VoiceEventManager
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.ui import (
     MenuBar,
@@ -441,7 +438,7 @@ class EditorSetup:
 
         **To Enable:**
         1. Uncomment the call to setup_voice_recognition() in __init__
-        2. Ensure VoiceEventManager is available (imports at lines 37-41)
+        2. Ensure speech_recognition is installed (VoiceEventManager.is_available())
         3. Test microphone access and speech recognition accuracy
         4. Verify no performance issues or crashes
 
@@ -457,10 +454,6 @@ class EditorSetup:
 
         """
         try:
-            if VoiceEventManager is None:
-                self.editor.log.info('Voice recognition not available')
-                self.editor.voice_manager = None
-                return
             self.editor.voice_manager = VoiceEventManager(logger=self.editor.log)
 
             if self.editor.voice_manager.is_available():

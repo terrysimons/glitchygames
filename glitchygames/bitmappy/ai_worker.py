@@ -40,7 +40,7 @@ from .models import AIRequest, AIResponse
 # uses ast.NameConstant which was removed in Python 3.14.
 try:
     import aisuite as ai
-except ImportError, AttributeError:
+except ImportError, AttributeError:  # pragma: no cover - aisuite is an optional package
     ai = None
 
 import tenacity
@@ -797,13 +797,9 @@ def select_relevant_training_examples(
         scored_examples.append((score, example))
 
     scored_examples.sort(key=operator.itemgetter(0), reverse=True)
-    relevant_examples = [example for _, example in scored_examples[:max_examples]]
-
-    if len(relevant_examples) < max_examples:
-        remaining = [ex for _, ex in scored_examples if ex not in relevant_examples]
-        relevant_examples.extend(remaining[: max_examples - len(relevant_examples)])
-
-    return relevant_examples
+    # There are more examples than max_examples (fewer returned above), so this takes
+    # exactly max_examples of them
+    return [example for _, example in scored_examples[:max_examples]]
 
 
 def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
@@ -820,11 +816,11 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
     if 'pixels' in example:
         pixels = example['pixels']
         if isinstance(pixels, str) and '\n' in pixels:
+            # str.split always returns at least one line
             lines = pixels.strip().split('\n')
-            if lines:
-                height = len(lines)
-                width = len(lines[0])
-                return (width, height)
+            height = len(lines)
+            width = len(lines[0])
+            return (width, height)
 
     # Try to get size from first animation frame
     if example.get('animations'):
@@ -834,11 +830,11 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
             if 'pixels' in first_frame:
                 pixels = first_frame['pixels']
                 if isinstance(pixels, str) and '\n' in pixels:
+                    # str.split always returns at least one line
                     lines = pixels.strip().split('\n')
-                    if lines:
-                        height = len(lines)
-                        width = len(lines[0])
-                        return (width, height)
+                    height = len(lines)
+                    width = len(lines[0])
+                    return (width, height)
 
     return None
 

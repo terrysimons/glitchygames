@@ -899,14 +899,13 @@ def generate_toml_content(
     log.info(f'Unique glyphs to define: {sorted(unique_glyphs)}')
 
     for glyph in sorted(unique_glyphs):
-        # Find the first color that maps to this glyph
-        for color, mapped_glyph in color_mapping.items():
-            if mapped_glyph == glyph:
-                r, g, b = color
-                # Quote the glyph to handle special characters like '.'
-                toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
-                log.info('Defined color %s: RGB(%s, %s, %s)', glyph, r, g, b)
-                break
+        # Find the first color that maps to this glyph (there is one: the glyph is a mapped value)
+        r, g, b = next(
+            color for color, mapped_glyph in color_mapping.items() if mapped_glyph == glyph
+        )
+        # Quote the glyph to handle special characters like '.'
+        toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+        log.info('Defined color %s: RGB(%s, %s, %s)', glyph, r, g, b)
 
     if not unique_glyphs:
         log.error('No colors to define - this will cause display issues!')

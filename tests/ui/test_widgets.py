@@ -1406,6 +1406,25 @@ class TestMenuItemAddMenu:
 
         assert len(parent_item.menu_items) == 4
 
+    def test_add_menu_whose_items_have_no_rect_keeps_the_item_size(self, mocker):
+        """A sub-menu without a rect takes no room: the dropped-down menu is the item's size.
+
+        max() over the items' rects used to raise ValueError when none had one (BUGS.md #136).
+        """
+        parent_item = self._create_menuitem_with_x(mocker, (0, 0, 100, 20), 'FileMenu')
+        sub_item = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), 'Open')
+        sub_item.rect = None
+        width_before = parent_item.rect.width
+        height_before = parent_item.rect.height
+
+        surface_class = mocker.spy(pygame, 'Surface')
+
+        parent_item.add_menu(sub_item)
+
+        assert 'Open' in parent_item.menu_items
+        # The last surface made is the dropped-down menu's image
+        assert surface_class.call_args_list[-1].args == ((width_before, height_before),)
+
 
 class TestTextSpritePropertyAccessors:
     """Test TextSprite property accessors and cursor blinking."""

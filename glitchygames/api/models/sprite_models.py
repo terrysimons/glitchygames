@@ -11,7 +11,6 @@ VALID_OUTPUT_FORMATS = [OUTPUT_FORMAT_TOML, OUTPUT_FORMAT_PNG]
 
 # Validation error messages
 _OUTPUT_FORMAT_EMPTY_MSG = "output_format must contain at least one format ('toml' or 'png')"
-_OUTPUT_FORMAT_INVALID_MSG = "Invalid format '{fmt}'. Must be 'toml' or 'png'"
 
 
 class SpriteGenerationRequest(BaseModel):
@@ -94,20 +93,19 @@ class SpriteGenerationRequest(BaseModel):
     @field_validator('output_format')
     @classmethod
     def validate_output_format(cls, value: list[str]) -> list[str]:
-        """Validate that output_format contains valid values and is not empty.
+        """Validate that output_format is not empty.
+
+        The field's Literal type rejects an invalid format before this validator runs.
 
         Returns:
             list[str]: The validation result.
 
         Raises:
-            ValueError: If output_format is empty or contains invalid format values.
+            ValueError: If output_format is empty.
 
         """
         if not value:
             raise ValueError(_OUTPUT_FORMAT_EMPTY_MSG)
-        for fmt in value:
-            if fmt not in VALID_OUTPUT_FORMATS:
-                raise ValueError(_OUTPUT_FORMAT_INVALID_MSG.format(fmt=fmt))
         return value
 
 
@@ -155,20 +153,19 @@ class SpriteRefinementRequest(BaseModel):
     @field_validator('output_format')
     @classmethod
     def validate_output_format(cls, value: list[str]) -> list[str]:
-        """Validate that output_format contains valid values and is not empty.
+        """Validate that output_format is not empty.
+
+        The field's Literal type rejects an invalid format before this validator runs.
 
         Returns:
             list[str]: The validation result.
 
         Raises:
-            ValueError: If output_format is empty or contains invalid format values.
+            ValueError: If output_format is empty.
 
         """
         if not value:
             raise ValueError(_OUTPUT_FORMAT_EMPTY_MSG)
-        for fmt in value:
-            if fmt not in VALID_OUTPUT_FORMATS:
-                raise ValueError(_OUTPUT_FORMAT_INVALID_MSG.format(fmt=fmt))
         return value
 
 

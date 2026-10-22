@@ -874,8 +874,8 @@ class AdaptiveClamping:
         spare_stats = self.get_spare_time_stats()
         self._log_fps_stats(stats, spare_stats)
 
-        if stats['fps_histogram']:
-            self._log_fps_histogram(stats)
+        # Stats without a 'message' come from at least one frame, so the histogram has a bucket
+        self._log_fps_histogram(stats)
 
         LOG.info('=' * 80)
 
@@ -909,8 +909,8 @@ class AdaptiveClamping:
             spare_stats = self.get_spare_time_stats(scene_name)
             self._log_fps_stats(stats, spare_stats)
 
-            if stats['fps_histogram']:
-                self._log_fps_histogram(stats)
+            # Stats without a 'message' come from at least one frame: the histogram has a bucket
+            self._log_fps_histogram(stats)
 
         LOG.info('=' * 80)
 

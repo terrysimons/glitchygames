@@ -1197,7 +1197,9 @@ def _start_instant_replay(*, manager: SceneManager) -> bool:
         return False
     # The scene itself, or the pause screen presenting it: the scope returns to what is shown
     then = manager.active_scene
-    if then is None:
+    # A kept journal's scene was presented at the end of the last frame, so a scene is active
+    # unless this frame switched to None (terminate() ends the journal first)
+    if then is None:  # pragma: no cover - only after a switch_to_scene(None) this frame
         LOG.info('No instant replay: no scene is active')
         return False
     recording = journal.as_recording()

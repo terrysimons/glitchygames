@@ -65,16 +65,11 @@ def unicode_generator_with_priority() -> Generator[str]:
         str: The next Unicode character in priority order.
 
     """
-    handled_chars: set[str] = set()
-
-    # Print all emojis
+    # Print all emojis (each codepoint once, so no character repeats)
     for codepoint in range(0x110000):
         ch = chr(codepoint)
-        if ch in handled_chars:
-            continue
         if is_emoji(ch) and is_defined_non_whitespace_printable(ch):
             yield ch
-            handled_chars.add(ch)
 
 
 # Example usage:

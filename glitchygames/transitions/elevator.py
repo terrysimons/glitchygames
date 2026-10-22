@@ -133,8 +133,9 @@ class ElevatorTransition(Transition):
             new_surface: Unused (composite replaces it).
 
         """
-        if self._composite is None:
-            return
+        # start() made the composite and the platform; render() draws only after start()
+        assert self._composite is not None
+        assert self._elevator_surface is not None
 
         screen_height = screen.get_height()
         screen_width = screen.get_width()
@@ -153,19 +154,18 @@ class ElevatorTransition(Transition):
         screen.blit(self._composite, (0, 0), area=source_rect)
 
         # Draw elevator platform pinned at center-bottom of screen
-        if self._elevator_surface is not None:
-            elevator_x = (screen_width - self._elevator_surface.get_width()) // 2
-            elevator_y = screen_height - screen_height // 3
-            screen.blit(self._elevator_surface, (elevator_x, elevator_y))
+        elevator_x = (screen_width - self._elevator_surface.get_width()) // 2
+        elevator_y = screen_height - screen_height // 3
+        screen.blit(self._elevator_surface, (elevator_x, elevator_y))
 
-            # Draw the Tinker standing on the elevator
-            if self._player_surface is not None:
-                player_x = (
-                    elevator_x
-                    + (self._elevator_surface.get_width() - self._player_surface.get_width()) // 2
-                )
-                player_y = elevator_y - self._player_surface.get_height()
-                screen.blit(self._player_surface, (player_x, player_y))
+        # Draw the Tinker standing on the elevator
+        if self._player_surface is not None:
+            player_x = (
+                elevator_x
+                + (self._elevator_surface.get_width() - self._player_surface.get_width()) // 2
+            )
+            player_y = elevator_y - self._player_surface.get_height()
+            screen.blit(self._player_surface, (player_x, player_y))
 
     def _draw_shaft_walls(self, surface: pygame.Surface) -> None:
         """Draw tower walls for the shaft section between floors.

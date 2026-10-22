@@ -1746,9 +1746,18 @@ class TestAnimatedSpriteUpdateSurfaceAndMarkDirty:
         sprite.set_animation('idle')
 
         sprite.dirty = 0
-        sprite._last_frame_index = -1  # Force update
+        sprite._last_drawn_frame = None  # Force update
         sprite._update_surface_and_mark_dirty()
         assert sprite.dirty == 1
+
+    def test_update_surface_without_an_animation_leaves_the_image(self):
+        """With no current animation there is nothing to draw: image and dirty stay."""
+        sprite = AnimatedSprite()
+        image_before = sprite.image
+        sprite.dirty = 0
+        sprite._update_surface_and_mark_dirty()
+        assert sprite.image is image_before
+        assert sprite.dirty == 0
 
 
 class TestSpriteFrameEdgeCases:
@@ -2681,6 +2690,220 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         sprite.default_hitbox = pygame.Rect(4, 0, 12, 20)
 
         assert sprite.hitbox == pygame.Rect(4, 0, 12, 20)
+
+
+class TestAnimatedSpriteImageTransparency:
+    """The sprite's image keeps a TOML frame's per-pixel alpha and magenta key (BUGS.md #133).
+
+    Real surfaces and real TOML loading: the image is what LayeredDirty draws.
+    """
+
+    # 3x2 frame: '.' is magenta (the transparency key), '#' is opaque, 'g' is translucent
+    ALPHA_SPRITE_TOML = """[sprite]
+name = "translucent"
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+
+[colors."#"]
+red = 10
+green = 20
+blue = 30
+
+[colors."g"]
+red = 80
+green = 220
+blue = 120
+alpha = 137
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+frame_index = 0
+pixels = \"\"\"
+.#g
+...
+\"\"\"
+"""
+
+    # 3x2 frame without per-pixel alpha: '.' is magenta, '#' is opaque
+    INDEXED_SPRITE_TOML = """[sprite]
+name = "indexed"
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+
+[colors."#"]
+red = 10
+green = 20
+blue = 30
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+frame_index = 0
+pixels = \"\"\"
+.#.
+.#.
+\"\"\"
+"""
+
+    # The same 3x2 picture as a static sprite (no [[animation]]), whose pixels stay RGB
+    STATIC_SPRITE_TOML = """[sprite]
+name = "static_indexed"
+pixels = \"\"\"
+.#.
+.#.
+\"\"\"
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+
+[colors."#"]
+red = 10
+green = 20
+blue = 30
+"""
+
+    @staticmethod
+    def _load_sprite(*, tmp_path: Path, toml_content: str) -> AnimatedSprite:
+        """Write toml_content to a file and load it as an AnimatedSprite.
+
+        Returns:
+            AnimatedSprite: The loaded sprite, showing its first frame.
+
+        """
+        toml_file = tmp_path / 'sprite.toml'
+        toml_file.write_text(toml_content, encoding='utf-8')
+        return AnimatedSprite(filename=str(toml_file))
+
+    @staticmethod
+    def _drawn_pixels(*, image: pygame.Surface) -> list[tuple[int, int, int]]:
+        """Draw image over a blue background and return the drawn RGB pixels, row by row.
+
+        Returns:
+            list[tuple[int, int, int]]: The background's pixels after the blit.
+
+        """
+        background = pygame.Surface(image.get_size())
+        background.fill((0, 0, 255))
+        background.blit(image, (0, 0))
+        width, height = image.get_size()
+        drawn_pixels: list[tuple[int, int, int]] = []
+        for y in range(height):
+            for x in range(width):
+                drawn_color = background.get_at((x, y))
+                drawn_pixels.append((drawn_color.r, drawn_color.g, drawn_color.b))
+        return drawn_pixels
+
+    def test_translucent_frame_image_keeps_its_per_pixel_alpha(self, tmp_path):
+        """A frame with alpha colors gives an SRCALPHA image with each pixel's alpha."""
+        sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.ALPHA_SPRITE_TOML)
+
+        assert sprite.image.get_flags() & pygame.SRCALPHA
+        assert sprite.image.get_at((1, 0)) == pygame.Color(10, 20, 30, 255)
+        assert sprite.image.get_at((2, 0)) == pygame.Color(80, 220, 120, 137)
+
+    def test_translucent_frame_image_makes_magenta_transparent(self, tmp_path):
+        """Magenta pixels of a frame with alpha colors are fully transparent in the image."""
+        sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.ALPHA_SPRITE_TOML)
+
+        assert sprite.image.get_at((0, 0)).a == 0
+        assert sprite.image.get_bounding_rect() == pygame.Rect(1, 0, 2, 1)
+
+    def test_translucent_frame_draws_blended_and_without_magenta(self, tmp_path):
+        """Drawn over blue: magenta shows the background, the translucent pixel blends."""
+        sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.ALPHA_SPRITE_TOML)
+
+        drawn_pixels = self._drawn_pixels(image=sprite.image)
+
+        assert drawn_pixels[0] == (0, 0, 255)
+        assert drawn_pixels[1] == (10, 20, 30)
+        # 137/255 of (80, 220, 120) over (0, 0, 255): neither the color nor the background
+        assert drawn_pixels[2] not in {(80, 220, 120), (0, 0, 255)}
+        assert drawn_pixels[3:] == [(0, 0, 255)] * 3
+
+    def test_indexed_animation_frame_keys_out_magenta(self, tmp_path):
+        """An animation frame without translucent colors keys magenta out with a colorkey.
+
+        The loader stores the frame's pixels as RGBA (it has magenta), but nothing in it is
+        translucent, so the image is a plain surface keyed on magenta.
+        """
+        sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.INDEXED_SPRITE_TOML)
+
+        assert not sprite.image.get_flags() & pygame.SRCALPHA
+        assert sprite.image.get_colorkey() == pygame.Color(255, 0, 255, 255)
+        assert sprite.image.get_bounding_rect() == pygame.Rect(1, 0, 1, 2)
+        assert (
+            self._drawn_pixels(image=sprite.image)
+            == [
+                (0, 0, 255),
+                (10, 20, 30),
+                (0, 0, 255),
+            ]
+            * 2
+        )
+
+    def test_static_sprite_image_keys_out_magenta(self, tmp_path):
+        """A static sprite's RGB pixels give an image with magenta as its colorkey."""
+        sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.STATIC_SPRITE_TOML)
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert all(len(pixel) == 3 for pixel in frame.pixels)
+
+        assert not sprite.image.get_flags() & pygame.SRCALPHA
+        assert sprite.image.get_colorkey() == pygame.Color(255, 0, 255, 255)
+        assert sprite.image.get_bounding_rect() == pygame.Rect(1, 0, 1, 2)
+        assert (
+            self._drawn_pixels(image=sprite.image)
+            == [
+                (0, 0, 255),
+                (10, 20, 30),
+                (0, 0, 255),
+            ]
+            * 2
+        )
+
+    def test_keyed_magenta_is_not_written_over_a_destination_without_alpha(self, tmp_path):
+        """Keyed pixels leave a destination pixel of alpha 0 untouched.
+
+        A display with an alpha channel (cocoa) holds the scene background at alpha 0; a
+        per-pixel alpha source copies its color onto such pixels instead of blending, but
+        colorkeyed pixels are skipped.
+        """
+        sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.INDEXED_SPRITE_TOML)
+        destination = pygame.Surface(sprite.image.get_size(), pygame.SRCALPHA)
+        destination.fill((0, 0, 255, 0))
+
+        destination.blit(sprite.image, (0, 0))
+
+        assert destination.get_at((0, 0)) == pygame.Color(0, 0, 255, 0)
+        assert destination.get_at((1, 0)).rgb == (10, 20, 30)
+
+    def test_bundled_foo2_example_keeps_its_alpha(self):
+        """The example from BUGS.md #133: foo2.toml's translucent body stays translucent."""
+        foo2_path = Path(__file__).parents[2] / 'glitchygames' / 'examples' / 'foo2.toml'
+        sprite = AnimatedSprite(filename=str(foo2_path))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+
+        frame_alphas = {frame.image.get_at((x, 8)).a for x in range(16)}
+        image_alphas = {sprite.image.get_at((x, 8)).a for x in range(16)}
+
+        assert 137 in frame_alphas
+        assert image_alphas == {0, 137}
 
 
 class TestAnimatedSpriteFrameAnchor:
@@ -3803,6 +4026,18 @@ class TestDebugFrameImageData:
         assert 'Image surface size: (0, 2)' in caplog.text
         assert 'Sample pixel data' not in caplog.text
 
+    def test_frame_without_pixel_data_samples_its_image(self, caplog):
+        """A frame with no pixel list logs its image's first pixel instead."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        surface.fill((1, 2, 3))
+        frame = SpriteFrame(surface)
+        assert frame.pixels == []
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite._debug_frame_pixel_data(frame)
+        assert 'Image surface size: (2, 2)' in caplog.text
+        assert 'Sample pixel data: [1 2 3]' in caplog.text
+
 
 class TestStaticSaveHitbox:
     """A single-frame save writes the frame's own hitbox when the sprite has no default."""
@@ -3830,3 +4065,123 @@ class TestStaticSaveHitbox:
             'height': 4,
         }
         assert AnimatedSprite(str(saved_file)).hitbox == pygame.Rect(1, 0, 2, 4)
+
+
+# Two one-frame animations of different colors: walk is red ('#'), jump is blue ('@')
+WALK_AND_JUMP_TOML = """[sprite]
+name = "walk_and_jump"
+
+[colors."#"]
+red = 255
+green = 0
+blue = 0
+
+[colors."@"]
+red = 0
+green = 0
+blue = 255
+
+[[animation]]
+namespace = "walk"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "walk"
+frame_index = 0
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation]]
+namespace = "jump"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "jump"
+frame_index = 0
+pixels = \"\"\"
+@
+\"\"\"
+"""
+
+
+class TestAnimationSwitchUpdatesImage:
+    """Switching animation shows the new animation's frame, also when both are on frame 0."""
+
+    def test_switching_between_animations_on_frame_zero_changes_the_image(self, tmp_path):
+        """set_animation('walk') then set_animation('jump') shows jump's (blue) pixel."""
+        toml_file = tmp_path / 'walk_and_jump.toml'
+        toml_file.write_text(WALK_AND_JUMP_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+
+        sprite.set_animation('walk')
+        assert sprite.image.get_at((0, 0))[:3] == (255, 0, 0)
+
+        sprite.set_animation('jump')
+        assert sprite.image.get_at((0, 0))[:3] == (0, 0, 255)
+
+        sprite.set_animation('walk')
+        assert sprite.image.get_at((0, 0))[:3] == (255, 0, 0)
+
+    def test_playing_another_animation_marks_the_sprite_dirty(self, tmp_path):
+        """play('jump') from walk's frame 0 redraws the sprite."""
+        toml_file = tmp_path / 'walk_and_jump.toml'
+        toml_file.write_text(WALK_AND_JUMP_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+        sprite.set_animation('walk')
+        sprite.dirty = 0
+
+        sprite.play('jump')
+
+        assert sprite.dirty == 1
+        assert sprite.image.get_at((0, 0))[:3] == (0, 0, 255)
+
+
+class TestFrameDumpOnlyWithDebugLogging:
+    """The per-frame debug dump (pixel hash, surfarray sample) runs only with DEBUG logging."""
+
+    @staticmethod
+    def _two_frame_sprite() -> AnimatedSprite:
+        """A playing sprite with two 0.1 s frames that have pixel data.
+
+        Returns:
+            AnimatedSprite: The sprite, playing 'walk' from frame 0.
+
+        """
+        sprite = AnimatedSprite()
+        frames = []
+        for color in ((255, 0, 0), (0, 0, 255)):
+            surface = pygame.Surface((1, 1))
+            surface.fill(color)
+            frame = SpriteFrame(surface, duration=0.1)
+            frame.pixels = [color]
+            frames.append(frame)
+        sprite.add_animation('walk', frames)
+        sprite.play('walk')
+        return sprite
+
+    def test_frame_advance_skips_the_dump_without_debug_logging(self, mocker, caplog):
+        """With DEBUG off, advancing frames never builds the pixel hash or image sample."""
+        sprite = self._two_frame_sprite()
+        pixel_data_spy = mocker.spy(sprite, '_debug_frame_pixel_data')
+        image_data_spy = mocker.spy(sprite, '_debug_frame_image_data')
+
+        with caplog.at_level(logging.INFO, logger=sprite.log.name):
+            sprite.update(dt=0.1)
+
+        assert sprite.current_frame == 1
+        assert pixel_data_spy.call_count == 0
+        assert image_data_spy.call_count == 0
+
+    def test_frame_advance_dumps_the_frame_with_debug_logging(self, mocker, caplog):
+        """With DEBUG on, each frame advance logs the new frame's pixel hash."""
+        sprite = self._two_frame_sprite()
+        pixel_data_spy = mocker.spy(sprite, '_debug_frame_pixel_data')
+
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite.update(dt=0.1)
+
+        assert pixel_data_spy.call_count == 1
+        assert 'Frame 1 pixel hash' in caplog.text

@@ -331,18 +331,16 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             }
 
         # Reload the original frame data
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            current_animation = self.current_animation
-            current_frame = self.current_frame
+        current_animation = self.current_animation
+        current_frame = self.current_frame
 
-            if current_animation in self.animated_sprite.frames and current_frame < len(
-                self.animated_sprite.frames[current_animation],
-            ):
-                frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-                if hasattr(frame, 'get_pixel_data'):
-                    self.pixels = frame.get_pixel_data().copy()
-                    self.dirty_pixels = [True] * len(self.pixels)
-                    self.dirty = 1
+        if current_animation in self.animated_sprite.frames and current_frame < len(
+            self.animated_sprite.frames[current_animation],
+        ):
+            frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
+            self.pixels = frame.get_pixel_data().copy()
+            self.dirty_pixels = [True] * len(self.pixels)
+            self.dirty = 1
 
         self.log.debug('Panning reset for frame %s', frame_key)
 
@@ -409,53 +407,51 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """
         pixels = []
 
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            # Check if this is a static sprite (no frames)
-            if (
-                not hasattr(self.animated_sprite, '_animations')
-                or not self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            ):
-                # Static sprite - get pixels directly
-                if hasattr(self.animated_sprite, 'get_pixel_data'):
-                    pixels = self.animated_sprite.get_pixel_data()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
-                    self.log.debug(
-                        f'Got pixels from animated_sprite.get_pixel_data(): {len(pixels)} pixels, '  # type: ignore[arg-type]
-                        f'first few: {pixels[:5]}',
-                    )
-                elif hasattr(self.animated_sprite, 'pixels'):
-                    pixels = self.animated_sprite.pixels.copy()  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
-                    self.log.debug(
-                        f'Got pixels from animated_sprite.pixels: {len(pixels)} pixels, '  # type: ignore[arg-type]
-                        f'first few: {pixels[:5]}',
-                    )
+        # Check if this is a static sprite (no frames)
+        if (
+            not hasattr(self.animated_sprite, '_animations') or not self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
+        ):
+            # Static sprite - get pixels directly
+            if hasattr(self.animated_sprite, 'get_pixel_data'):
+                pixels = self.animated_sprite.get_pixel_data()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                self.log.debug(
+                    f'Got pixels from animated_sprite.get_pixel_data(): {len(pixels)} pixels, '  # type: ignore[arg-type]
+                    f'first few: {pixels[:5]}',
+                )
+            elif hasattr(self.animated_sprite, 'pixels'):
+                pixels = self.animated_sprite.pixels.copy()  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+                self.log.debug(
+                    f'Got pixels from animated_sprite.pixels: {len(pixels)} pixels, '  # type: ignore[arg-type]
+                    f'first few: {pixels[:5]}',
+                )
 
-            # Animated sprite with frames
-            current_animation = self.current_animation
-            current_frame = self.current_frame
-            self.log.debug(
-                "Getting frame pixels for animation '%s', frame %s",
+        # Animated sprite with frames
+        current_animation = self.current_animation
+        current_frame = self.current_frame
+        self.log.debug(
+            "Getting frame pixels for animation '%s', frame %s",
+            current_animation,
+            current_frame,
+        )
+
+        if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
+            self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
+        ):
+            frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
+            if hasattr(frame, 'get_pixel_data'):
+                pixels = frame.get_pixel_data()
+                self.log.debug(
+                    f'Got pixels from frame.get_pixel_data(): {len(pixels)} pixels, '
+                    f'first few: {pixels[:5]}',
+                )
+            else:
+                self.log.warning('Frame has no get_pixel_data method')
+        else:
+            self.log.warning(
+                "Animation '%s' or frame %s not found",
                 current_animation,
                 current_frame,
             )
-
-            if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
-                self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
-            ):
-                frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-                if hasattr(frame, 'get_pixel_data'):
-                    pixels = frame.get_pixel_data()
-                    self.log.debug(
-                        f'Got pixels from frame.get_pixel_data(): {len(pixels)} pixels, '
-                        f'first few: {pixels[:5]}',
-                    )
-                else:
-                    self.log.warning('Frame has no get_pixel_data method')
-            else:
-                self.log.warning(
-                    "Animation '%s' or frame %s not found",
-                    current_animation,
-                    current_frame,
-                )
 
         # Fallback to static pixels
         if not pixels:
@@ -477,96 +473,88 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def _update_canvas_from_current_frame(self) -> None:
         """Update the canvas pixels with the current frame data."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            # Use the canvas's current animation and frame (not the animated sprite's)
-            current_animation = self.current_animation
-            current_frame = self.current_frame
+        # Use the canvas's current animation and frame (not the animated sprite's)
+        current_animation = self.current_animation
+        current_frame = self.current_frame
+        self.log.info(
+            'DEBUG: Syncing canvas with frame %s[%s]',
+            current_animation,
+            current_frame,
+        )
+        if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
+            self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
+        ):
+            frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
+            frame_pixels = frame.get_pixel_data()
             self.log.info(
-                'DEBUG: Syncing canvas with frame %s[%s]',
+                f'DEBUG: Frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:5]}',
+            )
+            self.log.info(
+                f'DEBUG: Frame pixel types: {[type(p) for p in frame_pixels[:3]]}',
+            )
+            self.log.info(
+                f'DEBUG: All frame pixels same color: {len(set(frame_pixels)) == 1}',
+            )
+            self.pixels = frame_pixels
+            self.dirty_pixels = [True] * len(self.pixels)
+            self.log.info('Updated canvas pixels from frame %s', current_frame)
+            # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
+            self.dirty = 1
+        else:
+            self.log.info(
+                "DEBUG: Animation '%s' or frame %s not found",
                 current_animation,
                 current_frame,
             )
-            if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
-                self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
-            ):
-                frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-                if hasattr(frame, 'get_pixel_data'):
-                    frame_pixels = frame.get_pixel_data()
-                    self.log.info(
-                        f'DEBUG: Frame pixels: {len(frame_pixels)} pixels, first few:'
-                        f' {frame_pixels[:5]}',
-                    )
-                    self.log.info(
-                        f'DEBUG: Frame pixel types: {[type(p) for p in frame_pixels[:3]]}',
-                    )
-                    self.log.info(
-                        f'DEBUG: All frame pixels same color: {len(set(frame_pixels)) == 1}',
-                    )
-                    self.pixels = frame_pixels
-                    self.dirty_pixels = [True] * len(self.pixels)
-                    self.log.info('Updated canvas pixels from frame %s', current_frame)
-                    # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
-                    self.dirty = 1
-                else:
-                    self.log.info('DEBUG: Frame has no get_pixel_data method')
-            else:
-                self.log.info(
-                    "DEBUG: Animation '%s' or frame %s not found",
-                    current_animation,
-                    current_frame,
-                )
-        else:
-            self.log.info('DEBUG: No animated_sprite available for canvas sync')
 
     def set_frame(self, frame_index: int) -> None:
         """Set the current frame index for the current animation."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            if self.current_animation in frames and 0 <= frame_index < len(
-                frames[self.current_animation],
+        frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
+        if self.current_animation in frames and 0 <= frame_index < len(
+            frames[self.current_animation],
+        ):
+            # Store the current playing state
+            was_playing = self.animated_sprite.is_playing
+
+            # Pause the animation when manually selecting frames
+            self.animated_sprite.pause()
+
+            self.current_frame = frame_index
+            self.animated_sprite.set_frame(frame_index)
+
+            # Mark that user manually selected a frame
+            self._manual_frame_selected = True
+
+            # Update the canvas interface
+            self.canvas_interface.set_current_frame(self.current_animation, frame_index)
+
+            # Update the undo/redo manager with the current frame for frame-specific operations
+            if (
+                hasattr(self, 'parent_scene')
+                and self.parent_scene
+                and hasattr(self.parent_scene, 'undo_redo_manager')
             ):
-                # Store the current playing state
-                was_playing = self.animated_sprite.is_playing
-
-                # Pause the animation when manually selecting frames
-                self.animated_sprite.pause()
-
-                self.current_frame = frame_index
-                self.animated_sprite.set_frame(frame_index)
-
-                # Mark that user manually selected a frame
-                self._manual_frame_selected = True
-
-                # Update the canvas interface
-                self.canvas_interface.set_current_frame(self.current_animation, frame_index)
-
-                # Update the undo/redo manager with the current frame for frame-specific operations
-                if (
-                    hasattr(self, 'parent_scene')
-                    and self.parent_scene
-                    and hasattr(self.parent_scene, 'undo_redo_manager')
-                ):
-                    self.parent_scene.undo_redo_manager.set_current_frame(
-                        self.current_animation,
-                        frame_index,
-                    )
-
-                # Only restart animation if it was playing before
-                if was_playing:
-                    self.animated_sprite.play()
-                    self._manual_frame_selected = False
-                else:
-                    # Keep it paused if it was already paused
-                    self.log.debug(
-                        'Animation was paused, keeping it paused at frame %s',
-                        frame_index,
-                    )
-
-                self.dirty = 1
-                self.log.debug(
-                    f'Set frame to {frame_index} for animation '
-                    f"'{self.current_animation}' (was_playing: {was_playing})",
+                self.parent_scene.undo_redo_manager.set_current_frame(
+                    self.current_animation,
+                    frame_index,
                 )
+
+            # Only restart animation if it was playing before
+            if was_playing:
+                self.animated_sprite.play()
+                self._manual_frame_selected = False
+            else:
+                # Keep it paused if it was already paused
+                self.log.debug(
+                    'Animation was paused, keeping it paused at frame %s',
+                    frame_index,
+                )
+
+            self.dirty = 1
+            self.log.debug(
+                f'Set frame to {frame_index} for animation '
+                f"'{self.current_animation}' (was_playing: {was_playing})",
+            )
 
     def _should_track_frame_selection(self) -> bool:
         """Check if frame selection changes should be tracked for undo/redo.
@@ -793,19 +781,18 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         elif key == pygame.K_SPACE:
             # Toggle animation play/pause
             self.log.debug('SPACE key pressed')
-            if hasattr(self, 'animated_sprite') and self.animated_sprite:
-                current_state = self.animated_sprite.is_playing
-                self.log.debug('Current animation state: is_playing=%s', current_state)
-                if self.animated_sprite.is_playing:
-                    self.animated_sprite.pause()
-                    self.log.debug('Animation paused')
-                else:
-                    # Restart animation from current frame
-                    self.animated_sprite.play()
-                    self.log.debug('Animation restarted')
-                self.log.debug(f'New animation state: is_playing={self.animated_sprite.is_playing}')
+            current_state = self.animated_sprite.is_playing
+            self.log.debug('Current animation state: is_playing=%s', current_state)
+            if self.animated_sprite.is_playing:
+                self.animated_sprite.pause()
+                self.log.debug('Animation paused')
+            else:
+                # Restart animation from current frame
+                self.animated_sprite.play()
+                self.log.debug('Animation restarted')
+            self.log.debug(f'New animation state: is_playing={self.animated_sprite.is_playing}')
 
-                # Note: Live preview functionality is now integrated into the film strip
+            # Note: Live preview functionality is now integrated into the film strip
         else:
             self.log.debug('Unhandled key: %s', key)
 
@@ -880,8 +867,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def update_animation(self, dt: float) -> None:
         """Update the animated sprite with delta time."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            self.animated_sprite.update(dt)
+        self.animated_sprite.update(dt)
 
     @override
     def update(self) -> None:
@@ -1152,9 +1138,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             del self._drag_redraw_counter
         if hasattr(self, '_drag_frame'):
             if self._drag_frame is not None:
+                # The rebuild clears the frame's _image_stale flag
                 self._rebuild_frame_image_from_pixels(self._drag_frame)
-            if hasattr(self._drag_frame, '_image_stale'):
-                del self._drag_frame._image_stale  # type: ignore[reportPrivateUsage]
             del self._drag_frame
 
     @override
@@ -1171,8 +1156,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         else:
             self._sync_drag_frame_surface()
 
-            if hasattr(self, 'animated_sprite'):
-                self._update_animated_sprite_frame()
+            self._update_animated_sprite_frame()
 
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
@@ -1232,8 +1216,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
 
             # Update the animated sprite's frame data
-            if hasattr(self, 'animated_sprite'):
-                self._update_animated_sprite_frame()
+            self._update_animated_sprite_frame()
 
     def on_mouse_leave_window_event(self, event: events.HashableEvent) -> None:
         """Handle mouse leaving window event."""
@@ -1256,9 +1239,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         CRITICAL: If ANY frame has alpha pixels, normalize ALL frames to RGBA format
         to ensure consistent color map matching during save.
         """
-        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
-            return
-
         try:
             # Sync frames using ONLY the raw pixel data in memory
             # Don't extract from _image - just use frame.pixels if it exists
@@ -1441,10 +1421,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Debug: Check what was loaded
         self.log.debug(f'Loaded sprite has _animations: {hasattr(loaded_sprite, "_animations")}')
-        if hasattr(loaded_sprite, '_animations'):
-            self.log.debug(f'Loaded sprite _animations: {list(loaded_sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
-            self.log.debug(f'Loaded sprite current_animation: {loaded_sprite.current_animation}')
-            self.log.debug(f'Loaded sprite is_playing: {loaded_sprite.is_playing}')
+        self.log.debug(f'Loaded sprite _animations: {list(loaded_sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
+        self.log.debug(f'Loaded sprite current_animation: {loaded_sprite.current_animation}')
+        self.log.debug(f'Loaded sprite is_playing: {loaded_sprite.is_playing}')
 
         return loaded_sprite
 
@@ -1756,18 +1735,16 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             f'Converted static sprite to animated format with 1 frame: {len(pixel_data)} pixels',  # type: ignore[arg-type]
         )
         self.log.debug(f'Animated sprite has frames: {hasattr(animated_sprite, "frames")}')
-        if hasattr(animated_sprite, 'frames'):
-            self.log.debug(f'Available animations: {list(animated_sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
-            if 'idle' in animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-                self.log.debug(
-                    f'Idle animation has {len(animated_sprite._animations["idle"])} frames',  # type: ignore[reportPrivateUsage]
-                )
-                if animated_sprite._animations['idle']:  # type: ignore[reportPrivateUsage]
-                    frame_pixels = animated_sprite._animations['idle'][0].get_pixel_data()  # type: ignore[reportPrivateUsage]
-                    self.log.debug(
-                        f'First frame pixels: {len(frame_pixels)} pixels, '
-                        f'first few: {frame_pixels[:5]}',
-                    )
+        self.log.debug(f'Available animations: {list(animated_sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
+        if 'idle' in animated_sprite._animations:  # type: ignore[reportPrivateUsage]
+            self.log.debug(
+                f'Idle animation has {len(animated_sprite._animations["idle"])} frames',  # type: ignore[reportPrivateUsage]
+            )
+            # 'idle' exists only when the frame added above went into it, so it has a frame
+            frame_pixels = animated_sprite._animations['idle'][0].get_pixel_data()  # type: ignore[reportPrivateUsage]
+            self.log.debug(
+                f'First frame pixels: {len(frame_pixels)} pixels, first few: {frame_pixels[:5]}',
+            )
 
         return animated_sprite
 
@@ -1838,9 +1815,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def _copy_sprite_to_canvas(self) -> None:
         """Copy the current frame of the animated sprite to the canvas."""
-        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
-            return
-
         # Get the current frame pixels from the animated sprite
         current_frame_pixels = self._get_current_frame_pixels()
         if current_frame_pixels:
@@ -1879,13 +1853,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def _update_animated_sprite_frame(self) -> None:
         """Update the animated sprite's current frame with canvas data."""
-        if not (
-            hasattr(self, 'animated_sprite')
-            and hasattr(self, 'current_animation')
-            and hasattr(self, 'current_frame')
-        ):
-            return
-
         current_anim = self.current_animation
         current_frame = self.current_frame
 

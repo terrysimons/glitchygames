@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 try:
     import pyperclip
-except ImportError:
+except ImportError:  # pragma: no cover - pyperclip is an optional package
     pyperclip = None
 
 import pygame
@@ -170,23 +170,20 @@ class TextSprite(BitmappySprite):
         """Update the sprite."""
         # Handle cursor blinking for active text boxes
         if self.is_active:
-            old_visible = self._cursor_visible
             self._cursor_timer += 1
             # Blink every 30 frames (0.5 seconds at 60fps)
             if self._cursor_timer >= CURSOR_BLINK_FRAME_INTERVAL:
+                # The visibility changes, which the dirty flag below redraws
                 self._cursor_visible = not self._cursor_visible
                 self._cursor_timer = 0
-                # Force redraw when cursor visibility changes
-                if old_visible != self._cursor_visible:
-                    self.dirty = 2
             # Always mark as dirty when active to ensure continuous updates
             self.dirty = 2
         else:
             # Reset dirty flag when not active
             self.dirty = 1
 
-        if self.dirty:
-            self.update_text(self._text)
+        # Always dirty here (2 while active, else 1)
+        self.update_text(self._text)
 
     def update_text(self, text: str) -> None:
         """Update the text surface."""
@@ -254,7 +251,7 @@ class TextSprite(BitmappySprite):
                 text_surface, text_rect = self._render_with_freetype_font(
                     font, text, text_color, is_transparent=is_transparent
                 )
-            except TypeError, ValueError:
+            except TypeError, ValueError:  # pragma: no cover - freetype rejected the color
                 # Fall back to pygame.font style (returns surface)
                 text_surface = self._render_with_pygame_font(
                     font,
@@ -1049,7 +1046,7 @@ class MultiLineTextBox(BitmappySprite):
                     render_result = self.font.render(line, text_color)
                     if isinstance(render_result, tuple):
                         text_surface = render_result[0]
-                    else:
+                    else:  # pragma: no cover - a freetype font's render returns (surface, rect)
                         text_surface = render_result
                 else:
                     font_result = self.font.render(line, True, text_color)  # type: ignore[arg-type]  # ruff: ignore[boolean-positional-value-in-call]
@@ -1081,13 +1078,11 @@ class MultiLineTextBox(BitmappySprite):
             return
 
         # Get the current line text in wrapped text
+        # lines_before_cursor counts the newlines before the cursor, so the line exists
         wrapped_lines = self._text.split('\n')
-        if lines_before_cursor < len(wrapped_lines):
-            current_line_text = wrapped_lines[lines_before_cursor]
-            text_up_to_cursor = current_line_text[:column_pos]
-            text_width = self._get_text_width(text_up_to_cursor)
-        else:
-            text_width = 0
+        current_line_text = wrapped_lines[lines_before_cursor]
+        text_up_to_cursor = current_line_text[:column_pos]
+        text_width = self._get_text_width(text_up_to_cursor)
 
         cursor_x = text_width + 5
         cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)

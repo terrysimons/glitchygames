@@ -1635,13 +1635,6 @@ class TestUpdateAiSpritePosition:
 class TestVoiceRecognition:
     """Tests for EditorSetup.setup_voice_recognition."""
 
-    def test_voice_manager_not_available(self, mock_editor, mocker):
-        """Handles VoiceEventManager not being available."""
-        mocker.patch.object(bitmappy_setup, 'VoiceEventManager', None)
-        setup_delegate = bitmappy_setup.EditorSetup(editor=mock_editor)
-        setup_delegate.setup_voice_recognition()
-        assert mock_editor.voice_manager is None
-
     def test_voice_exception_handling(self, mock_editor, mocker):
         """Handles exceptions during voice setup."""
         mocker.patch.object(bitmappy_setup, 'VoiceEventManager', side_effect=ImportError)

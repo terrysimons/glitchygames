@@ -227,15 +227,14 @@ class SliderSprite(BitmappySprite):
     @value.setter
     def value(self, new_value: int) -> None:
         """Set the slider value."""
-        if hasattr(self, 'slider_knob'):  # Only update knob if it exists
-            self._value = max(0, min(255, new_value))
-            self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
-            self.slider_knob.dirty = 2
-            if hasattr(self, 'text_sprite'):
-                # Deactivate text sprite and update text
-                self.text_sprite.is_active = False
-                self.text_sprite.text = str(self._value)
-                self.text_sprite.update_text(self.text_sprite.text)
+        # __init__ makes the knob and the text sprite before it first sets the value
+        self._value = max(0, min(255, new_value))
+        self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
+        self.slider_knob.dirty = 2
+        # Deactivate text sprite and update text
+        self.text_sprite.is_active = False
+        self.text_sprite.text = str(self._value)
+        self.text_sprite.update_text(self.text_sprite.text)
 
     def _init_text_sprite(
         self,

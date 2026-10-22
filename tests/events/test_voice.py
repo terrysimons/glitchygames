@@ -1516,7 +1516,6 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         """
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
-        mocker.patch('glitchygames.bitmappy.editor_setup.VoiceEventManager', new=None)
         # Create scene instance
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()

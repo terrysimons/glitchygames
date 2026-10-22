@@ -21,6 +21,7 @@ import numpy as np
 import pygame
 import pytest
 
+from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
@@ -256,9 +257,12 @@ class TestAnimationHardware:
             scene.force_display_update()
             displayed_colors.append(scene.sprite_area_colors_on_display())
 
-        # Every frame shows, the magenta one included: a TOML AnimatedSprite that is not
-        # converted to alpha draws magenta as an opaque colour (CLAUDE.md, Hitboxes)
-        assert displayed_colors == [{color} for color in FRAME_COLORS]
+        # Every frame shows its colour, except the magenta one: magenta is the transparency
+        # key, so that frame shows the background (BUGS.md #133)
+        assert displayed_colors == [
+            {BACKGROUND_COLOR if color == MAGENTA_TRANSPARENCY_KEY else color}
+            for color in FRAME_COLORS
+        ]
 
     def test_hardware_rendering_performance(self):
         """Test that rendering and reading back the display performs within acceptable limits."""

@@ -458,9 +458,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             self.editor.selected_frame = 0
 
             # Mark all film strips as dirty so they redraw with correct selection state
-            if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-                for strip_widget in self.editor.film_strips.values():
-                    strip_widget.mark_dirty()
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
 
     def update_film_strip_visibility(self) -> None:
         """Update which film strips are visible based on scroll offset."""
@@ -502,26 +501,22 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         # Show only the visible strips and position them in fixed slots
         for i in range(start_index, end_index):
-            if i < len(animation_names):
-                anim_name = animation_names[i]
-                if (
-                    anim_name in self.editor.film_strips
-                    and anim_name in self.editor.film_strip_sprites
-                ):
-                    film_strip = self.editor.film_strips[anim_name]
-                    film_strip_sprite = self.editor.film_strip_sprites[anim_name]
+            anim_name = animation_names[i]
+            if anim_name in self.editor.film_strips and anim_name in self.editor.film_strip_sprites:
+                film_strip = self.editor.film_strips[anim_name]
+                film_strip_sprite = self.editor.film_strip_sprites[anim_name]
 
-                    # Position in fixed slot (0 or 1)
-                    slot_index = i - start_index
-                    fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
+                # Position in fixed slot (0 or 1)
+                slot_index = i - start_index
+                fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
 
-                    # Update positions
-                    film_strip.rect.y = fixed_y
-                    film_strip_sprite.rect.y = fixed_y
-                    film_strip_sprite.visible = True
+                # Update positions
+                film_strip.rect.y = fixed_y
+                film_strip_sprite.rect.y = fixed_y
+                film_strip_sprite.visible = True
 
-                    # Mark as dirty to ensure redraw after repositioning
-                    film_strip.mark_dirty()
+                # Mark as dirty to ensure redraw after repositioning
+                film_strip.mark_dirty()
 
         # Update scroll arrows
         self.update_scroll_arrows()
@@ -591,72 +586,71 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         new_animation_name = f'strip_{len(self.editor.canvas.animated_sprite._animations) + 1}'  # type: ignore[reportPrivateUsage]
 
         # Create a blank frame for the new animation using the canonical helper
-        if hasattr(self.editor, 'canvas') and self.editor.canvas:
-            # Get the canvas pixel dimensions (same as original canvas)
-            pixels_across = self.editor.canvas.pixels_across
-            pixels_tall = self.editor.canvas.pixels_tall
+        # Get the canvas pixel dimensions (same as original canvas)
+        pixels_across = self.editor.canvas.pixels_across
+        pixels_tall = self.editor.canvas.pixels_tall
 
-            # Use the shared helper to create a blank frame with proper SRCALPHA support
-            animated_frame = self._create_blank_frame(pixels_across, pixels_tall, duration=1.0)
+        # Use the shared helper to create a blank frame with proper SRCALPHA support
+        animated_frame = self._create_blank_frame(pixels_across, pixels_tall, duration=1.0)
 
-            # Insert the new animation at the specified position
-            if insert_after_index is not None:
-                # Get current animations as a list to maintain order
-                current_animations = list(self.editor.canvas.animated_sprite._animations.items())  # type: ignore[reportPrivateUsage]
+        # Insert the new animation at the specified position
+        if insert_after_index is not None:
+            # Get current animations as a list to maintain order
+            current_animations = list(self.editor.canvas.animated_sprite._animations.items())  # type: ignore[reportPrivateUsage]
 
-                # Create new ordered dict with the new animation inserted
-                new_animations = {}
-                for i, (anim_name, frames) in enumerate(current_animations):
-                    new_animations[anim_name] = frames
-                    if i == insert_after_index:
-                        # Insert the new animation after this one
-                        new_animations[new_animation_name] = [animated_frame]
-
-                # If we didn't insert yet (insert_after_index >= len), add at end
-                if insert_after_index >= len(current_animations):
+            # Create new ordered dict with the new animation inserted
+            new_animations = {}
+            for i, (anim_name, frames) in enumerate(current_animations):
+                new_animations[anim_name] = frames
+                if i == insert_after_index:
+                    # Insert the new animation after this one
                     new_animations[new_animation_name] = [animated_frame]
 
-                # Replace the animations dict
-                self.editor.canvas.animated_sprite._animations = new_animations  # type: ignore[reportPrivateUsage]
-            else:
-                # Add at the end (original behavior)
-                self.editor.canvas.animated_sprite._animations[new_animation_name] = [  # type: ignore[reportPrivateUsage]
-                    animated_frame,
-                ]
+            # If we didn't insert yet (insert_after_index >= len), add at end
+            if insert_after_index >= len(current_animations):
+                new_animations[new_animation_name] = [animated_frame]
 
-            # Track animation creation for undo/redo
-            if hasattr(self.editor, 'film_strip_operation_tracker'):
-                # Set flag to prevent frame selection tracking during animation creation
-                self._creating_animation = True
-                try:
-                    # Create animation data for undo/redo
-                    animation_data = {
-                        'frames': [
-                            {
-                                'width': animated_frame.image.get_width(),
-                                'height': animated_frame.image.get_height(),
-                                'pixels': animated_frame.pixels.copy()
-                                if hasattr(animated_frame, 'pixels')
-                                else [],
-                                'duration': animated_frame.duration,
-                            },
-                        ],
-                        'frame_count': 1,
-                    }
+            # Replace the animations dict
+            self.editor.canvas.animated_sprite._animations = new_animations  # type: ignore[reportPrivateUsage]
+        else:
+            # Add at the end (original behavior)
+            self.editor.canvas.animated_sprite._animations[new_animation_name] = [  # type: ignore[reportPrivateUsage]
+                animated_frame,
+            ]
 
-                    # Track animation addition for undo/redo
-                    self.editor.film_strip_operation_tracker.add_animation_added(
-                        new_animation_name,
-                        animation_data,
-                    )
-                finally:
-                    self._creating_animation = False
+        # Track animation creation for undo/redo
+        if hasattr(self.editor, 'film_strip_operation_tracker'):
+            # Set flag to prevent frame selection tracking during animation creation
+            self._creating_animation = True
+            try:
+                # Create animation data for undo/redo
+                animation_data = {
+                    'frames': [
+                        {
+                            'width': animated_frame.image.get_width(),
+                            'height': animated_frame.image.get_height(),
+                            'pixels': animated_frame.pixels.copy()
+                            if hasattr(animated_frame, 'pixels')
+                            else [],
+                            'duration': animated_frame.duration,
+                        },
+                    ],
+                    'frame_count': 1,
+                }
 
-            # Add just the new strip incrementally instead of rebuilding all strips
-            self._add_single_film_strip(new_animation_name, [animated_frame])
+                # Track animation addition for undo/redo
+                self.editor.film_strip_operation_tracker.add_animation_added(
+                    new_animation_name,
+                    animation_data,
+                )
+            finally:
+                self._creating_animation = False
 
-            # Select, scroll to, and activate the new animation
-            self._activate_new_animation(new_animation_name)
+        # Add just the new strip incrementally instead of rebuilding all strips
+        self._add_single_film_strip(new_animation_name, [animated_frame])
+
+        # Select, scroll to, and activate the new animation
+        self._activate_new_animation(new_animation_name)
 
     def _add_single_film_strip(
         self,
@@ -735,8 +729,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self.editor.selected_frame = 0
 
         # Notify the canvas to switch to the new frame
-        if hasattr(self.editor, 'canvas') and self.editor.canvas:
-            self._notify_canvas_of_new_animation(new_animation_name)
+        self._notify_canvas_of_new_animation(new_animation_name)
 
     def _notify_canvas_of_new_animation(self, new_animation_name: str) -> None:
         """Switch the canvas to display the new animation and force a redraw.
@@ -812,14 +805,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self.editor.canvas.animated_sprite.forget_animation_settings(animation_name)
         self.log.info('Deleted animation: %s at index %s', animation_name, deleted_index)
 
-        # Switch to the first remaining animation and select the previous frame
+        # Switch to the first remaining animation and select the previous frame (one always
+        # remains: the last animation is never deleted, see the check above)
         remaining_animations = list(self.editor.canvas.animated_sprite._animations.keys())  # type: ignore[reportPrivateUsage]
-        if remaining_animations:
-            self._select_animation_after_deletion(remaining_animations, animation_name)
-            return
-
-        # No remaining animations - clear selection
-        self._handle_no_remaining_animations(remaining_animations, all_animations, deleted_index)
+        self._select_animation_after_deletion(remaining_animations, animation_name)
 
     def _capture_animation_deletion_for_undo(self, animation_name: str) -> None:
         """Capture animation data for undo/redo before deletion.
@@ -1345,14 +1334,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             and hasattr(self.editor.canvas, 'animated_sprite')
         ):
             self.log.debug('BitmapEditorScene: Using canvas.animated_sprite for rename')
-            return self.editor.canvas.animated_sprite
-        if (
-            hasattr(self.editor, 'canvas')
-            and self.editor.canvas
-            and hasattr(self.editor.canvas, 'animated_sprite')
-            and self.editor.canvas.animated_sprite
-        ):
-            self.log.debug('BitmapEditorScene: Using self.editor.canvas.animated_sprite for rename')
             return self.editor.canvas.animated_sprite
         return None
 
@@ -2001,9 +1982,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             self.editor.selected_frame = 0
 
             # Mark all film strips as dirty so they redraw with correct selection state
-            if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-                for strip_widget in self.editor.film_strips.values():
-                    strip_widget.mark_dirty()
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
 
     def _navigate_frame(self, direction: int) -> None:
         """Navigate to the next or previous frame in the current animation.
@@ -2126,9 +2106,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             self.editor.selected_frame = 0
 
             # Mark all film strips as dirty so they redraw with correct selection state
-            if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-                for strip_widget in self.editor.film_strips.values():
-                    strip_widget.mark_dirty()
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
 
     def update_film_strips_for_frame(self, animation: str, frame: int) -> None:
         """Update film strips when frame changes."""

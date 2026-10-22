@@ -1588,8 +1588,9 @@ class ReplaySources:
         """
         del frame_number
         frame = self._current_frame()
-        if frame is None:
-            return []
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         return [
             ControlEvent.from_json(record)
             for record in frame.get(CONTROL_EVENTS_FIELD, [])
@@ -1619,8 +1620,11 @@ class ReplaySources:
         # dt is the recorded one by construction
         del dt
         frame = self._current_frame()
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         # Compared until the replay ended (a watched replay may run on after its end, rule 14)
-        if frame is not None and self.result.end_reason == RUNNING_END_REASON:
+        if self.result.end_reason == RUNNING_END_REASON:
             # Sampled exactly as the recorder samples a recorded frame
             replayed = sample_scene_frame(
                 frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
@@ -1668,7 +1672,7 @@ class ReplaySources:
                 or self.controls.paused
                 or self._stop_requested
             ):
-                self._finish_rebuild()
+                self._finish_rebuild(rebuild=self._rebuild)
         self._begin_frame()
 
     def finish_run(self: Self) -> None:
@@ -1900,8 +1904,8 @@ class ReplaySources:
             live_internal_events: The events the replayed code posted, in queue order.
 
         Returns:
-            The batch and each event's origin. Past the end of the recording, or on a pump the
-            frame did not record, the live internal events alone.
+            The batch and each event's origin. On a pump the frame did not record, the live
+            internal events alone.
 
         """
         uncompared_event_types: frozenset[int] = (
@@ -1909,8 +1913,9 @@ class ReplaySources:
         )
         live_origins = [INTERNAL_ORIGIN] * len(live_internal_events)
         frame = self._current_frame()
-        if frame is None:
-            return list(live_internal_events), live_origins
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         batches = frame.get(EVENT_BATCHES_FIELD, [])
         if self._pump_index >= len(batches):
             self._note_frame_divergence(
@@ -2036,8 +2041,9 @@ class ReplaySources:
 
         """
         frame = self._current_frame()
-        if frame is None:
-            return [], [], live_internal_events
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         unmatched = [
             (event, event_to_record(event=event, origin=INTERNAL_ORIGIN))
             for event in live_internal_events
@@ -2287,10 +2293,14 @@ class ReplaySources:
             )
         )
 
-    def _finish_rebuild(self: Self) -> None:
-        """End a restarted replay's rebuild: pause it where it is, its music resumed (rule 15)."""
-        if self._rebuild is not None:
-            self._rebuild.finish()
+    def _finish_rebuild(self: Self, *, rebuild: Rebuild) -> None:
+        """End a restarted replay's rebuild: pause it where it is, its music resumed (rule 15).
+
+        Args:
+            rebuild: The rebuild in progress (``self._rebuild``).
+
+        """
+        rebuild.finish()
         self._rebuild = None
         self.controls.rebuild_target_frame = None
         self.controls.paused = True

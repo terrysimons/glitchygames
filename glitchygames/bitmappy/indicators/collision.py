@@ -15,7 +15,7 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, ClassVar
+from typing import Any, ClassVar, assert_never
 
 import pygame
 
@@ -89,7 +89,6 @@ class VisualCollisionManager:
         self.slider_indicators: dict[int, VisualIndicator] = {}
 
         # Location-specific collision groups
-        self.collision_groups: dict[tuple[int, int], list[int]] = {}
         self.film_strip_collision_groups: dict[tuple[int, int], list[int]] = {}
         self.canvas_collision_groups: dict[tuple[int, int], list[int]] = {}
         self.slider_collision_groups: dict[tuple[int, int], list[int]] = {}
@@ -153,7 +152,7 @@ class VisualCollisionManager:
                 'Added to canvas_indicators - now %s indicators',
                 len(self.canvas_indicators),
             )
-        elif location_type == LocationType.SLIDER:
+        elif location_type == LocationType.SLIDER:  # pragma: no branch - every LocationType
             self.slider_indicators[controller_id] = indicator
             LOG.debug(
                 'Added to slider_indicators - now %s indicators',
@@ -283,7 +282,7 @@ class VisualCollisionManager:
                 indicators_dict = self.canvas_indicators
             elif location_type == LocationType.SLIDER:
                 indicators_dict = self.slider_indicators
-            else:
+            else:  # pragma: no cover - every LocationType is matched above
                 indicators_dict = self.indicators
 
             indicators = [
@@ -313,7 +312,7 @@ class VisualCollisionManager:
         elif location_type == LocationType.SLIDER:
             self.slider_collision_groups.clear()
             indicators_dict = self.slider_indicators
-        else:
+        else:  # pragma: no cover - every LocationType is matched above
             return
 
         # Group indicators by position for the specific location
@@ -349,7 +348,7 @@ class VisualCollisionManager:
             return self.canvas_collision_groups
         if location_type == LocationType.SLIDER:
             return self.slider_collision_groups
-        return self.collision_groups
+        assert_never(location_type)  # pragma: no cover - every LocationType is matched above
 
     def _apply_collision_avoidance(
         self,
@@ -383,28 +382,28 @@ class VisualCollisionManager:
             indicators_dict = self.canvas_indicators
         elif location_type == LocationType.SLIDER:
             indicators_dict = self.slider_indicators
-        else:
+        else:  # pragma: no cover - every LocationType is matched above
             indicators_dict = self.indicators
 
-        # Apply offsets to indicators
+        # Apply offsets to indicators (each controller id came from a collision group, which
+        # _update_collision_groups built from this same indicators dict)
         for i, controller_id in enumerate(controller_ids):
-            if controller_id in indicators_dict:
-                if i < len(offsets):
-                    indicators_dict[controller_id].offset = offsets[i]
-                    LOG.debug(
-                        'Applied %s offset %s to controller %s',
-                        location_type.value,
-                        offsets[i],
-                        controller_id,
-                    )
-                else:
-                    # Fallback to default offset
-                    indicators_dict[controller_id].offset = (0, 0)
-                    LOG.debug(
-                        'Applied fallback %s offset (0, 0) to controller %s',
-                        location_type.value,
-                        controller_id,
-                    )
+            if i < len(offsets):
+                indicators_dict[controller_id].offset = offsets[i]
+                LOG.debug(
+                    'Applied %s offset %s to controller %s',
+                    location_type.value,
+                    offsets[i],
+                    controller_id,
+                )
+            else:
+                # Fallback to default offset
+                indicators_dict[controller_id].offset = (0, 0)
+                LOG.debug(
+                    'Applied fallback %s offset (0, 0) to controller %s',
+                    location_type.value,
+                    controller_id,
+                )
 
     def _calculate_offsets(self, count: int) -> list[tuple[int, int]]:
         """Calculate offsets for collision avoidance.
@@ -416,9 +415,7 @@ class VisualCollisionManager:
             List of offset tuples
 
         """
-        if count <= 1:
-            return [(0, 0)]
-
+        # Only called for collision groups, which have 2 indicators or more
         # Use predefined patterns for common cases
         if count <= len(self.POSITION_PATTERNS):
             return self.POSITION_PATTERNS[:count]
@@ -533,7 +530,6 @@ class VisualCollisionManager:
         self.film_strip_indicators.clear()
         self.canvas_indicators.clear()
         self.slider_indicators.clear()
-        self.collision_groups.clear()
         self.film_strip_collision_groups.clear()
         self.canvas_collision_groups.clear()
         self.slider_collision_groups.clear()
@@ -547,8 +543,7 @@ class VisualCollisionManager:
             Dictionary with collision information
 
         """
-        # Collision groups are kept per location (_update_collision_groups never fills the
-        # legacy collision_groups dict), so the summary counts every location's groups
+        # Collision groups are kept per location, so the summary counts every location's groups
         location_collision_groups = [
             *self.film_strip_collision_groups.values(),
             *self.canvas_collision_groups.values(),

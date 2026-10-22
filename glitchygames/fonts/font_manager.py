@@ -137,16 +137,12 @@ class FontManager(ResourceManager):
         super().__init__(game=game)
         self.game: Any = game
 
-        # Register pygame.freetype if available
-        try:
-            pygame.freetype.init()
-            log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')
-            log.info(
-                f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}',
-            )
-        except AttributeError:
-            log.warning('pygame.freetype not available, using pygame.font instead')
-            pygame.font.init()
+        # Register pygame.freetype (imported at module top, so always available)
+        pygame.freetype.init()
+        log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')
+        log.info(
+            f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}',
+        )
 
         # Set up the default options.
         FontManager.OPTIONS['font_name'] = self.game.OPTIONS['font_name']
@@ -188,12 +184,8 @@ class FontManager(ResourceManager):
         # rendering computer fonts is unavailable then the SDL_ttf font module
         # will be loaded instead.
 
-        # Set up proxies based on available font system
-        try:
-            self.proxies: list[Any] = [FontManager.FontProxy(game=game), pygame.freetype]
-        except AttributeError:
-            # Fallback to pygame.font if freetype is not available
-            self.proxies = [FontManager.FontProxy(game=game), pygame.font]
+        # Set up proxies: the font proxy first, then pygame.freetype
+        self.proxies: list[Any] = [FontManager.FontProxy(game=game), pygame.freetype]
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

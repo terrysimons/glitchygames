@@ -319,13 +319,8 @@ class FilmStripOperations:
             )
             return
 
-        # Get all animation names in order
+        # Get all animation names in order (not empty: there are film strips, checked above)
         animation_names = list(self.handler.editor.film_strips.keys())
-        if not animation_names:
-            self.handler.log.debug(
-                f'DEBUG: No animations available for controller {controller_id} previous animation',
-            )
-            return
 
         # Find current animation index
         try:
@@ -382,13 +377,8 @@ class FilmStripOperations:
             )
             return
 
-        # Get all animation names in order
+        # Get all animation names in order (not empty: there are film strips, checked above)
         animation_names = list(self.handler.editor.film_strips.keys())
-        if not animation_names:
-            self.handler.log.debug(
-                f'DEBUG: No animations available for controller {controller_id} next animation',
-            )
-            return
 
         # Find current animation index
         try:

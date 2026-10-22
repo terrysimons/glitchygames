@@ -14,7 +14,6 @@ import pygame
 
 from glitchygames.bitmappy.film_strip_layout import render_label_text
 from glitchygames.clock import frame_clock_milliseconds
-from glitchygames.color import RGB_COMPONENT_COUNT
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.film_strip import FilmStripWidget
@@ -258,10 +257,9 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 r, g, b = color[0], color[1], color[2]
                 if (r, g, b) == (255, 0, 255):
                     rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
-                elif len(color) == RGB_COMPONENT_COUNT:
-                    rgba_surface.set_at((x, y), (r, g, b, 255))  # Full opacity
                 else:
-                    rgba_surface.set_at((x, y), color)  # Keep original RGBA
+                    # Surface.get_at always returns an RGBA Color: keep it as it is
+                    rgba_surface.set_at((x, y), color)
 
         return rgba_surface
 
@@ -629,9 +627,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         if not self.widget.animated_sprite:
             return
 
-        # Debug: Track render calls
-        if not hasattr(self.widget, 'render_count'):
-            self.widget.render_count = 0
+        # Debug: Track render calls (render_count starts at 0 in FilmStripWidget.__init__)
         self.widget.render_count += 1
 
         # Debug: Print render count every 50 renders
@@ -907,11 +903,8 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         # Sort controllers by color order (Red, Green, Blue, Yellow)
         controller_selections.sort(key=lambda s: self._color_priority(s['color']))
 
-        # Calculate total number of indicators
+        # Calculate total number of indicators (never 0: frame groups are never empty)
         total_indicators = len(controller_selections) + (1 if keyboard_selection else 0)
-
-        if total_indicators == 0:
-            return  # Nothing to draw
 
         # Define spacing between indicators (in pixels)
         indicator_spacing = 8  # 8 pixels between triangle centers
@@ -1095,28 +1088,28 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         total_width = self.widget.rect.width - 20  # Leave 10px margin on each side
 
         # Calculate how many sprockets fit and center them (same as bottom)
+        # (at least 1: the 10px margins take at most 2 spacings off a width of 0 or more)
         num_sprockets = (total_width // sprocket_spacing) + 3
-        if num_sprockets > 0:
-            # Calculate the total space the sprockets will occupy
-            sprockets_width = (num_sprockets - 1) * sprocket_spacing
-            # Center the sprockets within the available space
-            start_x = 10 + (total_width - sprockets_width) // 2
+        # Calculate the total space the sprockets will occupy
+        sprockets_width = (num_sprockets - 1) * sprocket_spacing
+        # Center the sprockets within the available space
+        start_x = 10 + (total_width - sprockets_width) // 2
 
-            # Draw sprockets across the entire width, skipping label area
-            for i in range(num_sprockets):
-                x = start_x + (i * sprocket_spacing)
-                # Skip the label area
-                if x < label_left or x > label_right:
-                    # Draw rounded rectangle instead of circle
-                    # Add top margin for delete button
-                    top_margin = 20  # Space for the [-] delete button at the top
-                    rect = pygame.Rect(
-                        x - 3,
-                        7 + top_margin - 20,
-                        6,
-                        6,
-                    )  # 6x6 rectangle centered at (x, 10 + top_margin - 20)
-                    pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
+        # Draw sprockets across the entire width, skipping label area
+        for i in range(num_sprockets):
+            x = start_x + (i * sprocket_spacing)
+            # Skip the label area
+            if x < label_left or x > label_right:
+                # Draw rounded rectangle instead of circle
+                # Add top margin for delete button
+                top_margin = 20  # Space for the [-] delete button at the top
+                rect = pygame.Rect(
+                    x - 3,
+                    7 + top_margin - 20,
+                    6,
+                    6,
+                )  # 6x6 rectangle centered at (x, 10 + top_margin - 20)
+                pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
         # Draw two sets of sprockets along the bottom edge
         # - same distance from bottom as top sprockets are from top
@@ -1128,26 +1121,26 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         total_width = self.widget.rect.width - 20  # Leave 10px margin on each side
 
         # Calculate how many sprockets fit and center them (add three more)
+        # (at least 1: the 10px margins take at most 2 spacings off a width of 0 or more)
         num_sprockets = (total_width // sprocket_spacing) + 3
-        if num_sprockets > 0:
-            # Calculate the total space the sprockets will occupy
-            sprockets_width = (num_sprockets - 1) * sprocket_spacing
-            # Center the sprockets within the available space
-            start_x = 10 + (total_width - sprockets_width) // 2
+        # Calculate the total space the sprockets will occupy
+        sprockets_width = (num_sprockets - 1) * sprocket_spacing
+        # Center the sprockets within the available space
+        start_x = 10 + (total_width - sprockets_width) // 2
 
-            # Draw bottom sprockets
-            for i in range(num_sprockets):
-                x = start_x + (i * sprocket_spacing)
-                # Skip the label area
-                if x < label_left or x > label_right:
-                    # Draw rounded rectangle instead of circle
-                    rect = pygame.Rect(
-                        x - 3,
-                        bottom_sprocket_y - 5,
-                        6,
-                        6,
-                    )  # 6x6 rectangle 5 pixels above first set
-                    pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
+        # Draw bottom sprockets
+        for i in range(num_sprockets):
+            x = start_x + (i * sprocket_spacing)
+            # Skip the label area
+            if x < label_left or x > label_right:
+                # Draw rounded rectangle instead of circle
+                rect = pygame.Rect(
+                    x - 3,
+                    bottom_sprocket_y - 5,
+                    6,
+                    6,
+                )  # 6x6 rectangle 5 pixels above first set
+                pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
     def render_removal_button(
         self,

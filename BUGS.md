@@ -72,15 +72,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-21
 - **Files**: `glitchygames/bitmappy/editor.py:701-704`, `glitchygames/bitmappy/animated_canvas.py`
 
-### 133. An AnimatedSprite's Image Loses Per-Pixel Alpha and Magenta Transparency
-- **Description**: `_update_surface_and_mark_dirty` -> `_get_current_surface` -> `_create_optimized_surface` (`sprites/animated.py` ~706-733) rebuilds the image of any frame with a `pixels` list (every TOML frame) as a plain Surface with no SRCALPHA and no colorkey; its "RGBA pixel" branch equals the RGB one. With `examples/foo2.toml`, the frame image has alpha 137 but `sprite.image` has 255 and no colorkey
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the 100% coverage audit
-- **Date Reported**: 2026-10-22
-- **Details**: Very likely the cause of the CLAUDE.md caveat that TOML AnimatedSprites keep magenta opaque. A fix changes visible-pixel hitboxes and so the golden traces and replays; needs a decision
-- **Files**: `glitchygames/sprites/animated.py:706-733`
-
 ### 134. A HashableEvent's Own Hash Shows Up as One of Its Attributes
 - **Description**: `HashableEvent` stores its hash in `__dict__` (`_HashableEvent__hash`), so `len()`, iteration, `keys()` and `repr` include it: `len(HashableEvent(KEYDOWN, key=1)) == 3`
 - **Status**: Active
@@ -97,14 +88,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Files**: `glitchygames/ui/dialogs.py` 344-346, 394-397, 446-449
 
-### 136. A Menu With No Item Rects Raises ValueError
-- **Description**: `max()` over the items' rects raises when none has one (`menus.py:527`), which also makes 531->539 unreachable
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the 100% coverage audit
-- **Date Reported**: 2026-10-22
-- **Files**: `glitchygames/ui/menus.py:527`
-
 ### 137. Frame Extraction Reports Non-PNG Data as a Success With 0 Frames
 - **Description**: `/sprites/extract-frames` returns `success=True` with no frames for arbitrary bytes, because `APNG.from_bytes` accepts garbage
 - **Status**: Active
@@ -119,8 +102,51 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found by the 100% coverage audit
 - **Date Reported**: 2026-10-22
-- **Details**: (1) `replay/driver.py` `_recorded_start` (958-966): a bad or missing `recorded_at` is refused with the right exit code but without the "The recording is malformed" prefix other header refusals use. (2) `scenes/scene.py` ~2593-2597: a scene with a `VERSION` but no `NAME` gets the caption `' v2.1'`. (3) `scenes/scene.py` 1930-1935: an exception between `push_scoped_sources` and setting `_playback_session` would leave the scoped doors pushed (only `take_redelivered_events()` runs there today). (4) `SlideTransition` with an unknown direction draws nothing while `WipeTransition` reveals the new scene; neither validates `direction` (tests pin current behaviour). (5) `fonts/font_manager.py:164`: with freetype missing, `set_default_resolution` would raise after the fallback anyway. (6) `AnimatedCanvasSprite.previous_animation` into an animation with no frames leaves the canvas but switches the film strip to it. (7) Dead code found by the audit (not deleted; listed per module in the audit notes): the canvas panning system in `animated_canvas.py`, `film_strip.py` `_get_stale_frame_surface`/`_update_film_tabs`, the triforce indicator forwarders, `editor.py` `deflate`, `ui/sliders.py` `update_color_well`, `animated.py` `_create_surface_from_toml_pixels`
+- **Details**: (1) `replay/driver.py` `_recorded_start` (958-966): a bad or missing `recorded_at` is refused with the right exit code but without the "The recording is malformed" prefix other header refusals use. (2) `scenes/scene.py` ~2593-2597: a scene with a `VERSION` but no `NAME` gets the caption `' v2.1'`. (3) `scenes/scene.py` 1930-1935: an exception between `push_scoped_sources` and setting `_playback_session` would leave the scoped doors pushed (only `take_redelivered_events()` runs there today). (4) `SlideTransition` with an unknown direction draws nothing while `WipeTransition` reveals the new scene; neither validates `direction` (tests pin current behaviour). (5) Resolved: the unreachable freetype fallbacks in `fonts/font_manager.py` were removed. (6) `AnimatedCanvasSprite.previous_animation` into an animation with no frames leaves the canvas but switches the film strip to it. (7) Dead code found by the audit (not deleted; listed per module in the audit notes): the canvas panning system in `animated_canvas.py`, `film_strip.py` `_get_stale_frame_surface`/`_update_film_tabs`, the triforce indicator forwarders, `editor.py` `deflate`, `ui/sliders.py` `update_color_well`, `animated.py` `_create_surface_from_toml_pixels`
 - **Files**: see Details
+
+### 141. A Third Controller on a Cached Indicator Position Lands on the First
+- **Description**: `VisualCollisionManager.position_cache` is keyed by position only, so a third controller at a position cached for two gets the fallback offset (0, 0), on top of the first controller
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned by the strict xfail `tests/tools/test_visual_collision.py::TestCachedOffsetsForAGrowingGroup`
+- **Files**: `glitchygames/bitmappy/indicators/collision.py`
+
+### 142. On Displays With Per-Pixel Alpha, Translucent Sprites Over a Bare Scene Background Do Not Blend
+- **Description**: The `Scene.background_color` setter deliberately adds alpha 0 (`scenes/scene.py` ~2853-2860). On displays with an alpha channel (cocoa) the restored background pixels have alpha 0, and pygame-ce's alpha blitter copies the source colour onto them instead of blending: foo2 in a Scene shows corner (255, 0, 255, 0) and an unblended body (80, 220, 120, 137) on cocoa, (20, 20, 40) and a blended (52, 127, 83) on dummy
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: Affects every SRCALPHA sprite over bare background (Brave Adventurer, Clockwork Keep, Papyrus's alpha-0 pixels), probably visible as boxes in a macOS window. Colorkeyed TOML frames are immune (#133). Found investigating #133
+- **Files**: `glitchygames/scenes/scene.py`
+
+### 143. `Scene` Discards Its Converted Background
+- **Description**: `scenes/scene.py:~2756` calls `self.background.convert()` and throws the result away
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/scenes/scene.py`
+
+### 144. An AnimatedSprite's Rect Comes From the Unscaled Frame Surface
+- **Description**: `_update_surface_and_mark_dirty` sets `rect` from the 1x cached frame surface; a game that scales `sprite.image` itself (Papyrus) gets the right size back only because `apply_transparency_and_scale` runs straight after. Latent
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/sprites/animated.py`
+
+### 145. A Serial Run of the World and Replay Tests Segfaults in a Live-Voice Test
+- **Description**: `uv run pytest tests/world tests/replay -n 0 -p no:randomly` segfaults in `tests/replay/test_playback_scope.py::TestLiveVoicesThroughAPlayback::test_a_live_scenes_voice_survives_the_scope` while the SDL audio thread runs (Python frame `randomness.stream_seed`), then hangs in the signal path (`quit_game`); the test and its file pass alone
+- **Status**: Active
+- **Priority**: High
+- **Reporter**: Found by the guards agent and the serial memory run
+- **Date Reported**: 2026-10-22
+- **Details**: Suspected cause: the uncommitted conftest change that stopped quitting and re-initializing pygame after every test (it kept the mixer and its audio thread alive across tests). A serial memory run hung at the same place for 3 hours. Under investigation
+- **Files**: `tests/conftest.py`, `glitchygames/audio/live.py`
 
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
@@ -221,6 +247,47 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `glitchygames/input/state.py`
 
 ## Resolved Bugs
+
+### 139. Switching Animation on Frame 0 Kept the Old Image
+- **Description**: `_update_surface_and_mark_dirty` compared only the frame index; FrameManager resets the frame to 0 on an animation change, so `set_animation('walk')` then `set_animation('jump')` kept walk's image (and did not mark the sprite dirty)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/sprites/animated.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It tracks `(animation, frame)` (`_last_drawn_frame`). Tests: `TestAnimationSwitchUpdatesImage`
+
+### 140. AnimatedSprite Hashed Every Frame's Pixels on Each Frame Advance
+- **Description**: `update()` ran `_debug_frame_info` (str(frame.pixels) and a SHA-256, or `surfarray.array3d`) on every frame advance with debug logging off
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/sprites/animated.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: It runs only when the logger is enabled for DEBUG. Tests: `TestFrameDumpOnlyWithDebugLogging`
+
+### 133. An AnimatedSprite's Image Loses Per-Pixel Alpha and Magenta Transparency
+- **Description**: `_update_surface_and_mark_dirty` -> `_get_current_surface` -> `_create_optimized_surface` (`sprites/animated.py` ~706-733) rebuilds the image of any frame with a `pixels` list (every TOML frame) as a plain Surface with no SRCALPHA and no colorkey; its "RGBA pixel" branch equals the RGB one. With `examples/foo2.toml`, the frame image has alpha 137 but `sprite.image` has 255 and no colorkey
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Details**: Very likely the cause of the CLAUDE.md caveat that TOML AnimatedSprites keep magenta opaque. A fix changes visible-pixel hitboxes and so the golden traces and replays; needs a decision
+- **Files**: `glitchygames/sprites/animated.py:706-733`
+- **Date Resolved**: 2026-10-22
+- **Solution**: `_create_optimized_surface` builds frames with pixels through `_create_surface_from_toml_pixels`, rewritten: a frame with translucent pixels gets an SRCALPHA surface (transparent pixels stored as `TRANSPARENT_MAGENTA`, alpha 0); every other frame a plain surface with magenta as its colorkey (fast blits; keyed pixels never written, whatever the destination's alpha). Tests: `TestAnimatedSpriteImageTransparency` (7, real TOML loading; dummy and cocoa). No golden trace or replay changed: traces record rect sizes and hitboxes come from `frame.image`. The CLAUDE.md caveat has another cause: the loader's `frame.image` (`pixel_utils.create_alpha_surface` keeps magenta at alpha 255; `plans/future-work.md`)
+
+### 136. A Menu With No Item Rects Raises ValueError
+- **Description**: `max()` over the items' rects raises when none has one (`menus.py:527`), which also makes 531->539 unreachable
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/ui/menus.py:527`
+- **Date Resolved**: 2026-10-22
+- **Solution**: Items without a rect are skipped for width, heights and layout; with none the menu keeps the item's own size. Test: `TestMenuItemAddMenu::test_add_menu_whose_items_have_no_rect_keeps_the_item_size`
 
 ### 125. A Truncated APNG Upload Gave a Server Error
 - **Description**: `_extract_apng_frames` caught only ValueError; APNG data cut off inside a chunk header raises `struct.error`, so `/sprites/extract-frames` answered HTTP 500 instead of `success=False, "Invalid APNG file: ..."`

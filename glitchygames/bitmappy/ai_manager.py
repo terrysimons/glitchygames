@@ -539,13 +539,9 @@ class AIManager:
             original_prompt = request_state.original_prompt
             self.log.debug(f"Using original prompt: '{original_prompt}'")
 
-        # Clean up any markdown formatting from AI response
+        # Clean up any markdown formatting from AI response (an error message never gets
+        # here: _is_ai_error_message above rejects content that is not valid even once cleaned)
         cleaned_content = self._clean_ai_response(content)
-
-        # Check if this is an error message - if so, return it as-is
-        if cleaned_content.strip() in {'AI features not available', 'AI features not available.'}:
-            self.log.warning('AI returned error message, skipping TOML processing')
-            return cleaned_content
 
         # Add description to the content if we have an original prompt
         if original_prompt and ai_training_state['format'] == 'toml':
@@ -637,20 +633,15 @@ class AIManager:
         # Add colors section
         if 'colors' in data:
             lines.append('[colors]')
-            # Remove duplicate color keys by using a set to track seen keys
-            seen_colors: set[str] = set()
+            # Dict keys are unique, so each color is written once
             for color_key, color_data in data['colors'].items():
-                if color_key not in seen_colors:
-                    seen_colors.add(color_key)
-                    lines.extend([
-                        f'[colors."{color_key}"]',
-                        f'red = {color_data["red"]}',
-                        f'green = {color_data["green"]}',
-                        f'blue = {color_data["blue"]}',
-                        '',
-                    ])
-                else:
-                    self.log.warning(f"Skipping duplicate color definition for '{color_key}'")
+                lines.extend([
+                    f'[colors."{color_key}"]',
+                    f'red = {color_data["red"]}',
+                    f'green = {color_data["green"]}',
+                    f'blue = {color_data["blue"]}',
+                    '',
+                ])
 
         return '\n'.join(lines)
 
@@ -925,17 +916,15 @@ class AIManager:
                 force_single_char_glyphs=force_single_char_glyphs,
             )
 
-            # Generate color definitions using the consistent mapping
+            # Generate color definitions using the consistent mapping (every color is an
+            # RGB tuple: collect_unique_colors_from_pixels keeps three components)
             color_definitions = ''
             for color in sorted_colors:
-                if len(color) >= RGB_COMPONENT_COUNT:
-                    r = int(color[0])
-                    g = int(color[1])
-                    b = int(color[2])
-                    glyph: str = color_to_glyph[color]
-                    color_definitions += (
-                        f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
-                    )
+                r = int(color[0])
+                g = int(color[1])
+                b = int(color[2])
+                glyph: str = color_to_glyph[color]
+                color_definitions += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
 
             # Always ensure block character is mapped to magenta for transparency
             if MAGENTA_TRANSPARENT in color_to_glyph:
@@ -1151,10 +1140,10 @@ pixels = \"\"\"
         is_animated = hasattr(sprite, '_animations') and sprite._animations  # type: ignore[reportPrivateUsage]
         self.log.info(f'AI sprite type: {"Animated" if is_animated else "Static"}')
         self.log.debug(f'AI sprite has _animations: {hasattr(sprite, "_animations")}')
-        if hasattr(sprite, '_animations'):
-            self.log.debug(f'AI sprite _animations: {list(sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
-            self.log.debug(f'AI sprite current_animation: {sprite.current_animation}')
-            self.log.debug(f'AI sprite is_playing: {sprite.is_playing}')
+        # SpriteFactory.load_sprite always returns an AnimatedSprite, which has _animations
+        self.log.debug(f'AI sprite _animations: {list(sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
+        self.log.debug(f'AI sprite current_animation: {sprite.current_animation}')
+        self.log.debug(f'AI sprite is_playing: {sprite.is_playing}')
 
         if is_animated:
             self._load_animated_ai_sprite(tmp_path)
@@ -1342,14 +1331,13 @@ pixels = \"\"\"
         except OSError, RuntimeError, AttributeError:
             self.log.exception('Error during AI process cleanup')
         finally:
-            # Ensure process is cleaned up
-            if hasattr(self, 'ai_process') and self.ai_process:
-                try:
-                    if self.ai_process.is_alive():
-                        self.log.info('Force killing remaining AI process...')
-                        self.ai_process.kill()
-                except OSError, AttributeError, RuntimeError:
-                    self.log.debug('Error during final AI process cleanup (ignored)')
+            # Ensure process is cleaned up (the check at the top made sure there is one)
+            try:
+                if self.ai_process.is_alive():
+                    self.log.info('Force killing remaining AI process...')
+                    self.ai_process.kill()
+            except OSError, AttributeError, RuntimeError:
+                self.log.debug('Error during final AI process cleanup (ignored)')
 
     def _cleanup_queues(self) -> None:
         """Clean up AI queues."""

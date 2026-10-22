@@ -366,13 +366,11 @@ class BitmappySprite(Sprite):
             config = self.deflate(file_format=file_format)
             self.log.debug('Got config from deflate: %s', config)
 
-            if file_format == 'toml':
-                self.log.debug('About to write TOML')
-                with Path(filename).open('wb') as toml_file:
-                    tomli_w.dump(config, toml_file)
-                self.log.debug('TOML write complete')
-            else:
-                self._raise_unsupported_format_error(file_format)
+            # deflate() refused any other format, so this is TOML
+            self.log.debug('About to write TOML')
+            with Path(filename).open('wb') as toml_file:
+                tomli_w.dump(config, toml_file)
+            self.log.debug('TOML write complete')
 
             self.log.debug('Successfully saved to %s', filename)
 
@@ -409,7 +407,7 @@ class BitmappySprite(Sprite):
             if len(self.pixels) < expected_pixels:
                 self.pixels.extend([(255, 0, 255)] * (expected_pixels - len(self.pixels)))
             # Truncate if too long
-            elif len(self.pixels) > expected_pixels:
+            else:
                 self.pixels = self.pixels[:expected_pixels]
 
     def deflate(self: Self, file_format: str = 'toml') -> dict[str, Any]:
@@ -626,15 +624,12 @@ class BitmappySprite(Sprite):
         dangerous_chars = {'\n', '\r', '\t', '\0', '\b', '\f', '\v', '\a'}
         printable_chars = ''.join(c for c in SPRITE_GLYPHS if c not in dangerous_chars)
 
-        # Assign characters sequentially from SPRITE_CHARS
+        # Assign characters sequentially from SPRITE_CHARS (every glyph is printable and none is
+        # dangerous, so each is used as it is); colors past the last glyph get none
         for char_index, color in enumerate(unique_colors):
             if char_index >= len(printable_chars):
                 break
-            char = printable_chars[char_index]
-            # Double-check that the character is safe
-            if char in dangerous_chars or not char.isprintable():
-                char = '.'
-            color_map[char] = color
+            color_map[printable_chars[char_index]] = color
 
         # Always include the magenta padding color (255, 0, 255) with a special character
         padding_color = (255, 0, 255)

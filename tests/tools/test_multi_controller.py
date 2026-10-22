@@ -329,7 +329,7 @@ class TestVisualCollisionManager:
     def test_initialization(self):
         """Test manager initialization."""
         assert self.manager.indicators == {}
-        assert self.manager.collision_groups == {}
+        assert self.manager.film_strip_collision_groups == {}
         assert self.manager.position_cache == {}
 
     def test_add_controller_indicator(self):
@@ -452,7 +452,7 @@ class TestVisualCollisionManager:
         assert len(self.manager.indicators) == 0
         assert len(self.manager.film_strip_indicators) == 0
         assert len(self.manager.film_strip_collision_groups) == 0
-        assert len(self.manager.collision_groups) == 0
+        assert len(self.manager.canvas_collision_groups) == 0
         assert len(self.manager.position_cache) == 0
 
     def test_optimize_positioning(self):

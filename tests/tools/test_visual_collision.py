@@ -1,5 +1,7 @@
 """Tests for visual collision functionality and coverage."""
 
+import pytest
+
 from glitchygames.bitmappy.indicators.collision import (
     IndicatorShape,
     LocationType,
@@ -432,21 +434,6 @@ class TestUpdateCollisionGroupsSlider:
         assert len(groups[10, 10]) == 2
 
 
-class TestGetCollisionGroupsForLocationDefault:
-    """Test _get_collision_groups_for_location default case (line 347)."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.manager = VisualCollisionManager()
-
-    def test_unknown_location_returns_default_groups(self):
-        """Test that unknown location type returns default collision_groups (line 347)."""
-        # Pass None location type to hit the default return
-        result = self.manager._get_collision_groups_for_location(None)  # type: ignore[arg-type]
-
-        assert result is self.manager.collision_groups
-
-
 class TestApplyCollisionAvoidanceSingleController:
     """Test _apply_collision_avoidance with single controller (line 364)."""
 
@@ -516,6 +503,32 @@ class TestApplyCollisionAvoidanceSliderAndFallback:
             0,
             0,
         ) or self.manager.film_strip_indicators[1].offset != (0, 0)
+
+
+class TestCachedOffsetsForAGrowingGroup:
+    """A position's cached offsets were computed for the group's size at the time."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            'position_cache is keyed by position only: a third controller at a position cached '
+            'for two falls back to offset (0, 0), on top of the first controller'
+        ),
+    )
+    def test_third_controller_at_a_cached_position_gets_its_own_offset(self):
+        """Three controllers on one canvas pixel get three different offsets."""
+        manager = VisualCollisionManager()
+        for controller_id in range(3):
+            manager.add_controller_indicator(
+                controller_id=controller_id,
+                instance_id=100 + controller_id,
+                color=(255, 0, 0),
+                position=(10, 10),
+                location_type=LocationType.CANVAS,
+            )
+
+        offsets = [indicator.offset for indicator in manager.canvas_indicators.values()]
+        assert len(set(offsets)) == len(offsets)
 
 
 class TestCalculateOffsetsLargeCount:

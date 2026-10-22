@@ -1448,15 +1448,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.mouse_manager = MouseEventManager(game=self.scene_manager)
         self.window_manager = WindowEventManager(game=self.scene_manager)
 
-        # Get count of joysticks
-        self.joysticks = []
-        if self.joystick_manager:
-            # JoystickEventManager.joysticks is a dictionary, convert to list of values
-            manager_joysticks: dict[Any, Any] = cast(
-                'dict[Any, Any]',
-                self.joystick_manager.joysticks,
-            )
-            self.joysticks = list(manager_joysticks.values())
+        # Get count of joysticks (the joystick manager was just made above)
+        # JoystickEventManager.joysticks is a dictionary, convert to list of values
+        manager_joysticks: dict[Any, Any] = cast(
+            'dict[Any, Any]',
+            self.joystick_manager.joysticks,
+        )
+        self.joysticks = list(manager_joysticks.values())
         self.joystick_count = len(self.joysticks)
 
     def _resolve_scene_name_for_error(self: Self) -> str:
@@ -2143,8 +2141,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             from glitchygames.performance import performance_manager
 
             trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
-            if hasattr(performance_manager, 'set_trim_percent'):
-                performance_manager.set_trim_percent(trim)
+            performance_manager.set_trim_percent(trim)
         except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
             LOG.debug('Performance trim percent configuration failed: %s', perf_error)
         try:
