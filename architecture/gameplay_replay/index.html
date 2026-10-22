@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/architecture/gameplay_replay/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Gameplay Recording and Replay - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Gameplay Recording and Replay";
+        var mkdocs_page_input_path = "architecture/gameplay_replay.md";
+        var mkdocs_page_url = "/architecture/gameplay_replay/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Gameplay Recording and Replay</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/architecture/gameplay_replay.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../argument_system/" class="btn btn-neutral float-left" title="Argument System"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="gameplay-recording-and-replay">Gameplay Recording and Replay<a class="headerlink" href="#gameplay-recording-and-replay" title="Permanent link">#</a></h1>
+<p>GlitchyGames can record a play session and replay it exactly through the real engine. Same
+engine version and same recording give bit-identical sprite traces: every frame's sprite
+<code>rect</code> and <code>visible</code> match the recording. Audio is played during a replay but is not compared.</p>
+<p>This page covers recording, exact replay, watching a replay (with step back and bookmarks),
+headless runs, the determinism audit, golden replays and rebaselining them, in-game playback
+(demos, instant replay, ghosts), and the rules game code follows so its sessions replay. See
+<code>plans/2026-10-19-gameplay-replay.md</code> for the design and <code>plans/future-work.md</code> for the
+follow-ups.</p>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Record a session</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--record-trace<span class="w"> </span>session.jsonl.gz
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Watch it replay exactly, comparing every frame with the recording (press Space to start)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># The same with no window, no sound and no pacing; the report goes to stdout, and the exit</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># code says whether it matched (0) or diverged (1)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--headless
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Check that it replays the same way twice, in fresh processes with different hash seeds</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--audit
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># After an intentional change: replay the same inputs on the current code, write what it does</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1"># to a new recording and print what changed</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--rebaseline<span class="w"> </span>new-session.jsonl.gz<span class="w"> </span>--headless
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># Did the code get slower? Compare this machine's processing time per frame with the</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># recording's; with a limit, more than 10% slower exits 8</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--headless<span class="w"> </span>--max-processing-slowdown<span class="w"> </span><span class="m">10</span>
+</code></pre></div>
+<h2 id="the-doors">The doors<a class="headerlink" href="#the-doors" title="Permanent link">#</a></h2>
+<p>The engine takes everything from the outside world through a small set of <strong>doors</strong>, and game
+code reaches them only through the engine. Live play plugs live providers into the doors;
+replay plugs in providers that serve the recording. The game cannot tell which one it is
+talking to, so a replay runs the real engine and the real game code again.</p>
+<table>
+<thead>
+<tr>
+<th>Door</th>
+<th>Live (<code>LiveSources</code>)</th>
+<th>Replay (<code>ReplaySources</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Event pump</td>
+<td>pygame's queue</td>
+<td>recorded batch N for pump call N</td>
+</tr>
+<tr>
+<td>Frame time</td>
+<td>the measured start-to-start time</td>
+<td>the recorded <code>dt</code></td>
+</tr>
+<tr>
+<td>Polled input</td>
+<td>captured from pygame once per frame</td>
+<td>the recorded snapshot</td>
+</tr>
+<tr>
+<td>Devices</td>
+<td>real joysticks and controllers</td>
+<td>stand-ins built from the recording</td>
+</tr>
+<tr>
+<td>Saves</td>
+<td>files on disk (<code>DiskSaveManager</code>)</td>
+<td>in memory (<code>MemorySaveManager</code>), seeded from the recording</td>
+</tr>
+<tr>
+<td>Wall clock</td>
+<td>the real time</td>
+<td>the recording's start time plus the frame clock</td>
+</tr>
+<tr>
+<td>Random seed</td>
+<td><code>--random-seed</code> or 64 random bits</td>
+<td>the recorded seed</td>
+</tr>
+<tr>
+<td>Pacing</td>
+<td>the target FPS</td>
+<td>the target FPS; none under <code>--headless</code></td>
+</tr>
+</tbody>
+</table>
+<p>The modules:</p>
+<ul>
+<li><code>glitchygames/sources.py</code>: the <code>EngineSources</code> protocol and the registry (<code>active_sources()</code>,
+  <code>install_sources(sources=...)</code>, <code>reset_sources()</code>) and the frame clock. It is a leaf module
+  with no engine imports, which avoids an import cycle between the engine and the scenes.
+  <code>install_sources</code> is allowed only before the first frame, so a run never mixes live and
+  recorded input.</li>
+<li><code>glitchygames/live_sources.py</code>: <code>LiveSources</code>.</li>
+<li><code>glitchygames/recording.py</code>: <code>RecordingSources</code>, which wraps the live doors under
+  <code>--record-trace</code> and records what passes through them.</li>
+<li><code>glitchygames/replay/driver.py</code>: <code>ReplaySources</code>, the comparison and the divergence report.</li>
+</ul>
+<p><code>tests/test_engine_doors.py</code> scans the package and fails if anything outside the doors reads
+the raw clock, polls pygame's keyboard or mouse, reads or posts pygame events directly, or
+enumerates or opens joysticks and controllers. Its <code>ALLOWED_BYPASSES</code> lists the few exceptions,
+each with its reason.</p>
+<h2 id="rules-for-game-code">Rules for game code<a class="headerlink" href="#rules-for-game-code" title="Permanent link">#</a></h2>
+<h3 id="time">Time<a class="headerlink" href="#time" title="Permanent link">#</a></h3>
+<p>Read time from <code>glitchygames/clock.py</code> or <code>Scene.game_time</code>, never from <code>time</code>, <code>datetime</code> or
+<code>pygame.time</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Use</th>
+<th>For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Scene.game_time</code></td>
+<td>gameplay timers and cooldowns; stops while the scene is paused</td>
+</tr>
+<tr>
+<td><code>frame_clock_seconds()</code>, <code>frame_clock_milliseconds()</code></td>
+<td>blinks, animation, "how long since" in UI; never pauses</td>
+</tr>
+<tr>
+<td><code>wall_clock_time()</code>, <code>wall_clock_epoch_seconds()</code></td>
+<td>timestamps (save metadata, undo history, logs)</td>
+</tr>
+<tr>
+<td><code>elapsed_seconds()</code></td>
+<td>throttles, debounces, repeat intervals, timeouts (subtract two readings)</td>
+</tr>
+<tr>
+<td><code>measured_seconds()</code></td>
+<td>real durations for logs and metrics only</td>
+</tr>
+</tbody>
+</table>
+<p><code>elapsed_seconds()</code> is the frame clock, live and in a replay, so a throttle near its threshold
+decides the same way both times; such timers advance once per frame. In a recorded run (and its
+replay) <code>wall_clock_time()</code> is the recording's start time (<code>recorded_at</code>) plus the frame clock,
+so a timestamp the game shows replays exactly; live play without recording reads the real wall
+clock. <code>measured_seconds()</code> is real
+monotonic time and is never replayed: never let its value change what is drawn, played or
+recorded.</p>
+<p>Text-widget cursor blinks use the frame clock, not <code>Scene.game_time</code>. A paused scene's widgets
+are neither updated nor drawn, so a blink cannot be seen advancing while the game is paused.</p>
+<h3 id="polled-input">Polled input<a class="headerlink" href="#polled-input" title="Permanent link">#</a></h3>
+<p>Read held keys, modifiers, the mouse and device positions from the frame's input snapshot, never
+from pygame:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.input.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">current_input</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">snapshot</span> <span class="o">=</span> <span class="n">current_input</span><span class="p">()</span>          <span class="c1"># or GameEngine.input</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">key_pressed</span><span class="p">(</span><span class="n">pygame</span><span class="o">.</span><span class="n">K_LEFT</span><span class="p">)</span>                <span class="c1"># by key code (follows the layout)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">scancode_pressed</span><span class="p">(</span><span class="n">scancode</span><span class="o">=</span><span class="n">pygame</span><span class="o">.</span><span class="n">KSCAN_W</span><span class="p">)</span>  <span class="c1"># by physical position (every layout)</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">modifiers</span>                  <span class="c1"># KMOD bits</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">mouse_position</span>             <span class="c1"># (x, y)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">mouse_buttons</span>              <span class="c1"># (left, middle, right)</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="n">device_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>                 <span class="c1"># joystick layer, -1.0 .. 1.0</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">device_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span> <span class="n">button</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">hat</span><span class="p">(</span><span class="n">device_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span> <span class="n">hat</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">controller_axis</span><span class="p">(</span><span class="n">device_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_AXIS_LEFTX</span><span class="p">)</span>  <span class="c1"># int scale</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="n">snapshot</span><span class="o">.</span><span class="n">controller_button</span><span class="p">(</span><span class="n">device_id</span><span class="o">=</span><span class="n">instance_id</span><span class="p">,</span> <span class="n">button</span><span class="o">=</span><span class="n">pygame</span><span class="o">.</span><span class="n">CONTROLLER_BUTTON_A</span><span class="p">)</span>
+</code></pre></div>
+<p>The snapshot is immutable and is taken once per frame, right after the frame's first event pump.
+<code>dt_tick</code> runs before the pump, so there it is the previous frame's snapshot (the same lag as
+polling pygame had). Devices are keyed by instance id. A game controller is read on two layers:
+its joystick view (<code>axis</code>, <code>button</code>, <code>hat</code>) and the controller layer (<code>controller_axis</code>,
+<code>controller_button</code>).</p>
+<p>Held keys are physical positions (scancodes), and a key code depends on the keyboard layout (the
+key in the A position is <code>K_q</code> on AZERTY). A recording therefore also holds the key codes the
+held keys had on the recording machine, and a replay answers <code>key_pressed(pygame.K_q)</code> as that
+machine did, whatever the replaying machine's layout. Only pygame's <code>K_*</code> key codes are recorded.</p>
+<p>Limitation (BUGS.md #83): keys a layout adds that pygame names no <code>K_*</code> constant for, such as
+French <code>é</code>, German <code>ß</code> or Spanish <code>ñ</code> (SDL gives them their character's code point as the key
+code), are not in that list. The recorder can only find the held key codes by trying every
+<code>K_*</code> constant (pygame lets Python ask a key code's position, not a position's key code), so a
+game that polls one, say <code>key_pressed(ord('é'))</code>, reads it held live but not held in a replay,
+even on the machine that recorded it. Key events are unaffected (a recorded KEYDOWN or KEYUP
+keeps its <code>key</code>, whatever its value), and so are positional controls (<code>scancode_pressed</code>,
+<code>ActionMap.bind(scancode=...)</code>). Handle such keys through events or by position, not by
+polling their key code.</p>
+<p>For positional controls (movement, say), poll <code>scancode_pressed(scancode=pygame.KSCAN_*)</code>: no
+keymap is consulted, so it is the same key on every layout, live or replayed, as
+<code>ActionMap.bind(scancode=...)</code> is for events.</p>
+<h3 id="devices">Devices<a class="headerlink" href="#devices" title="Permanent link">#</a></h3>
+<p>Enumerate and open joysticks and controllers only through <code>active_sources().devices()</code>
+(<code>glitchygames/input/devices.py</code>): <code>joystick_count()</code>, <code>controller_count()</code>,
+<code>is_controller(device_index=...)</code>, <code>name_for_index(device_index=...)</code>,
+<code>open_joystick(device_index=...)</code>, <code>open_controller(device_index=...)</code> and
+<code>joystick_for_instance(instance_id=...)</code>. A recording stores every answer (failures included) and
+a descriptor of every opened device. A replay gives the recorded answers and stand-ins
+(<code>ReplayJoystick</code>, <code>ReplayController</code>) whose positions come from the snapshot and whose rumble is
+dropped, so it never needs the recorded hardware and never sees a device that happens to be
+plugged in.</p>
+<h3 id="saves">Saves<a class="headerlink" href="#saves" title="Permanent link">#</a></h3>
+<p>Open a save store with <code>glitchygames.state.open_saves(app_name=...)</code>. Live play gets a
+<code>DiskSaveManager</code>. A replay gets a <code>MemorySaveManager</code> seeded from the recording's snapshot of
+that namespace: reads see what the original session saw, writes stay in memory, and real saves
+are never touched. Both are <code>SaveManager</code>s, which hold every rule of the save format. A
+recording's header holds each store as it was first opened, so a first scene whose <code>setup()</code>
+writes to its saves (adds one to a play count) replays from the saves it found. Slots saved at
+the same time are listed by name, so <code>list_slots()</code> gives the same order everywhere.</p>
+<h3 id="events-and-randomness">Events and randomness<a class="headerlink" href="#events-and-randomness" title="Permanent link">#</a></h3>
+<ul>
+<li>Post events with <code>glitchygames.recording.post_event</code>, not <code>pygame.event.post</code>, so a recording
+  can mark them internal. Replay delivers internal events from the code that posts them again;
+  an SDL-type event posted directly would be delivered twice.</li>
+<li>Code that drives the game from outside its logic, as a player would (a supervisor, a test
+  harness, a tool), posts with <code>glitchygames.recording.post_input_event</code> instead. The event is
+  recorded as external input, whatever its type, so <code>--replay-trace</code>, instant replays and demos
+  serve it whether or not they run the poster again (a copy the replayed code posts is
+  dropped). A supervisor that posts with <code>post_event</code> is taken for the game itself, and a
+  replay that does not run it diverges.</li>
+<li>Draw random numbers from the seeded named streams in <code>glitchygames/randomness.py</code>
+  (<code>random_stream('name')</code>, <code>numpy_stream('name')</code>), never from the global <code>random</code> functions,
+  <code>secrets</code> or an unseeded numpy generator.</li>
+</ul>
+<h2 id="the-supervisor-hook-and-control-events">The supervisor hook and control events<a class="headerlink" href="#the-supervisor-hook-and-control-events" title="Permanent link">#</a></h2>
+<p>A supervisor (<code>glitchygames/supervision.py</code>) is called once per frame at a fixed place: after
+logic and events, before frame services, camera aim and positioning. What it changes is drawn
+that frame and seen by collision on the next one.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">scene_manager</span><span class="o">.</span><span class="n">add_supervisor</span><span class="p">(</span><span class="n">supervisor</span><span class="o">=</span><span class="n">my_supervisor</span><span class="p">)</span>   <span class="c1"># my_supervisor.on_frame(frame_number=..., scene=...)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">scene_manager</span><span class="o">.</span><span class="n">add_control_event_handler</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">'breakpoint'</span><span class="p">,</span> <span class="n">handler</span><span class="o">=</span><span class="n">on_breakpoint</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">scene_manager</span><span class="o">.</span><span class="n">record_control_event</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">'breakpoint'</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">'label'</span><span class="p">:</span> <span class="s1">'ball through paddle'</span><span class="p">})</span>
+</code></pre></div>
+<p>A control event is a supervisor action recorded in the frame it happened in. A replay applies
+the recorded control events again at the same frame's supervisor slot, so sessions with
+supervisor actions replay exactly. A future cheat device will use this hook and channel.</p>
+<h2 id="recording-record-trace-path">Recording (<code>--record-trace PATH</code>)<a class="headerlink" href="#recording-record-trace-path" title="Permanent link">#</a></h2>
+<p>A recording is a gzip JSON Lines trace (format version 3; versions 2 and 3 can be read): a
+header line, then exactly one line per main-loop frame. Each frame holds its <code>dt</code>, every event
+batch the engine read from SDL's queue (each event tagged <code>external</code> or <code>internal</code>) and the
+sprites. Format 3 adds per-frame <code>input_changes</code>, <code>control_events</code>, <code>devices_opened</code>,
+<code>saves_opened</code>, <code>device_enumeration</code> and <code>scene_start</code> (each written only when not empty). The
+header holds the game, scene and versions, every option, the start time, the random seed, and the
+saves and devices the run took in before recording started. The full format is described in the
+<code>glitchygames/recording.py</code> module docstring.</p>
+<h3 id="scene-starts">Scene starts<a class="headerlink" href="#scene-starts" title="Permanent link">#</a></h3>
+<p>A recording also holds how each scene began, so in-game playback (demos, instant replay) can
+rebuild a scene from its start: the scene's first logic frame (the first frame whose <code>dt_tick</code>
+runs on it) carries its <code>scene_start</code> (its class's module and qualified name, so two loaded
+scenes of the same name are told apart, <code>replay_arguments()</code>, every random stream's
+state and the frame clock as its <code>__init__</code> began and again as its first <code>setup()</code> began, the
+saves as they were before its <code>__init__</code> ran, and the state its first logic frame began in;
+<code>glitchygames/scene_start.py</code>). A playback starts there. Frame 0 holds the first scene's start when the run was started
+with <code>--record-trace</code> (or <code>--rebaseline</code>). Starts are captured only while they can be used
+(recording, playback, or a scene that opts into instant replay), so live play pays nothing. A
+scene that cannot be rebuilt on its own sets <code>CAPTURES_SCENE_START = False</code> (the pause screen
+does). A replay never compares starts.</p>
+<p>A scene built with arguments besides <code>options</code> (Clockwork Keep's next floor carries the score
+and lives) returns them from <code>replay_arguments()</code>, as they were when it was built; they must
+read back from JSON exactly as returned:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">FloorScene</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">floor_index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">player_score</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="n">groups</span><span class="p">)</span>  <span class="c1"># first: the start capture begins here</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">floor_index</span> <span class="o">=</span> <span class="n">floor_index</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_score</span> <span class="o">=</span> <span class="n">player_score</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">replay_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="k">return</span> <span class="p">{</span><span class="s1">'floor_index'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">floor_index</span><span class="p">,</span> <span class="s1">'player_score'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_score</span><span class="p">}</span>
+</code></pre></div>
+<p>Draw random numbers only after <code>super().__init__()</code>: the capture begins there.</p>
+<h2 id="replay-replay-trace-path">Replay (<code>--replay-trace PATH</code>)<a class="headerlink" href="#replay-replay-trace-path" title="Permanent link">#</a></h2>
+<p>At startup the replay reads the recording, applies its recorded options and seeds the random
+streams with its seed. It refuses, logging the reason and exiting with one of the
+<a href="#exit-codes">exit codes</a>, when:</p>
+<ul>
+<li>the recording is of another game, cannot be read (not gzip, no permission, a directory) or
+  has an unsupported format version: <code>UNUSABLE_INPUT</code> (65);</li>
+<li>the file does not exist: <code>MISSING_INPUT</code> (66);</li>
+<li><code>--record-trace</code> is given too: <code>OPTIONS_REFUSED</code> (64). Recording over a replay is what
+  <a href="#rebaselining-rebaseline-new"><code>--rebaseline</code></a> does, and only it.</li>
+</ul>
+<p>A recording made by a different engine version replays with one warning. A version-2 recording
+replays with one warning too: it has no input snapshots, so polled input reads as idle.</p>
+<p>Each frame, the replay serves the recorded events, <code>dt</code>, input, devices, saves and clocks. Then
+it compares the frame with the recording: the active scene's class, then each recorded sprite in
+draw order (present, <code>rect</code>, <code>visible</code>), along with the frame's internal events, control events
+and pump count. The first difference stops a headless replay, as does the last recorded frame;
+a <a href="#watching-a-replay">watched replay</a> pauses there instead. Closing the window stops any
+replay. Then it reports how it went (logged, or printed to stdout under
+<a href="#headless-runs-headless"><code>--headless</code></a>). A sprite divergence lists that sprite in
+the last 20 frames up to the divergent one, as recorded and as replayed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Replay diverged at frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Ball#2, last 20 frames (expected | got):
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  6100: [400, 290, 16, 16] visible | [400, 290, 16, 16] visible
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  ...
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  6120: [412, 300, 16, 16] visible | [412, 301, 16, 16] visible
+</code></pre></div>
+<p>Other divergences (the scene, an event, the frame or pump count) are reported on their one line.
+A replay that matched reports <code>Replay matched 9800 frames (end of recording)</code> (or <code>(quit before
+the end)</code>, when the window was closed or a watched replay's viewer pressed Esc), and one that matched up to the cut-off of a truncated recording <code>Replay ended
+early at frame 4312: the recording is truncated</code>.</p>
+<p>Every replay that ends normally, watched or headless, exits with its result: <code>SUCCESS</code> (0) when
+it matched or was quit before the end, <code>REPLAY_DIVERGED</code> (1) when it diverged, <code>UNUSABLE_INPUT</code>
+(65) for a truncated recording. A crash, Ctrl-C, a signal or the game's own exit ends the run
+as for any run, and the report then says only where the replay stopped (<code>Replay stopped at frame
+12: the run ended with INTERNAL_ERROR (70)</code>); if the replay had already reached its result, the
+report gives it, then <code>then the run ended with ...</code> (see
+<a href="#exit-codes">exit codes</a>). The game's own successful exit (<code>sys.exit(0)</code>) before the replay
+reached its result exits <code>REPLAY_DIVERGED</code> (1), never <code>SUCCESS</code>, which would say it matched
+(a rebaseline takes it as the game ending early instead: below).
+A recording whose header or first frame cannot be decoded (a malformed device, saves or input
+field) is refused as unusable (<code>UNUSABLE_INPUT</code>, 65), like an unreadable file.</p>
+<p>While a replay runs, real keyboard, mouse, touch, joystick, controller, device and window events
+are blocked at SDL, so they never reach the game (a watched replay leaves key presses and
+releases unblocked for its controls, which never pass them on to the game). The block is applied again on every pump
+(event managers created mid-run allow their types again). Each type's earlier blocked state is
+restored exactly when the replay ends, normally or after an error. QUIT, the window's close event
+and custom event types are never blocked, so closing the window still ends the replay. Blocking
+also refuses posts of those types: game code that fakes input by posting <code>KEYDOWN</code> loses the
+post, which shows up as a missing internal event divergence. A watched replay leaves <code>KEYDOWN</code>
+and <code>KEYUP</code> unblocked, so such a post arrives there and matches its recording: a recording of a
+game that posts keys can match watched and diverge headless (and under <code>--audit</code>). Recorded window references in
+events are served as <code>None</code>, as live events of the display window carry.</p>
+<h3 id="watching-a-replay">Watching a replay<a class="headerlink" href="#watching-a-replay" title="Permanent link">#</a></h3>
+<p>A replay without <code>--headless</code> is watched: a read-only game inside a game
+(<code>glitchygames/replay/viewer.py</code>). The outer loop, the replay viewer, owns the window: it ticks
+60 times a second of real time whatever the speed and whether paused, reads the viewer's keys,
+and presents the recorded game's latest frame with the status bar drawn on it. The inner loop,
+the recorded game, runs its frames in full (logic, update and render) at their recorded frame
+times: each tick runs as many as the real time since the last tick, times the speed, pays for
+(at most <code>MAX_INNER_FRAMES_PER_TICK</code>, and only within an 11 ms real-time budget per tick, so
+keys and drawing keep their 60 Hz). It never owes more than one tick's worth: after a stall it
+runs one bounded burst and drops the rest, and when the recorded game cannot keep up with the
+speed the status bar says so and shows the real speed (<code>can't keep up: ×3.2</code>). So 1x shows
+about one recorded frame per tick, 8x about eight, &frac14;x one every fourth tick. Which frames run
+when never changes what they do, so a watched replay is exactly as exact as a headless one.</p>
+<p>It first runs frame 0, then holds on a start screen: that frame dimmed, "Press Spacebar to Start
+Game Replay" centred, and a smaller line naming the debug overlay's keys (<code>F3: debug overlay
+F4: next panel</code>). Frame 0's sounds play before Space, and a one-frame recording reaches its end
+at the start screen. The screen is drawn by the pause screen's <code>MessageScreen</code>
+(<code>glitchygames/ui/message_screen.py</code>) with its own message and look, as an overlay on the
+presented frame: switching to a real pause scene would change the recorded scene sequence.
+Nothing runs while the replay is held: no frame, no frame clock, no recorded input. The viewer's
+keys go to the replay's controls (<code>glitchygames/replay/controls.py</code>), never to the game. Each
+key acts once per press (the key repeat games turn on is ignored); <code>.</code> and <code>,</code> held act once,
+then after 300 ms ten times a second:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Space</td>
+<td>Start the replay from the start screen, then pause or resume</td>
+</tr>
+<tr>
+<td><code>.</code></td>
+<td>While paused, run one frame</td>
+</tr>
+<tr>
+<td><code>,</code></td>
+<td>While paused, step back one frame (held: one more frame back per repeat, restarting once on release)</td>
+</tr>
+<tr>
+<td>Home</td>
+<td>Restart at the beginning, paused after frame 0</td>
+</tr>
+<tr>
+<td>D</td>
+<td>Restart just before the divergence, once the replay has found one</td>
+</tr>
+<tr>
+<td><code>]</code> / <code>[</code></td>
+<td>Double or halve the playback speed (0.25 to 8)</td>
+</tr>
+<tr>
+<td>B</td>
+<td>Bookmark the frame shown in the status bar</td>
+</tr>
+<tr>
+<td>S</td>
+<td>Save a copy of the recording with the bookmarks as breakpoints</td>
+</tr>
+<tr>
+<td>Esc</td>
+<td>Quit the replay</td>
+</tr>
+<tr>
+<td>F3 / F4</td>
+<td>Toggle the debug overlay / show its next panel</td>
+</tr>
+</tbody>
+</table>
+<p>A status bar at the bottom centre shows <code>frame 6120 / 9800 · 1:42.0 · ×1 · paused · diverged at
+6120</code> (the parts that apply), drawn on the presented frame after the debug overlay, so it is never
+in a screenshot or a trace. At a divergence or the end of the recording the replay pauses with
+the debug overlay on and a banner above the status bar (<code>Diverged at frame 6120: ...</code> or <code>End of
+recording</code>); stepping past the end does nothing, and Esc ends the run with the replay's result.</p>
+<h4 id="step-back-home-and-d">Step back, Home and D<a class="headerlink" href="#step-back-home-and-d" title="Permanent link">#</a></h4>
+<p>A replay cannot run backwards, and the engine cannot be rebuilt in-process, so these keys
+restart the replay in a fresh process (<code>glitchygames/replay/rebuild.py</code>) with the same command
+line (every option kept, <code>--replay-fps</code> included) plus <code>--replay-pause-at-frame N</code>, an explicit
+<code>--debug-overlay</code> or <code>--no-debug-overlay</code>, and the viewer's speed, debug panel and the divergence
+found so far (<code>--replay-viewer-state</code>, internal; D works at once after a restart). The window
+closes and a new one opens; the end-of-run performance reports wait for the last replay. The
+restarted replay skips the start screen and rebuilds: frames 0 to N - 1 run in full, unpresented
+and unpaced, in silence (each frame's sounds are stopped after it and music is paused until the
+rebuild ends, unless the game paused it itself), with <code>Rebuilding: frame k / N</code> shown on a cleared window every 0.1 s and printed
+every second (Esc still quits). It then pauses with frame N next, showing frame N - 1's picture;
+frame 0 always runs, so Home pauses after it. The first replay process supervises the restarts:
+each later replay that steps back hands its restart command to it (<code>--replay-restart-handoff</code>,
+internal) instead of starting a process of its own, so there are never more than two (the
+supervisor keeps the memory its own replay used). The run exits with the last replay's status,
+but <code>REPLAY_DIVERGED</code> once any of the runs diverged; SIGTERM or SIGHUP to the supervisor ends the
+child too (killed with SIGKILL, without its teardown: a replay never records, so nothing is
+lost). Stepping back from far into a long recording takes as long as rebuilding up to there.
+<code>--replay-pause-at-frame</code> is ignored with <code>--headless</code> (nothing could unpause the replay).</p>
+<h4 id="bookmarks-b-and-s">Bookmarks (B and S)<a class="headerlink" href="#bookmarks-b-and-s" title="Permanent link">#</a></h4>
+<p>B bookmarks the frame the status bar shows (<code>frame N</code>: paused with frame N next). S writes a
+copy of the recording next to it, <code>x.bookmarked.jsonl.gz</code> for <code>x.jsonl.gz</code>, with a
+<code>{"kind": "breakpoint", "label": "bookmark"}</code> control event added to frame N - 1 (the frame whose
+picture was shown) for each bookmark, and logs where. With no bookmarks it writes nothing and
+says <code>no bookmarks to save</code>. Saving the same bookmarks again writes nothing
+(<code>bookmarks already saved to ...</code>), unless that copy was deleted since. A copy an earlier session
+saved from the same recording keeps its bookmarks: a new save adds to them. A file of that name
+that is a copy of another recording is never written over.</p>
+<p>The copy's header names its source (<code>bookmarked_copy_of</code>), and only a file with that field is
+ever updated in place. The original recording is never written, even one you named
+<code>something.bookmarked.jsonl.gz</code> yourself; its copy is <code>something.bookmarked.bookmarked.jsonl.gz</code>.
+The copy is written aside and then moved into place.</p>
+<p>The copy replays exactly like its source, headless included:</p>
+<ul>
+<li>Breakpoints are applied again on their frame and never compared.</li>
+<li>A truncated source's copy is marked <code>source_truncated</code>, so it still ends as truncated
+  (<code>UNUSABLE_INPUT</code> headless, the truncated banner when watched).</li>
+<li>A version-2 source's copy is marked <code>input_capture_format_version: 2</code>, so it keeps the
+  version-2 input warning and does not compare control events.</li>
+</ul>
+<p>A watched replay of the copy pauses at each breakpoint, showing <code>frame N</code> again with
+<code>breakpoint: bookmark</code>. A rebuild after a restart runs past breakpoints to its own pause frame.</p>
+<p>Stepping back (or Home, or D) with bookmarks saves the copy first and restarts on the copy, so
+bookmarks survive restarts. In the restarted replay:</p>
+<ul>
+<li>The bookmark list starts with the copy's bookmarks, so S keeps them.</li>
+<li>Playing forward pauses at every earlier bookmark again.</li>
+<li>If the copy cannot be saved, the restart uses the recording it was replaying and logs a
+  warning naming the bookmarks lost.</li>
+</ul>
+<h3 id="-replay-fps-recordedreal"><code>--replay-fps {recorded,real}</code><a class="headerlink" href="#-replay-fps-recordedreal" title="Permanent link">#</a></h3>
+<p>With <code>recorded</code> (the default), FPS events, the performance statistics and the debug overlay's
+performance panel use the recorded frame times, and FPS events are compared exactly. With
+<code>real</code>, they use this machine's measured frame times and FPS events are not compared; sprites
+that draw the FPS value may then diverge. Logic always receives the recorded <code>dt</code>.</p>
+<h2 id="headless-runs-headless">Headless runs (<code>--headless</code>)<a class="headerlink" href="#headless-runs-headless" title="Permanent link">#</a></h2>
+<p><code>--headless</code> runs any game on SDL's dummy video and audio drivers: no window and no sound. It sets
+<code>SDL_VIDEODRIVER</code> and <code>SDL_AUDIODRIVER</code> to <code>dummy</code> as soon as the options are read, before
+pygame starts its display and mixer. If pygame was already started before the engine (by code
+run at import), a display or mixer on another driver is restarted on the dummy one, with a
+warning.</p>
+<p>A live headless run is paced to the target FPS as usual (an unpaced live frame would last about
+a millisecond of game time) and ends however the game ends. A headless replay is not paced at
+all, since its frame times come from the recording, never waits (no start screen, no pause at
+a divergence or the end; its key events stay blocked), prints its report to stdout instead of
+logging it, and exits with its result as above.</p>
+<h2 id="the-determinism-audit-audit">The determinism audit (<code>--audit</code>)<a class="headerlink" href="#the-determinism-audit-audit" title="Permanent link">#</a></h2>
+<p><code>--replay-trace PATH --audit</code> does not replay in-process. It runs the same command again, with
+<code>--headless</code> added, as two child processes, with <code>PYTHONHASHSEED</code> set to 1 and 2, and each child
+writes a SHA-256 digest of every replayed frame. The audit passes (exit <code>SUCCESS</code>, 0) when both runs match the
+recording and their digests match each other; otherwise it reports the first differing frame
+and exits <code>AUDIT_NONDETERMINISTIC</code> (3). A child that cannot start, hangs, crashes (exits with any
+status but 0, or 1 with a recorded divergence) or writes no digests means the audit could not
+run: <code>INTERNAL_ERROR</code> (70).
+Fresh processes and different hash seeds make set and dict ordering bugs show up.</p>
+<p>The audit compares only what the replay samples: the scene class and each sprite's <code>rect</code>,
+<code>visible</code> and draw order. Pixels, audio and game state that never moves, hides or reorders a
+sprite are not compared. It is refused (<code>OPTIONS_REFUSED</code>, 64) with <code>--replay-fps real</code>, under
+<code>python -E</code> or <code>-I</code> (which would keep <code>PYTHONHASHSEED</code> from reaching the children) and without
+<code>--replay-trace</code>. A truncated recording is refused before the children start
+(<code>UNUSABLE_INPUT</code>, 65): an audit needs the whole recording.</p>
+<h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">#</a></h2>
+<p>The exit code alone says who refused the run and why. Every code is a member of
+<code>glitchygames.exit_codes.ExitCode</code> (also importable from <code>glitchygames.engine</code>); the engine logs
+the code it exits with as <code>Exiting with OPTIONS_REFUSED (64)</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th><code>ExitCode</code> member</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>SUCCESS</code></td>
+<td>Success; the replay matched; the audit is deterministic; the rebaseline was written</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>REPLAY_DIVERGED</code></td>
+<td>A replay's frames differ from the recording</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>ARGUMENT_PARSER_ERROR</code></td>
+<td>A usage error from argparse; the engine never exits with it itself</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>AUDIT_NONDETERMINISTIC</code></td>
+<td><code>--audit</code>'s two runs differ from each other or from the recording</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>GENERATION_REJECTED</code></td>
+<td>The API server rejected the sprite client's generation request</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>EXTRACTION_REJECTED</code></td>
+<td>The API server rejected the sprite client's frame extraction</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>AUDIO_DROPOUT_RISK</code></td>
+<td><code>scripts/audio_glitch_probe.py</code> found a risk of audio dropouts</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>REBASELINE_INPUT_LOST</code></td>
+<td><code>--rebaseline</code> wrote NEW, but the run never received some of OLD's input (it ended early, or did not pump a recorded batch)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>PROCESSING_SLOWER</code></td>
+<td>A replay matched, but its processing time exceeded the recording's by more than <code>--max-processing-slowdown</code></td>
+</tr>
+<tr>
+<td>64</td>
+<td><code>OPTIONS_REFUSED</code></td>
+<td>The engine refuses the options given (a combination it will not run)</td>
+</tr>
+<tr>
+<td>65</td>
+<td><code>UNUSABLE_INPUT</code></td>
+<td>The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response)</td>
+</tr>
+<tr>
+<td>66</td>
+<td><code>MISSING_INPUT</code></td>
+<td>The input file does not exist</td>
+</tr>
+<tr>
+<td>69</td>
+<td><code>SERVICE_UNAVAILABLE</code></td>
+<td>A required service (the API server) cannot be reached</td>
+</tr>
+<tr>
+<td>70</td>
+<td><code>INTERNAL_ERROR</code></td>
+<td>An uncaught exception during a run or its teardown (logged with its traceback, after the teardown), or an audit that could not run</td>
+</tr>
+<tr>
+<td>73</td>
+<td><code>CANNOT_WRITE_OUTPUT</code></td>
+<td>An output file or directory cannot be created or written (a rebaseline's new recording could not be moved into place)</td>
+</tr>
+<tr>
+<td>129</td>
+<td><code>HANGUP</code></td>
+<td>Stopped by SIGHUP (Unix only)</td>
+</tr>
+<tr>
+<td>130</td>
+<td><code>INTERRUPTED</code></td>
+<td>Stopped by SIGINT (Ctrl-C)</td>
+</tr>
+<tr>
+<td>143</td>
+<td><code>TERMINATED</code></td>
+<td>Stopped by SIGTERM</td>
+</tr>
+<tr>
+<td>149</td>
+<td><code>BREAK</code></td>
+<td>Stopped by SIGBREAK (Windows only: Ctrl-Break)</td>
+</tr>
+</tbody>
+</table>
+<p>0, 64-70 and 73 have the values of BSD <code>sysexits.h</code> (Python's <code>os.EX_OK</code>, <code>os.EX_USAGE</code> and so on,
+which exist only on Unix, so the values are defined in the engine). The signal codes are
+128 + the signal number. A run stopped by one of those signals exits only after the normal
+teardown, so a recording is complete: the engine handles SIGTERM, SIGHUP and SIGBREAK for the
+whole run (unless the game installed its own handler) and turns off SDL's own signal handling
+(<code>SDL_NO_SIGNAL_HANDLERS</code>), which would otherwise turn SIGINT and SIGTERM into a QUIT event.
+SIGKILL and SIGSTOP cannot be caught, Python ignores SIGPIPE, and SIGQUIT keeps its core-dump
+convention. An engine started off the main thread cannot install its handlers, so SIGTERM then
+ends it the system's default way, without the teardown. An exception raised before the run
+starts (while the engine is being constructed) exits with Python's default status 1.</p>
+<h2 id="comparing-processing-time-compare-processing">Comparing processing time (<code>--compare-processing</code>)<a class="headerlink" href="#comparing-processing-time-compare-processing" title="Permanent link">#</a></h2>
+<p>A recording holds each frame's <strong>processing time</strong> (<code>processing_seconds</code>): the frame's work
+(logic, events, frame services, positioning and rendering), without presenting it, without the
+recorder's own writing and without the pacing sleep. The header's latest measurement run
+(<code>measurement_runs[0]</code>, see "Content hashes and measurement history" below) names the machine
+it was measured on (system, version and architecture, never the host name). These are
+diagnostics: a replay never compares them with the recording to decide whether it matched, and
+never serves them to the game. The comparison uses the newest entry, <code>processing_seconds[0]</code>.</p>
+<p><code>--replay-trace PATH --headless --compare-processing</code> measures this machine's processing time
+for every replayed frame the same way and prints one line after the replay's report:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Replay matched 9800 frames (end of recording)
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>Processing: the replay took 14.2% longer than the recording (9800 frames: 30.410 s against 26.630 s; median frame 3.100 ms against 2.710 ms); slowest against the recording: frame 812 +6.100 ms, frame 813 +5.920 ms, frame 4400 +3.010 ms
+</code></pre></div>
+<p><code>--max-processing-slowdown PERCENT</code> (which implies <code>--compare-processing</code>) makes it a check: a
+replay that matched but took more than PERCENT longer in total exits <code>PROCESSING_SLOWER</code> (8). A
+divergence still exits <code>REPLAY_DIVERGED</code> (1), and a recording without processing times (made
+before they were recorded) cannot be checked: <code>UNUSABLE_INPUT</code> (65), with <code>Processing: nothing
+to compare</code> after the report.</p>
+<p>Why processing time and not wall-clock time: a live run is paced (most of each frame is the
+sleep before the next) and a headless replay is not paced at all, so their total times measure
+different things. Processing time measures the same work in both. It only compares on the same
+machine, so make the baseline on the machine that will check it (a CI runner); the report says
+so when the recording names another machine.</p>
+<p>Pacing still slows the work itself: between paced frames the processor idles and clocks down,
+so a live recording's frames take longer than the same frames in an unpaced replay (one
+Clockwork Keep session measured about 65% faster replayed than recorded live). So make the
+baseline with a rebaseline, which is measured unpaced as every later replay is, and check
+against it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Once, on the CI machine: the baseline (the same inputs, measured unpaced)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>uv<span class="w"> </span>run<span class="w"> </span>clockwork-keep<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--rebaseline<span class="w"> </span>baseline.jsonl.gz<span class="w"> </span>--headless
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># On every change: fail if the work got more than 10% slower</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>uv<span class="w"> </span>run<span class="w"> </span>clockwork-keep<span class="w"> </span>--replay-trace<span class="w"> </span>baseline.jsonl.gz<span class="w"> </span>--headless<span class="w"> </span>--max-processing-slowdown<span class="w"> </span><span class="m">10</span>
+</code></pre></div>
+<p>Replays of the same session against such a baseline land within about 1% of it. The latest
+measurement run says whether it paced its frames (<code>processing_paced</code>; a live run with a target
+FPS, as recording began) and names its frame-pacing timer, paced or not (<code>pacing_timer</code>: the
+timer backend, its final spin and the sleep model <code>--timer-backend auto</code> measured, null if it
+never did; <code>glitchygames/timing.py</code>),
+and the report adds a note when the baseline was paced. <code>--compare-processing</code> needs <code>--headless</code> (a
+watched replay presents, steps and rebuilds frames as its viewer asks) and is refused
+(<code>OPTIONS_REFUSED</code>, 64) with <code>--audit</code> and with <code>--rebaseline</code> (a rebaseline's NEW records the
+current code's own processing times anyway). The contract is
+<code>glitchygames/replay/processing.py</code>'s docstring.</p>
+<h2 id="content-hashes-and-measurement-history">Content hashes and measurement history<a class="headerlink" href="#content-hashes-and-measurement-history" title="Permanent link">#</a></h2>
+<p>Every frame a recorder writes carries two histories, newest first, and the header a third
+(design: <code>plans/2026-10-20-recording-content-hash-and-history.md</code>; contract:
+<code>glitchygames/recording_history.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Field</th>
+<th>Each entry</th>
+<th>Depth constant (10)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>frame</td>
+<td><code>content_hash</code></td>
+<td>the frame's content hash</td>
+<td><code>CONTENT_HASH_HISTORY_DEPTH</code></td>
+</tr>
+<tr>
+<td>frame</td>
+<td><code>processing_seconds</code></td>
+<td>its processing time (<code>null</code> when not measured)</td>
+<td><code>PROCESSING_SECONDS_HISTORY_DEPTH</code></td>
+</tr>
+<tr>
+<td>header</td>
+<td><code>measurement_runs</code></td>
+<td>the run's provenance: machine, <code>processing_paced</code>, <code>pacing_timer</code> (its frame-pacing timer, paced or not: backend, final spin, and the sleep model <code>--timer-backend auto</code> measured, <code>null</code> if it never did), engine, pygame and Python versions, <code>measured_at</code>, <code>rebaselined_from</code>, <code>hash_scheme</code>, and <code>frame_count</code> (how many frames it wrote; filled in when the next rebaseline stacks onto it, <code>null</code> for the newest run, whose count is the file's)</td>
+<td><code>MEASUREMENT_RUNS_HISTORY_DEPTH</code></td>
+</tr>
+</tbody>
+</table>
+<p>A fresh recording writes one entry in each. A rebaseline puts its own in front of the replayed
+recording's and drops the oldest past the depth, so index <code>i</code> means run <code>i</code> in every list. If
+the runs' depth is tuned below the hash depth, the deeper hashes have no run, so no
+<code>hash_scheme</code>: treat their scheme as unknown. A reader takes the fields of a run it knows and
+ignores fields a newer engine added.</p>
+<p>The <strong>content hash</strong> is the first 64 bits of SHA-256 of the frame's content fields as a JSON
+reader decodes them (string keys, lists), encoded as compact, key-sorted JSON (hash scheme 1),
+so the stored hash is the one a reader recomputes from the frame it reads. Content is everything the game did or took in: <code>dt</code>, the event
+batches, input, control events, devices, saves, scene starts, the scene and its sprites.
+Measurements (the two history fields) are left out. Every frame field is one or the other, and
+the hash refuses a field that is neither, so a new field cannot slip in or out unnoticed.</p>
+<p>A rebaseline copies the inputs, <code>dt</code> included, so an unchanged game gives the same hash one
+entry deeper, and a changed one shows exactly which frames changed. Two fresh recordings of the
+same script differ anyway (each measures its own <code>dt</code>, and the game moves by it). A recording's
+own hash, for any run, is derived from its frames' hashes:
+<code>recording_content_hash(frames=..., run_index=i)</code>; it is not stored.</p>
+<p>Neither history is compared by a replay or served to the game. They are the record the
+baselines in the repository keep: behaviour (hashes) and speed (processing times) over time.</p>
+<h2 id="golden-replays">Golden replays<a class="headerlink" href="#golden-replays" title="Permanent link">#</a></h2>
+<p><code>tests/fixtures/replays/&lt;game&gt;/golden.jsonl.gz</code> holds a recorded session of each example game
+(PaddleSlap, Clockwork Keep and both Brave Adventurer editions).
+<code>scripts/record_scripted_session.py</code> recorded them through the real engine loop, with a
+supervisor posting each game's golden input script. Each recording is a test item of its own:
+the pytest plugin <code>glitchygames/testing/replays.py</code> (loaded by the root <code>conftest.py</code>) collects
+every <code>.../fixtures/replays/&lt;console-script&gt;/&lt;name&gt;.jsonl.gz</code> as <code>&lt;console-script&gt;/&lt;name&gt;</code>,
+replays it headless in a child process through the console script's entry point
+(<code>--replay-trace PATH --headless</code>) and fails, with the exit code and the child's output (the
+divergence report), unless it exits <code>ExitCode.SUCCESS</code>. A directory that is not a console script
+is a collection error. Another project's games can use the plugin the same way
+(<code>pytest_plugins = ['glitchygames.testing.replays']</code>). Re-record a fixture only deliberately,
+after finding out why it stopped replaying; the commands are in the script's docstring. After
+an intentional change, rebaseline it instead (below), so it keeps its recorded inputs.</p>
+<h2 id="rebaselining-rebaseline-new">Rebaselining (<code>--rebaseline NEW</code>)<a class="headerlink" href="#rebaselining-rebaseline-new" title="Permanent link">#</a></h2>
+<p><code>--replay-trace OLD --rebaseline NEW --headless</code> replays OLD's inputs on the current code and
+writes what that code did to NEW: the same inputs and a new picture. The contract is
+<code>glitchygames/replay/rebaseline.py</code>'s docstring.</p>
+<ul>
+<li>The replay does not stop at a divergence: it runs to OLD's last frame (or until the game
+  ends), counting every frame that differs and naming every sprite that differs in them.</li>
+<li>NEW holds OLD's inputs as the replay served them: the event batches with their origins
+  (code-posted events stay <code>internal</code>, so replaying NEW delivers nothing twice), <code>dt</code>,
+  <code>input_changes</code>, re-applied control events, and each frame's <code>saves_opened</code>,
+  <code>devices_opened</code> and <code>device_enumeration</code> copied from OLD. Its sprites and markers are the
+  current code's. Its header is OLD's (seed, start time, options, saves, devices) with
+  <code>rebaselined_from</code> naming OLD and this run's engine, pygame and Python versions.</li>
+<li>A cut-off (truncated) OLD gives NEW <code>source_truncated</code>: NEW ends as truncated too, so its
+  replay exits <code>UNUSABLE_INPUT</code> (65) at the cut-off, <code>--audit</code> refuses it, and it cannot be a
+  golden fixture (the plugin expects <code>SUCCESS</code>). Rebaseline a complete recording for those.</li>
+<li>A version-2 OLD (no input snapshots) gives an honest format-3 NEW: its polled input is the
+  idle input the replay served, recorded as such, and its markers are compared when NEW is
+  replayed (OLD's were not).</li>
+<li>Input OLD has that the run never received is not moved anywhere else (that would invent an
+  input sequence OLD does not have); it is reported. That is the external events of batches a
+  frame did not pump (the current code pumped fewer times than recorded), and OLD's frames
+  after the game ended early.</li>
+<li>NEW is written to <code>NEW.partial</code> and moved into place only when the run ends normally; a run
+  that crashes, is interrupted or fails its own exit (<code>sys.exit(1)</code>) writes nothing; the game's
+  own successful exit (<code>sys.exit(0)</code>) ends it early as <code>quit_game()</code> does (NEW holds the frames
+  that ran, exit <code>REBASELINE_INPUT_LOST</code>). If the move fails (say NEW is a directory),
+  the finished <code>NEW.partial</code> is kept, its path logged and printed, and the run exits
+  <code>CANNOT_WRITE_OUTPUT</code> (73). NEW is never OLD, and <code>NEW.partial</code> is never OLD either. A
+  <code>NEW.partial</code> that cannot be written at all is refused before the replay starts, with one
+  line and <code>CANNOT_WRITE_OUTPUT</code> (73), as is an unwritable <code>--record-trace</code> or
+  <code>--replay-digest</code> file. NEW is an original, never a bookmarked copy (OLD's
+  <code>bookmarked_copy_of</code> is dropped), so S on a replay of NEW never rewrites it.</li>
+<li>It prints one line to stdout and exits <code>SUCCESS</code> (0), however many frames differ:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites affected: Ball#2, Ball#3
+</code></pre></div>
+<p>or <code>Rebaselined 9800 frames to NEW: no frames differ</code>. Lost input (above) is added to the
+  line and logged as a warning, e.g. <code>; 3 recorded input events not delivered (first at frame
+  812); ended at frame 500 of 9800</code>. NEW is still written (it replays clean), but the run
+  exits <code>REBASELINE_INPUT_LOST</code> (7) instead, so a script that replaces fixtures notices that
+  NEW is not a faithful re-run of OLD's session.</p>
+<p>It is refused (<code>OPTIONS_REFUSED</code>, 64) without <code>--replay-trace</code> or without <code>--headless</code> (a watched
+replay holds frames and takes the viewer's keys, so it is refused rather than made headless
+quietly), when NEW or <code>NEW.partial</code> is OLD's file, and with <code>--record-trace</code>, <code>--audit</code>,
+<code>--replay-digest</code> (the audit's tools; a rebaseline is not audited) or <code>--replay-fps real</code> (FPS
+events from this machine's frame times would become the baseline). An unusable OLD is
+refused like any replay (<code>UNUSABLE_INPUT</code>, <code>MISSING_INPUT</code>).</p>
+<p>NEW replays on the current code with no divergence when the rebaseline replayed all of OLD: a
+truncated OLD gives a truncated NEW, whose replay matches up to its cut-off and exits
+<code>UNUSABLE_INPUT</code> (65) like any truncated recording. Replacing a golden fixture with it stays a
+deliberate, reviewed step: read the summary, check the change is the intended one, then move
+NEW over the fixture yourself.</p>
+<h2 id="in-game-playback">In-game playback<a class="headerlink" href="#in-game-playback" title="Permanent link">#</a></h2>
+<p>A running game can play a recording to a rebuilt scene and then go on: attract-mode demos,
+instant replays and ghosts. Demos and instant replays run in a <strong>playback scope</strong>, not a new
+engine run (<code>glitchygames/replay/playback.py</code>'s docstring is the contract): the scene is
+rebuilt from its start (see Scene starts above) on scoped doors that serve the recording, the
+live scene is stashed untouched, saves are a sandbox, the random streams, clocks and FPS timer
+are put back afterwards, and the live game's own posts and the player's releases, device and
+window events are held and handed back when the scope ends. A <code>--record-trace</code> session that
+plays a scope records it, and replays it exactly. An error inside the scope ends the scope
+(logged) and the live game goes on. <code>scene_manager.last_playback_outcome</code> says how the last
+scope ended (its kind, reason and frames played).</p>
+<p>What belongs to the scope ends with it: supervisors and control event handlers its scene adds
+(in <code>setup()</code>, <code>cleanup()</code> or an event handler; a live supervisor's additions stay), and the
+playback scene's own events still queued when it ends (posted in <code>update()</code> or an event handler
+after its last pump: the live game never receives them, so a goal posted there cannot start a
+second instant replay). What the live game's own supervisors and handlers post while it plays
+stays the live game's: a supervisor that calls <code>end_playback()</code> and then posts an event has it
+delivered to the live game after the scope. A playback never rumbles the player's controllers,
+and the live scene's synth voices (and those of the game behind a pause screen the instant
+replay began from) pause behind it and play on after. Inside a scope, a replay of the session still
+applies the session's breakpoints (a bookmark on a frame a demo played pauses there); the
+played recording's own breakpoints are never applied again. A <code>--record-trace</code> recording of a
+session that played a scope replays exactly, but cannot itself be played in-game from a frame
+inside or after that scope (only an instant-replay journal records what a scene's playback
+requests got and how it resumed).</p>
+<h3 id="demos">Demos<a class="headerlink" href="#demos" title="Permanent link">#</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">scene_manager</span><span class="o">.</span><span class="n">play_recording</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">DEMO_PATH</span><span class="p">,</span> <span class="n">then</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>   <span class="c1"># any key or button returns to `then`</span>
+</code></pre></div>
+<p>A demo plays at the game's speed from the start of the next frame and ends at the recording's
+end, at the player's first press (consumed: it never reaches <code>then</code>), at the recording's own
+quit, or at a divergence (logged at WARNING as <code>demo diverged: ...</code>, then back to <code>then</code>). A
+recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
+at WARNING and nothing starts. Record a demo with
+<code>scripts/record_scripted_session.py --output PATH</code> (it runs <code>--record-trace</code>, so its first
+frame holds the scene start).</p>
+<p>Bundled demos are recordings shipped in the game's package,
+<code>glitchygames/examples/&lt;game&gt;_demos/&lt;name&gt;.jsonl.gz</code>. PaddleSlap's game-over screen plays
+<code>rally.jsonl.gz</code> after 10 seconds without a press. <code>tests/replay/test_bundled_demos.py</code> replays
+every bundled demo headless, so a change that makes a demo diverge fails in CI before it ships.</p>
+<h3 id="instant-replay">Instant replay<a class="headerlink" href="#instant-replay" title="Permanent link">#</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Match</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">INSTANT_REPLAY_SECONDS</span> <span class="o">=</span> <span class="mf">5.0</span>                       <span class="c1"># opt in: show the last 5 seconds</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS</span> <span class="o">=</span> <span class="mf">60.0</span>     <span class="c1"># the default budget</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_goal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">scene_manager</span><span class="o">.</span><span class="n">instant_replay</span><span class="p">()</span>            <span class="c1"># False (logged) when it cannot play</span>
+</code></pre></div>
+<p>A scene class that sets <code>INSTANT_REPLAY_SECONDS</code> keeps, in memory, the recording of every frame
+since its first logic frame (<code>glitchygames/instant_replay.py</code>), sprites included: about 0.5 MB
+per minute for one sprite moving every frame, about 1.5 MB per minute for PaddleSlap. The
+journal ends when another scene is presented, and once it holds more frame time than
+<code>MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS</code> (paused frames count: all are re-simulated), after
+which <code>instant_replay()</code> returns <code>False</code>; longer scenes would need state snapshots.</p>
+<p><code>instant_replay()</code> rebuilds the scene from its start, runs the frames before the last
+<code>INSTANT_REPLAY_SECONDS</code> of frame time unseen, unpaced and silent, shows the rest at the game's
+pace with their sounds, then the live scene goes on exactly where it was. The player's presses
+do not end it. To let the player skip it, read the player's input in a supervisor and end the
+playback there (<code>end_playback()</code> is honoured only from a supervisor or between frames):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SkipReplayOnPress</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">frame_number</span><span class="p">,</span> <span class="n">scene</span><span class="p">):</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>        <span class="n">player_input</span> <span class="o">=</span> <span class="n">scene_manager</span><span class="o">.</span><span class="n">playback_player_input</span>   <span class="c1"># None outside a playback</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="k">if</span> <span class="n">player_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">player_input</span><span class="o">.</span><span class="n">key_pressed</span><span class="p">(</span><span class="n">pygame</span><span class="o">.</span><span class="n">K_SPACE</span><span class="p">):</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>            <span class="n">scene_manager</span><span class="o">.</span><span class="n">end_playback</span><span class="p">()</span>
+</code></pre></div>
+<p>Instant replays can follow one another (a replay after every goal): a playback suspends the
+journal, which resumes afterwards, and a request the scene's own code makes while its journal
+plays back gets the answer it got live.</p>
+<h3 id="ghosts">Ghosts<a class="headerlink" href="#ghosts" title="Permanent link">#</a></h3>
+<p>A ghost is a recorded sprite's path and looks drawn beside live play, a time-trial ghost
+(<code>glitchygames/replay/ghosts.py</code>'s docstring is the contract). Ghosts are appearance, not
+play: they have no hitbox and change nothing the game does.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.replay.ghosts</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">GhostRecorder</span><span class="p">,</span> <span class="n">GhostSprite</span><span class="p">,</span> <span class="n">GhostTrack</span><span class="p">,</span> <span class="n">images_from_animated_sprite</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">)</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1"># Recording: from the scene's start until the lap ends</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">recorder</span> <span class="o">=</span> <span class="n">GhostRecorder</span><span class="p">(</span><span class="n">sprite</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">player</span><span class="p">,</span> <span class="n">scene</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="o">...</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">track</span> <span class="o">=</span> <span class="n">recorder</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="n">saves</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">'best_lap'</span><span class="p">,</span> <span class="n">track</span><span class="o">.</span><span class="n">to_json</span><span class="p">())</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="c1"># Playing it in the next run of the scene (in setup())</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="n">track</span> <span class="o">=</span> <span class="n">GhostTrack</span><span class="o">.</span><span class="n">from_json</span><span class="p">(</span><span class="n">saves</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'best_lap'</span><span class="p">))</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">ghost</span> <span class="o">=</span> <span class="n">GhostSprite</span><span class="p">(</span><span class="n">track</span><span class="o">=</span><span class="n">track</span><span class="p">,</span> <span class="n">image_for</span><span class="o">=</span><span class="n">images_from_animated_sprite</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">player</span><span class="p">))</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="n">ghost</span><span class="o">.</span><span class="n">scene</span> <span class="o">=</span> <span class="bp">self</span>                     <span class="c1"># the ghost follows this scene's game_time</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="bp">self</span><span class="o">.</span><span class="n">all_sprites</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ghost</span><span class="p">)</span>            <span class="c1"># never to a collision group</span>
+</code></pre></div>
+<ul>
+<li><code>GhostRecorder</code> is a supervisor: once per frame, after the frame's logic, it samples the
+  scene's <code>game_time</code>, the sprite's <code>world_x</code>/<code>world_y</code>, its appearance (animation, frame,
+  horizontal flip and draw offset of an <code>AnimatedSprite</code>; pass <code>appearance=</code> for anything else)
+  and whether the game shows it (<code>not hidden</code>). It samples only live frames of the scene it
+  was given, and only when that scene's game time advanced: not behind the pause screen, not
+  in a demo or instant replay. It reads game state only, so recording a ghost changes nothing.</li>
+<li>Supervisors added while a demo or instant replay plays belong to that playback and are
+  removed when it ends, so a recorder the rebuilt scene's <code>setup()</code> makes never outlives it.</li>
+<li>Samples are keyed by <code>Scene.game_time</code>, which stops while the scene is paused. The ghost
+  shows the last sample not after the current <code>game_time</code>, so it lines up with the live run
+  from the scene's start at any frame rate, and waits while the game is paused.</li>
+<li><code>GhostSprite</code> is a world-space sprite: the engine positions and culls it. Its position is
+  read from the track whenever the engine reads it, so it is drawn in this frame's place, not
+  last frame's. Its image is <code>image_for(sample)</code> drawn translucent (<code>alpha</code>, default 96).
+  Hide it with <code>ghost.hidden = True</code> (the game's own flag, as for every world sprite). With
+  nothing to show (before the track's first sample, or a sample the game had hidden) its image
+  is empty, so the engine culls it.</li>
+<li>A ghost in <code>all_sprites</code> is in a recording's sprite trace like any sprite. Store tracks in
+  saves: a replay serves the saves the recording saw, so a session with a ghost replays
+  exactly.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../argument_system/" class="btn btn-neutral float-left" title="Argument System"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../argument_system/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../multi_controller_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/architecture/bitmappy/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Bitmappy Architecture - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Bitmappy Architecture";
+        var mkdocs_page_input_path = "architecture/bitmappy.md";
+        var mkdocs_page_url = "/architecture/bitmappy/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Bitmappy Architecture</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/architecture/bitmappy.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../../glitchygames/ui/" class="btn btn-neutral float-left" title="glitchygames.ui"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="bitmappy-architecture">Bitmappy Architecture<a class="headerlink" href="#bitmappy-architecture" title="Permanent link">#</a></h1>
+<p>Bitmappy is GlitchyGames' pixel art editor. These diagrams show how it is wired up
+through the engine, from bootstrap to rendering.</p>
+<h2 id="bootstrap-main-loop">Bootstrap &amp; Main Loop<a class="headerlink" href="#bootstrap-main-loop" title="Permanent link">#</a></h2>
+<p>How Bitmappy starts up: entry point through <code>main()</code>, GameEngine initialization,
+scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame</code>).</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant User
+    participant main as main()
+    participant GE as GameEngine
+    participant SM as SceneManager (singleton)
+    participant BES as BitmapEditorScene
+
+    User-&gt;&gt;main: uv run bitmappy
+    main-&gt;&gt;GE: GameEngine(game=BitmapEditorScene)
+    GE-&gt;&gt;GE: parse CLI args (Scene.args() + GameEngine.args())
+    GE-&gt;&gt;GE: pygame.init(), create display
+    main-&gt;&gt;GE: engine.start()
+    GE-&gt;&gt;BES: BitmapEditorScene(options=OPTIONS)
+    GE-&gt;&gt;GE: _initialize_event_managers()
+    GE-&gt;&gt;SM: scene_manager.switch_to_scene(game)
+    SM-&gt;&gt;BES: setup()
+    BES-&gt;&gt;BES: _setup_menu_bar()
+    BES-&gt;&gt;BES: _setup_canvas()
+    BES-&gt;&gt;BES: _create_film_strips()
+    BES-&gt;&gt;BES: _setup_color_well()
+    BES-&gt;&gt;BES: _setup_sliders()
+    BES-&gt;&gt;BES: _setup_managers()
+    GE-&gt;&gt;SM: scene_manager.start()
+
+    loop Main Game Loop (while active_scene is not None)
+        Note over SM: dt = the previous frame's start-to-start time
+        SM-&gt;&gt;SM: camera.begin_frame()
+        SM-&gt;&gt;BES: _update_scene() (Scene.dt_tick: logic and collision)
+        SM-&gt;&gt;GE: _process_events()
+        GE-&gt;&gt;GE: pygame.event.get()
+        GE-&gt;&gt;SM: EVENT_HANDLERS[event.type](event)
+        SM-&gt;&gt;BES: on_*_event(event)
+        SM-&gt;&gt;SM: _update_frame_services() (shake, rumble)
+        SM-&gt;&gt;SM: _aim_active_camera() (camera_target / follow)
+        SM-&gt;&gt;SM: _position_active_world_sprites() (world sprites' rect, culling)
+        SM-&gt;&gt;SM: _render_scene() (Scene.update, then draw)
+        SM-&gt;&gt;SM: _advance_still_camera_shake() (WORLD shake nothing advanced)
+        SM-&gt;&gt;SM: _present_frame() (overlay, display update)
+        SM-&gt;&gt;SM: _finish_frame() (pace, then set dt once from perf_counter)
+    end</code></pre>
+<h2 id="class-hierarchy">Class Hierarchy<a class="headerlink" href="#class-hierarchy" title="Permanent link">#</a></h2>
+<h3 id="event-dispatch-chain-how-events-reach-your-scene">Event dispatch chain (how events reach your scene)<a class="headerlink" href="#event-dispatch-chain-how-events-reach-your-scene" title="Permanent link">#</a></h3>
+<p><code>EventManager</code> is the base class for <code>GameEngine</code>, <code>SceneManager</code>, and every
+<code>Scene</code>. This shared base is why events can flow through all of them using the
+same <code>on_*_event()</code> API.</p>
+<p><strong>Inheritance</strong> — all dispatch chain classes share the <code>EventManager</code> base:</p>
+<pre class="mermaid"><code>flowchart LR
+    EM["EventManager"] --- GE["GameEngine"]
+    EM --- SM["SceneManager"]
+    EM --- SC["Scene"]
+    SC --- BES["BitmapEditorScene"]</code></pre>
+<p><strong>Event flow</strong> — how an SDL event reaches your handler in Bitmappy:</p>
+<pre class="mermaid"><code>flowchart TD
+    SDL["SDL Event"] --&gt; GE["GameEngine\nO#40;1#41; EVENT_HANDLERS lookup"]
+    GE --&gt; MGR["Event Manager\ne.g. MouseEventManager"]
+    MGR --&gt;|"updates state,\nsynthesizes events"| SM["SceneManager\nforwards to active_scene"]
+    SM --&gt; BES["BitmapEditorScene\n#40;the active scene#41;"]
+    BES --&gt; HANDLER["Your handler runs\non_left_mouse_drag_event#40;#41;"]
+    BES --&gt; STUB["No handler?\nCached stub, O#40;1#41; no-op"]</code></pre>
+<p>The <code>GameEngine</code> receives every SDL event and does an O(1) dict lookup to find
+the right event manager. The event manager updates its internal state (button
+tracking, axis values, drag detection) and may synthesize higher-level events
+(drag, drop, chord). It then forwards to the <code>SceneManager</code>, which passes
+everything to the <code>active_scene</code>. In Bitmappy, that's <code>BitmapEditorScene</code>,
+which overrides handlers like <code>on_key_down_event()</code>,
+<code>on_left_mouse_button_down_event()</code>, <code>on_left_mouse_drag_event()</code>, and
+<code>on_controller_hat_motion_event()</code>. Events it doesn't override hit the cached
+stubs — O(1) no-ops after their first occurrence.</p>
+<h3 id="sprite-hierarchy-renderable-objects">Sprite hierarchy (renderable objects)<a class="headerlink" href="#sprite-hierarchy-renderable-objects" title="Permanent link">#</a></h3>
+<p><code>DirtySprite</code> is pygame's base for all sprites that support dirty-rect
+rendering. GlitchyGames extends it through <code>RootSprite</code> → <code>Sprite</code> to add
+mouse events, non-optional <code>image</code>/<code>rect</code>, and named parent tracking.</p>
+<pre class="mermaid"><code>flowchart TD
+    DS["DirtySprite\ndirty, image, rect"]
+    DS --&gt; RS["RootSprite\nmouse event support\nnon-optional image/rect"]
+    RS --&gt; SP["Sprite\nx, y, name, parent"]
+    SP --&gt; ACS["AnimatedCanvasSprite\npixels_across, pixels_tall\nset_pixel_at#40;#41;, show_frame#40;#41;"]
+    SP --&gt; FSS["FilmStripSprite\nfilm_strip_widget\non_left_mouse_button_down_event#40;#41;"]
+    SP --&gt; AS["AnimatedSprite\n_animations, frame_manager\nset_animation#40;#41;, set_frame#40;#41;"]</code></pre>
+<h2 id="event-flow">Event Flow<a class="headerlink" href="#event-flow" title="Permanent link">#</a></h2>
+<p>How pygame events propagate through the system: from <code>pygame.event.get()</code> through
+the <code>EVENT_HANDLERS</code> dispatch table, into specialized event managers, through the
+scene manager, and finally into Bitmappy's scene and sprite handlers.</p>
+<pre class="mermaid"><code>flowchart TD
+    PG["pygame.event.get()"] --&gt; GE["GameEngine.process_events()"]
+    GE --&gt; EH{"EVENT_HANDLERS[event.type]"}
+
+    EH --&gt;|KEYDOWN| KEM["KeyboardEventManager"]
+    EH --&gt;|MOUSEBUTTONDOWN| MEM["MouseEventManager"]
+    EH --&gt;|JOYHATMOTION| CEM["ControllerEventManager"]
+    EH --&gt;|DROPFILE| DEM["DropEventManager"]
+    EH --&gt;|WINDOWEVENT| WEM["WindowEventManager"]
+    EH --&gt;|FPSEVENT| GEM["GameEventManager"]
+
+    KEM --&gt; SM["SceneManager.on_key_down_event()"]
+    MEM --&gt; SM2["SceneManager.on_left_mouse_button_down_event()"]
+    CEM --&gt; SM3["SceneManager.on_controller_hat_motion_event()"]
+    DEM --&gt; SM4["SceneManager.on_drop_file_event()"]
+
+    SM --&gt; BES["BitmapEditorScene.on_key_down_event()"]
+    SM2 --&gt; BES2["BitmapEditorScene.on_left_mouse_button_down_event()"]
+    SM3 --&gt; BES3["BitmapEditorScene.on_controller_hat_motion_event()"]
+    SM4 --&gt; BES4["BitmapEditorScene.on_drop_file_event()"]
+
+    BES --&gt;|"Ctrl+Z"| UNDO["UndoRedoManager.undo()"]
+    BES --&gt;|"Ctrl+S"| SAVE["SaveDialogScene"]
+    BES --&gt;|"Arrow keys"| CANVAS["AnimatedCanvasSprite"]
+    BES --&gt;|"O key"| ONION["Toggle Onion Skinning"]
+
+    BES2 --&gt;|"Canvas area"| PIXEL["canvas.set_pixel_at(x, y, color)"]
+    BES2 --&gt;|"Ctrl+click"| FLOOD["canvas._flood_fill(x, y, color)"]
+    BES2 --&gt;|"Film strip area"| FRAME["FilmStripSprite: select frame"]
+    BES2 --&gt;|"Menu item"| MENU["MenuItem: dialog scene"]
+    BES2 --&gt;|"Slider area"| SLIDER["SliderSprite: adjust RGBA"]
+
+    BES3 --&gt; MCM["MultiControllerManager"]
+    MCM --&gt;|"Canvas Mode"| CPAINT["Canvas navigation/paint"]
+    MCM --&gt;|"Film Strip Mode"| FNAV["Frame navigation/select"]
+    MCM --&gt;|"Slider Mode"| SADJ["Slider adjustment"]</code></pre>
+<h2 id="ui-layout-component-wiring">UI Layout &amp; Component Wiring<a class="headerlink" href="#ui-layout-component-wiring" title="Permanent link">#</a></h2>
+<p>How the UI components are arranged on screen and how data flows between them.
+Dotted lines show data flow; solid lines show scene transitions via <code>switch_to_scene</code>.</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph Screen["Display Surface"]
+        subgraph MenuArea["Menu Bar - top 24px"]
+            ICON["MenuItem: raspb icon"]
+            NEW["MenuItem: New"]
+            SAVE_M["MenuItem: Save"]
+            LOAD_M["MenuItem: Load"]
+        end
+
+        subgraph MainArea["Main Area"]
+            CANVAS_S["AnimatedCanvasSprite\npixel grid"]
+            subgraph RightPanel["Right Side"]
+                FS1["FilmStripSprite 1\ndefault animation"]
+                FS2["FilmStripSprite 2\nwalk animation"]
+                ARROWS["Scroll Arrows"]
+            end
+        end
+
+        subgraph BottomArea["Bottom Controls"]
+            CW["ColorWellSprite\ncurrent color"]
+            SR["SliderSprite R: 0-255"]
+            SG["SliderSprite G: 0-255"]
+            SB["SliderSprite B: 0-255"]
+            SA["SliderSprite A: 0-255"]
+            INFO["TextSprite\nanim name, frame, dims"]
+        end
+    end
+
+    CANVAS_S -.-&gt;|"show_frame()"| FS1
+    FS1 -.-&gt;|"frame selected"| CANVAS_S
+    CW -.-&gt;|"active color"| CANVAS_S
+    SR &amp; SG &amp; SB &amp; SA -.-&gt;|"RGBA values"| CW
+
+    LOAD_M -.-&gt;|"switch_to_scene"| LDS["LoadDialogScene"]
+    SAVE_M -.-&gt;|"switch_to_scene"| SDS["SaveDialogScene"]
+    NEW -.-&gt;|"switch_to_scene"| NDS["NewCanvasDialogScene"]
+
+    LDS -.-&gt;|"return to"| BES_RETURN["BitmapEditorScene"]
+    SDS -.-&gt;|"return to"| BES_RETURN
+    NDS -.-&gt;|"return to"| BES_RETURN</code></pre>
+<h2 id="rendering-pipeline">Rendering Pipeline<a class="headerlink" href="#rendering-pipeline" title="Permanent link">#</a></h2>
+<p>The steps of each frame, in order (<code>SceneManager._run_scene_frame</code>, then <code>_finish_frame</code>).
+Bitmappy has no world-space sprites, so steps 5 and 6 leave its widgets alone. Dirty-rect
+optimization ensures only changed regions are redrawn and pushed to the display.</p>
+<pre class="mermaid"><code>flowchart TD
+    BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --&gt; LOGIC
+    LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --&gt; EVENTS
+    LOGIC --&gt; FM["FrameManager.notify_observers\nFilmStripSprite.dirty = 1"]
+    EVENTS["3. _process_events()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
+    SERVICES["4. _update_frame_services()\nshake and rumble"] --&gt; AIM
+    AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --&gt; POSITION
+    POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --&gt; RENDER
+    RENDER["7. _render_scene()\nScene.update() (visual only), LayeredDirty.draw"] --&gt; CHECK{"sprite.dirty?"}
+    CHECK --&gt;|"dirty=0"| SKIP["Skip - no redraw"]
+    CHECK --&gt;|"dirty=1 or 2"| REDRAW["Blit sprite.image at sprite.rect\ncollect changed rects"]
+    SKIP --&gt; STILL
+    REDRAW --&gt; STILL
+    STILL["8. _advance_still_camera_shake()\nadvance a WORLD shake nothing advanced this frame\n(no aim, no game camera.update())"] --&gt; PRESENT
+    PRESENT["9. _present_frame()\ndebug overlay, pygame.display.update rects or flip"] --&gt; FINISH
+    FINISH["10. _finish_frame()\npace, then one perf_counter reading sets the next dt"]</code></pre>
+<h2 id="undoredo-operations">Undo/Redo &amp; Operations<a class="headerlink" href="#undoredo-operations" title="Permanent link">#</a></h2>
+<p>How user actions flow through operation trackers into the central undo/redo stack.
+Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph UserActions["User Actions"]
+        PAINT["Paint pixels"]
+        FILL["Flood fill"]
+        FSEL["Select frame"]
+        FDEL["Delete frame"]
+        CMOVE["Controller move"]
+    end
+
+    subgraph Trackers["Operation Trackers"]
+        COT["CanvasOperationTracker\npixel-level, batched per drag"]
+        FOT["FilmStripOperationTracker\nframe-level operations"]
+        CAOT["CrossAreaOperationTracker\ncontroller positions"]
+    end
+
+    subgraph URM["UndoRedoManager"]
+        STACK_U["Undo Stack"]
+        STACK_R["Redo Stack"]
+    end
+
+    PAINT --&gt; COT
+    FILL --&gt; COT
+    FSEL --&gt; FOT
+    FDEL --&gt; FOT
+    CMOVE --&gt; CAOT
+
+    COT --&gt;|"batch submit\n0.1s debounce"| STACK_U
+    FOT --&gt;|"submit"| STACK_U
+    CAOT --&gt;|"submit"| STACK_U
+
+    STACK_U --&gt;|"Ctrl+Z"| STACK_R
+    STACK_R --&gt;|"Ctrl+Y"| STACK_U</code></pre>
+<h2 id="sprite-loadsave-pipeline">Sprite Load/Save Pipeline<a class="headerlink" href="#sprite-loadsave-pipeline" title="Permanent link">#</a></h2>
+<p>How sprites are loaded from TOML files, saved back, and imported via drag-and-drop.</p>
+<pre class="mermaid"><code>flowchart TD
+    subgraph Load["Load Path"]
+        FILE_IN["sprite.toml"] --&gt; SF["SpriteFactory.load_sprite()"]
+        SF --&gt; DETECT["detect_file_format()"]
+        DETECT --&gt; PARSE["Parse TOML config"]
+        PARSE --&gt; DECIDE{"Multi-frame?"}
+        DECIDE --&gt;|Yes| AS["AnimatedSprite\nwith _animations dict"]
+        DECIDE --&gt;|No| BS["BitmappySprite\nsingle frame"]
+        AS --&gt; CANVAS_L["AnimatedCanvasSprite\ndisplays frames"]
+        BS --&gt; CANVAS_L
+    end
+
+    subgraph Save["Save Path"]
+        CANVAS_SAVE["AnimatedCanvasSprite"] --&gt; SER["AnimatedSpriteSerializer"]
+        SER --&gt; VALIDATE["Validate pixel data\ndetect per-pixel alpha"]
+        VALIDATE --&gt; WRITE_TOML["Write TOML\ncolors + frames + animations"]
+        WRITE_TOML --&gt; FILE_OUT["output.toml"]
+
+        CANVAS_SAVE --&gt; PNG["Export PNG\npygame.image.save"]
+        PNG --&gt; FILE_PNG["output.png"]
+    end
+
+    subgraph DragDrop["Drag and Drop"]
+        DROP_FILE["Dropped file"] --&gt; EXT{"Extension?"}
+        EXT --&gt;|".toml"| SF
+        EXT --&gt;|".png"| PNG_LOAD["pygame.image.load()"]
+        PNG_LOAD --&gt; NEW_FRAME["Insert as new frame"]
+    end</code></pre>
+<h2 id="multi-controller-system">Multi-Controller System<a class="headerlink" href="#multi-controller-system" title="Permanent link">#</a></h2>
+<p>Up to 4 color-coded controllers can operate simultaneously. Each controller
+independently switches between three modes using shoulder buttons.</p>
+<pre class="mermaid"><code>flowchart TD
+    subgraph Assignment["Controller Assignment"]
+        CONNECT["Controller connected"] --&gt; FIRST["First button press"]
+        FIRST --&gt; RED["Red - controller 0"]
+        FIRST --&gt; GREEN["Green - controller 1"]
+        FIRST --&gt; BLUE["Blue - controller 2"]
+        FIRST --&gt; YELLOW["Yellow - controller 3"]
+    end
+
+    subgraph Modes["Mode Switching per Controller"]
+        FSM["Film Strip Mode\nR2 to enter"]
+        CM["Canvas Mode\nL2 to enter"]
+        SLM["Slider Mode\nL2+R2 to enter"]
+
+        FSM --&gt;|"Press L2"| CM
+        CM --&gt;|"Press R2"| FSM
+        CM --&gt;|"Press L2+R2"| SLM
+        SLM --&gt;|"Release L2 or R2"| CM
+        FSM --&gt;|"Press L2+R2"| SLM
+        SLM --&gt;|"Release L2 or R2"| FSM
+    end
+
+    subgraph FilmStripControls["Film Strip Mode Controls"]
+        FS_NAV["D-pad: Navigate frames"]
+        FS_SEL["A: Select frame"]
+        FS_SW["L1/R1: Switch animation"]
+    end
+
+    subgraph CanvasControls["Canvas Mode Controls"]
+        C_MOVE["D-pad: Move cursor"]
+        C_PAINT["A: Paint pixel"]
+        C_JUMP["L1/R1: Jump 8 pixels"]
+    end
+
+    subgraph SliderControls["Slider Mode Controls"]
+        S_ADJ["D-pad: Adjust value"]
+        S_JUMP["L1/R1: Adjust by 8"]
+    end
+
+    FSM --&gt; FilmStripControls
+    CM --&gt; CanvasControls
+    SLM --&gt; SliderControls</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../glitchygames/ui/" class="btn btn-neutral float-left" title="glitchygames.ui"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../../glitchygames/ui/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../event_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

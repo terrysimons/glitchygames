@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/galimore/" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Galimore Survey - GlitchyGames</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Galimore Survey";
+        var mkdocs_page_input_path = "galimore.md";
+        var mkdocs_page_url = "/galimore/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+                <ul><li>
+                    <a href="../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Galimore Survey</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Galimore Survey</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/galimore.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../quality/complexity/" class="btn btn-neutral float-left" title="Code Complexity"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="galimore-19982001-what-it-is-and-how-its-tools-work">Galimore (1998–2001): what it is and how its tools work<a class="headerlink" href="#galimore-19982001-what-it-is-and-how-its-tools-work" title="Permanent link">#</a></h1>
+<p>A survey of the Galimore project (1998–2001), the author's earlier game and its tools, made on
+2026-10-18 to inform GlitchyGames' level tools (<code>plans/2026-10-18-level-tools.md</code>).</p>
+<p>Conventions: <code>SRC/</code> = the original files (<code>galimore_files/</code>, kept outside this repository);
+<code>X/</code> = where the survey extracted each archive (one directory per archive). <strong>[read]</strong> = read
+directly in a file; <strong>[inferred]</strong> = concluded from sizes, layouts or context. <code>R/</code> = PNG renders
+the survey decoded from the original data with a small read-only decoder, used to confirm the
+binary layouts below (the decoder and renders are not in this repository). Nothing from the
+archives was executed.</p>
+<h2 id="tldr">TL;DR<a class="headerlink" href="#tldr" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>Not a Mac game.</strong> Galimore is a top-down <strong>tile RPG</strong> ("similar to Final Fantasy 3 (English) or
+  Zelda", <code>Galimore Clean Up/Old Galimore Folder/Galimore Archive/public_html copy/index.html</code>)
+  [read] for <strong>MS-DOS</strong>, developed on an iMac (Photoshop 5.02 for art, Virtual PC for code: "Yeah,
+  I'm using a Mac to write a PC game", <code>public_html copy/development.html</code>) [read]. Hence the
+  resource forks, MacBinary <code>.bin</code>, CR line endings and <code>ƒ</code> folder names.</li>
+<li><strong>Two engine generations:</strong></li>
+<li><strong>1999, Borland C++ 16-bit DOS</strong>: BGI <code>SVGA256.BGI</code>, 256 colours, XMS. A playable
+     <code>GALIMORE.EXE</code> plus tools GEDIT, GMAP, GATTRIB, MAKEDAT, GTORAW/RAWTOG
+     (<code>X/CU_galisource072399/</code>) [read].</li>
+<li><strong>Aug 1999 – Aug 2000, DJGPP (gcc 2.8.1) + Allegro 3.9.32 WIP</strong>, 640×480 at 16/15-bit colour.
+     Only the toolchain exists: <strong>Galibmap</strong> (bitmap/sprite editor), <strong>Mapedit</strong> (map editor),
+     <strong>Galimake</strong> (data packer) and a fire-effect demo. The new game was "Not yet started, but should
+     use most of the mapeditor engine" (<code>development.html</code>) [read].</li>
+<li><strong>Successor:</strong> in Aug 2000 the code was relicensed (LGPL) as <strong>"RPG Tools" / "Phosphor"</strong>, a
+  SourceForge map editor (<code>Galimore/Old Galimore Folder/RPG Tools Code/</code>) [read]; only headers and
+  a Makefile exist (no rendering code; graphics were Allegro 2D, with no OpenGL anywhere).</li>
+<li><strong>Formats:</strong> every file is a raw <code>fwrite</code> dump of a C++ object: no header, no version,
+  little-endian, compiler-specific padding. <strong>File type is detected purely by size</strong> (2332 / 49152 /
+  3072 / 4608 bytes). All are fully decoded in §2.</li>
+</ul>
+<hr />
+<h2 id="1-inventory">1. Inventory<a class="headerlink" href="#1-inventory" title="Permanent link">#</a></h2>
+<h3 id="11-top-level-items">1.1 Top-level items<a class="headerlink" href="#11-top-level-items" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Date</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Galimore.zip</code> (50.8 MB, 882 entries)</td>
+<td>2001-04-16</td>
+<td>Master backup of <code>Galimore/</code>: <code>bitmap.zip</code>, <code>mapedit.zip</code>, <code>Galimore Archive (08-00).zip</code>, <code>Old Galimore Folder/</code>, <code>Programming Archive/</code>. <code>Galimore/</code> is the same tree unpacked (880 vs 882 files; the gap is MacBinary/<code>Icon\r</code>/<code>ƒ</code> artefacts) [read].</td>
+</tr>
+<tr>
+<td><code>Galimore/</code></td>
+<td>2000–2001</td>
+<td>The unpacked master. Newest code: <code>Old Galimore Folder/Galimore Source as of 7_31_00/</code> (to 2000-08-01) and <code>Old Galimore Folder/RPG Tools/</code> (same tree with LGPL headers; <code>g_map.h</code> 2000-08-03) [read].</td>
+</tr>
+<tr>
+<td><code>Galimore Clean Up/</code></td>
+<td>2011-06</td>
+<td>Reorganised copy with several archives unpacked; adds <code>mapedit (Binary).zip</code> and <code>bitmap (Binary).zip</code> [read].</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-archives-checked-with-md5">1.2 Archives (checked with md5)<a class="headerlink" href="#12-archives-checked-with-md5" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Archive</th>
+<th>Date</th>
+<th>Contents and notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Galimore Archive (08-00).zip</code> (both copies) and <code>Galimore Archive July 12.zip</code></td>
+<td>2000-07-12/13</td>
+<td><strong>Byte-identical</strong> (17,773,685 B); "08-00" is a copy/rename. June 2000 source snapshots, specs, sprites.</td>
+</tr>
+<tr>
+<td><code>Galimore Source 7:12:00.zip</code></td>
+<td>2000-07-12</td>
+<td>79 files: flat source, <code>.bg/.fg/.raw</code> tiles, <code>bg/fg/get.dat</code>, <code>house/map/test.map</code>, RHIDE <code>.gpr/.gdt</code>, <code>.o</code>. Identical to the unpacked "as of 7_12_00" folder.</td>
+</tr>
+<tr>
+<td><code>Programming Archive/codebackup.zip</code> (both identical)</td>
+<td>zipped 2000-09-21, contents <strong>2000-06-04/05</strong></td>
+<td><code>WINDOWS/Desktop/Complete/</code> (89 files, early-June source + data with <code>mapedit.exe</code>, <code>galibmap.exe</code>, <code>galimake.exe</code>) and a second desktop folder (11 files, a copy of the "GUI Shell" template). <strong>Older</strong> than the July trees despite the name.</td>
+</tr>
+<tr>
+<td><code>mapedit (Binary).zip</code> = <code>Galimore.zip/Galimore/mapedit.zip</code></td>
+<td>2000-09-05</td>
+<td>Identical. <code>mapedit.exe</code> (DJGPP COFF; "Allegro 3.9.32 (WIP), djgpp", gcc 2.8.1), <code>bg.dat</code> (25 tiles), <code>fg.dat</code> (29), <code>get.dat</code> (2), <code>house/map/test.map</code>.</td>
+</tr>
+<tr>
+<td><code>bitmap (Binary).zip</code> = <code>Galimore.zip/Galimore/bitmap.zip</code></td>
+<td>2000-06-15</td>
+<td>Identical. <code>galibmap.exe</code> and <code>pockets.spr</code> (49,152 B, the hero sprite).</td>
+</tr>
+<tr>
+<td><code>060400</code>, <code>060500</code>, <code>060600</code>, <code>061300</code>, <code>061500</code>, <code>6-29-00</code> <code>.zip</code></td>
+<td>June 2000</td>
+<td>Daily snapshots (48 → 164 files); copies elsewhere identical. <code>6-29-00</code> first has <code>house.map</code>, 29 fg / 25 bg tiles, <code>flame.gdt</code>.</td>
+</tr>
+<tr>
+<td><code>Galimore Archive May 2000.zip</code></td>
+<td>2000-05-31</td>
+<td><code>complete Folder/</code> (48 source files), <code>FF3 Tiles/</code> (10 reference tiles), <code>Galimore Specs/</code>, nested <code>gali.zip</code>, <code>gbe_4_17_00.zip</code>, <code>gme_4_17_00.zip</code> (<strong>not extracted</strong>).</td>
+</tr>
+<tr>
+<td><code>COMPLETE.ZIP</code></td>
+<td>2000-07-12</td>
+<td>Same sources with DOS 8.3 names (zipped inside DOS/Virtual PC) [inferred].</td>
+</tr>
+<tr>
+<td><code>galisource072399.zip</code></td>
+<td>1999-07-23</td>
+<td><strong>1999 Borland/BGI generation</strong>: <code>GALIMORE.CPP</code>; GEDIT/GMAP/GATTRIB/MAKEDAT/GTORAW/RAWTOG/PATCH <code>.CPP</code> + <code>.EXE</code>; 70 bitmaps; <code>.DAT</code> packs; <code>.SPR</code> sprites; maps.</td>
+</tr>
+<tr>
+<td><code>public_html copy/public_release/galimore07xx99.zip</code>, <code>pics.zip</code></td>
+<td>July 1999</td>
+<td>Public 1999 builds (<code>GALIMORE.EXE</code>, GEDIT/GMAP/GATTRIB, <code>.DAT</code>, <code>SVGA256.BGI</code>, <code>HGXMOUSE.EXE</code>); <code>072699</code> ships <code>GALIMORE.CPP</code>.</td>
+</tr>
+<tr>
+<td><code>public_html copy/betas/gali.zip</code></td>
+<td>2000</td>
+<td>Beta <code>mapedit.exe</code> + <code>galibmap.exe</code>.</td>
+</tr>
+<tr>
+<td><code>flame.zip</code>, <code>FIRE.ZIP</code>, <code>galimake.zip</code></td>
+<td>2000-06/07</td>
+<td><code>flame.exe</code>, <code>FIRE.CPP</code>, <code>galimake.exe</code>.</td>
+</tr>
+<tr>
+<td><code>102599.zip</code> = <code>102599 (src).zip</code></td>
+<td>1999-10-25</td>
+<td>Single-file-era <code>galibmap.cpp</code>, <code>gcommon.h</code>, <code>button.h</code>, <code>osinfo.h</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Source chronology:</strong> 1999-07 BGI (<code>galisource072399</code>) → 1999-10 <code>102599</code> → 2000-04 <code>gbe/gme_4_17_00</code>
+→ 2000-05-31 May archive → 2000-06-04/05 <code>codebackup</code> → June daily zips → 2000-07-12 <code>Source
+7:12:00</code> / <code>COMPLETE.ZIP</code> / <code>Archive July 12</code> (= <code>08-00</code>) → <strong>2000-07-31/08-01 <code>Galimore Source as of
+7_31_00</code> (newest Galimore code)</strong> → 2000-08-03 <code>RPG Tools/</code> (LGPL) → 2000-08-07 <code>RPG Tools Code/</code>
+(Phosphor) → 2000-09-05 <code>mapedit (Binary)</code> built → 2001-04-16 <code>Galimore.zip</code>.</p>
+<p><strong>7_12 → 7_31:</strong> flat directory split into <code>src/ include/ bg/ fg/ get/ raw/ Backup/</code>; "cross-platform"
+<code>exists</code>/<code>file_size</code> in <code>g_io.cpp</code> (later commented out); a <code>GALIMAKE_STUB</code> hack in <code>gmore_raw.cpp</code>;
+small fixes in galibmap, g_data and mapedit.</p>
+<h3 id="13-file-counts-2301-originals">1.3 File counts (2,301 originals)<a class="headerlink" href="#13-file-counts-2301-originals" title="Permanent link">#</a></h3>
+<p>Art: 845 <code>.raw</code>, 203 <code>.fg</code>, 192 <code>.bg</code>, 46 <code>.gif</code>, 26 <code>.psp</code>, 19 <code>.psd</code>, 14 <code>.get</code>, 3 <code>.spr</code>, 4 <code>.big</code>.
+Code: 297 <code>.h</code>, 293 <code>.cpp</code>, 75 <code>.o</code>, 25 <code>.gpr</code> + 25 <code>.gdt</code> (RHIDE), 14 <code>.exe</code>. Other: 34 <code>.zip</code>,
+11 <code>.map</code>, 10 <code>.dat</code>, 19 <code>.html</code>, 8 <code>.log</code>, ~21 extension-less Mac sound files. <code>.raw</code> sizes:
+675 × 3072 (32×32 RGB), 44 × 4608 (32×48 RGB), 118 × 768 (16×16 RGB), 4 × 6144, 4 × 4170.</p>
+<h3 id="14-not-extracted-unreadable-skipped">1.4 Not extracted / unreadable / skipped<a class="headerlink" href="#14-not-extracted-unreadable-skipped" title="Permanent link">#</a></h3>
+<ul>
+<li>Zip members inside <code>ƒ</code> folders failed ("Illegal byte sequence"); their unpacked copies were read.</li>
+<li><code>060400.zip</code> member <code>test&lt;non-ASCII&gt;</code> (a 49,152 B sprite).</li>
+<li>Nested <code>gbe_4_17_00.zip</code>, <code>gme_4_17_00.zip</code>, <code>gali.zip</code> (May 2000 archive).</li>
+<li>No <code>unar</code>/<code>lsar</code>; no StuffIt/BinHex archives found in scope.</li>
+<li><strong>Sounds:</strong> data forks are 0 bytes; audio is only in resource forks (<code>sfil</code>, System 7 sound).</li>
+<li><strong>ClarisWorks design docs</strong> read via <code>strings</code> only (fragmentary).</li>
+<li><code>.psd</code>/<code>.psp</code>/<code>.big</code> identified, not viewed.</li>
+<li><strong>Skipped as personal:</strong> a personal page in <code>public_html copy/</code> and an e-mail contacts file in
+  <code>RPG Tools Code/</code>.</li>
+</ul>
+<hr />
+<h2 id="2-tools-and-file-formats">2. Tools and file formats<a class="headerlink" href="#2-tools-and-file-formats" title="Permanent link">#</a></h2>
+<p>All written with <code>ofstream::write((char*)&amp;obj, sizeof(obj))</code>, little-endian x86.</p>
+<h3 id="21-galibmap-bitmap-and-sprite-editor-2000">2.1 Galibmap: bitmap and sprite editor (2000)<a class="headerlink" href="#21-galibmap-bitmap-and-sprite-editor-2000" title="Permanent link">#</a></h3>
+<p>Sources <code>src/galibmap.cpp</code>, <code>src/bmap_gui.cpp</code>, <code>src/gmore_raw.cpp</code>, <code>src/g_object.cpp</code>,
+<code>src/g_sprite.cpp</code>; binary <code>X/bitmap_Binary/galibmap.exe</code>.
+- Space toggles object mode (8 frames of 32×32) and sprite mode (16 frames of 32×48).
+- 6× zoomed canvas: left-drag paints, right-drag eyedropper; drag frames in the strip to copy or
+  reorder.
+- R/G/B sliders, three colour wells (C cycles, R replaces colour 2 with colour 1); New / Save / Load
+  / Quit; keys 1–8, N, L, S, Esc.
+- Load branches purely on <code>file_size</code>: 2332 → object, 49152 → sprite, 3072 → raw tile, 4608 → raw
+  sprite frame (the file browser filters by the same sizes).</p>
+<p><strong>GALIMORE_OBJECT (tile/object), 2332 bytes</strong> (<code>.bg</code>, <code>.fg</code>, <code>.get</code>):
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 2048 | <code>INT16 array[32][32]</code>, <strong><code>[x][y]</code></strong> (offset (x·32+y)·2), <strong>RGB565</strong>; <code>0xF81F</code> = transparent |
+| 2048 | 21 | objectName |
+| 2069 | 1 | objectType |
+| 2070 | 1 | objectState |
+| 2071 | 1 | objectSpecial |
+| 2072 | 2 | objectIsUsableBy (UINT16) |
+| 2074 | 1 | objectWeight |
+| 2075 | 256 | objectDescription |
+| 2331 | 1 | pad |</p>
+<p>The attribute block is all zeros in every shipped <code>.dat</code> (never authored).</p>
+<p><strong>GALIMORE_SPRITE, 49,152 bytes</strong> (<code>.spr</code>): 16 × <code>short array[32][48]</code>, <code>[x][y]</code> RGB565. Frame plan
+(<code>spriteguide.html</code>): front / away / side × still / walk-R / walk-L, side mirrored → 9 used.
+<code>pockets.spr</code> uses 6 (rest grey).</p>
+<p><strong>RAW, 3072 / 4608 bytes</strong> (<code>.raw</code>): headerless 8-bit RGB, <strong>row-major</strong>, 32×32 or 32×48 (Photoshop
+Raw export). Pipeline: Photoshop → <code>.raw</code> → Galibmap → <code>.bg/.fg/.get/.spr</code>.</p>
+<h3 id="22-galimake-data-packer">2.2 Galimake: data packer<a class="headerlink" href="#22-galimake-data-packer" title="Permanent link">#</a></h3>
+<p><code>.dat</code> = 2332-byte records back to back (58,300 = 25×2332, 67,628 = 29×2332, 4,664 = 2×2332).
+<strong>Stable tile IDs:</strong> maps store 1-based indices; on update Galimake loads the existing <code>.dat</code>,
+<strong>zeros (doesn't delete) records whose pixels no longer match a file</strong>, refreshes matches, and puts
+new tiles in the first blank slot, so map indices never shift.</p>
+<h3 id="23-mapedit-map-editor">2.3 Mapedit: map editor<a class="headerlink" href="#23-mapedit-map-editor" title="Permanent link">#</a></h3>
+<p>Sources <code>src/mapedit.cpp</code>, <code>src/mapeditor_gui.cpp</code>, <code>src/g_map.cpp</code>, <code>include/g_map.h</code>.
+- 14×14 map view with scroll bars; 4×6 tile palette; layer tabs <strong>Fgnd / Bgnd / Obj / Spr / Mask</strong>;
+  floor radios 1F / 2F with show-layer checkboxes; "Make a Mask" and "Eraser" (tile 0).
+- Brush sizes 1–4; s / l save / load; Esc quits.
+- Mask tab: drag to stamp, right-click to pick up; magenta = no mask, purple = current, black = other.
+- <strong>Mask bits:</strong> 0 LAYER_SWITCH, 1 UNPASSABLE_GOOD, 2 UNPASSABLE_BAD, 3 UNPASSABLE_NEUTRAL, 4 DEEP,
+  5 BRIDGE, 6 CHASM, 7 PUSHABLE, 8 TRANSPARENT. An older plan (<code>g_mask.h</code>, Dec 1999) added exits,
+  burnable/bombable/freezable, hot/cold, anti-magic, death, door, soil, farmed, layer 2; "Mask Cases"
+  planned a replacement tile in the upper 16 bits (e.g. burnt version) — never implemented.</p>
+<p><strong>GALIMORE_MAP, 114,692 bytes</strong> (arrays <code>[floor][x][y]</code>; verified by decoding <code>house.map</code>):
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 1 | landscape (always 0) |
+| 1 | 8192 | <code>UINT8 fgLayer[2][64][64]</code> (N → record N-1 of <code>fg.dat</code>; 0 = empty) |
+| 8193 | 8192 | <code>UINT8 bgLayer</code> → <code>bg.dat</code> |
+| 16385 | 1 | pad |
+| 16386 | 16384 | <code>UINT16 objectLayer</code> → <code>get.dat</code> |
+| 32770 | 16384 | <code>UINT16 spriteLayer</code> (unimplemented) |
+| 49154 | 2 | pad |
+| 49156 | 65536 | <code>UINT64 maskLayer</code> |</p>
+<p>64×64 cells per floor, 2 floors. Samples: <code>house.map</code> (cottage on grass, 14 fg tiles, 1 object, 40
+fully-impassable mask cells), <code>map.map</code> (lattice test), <code>test.map</code> (18 cells of tile 1).</p>
+<h3 id="24-the-1999-tools">2.4 The 1999 tools<a class="headerlink" href="#24-the-1999-tools" title="Permanent link">#</a></h3>
+<p>GEDIT (32×32, 256 colours, rotate/mirror/replace/transparent colour, 8-frame sprites); GMAP (15×15
+maps, layer toggles, exits); GATTRIB (attributes); GTORAW / RAWTOG (bitmap ↔ RGB raw, palette as a
+<code>switch</code>). The two DOCs are swapped (<code>GMAP.DOC</code> documents GEDIT).
+- <strong>Bitmap, 1312 B:</strong> bitmapSize, transparentImage, transparencyColor (default 15); <code>byte
+  array[32][32]</code> palette indices <code>[x][y]</code>; attribs (name[21], 3 type bytes, misc, weight,
+  description[256]). <code>BKG.DAT</code> 19,680 = 15×1312.
+- <strong>Sprite, 9262 B:</strong> 8 frames (DOWN&frac12;, UP&frac12;, LEFT&frac12;, RIGHT&frac12;) + speed, dimensions, direction,
+  X, Y + temp array + <code>struct time</code>.
+- <strong>Map:</strong> 1458 B = <code>unsigned char Map[6][15][15]</code> + 6 exits (old: 2808 B with <code>int</code>). Exit = name[13]
+  + pad + int X, Y. Layers: background, wall, object, scenery, door.</p>
+<hr />
+<h2 id="3-assets">3. Assets<a class="headerlink" href="#3-assets" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Asset</th>
+<th>Where</th>
+<th>Format</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2000 tile art</td>
+<td><code>7_31_00/raw/</code>, <code>Galimore Archive/Galimore Tiles/</code>, <code>Galimore Specs/Galimore Tiles/</code></td>
+<td>32×32 / 16×16 RGB raw</td>
+</tr>
+<tr>
+<td>2000 game tiles</td>
+<td><code>7_31_00/bg</code> (25), <code>fg</code> (29), <code>get</code> (2); <code>X/mapedit_Binary/*.dat</code></td>
+<td>2332 B objects (<code>R/bg.png</code>, <code>R/fg.png</code>, <code>R/get.png</code>)</td>
+</tr>
+<tr>
+<td>Maps</td>
+<td><code>X/mapedit_Binary/{house,map,test}.map</code></td>
+<td>114,692 B (<code>R/house_crop.png</code>, <code>R/map_crop.png</code>)</td>
+</tr>
+<tr>
+<td>Sprites</td>
+<td><code>pockets.spr</code>, <code>Sprite Testing/pockets_*.raw</code>, <code>Galimore Sprites/*</code></td>
+<td><code>.spr</code>, raw, <code>.psd</code>, <code>.gif</code> (<code>R/pockets.png</code>)</td>
+</tr>
+<tr>
+<td>Objects / icons</td>
+<td><code>Galimore Objects/*</code>, <code>The 5 Points/*</code></td>
+<td><code>.psd</code> / <code>.psp</code></td>
+</tr>
+<tr>
+<td>World design</td>
+<td><code>Continent*.psd</code>, <code>Experiment Town.psd</code>, <code>House Example.jpg</code></td>
+<td>Photoshop</td>
+</tr>
+<tr>
+<td>1999 art</td>
+<td><code>X/CU_galisource072399/</code> (70 bitmaps; sprites JABBA/MONK/MONST/PIMP/DOUG/MAN)</td>
+<td>1312 B bitmaps, 9262 B sprites</td>
+</tr>
+<tr>
+<td>Sound</td>
+<td><code>Sound Effects/Stephen King/</code> (21)</td>
+<td>Mac resource forks only</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-code-quality-and-notable-points">4. Code quality and notable points<a class="headerlink" href="#4-code-quality-and-notable-points" title="Permanent link">#</a></h2>
+<p><strong>Good ideas:</strong> stable tile IDs (blank instead of delete); size-based type sniffing; Allegro driver
+trimming; reusable ID-dispatched widget toolkit with a "GUI Shell" starter template;
+per-function debug gating; Photoshop RAW interop; two-floor maps with a 64-bit per-cell property mask
+and layer-switch bit; palette-gradient fire for animated tiles; the editor doubles as the renderer.</p>
+<p><strong>Bugs spotted (reported, not changed):</strong>
+1. <code>g_map.cpp</code> <code>saveMap()</code>/<code>loadMap()</code>: <code>char *fileName; strcpy(fileName, …)</code> (uninitialized pointer).
+2. <code>g_map.cpp</code> <code>drawATile()</code>: uninitialized <code>theTileVector</code>, no <code>default:</code> case.
+3. <code>mapeditor_gui.cpp</code>: <code>visibleLayers</code> bit layouts disagree, and init uses <code>&amp;&amp;</code> for <code>&amp;</code>.
+4. "Transparent" mask checkbox has no handler.
+5. <code>GALIMORE_OBJECT::getBitmap()</code> has no <code>return</code>.
+6. <code>convertTo15()</code> is identical to <code>convertTo16()</code>.
+7. Sprite-frame copy constructor copies only 32×32 of 32×48; <code>displayFrame()</code> size mismatch.
+8. Attribute copy/assignment skip <code>objectWeight</code>.
+9. <code>~GALIMORE_BITMAP_OBJECT</code> destroys bitmaps shared by vector copies.
+10. <code>g_mask.h</code> constants are <code>unsigned short</code> but shift up to bit 25 (bits ≥ 16 are zero).
+11. <code>loadDataFile</code> dedups by pixels, so identical tiles would collapse [inferred risk].
+12. <code>do{}while(infile)</code> processes the failed final read once more.
+13. <code>.dat</code> order depends on directory order; memory-dump formats are compiler/endian-specific.</p>
+<p><strong>Unfinished:</strong> no 2000-era game runtime; sprite layer; object attributes; mask replacement tiles;
+Linux port; script editor, character generation, NPC AI, OpenPlay networking.</p>
+<p><strong>RPG Tools / Phosphor (Aug 2000):</strong> <code>rpg_map.h</code> (map class renamed <code>C_RPGMap</code>), <code>rpg_raw.h</code> (LGPL),
+gcc Makefile, a CodeWarrior project (the only real classic-Mac toolchain artefact), CVS at
+<code>cvs.rpgtools.sourceforge.net</code>, naming style in <code>Text Docs/CODING_STYLE.txt</code> (<code>C_</code> classes, <code>S_</code>
+structs, <code>g</code> globals, <code>k</code>/<code>gk</code> constants).</p>
+<hr />
+<h2 id="5-relevance-to-glitchygames">5. Relevance to GlitchyGames<a class="headerlink" href="#5-relevance-to-glitchygames" title="Permanent link">#</a></h2>
+<p>Roadmap <strong>#11 "Level/room data format (and tilemaps)"</strong> is open; each game rolls its own
+<code>ScreenData</code>/<code>FloorData</code>/<code>LevelManager</code> (<code>plans/engine-audit.md</code>).</p>
+<h3 id="51-worth-porting">5.1 Worth porting<a class="headerlink" href="#51-worth-porting" title="Permanent link">#</a></h3>
+<ol>
+<li><strong>Map model for #11:</strong> Galimore's ordered layers (bg → fg → objects → actors), per-cell
+   properties kept separate from the art, and named exits with entry points. The GlitchyGames
+   design built from these ideas, adjusted for today's games and constraints (object layers, a
+   typed property vocabulary, exit regions with named spawn points), is
+   <code>plans/2026-10-18-level-tools-a-tilemap-format.md</code>.</li>
+<li><strong>Stable tile IDs:</strong> explicit IDs or tombstones, never list position.</li>
+<li><strong>Collision on the map cell, separate from the art.</strong></li>
+<li><strong>Editor features:</strong> Mapedit's brush sizes, property-paint mode with pick-up/stamp, layer and
+   floor visibility, tileset palette, eraser = 0; Galibmap's colour wells, frame drag-reorder, and
+   the 9-frame walk-cycle convention.</li>
+<li><strong>Animated tiles</strong> via animation frames, or a procedural fire buffer.</li>
+</ol>
+<h3 id="52-converting-galimore-data">5.2 Converting Galimore data<a class="headerlink" href="#52-converting-galimore-data" title="Permanent link">#</a></h3>
+<p>The survey's read-only decoder (not in this repository) decodes everything below to PNG; sub-plan E
+(<code>plans/2026-10-18-level-tools-e-galimore-import.md</code>) plans a reviewed converter.
+- <strong>Tiles:</strong> <code>&lt;1024H</code>, transpose from <code>[x][y]</code>, RGB565 → RGB888, <code>0xF81F</code> → magenta; write TOML
+  <code>pixels</code> + <code>[colors]</code> (10–60 colours per tile); keep the 1-based <code>.dat</code> index as the tile ID.
+- <strong>Sprites:</strong> 16 × 32×48 frames (<code>&lt;1536H</code>, <code>[x][y]</code>); drop all-grey frames; <code>walk_down</code> (0–2),
+  <code>walk_up</code> (3–5), <code>walk_side</code> (6–8, mirrored).
+- <strong>Raw:</strong> RGB888 row-major → PNG for Bitmappy.
+- <strong>Maps:</strong> offsets in §2.3; layers per floor; mask bits → named properties.
+- <strong>1999 data:</strong> 1312 B indexed bitmaps (palette from GTORAW or <code>GALIMORE PALLETE.GIF</code>; honour
+  <code>transparencyColor</code>), 9262 B 8-frame sprites, 1458 / 2808 B maps with exits — the best test case
+  for a room/exit design.
+- <strong>Caveats:</strong> tiles may be RGB555 if saved in 15-bit mode; attribute blocks are empty; sounds need
+  resource-fork extraction first (e.g. <code>DeRez</code>).</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../quality/complexity/" class="btn btn-neutral float-left" title="Code Complexity"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../quality/complexity/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="../js/mermaid-init.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

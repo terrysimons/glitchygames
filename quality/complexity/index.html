@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/quality/complexity/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Code Complexity - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Code Complexity";
+        var mkdocs_page_input_path = "quality/complexity.md";
+        var mkdocs_page_url = "/quality/complexity/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Code Complexity</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/quality/complexity.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-left" title="Multi-Controller System"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../galimore/" class="btn btn-neutral float-right" title="Galimore Survey">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="code-complexity-metrics">Code Complexity Metrics<a class="headerlink" href="#code-complexity-metrics" title="Permanent link">#</a></h1>
+<p>Complexity trends for the top modules, generated by <a href="https://github.com/tonybaloney/wily">wily</a>.</p>
+<p>Regenerate with: <code>nox -s code-complexity -- --graphs</code></p>
+<h2 id="glitchygamesbitmappy__init__py"><code>glitchygames/bitmappy/__init__.py</code><a class="headerlink" href="#glitchygamesbitmappy__init__py" title="Permanent link">#</a></h2>
+<h3 id="maintainability-index">Maintainability Index<a class="headerlink" href="#maintainability-index" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy___init___py_maintainability_mi.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="cyclomatic-complexity">Cyclomatic Complexity<a class="headerlink" href="#cyclomatic-complexity" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy___init___py_cyclomatic_complexity.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="lines-of-code">Lines of Code<a class="headerlink" href="#lines-of-code" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy___init___py_raw_loc.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="halstead-effort">Halstead Effort<a class="headerlink" href="#halstead-effort" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy___init___py_halstead_effort.html" width="100%" height="400" frameborder="0"></iframe>
+
+<hr />
+<h2 id="glitchygamesbitmappyprotocolspy"><code>glitchygames/bitmappy/protocols.py</code><a class="headerlink" href="#glitchygamesbitmappyprotocolspy" title="Permanent link">#</a></h2>
+<h3 id="maintainability-index_1">Maintainability Index<a class="headerlink" href="#maintainability-index_1" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_protocols_py_maintainability_mi.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="cyclomatic-complexity_1">Cyclomatic Complexity<a class="headerlink" href="#cyclomatic-complexity_1" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_protocols_py_cyclomatic_complexity.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="lines-of-code_1">Lines of Code<a class="headerlink" href="#lines-of-code_1" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_protocols_py_raw_loc.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="halstead-effort_1">Halstead Effort<a class="headerlink" href="#halstead-effort_1" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_protocols_py_halstead_effort.html" width="100%" height="400" frameborder="0"></iframe>
+
+<hr />
+<h2 id="glitchygamesbitmappyframe_operationspy"><code>glitchygames/bitmappy/frame_operations.py</code><a class="headerlink" href="#glitchygamesbitmappyframe_operationspy" title="Permanent link">#</a></h2>
+<h3 id="maintainability-index_2">Maintainability Index<a class="headerlink" href="#maintainability-index_2" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_frame_operations_py_maintainability_mi.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="cyclomatic-complexity_2">Cyclomatic Complexity<a class="headerlink" href="#cyclomatic-complexity_2" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_frame_operations_py_cyclomatic_complexity.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="lines-of-code_2">Lines of Code<a class="headerlink" href="#lines-of-code_2" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_frame_operations_py_raw_loc.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="halstead-effort_2">Halstead Effort<a class="headerlink" href="#halstead-effort_2" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_frame_operations_py_halstead_effort.html" width="100%" height="400" frameborder="0"></iframe>
+
+<hr />
+<h2 id="glitchygamesbitmappyeditorpy"><code>glitchygames/bitmappy/editor.py</code><a class="headerlink" href="#glitchygamesbitmappyeditorpy" title="Permanent link">#</a></h2>
+<h3 id="maintainability-index_3">Maintainability Index<a class="headerlink" href="#maintainability-index_3" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_editor_py_maintainability_mi.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="cyclomatic-complexity_3">Cyclomatic Complexity<a class="headerlink" href="#cyclomatic-complexity_3" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_editor_py_cyclomatic_complexity.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="lines-of-code_3">Lines of Code<a class="headerlink" href="#lines-of-code_3" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_editor_py_raw_loc.html" width="100%" height="400" frameborder="0"></iframe>
+
+<h3 id="halstead-effort_3">Halstead Effort<a class="headerlink" href="#halstead-effort_3" title="Permanent link">#</a></h3>
+<iframe src="../graphs/glitchygames_bitmappy_editor_py_halstead_effort.html" width="100%" height="400" frameborder="0"></iframe>
+
+<hr />
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-left" title="Multi-Controller System"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../galimore/" class="btn btn-neutral float-right" title="Galimore Survey">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../../multi_controller_system/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../galimore/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
