@@ -213,8 +213,17 @@ class TestAnimationHardware:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
+        """Set up pygame mocks for testing.
+
+        The mocked display's ``get_at`` answers every pixel black. It is a recording mock, and
+        these tests read the whole 800x600 screen pixel by pixel, so it kept each of the
+        480,000 calls per capture (about 1.3 GB for this file; BUGS.md #85): a plain function
+        gives the same answer without keeping them.
+        """
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
+        display_surface = pygame.display.get_surface()
+        black = pygame.Color(0, 0, 0, 255)
+        display_surface.get_at = lambda position: black  # ty: ignore[invalid-assignment]
 
     def setup_method(self):
         """Set up test fixtures."""

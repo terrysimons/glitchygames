@@ -208,14 +208,14 @@ jobs:
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
-    # large (4 vCPU, 8 GB): one process running the whole suite grows to 5.2 GB (BUGS.md #85),
-    # which the 2 GB small class killed, serially or with one worker
-    resource_class: large
+    # small (1 vCPU, 2 GB): one process runs the whole suite. It grew past 2 GB until the recording
+    # mocks in two timing and hardware tests were replaced (BUGS.md #85)
+    resource_class: small
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
-      # Two xdist workers, each running about half the suite (noxfile.py), under 8 GB together
-      PYTEST_WORKERS: "2"
+      # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
+      PYTEST_WORKERS: "0"
 
     steps:
       - checkout

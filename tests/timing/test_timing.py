@@ -617,15 +617,15 @@ def make_timer_on_fake_clock(*, backend: str, clock: FakeClock, mocker) -> FastT
         The timer backend, reading and sleeping on ``clock``.
 
     """
+    # The clock's own functions, not recording mocks: a paced run calls them millions of times
+    # (the final spin reads the clock every fake microsecond), and a mock keeping each call held
+    # about 2 GB in the 1,000-frame test (BUGS.md #85)
     if backend == 'fast':
-        mocker.patch('glitchygames.timing.time.perf_counter_ns', side_effect=clock.perf_counter_ns)
-        mocker.patch('glitchygames.timing.time.sleep', side_effect=clock.sleep)
+        mocker.patch('glitchygames.timing.time.perf_counter_ns', new=clock.perf_counter_ns)
+        mocker.patch('glitchygames.timing.time.sleep', new=clock.sleep)
         return FastTimer()
     timer = PygameTimer()
-    fake_pygame = mocker.MagicMock()
-    fake_pygame.time.get_ticks.side_effect = clock.get_ticks
-    fake_pygame.time.delay.side_effect = clock.delay
-    timer._pg = fake_pygame
+    timer._pg = SimpleNamespace(time=SimpleNamespace(get_ticks=clock.get_ticks, delay=clock.delay))
     return timer
 
 
