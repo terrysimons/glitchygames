@@ -10,7 +10,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: High (the Linux CI job cannot pass)
 - **Reporter**: Found investigating PR #95's Linux failure
 - **Date Reported**: 2026-10-21
-- **Details**: Something accumulates across tests in one process: caches, surfaces or mocks kept alive between tests, or a leak. Not yet located. Short-term options: a larger Linux resource class (`large`, 8 GB, with 2 workers), or more workers per job (each runs a share). Measure per-test growth (e.g. `tracemalloc` snapshots or RSS after each test file) to find the source
+- **Details**: Something accumulates across tests in one process: caches, surfaces or mocks kept alive between tests, or a leak. Not yet located. Run serially (`PYTEST_WORKERS=0`) on the small class, the process was killed (signal 9) 16% of the way through. Stopgap (2026-10-21): the Linux job runs on `resource_class: large` (8 GB) with 2 workers. Measure per-test growth (e.g. `tracemalloc` snapshots or RSS after each test file) to find the source
 - **Files**: `tests/`, `noxfile.py`, `.circleci/config.yml`
 
 ### 87. Images Dropped onto the Film Strip Never Become Frames

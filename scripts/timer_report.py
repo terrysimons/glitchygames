@@ -10,8 +10,9 @@ Prints three things, to tell apart why sleeps wake late:
                 time.sleep, and spin-only. A delay that hits sleeps but not spin-only is the OS or
                 VM waking sleepers late (coarse timers, coalescing); one that hits spin-only too
                 is contention.
-  auto          What ``--timer-backend auto`` would measure here: the sleep model (a constant plus
-                a fraction of each sleep's length) it sizes sleeps with.
+  by length     How late plain sleeps of 1-16 ms wake: the shape the sleep model fits.
+  auto          What ``--timer-backend auto`` measures here (the sleep model, a constant plus a
+                fraction of each sleep's length) and how late it then really meets deadlines.
 
 Always exits ``ExitCode.SUCCESS``: it reports, it does not judge (the timing tests judge).
 
@@ -48,6 +49,11 @@ SLEEP_NS = 3_000_000
 SPIN_SLEEP_NS = 1_000_000
 CPU_SHARE_SECONDS = 1.0
 NANOSECONDS_PER_MILLISECOND = 1_000_000
+# Sleep lengths for the overshoot-by-length table, and its samples per length
+DELAY_TABLE_LENGTHS_NS = (1_000_000, 2_000_000, 4_000_000, 8_000_000, 16_000_000)
+DELAY_TABLE_SAMPLES = 30
+# Waits auto's real pacing is measured over: a short one and about a 60 FPS frame's
+AUTO_PACING_WAITS_NS = (3_000_000, 12_000_000)
 # macOS's sysctl, by absolute path (no PATH lookup)
 SYSCTL_PATH = '/usr/sbin/sysctl'
 
@@ -121,18 +127,19 @@ def describe(*, label: str, overshoots_ns: list[int]) -> str:
     )
 
 
-def spaced_overshoots(*, sleep_once: Callable[[], int]) -> list[int]:
-    """Take SAMPLES spaced measurements.
+def spaced_overshoots(*, sleep_once: Callable[[], int], samples: int = SAMPLES) -> list[int]:
+    """Take spaced measurements.
 
     Args:
         sleep_once: Sleeps once and returns its overshoot in nanoseconds.
+        samples: How many.
 
     Returns:
         The overshoots.
 
     """
     overshoots: list[int] = []
-    for _ in range(SAMPLES):
+    for _ in range(samples):
         time.sleep(SAMPLE_SPACING_SECONDS)
         overshoots.append(sleep_once())
     return overshoots
@@ -152,10 +159,13 @@ def main() -> int:
         deadline = timer.ns_now() + sleep_ns
         return timer.sleep_until_next(deadline) - deadline
 
-    def os_sleep_overshoot() -> int:
+    def os_sleep_overshoot_of(length_ns: int) -> int:
         started = time.perf_counter_ns()
-        time.sleep(SLEEP_NS / 1e9)
-        return time.perf_counter_ns() - started - SLEEP_NS
+        time.sleep(length_ns / 1e9)
+        return time.perf_counter_ns() - started - length_ns
+
+    def os_sleep_overshoot() -> int:
+        return os_sleep_overshoot_of(SLEEP_NS)
 
     emit('== timer report ==')
     emit(
@@ -186,12 +196,34 @@ def main() -> int:
             ),
         )
     )
+    emit('time.sleep overshoot by sleep length (the shape --timer-backend auto models):')
+    for length_ns in DELAY_TABLE_LENGTHS_NS:
+        emit(
+            describe(
+                label=f'  time.sleep {length_ns // NANOSECONDS_PER_MILLISECOND} ms',
+                overshoots_ns=spaced_overshoots(
+                    sleep_once=lambda length_ns=length_ns: os_sleep_overshoot_of(length_ns),
+                    samples=DELAY_TABLE_SAMPLES,
+                ),
+            )
+        )
+    auto_timer = FastTimer(sleep_model=measure_sleep_model())
     auto_pacing = PacingTimer(
         backend='fast',
-        sleep_granularity_ns=fast_timer.sleep_granularity_ns,
-        sleep_model=measure_sleep_model(),
+        sleep_granularity_ns=auto_timer.sleep_granularity_ns,
+        sleep_model=auto_timer.sleep_model,
     )
     emit(f'--timer-backend auto here: {describe_pacing_timer(pacing=auto_pacing)}')
+    # How auto really paces here: how late it meets deadlines a frame's wait away
+    for wait_ns in AUTO_PACING_WAITS_NS:
+        emit(
+            describe(
+                label=f'  auto, {wait_ns // NANOSECONDS_PER_MILLISECOND} ms waits',
+                overshoots_ns=spaced_overshoots(
+                    sleep_once=lambda wait_ns=wait_ns: timer_overshoot(auto_timer, wait_ns)
+                ),
+            )
+        )
     emit('meaning: sleeps late but spin-only accurate = the OS/VM wakes sleepers late;')
     emit('         spin-only late too (and a low cpu share) = contention for the CPU.')
     return ExitCode.SUCCESS
