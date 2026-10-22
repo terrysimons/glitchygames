@@ -11,6 +11,7 @@ import pygame
 # Add the parent directory to the path so we can import glitchygames
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
 
@@ -41,16 +42,16 @@ class AnimationScene(Scene):
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)
-            self.animated_sprite.play()
-            assert self.animated_sprite.rect is not None
-            self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
-            logger.info(
-                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
-            )
-            logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
         except FileNotFoundError, ValueError, RuntimeError:
             logger.exception('Failed to load animation')
             raise
+        self.animated_sprite.play()
+        assert self.animated_sprite.rect is not None
+        self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
+        logger.info(
+            f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
+        )
+        logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 
     @override
     def update(self, dt: float | None = None) -> None:
@@ -129,7 +130,7 @@ def main() -> int:
         pygame.display.flip()
 
     pygame.quit()
-    return 0
+    return ExitCode.SUCCESS
 
 
 if __name__ == '__main__':

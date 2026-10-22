@@ -6,7 +6,14 @@ import pygame
 import pytest
 
 from glitchygames.effects.shake import RumbleSettings, ScreenShake, Shake, ShakeStyle
-from glitchygames.input.rumble import RumbleController, connected_rumble_devices
+from glitchygames.input.devices import (
+    JOYSTICK_COUNT_CALL,
+    DeviceDescriptor,
+    EnumerationAnswer,
+    ReplayDeviceRegistry,
+)
+from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
+from glitchygames.sources import active_sources
 
 SHAKER_SEED = 3
 
@@ -286,17 +293,78 @@ class TestConnectedRumbleDevices:
     def test_controller_mode_uses_controller_proxies(self, mocker):
         manager = mocker.Mock()
         manager.controllers = {3: 'proxy-a', 7: 'proxy-b'}
-        assert connected_rumble_devices(manager) == ['proxy-a', 'proxy-b']
+        assert ConnectedRumbleDevices().find(controller_manager=manager) == ['proxy-a', 'proxy-b']
 
     def test_joystick_mode_opens_every_joystick(self, mocker):
-        mocker.patch('pygame.joystick.get_count', return_value=2)
-        joystick = mocker.patch('pygame.joystick.Joystick', side_effect=['first', 'second'])
-        assert connected_rumble_devices(None) == ['first', 'second']
-        assert joystick.call_count == 2
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 2
+        registry.open_joystick.side_effect = ['first', 'second']
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        assert ConnectedRumbleDevices().find(controller_manager=None) == ['first', 'second']
+        assert registry.open_joystick.call_args_list == [
+            mocker.call(device_index=0),
+            mocker.call(device_index=1),
+        ]
 
     def test_joystick_vanishing_before_open_is_skipped(self, mocker):
-        mocker.patch('pygame.joystick.get_count', return_value=2)
-        mocker.patch(
-            'pygame.joystick.Joystick', side_effect=[pygame.error('device gone'), 'second']
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 2
+        registry.open_joystick.side_effect = [pygame.error('device gone'), 'second']
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        assert ConnectedRumbleDevices().find(controller_manager=None) == ['second']
+
+    def test_joysticks_are_opened_once_while_the_count_holds(self, mocker):
+        """Each send asks the count only: the joysticks opened before are rumbled again."""
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 2
+        registry.open_joystick.side_effect = ['first', 'second', 'third']
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        finder = ConnectedRumbleDevices()
+        assert finder.find(controller_manager=None) == ['first', 'second']
+        assert finder.find(controller_manager=None) == ['first', 'second']
+        assert registry.open_joystick.call_count == 2
+        assert registry.joystick_count.call_count == 2
+
+    def test_a_changed_count_or_other_doors_open_the_joysticks_again(self, mocker):
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 1
+        registry.open_joystick.side_effect = ['first', 'first again', 'second']
+        devices_door = mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        finder = ConnectedRumbleDevices()
+        assert finder.find(controller_manager=None) == ['first']
+        registry.joystick_count.return_value = 2
+        assert finder.find(controller_manager=None) == ['first again', 'second']
+        other_registry = mocker.Mock()
+        other_registry.joystick_count.return_value = 2
+        other_registry.open_joystick.side_effect = ['other first', 'other second']
+        devices_door.return_value = other_registry
+        assert finder.find(controller_manager=None) == ['other first', 'other second']
+
+    def test_joystick_mode_in_a_replay_rumbles_stand_ins_not_hardware(self, mocker):
+        descriptor = DeviceDescriptor(
+            kind='joystick',
+            device_index=0,
+            instance_id=5,
+            name='Pad',
+            guid=None,
+            axis_count=0,
+            button_count=0,
+            hat_count=0,
+            ball_count=0,
         )
-        assert connected_rumble_devices(None) == ['second']
+        registry = ReplayDeviceRegistry(
+            descriptors=[descriptor],
+            enumeration_answers=[
+                EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)
+            ],
+        )
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        real_count = mocker.patch('pygame.joystick.get_count')
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+
+        devices = ConnectedRumbleDevices().find(controller_manager=None)
+
+        assert [device.get_instance_id() for device in devices] == [5]
+        assert devices[0].rumble(1.0, 1.0, 100) is True
+        real_count.assert_not_called()
+        real_joystick.assert_not_called()

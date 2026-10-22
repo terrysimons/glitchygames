@@ -26,6 +26,7 @@ nav:
     - Bitmappy Architecture: "architecture/bitmappy.md"
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
+    - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
     - Galimore Survey: "galimore.md"

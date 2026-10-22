@@ -2,8 +2,11 @@
 
 import argparse
 import base64
+import binascii
+import logging
 from pathlib import Path
 
+import httpx
 import pytest
 
 from glitchygames.api.client import (
@@ -22,6 +25,12 @@ from glitchygames.api.client import (
     main,
     save_files_locally,
 )
+from glitchygames.exit_codes import ExitCode
+
+# HTTP statuses the client tells apart: the server is overloaded or down for maintenance (503),
+# or it refused what was asked (422)
+HTTP_SERVICE_UNAVAILABLE = 503
+HTTP_UNPROCESSABLE_CONTENT = 422
 
 
 class TestCreateParser:
@@ -461,11 +470,107 @@ class TestSaveFilesLocally:
 class TestMainCli:
     """Tests for the main CLI entrypoint."""
 
-    def test_main_no_prompt_no_extract_exits_error(self):
-        """Test that missing prompt and no --extract-frames causes an error."""
-        with pytest.raises(SystemExit) as exc_info:
+    def test_main_no_prompt_no_extract_exits_error(self, capsys):
+        """Test that missing prompt and no --extract-frames is argparse's usage error."""
+        with pytest.raises(SystemExit) as exit_info:
             main([])
-        assert exc_info.value.code != 0
+        assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+        assert 'prompt is required unless using --extract-frames' in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        'transport_error',
+        ['connect timeout', 'read timeout'],
+    )
+    def test_main_server_that_cannot_be_reached_is_unavailable(self, mocker, transport_error):
+        """Any failure to reach the server or hear back from it exits as unavailable."""
+        import httpx
+
+        error = (
+            httpx.ConnectTimeout('timed out connecting')
+            if transport_error == 'connect timeout'
+            else httpx.ReadTimeout('timed out reading')
+        )
+        mocker.patch('glitchygames.api.client.generate_sprite', side_effect=error)
+
+        assert main(['test prompt']) == ExitCode.SERVICE_UNAVAILABLE
+
+    def test_main_unparseable_server_response_is_unusable_input(self, mocker):
+        """A response body that is not JSON (response.json() raises ValueError) is unusable."""
+        import json
+
+        mocker.patch(
+            'glitchygames.api.client.generate_sprite',
+            side_effect=json.JSONDecodeError('Expecting value', 'not json', 0),
+        )
+
+        assert main(['test prompt']) == ExitCode.UNUSABLE_INPUT
+
+    @pytest.mark.parametrize(
+        ('request_error_factory', 'expected_exit_code'),
+        [
+            (lambda: httpx.InvalidURL('bad url'), ExitCode.OPTIONS_REFUSED),
+            (lambda: httpx.UnsupportedProtocol('ftp is not http'), ExitCode.OPTIONS_REFUSED),
+            (lambda: httpx.TooManyRedirects('loop'), ExitCode.UNUSABLE_INPUT),
+            (lambda: httpx.DecodingError('bad gzip'), ExitCode.UNUSABLE_INPUT),
+        ],
+        ids=['invalid url', 'unsupported scheme', 'redirect loop', 'undecodable body'],
+    )
+    def test_main_request_errors_never_escape(
+        self, mocker, request_error_factory, expected_exit_code
+    ):
+        """Every httpx error maps to a named code (nothing escapes as Python's 1)."""
+        mocker.patch('glitchygames.api.client.generate_sprite', side_effect=request_error_factory())
+
+        assert main(['test prompt']) == expected_exit_code
+
+    @pytest.mark.parametrize(
+        ('status_code', 'expected_exit_code'),
+        [
+            (HTTP_SERVICE_UNAVAILABLE, ExitCode.SERVICE_UNAVAILABLE),
+            (HTTP_UNPROCESSABLE_CONTENT, ExitCode.GENERATION_REJECTED),
+        ],
+        ids=['503', '422'],
+    )
+    def test_main_http_status_maps_by_meaning(self, mocker, status_code, expected_exit_code):
+        mock_response = mocker.Mock(status_code=status_code, text='busy')
+        mocker.patch(
+            'glitchygames.api.client.generate_sprite',
+            side_effect=httpx.HTTPStatusError(
+                'status', request=mocker.Mock(), response=mock_response
+            ),
+        )
+
+        assert main(['test prompt']) == expected_exit_code
+
+    @pytest.mark.parametrize(
+        'response_json', [['not', 'an', 'object'], 'just a string'], ids=['list', 'string']
+    )
+    @pytest.mark.parametrize('request_kind', ['generation', 'extraction'])
+    def test_main_response_that_is_not_a_json_object_is_unusable_input(
+        self, mocker, tmp_path, response_json, request_kind
+    ):
+        """A 2xx answer whose JSON is not an object is a malformed response, not a client bug."""
+        http_response = mocker.Mock()
+        http_response.json.return_value = response_json
+        http_response.raise_for_status.return_value = None
+        http_client = mocker.Mock()
+        http_client.post.return_value = http_response
+        http_client.__enter__ = mocker.Mock(return_value=http_client)
+        http_client.__exit__ = mocker.Mock(return_value=False)
+        mocker.patch('glitchygames.api.client.httpx.Client', return_value=http_client)
+        apng_file = tmp_path / 'in.apng'
+        apng_file.write_bytes(b'\x89PNG\r\n\x1a\n')
+        arguments = (
+            ['test prompt']
+            if request_kind == 'generation'
+            else ['--extract-frames', str(apng_file)]
+        )
+
+        assert main(arguments) == ExitCode.UNUSABLE_INPUT
+
+    def test_main_extract_frames_from_a_directory_is_unusable_input(self, tmp_path):
+        """An input path that exists but cannot be read as a file is unusable, not missing."""
+        assert main(['--extract-frames', str(tmp_path)]) == ExitCode.UNUSABLE_INPUT
 
     def test_main_connection_error(self, mocker):
         """Test handling of connection errors."""
@@ -477,7 +582,7 @@ class TestMainCli:
         )
 
         result = main(['test prompt'])
-        assert result == 1
+        assert result == ExitCode.SERVICE_UNAVAILABLE
 
     def test_main_http_error(self, mocker):
         """Test handling of HTTP errors."""
@@ -497,7 +602,7 @@ class TestMainCli:
         )
 
         result = main(['test prompt'])
-        assert result == 1
+        assert result == ExitCode.GENERATION_REJECTED
 
     def test_main_generate_success(self, mocker):
         """Test successful sprite generation via CLI."""
@@ -512,7 +617,7 @@ class TestMainCli:
         mocker.patch('glitchygames.api.client.display_sprite_ascii')
 
         result = main(['test prompt', '-q'])
-        assert result == 0
+        assert result == ExitCode.SUCCESS
 
     def test_main_generate_failure(self, mocker):
         """Test handling of failed generation response."""
@@ -525,12 +630,12 @@ class TestMainCli:
         )
 
         result = main(['test prompt', '-q'])
-        assert result == 1
+        assert result == ExitCode.GENERATION_REJECTED
 
     def test_main_extract_frames_file_not_found(self):
         """Test extract-frames with missing file."""
         result = main(['--extract-frames', '/nonexistent/file.apng'])
-        assert result == 1
+        assert result == ExitCode.MISSING_INPUT
 
     def test_main_verbose_logging(self, mocker):
         """Test verbose mode enables debug logging."""
@@ -541,7 +646,7 @@ class TestMainCli:
         mocker.patch('glitchygames.api.client.display_sprite_ascii')
 
         result = main(['test prompt', '-v'])
-        assert result == 0
+        assert result == ExitCode.SUCCESS
 
 
 class TestLogExtractionMetadata:
@@ -862,7 +967,8 @@ class TestFindAvailablePathTimestampFallback:
     def test_timestamp_fallback_when_many_files_exist(self, tmp_path, mocker):
         """Test that timestamp is used when MAX_FILE_NUMBERING_ATTEMPTS files exist."""
         mocker.patch('glitchygames.api.client.MAX_FILE_NUMBERING_ATTEMPTS', 3)
-        mock_time = mocker.patch('time.time', return_value=1234567890)
+        # The wall clock comes through the clock door (glitchygames/clock.py)
+        mocker.patch('glitchygames.api.client.wall_clock_epoch_seconds', return_value=1234567890.5)
 
         base_path = tmp_path / 'sprite.toml'
         base_path.touch()
@@ -886,7 +992,8 @@ class TestFindAvailableDirectoryTimestampFallback:
     def test_timestamp_fallback_when_many_directories_exist(self, tmp_path, mocker):
         """Test that timestamp is used when MAX_FILE_NUMBERING_ATTEMPTS dirs exist."""
         mocker.patch('glitchygames.api.client.MAX_FILE_NUMBERING_ATTEMPTS', 3)
-        mock_time = mocker.patch('time.time', return_value=9876543210)
+        # The wall clock comes through the clock door (glitchygames/clock.py)
+        mocker.patch('glitchygames.api.client.wall_clock_epoch_seconds', return_value=9876543210.5)
 
         (tmp_path / 'sprite-001').mkdir()
         (tmp_path / 'sprite-002').mkdir()
@@ -931,7 +1038,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         captured = capsys.readouterr()
         # Should print JSON with base64 data replaced
         assert '<6 chars>' in captured.out
@@ -950,7 +1057,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         mock_save.assert_called_once()
 
     def test_extraction_failure_response(self, mocker):
@@ -965,7 +1072,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 1
+        assert result == ExitCode.EXTRACTION_REJECTED
 
     def test_extraction_file_not_found(self, mocker):
         """Test handling of FileNotFoundError."""
@@ -978,7 +1085,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 1
+        assert result == ExitCode.MISSING_INPUT
 
     def test_extraction_connection_error(self, mocker):
         """Test handling of connection error during extraction."""
@@ -993,7 +1100,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 1
+        assert result == ExitCode.SERVICE_UNAVAILABLE
 
     def test_extraction_http_status_error(self, mocker):
         """Test handling of HTTP status error during extraction."""
@@ -1016,7 +1123,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 1
+        assert result == ExitCode.EXTRACTION_REJECTED
 
     def test_extraction_os_error_with_verbose_traceback(self, mocker, capsys):
         """Test that verbose mode prints traceback on OSError."""
@@ -1029,7 +1136,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 1
+        assert result == ExitCode.UNUSABLE_INPUT
         captured = capsys.readouterr()
         assert 'Traceback' in captured.err or 'disk error' in captured.err
 
@@ -1049,10 +1156,39 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         captured = capsys.readouterr()
         # Verbose should include full base64, not truncated
         assert 'fullbase64data' in captured.out
+
+
+class TestHandleExtractFramesOutput:
+    """Writing the extracted frames: failures map to exit codes instead of a traceback."""
+
+    @pytest.mark.parametrize(
+        ('save_error', 'expected_exit_code'),
+        [
+            (OSError('disk full'), ExitCode.CANNOT_WRITE_OUTPUT),
+            (FileNotFoundError('directory vanished'), ExitCode.CANNOT_WRITE_OUTPUT),
+            (binascii.Error('incorrect padding'), ExitCode.UNUSABLE_INPUT),
+        ],
+        ids=['disk full', 'directory vanished', 'bad base64 from the server'],
+    )
+    def test_frame_write_failures(self, mocker, tmp_path, save_error, expected_exit_code):
+        parsed_args = argparse.Namespace(
+            extract_frames=str(tmp_path / 'in.apng'),
+            server_url='http://localhost:8000',
+            output_path=str(tmp_path / 'frames'),
+            verbose=False,
+        )
+        mocker.patch(
+            'glitchygames.api.client.extract_apng_frames',
+            return_value={'success': True, 'frame_count': 1},
+        )
+        mocker.patch('glitchygames.api.client._log_extraction_metadata')
+        mocker.patch('glitchygames.api.client._save_apng_extracted_frames', side_effect=save_error)
+
+        assert _handle_extract_frames(parsed_args) == expected_exit_code
 
 
 class TestHandleGenerateSprite:
@@ -1099,7 +1235,7 @@ class TestHandleGenerateSprite:
 
         result = _handle_generate_sprite(parsed_args, ['toml'])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         captured = capsys.readouterr()
         assert '[sprite]' in captured.out
         assert 'TOML Content' in captured.out
@@ -1120,7 +1256,7 @@ class TestHandleGenerateSprite:
 
         result = _handle_generate_sprite(parsed_args, ['toml'])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         captured = capsys.readouterr()
         assert 'TOML Content' not in captured.out
         assert '[sprite]' in captured.out
@@ -1140,7 +1276,7 @@ class TestHandleGenerateSprite:
 
         result = _handle_generate_sprite(parsed_args, ['toml'])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         call_kwargs = mock_generate.call_args.kwargs
         assert call_kwargs['model'] == 'anthropic:claude-sonnet-4-5'
 
@@ -1158,7 +1294,7 @@ class TestHandleGenerateSprite:
 
         result = _handle_generate_sprite(parsed_args, ['toml'])
 
-        assert result == 1
+        assert result == ExitCode.GENERATION_REJECTED
 
     def test_generation_with_animated_response(self, mocker):
         """Test that animated sprite info is logged."""
@@ -1179,7 +1315,7 @@ class TestHandleGenerateSprite:
 
         result = _handle_generate_sprite(parsed_args, ['toml'])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
 
     def test_generation_saves_files_when_output_path_set(self, mocker, tmp_path):
         """Test that files are saved when output_path is provided."""
@@ -1201,7 +1337,7 @@ class TestHandleGenerateSprite:
 
         result = _handle_generate_sprite(parsed_args, ['toml'])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         mock_save.assert_called_once()
 
 
@@ -1215,19 +1351,19 @@ class TestMainCliExtended:
 
         mock_handler = mocker.patch(
             'glitchygames.api.client._handle_extract_frames',
-            return_value=0,
+            return_value=ExitCode.SUCCESS,
         )
 
         result = main(['--extract-frames', str(apng_file)])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
         mock_handler.assert_called_once()
 
     def test_main_uses_default_output_formats(self, mocker):
         """Test that default output formats are used when none specified."""
         mock_handler = mocker.patch(
             'glitchygames.api.client._handle_generate_sprite',
-            return_value=0,
+            return_value=ExitCode.SUCCESS,
         )
 
         main(['test prompt'])
@@ -1240,7 +1376,7 @@ class TestMainCliExtended:
         """Test that specified output formats override defaults."""
         mock_handler = mocker.patch(
             'glitchygames.api.client._handle_generate_sprite',
-            return_value=0,
+            return_value=ExitCode.SUCCESS,
         )
 
         main(['test prompt', '-f', 'toml'])
@@ -1249,51 +1385,84 @@ class TestMainCliExtended:
         output_formats = call_args[0][1]
         assert output_formats == ['toml']
 
-    def test_main_general_os_error(self, mocker):
-        """Test handling of general OS errors in main."""
+    @pytest.mark.parametrize(
+        'write_error',
+        [OSError('disk full'), FileNotFoundError('no such directory')],
+        ids=['disk full', 'output directory missing'],
+    )
+    def test_main_output_that_cannot_be_written(self, mocker, tmp_path, write_error):
+        """A failure writing the output is CANNOT_WRITE_OUTPUT, never missing input."""
         mocker.patch(
-            'glitchygames.api.client._handle_generate_sprite',
-            side_effect=OSError('disk full'),
+            'glitchygames.api.client.generate_sprite',
+            return_value={'success': True, 'sprite_name': 'heart'},
         )
+        mocker.patch('glitchygames.api.client.save_files_locally', side_effect=write_error)
 
-        result = main(['test prompt'])
+        result = main(['test prompt', '-q', '-o', str(tmp_path)])
 
-        assert result == 1
+        assert result == ExitCode.CANNOT_WRITE_OUTPUT
 
     def test_main_value_error(self, mocker):
-        """Test handling of ValueError in main."""
+        """A response that cannot be decoded is unusable input."""
         mocker.patch(
-            'glitchygames.api.client._handle_generate_sprite',
+            'glitchygames.api.client.generate_sprite',
             side_effect=ValueError('bad value'),
         )
 
         result = main(['test prompt'])
 
-        assert result == 1
+        assert result == ExitCode.UNUSABLE_INPUT
 
     def test_main_verbose_with_error_prints_traceback(self, mocker, capsys):
-        """Test that verbose mode prints traceback on errors."""
+        """A malformed server response (TypeError) prints its traceback in verbose mode."""
         mocker.patch(
-            'glitchygames.api.client._handle_generate_sprite',
+            'glitchygames.api.client.generate_sprite',
+            return_value={'success': True, 'sprite_name': 'heart'},
+        )
+        mocker.patch(
+            'glitchygames.api.client._log_generation_results',
             side_effect=TypeError('type mismatch'),
         )
 
         result = main(['test prompt', '-v'])
 
-        assert result == 1
+        assert result == ExitCode.UNUSABLE_INPUT
         captured = capsys.readouterr()
         assert 'Traceback' in captured.err or 'type mismatch' in captured.err
+
+    def test_main_client_bug_is_an_internal_error(self, mocker, caplog):
+        """An exception no handler expects is a client bug: INTERNAL_ERROR, with its traceback."""
+        client_bug = AttributeError('no such attribute')
+        mocker.patch('glitchygames.api.client._handle_generate_sprite', side_effect=client_bug)
+
+        result = main(['test prompt'])
+
+        assert result == ExitCode.INTERNAL_ERROR
+        assert any(
+            record.exc_info and record.exc_info[1] is client_bug for record in caplog.records
+        )
+
+    def test_main_logs_the_exit_code(self, mocker, caplog):
+        mocker.patch(
+            'glitchygames.api.client._handle_generate_sprite',
+            return_value=ExitCode.GENERATION_REJECTED,
+        )
+
+        with caplog.at_level(logging.INFO, logger='glitchygames.api.client'):
+            main(['test prompt'])
+
+        assert f'Exiting with {ExitCode.GENERATION_REJECTED.describe()}' in caplog.text
 
     def test_main_quiet_logging_setup(self, mocker):
         """Test that quiet mode sets ERROR logging level."""
         mocker.patch(
             'glitchygames.api.client._handle_generate_sprite',
-            return_value=0,
+            return_value=ExitCode.SUCCESS,
         )
 
         result = main(['test prompt', '-q'])
 
-        assert result == 0
+        assert result == ExitCode.SUCCESS
 
 
 class TestRunEntryPoint:
@@ -1301,22 +1470,22 @@ class TestRunEntryPoint:
 
     def test_run_calls_sys_exit_with_main_result(self, mocker):
         """Test that run() calls sys.exit with the result of main()."""
-        mocker.patch('glitchygames.api.client.main', return_value=0)
+        mocker.patch('glitchygames.api.client.main', return_value=ExitCode.SUCCESS)
         mock_exit = mocker.patch('glitchygames.api.client.sys.exit')
 
         from glitchygames.api.client import run
 
         run()
 
-        mock_exit.assert_called_once_with(0)
+        mock_exit.assert_called_once_with(ExitCode.SUCCESS)
 
     def test_run_propagates_nonzero_exit(self, mocker):
         """Test that run() propagates non-zero exit codes."""
-        mocker.patch('glitchygames.api.client.main', return_value=1)
+        mocker.patch('glitchygames.api.client.main', return_value=ExitCode.GENERATION_REJECTED)
         mock_exit = mocker.patch('glitchygames.api.client.sys.exit')
 
         from glitchygames.api.client import run
 
         run()
 
-        mock_exit.assert_called_once_with(1)
+        mock_exit.assert_called_once_with(ExitCode.GENERATION_REJECTED)

@@ -20,13 +20,23 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 import pytest
 
+from glitchygames.live_sources import LiveSources
+from glitchygames.recording import RecordingSources
 from glitchygames.scenes import SceneManager
+from glitchygames.sources import (
+    SourcesAlreadyRunningError,
+    active_sources,
+    frame_clock_seconds,
+    install_sources,
+)
 from glitchygames.timing import next_frame_deadline_ns
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
     from pytest_mock import MockerFixture
+
+    from glitchygames.supervision import ControlEvent
 
 NANOSECONDS_PER_SECOND = 1_000_000_000
 CLOCK_START_SECONDS = 100.0
@@ -38,6 +48,9 @@ EXACT_TARGET_FPS = 64.0
 EXACT_PERIOD_NS = 15_625_000
 HITCH_SECONDS = 2.0
 FRAMES_TO_RUN = 10
+# The doors' frame times for StoppingSources: exact binary fractions, unlike any measurement
+SCRIPTED_FRAME_SECONDS = (1 / 8, 1 / 16, 1 / 32, 1 / 64)
+FRAMES_BEFORE_STOP = 3
 FPS_LOG_INTERVAL_MS = 1000
 
 
@@ -149,6 +162,52 @@ class ReanchoringFakeTimer(FakeTimer):
         return next_frame_deadline_ns(
             previous_deadline_ns=prev_deadline_ns, period_ns=period_ns, now_ns=self.ns_now()
         )
+
+
+class StoppingSources(LiveSources):
+    """Live doors that return scripted frame times and ask to stop after a number of frames."""
+
+    def __init__(self: Self, *, frames_before_stop: int) -> None:
+        """Create the doors.
+
+        Args:
+            frames_before_stop: How many frames end before stop_requested turns True.
+
+        """
+        super().__init__(random_seed=1)
+        self.frames_before_stop = frames_before_stop
+        self.measured_frame_seconds: list[float] = []
+        self.ended_frames: list[int] = []
+
+    @property
+    @override
+    def stop_requested(self: Self) -> bool:
+        """True once frames_before_stop frames have ended."""
+        return len(self.ended_frames) >= self.frames_before_stop
+
+    @override
+    def frame_seconds(self: Self, *, measured: float) -> float:
+        """Record the measurement and return the next scripted frame time.
+
+        Returns:
+            The scripted frame time for this call.
+
+        """
+        self.measured_frame_seconds.append(measured)
+        return SCRIPTED_FRAME_SECONDS[len(self.measured_frame_seconds) - 1]
+
+    @override
+    def end_frame(
+        self: Self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: object,
+        control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
+    ) -> None:
+        """Record the frame number."""
+        self.ended_frames.append(frame_number)
 
 
 class DtWriteRecordingSceneManager(SceneManager):
@@ -406,7 +465,7 @@ class TestOneFrameTime:
         )
 
     def test_fps_event_reports_the_frame_just_closed(self, driver_factory):
-        """FPSEVENT still fires on its wall-clock interval, reporting 1 / the closed frame."""
+        """FPSEVENT fires on its frame-clock interval, reporting 1 / the closed frame."""
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
         # 1000 ms log interval: an event at least every 500 ms; 64 frames span one second
         frames_per_second = round(EXACT_TARGET_FPS)
@@ -416,6 +475,51 @@ class TestOneFrameTime:
         posted_fps = [call.args[0].fps for call in driver.post_event.call_args_list]
         assert len(posted_fps) == 2
         assert posted_fps == pytest.approx([EXACT_TARGET_FPS, EXACT_TARGET_FPS])
+
+    def test_fps_events_follow_the_frame_clock(self, driver_factory, mocker):
+        """FPS events are timed from the frame clock (the sum of frame times), not the wall clock.
+
+        With the frame clock frozen, none is posted even though a second of wall time passes.
+        """
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        mocker.patch('glitchygames.scenes.scene.frame_clock_seconds', return_value=0.0)
+
+        driver.run(frame_count=round(EXACT_TARGET_FPS))
+
+        assert driver.post_event.call_args_list == []
+
+    def test_frame_clock_includes_the_frame_just_closed(self, driver_factory):
+        """After the loop, the frame clock is the sum of every frame's closing dt."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        closing_samples = _closing_samples(driver)
+        assert frame_clock_seconds() == pytest.approx(sum(closing_samples))
+
+
+class TestStartLoopUsesTheDoors:
+    """start() takes every frame time from the doors and stops when they ask."""
+
+    def test_loop_runs_until_the_sources_ask_to_stop(self, driver_factory):
+        """Frame times come from the doors, the loop stops on their request, installs are shut."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        sources = StoppingSources(frames_before_stop=FRAMES_BEFORE_STOP)
+        install_sources(sources=sources)
+
+        # Far more frames than the doors allow: only stop_requested can end the loop
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        assert sources.ended_frames == list(range(FRAMES_BEFORE_STOP))
+        assert len(driver.logic_dts) == FRAMES_BEFORE_STOP
+        # The first dt went through the door too: start() measured the short time between its
+        # two readings and logic received the door's answer, as every later frame did
+        assert sources.measured_frame_seconds[0] == CLOCK_READING_SECONDS
+        assert len(sources.measured_frame_seconds) == FRAMES_BEFORE_STOP + 1
+        assert driver.logic_dts == list(SCRIPTED_FRAME_SECONDS[:FRAMES_BEFORE_STOP])
+        # start() marked the frames as started, so the doors can no longer be swapped
+        with pytest.raises(SourcesAlreadyRunningError):
+            install_sources(sources=LiveSources(random_seed=1))
 
 
 class TestPacing:
@@ -464,6 +568,48 @@ class TestPacing:
             (60.01,)
         ] * 3
         assert len(_closing_samples(driver)) == 3
+
+    def test_sources_pacing_override_replaces_the_target(self, driver_factory, mocker):
+        """A door that paces a frame to 0.0 seconds (a headless replay) never sleeps."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.0)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        assert driver.timer.sleep_deadlines == []
+        assert driver.timer.compute_deadline_calls == []
+        driver.manager.clock.tick.assert_not_called()
+
+    def test_unpaced_frames_without_a_timer_never_tick_the_clock(self, driver_factory, mocker):
+        """Without a timer backend, an unpaced frame skips the pygame clock (it would sleep)."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS, use_timer=False)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.0)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        driver.manager.clock.tick.assert_not_called()
+
+    def test_a_positive_paced_period_replaces_the_target(self, driver_factory, mocker):
+        """Without a timer backend, a paced period of 0.05 s ticks the pygame clock at 20 FPS."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS, use_timer=False)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.05)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        assert driver.manager.clock.tick.call_count == FRAMES_TO_RUN
+        driver.manager.clock.tick.assert_called_with(pytest.approx(20.0))
+
+    def test_a_positive_paced_period_sets_the_timer_deadlines(self, driver_factory, mocker):
+        """With a timer backend, a paced period of 1/32 s is the deadline period (not 1/64 s)."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=1 / 32)
+
+        driver.run(frame_count=3)
+
+        assert [period for _, period in driver.timer.compute_deadline_calls] == [
+            2 * EXACT_PERIOD_NS
+        ] * 3
+        assert len(driver.timer.sleep_deadlines) == 3
 
     def test_hitch_records_one_long_frame(self, driver_factory):
         """A 2 s hitch is one 2 s sample; the next deadline comes from compute_deadline."""
@@ -579,8 +725,12 @@ class TestFrameServicesSeeTheSameFrameTime:
     def test_trace_recorder_gets_the_dt_logic_received_once_per_frame(self, driver_factory, mocker):
         """The --record-trace recorder writes one line per frame with logic's dt."""
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
-        recorder = mocker.Mock()
-        driver.manager.trace_recorder = recorder
+        # An open recorder whose header holds no save namespaces yet
+        recorder = mocker.Mock(header={}, is_closed=False)
+        # The recorder is reached through the doors: RecordingSources.end_frame writes the frame
+        install_sources(
+            sources=RecordingSources(inner=LiveSources(random_seed=1), recorder=recorder)
+        )
 
         driver.run(frame_count=FRAMES_TO_RUN)
 
@@ -606,6 +756,11 @@ class CappedSceneStandIn:
         self.camera.follow(target=self.target)
         self.all_sprites: list[object] = []
         self.logic_dts: list[float] = []
+        self.game_time_advances: list[float] = []
+
+    def advance_game_time(self, *, seconds: float) -> None:
+        """Record the game time the manager added (Scene.advance_game_time's signature)."""
+        self.game_time_advances.append(seconds)
 
     def dt_tick(self, dt: float) -> None:
         """Record the dt logic received."""
@@ -658,6 +813,8 @@ class TestSceneFrameCap:
         # Frames under the cap pass through unchanged
         assert scene.logic_dts[: hitch_frame_index + 1] == driver.logic_dts[: hitch_frame_index + 1]
         assert aim_dts == scene.logic_dts
+        # Game time advances by the same capped dt logic receives
+        assert scene.game_time_advances == scene.logic_dts
 
     def test_scene_without_a_cap_receives_the_raw_dt(self, driver_factory, mocker):
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)

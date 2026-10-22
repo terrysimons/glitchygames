@@ -6,27 +6,26 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 
 import contextlib
 import logging
-import os
 import sys
 from pathlib import Path
 
 import pytest
 
-# Use dummy SDL video driver in CI to prevent segfaults in headless environments.
-# This must be set before pygame is imported/initialized in any test worker.
-if os.environ.get('CI') == 'true' and 'SDL_VIDEODRIVER' not in os.environ:
-    os.environ['SDL_VIDEODRIVER'] = 'dummy'
-
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Imported after the SDL environment is set up above
+# Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
+# set); it must come before pygame is imported/initialized in any test worker
+from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
+
 import pygame
 
-from glitchygames import pixel_snap, randomness
+from glitchygames import pixel_snap, randomness, sources
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
+from glitchygames.input.state import reset_current_input
+from glitchygames.recording import reset_internal_post_tracking
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import (
     FocusableSingletonBitmappySprite,
@@ -34,6 +33,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 from tests.mocks import MockFactory
+from tests.signal_handlers import preserved_signal_handlers
 
 
 def _load_lazy_pygame_modules() -> None:
@@ -53,6 +53,18 @@ def _load_lazy_pygame_modules() -> None:
 
 
 _load_lazy_pygame_modules()
+
+
+@pytest.fixture(scope='session')
+def sdl_variables_defaulted_at_startup() -> tuple[str, ...]:
+    """Names of the SDL driver variables this run defaulted to 'dummy' (the others were preset).
+
+    Returns:
+        tuple[str, ...]: The variables that were not set when the test process started.
+
+    """
+    return SDL_VARIABLES_DEFAULTED_AT_STARTUP
+
 
 # Real logging entry points, captured at import time before any test can patch them.
 _REAL_LOGGING_GET_LOGGER = logging.getLogger
@@ -171,6 +183,17 @@ def _reset_all_singleton_instances():
 
 
 @pytest.fixture(autouse=True)
+def restore_signal_handlers():
+    """Put back the process's signal handlers after each test (tests/signal_handlers.py).
+
+    A test that runs GameEngine.start with _shutdown mocked would otherwise leave the engine's
+    exit_on_signal installed for the rest of the worker's tests.
+    """
+    with preserved_signal_handlers():
+        yield
+
+
+@pytest.fixture(autouse=True)
 def restore_gil_switch_interval():
     """Restore the GIL switch interval after each test.
 
@@ -190,9 +213,11 @@ def restore_game_engine_class_state(mocker):
     in `OPTIONS`, and GameEngine.initialize_icon stores the icon in `icon`. A test that runs
     them with mocks (a Mock game, a mocked pygame.image.load) would otherwise leave the mocks
     there for every later test on the worker: a real GameEngine then fails in
-    initialize_system_icons with "Argument to set_icon must be a Surface".
+    initialize_system_icons with "Argument to set_icon must be a Surface". GameEngine.__init__
+    also sets `USE_FASTEVENTS` on a (mocked) old pygame, which would make every later engine on
+    the worker create fastevent live sources (BUGS.md #65).
     """
-    for attribute_name in ('game', 'icon', 'OPTIONS'):
+    for attribute_name in ('game', 'icon', 'OPTIONS', 'USE_FASTEVENTS'):
         # Patched with its own value: whatever the test assigns is undone at teardown
         mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
 
@@ -205,6 +230,25 @@ def fresh_random_streams(mocker):
     this, one test's seed and half-used streams would carry into the next test on the worker.
     """
     mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
+
+
+@pytest.fixture(autouse=True)
+def reset_engine_sources():
+    """Give every test fresh live doors and reset them afterwards (glitchygames/sources.py).
+
+    reset_sources() tells the installed sources (on_uninstalled), which is where a replay stops
+    tracking code-posted events (Task 12), so no tracking leaks into the next test. The frame's
+    polled input (glitchygames/input/state.py) is reset too: reset_sources() leaves it alone.
+    So is the internal-post tracker (glitchygames/recording.py: no owners, nothing pending),
+    so a recorder a test left open cannot keep tracking into the next test.
+    """
+    sources.reset_sources()
+    reset_current_input()
+    reset_internal_post_tracking()
+    yield
+    sources.reset_sources()
+    reset_current_input()
+    reset_internal_post_tracking()
 
 
 @pytest.fixture(autouse=True)

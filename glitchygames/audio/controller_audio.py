@@ -35,12 +35,12 @@ CONTROLLER_NOISE_RANDOM_STREAM = 'audio.controller_noise'
 try:
     import miniaudio as mi
 except ImportError:  # pragma: no cover
-    mi = None  # ty: ignore[invalid-assignment]
+    mi = None
 
 try:
     import speech_recognition as sr
 except ImportError:  # pragma: no cover
-    sr = None  # ty: ignore[invalid-assignment]
+    sr = None
 
 try:
     import hid as hidapi  # ty: ignore[unresolved-import]
@@ -635,31 +635,44 @@ class ControllerAudio:
         if mi is None:
             return
 
+        # The thread's boundary: a failure is logged, never lost with the thread
         try:
-            # Decode to mono at 48kHz for the DualSense
-            decoded: Any = mi.decode_file(
-                str(file_path),
-                output_format=mi.SampleFormat.SIGNED16,
-                nchannels=1,
-                sample_rate=DUALSENSE_SAMPLE_RATE,
-            )
-            speaker_samples: array.array[int] = decoded.samples
-
-            # Get haptic waveforms if requested
-            haptic_left: array.array[int] | None = None
-            haptic_right: array.array[int] | None = None
-            if haptic:
-                haptic_left, haptic_right = get_haptic_preset(haptic)
-
-            haptic_mix = HAPTIC_MODES.get(haptic_mode, 0.0)
-            self._play_4channel_blocking(
-                speaker_samples,
-                haptic_left,
-                haptic_right,
-                haptic_mix=haptic_mix,
-            )
+            self._play_file(file_path=file_path, haptic=haptic, haptic_mode=haptic_mode)
         except Exception:
             log.exception('Failed to play audio through controller speaker')
+
+    def _play_file(self, *, file_path: Path, haptic: str | None, haptic_mode: str) -> None:
+        """Decode an audio file and play it on speaker + optional haptic (blocking).
+
+        Args:
+            file_path: Path to the audio file.
+            haptic: Optional haptic preset name.
+            haptic_mode: Speaker-to-haptic bleed level.
+
+        """
+        assert mi is not None
+        # Decode to mono at 48kHz for the DualSense
+        decoded: Any = mi.decode_file(
+            str(file_path),
+            output_format=mi.SampleFormat.SIGNED16,
+            nchannels=1,
+            sample_rate=DUALSENSE_SAMPLE_RATE,
+        )
+        speaker_samples: array.array[int] = decoded.samples
+
+        # Get haptic waveforms if requested
+        haptic_left: array.array[int] | None = None
+        haptic_right: array.array[int] | None = None
+        if haptic:
+            haptic_left, haptic_right = get_haptic_preset(haptic)
+
+        haptic_mix = HAPTIC_MODES.get(haptic_mode, 0.0)
+        self._play_4channel_blocking(
+            speaker_samples,
+            haptic_left,
+            haptic_right,
+            haptic_mix=haptic_mix,
+        )
 
     def _play_haptic_blocking(self, preset: str, duration: float) -> None:
         """Play a haptic preset (background thread).
@@ -695,58 +708,84 @@ class ControllerAudio:
         if mi is None:
             return
 
+        # The thread's boundary: a failure is logged, never lost with the thread
         try:
-            # Build interleaved 4-channel stream
-            stream_data = _build_4channel_stream(
+            self._stream_4channel(
                 speaker_samples=speaker_samples,
-                haptic_left_samples=haptic_left,
-                haptic_right_samples=haptic_right,
-                volume=self.volume,
+                haptic_left=haptic_left,
+                haptic_right=haptic_right,
                 haptic_mix=haptic_mix,
-            )
-
-            num_frames = len(stream_data) // DUALSENSE_CHANNELS
-            offset = 0
-
-            def _stream_generator() -> Any:
-                """Yield 4-channel interleaved frames on demand.
-
-                Yields:
-                    Interleaved sample data for the requested frames.
-
-                """
-                nonlocal offset
-                num_requested = yield b''  # pyright: ignore[reportUnknownVariableType]
-                while True:
-                    num_samples = int(num_requested) * DUALSENSE_CHANNELS  # pyright: ignore[reportUnknownArgumentType]
-                    chunk = stream_data[offset : offset + num_samples]
-                    offset += num_samples
-                    if not chunk:
-                        break
-                    num_requested = yield chunk  # pyright: ignore[reportUnknownVariableType]
-
-            device: Any = mi.PlaybackDevice(
-                output_format=mi.SampleFormat.SIGNED16,
-                nchannels=DUALSENSE_CHANNELS,
-                sample_rate=DUALSENSE_SAMPLE_RATE,
-                device_id=self.playback_device_id,
-            )
-            generator = _stream_generator()
-            next(generator)  # Prime the generator
-            device.start(generator)
-
-            duration = num_frames / DUALSENSE_SAMPLE_RATE
-            time.sleep(duration + 0.3)
-            device.stop()
-            log.info(
-                'Played %.2fs through %r (speaker=%s haptic=%s)',
-                duration,
-                self.controller_name,
-                speaker_samples is not None,
-                haptic_left is not None,
             )
         except Exception:
             log.exception('Failed to play 4-channel audio')
+
+    def _stream_4channel(
+        self,
+        *,
+        speaker_samples: array.array[int] | None,
+        haptic_left: array.array[int] | None,
+        haptic_right: array.array[int] | None,
+        haptic_mix: float,
+    ) -> None:
+        """Build the interleaved 4-channel stream and play it to the end (blocking).
+
+        Args:
+            speaker_samples: Mono samples for the speaker (channel 1).
+            haptic_left: Samples for left grip motor (channel 2).
+            haptic_right: Samples for right grip motor (channel 3).
+            haptic_mix: Speaker-to-haptic bleed (0.0-1.0).
+
+        """
+        assert mi is not None
+        # Build interleaved 4-channel stream
+        stream_data = _build_4channel_stream(
+            speaker_samples=speaker_samples,
+            haptic_left_samples=haptic_left,
+            haptic_right_samples=haptic_right,
+            volume=self.volume,
+            haptic_mix=haptic_mix,
+        )
+
+        num_frames = len(stream_data) // DUALSENSE_CHANNELS
+        offset = 0
+
+        def _stream_generator() -> Any:
+            """Yield 4-channel interleaved frames on demand.
+
+            Yields:
+                Interleaved sample data for the requested frames.
+
+            """
+            nonlocal offset
+            num_requested = yield b''  # pyright: ignore[reportUnknownVariableType]
+            while True:
+                num_samples = int(num_requested) * DUALSENSE_CHANNELS  # pyright: ignore[reportUnknownArgumentType]
+                chunk = stream_data[offset : offset + num_samples]
+                offset += num_samples
+                if not chunk:
+                    break
+                num_requested = yield chunk  # pyright: ignore[reportUnknownVariableType]
+
+        device: Any = mi.PlaybackDevice(
+            output_format=mi.SampleFormat.SIGNED16,
+            nchannels=DUALSENSE_CHANNELS,
+            sample_rate=DUALSENSE_SAMPLE_RATE,
+            device_id=self.playback_device_id,
+        )
+        generator = _stream_generator()
+        next(generator)  # Prime the generator
+        device.start(generator)
+
+        duration = num_frames / DUALSENSE_SAMPLE_RATE
+        time.sleep(duration + 0.3)
+        device.stop()
+        log.info(
+            'Played %.2fs through %r (speaker=%s haptic=%s)',
+            duration,
+            self.controller_name,
+            speaker_samples is not None,
+            haptic_left is not None,
+        )
 
     # --- Factory ---
 

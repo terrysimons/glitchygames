@@ -17,6 +17,8 @@ import pygame
 import pygame._sdl2.controller
 
 from glitchygames.events import CONTROLLER_EVENTS, ControllerEvents, HashableEvent, ResourceManager
+from glitchygames.input.state import current_input
+from glitchygames.sources import active_sources
 
 # Pygame has a bug where _sdl2 isn't visible in certain contexts
 pygame.controller = pygame._sdl2.controller  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
@@ -73,7 +75,10 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             super().__init__(game)
 
             self._id = controller_id
-            self.controller = pygame._sdl2.controller.Controller(self._id)
+            # Devices are opened only through the devices door (glitchygames/input/devices.py)
+            self.controller: Any = active_sources().devices().open_controller(device_index=self._id)
+            # The snapshot (glitchygames/input/state.py) keys positions by instance id
+            self._instance_id: int = int(self.controller.as_joystick().get_instance_id())
             self.controller.init()
             self._name: Any = self.controller.name
             self._init = self.controller.get_init()
@@ -84,10 +89,22 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self._numbuttons = len(self.BUTTONS)
             self._mapping = self.controller.get_mapping()
 
-            # Initialize button state.
-            self._axes = [self.controller.get_axis(i) for i in range(self._numaxes)]
+            # Initialize button state from the frame's input snapshot (the controller layer, by
+            # CONTROLLER_AXIS_* / CONTROLLER_BUTTON_* id), never from the device mid-frame, so
+            # live play and a replay start from the same positions.
+            # A hot-plugged controller is not in this frame's snapshot (it was opened after the
+            # pump), so its caches start zeroed: intended (snapshot-only reads), do not read
+            # the device instead.
+            snapshot = current_input()
+            self._axes = [
+                snapshot.controller_axis(device_id=self._instance_id, axis=axis)
+                for axis in range(self._numaxes)
+            ]
 
-            self._buttons = [self.controller.get_button(i) for i in range(self._numbuttons)]
+            self._buttons = [
+                snapshot.controller_button(device_id=self._instance_id, button=button)
+                for button in range(self._numbuttons)
+            ]
 
             self.game: Any = game
             self.proxies = [self.game, self.controller]
@@ -303,10 +320,13 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         self.log.debug(f'Controller Module Inited: {pygame._sdl2.controller.get_init()}')
 
-        self.log.info(f'Enumerating {pygame._sdl2.controller.get_count()} controllers.')
+        # Enumerated through the devices door (glitchygames/input/devices.py)
+        devices = active_sources().devices()
+        controller_count = devices.controller_count()
+        self.log.info(f'Enumerating {controller_count} controllers.')
 
-        for controller_id in range(pygame._sdl2.controller.get_count()):
-            if not pygame._sdl2.controller.is_controller(controller_id):
+        for controller_id in range(controller_count):
+            if not devices.is_controller(device_index=controller_id):
                 self.log.warning('Controller #%s is not a controller.', controller_id)
                 continue
 
@@ -437,6 +457,8 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         """
         # CONTROLLERDEVICEREMOVED instance_id
+        # The devices door stops polling it (tracked here or not)
+        active_sources().devices().forget_device(instance_id=event.instance_id)
         if event.instance_id in self.controllers:
             self.controllers[event.instance_id].on_controller_device_removed_event(event)
             del self.controllers[event.instance_id]

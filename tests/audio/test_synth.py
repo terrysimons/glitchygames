@@ -310,3 +310,67 @@ class TestToSoundRealMixer:
             assert sound.get_length() == pytest.approx(0.01, abs=1e-3)
         finally:
             pygame.mixer.quit()
+
+
+class TestArgumentValidation:
+    """Each toolkit function refuses out-of-range arguments with a ValueError naming them."""
+
+    @pytest.mark.parametrize('duty', [0.0, 1.0, -0.5, 1.5])
+    def test_oscillator_duty_outside_zero_to_one_raises(self, duty):
+        """A square wave's duty must be strictly between 0 and 1."""
+        with pytest.raises(ValueError, match='duty'):
+            synth.oscillator(Waveform.SQUARE, 440.0, 0.1, sample_rate=RATE, duty=duty)
+
+    @pytest.mark.parametrize('duration', [0.0, -0.1])
+    def test_frequency_curve_duration_must_be_positive(self, duration):
+        """A pitch curve needs a positive duration."""
+        with pytest.raises(ValueError, match='duration'):
+            synth.frequency_curve(440.0, 880.0, duration, sample_rate=RATE)
+
+    def test_apply_kernel_history_of_wrong_length_raises(self):
+        """The history must hold exactly taps - 1 samples."""
+        kernel = synth.filter_kernel(1000.0, sample_rate=RATE, taps=5, high_pass=False)
+        with pytest.raises(ValueError, match='history must have 4 samples, got 2'):
+            synth.apply_kernel(np.ones(8), kernel, history=np.zeros(2))
+
+    def test_apply_kernel_continues_from_history(self):
+        """Filtering in two halves with the first half's tail as history equals one pass."""
+        kernel = synth.filter_kernel(2000.0, sample_rate=RATE, taps=7, high_pass=False)
+        samples = np.sin(np.arange(40) * 0.3)
+        whole = synth.apply_kernel(samples, kernel)
+        first_half = synth.apply_kernel(samples[:20], kernel)
+        second_half = synth.apply_kernel(samples[20:], kernel, history=samples[14:20])
+        np.testing.assert_allclose(np.concatenate((first_half, second_half)), whole)
+
+    def test_apply_kernel_empty_input_gives_empty_output(self):
+        """No samples in, no samples out (np.convolve alone would return some)."""
+        kernel = synth.filter_kernel(1000.0, sample_rate=RATE, taps=5, high_pass=False)
+        assert len(synth.apply_kernel(np.zeros(0), kernel)) == 0
+
+    @pytest.mark.parametrize('drive', [0.0, -1.0])
+    def test_distort_drive_must_be_positive(self, drive):
+        """A drive of zero or less is refused."""
+        with pytest.raises(ValueError, match='drive'):
+            synth.distort(np.ones(3), drive)
+
+    @pytest.mark.parametrize('depth', [-0.1, 1.1])
+    def test_tremolo_depth_outside_zero_to_one_raises(self, depth):
+        """Tremolo depth is a fraction of the gain."""
+        with pytest.raises(ValueError, match='depth'):
+            synth.tremolo(np.ones(10), 5.0, depth, sample_rate=RATE)
+
+    @pytest.mark.parametrize('rate_hz', [0.0, -2.0])
+    def test_tremolo_rate_must_be_positive(self, rate_hz):
+        """Tremolo needs a positive modulation rate."""
+        with pytest.raises(ValueError, match='rate_hz'):
+            synth.tremolo(np.ones(10), rate_hz, 0.5, sample_rate=RATE)
+
+    @pytest.mark.parametrize('peak', [0.0, -0.5, 1.01])
+    def test_normalize_peak_outside_range_raises(self, peak):
+        """The target peak must be in (0, 1]."""
+        with pytest.raises(ValueError, match='peak'):
+            synth.normalize(np.array([0.5]), peak=peak)
+
+    def test_normalize_empty_samples_unchanged(self):
+        """An empty array has no loudest sample and comes back empty."""
+        assert len(synth.normalize(np.zeros(0))) == 0

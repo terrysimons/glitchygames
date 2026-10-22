@@ -36,13 +36,6 @@ dependencies = [
   "httpx",
   "apng",
   "pillow",
-  "deptry>=0.25.1",
-  "vulture>=2.15",
-  "pip-audit>=2.10.0",
-  "hypothesis>=6.151.9",
-  "taplo>=0.9.3",
-  "yamllint>=1.38.0",
-  "wily>=1.25.0",
   "hidapi>=0.15.0",
 ]
 
@@ -89,6 +82,14 @@ dev = [
   "ty",
   "pillow",
   "pyinstaller",
+  # Lint, audit and test tools (run from nox; never imported by the game)
+  "deptry>=0.25.1",
+  "vulture>=2.15",
+  "pip-audit>=2.10.0",
+  "hypothesis>=6.151.9",
+  "taplo>=0.9.3",
+  "yamllint>=1.38.0",
+  "wily>=1.25.0",
 ]
 api = []
 
@@ -174,9 +175,8 @@ task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 select = ["ALL"]
 ignore = [
   # --- Previously ignored ---
-  "COM812",  # Commented-out code is intentional for debugging and development
+  "COM812",  # Missing trailing comma (conflicts with ruff format, which places them itself)
   "SLF001",  # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
-  "S311",    # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
   "ISC002",  # Use of implicit string concatenation (this conflicts with ruff format)
   "CPY001",  # Missing copyright notice at top of file
   "ISC001",  # Use of implicit string concatenation (this conflicts with ruff format)
@@ -187,8 +187,6 @@ ignore = [
   "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
   "PLR6301", # Method could be a function/staticmethod
   "G004",    # Logging statement uses f-string
-  "EM101",   # Exception must not use a string literal, assign to variable first
-  "EM102",   # Exception must not use an f-string literal, assign to variable first
   # --- Added with ruff 0.17 ---
   # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
   # e.g. conftest's singleton reset and pygame mocks must apply to every test.
@@ -218,6 +216,10 @@ fixable = ["ALL"]
   "B905",    # zip() without strict= is fine in tests
   "B002",    # False positive on double-negation test: -(-speed)
   "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
+  "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+"glitchygames/randomness.py" = [
+  "S311", # The engine's seeded random streams are deliberately non-cryptographic (replayable)
 ]
 "glitchygames/api/**/*.py" = [
   "RUF029", # FastAPI requires async def for route handlers even without await

@@ -405,18 +405,23 @@ class LiveAudio:
         active_scene: object | None,
         previous_scene: object | None,
         active_transitions: Sequence[object | None],
+        paused_owners: Sequence[object] = (),
     ) -> None:
-        """Play voices of active owners, pause the paused scene's, release the rest.
+        """Play voices of active owners, pause the paused scenes', release the rest.
 
         Voices that are stopped, or faded out and drained, give their channel back first. A
-        fading or draining voice keeps updating even when its owner is the previous scene:
-        stopping wins over pausing, so the fade is rendered instead of cut off.
+        fading or draining voice keeps updating even when its owner is paused: stopping wins
+        over pausing, so the fade is rendered instead of cut off.
 
         Args:
             active_scene: SceneManager.active_scene.
             previous_scene: SceneManager.previous_scene (what a PauseScene returns to).
             active_transitions: The running transition and the pending one (either may be
                 None); a voice created for a ride is owned by its transition.
+            paused_owners: Other owners whose voices pause rather than end: the live scene a
+                playback scope stashed, the scene it returns to and the previous scene as it
+                began (the game behind a pause screen; glitchygames/replay/playback.py), so
+                their voices play on after it.
 
         """
         live_transitions = [transition for transition in active_transitions if transition]
@@ -431,7 +436,7 @@ class LiveAudio:
             if owner is active_scene or owner_is_live_transition:
                 voice.resume()
                 voice.update()
-            elif owner is previous_scene:
+            elif owner is previous_scene or any(owner is paused for paused in paused_owners):
                 if voice.state in {VoiceState.FADING, VoiceState.DRAINING}:
                     voice.update()
                 else:

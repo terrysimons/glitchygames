@@ -146,66 +146,9 @@ class RendererService:
             )
 
         try:
-            # Load sprite using SpriteFactory
-            from glitchygames.sprites import SpriteFactory
-
-            sprite = SpriteFactory.load_sprite(filename=temp_path)
-
-            # Get sprite dimensions
-            current_frame = sprite.get_current_frame()
-            if not current_frame:
-                return RenderResult(
-                    success=False,
-                    error='Failed to get sprite frame',
-                )
-
-            width, height = current_frame.get_size()
-            LOG.info(f'Loaded sprite: {width}x{height}')
-
-            # Render first frame (or current frame)
-            png_bytes, png_base64 = self._render_frame_to_png(current_frame.image, scale)
-
-            # Get frame count - use get_total_frame_count() method on AnimatedSprite
-            frame_count = 1
-            all_frames_base64 = []
-
-            # Log sprite type for debugging
-            LOG.info(f'Loaded sprite type: {type(sprite).__name__}')
-
-            if hasattr(sprite, 'get_total_frame_count'):
-                frame_count = sprite.get_total_frame_count()
-                LOG.info(f'Sprite has {frame_count} total frames (via get_total_frame_count)')
-            elif hasattr(sprite, 'frames'):
-                # Fallback: count frames from the frames property
-                total = sum(len(frames) for frames in sprite.frames.values())
-                frame_count = total if total > 0 else 1
-                LOG.info(f'Sprite has {frame_count} total frames (via frames property)')
-            else:
-                LOG.info(f'Sprite has no frame count method, type={type(sprite).__name__}')
-
-            # Render all frames if requested and sprite is animated
-            rendered_frames = []
-            LOG.info(f'render_all_frames={render_all_frames}, frame_count={frame_count}')
-            if render_all_frames and frame_count > 1:
-                all_frames_base64, rendered_frames = self._render_all_frames(sprite, scale)
-                LOG.info(f'Rendered {len(all_frames_base64)} frames')
-            else:
-                LOG.info(
-                    f'Skipping frame rendering: render_all_frames={render_all_frames}, '
-                    f'frame_count={frame_count}',
-                )
-
-            return RenderResult(
-                success=True,
-                png_bytes=png_bytes,
-                png_base64=png_base64,
-                width=width * scale,
-                height=height * scale,
-                frame_count=frame_count,
-                all_frames_png_base64=all_frames_base64,
-                rendered_frames=rendered_frames,
+            return self._render_sprite_file(
+                sprite_path=temp_path, scale=scale, render_all_frames=render_all_frames
             )
-
         except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
             LOG.exception('Failed to render sprite')
             return RenderResult(
@@ -218,6 +161,80 @@ class RendererService:
                 Path(temp_path).unlink()
             except OSError as unlink_error:
                 LOG.debug('Failed to clean up temporary file %s: %s', temp_path, unlink_error)
+
+    def _render_sprite_file(
+        self, *, sprite_path: str, scale: int, render_all_frames: bool
+    ) -> RenderResult:
+        """Load a sprite file and render it to PNG.
+
+        Args:
+            sprite_path: The sprite's TOML file.
+            scale: Scale factor for output PNG (1 = original size)
+            render_all_frames: If True, render all frames for animated sprites
+
+        Returns:
+            RenderResult with PNG data, or the error when the sprite has no frame
+
+        """
+        # Load sprite using SpriteFactory
+        from glitchygames.sprites import SpriteFactory
+
+        sprite = SpriteFactory.load_sprite(filename=sprite_path)
+
+        # Get sprite dimensions
+        current_frame = sprite.get_current_frame()
+        if not current_frame:
+            return RenderResult(
+                success=False,
+                error='Failed to get sprite frame',
+            )
+
+        width, height = current_frame.get_size()
+        LOG.info(f'Loaded sprite: {width}x{height}')
+
+        # Render first frame (or current frame)
+        png_bytes, png_base64 = self._render_frame_to_png(current_frame.image, scale)
+
+        # Get frame count - use get_total_frame_count() method on AnimatedSprite
+        frame_count = 1
+        all_frames_base64 = []
+
+        # Log sprite type for debugging
+        LOG.info(f'Loaded sprite type: {type(sprite).__name__}')
+
+        if hasattr(sprite, 'get_total_frame_count'):
+            frame_count = sprite.get_total_frame_count()
+            LOG.info(f'Sprite has {frame_count} total frames (via get_total_frame_count)')
+        elif hasattr(sprite, 'frames'):
+            # Fallback: count frames from the frames property
+            total = sum(len(frames) for frames in sprite.frames.values())
+            frame_count = total if total > 0 else 1
+            LOG.info(f'Sprite has {frame_count} total frames (via frames property)')
+        else:
+            LOG.info(f'Sprite has no frame count method, type={type(sprite).__name__}')
+
+        # Render all frames if requested and sprite is animated
+        rendered_frames = []
+        LOG.info(f'render_all_frames={render_all_frames}, frame_count={frame_count}')
+        if render_all_frames and frame_count > 1:
+            all_frames_base64, rendered_frames = self._render_all_frames(sprite, scale)
+            LOG.info(f'Rendered {len(all_frames_base64)} frames')
+        else:
+            LOG.info(
+                f'Skipping frame rendering: render_all_frames={render_all_frames}, '
+                f'frame_count={frame_count}',
+            )
+
+        return RenderResult(
+            success=True,
+            png_bytes=png_bytes,
+            png_base64=png_base64,
+            width=width * scale,
+            height=height * scale,
+            frame_count=frame_count,
+            all_frames_png_base64=all_frames_base64,
+            rendered_frames=rendered_frames,
+        )
 
     def _render_frame_to_png(self, surface: pygame.Surface, scale: int = 1) -> tuple[bytes, str]:
         """Render a pygame surface to PNG bytes with no compression.

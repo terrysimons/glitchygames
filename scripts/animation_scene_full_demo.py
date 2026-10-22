@@ -99,18 +99,18 @@ class AnimationGame(Scene):
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)
-            self.animated_sprite.play()
-            # Center on screen dynamically
-            assert self.animated_sprite.rect is not None
-            assert self.screen is not None
-            self.animated_sprite.rect.center = self.screen.get_rect().center
-            self.log.info(
-                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
-            )
-            self.log.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
         except FileNotFoundError, ValueError, RuntimeError:
             self.log.exception('Failed to load animation')
             raise
+        self.animated_sprite.play()
+        # Center on screen dynamically
+        assert self.animated_sprite.rect is not None
+        assert self.screen is not None
+        self.animated_sprite.rect.center = self.screen.get_rect().center
+        self.log.info(
+            f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
+        )
+        self.log.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 
     @classmethod
     def args(cls: type[AnimationGame], parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

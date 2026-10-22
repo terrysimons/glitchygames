@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -9,12 +10,13 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
+from glitchygames.live_sources import LiveSources
 from glitchygames.state.exceptions import (
     SaveCorruptedError,
     SaveNotFoundError,
     SaveVersionError,
 )
-from glitchygames.state.manager import SAVE_FORMAT_VERSION, SaveManager
+from glitchygames.state.manager import SAVE_FORMAT_VERSION, DiskSaveManager
 from glitchygames.state.serializers import TomlSerializer
 
 
@@ -23,7 +25,7 @@ class TestSaveAndLoad:
 
     def test_save_and_load_round_trip(self, tmp_path: Path) -> None:
         """Data survives a save → load round trip."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         data = {'score': 100, 'level': 2}
         saves.save('slot_1', data)
         result = saves.load('slot_1')
@@ -32,20 +34,20 @@ class TestSaveAndLoad:
     def test_save_creates_directory(self, tmp_path: Path) -> None:
         """Save creates the save directory if it doesn't exist."""
         save_dir = tmp_path / 'nested' / 'dir'
-        saves = SaveManager(app_name='test-game', save_dir=save_dir)
+        saves = DiskSaveManager(app_name='test-game', save_dir=save_dir)
         saves.save('slot_1', {'key': 'value'})
         assert save_dir.exists()
 
     def test_save_returns_path(self, tmp_path: Path) -> None:
         """Save returns the path to the written file."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         path = saves.save('slot_1', {'key': 'value'})
         assert path.exists()
         assert path.name == 'slot_1.json'
 
     def test_save_overwrites_existing(self, tmp_path: Path) -> None:
         """Saving to the same slot overwrites the previous data."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         saves.save('slot_1', {'score': 200})
         result = saves.load('slot_1')
@@ -53,7 +55,7 @@ class TestSaveAndLoad:
 
     def test_load_nested_data(self, tmp_path: Path) -> None:
         """Complex nested data survives a round trip."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         data = {
             'player': {'name': 'Hero', 'hp': 100, 'inventory': ['sword', 'potion']},
             'world': {'level': 3, 'seed': 42},
@@ -68,14 +70,14 @@ class TestLoadErrors:
 
     def test_load_missing_slot_raises(self, tmp_path: Path) -> None:
         """Loading a non-existent slot raises SaveNotFoundError."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         with pytest.raises(SaveNotFoundError) as exc_info:
             saves.load('nonexistent')
         assert exc_info.value.slot_name == 'nonexistent'
 
     def test_load_corrupted_json_raises(self, tmp_path: Path) -> None:
         """Loading a file with invalid JSON raises SaveCorruptedError."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         corrupt_file = tmp_path / 'bad_save.json'
         corrupt_file.write_text('{{{{not valid json}}}', encoding='utf-8')
         with pytest.raises(SaveCorruptedError) as exc_info:
@@ -84,7 +86,7 @@ class TestLoadErrors:
 
     def test_load_missing_metadata_raises(self, tmp_path: Path) -> None:
         """Loading a file without _meta raises SaveCorruptedError."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         no_meta_file = tmp_path / 'no_meta.json'
         no_meta_file.write_text('{"data": {"score": 100}}', encoding='utf-8')
         with pytest.raises(SaveCorruptedError, match='missing metadata'):
@@ -92,7 +94,7 @@ class TestLoadErrors:
 
     def test_load_missing_data_raises(self, tmp_path: Path) -> None:
         """Loading a file without data section raises SaveCorruptedError."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         import json
 
         no_data_file = tmp_path / 'no_data.json'
@@ -105,7 +107,7 @@ class TestLoadErrors:
 
     def test_load_wrong_version_raises(self, tmp_path: Path) -> None:
         """Loading a file with wrong version raises SaveVersionError."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         import json
 
         wrong_version_file = tmp_path / 'old_save.json'
@@ -119,13 +121,22 @@ class TestLoadErrors:
         assert exc_info.value.file_version == 999
         assert exc_info.value.expected_version == SAVE_FORMAT_VERSION
 
+    def test_load_non_numeric_version_raises(self, tmp_path: Path) -> None:
+        """Loading a file whose metadata version is not a number raises SaveCorruptedError."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        (tmp_path / 'slot_1.json').write_text(
+            '{"_meta": {"version": "x"}, "data": {}}', encoding='utf-8'
+        )
+        with pytest.raises(SaveCorruptedError, match='invalid version'):
+            saves.load('slot_1')
+
 
 class TestLoadRaw:
     """Tests for load_raw() which returns the full envelope."""
 
     def test_load_raw_includes_metadata(self, tmp_path: Path) -> None:
         """load_raw() returns both _meta and data."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         raw = saves.load_raw('slot_1')
         assert '_meta' in raw
@@ -134,7 +145,7 @@ class TestLoadRaw:
 
     def test_load_raw_metadata_fields(self, tmp_path: Path) -> None:
         """Metadata contains expected fields."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         raw = saves.load_raw('slot_1')
         meta = raw['_meta']
@@ -143,9 +154,17 @@ class TestLoadRaw:
         assert 'timestamp' in meta
         assert 'engine_version' in meta
 
+    def test_save_timestamp_comes_from_the_wall_clock_door(self, tmp_path: Path, mocker) -> None:
+        """The envelope's timestamp is glitchygames.clock.wall_clock_time(), so replays match."""
+        recorded_now = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+        mocker.patch.object(LiveSources, 'wall_clock_time', return_value=recorded_now)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        assert saves.load_raw('slot_1')['_meta']['timestamp'] == recorded_now.isoformat()
+
     def test_load_raw_skips_version_check(self, tmp_path: Path) -> None:
         """load_raw() does not raise on version mismatch."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         import json
 
         old_save = tmp_path / 'old.json'
@@ -163,25 +182,25 @@ class TestExistsAndDelete:
 
     def test_exists_true_after_save(self, tmp_path: Path) -> None:
         """exists() returns True for a saved slot."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         assert saves.exists('slot_1') is True
 
     def test_exists_false_for_missing(self, tmp_path: Path) -> None:
         """exists() returns False for a non-existent slot."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         assert saves.exists('nonexistent') is False
 
     def test_delete_removes_file(self, tmp_path: Path) -> None:
         """delete() removes the save file."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         saves.delete('slot_1')
         assert saves.exists('slot_1') is False
 
     def test_delete_missing_raises(self, tmp_path: Path) -> None:
         """delete() raises SaveNotFoundError for missing slot."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         with pytest.raises(SaveNotFoundError):
             saves.delete('nonexistent')
 
@@ -191,17 +210,17 @@ class TestListSlots:
 
     def test_empty_directory(self, tmp_path: Path) -> None:
         """list_slots() returns empty list for empty directory."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         assert saves.list_slots() == []
 
     def test_nonexistent_directory(self, tmp_path: Path) -> None:
         """list_slots() returns empty list for non-existent directory."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path / 'nope')
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path / 'nope')
         assert saves.list_slots() == []
 
     def test_lists_saved_slots(self, tmp_path: Path) -> None:
         """list_slots() includes all saved slots."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         saves.save('slot_2', {'score': 200})
         slots = saves.list_slots()
@@ -210,7 +229,7 @@ class TestListSlots:
 
     def test_slot_info_fields(self, tmp_path: Path) -> None:
         """SaveSlotInfo contains correct metadata."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('progress', {'score': 100})
         slots = saves.list_slots()
         assert len(slots) == 1
@@ -223,12 +242,75 @@ class TestListSlots:
 
     def test_ignores_non_save_files(self, tmp_path: Path) -> None:
         """list_slots() ignores files without recognized extensions."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
         # Create a non-save file
         (tmp_path / 'readme.txt').write_text('not a save', encoding='utf-8')
         slots = saves.list_slots()
         assert len(slots) == 1
+
+    def test_skips_unparseable_files(self, tmp_path: Path) -> None:
+        """list_slots() skips a file that is not valid JSON instead of raising."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'broken.json').write_text('{{{{not valid json}}}', encoding='utf-8')
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+        assert saves.slot_names() == ['broken', 'slot_1']
+
+    def test_skips_files_that_are_not_utf8(self, tmp_path: Path) -> None:
+        """list_slots() skips a file that is not valid UTF-8 instead of raising."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'stray.json').write_bytes(b'\xff\xfe{')
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
+    def test_skips_files_with_a_non_numeric_version(self, tmp_path: Path) -> None:
+        """list_slots() skips a file whose metadata version is not a number."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'stray.json').write_text(
+            '{"_meta": {"version": "x"}, "data": {}}', encoding='utf-8'
+        )
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
+    @pytest.mark.parametrize(
+        ('file_name', 'content'),
+        [
+            ('stray.json', '{"_meta": {"version": Infinity}, "data": {}}'),
+            ('stray.json', '{"_meta": {"version": 1e999}, "data": {}}'),
+            ('stray.toml', '[_meta]\nversion = inf\n[data]\n'),
+        ],
+    )
+    def test_skips_files_with_an_infinite_version(
+        self, tmp_path: Path, file_name: str, content: str
+    ) -> None:
+        """list_slots() skips a file whose metadata version is infinite."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / file_name).write_text(content, encoding='utf-8')
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
+    def test_sorts_timestamps_with_and_without_a_time_zone(self, tmp_path: Path) -> None:
+        """A timestamp without a time zone is sorted as UTC instead of raising TypeError."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'old.json').write_text(
+            '{"_meta": {"version": 1, "timestamp": "2000-01-01T00:00:00"}, "data": {}}',
+            encoding='utf-8',
+        )
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1', 'old']
+
+    def test_slots_saved_at_the_same_time_are_listed_by_name(self, tmp_path: Path, mocker) -> None:
+        """Ties are listed by name, whatever order the files are found in (replayable)."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        same_time = (
+            '{"_meta": {"version": 1, "timestamp": "2026-10-19T12:00:00+00:00"}, "data": {}}'
+        )
+        for name in ('beta', 'gamma', 'alpha'):
+            (tmp_path / f'{name}.json').write_text(same_time, encoding='utf-8')
+        found_order = [tmp_path / 'gamma.json', tmp_path / 'alpha.json', tmp_path / 'beta.json']
+        mocker.patch.object(saves, '_slot_file_paths', return_value=found_order)
+        assert [slot.name for slot in saves.list_slots()] == ['alpha', 'beta', 'gamma']
 
 
 class TestTomlSerializer:
@@ -237,7 +319,7 @@ class TestTomlSerializer:
     def test_save_and_load_toml(self, tmp_path: Path) -> None:
         """TOML serializer works for save/load round trip."""
         toml_serializer = TomlSerializer()
-        saves = SaveManager(
+        saves = DiskSaveManager(
             app_name='test-game',
             save_dir=tmp_path,
             default_serializer=toml_serializer,
@@ -249,7 +331,7 @@ class TestTomlSerializer:
 
     def test_per_slot_serializer_override(self, tmp_path: Path) -> None:
         """Per-slot serializer override works."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         # Save game state with default JSON
         saves.save('progress', {'score': 100})
         # Save settings with TOML

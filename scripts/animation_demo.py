@@ -10,6 +10,7 @@ import pygame
 # Add the parent directory to the path so we can import glitchygames
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.sprites.animated import AnimatedSprite
 
 # Set up logging
@@ -74,24 +75,27 @@ def main() -> int:
 
     try:
         animated_sprite = AnimatedSprite(str(foo_toml_path))
-        animated_sprite.play()
-
-        # Calculate scaled size based on original sprite size
-        assert animated_sprite.image is not None
-        original_size = animated_sprite.image.get_size()
-        scaled_size = (original_size[0] * scale_factor, original_size[1] * scale_factor)
-
-        # Set up the sprite rect for the scaled size and center it on screen
-        animated_sprite.rect = pygame.Rect(0, 0, scaled_size[0], scaled_size[1])
-        assert animated_sprite.rect is not None
-        animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
-
-        logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
-        logger.info('Scaled from %s to %s (5x upscale)', original_size, scaled_size)
-        logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
-    except FileNotFoundError, ValueError, RuntimeError:
+    except FileNotFoundError:
         logger.exception('Failed to load animation')
-        return 1
+        return ExitCode.MISSING_INPUT
+    except ValueError, RuntimeError:
+        logger.exception('Failed to load animation')
+        return ExitCode.UNUSABLE_INPUT
+    animated_sprite.play()
+
+    # Calculate scaled size based on original sprite size
+    assert animated_sprite.image is not None
+    original_size = animated_sprite.image.get_size()
+    scaled_size = (original_size[0] * scale_factor, original_size[1] * scale_factor)
+
+    # Set up the sprite rect for the scaled size and center it on screen
+    animated_sprite.rect = pygame.Rect(0, 0, scaled_size[0], scaled_size[1])
+    assert animated_sprite.rect is not None
+    animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
+
+    logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
+    logger.info('Scaled from %s to %s (5x upscale)', original_size, scaled_size)
+    logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 
     # Main game loop
     running = True
@@ -120,7 +124,7 @@ def main() -> int:
         pygame.display.flip()
 
     pygame.quit()
-    return 0
+    return ExitCode.SUCCESS
 
 
 if __name__ == '__main__':

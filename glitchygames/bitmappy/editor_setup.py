@@ -16,7 +16,7 @@ import pygame
 try:
     from glitchygames.events.voice import VoiceEventManager
 except ImportError:
-    VoiceEventManager = None  # ty: ignore[invalid-assignment]
+    VoiceEventManager = None
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.ui import (
@@ -246,7 +246,7 @@ class EditorSetup:
         surface1 = pygame.Surface((pixels_across, pixels_tall), pygame.SRCALPHA)
         surface1.fill(MAGENTA_TRANSPARENT)  # Magenta frame (transparent)
         frame1 = SpriteFrame(surface1)
-        frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)  # ty: ignore[invalid-assignment]
+        frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)
 
         # DEBUG: Log the first frame's pixel data
         LOG.info(f'DEBUG: First frame initialized with {len(frame1.pixels)} pixels')
@@ -545,7 +545,7 @@ class EditorSetup:
         # to BitmapEditorScene by design.
         self.editor.current_pixel_changes = []
         self.editor._is_drag_operation = False  # pyright: ignore[reportPrivateUsage]
-        self.editor._pixel_change_timer = None  # pyright: ignore[reportPrivateUsage]
+        self.editor.pixel_change_timer = None
         self.editor._applying_undo_redo = False  # pyright: ignore[reportPrivateUsage]
 
         # These are set up in the GameEngine class.

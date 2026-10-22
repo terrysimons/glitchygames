@@ -8,10 +8,11 @@ class complexity.
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 import pygame
+
+from glitchygames.clock import frame_clock_seconds
 
 from .constants import (
     PIXEL_CHANGE_DEBOUNCE_SECONDS,
@@ -414,13 +415,12 @@ class FrameOperationManager:
         elif hasattr(self.editor, 'current_pixel_changes') and self.editor.current_pixel_changes:
             pixel_count = len(self.editor.current_pixel_changes)
 
-        if (
-            pixel_count == 1  # Only for single pixels
-            and hasattr(self.editor, '_pixel_change_timer')
-            and self.editor._pixel_change_timer  # type: ignore[reportPrivateUsage]
-        ):
-            current_time = time.time()
+        # When the first pixel changed (frame clock), or None; compared with 'is not None'
+        # because the frame clock reads 0.0 until the first frame closes
+        pixel_change_timer = self.editor.pixel_change_timer
+        if pixel_count == 1 and pixel_change_timer is not None:  # Only for single pixels
+            current_time = frame_clock_seconds()
             # If more than 0.1 seconds have passed since the first pixel change, submit it
-            if current_time - self.editor._pixel_change_timer > PIXEL_CHANGE_DEBOUNCE_SECONDS:  # type: ignore[reportPrivateUsage]
+            if current_time - pixel_change_timer > PIXEL_CHANGE_DEBOUNCE_SECONDS:
                 self.submit_pixel_changes_if_ready()
-                self.editor._pixel_change_timer = None  # type: ignore[reportPrivateUsage]
+                self.editor.pixel_change_timer = None

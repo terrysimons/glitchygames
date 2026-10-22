@@ -1,5 +1,7 @@
 """Tests for PhysicsBody, behaviors, constraints, and protocols."""
 
+from typing import cast
+
 import pytest
 
 from glitchygames.physics import (
@@ -200,6 +202,33 @@ class TestBoundsConstraint:
         body.tick(dt=1.0)
         assert body.world_x == pytest.approx(60.0)
 
+    def test_clamp_top(self):
+        """Position doesn't go above min_y; the vertical velocity stops."""
+        body = PhysicsBody(world_y=10.0)
+        body.velocity_y = -1000.0
+        body.add_constraint(BoundsConstraint(min_y=0.0))
+        body.tick(dt=1.0)
+        assert body.world_y == 0.0
+        assert body.velocity_y == 0.0
+
+    def test_clamp_right(self):
+        """Position doesn't go past max_x; the horizontal velocity stops."""
+        body = PhysicsBody(world_x=90.0)
+        body.velocity_x = 1000.0
+        body.add_constraint(BoundsConstraint(max_x=100.0))
+        body.tick(dt=1.0)
+        assert body.world_x == 100.0
+        assert body.velocity_x == 0.0
+
+
+class BodyWithoutGroundState:
+    """A body with a position and velocity but no on_ground flag (GroundConstraint allows it)."""
+
+    def __init__(self, world_y: float, velocity_y: float) -> None:
+        """Store the vertical position and velocity."""
+        self.world_y = world_y
+        self.velocity_y = velocity_y
+
 
 # --- GroundConstraint ---
 
@@ -233,6 +262,30 @@ class TestGroundConstraint:
         body.tick(dt=0.016)
         # Should NOT snap to ground when moving up
         assert body.velocity_y < 0.0
+
+    def test_body_without_ground_state_is_still_snapped(self):
+        """A landing body without on_ground is snapped to the ground and gains no flag."""
+        body = BodyWithoutGroundState(world_y=380.0, velocity_y=50.0)
+
+        GroundConstraint(ground_y=400.0, body_height=48.0).apply(
+            body=cast('PhysicsBody', body), dt=0.016
+        )
+
+        assert body.world_y == pytest.approx(352.0)
+        assert body.velocity_y == 0.0
+        assert not hasattr(body, 'on_ground')
+
+    def test_airborne_body_without_ground_state_is_untouched(self):
+        """An airborne body without on_ground keeps its position and velocity, and gains no flag."""
+        body = BodyWithoutGroundState(world_y=100.0, velocity_y=50.0)
+
+        GroundConstraint(ground_y=400.0, body_height=48.0).apply(
+            body=cast('PhysicsBody', body), dt=0.016
+        )
+
+        assert body.world_y == 100.0
+        assert body.velocity_y == 50.0
+        assert not hasattr(body, 'on_ground')
 
 
 # --- Presets ---

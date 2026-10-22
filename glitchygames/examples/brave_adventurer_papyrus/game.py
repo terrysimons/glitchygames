@@ -63,7 +63,7 @@ from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.state import SaveManager, SaveNotFoundError
+from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
     import argparse
@@ -170,7 +170,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self._enemy_hit_this_pass: bool = False
 
         # Persistence
-        self.saves = SaveManager(app_name='brave-adventurer-papyrus')
+        self.saves: SaveManager = open_saves(app_name='brave-adventurer-papyrus')
 
         # Sound effects (shared from original edition)
         self.sounds = GameSounds()
@@ -183,24 +183,26 @@ class PapyrusBraveAdventurerScene(Scene):
 
         # Input action mapping (unifies keyboard + controller)
         self.actions = ActionMap(input_mode=self.options.get('input_mode', 'joystick'))
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause and quit included (ActionMap module docstring)
         self.actions.bind(
             'move_right',
-            keyboard=pygame.K_RIGHT,
+            scancode=pygame.KSCAN_RIGHT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
         )
         self.actions.bind(
             'move_left',
-            keyboard=pygame.K_LEFT,
+            scancode=pygame.KSCAN_LEFT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
         )
         self.actions.bind(
             'jump',
-            keyboard=pygame.K_SPACE,
+            scancode=pygame.KSCAN_SPACE,
             controller_button=pygame.CONTROLLER_BUTTON_A,
         )
-        self.actions.bind('jump', keyboard=pygame.K_UP)
-        self.actions.bind('pause', keyboard=pygame.K_ESCAPE)
-        self.actions.bind('quit', keyboard=pygame.K_q)
+        self.actions.bind('jump', scancode=pygame.KSCAN_UP)
+        self.actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
+        self.actions.bind('quit', scancode=pygame.KSCAN_Q)
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:

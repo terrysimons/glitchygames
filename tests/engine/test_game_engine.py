@@ -49,6 +49,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import non_negative_int, unit_interval
+from glitchygames.exit_codes import ExitCode
+from glitchygames.live_sources import LiveSources
+from glitchygames.sources import advance_frame_clock, install_sources
 from tests.mocks import MockFactory
 
 
@@ -972,29 +975,13 @@ class TestProcessUnimplementedEvent:
 class TestUnhandledEventTracking:
     """GameEngine keeps per-type statistics of unhandled events and reports them at teardown."""
 
-    @staticmethod
-    def _make_engine_at(mocker, mock_pygame_patches, mock_game_args, *, start_seconds):
-        """Create an engine whose clock (time.perf_counter) reads start_seconds at startup.
-
-        Returns:
-            tuple: The engine and the perf_counter mock (set its return_value to move time).
-
-        """
-        fake_perf_counter = mocker.patch(
-            'glitchygames.engine.game_engine.time.perf_counter', return_value=start_seconds
-        )
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        return engine, fake_perf_counter
-
     def test_counts_and_first_seen_time_per_type(self, mock_pygame_patches, mock_game_args, mocker):
-        """Each type is counted; its first-seen time is seconds since the engine started."""
-        engine, fake_perf_counter = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=100.0
-        )
+        """Each type is counted; its first-seen time is the frame clock since the engine started."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
-        fake_perf_counter.return_value = 100.25
+        advance_frame_clock(seconds=0.25)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
-        fake_perf_counter.return_value = 102.0
+        advance_frame_clock(seconds=1.75)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
         engine.process_unimplemented_event(events.HashableEvent(pygame.DROPBEGIN))
 
@@ -1005,13 +992,25 @@ class TestUnhandledEventTracking:
         assert drop_record.count == 1
         assert drop_record.first_seen_seconds == pytest.approx(2.0)
 
+    def test_first_seen_times_count_from_this_engines_start(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An earlier run's frame clock never leaks in: the engine restarts it (reset_sources)."""
+        advance_frame_clock(seconds=500.0)
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+
+        advance_frame_clock(seconds=0.5)
+        engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
+
+        assert engine.unhandled_events[pygame.JOYDEVICEADDED].first_seen_seconds == pytest.approx(
+            0.5
+        )
+
     def test_records_attribute_names_of_first_event_only(
         self, mock_pygame_patches, mock_game_args, mocker
     ):
         """The first event's attribute names are kept, sorted; values never appear."""
-        engine, _fake_perf_counter = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
         engine.process_unimplemented_event(
             events.HashableEvent(pygame.JOYDEVICEADDED, guid='secret-guid', device_index=3)
@@ -1032,10 +1031,8 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker
     ):
         """The most frequent type comes first."""
-        engine, fake_perf_counter = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=10.0
-        )
-        fake_perf_counter.return_value = 10.3
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        advance_frame_clock(seconds=0.3)
         engine.process_unimplemented_event(
             events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
         )
@@ -1057,9 +1054,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker
     ):
         """An unknown or custom type is reported with its numeric type."""
-        engine, _fake_perf_counter = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         custom_event_type = 88886
 
         engine.process_unimplemented_event(events.HashableEvent(custom_event_type, payload=1))
@@ -1071,9 +1066,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker, caplog
     ):
         """_shutdown logs every unhandled event type with the shutdown statistics."""
-        engine, _fake_perf_counter = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
         engine.process_unimplemented_event(
@@ -1096,9 +1089,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker, caplog
     ):
         """No unhandled events means no report line at all."""
-        engine, _fake_perf_counter = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
 
@@ -1126,6 +1117,9 @@ class TestPostGameEvent:
         # We need Event() to produce an object whose .type equals events.GAMEEVENT.
         real_event = mocker.Mock()
         real_event.type = events.GAMEEVENT
+        # The engine tracks code-posted events for its whole run (post_event keeps their
+        # attributes), so the stand-in carries them as a real event does
+        real_event.dict = {'subtype': 'custom_subtype', 'key': 'value'}
         mocker.patch('pygame.event.Event', return_value=real_event)
 
         engine.post_game_event('custom_subtype', {'key': 'value'})
@@ -2384,6 +2378,8 @@ class TestGameEngineFastEvents:
         # Create a fake fastevent module
         mock_fastevent = mocker.Mock()
         mocker.patch.object(pygame, 'fastevent', mock_fastevent, create=True)
+        # The engine sets the class attribute; patching it undoes that at teardown (BUGS.md #65)
+        mocker.patch.object(GameEngine, 'USE_FASTEVENTS', new=False)
 
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         assert engine.USE_FASTEVENTS is True
@@ -2392,7 +2388,8 @@ class TestGameEngineFastEvents:
     def test_process_events_with_fastevents(self, mock_pygame_patches, mock_game_args, mocker):
         """Test process_events uses fastevent.get when USE_FASTEVENTS is True (line 924)."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        engine.USE_FASTEVENTS = True
+        # The live doors decide fastevent use when created (glitchygames/live_sources.py)
+        install_sources(sources=LiveSources(random_seed=engine.random_seed, use_fastevents=True))
         # Create a fake fastevent module
         mock_fastevent = mocker.Mock()
         mock_fastevent.get.return_value = []
@@ -2446,6 +2443,52 @@ class TestGameEngineDel:
         # Clean up
         Sprite.SPRITE_COUNT = 0
         Sprite.SPRITE_COUNTERS = OrderedDict()
+
+
+class TestGameEngineTimerCalibration:
+    """--timer-backend auto: a paced game calibrates its timer as the engine starts."""
+
+    def _start_with_timer(self, *, engine, mocker, target_fps):
+        """Start the engine with a mock timer and the given target FPS; return the order of calls.
+
+        Returns:
+            The calls, in order: 'calibrate' (the timer's) and 'first frame' (the scenes').
+
+        """
+        calls = []
+        timer = mocker.Mock()
+        timer.calibrate.side_effect = lambda: calls.append('calibrate')
+        mocker.patch('glitchygames.engine.game_engine.create_timer', return_value=timer)
+        mocker.patch('glitchygames.performance.performance_manager')
+        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        mocker.patch.object(
+            GameEngine,
+            'OPTIONS',
+            {
+                'profile': False,
+                'timer_backend': 'auto',
+                'target_fps': target_fps,
+                'perf_trim_percent': 5.0,
+            },
+        )
+        engine.scene_manager = mocker.Mock()
+        engine.scene_manager.start.side_effect = lambda: calls.append('first frame')
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+        engine.start()
+        return calls
+
+    def test_a_paced_game_calibrates_before_its_first_frame(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        calls = self._start_with_timer(engine=engine, mocker=mocker, target_fps=60.0)
+        assert calls == ['calibrate', 'first frame']
+
+    def test_an_uncapped_game_does_not_calibrate(self, mock_pygame_patches, mock_game_args, mocker):
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        calls = self._start_with_timer(engine=engine, mocker=mocker, target_fps=0.0)
+        assert calls == ['first frame']
 
 
 class TestGameEngineTimerBackendError:
@@ -2568,8 +2611,9 @@ class TestFpsHistogramArgument:
 
     def test_invalid_choice_is_rejected(self, capsys):
         """Test an unknown choice makes argparse exit with a usage error."""
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exit_info:
             self._parse(['--fps-histogram', 'logarithmic'])
+        assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
         assert 'invalid choice' in capsys.readouterr().err
 
     def test_choices_match_the_performance_modes(self):

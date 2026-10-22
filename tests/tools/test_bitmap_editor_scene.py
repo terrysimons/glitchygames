@@ -19,6 +19,7 @@ from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandl
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.bitmappy.slider_manager import SliderManager
+from glitchygames.events import HashableEvent
 from tests.mocks import MockFactory
 
 # ---------------------------------------------------------------------------
@@ -392,29 +393,107 @@ class TestGetControllerIdFromEvent:
         assert result == 2
 
 
+def _snapshot_with_devices(**device_fields):
+    """Return an input snapshot holding the given device fields (and idle keys and mouse).
+
+    Returns:
+        The snapshot.
+
+    """
+    from glitchygames.input.state import InputSnapshot
+
+    return InputSnapshot(
+        pressed_scancodes=frozenset(),
+        modifiers=0,
+        mouse_position=(0, 0),
+        mouse_buttons=(False, False, False),
+        mouse_focused=True,
+        **device_fields,
+    )
+
+
+def _register_controller(*, editor, controller_id: int, instance_id: int) -> None:
+    """Give the editor's multi-controller manager one controller (slot -> instance id)."""
+    from glitchygames.bitmappy.controllers.manager import ControllerInfo, ControllerStatus
+
+    editor.multi_controller_manager.controllers = {
+        instance_id: ControllerInfo(
+            controller_id=controller_id,
+            instance_id=instance_id,
+            status=ControllerStatus.ACTIVE,
+        )
+    }
+
+
 class TestIsControllerButtonHeld:
-    """Tests for is_controller_button_held()."""
+    """Tests for is_controller_button_held(): the frame's snapshot, by instance id."""
 
-    def test_returns_false_on_pygame_error(self, mock_editor, mocker):
-        """Test that pygame errors result in False."""
-        mocker.patch('pygame.joystick.Joystick', side_effect=pygame.error('No joystick'))
-        result = mock_editor.controller_handler.is_controller_button_held(0, 0)
-        assert result is False
+    def test_unknown_controller_is_not_held(self, mock_editor, mocker):
+        """A controller slot the manager does not know reads as not held."""
+        from glitchygames.input.state import set_current_input
 
-    def test_returns_false_on_value_error(self, mock_editor, mocker):
-        """Test that ValueError results in False."""
-        mocker.patch('pygame.joystick.Joystick', side_effect=ValueError('Bad ID'))
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+        _register_controller(editor=mock_editor, controller_id=0, instance_id=12)
+        set_current_input(snapshot=_snapshot_with_devices(device_buttons={12: (True, True)}))
+
         result = mock_editor.controller_handler.is_controller_button_held(99, 0)
-        assert result is False
 
-    def test_returns_button_state_when_available(self, mock_editor, mocker):
-        """Test that actual button state is returned when joystick is available."""
-        mock_joystick = mocker.Mock()
-        mock_joystick.get_button.return_value = True
-        mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
-        result = mock_editor.controller_handler.is_controller_button_held(0, 1)
-        assert result is True
-        mock_joystick.get_button.assert_called_once_with(1)
+        assert result is False
+        real_joystick.assert_not_called()
+
+    def test_returns_the_snapshot_button_of_the_slots_instance_id(self, mock_editor, mocker):
+        """The slot's instance id (not the slot number) selects the snapshot's device."""
+        from glitchygames.input.state import set_current_input
+
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+        _register_controller(editor=mock_editor, controller_id=0, instance_id=12)
+        set_current_input(
+            snapshot=_snapshot_with_devices(device_buttons={0: (True, True), 12: (False, True)})
+        )
+
+        assert mock_editor.controller_handler.is_controller_button_held(0, 1) is True
+        assert mock_editor.controller_handler.is_controller_button_held(0, 0) is False
+        real_joystick.assert_not_called()
+
+
+class TestTriggerValuesFromSnapshot:
+    """Trigger values are read from the frame's snapshot, never from a device mid-frame."""
+
+    def test_bitmappy_trigger_values_come_from_the_snapshot_by_instance_id(
+        self, mock_editor, mocker
+    ):
+        """A controller event's triggers come from the snapshot of its instance id."""
+        from glitchygames.input.state import set_current_input
+
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+        set_current_input(
+            snapshot=_snapshot_with_devices(device_axes={12: (0.0, 0.0, 0.0, 0.0, 1.0, -1.0)})
+        )
+        # HashableEvent: the editor fixture's pygame mocks replace pygame.event.Event
+        event = HashableEvent(pygame.CONTROLLERAXISMOTION, instance_id=12, axis=4, value=32767)
+
+        left_trigger, right_trigger = mock_editor.controller_handler._read_trigger_values(event, 12)
+
+        assert (left_trigger, right_trigger) == (1.0, 0.0)
+        real_joystick.assert_not_called()
+
+    def test_joystick_trigger_values_come_from_the_snapshot_by_joy(self, mock_editor, mocker):
+        """An event without an instance id reads the snapshot of its ``joy`` id."""
+        from glitchygames.input.state import set_current_input
+
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+        set_current_input(
+            snapshot=_snapshot_with_devices(device_axes={12: (0.0, 0.0, 0.0, 0.0, 1.0, -1.0)})
+        )
+        event = mocker.Mock(spec=['joy'])
+        event.joy = 12
+
+        left_trigger, right_trigger = mock_editor.controller_handler._read_trigger_values(event, 0)
+
+        # The existing joystick conversion assumes pygame's old int scale (BUGS.md #67)
+        assert left_trigger == pytest.approx(32769.0 / 65535.0)
+        assert right_trigger == pytest.approx(32767.0 / 65535.0)
+        real_joystick.assert_not_called()
 
 
 class TestIsAnyControllerInSliderMode:

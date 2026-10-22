@@ -36,6 +36,8 @@ from glitchygames.bitmappy.sprite_inspection import (
     load_ai_training_data,
 )
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
+from glitchygames.engine.game_engine import exit_on_signal
+from glitchygames.exit_codes import ExitCode
 from tests.mocks import MockFactory
 
 LOG = logging.getLogger('test.bitmappy_coverage')
@@ -1181,8 +1183,11 @@ class TestAiWorkerShutdown:
         mocker.patch.object(bitmappy, 'load_ai_training_data')
         engine_class = mocker.patch.object(bitmappy, 'GameEngine')
 
+        handlers_while_running: dict[int, object] = {}
+
         # The signal arrives while the engine runs
         def deliver_signal_while_running():
+            handlers_while_running.update(installed_handlers)
             logged_before_handler = len(caplog.records)
             try:
                 installed_handlers[signal.SIGTERM](signal.SIGTERM, None)
@@ -1195,9 +1200,15 @@ class TestAiWorkerShutdown:
         with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             bitmappy.main()
 
-        assert exit_info.value.code == 0
+        assert exit_info.value.code == ExitCode.TERMINATED
         assert f'Received signal {signal.SIGTERM}' in caplog.text
-        assert set(installed_handlers) == {signal.SIGINT, signal.SIGTERM}
+        # The engine's handler (glitchygames/engine/game_engine.py), whose re-entry guard
+        # ignores a repeated signal while the run tears down
+        assert handlers_while_running == {
+            signal.SIGINT: exit_on_signal,
+            signal.SIGTERM: exit_on_signal,
+        }
+        assert installed_handlers[signal.SIGTERM] == signal.SIG_IGN
         shut_down_workers.assert_called_once_with()
 
     def test_shutdown_sends_the_message_and_joins_without_terminating(self, mocker):
@@ -1262,6 +1273,39 @@ class TestAiWorkerShutdown:
 
         set_handler.assert_called_once_with(signal.SIGINT, signal.SIG_IGN)
         worker.assert_called_once_with(request_queue, response_queue)
+
+
+# ---------------------------------------------------------------------------
+# TestAiRequestIds
+# ---------------------------------------------------------------------------
+
+
+class TestAiRequestIds:
+    """Each AI request gets its own id, even when the wall clock has not moved."""
+
+    def test_two_requests_in_one_frame_get_different_ids(self, mocker):
+        """In a replay the wall clock stands still within a frame; the ids still differ."""
+        from glitchygames.bitmappy import ai_manager
+
+        mocker.patch.object(ai_manager, 'wall_clock_epoch_seconds', return_value=1_700_000_000.0)
+        manager = ai_manager.AIManager(editor=mocker.Mock())
+        manager.ai_request_queue = mocker.Mock()
+
+        for prompt in ('a red slime', 'a blue slime'):
+            manager._submit_ai_request(
+                text=prompt,
+                messages=[{'role': 'user', 'content': prompt}],
+                relevant_examples=[],
+                conversation_history=None,
+                last_sprite_content=None,
+            )
+
+        request_ids = [
+            put_call.args[0].request_id for put_call in manager.ai_request_queue.put.call_args_list
+        ]
+        assert len(request_ids) == 2
+        assert request_ids[0] != request_ids[1]
+        assert set(manager.pending_ai_requests) == set(request_ids)
 
 
 # ---------------------------------------------------------------------------

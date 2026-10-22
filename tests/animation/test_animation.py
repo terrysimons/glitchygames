@@ -9,7 +9,9 @@ import pytest
 from glitchygames.animation.expressions import (
     MAXIMUM_NESTING_DEPTH,
     AndExpr,
+    ComparisonExpr,
     Expression,
+    LiteralExpr,
     NotExpr,
     OrExpr,
     VariableExpr,
@@ -260,6 +262,12 @@ class TestExpressionErrors:
             ('or on_ground', "Unexpected operator 'or'"),
             ('a and and b', "Unexpected operator 'and'"),
             ('a b', 'Unexpected tokens after expression'),
+            ('(', 'Unbalanced parentheses'),
+            ('(a b', "Expected '\\)' but got 'b'"),
+            ('abs(x', "Expected '\\)' to close abs"),
+            ('a >', 'Unexpected end of expression: expected a term'),
+            ('a > >', "Unexpected token: '>'"),
+            ('abs((x))', "Unexpected token: '\\('"),
         ],
     )
     def test_malformed_expressions(self, expression_string, message):
@@ -278,6 +286,32 @@ class TestExpressionErrors:
     def test_keywords_are_lowercase_only(self):
         assert parse('AND').evaluate({'AND': True}) is True
         assert parse('Not').evaluate({'Not': True}) is True
+
+
+class TestComparisonOperators:
+    """Equality comparisons and the guard against an unknown operator."""
+
+    @pytest.mark.parametrize(
+        ('expression_string', 'speed', 'expected'),
+        [
+            ('speed == 2', 2.0, True),
+            ('speed == 2', 2.5, False),
+            ('speed != 2', 2.5, True),
+            ('speed != 2', 2.0, False),
+        ],
+    )
+    def test_equality_operators(self, expression_string, speed, expected):
+        """== and != compare the operands as floats."""
+        assert parse(expression_string).evaluate({'speed': speed}) is expected
+
+    def test_unknown_operator_raises_when_evaluated(self):
+        """A ComparisonExpr built by hand with an unsupported operator fails on evaluation."""
+        expression = ComparisonExpr(
+            left=LiteralExpr(value=1.0), operator='=>', right=LiteralExpr(value=2.0)
+        )
+
+        with pytest.raises(ValueError, match='Unknown operator: =>'):
+            expression.evaluate({})
 
 
 class TestNumbersAndNesting:
@@ -459,6 +493,53 @@ class TestBehaviorScheduler:
         assert ran[0] is True
         assert scheduler.is_running is False
 
+    def test_context_exposes_animation_complete_and_dt(self):
+        """The behavior's context reports the latest dt and animation_complete flag."""
+        scheduler = BehaviorScheduler()
+
+        def waiting_behavior(sprite, ctx):
+            while True:
+                yield
+
+        scheduler.start(waiting_behavior, sprite=None)
+        assert scheduler.context.animation_complete is False
+        assert scheduler.context.dt == 0.0
+
+        scheduler.step(variables={'animation_complete': True}, dt=0.25)
+
+        assert scheduler.context.animation_complete is True
+        assert scheduler.context.dt == 0.25
+
+    def test_cancel_logs_an_error_raised_while_closing(self, caplog):
+        """A behavior whose cleanup raises is still cancelled; the error is logged."""
+
+        def failing_cleanup_behavior(sprite, ctx):
+            try:
+                yield
+            finally:
+                cleanup_failure = 'cleanup failed'
+                raise RuntimeError(cleanup_failure)
+
+        scheduler = BehaviorScheduler()
+        scheduler.start(failing_cleanup_behavior, sprite=None)
+
+        with caplog.at_level('ERROR'):
+            scheduler.cancel()
+
+        assert scheduler.is_running is False
+        assert 'Error closing behavior coroutine' in caplog.text
+        assert 'cleanup failed' in caplog.text
+
+    def test_step_without_a_behavior_does_nothing(self):
+        """Stepping a scheduler with no behavior leaves the context untouched."""
+        scheduler = BehaviorScheduler()
+
+        scheduler.step(variables={'velocity_x': 1.0}, dt=0.5)
+
+        assert scheduler.is_running is False
+        assert scheduler.context.dt == 0.0
+        assert scheduler.context.get('velocity_x', default=None) is None
+
 
 # --- Animation State Machine ---
 
@@ -613,6 +694,140 @@ class TestAnimationStateMachine:
         state_machine.evaluate({}, dt=0.016)
 
         assert events_log == ['enter', 'frame', 'frame']
+
+    def test_time_in_state_counts_up_and_resets_on_a_switch(self):
+        """time_in_state sums dt in the current state and restarts at 0 on a transition."""
+        state_machine = AnimationStateMachine(FakeSprite())
+        state_machine.add_transition(from_state='idle', to_state='running', when='go')
+        state_machine.set_state('idle')
+
+        state_machine.evaluate({'go': False}, dt=0.25)
+        state_machine.evaluate({'go': False}, dt=0.5)
+        assert state_machine.time_in_state == pytest.approx(0.75)
+
+        state_machine.evaluate({'go': True}, dt=0.25)
+        assert state_machine.current_state == 'running'
+        assert state_machine.time_in_state == 0.0
+
+    @pytest.mark.parametrize(
+        'incomplete_transition',
+        [
+            {'to': 'running', 'when': 'go'},
+            {'from': 'idle', 'when': 'go'},
+            {'from': 'idle', 'to': 'running'},
+            {'from': 'idle', 'to': 'running', 'when': ''},
+        ],
+    )
+    def test_load_from_toml_skips_incomplete_transitions(self, incomplete_transition, caplog):
+        """A transition missing from, to or when is skipped with a warning; later ones load."""
+        state_machine = AnimationStateMachine(FakeSprite())
+
+        with caplog.at_level('WARNING', logger='game.animation.state_machine'):
+            state_machine.load_from_toml([
+                incomplete_transition,
+                {'from': 'idle', 'to': 'jumping', 'when': 'go'},
+            ])
+        state_machine.set_state('idle')
+        state_machine.evaluate({'go': True}, dt=0.0)
+
+        assert 'Skipping incomplete transition' in caplog.text
+        assert state_machine.current_state == 'jumping'
+
+    def test_load_from_toml_skips_an_unparsable_expression(self, caplog):
+        """A when expression that does not parse is logged and skipped; later ones load."""
+        state_machine = AnimationStateMachine(FakeSprite())
+
+        with caplog.at_level('ERROR', logger='game.animation.state_machine'):
+            state_machine.load_from_toml([
+                {'from': 'idle', 'to': 'running', 'when': 'velocity_x >'},
+                {'from': 'idle', 'to': 'jumping', 'when': 'go'},
+            ])
+        state_machine.set_state('idle')
+        state_machine.evaluate({'go': True, 'velocity_x': 5.0}, dt=0.0)
+
+        assert "Failed to parse transition expression 'velocity_x >'" in caplog.text
+        assert state_machine.current_state == 'jumping'
+
+    def test_add_transition_with_a_parsed_condition(self):
+        """A pre-parsed Expression is used directly as the transition's condition."""
+        state_machine = AnimationStateMachine(FakeSprite())
+        state_machine.add_transition(
+            from_state='idle', to_state='running', condition=parse('speed > 1')
+        )
+        state_machine.set_state('idle')
+
+        state_machine.evaluate({'speed': 2.0}, dt=0.0)
+
+        assert state_machine.current_state == 'running'
+
+    def test_add_transition_needs_a_condition(self):
+        """Neither a condition nor a when string is a ValueError."""
+        state_machine = AnimationStateMachine(FakeSprite())
+
+        with pytest.raises(ValueError, match='Must provide either condition or when'):
+            state_machine.add_transition(from_state='idle', to_state='running')
+
+    def test_on_complete_fires_each_frame_the_animation_is_complete(self):
+        """on_complete callbacks run on frames whose context says the animation completed."""
+        state_machine = AnimationStateMachine(FakeSprite())
+        completions: list[str] = []
+        state_machine.on_complete('jumping', callback=lambda: completions.append('done'))
+        state_machine.set_state('jumping')
+
+        state_machine.evaluate({'animation_complete': False}, dt=0.016)
+        assert completions == []
+
+        state_machine.evaluate({'animation_complete': True}, dt=0.016)
+        assert completions == ['done']
+
+    def test_on_complete_ignores_other_states(self):
+        """A completed animation runs only the current state's on_complete callbacks."""
+        state_machine = AnimationStateMachine(FakeSprite())
+        completions: list[str] = []
+        state_machine.on_complete('jumping', callback=lambda: completions.append('done'))
+        state_machine.set_state('idle')
+
+        state_machine.evaluate({'animation_complete': True}, dt=0.016)
+
+        assert completions == []
+
+    def test_sprite_reports_animation_complete(self):
+        """A sprite with is_animation_complete() overrides the context's animation_complete."""
+
+        @dataclass
+        class CompletingSprite(FakeSprite):
+            """A FakeSprite whose current animation has finished."""
+
+            def is_animation_complete(self) -> bool:
+                """Report that the animation has finished.
+
+                Returns:
+                    bool: Always True.
+
+                """
+                return True
+
+        state_machine = AnimationStateMachine(CompletingSprite())
+        state_machine.add_transition(
+            from_state='jumping', to_state='idle', when='animation_complete'
+        )
+        state_machine.set_state('jumping')
+        context: dict[str, Any] = {'animation_complete': False}
+
+        state_machine.evaluate(context, dt=0.016)
+
+        assert context['animation_complete'] is True
+        assert state_machine.current_state == 'idle'
+
+    def test_animation_complete_defaults_to_false(self):
+        """Without the sprite or the context saying so, animation_complete is False."""
+        state_machine = AnimationStateMachine(FakeSprite())
+        state_machine.set_state('idle')
+        context: dict[str, Any] = {}
+
+        state_machine.evaluate(context, dt=0.016)
+
+        assert context['animation_complete'] is False
 
 
 # --- PhysicsBody Context ---

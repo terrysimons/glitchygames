@@ -7,8 +7,11 @@ import pygame
 import pytest
 
 from glitchygames.color import BLUE, RED
+from glitchygames.events import ALL_EVENTS
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
+from glitchygames.sources import advance_frame_clock
+from tests.mocks import MockFactory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -1253,6 +1256,26 @@ class TestSceneOnFpsEvent:
 
         assert abs(scene.fps - 59.5) < 1e-9
 
+    def test_on_fps_event_logs_once_per_interval_of_the_frame_clock(
+        self, mock_pygame_patches, mocker
+    ):
+        """The FPS log interval is measured on the frame clock, which a replay serves."""
+        scene = Scene()
+        scene.scene_manager.fps_log_interval_ms = 1000
+        log_info = mocker.patch.object(scene.log, 'info')
+        event = mocker.Mock()
+        event.fps = 60.0
+
+        advance_frame_clock(seconds=1.0)
+        scene.on_fps_event(event)  # one interval since the scene started: logs
+        scene.on_fps_event(event)  # no frame time since: silent
+        advance_frame_clock(seconds=0.5)
+        scene.on_fps_event(event)  # half an interval: silent
+        advance_frame_clock(seconds=0.5)
+        scene.on_fps_event(event)  # a full interval since the last log: logs
+
+        assert log_info.call_count == 2
+
 
 class TestSceneOnTextSubmitEvent:
     """Test Scene.on_text_submit_event() method."""
@@ -1265,6 +1288,24 @@ class TestSceneOnTextSubmitEvent:
 
 class TestSceneManagerHelpers:
     """Test SceneManager helper methods."""
+
+    def test_debug_overlay_mouse_position_comes_from_the_frame_input(
+        self, mock_pygame_patches, mocker
+    ):
+        """The debug overlay shows the frame's polled mouse position, None without focus."""
+        manager = SceneManager()
+
+        MockFactory.install_frame_input(mouse_position=(12, 34), mouse_focused=True)
+        focused_info = manager._debug_frame_info(
+            shake_offset=(0.0, 0.0), inspected_scene_label=None
+        )
+        MockFactory.install_frame_input(mouse_position=(12, 34), mouse_focused=False)
+        unfocused_info = manager._debug_frame_info(
+            shake_offset=(0.0, 0.0), inspected_scene_label=None
+        )
+
+        assert focused_info.mouse_position == (12, 34)
+        assert unfocused_info.mouse_position is None
 
     def test_scene_manager_stop(self, mock_pygame_patches, mocker):
         """Test SceneManager.stop() calls terminate."""
@@ -1478,6 +1519,7 @@ class TestHandleFramePacing:
             timer=mock_timer,
             period_ns=16_666_667,
             prev_deadline_ns=1_000_000,
+            paced_seconds=None,
         )
 
         mock_timer.compute_deadline.assert_called_once()
@@ -1501,6 +1543,7 @@ class TestHandleFramePacing:
             timer=mock_timer,
             period_ns=16_666_667,
             prev_deadline_ns=1_000_000,
+            paced_seconds=None,
         )
 
         mock_log_jitter.assert_called_once_with(mock_timer, 2_000_100, 2_000_000)
@@ -1516,6 +1559,7 @@ class TestHandleFramePacing:
             timer=None,
             period_ns=0,
             prev_deadline_ns=None,
+            paced_seconds=None,
         )
 
         mock_clock_tick.assert_called_once_with(60)
@@ -1531,9 +1575,64 @@ class TestHandleFramePacing:
             timer=None,
             period_ns=0,
             prev_deadline_ns=None,
+            paced_seconds=None,
         )
 
         mock_clock_tick.assert_called_once_with()
+
+    def test_handle_frame_pacing_never_waits_for_an_unpaced_frame(
+        self, mock_pygame_patches, mocker
+    ):
+        """paced_seconds 0.0 (a headless replay): no timer deadline and no clock tick."""
+        manager = SceneManager()
+        manager.target_fps = 60
+        mock_timer = mocker.Mock()
+        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
+
+        manager._handle_frame_pacing(
+            timer=mock_timer,
+            period_ns=0,
+            prev_deadline_ns=1_000_000,
+            paced_seconds=0.0,
+        )
+        manager._handle_frame_pacing(
+            timer=None, period_ns=0, prev_deadline_ns=None, paced_seconds=0.0
+        )
+
+        mock_timer.compute_deadline.assert_not_called()
+        mock_timer.sleep_until_next.assert_not_called()
+        mock_clock_tick.assert_not_called()
+
+    def test_handle_frame_pacing_never_mixes_backends_for_a_sub_nanosecond_period(
+        self, mock_pygame_patches, mocker
+    ):
+        """A positive period that rounds to 0 ns with a timer: no deadline and no clock tick."""
+        manager = SceneManager()
+        manager.target_fps = 60
+        mock_timer = mocker.Mock()
+        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
+
+        manager._handle_frame_pacing(
+            timer=mock_timer, period_ns=0, prev_deadline_ns=None, paced_seconds=1e-10
+        )
+
+        mock_timer.compute_deadline.assert_not_called()
+        mock_timer.sleep_until_next.assert_not_called()
+        mock_clock_tick.assert_not_called()
+
+    def test_handle_frame_pacing_without_a_timer_ticks_at_the_paced_period(
+        self, mock_pygame_patches, mocker
+    ):
+        """A positive paced period replaces the target FPS for the pygame clock."""
+        manager = SceneManager()
+        manager.target_fps = 60
+        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
+
+        manager._handle_frame_pacing(
+            timer=None, period_ns=0, prev_deadline_ns=None, paced_seconds=0.25
+        )
+
+        mock_clock_tick.assert_called_once_with(4.0)
 
 
 class TestFinishFrameMeasurement:
@@ -1571,7 +1670,7 @@ class TestFinishFrameMeasurement:
             frame_start_seconds=10.0,
             timer=mock_timer,
             period_ns=16_666_667,
-            previous_deadline_ns=None,
+            paced_seconds=None,
             processing_seconds=0.001,
         )
 
@@ -1597,7 +1696,7 @@ class TestFinishFrameMeasurement:
                 frame_start_seconds=frame_start_seconds,
                 timer=mock_timer,
                 period_ns=16_666_667,
-                previous_deadline_ns=None,
+                paced_seconds=None,
                 processing_seconds=0.001,
             )
 
@@ -1624,7 +1723,7 @@ class TestFinishFrameMeasurement:
             frame_start_seconds=5.0,
             timer=mock_timer,
             period_ns=16_528_926,
-            previous_deadline_ns=None,
+            paced_seconds=None,
             processing_seconds=0.001,
         )
 
@@ -1639,7 +1738,9 @@ class TestFinishFrameMeasurement:
         mock_timer.compute_deadline.return_value = 2_000_000
         mock_timer.sleep_until_next.return_value = 2_000_100
 
-        manager._handle_frame_pacing(timer=mock_timer, period_ns=16_666_667, prev_deadline_ns=None)
+        manager._handle_frame_pacing(
+            timer=mock_timer, period_ns=16_666_667, prev_deadline_ns=None, paced_seconds=None
+        )
 
         assert manager.dt == 0.25
 
@@ -2537,6 +2638,35 @@ class TestSceneManagerLogBlockedEvents:
         scene = mocker.Mock()
         scene.name = 'TestScene'
         manager._log_blocked_events(scene)  # Should not raise
+
+    def test_blocked_events_are_logged_on_one_line(self, mocker):
+        """A replay blocks dozens of types: one INFO line names them all, not one line each."""
+        manager = SceneManager()
+        scene = mocker.Mock()
+        scene.name = 'TestScene'
+        blocked_types = {pygame.KEYDOWN, pygame.MOUSEMOTION}
+        mocker.patch.object(
+            pygame.event, 'get_blocked', side_effect=lambda event_type: event_type in blocked_types
+        )
+        info = mocker.patch.object(manager.log, 'info')
+        manager._log_blocked_events(scene)
+        # In ALL_EVENTS order
+        expected_names = [
+            pygame.event.event_name(event_type)
+            for event_type in ALL_EVENTS
+            if event_type in blocked_types
+        ]
+        assert len(expected_names) == len(blocked_types)
+        info.assert_called_once_with(f'Scene TestScene blocked events: {", ".join(expected_names)}')
+
+    def test_no_blocked_events_are_logged_as_none(self, mocker):
+        manager = SceneManager()
+        scene = mocker.Mock()
+        scene.name = 'TestScene'
+        mocker.patch.object(pygame.event, 'get_blocked', return_value=False)
+        info = mocker.patch.object(manager.log, 'info')
+        manager._log_blocked_events(scene)
+        info.assert_called_once_with('Scene TestScene blocked events: None')
 
     def test_log_blocked_events_none(self, mock_pygame_patches):
         """Test _log_blocked_events with None scene does nothing."""

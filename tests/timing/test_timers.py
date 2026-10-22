@@ -34,14 +34,14 @@ def test_pygame_timer_ns_now_monotonic():
     try:
         if not pygame.get_init():
             pygame.init()
-        # Some environments require a display module init
-        try:
-            if not pygame.display.get_init():
-                pygame.display.init()
-        except pygame.error:
-            LOG.debug('Display init failed with dummy driver, continuing without display')
     except pygame.error:
         pytest.skip('Pygame could not initialize even with dummy driver')
+    # Some environments require a display module init
+    try:
+        if not pygame.display.get_init():
+            pygame.display.init()
+    except pygame.error:
+        LOG.debug('Display init failed with dummy driver, continuing without display')
 
     p = PygameTimer()
     a = p.ns_now()

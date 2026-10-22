@@ -14,6 +14,7 @@ import pygame
 
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
+from glitchygames.input.state import current_input
 from glitchygames.scenes import Scene
 
 # Adapted from:
@@ -128,9 +129,7 @@ class Game(Scene):
             event (HashableEvent): The event to handle.
 
         """
-        pressed_keys = pygame.key.get_pressed()
-
-        if pressed_keys[pygame.K_SPACE]:
+        if current_input().key_pressed(pygame.K_SPACE):
             self.start = True
 
 

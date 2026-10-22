@@ -152,7 +152,7 @@ def _setup_editor_state(editor, mocker):
     editor.current_pixel_changes = []
     editor._is_drag_operation = False
     editor._applying_undo_redo = False
-    editor._pixel_change_timer = None
+    editor.pixel_change_timer = None
 
     editor.controller_handler = ControllerEventHandler(editor)
     # Controller handler code references self.editor.* for state
@@ -1042,6 +1042,53 @@ class TestCanvasPanning:
         mock_editor.canvas.pan_canvas = None
         del mock_editor.canvas.pan_canvas
         mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
+
+
+class TestSingleClickTimer:
+    """Tests for FrameOperationManager.check_single_click_timer (frame-clock debounce)."""
+
+    def test_click_on_the_first_frame_is_submitted_after_the_debounce(self, mock_editor, mocker):
+        """A timer started while the frame clock still reads 0.0 is a real timer, not 'unset'."""
+        from glitchygames import sources
+        from glitchygames.bitmappy.constants import PIXEL_CHANGE_DEBOUNCE_SECONDS
+
+        frame_operations = mock_editor._frame_operations
+        submit = mocker.patch.object(frame_operations, 'submit_pixel_changes_if_ready')
+        mock_editor.current_pixel_changes = [(0, 0, (255, 0, 0), (0, 0, 0))]
+        mock_editor.pixel_change_timer = 0.0
+
+        sources.advance_frame_clock(seconds=PIXEL_CHANGE_DEBOUNCE_SECONDS * 2)
+        frame_operations.check_single_click_timer()
+
+        submit.assert_called_once_with()
+        assert mock_editor.pixel_change_timer is None
+
+    def test_click_is_held_until_the_debounce_passes(self, mock_editor, mocker):
+        """Within the debounce the single pixel waits (it may become a drag)."""
+        frame_operations = mock_editor._frame_operations
+        submit = mocker.patch.object(frame_operations, 'submit_pixel_changes_if_ready')
+        mock_editor.current_pixel_changes = [(0, 0, (255, 0, 0), (0, 0, 0))]
+        mock_editor.pixel_change_timer = 0.0
+
+        frame_operations.check_single_click_timer()
+
+        submit.assert_not_called()
+        assert mock_editor.pixel_change_timer == 0.0
+
+
+class TestAxisCooldown:
+    """Tests for ControllerEventHandler._check_axis_deadzone_and_cooldown."""
+
+    def test_stick_back_from_the_deadzone_has_no_cooldown_at_any_reading(self, mock_editor, mocker):
+        """After the deadzone clears the cooldown, a push counts even at elapsed 0.1 (replay)."""
+        handler = mock_editor.controller_handler
+        axis = (0, pygame.CONTROLLER_AXIS_LEFTX)
+
+        centered = handler._check_axis_deadzone_and_cooldown(mocker.Mock(axis=axis, value=0), 0.0)
+        pushed = handler._check_axis_deadzone_and_cooldown(mocker.Mock(axis=axis, value=20000), 0.1)
+
+        assert centered is False
+        assert pushed is True
 
 
 # ===========================================================================
@@ -2422,3 +2469,816 @@ class TestGetGlyphForColor:
         # They could potentially hash to the same slot, but likely different
         assert isinstance(result1, str)
         assert isinstance(result2, str)
+
+
+# ===========================================================================
+# 53. AI Sprite Position With Film Strips In Transition
+# ===========================================================================
+
+
+class TestUpdateAiSpritePositionDuringTransition:
+    """Tests for _update_ai_sprite_position while film strips are being rebuilt."""
+
+    def test_second_strip_without_rect_places_the_box_at_the_top(self, mock_editor):
+        """A second strip that has no rect yet counts as ending at y=0."""
+        mock_editor.film_strips = {
+            'idle': SimpleNamespace(rect=pygame.Rect(400, 24, 400, 145)),
+            'walk': SimpleNamespace(),
+        }
+
+        mock_editor._update_ai_sprite_position()
+
+        assert mock_editor.debug_text.rect.y == 30
+        assert mock_editor.ai_label.rect.y == 10
+
+    def test_film_strips_failing_mid_read_place_the_box_at_the_top(self, mock_editor, mocker):
+        """A film strip mapping that fails while being read counts as ending at y=0."""
+        film_strips = mocker.MagicMock()
+        film_strips.__bool__.return_value = True
+        film_strips.__len__.return_value = 2
+        film_strips.values.side_effect = KeyError('strip removed')
+        mock_editor.film_strips = film_strips
+
+        mock_editor._update_ai_sprite_position()
+
+        assert mock_editor.debug_text.rect.y == 30
+
+    def test_box_below_second_strip_spans_from_color_well_to_screen_edge(self, mock_editor):
+        """The box starts right of the color well and sits 30 pixels below the second strip."""
+        mock_editor.film_strips = {
+            'idle': SimpleNamespace(rect=pygame.Rect(400, 24, 400, 100)),
+            'walk': SimpleNamespace(rect=pygame.Rect(400, 124, 400, 100)),
+        }
+
+        mock_editor._update_ai_sprite_position()
+
+        assert mock_editor.debug_text.rect.x == mock_editor.color_well.rect.right + 1
+        assert mock_editor.debug_text.rect.width == 800 - (mock_editor.color_well.rect.right + 1)
+        assert mock_editor.debug_text.rect.y == 224 + 30
+
+
+# ===========================================================================
+# 54. New Canvas Creation
+# ===========================================================================
+
+
+class TestNewCanvasCreation:
+    """Tests for _reset_canvas_for_new_file, _create_fresh_animated_sprite and on_new_file_event."""
+
+    def test_reset_canvas_without_panning_attributes(self, mock_editor):
+        """A canvas with no panning support is reset without gaining panning attributes."""
+        mock_editor.canvas = SimpleNamespace()
+
+        mock_editor._reset_canvas_for_new_file(4, 2, 8)
+
+        assert mock_editor.canvas.pixels == [(255, 0, 255, 255)] * 8
+        assert mock_editor.canvas.dirty_pixels == [True] * 8
+        assert not hasattr(mock_editor.canvas, 'pan_offset_x')
+        assert not hasattr(mock_editor.canvas, '_panning_active')
+
+    def test_fresh_animated_sprite_is_one_magenta_frame(self, mock_editor):
+        """The fresh sprite has a single magenta 'default' frame and a matching canvas image."""
+        mock_editor._create_fresh_animated_sprite(3, 2, 10)
+
+        fresh_sprite = mock_editor.canvas.animated_sprite
+        assert fresh_sprite.name == 'new_canvas'
+        assert list(fresh_sprite._animations) == ['default']
+        frames = fresh_sprite._animations['default']
+        assert len(frames) == 1
+        assert frames[0].get_pixel_data() == [(255, 0, 255)] * 6
+        assert fresh_sprite.frame_manager.current_animation == 'default'
+        assert mock_editor.canvas.image.get_size() == (30, 20)
+        assert mock_editor.canvas.rect.topleft == (0, 24)
+        mock_editor.canvas.force_redraw.assert_called_once()
+
+    def test_new_file_without_ai_integration(self, mock_editor, mocker):
+        """A new file still resets the canvas when no AI integration exists."""
+        del mock_editor._ai_integration
+        mock_editor.debug_text.text = 'previous prompt'
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'clear_film_strips_for_new_canvas')
+        mocker.patch.object(mock_editor, '_update_ai_sprite_position')
+
+        mock_editor.on_new_file_event('8x4')
+
+        assert mock_editor.canvas.pixels_across == 8
+        assert mock_editor.canvas.pixels_tall == 4
+        assert len(mock_editor.canvas.animated_sprite._animations['default']) == 1
+        assert not mock_editor.debug_text.text
+        assert mock_editor.dirty == 1
+
+
+# ===========================================================================
+# 55. Right Mouse Button Colour Sampling
+# ===========================================================================
+
+
+def _held_keys(*keys):
+    """Build a polled-input stand-in with the given keys held.
+
+    Args:
+        *keys: The pygame key codes that are held.
+
+    Returns:
+        SimpleNamespace: An object answering key_pressed(key).
+
+    """
+    return SimpleNamespace(key_pressed=lambda key: key in keys)
+
+
+def _slider_values(editor):
+    """Read the four slider values.
+
+    Args:
+        editor: The editor scene.
+
+    Returns:
+        tuple: (red, green, blue, alpha).
+
+    """
+    return (
+        editor.red_slider.value,
+        editor.green_slider.value,
+        editor.blue_slider.value,
+        editor.alpha_slider.value,
+    )
+
+
+class TestRightMouseButtonSampling:
+    """Tests for on_right_mouse_button_up_event and _sample_canvas_pixel."""
+
+    @pytest.fixture(autouse=True)
+    def _no_held_keys(self, mocker):
+        """Answer polled input with no keys held."""
+        mocker.patch.object(bitmappy, 'current_input', return_value=_held_keys())
+
+    def test_sprite_that_handles_the_click_stops_sampling(self, mock_editor, mocker):
+        """A sprite that handles the right click keeps the sliders unchanged."""
+        handling_sprite = mocker.Mock()
+        handling_sprite.on_right_mouse_button_up_event.return_value = True
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[handling_sprite])
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(5, 30)))
+
+        assert _slider_values(mock_editor) == (128, 64, 32, 255)
+
+    def test_canvas_rgba_pixel_sets_all_four_sliders(self, mock_editor, mocker):
+        """A right click on the canvas samples the RGBA pixel under the cursor."""
+        unhandling_sprite = mocker.Mock()
+        unhandling_sprite.on_right_mouse_button_up_event.return_value = False
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[unhandling_sprite])
+        # Pixel (2, 1) on a 32-wide canvas of 10-pixel cells at (0, 24)
+        mock_editor.canvas.pixels[1 * 32 + 2] = (10, 20, 30, 40)
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(25, 24 + 15)))
+
+        assert _slider_values(mock_editor) == (10, 20, 30, 40)
+
+    def test_canvas_rgb_pixel_samples_as_opaque(self, mock_editor):
+        """An RGB canvas pixel is sampled with alpha 255."""
+        mock_editor.alpha_slider.value = 7
+        mock_editor.canvas.pixels[0] = (1, 2, 3)
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(1, 25)))
+
+        assert _slider_values(mock_editor) == (1, 2, 3, 255)
+
+    def test_shift_right_click_on_canvas_samples_the_screen(self, mock_editor, mocker):
+        """Shift held while right clicking the canvas samples the screen instead."""
+        mocker.patch.object(bitmappy, 'current_input', return_value=_held_keys(pygame.K_RSHIFT))
+        sample_from_screen = mocker.patch.object(
+            mock_editor._slider_manager,
+            'sample_color_from_screen',
+        )
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(5, 30)))
+
+        sample_from_screen.assert_called_once_with((5, 30))
+        assert _slider_values(mock_editor) == (128, 64, 32, 255)
+
+    def test_click_off_canvas_samples_the_screen_as_opaque(self, mock_editor):
+        """Outside the canvas, the screen pixel is sampled and alpha set to 255."""
+        screen = pygame.Surface((800, 600), pygame.SRCALPHA)
+        screen.fill((90, 80, 70, 10))
+        mock_editor.screen = screen
+        mock_editor.alpha_slider.value = 3
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(500, 500)))
+
+        assert _slider_values(mock_editor) == (90, 80, 70, 255)
+
+    def test_click_off_screen_changes_nothing(self, mock_editor):
+        """A position outside the screen surface is ignored."""
+        mock_editor.screen = pygame.Surface((800, 600))
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(900, 900)))
+
+        assert _slider_values(mock_editor) == (128, 64, 32, 255)
+
+    def test_canvas_rect_beyond_pixel_grid_is_not_sampled(self, mock_editor):
+        """A point in the canvas rect but past the pixel grid is not a canvas pixel."""
+        mock_editor.canvas.pixels_across = 2
+
+        assert (
+            mock_editor._sample_canvas_pixel(_make_event(pos=(100, 30)), is_shift_click=False)
+            is False
+        )
+
+    def test_pixel_index_beyond_pixel_data_is_not_sampled(self, mock_editor):
+        """A grid position with no pixel data behind it is not sampled."""
+        mock_editor.canvas.pixels = [(1, 2, 3)]
+
+        assert (
+            mock_editor._sample_canvas_pixel(_make_event(pos=(15, 25)), is_shift_click=False)
+            is False
+        )
+
+
+# ===========================================================================
+# 56. Left Mouse Button Down
+# ===========================================================================
+
+
+class TestOnLeftMouseButtonDownEvent:
+    """Tests for on_left_mouse_button_down_event and _handle_scroll_arrow_click."""
+
+    def test_visible_up_arrow_goes_to_previous_animation(self, mock_editor, mocker):
+        """Clicking the visible up arrow moves the canvas to the previous animation."""
+        up_arrow = SimpleNamespace(direction='up', visible=True)
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[up_arrow])
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'scroll_to_current_animation')
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator,
+            'update_film_strips_for_animated_sprite_update',
+        )
+
+        mock_editor.on_left_mouse_button_down_event(_make_event(pos=(10, 10)))
+
+        mock_editor.canvas.previous_animation.assert_called_once()
+        assert mock_editor.is_dragging_film_strips is False
+
+    def test_up_arrow_without_canvas_is_still_consumed(self, mock_editor, mocker):
+        """With no canvas the up arrow click is consumed without navigating."""
+        mock_editor.canvas = None
+        up_arrow = SimpleNamespace(direction='up', visible=True)
+
+        assert mock_editor._handle_scroll_arrow_click([up_arrow]) is True
+
+    def test_hidden_and_other_arrows_are_not_consumed(self, mock_editor):
+        """Hidden arrows and arrows of other directions do not consume the click."""
+        hidden_up_arrow = SimpleNamespace(direction='up', visible=False)
+        down_arrow = SimpleNamespace(direction='down', visible=True)
+
+        assert mock_editor._handle_scroll_arrow_click([hidden_up_arrow, down_arrow]) is False
+
+    def test_clicked_slider_gets_the_click_and_drag_scroll_starts(self, mock_editor, mocker):
+        """A click on a slider's text box reaches that slider, and film strip dragging starts."""
+        mocker.patch.object(
+            mock_editor._slider_manager, 'detect_clicked_slider', return_value='green'
+        )
+        mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator,
+            'is_mouse_in_film_strip_area',
+            return_value=True,
+        )
+        other_sprite = mocker.Mock(spec=['on_left_mouse_button_down_event'])
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[other_sprite])
+        mock_editor.film_strip_scroll_offset = 3
+        event = _make_event(pos=(15, 562))
+
+        mock_editor.on_left_mouse_button_down_event(event)
+
+        mock_editor.green_slider.on_left_mouse_button_down_event.assert_called_once_with(event)
+        other_sprite.on_left_mouse_button_down_event.assert_called_once_with(event)
+        assert mock_editor.is_dragging_film_strips is True
+        assert mock_editor.film_strip_drag_start_y == 562
+        assert mock_editor.film_strip_drag_start_offset == 3
+
+    def test_missing_sliders_are_skipped(self, mock_editor, mocker):
+        """Sliders the editor does not have are neither committed nor clicked."""
+        del mock_editor.red_slider
+        del mock_editor.blue_slider
+        mocker.patch.object(
+            mock_editor._slider_manager, 'detect_clicked_slider', return_value='red'
+        )
+        commit = mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator,
+            'is_mouse_in_film_strip_area',
+            return_value=False,
+        )
+
+        mock_editor.on_left_mouse_button_down_event(_make_event(pos=(15, 552)))
+
+        assert [call.args[2] for call in commit.call_args_list] == ['green']
+        assert mock_editor.is_dragging_film_strips is False
+
+
+# ===========================================================================
+# 57. Drag, Mouse Up and Motion Routing
+# ===========================================================================
+
+
+class TestMouseRouting:
+    """Tests for drag, mouse-up and motion routing to sprites and sliders."""
+
+    def test_drag_off_canvas_reaches_canvas_and_sprites(self, mock_editor, mocker):
+        """A drag outside the canvas still reaches the canvas and the sprites under it."""
+        sprite_under_cursor = mocker.Mock()
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[sprite_under_cursor])
+        event = _make_event(pos=(600, 500))
+        trigger = object()
+
+        mock_editor.on_left_mouse_drag_event(event, trigger)
+
+        mock_editor.canvas.on_left_mouse_drag_event.assert_called_once_with(event, trigger)
+        sprite_under_cursor.on_left_mouse_drag_event.assert_called_once_with(event, trigger)
+
+    def test_drag_off_canvas_ignores_sprite_lookup_failure(self, mock_editor, mocker):
+        """A failing sprite lookup during a drag is ignored."""
+        mock_editor.sprites_at_position = mocker.Mock(side_effect=AttributeError('no groups'))
+
+        mock_editor.on_left_mouse_drag_event(_make_event(pos=(600, 500)), object())
+
+        mock_editor.canvas.on_left_mouse_drag_event.assert_called_once()
+
+    def test_mouse_up_releases_dragging_sliders(self, mock_editor, mocker):
+        """Every slider that is being dragged is released on mouse up."""
+        for slider_name in ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider'):
+            getattr(mock_editor, slider_name).dragging = True
+        mock_editor.all_sprites = []
+
+        mock_editor.on_mouse_button_up_event(_make_event(pos=(0, 0)))
+
+        for slider_name in ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider'):
+            assert getattr(mock_editor, slider_name).dragging is False
+
+    def test_mouse_up_reaches_only_visible_sprites_under_the_cursor(self, mock_editor, mocker):
+        """Mouse up goes to visible sprites under the cursor, not hidden or distant ones."""
+        for slider_name in ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider'):
+            getattr(mock_editor, slider_name).dragging = False
+        under_cursor = mocker.Mock(visible=True, rect=pygame.Rect(0, 0, 10, 10))
+        hidden = mocker.Mock(visible=False, rect=pygame.Rect(0, 0, 10, 10))
+        distant = mocker.Mock(visible=True, rect=pygame.Rect(100, 100, 10, 10))
+        mock_editor.all_sprites = [under_cursor, hidden, distant]
+        event = _make_event(pos=(5, 5))
+
+        mock_editor.on_mouse_button_up_event(event)
+
+        under_cursor.on_mouse_button_up_event.assert_called_once_with(event)
+        hidden.on_mouse_button_up_event.assert_not_called()
+        distant.on_mouse_button_up_event.assert_not_called()
+
+    def test_mouse_drag_reaches_visible_sprites(self, mock_editor, mocker):
+        """Mouse drags go to visible sprites only."""
+        visible_sprite = mocker.Mock(visible=True)
+        hidden_sprite = mocker.Mock(visible=False)
+        mock_editor.all_sprites = [visible_sprite, hidden_sprite]
+        event = _make_event(pos=(5, 5))
+
+        mock_editor.on_mouse_drag_event(event, None)
+
+        visible_sprite.on_mouse_drag_event.assert_called_once_with(event, None)
+        hidden_sprite.on_mouse_drag_event.assert_not_called()
+
+    def test_mouse_motion_reaches_visible_sprites_and_hovers_sliders(self, mock_editor, mocker):
+        """Mouse motion updates slider hover and reaches visible sprites only."""
+        hover = mocker.patch.object(mock_editor._slider_manager, 'update_slider_hover_effects')
+        visible_sprite = mocker.Mock(visible=True)
+        hidden_sprite = mocker.Mock(visible=False)
+        mock_editor.all_sprites = [visible_sprite, hidden_sprite]
+        event = _make_event(pos=(5, 5))
+
+        mock_editor.on_mouse_motion_event(event)
+
+        hover.assert_called_once_with((5, 5))
+        visible_sprite.on_mouse_motion_event.assert_called_once_with(event)
+        hidden_sprite.on_mouse_motion_event.assert_not_called()
+
+
+# ===========================================================================
+# 58. Scene Lifecycle and Frame Update
+# ===========================================================================
+
+
+class TestSceneLifecycleAndUpdate:
+    """Tests for setup, text submit, update, _update_animated_canvas and cleanup."""
+
+    def test_text_submit_goes_to_ai_integration(self, mock_editor, mocker):
+        """Submitted text is handed to the AI integration."""
+        submit = mocker.patch.object(mock_editor._ai_integration, 'on_text_submit_event')
+
+        mock_editor.on_text_submit_event('draw a cat')
+
+        submit.assert_called_once_with('draw a cat')
+
+    def test_setup_sets_up_ai_integration(self, mock_editor, mocker):
+        """Scene setup sets up the AI integration."""
+        ai_setup = mocker.patch.object(mock_editor._ai_integration, 'setup')
+
+        mock_editor.setup()
+
+        ai_setup.assert_called_once()
+
+    def test_animated_canvas_update_tracks_frames_and_log_time(self, mock_editor, mocker):
+        """Each update counts, advances the canvas animation and remembers the shown frame."""
+        clock = mocker.patch.object(bitmappy, 'frame_clock_seconds', side_effect=[10.0, 10.0, 11.5])
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'update_film_strip_animation_timing'
+        )
+        mocker.patch.object(mock_editor.controller_handler, 'render_visual_indicators')
+        mock_editor.canvas.animated_sprite.current_frame = 1
+
+        mock_editor._update_animated_canvas()
+        mock_editor.canvas.animated_sprite.current_frame = 0
+        mock_editor._update_animated_canvas()
+
+        assert clock.call_count == 3
+        assert mock_editor._debug_animation_counter == 2
+        assert mock_editor._last_animation_log_time == pytest.approx(11.5)
+        assert mock_editor._last_animation_frame == 0
+        assert mock_editor.canvas.update_animation.call_count == 2
+        mock_editor.canvas.update_animation.assert_called_with(mock_editor.dt)
+
+    def test_update_runs_every_per_frame_service(self, mock_editor, mocker):
+        """A scene update animates the canvas and runs the controller, click and AI checks."""
+        from glitchygames.scenes.scene import Scene
+
+        mocker.patch.object(Scene, 'update')
+        update_canvas = mocker.patch.object(mock_editor, '_update_animated_canvas')
+        adjustments = mocker.patch.object(
+            mock_editor.controller_handler, 'update_continuous_adjustments'
+        )
+        movements = mocker.patch.object(
+            mock_editor.controller_handler, 'update_continuous_movements'
+        )
+        click_timer = mocker.patch.object(mock_editor._frame_operations, 'check_single_click_timer')
+        ai_responses = mocker.patch.object(mock_editor._ai_integration, 'check_responses')
+
+        mock_editor.update()
+
+        update_canvas.assert_called_once()
+        adjustments.assert_called_once()
+        movements.assert_called_once()
+        click_timer.assert_called_once()
+        ai_responses.assert_called_once()
+
+    def test_update_without_animated_sprite_skips_the_canvas(self, mock_editor, mocker):
+        """With no animated sprite on the canvas, the canvas is not animated."""
+        from glitchygames.scenes.scene import Scene
+
+        mocker.patch.object(Scene, 'update')
+        mock_editor.canvas.animated_sprite = None
+        update_canvas = mocker.patch.object(mock_editor, '_update_animated_canvas')
+        mocker.patch.object(mock_editor._ai_integration, 'check_responses')
+
+        mock_editor.update()
+
+        update_canvas.assert_not_called()
+
+    def test_voice_cleanup_failure_is_logged_and_kept(self, mock_editor, mocker):
+        """A voice manager that fails to stop is kept and the failure logged."""
+        voice_manager = mocker.Mock()
+        voice_manager.stop_listening.side_effect = OSError('microphone busy')
+        mock_editor.voice_manager = voice_manager
+        log_exception = mocker.patch.object(mock_editor.log, 'exception')
+
+        mock_editor._cleanup_voice_recognition()
+
+        assert mock_editor.voice_manager is voice_manager
+        log_exception.assert_called_once()
+
+
+# ===========================================================================
+# 59. Keyboard Handling
+# ===========================================================================
+
+
+class TestKeyboardHandling:
+    """Tests for key-down routing: panning, arrows, slider mode, canvas and parent fallback."""
+
+    @pytest.fixture(autouse=True)
+    def _no_text_input(self, mock_editor, mocker):
+        """Make sure no text box or slider text field takes the key."""
+        mock_editor.debug_text.is_active = False
+        mocker.patch.object(
+            mock_editor._slider_manager, 'handle_slider_text_input', return_value=False
+        )
+
+    def test_shift_with_non_arrow_key_is_not_a_ctrl_shortcut(self, mock_editor, mocker):
+        """Ctrl+Shift with a key that is neither an arrow nor a shortcut is not handled."""
+        panning = mocker.patch.object(mock_editor._frame_operations, 'handle_canvas_panning')
+        event = _make_event(key=pygame.K_q)
+
+        handled = mock_editor._handle_ctrl_key_shortcuts(
+            event, pygame.KMOD_CTRL | pygame.KMOD_SHIFT
+        )
+
+        assert handled is False
+        panning.assert_not_called()
+
+    def test_ctrl_shift_arrow_pans_the_canvas(self, mock_editor, mocker):
+        """Ctrl+Shift+Left pans the canvas one step left."""
+        panning = mocker.patch.object(mock_editor._frame_operations, 'handle_canvas_panning')
+        event = _make_event(key=pygame.K_LEFT)
+
+        handled = mock_editor._handle_ctrl_key_shortcuts(
+            event, pygame.KMOD_CTRL | pygame.KMOD_SHIFT
+        )
+
+        assert handled is True
+        panning.assert_called_once_with(delta_x=-1, delta_y=0)
+
+    def test_arrow_navigation_without_canvas_is_consumed(self, mock_editor):
+        """UP and DOWN are consumed even when there is no canvas to navigate."""
+        mock_editor.canvas = None
+
+        assert mock_editor._handle_arrow_key_navigation(_make_event(key=pygame.K_UP)) is True
+        assert mock_editor._handle_arrow_key_navigation(_make_event(key=pygame.K_DOWN)) is True
+        assert mock_editor._handle_arrow_key_navigation(_make_event(key=pygame.K_a)) is False
+
+    def test_down_arrow_moves_to_next_animation(self, mock_editor, mocker):
+        """DOWN moves the canvas to the next animation and scrolls the film strips to it."""
+        scroll = mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'scroll_to_current_animation'
+        )
+
+        mock_editor.on_key_down_event(_make_event(key=pygame.K_DOWN, mod=0))
+
+        mock_editor.canvas.next_animation.assert_called_once()
+        scroll.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ('key', 'direction'),
+        [(pygame.K_UP, 'up'), (pygame.K_DOWN, 'down')],
+    )
+    def test_slider_mode_arrows_navigate_slider_modes(self, mock_editor, mocker, key, direction):
+        """In slider mode UP and DOWN move between slider modes, not animations."""
+        mocker.patch.object(
+            mock_editor._slider_manager, 'is_any_controller_in_slider_mode', return_value=True
+        )
+        navigation = mocker.patch.object(
+            mock_editor.controller_handler, 'handle_slider_mode_navigation'
+        )
+
+        mock_editor.on_key_down_event(_make_event(key=key, mod=0))
+
+        navigation.assert_called_once_with(direction)
+        mock_editor.canvas.previous_animation.assert_not_called()
+        mock_editor.canvas.next_animation.assert_not_called()
+
+    def test_slider_mode_other_keys_do_not_reach_the_canvas(self, mock_editor, mocker):
+        """In slider mode other keys are swallowed rather than routed to the canvas."""
+        mocker.patch.object(
+            mock_editor._slider_manager, 'is_any_controller_in_slider_mode', return_value=True
+        )
+        navigation = mocker.patch.object(
+            mock_editor.controller_handler, 'handle_slider_mode_navigation'
+        )
+
+        mock_editor.on_key_down_event(_make_event(key=pygame.K_a, mod=0))
+
+        navigation.assert_not_called()
+        mock_editor.canvas.handle_keyboard_event.assert_not_called()
+
+    def test_slider_mode_entered_during_handling_skips_canvas(self, mock_editor, mocker):
+        """When slider mode starts while the key is being handled, the canvas is skipped."""
+        mocker.patch.object(
+            mock_editor._slider_manager,
+            'is_any_controller_in_slider_mode',
+            side_effect=[False, True],
+        )
+
+        mock_editor._handle_key_down_actions(_make_event(key=pygame.K_a, mod=0))
+
+        mock_editor.canvas.handle_keyboard_event.assert_not_called()
+
+    def test_onion_toggle_without_canvas(self, mock_editor, mocker):
+        """O toggles onion skinning even with no canvas to redraw."""
+        from glitchygames.bitmappy.onion_skinning import get_onion_skinning_manager
+
+        onion_manager = get_onion_skinning_manager()
+        state_before = onion_manager.global_onion_skinning_enabled
+        mock_editor.canvas = None
+        try:
+            mock_editor._handle_key_down_actions(_make_event(key=pygame.K_o, mod=0))
+            assert onion_manager.global_onion_skinning_enabled is not state_before
+        finally:
+            onion_manager.global_onion_skinning_enabled = state_before
+
+    def test_key_without_canvas_handler_goes_to_parent(self, mock_editor, mocker):
+        """With no canvas keyboard handler the key goes to the parent scene's handler."""
+        from glitchygames.scenes.scene import Scene
+
+        parent_handler = mocker.patch.object(Scene, 'on_key_down_event')
+        mock_editor.canvas = SimpleNamespace()
+        event = _make_event(key=pygame.K_a, mod=0)
+
+        mock_editor._route_to_canvas_or_parent(event)
+
+        parent_handler.assert_called_once_with(event)
+
+    def test_key_with_editing_film_strip_is_not_routed(self, mock_editor):
+        """While a film strip name is being edited, keys do not reach the canvas."""
+        mock_editor.film_strips = {
+            'idle': SimpleNamespace(editing_animation=None),
+            'walk': SimpleNamespace(editing_animation='walk'),
+        }
+
+        mock_editor._route_to_canvas_or_parent(_make_event(key=pygame.K_a, mod=0))
+
+        mock_editor.canvas.handle_keyboard_event.assert_not_called()
+
+    def test_key_with_idle_film_strips_reaches_the_canvas(self, mock_editor):
+        """With no film strip being edited, the key reaches the canvas."""
+        mock_editor.film_strips = {'idle': SimpleNamespace(editing_animation=None)}
+
+        mock_editor._route_to_canvas_or_parent(_make_event(key=pygame.K_a, mod=0))
+
+        mock_editor.canvas.handle_keyboard_event.assert_called_once_with(pygame.K_a)
+
+    def test_scene_key_events_use_the_editor_handler(self, mock_editor, mocker):
+        """Scene-level key events are handled by the editor's own key handler."""
+        handler = mocker.patch.object(mock_editor, 'on_key_down_event')
+        event = _make_event(key=pygame.K_a)
+
+        mock_editor._handle_scene_key_events(event)
+
+        handler.assert_called_once_with(event)
+
+
+# ===========================================================================
+# 60. Undo/Redo Fallback Paths
+# ===========================================================================
+
+
+class TestUndoRedoFallbacks:
+    """Tests for the failure and no-canvas paths of handle_undo and handle_redo."""
+
+    def test_undo_without_canvas_uses_global_undo(self, mock_editor, mocker):
+        """With no canvas there is no current frame, so the global undo runs."""
+        mock_editor.canvas = None
+        mock_editor.undo_redo_manager.can_undo.return_value = True
+        mock_editor.undo_redo_manager.undo.return_value = True
+
+        mock_editor.handle_undo()
+
+        mock_editor.undo_redo_manager.can_undo_frame.assert_not_called()
+        mock_editor.undo_redo_manager.undo.assert_called_once()
+
+    def test_failed_frame_undo_falls_back_to_failed_global_undo(self, mock_editor, mocker):
+        """A failed frame undo falls back to the global undo, which may fail too."""
+        mock_editor.undo_redo_manager.can_undo_frame.return_value = True
+        mock_editor.undo_redo_manager.undo_frame.return_value = False
+        mock_editor.undo_redo_manager.can_undo.return_value = True
+        mock_editor.undo_redo_manager.undo.return_value = False
+        synchronize = mocker.patch.object(mock_editor, '_synchronize_canvas_state_after_undo')
+
+        mock_editor.handle_undo()
+
+        mock_editor.undo_redo_manager.undo.assert_called_once()
+        synchronize.assert_not_called()
+        mock_editor.canvas.force_redraw.assert_not_called()
+
+    def test_successful_global_undo_redraws_the_canvas(self, mock_editor, mocker):
+        """A successful global undo synchronizes and redraws the canvas."""
+        mock_editor.undo_redo_manager.can_undo_frame.return_value = False
+        mock_editor.undo_redo_manager.can_undo.return_value = True
+        mock_editor.undo_redo_manager.undo.return_value = True
+        mocker.patch.object(mock_editor, '_synchronize_canvas_state_after_undo')
+
+        mock_editor.handle_undo()
+
+        mock_editor.canvas.force_redraw.assert_called_once()
+
+    def test_redo_without_canvas_uses_global_redo(self, mock_editor):
+        """With no canvas there is no current frame, so the global redo runs."""
+        mock_editor.canvas = None
+        mock_editor.undo_redo_manager.can_redo.return_value = True
+        mock_editor.undo_redo_manager.redo.return_value = True
+
+        mock_editor.handle_redo()
+
+        mock_editor.undo_redo_manager.can_redo_frame.assert_not_called()
+        mock_editor.undo_redo_manager.redo.assert_called_once()
+
+    def test_failed_frame_redo_falls_back_to_failed_global_redo(self, mock_editor, mocker):
+        """A failed frame redo falls back to the global redo, which may fail too."""
+        mock_editor.undo_redo_manager.can_redo_frame.return_value = True
+        mock_editor.undo_redo_manager.redo_frame.return_value = False
+        mock_editor.undo_redo_manager.can_redo.return_value = True
+        mock_editor.undo_redo_manager.redo.return_value = False
+        synchronize = mocker.patch.object(mock_editor, '_synchronize_canvas_state_after_undo')
+
+        mock_editor.handle_redo()
+
+        mock_editor.undo_redo_manager.redo.assert_called_once()
+        synchronize.assert_not_called()
+        mock_editor.canvas.force_redraw.assert_not_called()
+
+    def test_successful_global_redo_redraws_the_canvas(self, mock_editor, mocker):
+        """A successful global redo synchronizes and redraws the canvas."""
+        mock_editor.undo_redo_manager.can_redo_frame.return_value = False
+        mock_editor.undo_redo_manager.can_redo.return_value = True
+        mock_editor.undo_redo_manager.redo.return_value = True
+        mocker.patch.object(mock_editor, '_synchronize_canvas_state_after_undo')
+
+        mock_editor.handle_redo()
+
+        mock_editor.canvas.force_redraw.assert_called_once()
+
+    def test_redo_with_nothing_to_redo_changes_nothing(self, mock_editor):
+        """With nothing to redo, nothing is redone or redrawn."""
+        mock_editor.undo_redo_manager.can_redo_frame.return_value = False
+        mock_editor.undo_redo_manager.can_redo.return_value = False
+
+        mock_editor.handle_redo()
+
+        mock_editor.undo_redo_manager.redo.assert_not_called()
+        mock_editor.canvas.force_redraw.assert_not_called()
+
+    def test_synchronize_with_no_animations_shows_nothing(self, mock_editor):
+        """A sprite left with no animations is not switched to any frame."""
+        mock_editor.canvas.animated_sprite._animations = {}
+
+        mock_editor._synchronize_canvas_state_after_undo()
+
+        mock_editor.canvas.show_frame.assert_not_called()
+        mock_editor.canvas.force_redraw.assert_not_called()
+
+
+# ===========================================================================
+# 61. Event Handling, Drop Files and Deflate
+# ===========================================================================
+
+
+class TestEventHandlingAndDeflate:
+    """Tests for handle_event's confirmation dialog, file drops and deflate."""
+
+    def test_confirmation_dialog_click_is_consumed(self, mock_editor, mocker):
+        """A click the confirmation dialog handles closes it and stops the event."""
+        confirmation_dialog = mocker.Mock()
+        confirmation_dialog.rect = pygame.Rect(100, 100, 200, 100)
+        confirmation_dialog.handle_mouse_down.return_value = True
+        mock_editor.confirmation_dialog = confirmation_dialog
+        mocker.patch.object(
+            bitmappy,
+            'current_input',
+            return_value=SimpleNamespace(mouse_position=(150, 130)),
+        )
+
+        mock_editor.handle_event(_make_event(type=pygame.MOUSEBUTTONDOWN))
+
+        confirmation_dialog.handle_mouse_down.assert_called_once_with((50, 30))
+        assert mock_editor.confirmation_dialog is None
+
+    def test_drop_file_goes_to_file_io(self, mock_editor, mocker):
+        """A dropped file is handed to the file I/O manager."""
+        mock_editor._file_io = mocker.Mock()
+        event = _make_event(file='sprite.toml')
+
+        mock_editor.on_drop_file_event(event)
+
+        mock_editor._file_io.on_drop_file_event.assert_called_once_with(event)
+
+    def test_deflate_returns_an_empty_config(self, mock_editor):
+        """Deflate reads the image's pixels and returns the (unimplemented) empty config."""
+        mock_editor.name = 'test sprite'
+        mock_editor.image = pygame.Surface((2, 2))
+
+        assert mock_editor.deflate() == {}
+
+    def test_deflate_of_an_empty_image_raises(self, mock_editor):
+        """Deflating an image with no pixels raises the pixel reader's ValueError."""
+        mock_editor.name = 'empty sprite'
+        mock_editor.image = pygame.Surface((0, 0))
+
+        with pytest.raises(ValueError, match='Empty pixel data'):
+            mock_editor.deflate()
+
+
+# ===========================================================================
+# 62. Film Strip and Frame Operation Delegation
+# ===========================================================================
+
+
+class TestDelegation:
+    """Tests for the editor methods that hand work to its subsystems."""
+
+    def test_update_scroll_arrows(self, mock_editor, mocker):
+        """update_scroll_arrows is handled by the film strip coordinator."""
+        delegate = mocker.patch.object(mock_editor.film_strip_coordinator, 'update_scroll_arrows')
+
+        mock_editor.update_scroll_arrows()
+
+        delegate.assert_called_once()
+
+    def test_submit_pixel_changes_if_ready(self, mock_editor, mocker):
+        """_submit_pixel_changes_if_ready is handled by the frame operations manager."""
+        delegate = mocker.patch.object(
+            mock_editor._frame_operations, 'submit_pixel_changes_if_ready'
+        )
+
+        mock_editor._submit_pixel_changes_if_ready()
+
+        delegate.assert_called_once()

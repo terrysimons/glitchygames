@@ -11,8 +11,8 @@ Determinism:
     - Every game is started with ``--random-seed RANDOM_SEED``: all the randomness the games
       use (serves, PaddleSlap's spawn positions and colours, shakes) comes from the engine's
       named streams (``glitchygames/randomness.py``), so the seed fixes it. Nothing is patched.
-    - PaddleSlap's clock reads (``time.time`` for the ball spawn cooldown) come from a fake
-      clock that advances exactly 1/60 second per frame.
+    - PaddleSlap's ball spawn cooldown reads ``Scene.game_time``, which the fixed dt drives
+      (exactly 1/60 second per unpaused frame), so no clock is patched.
     - Save files go to a fresh temporary directory, so high scores on disk cannot leak in.
     - Events the host environment posts (window focus, window shown, audio devices, ...) are
       discarded before each frame. SDL's dummy video driver posts a focus-lost event at
@@ -42,10 +42,9 @@ import contextlib
 import os
 import sys
 import tempfile
-import types
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, override
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict, Unpack, override
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
@@ -60,11 +59,13 @@ from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdve
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
+from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    from glitchygames.replay import ReplayResult
     from glitchygames.scenes import Scene
 
 # Project root (scripts/ is one level below project root)
@@ -77,9 +78,6 @@ RANDOM_SEED = 20261018
 # The header's ``source`` field for traces this script records
 GOLDEN_TRACE_SOURCE = 'golden-script'
 SCREEN_RESOLUTION = '800x480'
-
-# Where the fake clock starts (PaddleSlap's ball spawn cooldown reads time.time)
-FAKE_CLOCK_START_SECONDS = 1000.0
 
 # Events posted by the host environment rather than by the scripted player
 ENVIRONMENT_EVENT_TYPES: tuple[int, ...] = (
@@ -130,61 +128,51 @@ class FrameObserver(Protocol):
         ...
 
 
-class FakeClock:
-    """A clock that advances only when told to, exactly one frame at a time."""
+class RecordTraceHooks(TypedDict, total=False):
+    """Optional callbacks into a ``record_trace`` run, given to it by keyword.
 
-    def __init__(self, *, start_seconds: float) -> None:
-        """Initialize the clock.
+    Attributes:
+        frame_observer: Called after each frame is sampled, with the same scene and sprite ids
+            (the golden test reads world and camera positions through it).
+        before_recording: Called with the game scene after it is installed and before
+            recording starts (and before the first frame), e.g. to write a save the
+            recording's header must hold.
 
-        Args:
-            start_seconds: The time the clock reports before the first advance.
+    """
 
-        """
-        self.now_seconds = start_seconds
-
-    def now(self) -> float:
-        """Return the current fake time.
-
-        Returns:
-            The current time in seconds.
-
-        """
-        return self.now_seconds
-
-    def advance(self, *, seconds: float) -> None:
-        """Move the clock forward.
-
-        Args:
-            seconds: How far to advance.
-
-        """
-        self.now_seconds += seconds
+    frame_observer: FrameObserver | None
+    before_recording: Callable[[Scene], None] | None
 
 
 def press(key: int) -> pygame.event.Event:
-    """Build a key-down event.
+    """Build a key-down event, at the key's US QWERTY position as a real keyboard reports it.
 
     Args:
         key: The pygame key code.
 
     Returns:
-        The KEYDOWN event.
+        The KEYDOWN event (its ``scancode`` from ``qwerty_scancode``: games bind positional
+        controls by scancode).
 
     """
-    return pygame.event.Event(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0)
+    return pygame.event.Event(
+        pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key)
+    )
 
 
 def release(key: int) -> pygame.event.Event:
-    """Build a key-up event.
+    """Build a key-up event, at the key's US QWERTY position as a real keyboard reports it.
 
     Args:
         key: The pygame key code.
 
     Returns:
-        The KEYUP event.
+        The KEYUP event (its ``scancode`` from ``qwerty_scancode``).
 
     """
-    return pygame.event.Event(pygame.KEYUP, key=key, mod=0, unicode='', scancode=0)
+    return pygame.event.Event(
+        pygame.KEYUP, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key)
+    )
 
 
 @dataclass
@@ -455,13 +443,14 @@ SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
 
 
 @contextlib.contextmanager
-def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator[None]:
-    """Replace the clock PaddleSlap reads and the save directory, then restore them.
+def deterministic_environment(*, save_root: Path) -> Generator[None]:
+    """Replace the save directory, then restore it.
 
-    Randomness needs no replacement: ``_start_game`` passes ``--random-seed``.
+    Randomness needs no replacement: ``_start_game`` passes ``--random-seed``. Clocks need
+    none either: PaddleSlap's cooldown now uses Scene.game_time, which the harness's fixed dt
+    drives.
 
     Args:
-        clock: The fake clock PaddleSlap's time reads come from.
         save_root: Directory the games' save files go to.
 
     Yields:
@@ -473,7 +462,6 @@ def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator
         return save_root / app_name
 
     replacements: list[tuple[object, str, object]] = [
-        (paddleslap, 'time', types.SimpleNamespace(time=clock.now)),
         (save_manager_module, 'get_save_directory', temporary_save_directory),
     ]
     originals = [(owner, name, getattr(owner, name)) for owner, name, _ in replacements]
@@ -567,12 +555,15 @@ class GoldenTraceEngine(GameEngine):
         self.scene_manager.switch_to_scene(game)
 
 
-def _start_game(game_key: str, *, random_seed: int) -> GoldenTraceSceneManager:
+def _start_game(
+    game_key: str, *, random_seed: int, extra_arguments: list[str] | None = None
+) -> GoldenTraceSceneManager:
     """Construct the game engine and install the game's scene.
 
     Args:
         game_key: Which game to start.
         random_seed: The run's master seed (``--random-seed``).
+        extra_arguments: More command-line arguments (``--replay-trace PATH``).
 
     Returns:
         The scene manager with the game scene active.
@@ -590,11 +581,42 @@ def _start_game(game_key: str, *, random_seed: int) -> GoldenTraceSceneManager:
         'joystick',
         '--random-seed',
         str(random_seed),
+        *(extra_arguments or []),
     ]):
         engine = GoldenTraceEngine(game=scene_class)
     assert engine.scene_manager is manager
     engine.install_game(scene_class=scene_class)
     return manager
+
+
+@contextlib.contextmanager
+def _golden_game(
+    game_key: str, *, random_seed: int, extra_arguments: list[str] | None = None
+) -> Generator[GoldenTraceSceneManager]:
+    """Start a game in the harness with temporary saves; tear it all down afterwards.
+
+    Args:
+        game_key: Which game (a key of GAME_SCENES).
+        random_seed: The run's master seed (``--random-seed``).
+        extra_arguments: More command-line arguments (``--replay-trace PATH``).
+
+    Yields:
+        The scene manager with the game scene active.
+
+    """
+    with (
+        tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
+        deterministic_environment(save_root=Path(save_directory)),
+    ):
+        manager = _start_game(game_key, random_seed=random_seed, extra_arguments=extra_arguments)
+        try:
+            yield manager
+        finally:
+            engine = manager.game_engine
+            if engine is not None:
+                engine.stop_trace_recording()
+            pygame.event.clear()
+            GoldenTraceSceneManager.uninstall()
 
 
 def discard_environment_events() -> None:
@@ -617,7 +639,7 @@ def record_trace(
     frame_count: int,
     recording_path: Path | None = None,
     random_seed: int = RANDOM_SEED,
-    frame_observer: FrameObserver | None = None,
+    **hooks: Unpack[RecordTraceHooks],
 ) -> dict[str, Any]:
     """Run a game headless with its scripted input and record every sprite each frame.
 
@@ -628,58 +650,103 @@ def record_trace(
             would (GameEngine.start_trace_recording), for checking recordings against the
             harness's own frames.
         random_seed: The run's master seed, passed as ``--random-seed``.
-        frame_observer: If given, called after each frame is sampled, with the same scene
-            and sprite ids (the golden test reads world and camera positions through it).
+        **hooks: Optional callbacks into the run, by keyword (``RecordTraceHooks``).
 
     Returns:
         The trace: game key, frame seconds and one record per frame.
 
     """
+    frame_observer = hooks.get('frame_observer')
+    before_recording = hooks.get('before_recording')
     script = SCRIPT_BUILDERS[game_key]()
-    clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
-    with (
-        tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
-        deterministic_environment(clock=clock, save_root=Path(save_directory)),
-    ):
-        manager = _start_game(game_key, random_seed=random_seed)
+    with _golden_game(game_key, random_seed=random_seed) as manager:
         engine = manager.game_engine
         assert engine is not None
-        try:
-            if recording_path is not None:
-                engine.start_trace_recording(path=recording_path)
-            for frame_number in range(frame_count):
-                clock.advance(seconds=FRAME_SECONDS)
-                manager.dt = FRAME_SECONDS
-                discard_environment_events()
-                assert manager.active_scene is not None
-                for placement in script.placements.get(frame_number, []):
-                    placement(manager.active_scene)
-                if script.per_frame is not None:
-                    for event in script.per_frame(manager.active_scene):
-                        pygame.event.post(event)
-                for event in script.key_events.get(frame_number, []):
+        if before_recording is not None:
+            assert manager.active_scene is not None
+            before_recording(manager.active_scene)
+        if recording_path is not None:
+            engine.start_trace_recording(path=recording_path)
+        for frame_number in range(frame_count):
+            manager.dt = FRAME_SECONDS
+            discard_environment_events()
+            assert manager.active_scene is not None
+            for placement in script.placements.get(frame_number, []):
+                placement(manager.active_scene)
+            if script.per_frame is not None:
+                for event in script.per_frame(manager.active_scene):
                     pygame.event.post(event)
-                manager.run_frame()
-                frames.append(
-                    sample_scene_frame(
-                        frame_number=frame_number,
-                        scene=manager.active_scene,
-                        sprite_ids=sprite_ids,
-                    )
+            for event in script.key_events.get(frame_number, []):
+                pygame.event.post(event)
+            manager.run_frame()
+            frames.append(
+                sample_scene_frame(
+                    frame_number=frame_number,
+                    scene=manager.active_scene,
+                    sprite_ids=sprite_ids,
                 )
-                if frame_observer is not None:
-                    frame_observer(
-                        frame_number=frame_number,
-                        scene=manager.active_scene,
-                        sprite_ids=sprite_ids,
-                    )
-        finally:
-            engine.stop_trace_recording()
-            pygame.event.clear()
-            GoldenTraceSceneManager.uninstall()
+            )
+            if frame_observer is not None:
+                frame_observer(
+                    frame_number=frame_number,
+                    scene=manager.active_scene,
+                    sprite_ids=sprite_ids,
+                )
     return {'game': game_key, 'frame_seconds': FRAME_SECONDS, 'frames': frames}
+
+
+def replay_golden_recording(
+    *, game_key: str, path: Path, frame_limit: int | None = None
+) -> ReplayResult:
+    """Replay a recording made by record_trace(recording_path=...) through the harness.
+
+    Key events and per-frame input come from the recording (the replay's event pump), so they
+    are not posted again. The script's placements are not input: they move sprites directly,
+    like a supervisor, so they are applied again on the same frames, before the frame runs, as
+    record_trace applies them. (A placement that posts events, such as PaddleSlap's key
+    release before its pause, posts real events the replay drops: the recording serves them.)
+
+    The result is settled as GameEngine._shutdown settles it (``finish_run``): a harness that
+    stops before the recording's last frame reports a length divergence.
+
+    Args:
+        game_key: Which game (a key of GAME_SCENES).
+        path: The recording.
+        frame_limit: Stop after this many frames even if the replay goes on (None: run until
+            the replay stops).
+
+    Returns:
+        The replay's result.
+
+    """
+    script = SCRIPT_BUILDERS[game_key]()
+    # Headless: a watched replay would pause at its end (or divergence) instead of stopping
+    with _golden_game(
+        game_key,
+        random_seed=RANDOM_SEED,
+        extra_arguments=['--replay-trace', str(path), '--headless'],
+    ) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        sources = engine.replay_sources
+        assert sources is not None
+        frame_number = 0
+        while (
+            not sources.stop_requested
+            and manager.active_scene is not None
+            and (frame_limit is None or frame_number < frame_limit)
+        ):
+            # The harness steps frames without start()/_finish_frame, so it asks the frame-time
+            # door itself: the first call returns frame 0's dt, each later call the next frame's
+            manager.dt = sources.frame_seconds(measured=FRAME_SECONDS)
+            for placement in script.placements.get(frame_number, []):
+                placement(manager.active_scene)
+            manager.run_frame()
+            frame_number += 1
+        sources.finish_run()
+    return sources.result
 
 
 def golden_path(game_key: str) -> Path:

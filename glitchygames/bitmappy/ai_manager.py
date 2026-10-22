@@ -7,10 +7,10 @@ from AI-generated content. Extracted from BitmapEditorScene to reduce class comp
 from __future__ import annotations
 
 import contextlib
+import itertools
 import logging
 import multiprocessing
 import tempfile
-import time
 import weakref
 from pathlib import Path
 from queue import Empty
@@ -26,6 +26,7 @@ from glitchygames.ai import (
 from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
+from glitchygames.clock import wall_clock_epoch_seconds
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
@@ -69,6 +70,10 @@ AI_WORKER_JOIN_TIMEOUT_SECONDS = 2.0
 # AIManagers whose worker process is running, so shut_down_running_ai_workers can reach them
 # after a signal; weak so a discarded editor's manager does not stay alive
 _RUNNING_AI_MANAGERS: weakref.WeakSet[AIManager] = weakref.WeakSet()
+
+# Appended to each AI request id: the wall clock stands still within a frame in a replay
+# (glitchygames/clock.py), so two requests made in one frame would otherwise share an id
+_AI_REQUEST_COUNTER = itertools.count()
 
 
 def shut_down_running_ai_workers() -> None:
@@ -319,7 +324,7 @@ class AIManager:
 
         """
         try:
-            request_id = str(time.time())
+            request_id = f'{wall_clock_epoch_seconds()}-{next(_AI_REQUEST_COUNTER)}'
 
             request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
             self.log.info(f'Submitting AI request: {request}')

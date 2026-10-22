@@ -2,15 +2,23 @@
 
 import itertools
 import sys
+from types import SimpleNamespace
 
 import pytest
 
 from glitchygames.timing import (
+    DEFAULT_SLEEP_GRANULARITY_NS,
     FastTimer,
+    PacingTimer,
     PygameTimer,
+    SleepModel,
     create_timer,
+    describe_pacing_timer,
+    measure_sleep_model,
     ms_to_ns,
+    pacing_timer_for_options,
     s_to_ns,
+    sleep_overshoot_ns,
 )
 
 
@@ -609,15 +617,15 @@ def make_timer_on_fake_clock(*, backend: str, clock: FakeClock, mocker) -> FastT
         The timer backend, reading and sleeping on ``clock``.
 
     """
+    # The clock's own functions, not recording mocks: a paced run calls them millions of times
+    # (the final spin reads the clock every fake microsecond), and a mock keeping each call held
+    # about 2 GB in the 1,000-frame test (BUGS.md #85)
     if backend == 'fast':
-        mocker.patch('glitchygames.timing.time.perf_counter_ns', side_effect=clock.perf_counter_ns)
-        mocker.patch('glitchygames.timing.time.sleep', side_effect=clock.sleep)
+        mocker.patch('glitchygames.timing.time.perf_counter_ns', new=clock.perf_counter_ns)
+        mocker.patch('glitchygames.timing.time.sleep', new=clock.sleep)
         return FastTimer()
     timer = PygameTimer()
-    fake_pygame = mocker.MagicMock()
-    fake_pygame.time.get_ticks.side_effect = clock.get_ticks
-    fake_pygame.time.delay.side_effect = clock.delay
-    timer._pg = fake_pygame
+    timer._pg = SimpleNamespace(time=SimpleNamespace(get_ticks=clock.get_ticks, delay=clock.delay))
     return timer
 
 
@@ -788,3 +796,321 @@ class TestDeadlineReanchorBoundary:
         deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
 
         assert deadline_ns == ONE_S_IN_NS + step_past_boundary_ns + PERIOD_60_01_NS
+
+
+class TestSleepGranularityEndsTheSleep:
+    """The sleep ends sleep_granularity_ns before the deadline; the rest is spun."""
+
+    def test_the_sleep_ends_the_granularity_before_the_deadline(self, mocker):
+        """A 16 ms granularity sleeps 4 ms of a 20 ms wait, then spins the last 16 ms."""
+        timer = FastTimer(sleep_granularity_ns=16_000_000)
+        # Reads: 0 (sleep 4 ms), 4 ms (inside the granularity: spin), then past the deadline
+        mocker.patch(
+            'glitchygames.timing.time.perf_counter_ns',
+            side_effect=[0, 4_000_000, 20_000_001],
+        )
+        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
+
+        result = timer.sleep_until_next(20_000_000)
+
+        assert result >= 20_000_000
+        assert mock_sleep.call_args_list == [mocker.call(0.004)]
+
+    def test_the_default_still_spins_only_the_last_millisecond(self, mocker):
+        """The 1 ms default sleeps to 1 ms before the deadline, as the fixed spin window did."""
+        timer = FastTimer()
+        mocker.patch(
+            'glitchygames.timing.time.perf_counter_ns',
+            side_effect=[0, 9_000_000, 10_000_001],
+        )
+        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
+
+        timer.sleep_until_next(10_000_000)
+
+        assert mock_sleep.call_args_list == [mocker.call(0.009)]
+
+
+class TestSleepModel:
+    """--timer-backend auto: each sleep is sized so its predicted wake lands before the deadline.
+
+    A sleep's delay past its length is modelled as a constant plus a fraction of the length:
+    macOS lets a normal-priority sleep run late by 25% of its length (4 ms wakes 1.01 ms late,
+    16 ms 4.01 ms), and at background priority by a flat 85-100 ms.
+    """
+
+    def test_the_model_is_fitted_from_a_short_and_a_long_probe(self, mocker):
+        """Delays of 0.25 ms after 1 ms and 2 ms after 8 ms: 0 ms constant, 25% of the length."""
+        mocker.patch(
+            'glitchygames.timing.sleep_overshoot_ns',
+            side_effect=lambda *, probe_ns, samples: probe_ns // 4,
+        )
+
+        model = measure_sleep_model()
+
+        assert model == SleepModel(constant_ns=0, fraction=0.25)
+
+    def test_a_flat_delay_is_all_constant(self, mocker):
+        """90 ms late whatever the length (background priority): no fraction."""
+        mocker.patch(
+            'glitchygames.timing.sleep_overshoot_ns',
+            side_effect=lambda *, probe_ns, samples: 90_000_000,
+        )
+
+        assert measure_sleep_model() == SleepModel(constant_ns=90_000_000, fraction=0.0)
+
+    def test_the_probe_overshoot_is_the_90th_percentile(self, mocker):
+        """One very late wake does not decide it: the 90th percentile of the samples does."""
+        samples = 10
+        overshoots = [index * 100_000 for index in range(samples)]
+        overshoots[0] = 500_000_000  # one 500 ms outlier
+        clock_reads = []
+        for overshoot in overshoots:
+            clock_reads.extend([0, 1_000_000 + overshoot])
+        mocker.patch('glitchygames.timing.time.perf_counter_ns', side_effect=clock_reads)
+        mocker.patch('glitchygames.timing.time.sleep')
+
+        measured = sleep_overshoot_ns(probe_ns=1_000_000, samples=samples)
+
+        assert measured == sorted(overshoots)[int(0.9 * (samples - 1))]
+        assert measured < 500_000_000
+
+    def test_a_sleep_is_sized_to_wake_the_granularity_before_the_deadline(self, mocker):
+        """25% delay, 12.7 ms to wait: sleep 9.36 ms (wakes 11.7 ms in), spin the rest."""
+        timer = FastTimer(sleep_model=SleepModel(constant_ns=0, fraction=0.25))
+        mocker.patch(
+            'glitchygames.timing.time.perf_counter_ns',
+            side_effect=[0, 11_700_000, 12_700_001],
+        )
+        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
+
+        timer.sleep_until_next(12_700_000)
+
+        (sleep_seconds,) = mock_sleep.call_args_list[0].args
+        assert sleep_seconds == pytest.approx((12_700_000 - 1_000_000) / 1.25 / 1e9)
+        assert all(call.args == (0,) for call in mock_sleep.call_args_list[1:])
+
+    def test_a_delay_longer_than_the_wait_spins_the_whole_wait(self, mocker):
+        """A 90 ms constant delay and a 16.7 ms frame: sleeping can only be late, so spin."""
+        timer = FastTimer(sleep_model=SleepModel(constant_ns=90_000_000, fraction=0.0))
+        mocker.patch(
+            'glitchygames.timing.time.perf_counter_ns',
+            side_effect=[0, 8_000_000, 16_700_001],
+        )
+        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
+
+        timer.sleep_until_next(16_700_000)
+
+        assert all(call.args == (0,) for call in mock_sleep.call_args_list)
+
+    def test_auto_measures_the_model_when_first_needed(self, mocker):
+        """A run that never paces (uncapped, a headless replay) never spends the measurement."""
+        model = SleepModel(constant_ns=0, fraction=0.25)
+        measure = mocker.patch('glitchygames.timing.measure_sleep_model', return_value=model)
+
+        timer = create_timer('auto', {'sleep_granularity_ns': None})
+        # Describing it (a recording naming its run's timer) does not measure
+        assert timer.pacing_timer().sleep_model is None
+        measure.assert_not_called()
+        # The first paced sleep (or calibrate()) measures, once
+        mocker.patch('glitchygames.timing.time.sleep')
+        timer.sleep_until_next(timer.ns_now() - 1)
+        timer.calibrate()
+        assert timer.pacing_timer() == PacingTimer(
+            backend='fast', sleep_granularity_ns=DEFAULT_SLEEP_GRANULARITY_NS, sleep_model=model
+        )
+
+        measure.assert_called_once_with()
+
+    def test_auto_with_an_explicit_granularity_calibrates_with_that_margin(self, mocker):
+        """--sleep-granularity-ns sets the final spin; auto still measures the sleep model."""
+        model = SleepModel(constant_ns=0, fraction=0.25)
+        mocker.patch('glitchygames.timing.measure_sleep_model', return_value=model)
+
+        timer = create_timer('auto', {'sleep_granularity_ns': 2_000_000})
+        timer.calibrate()
+
+        assert timer.pacing_timer() == PacingTimer(
+            backend='fast', sleep_granularity_ns=2_000_000, sleep_model=model
+        )
+
+    def test_fast_without_a_granularity_uses_the_default(self):
+        """--timer-backend fast keeps the 1 ms default, with no model."""
+        timer = create_timer('fast', {'sleep_granularity_ns': None})
+
+        assert isinstance(timer, FastTimer)
+        assert timer.pacing_timer() == PacingTimer(
+            backend='fast', sleep_granularity_ns=DEFAULT_SLEEP_GRANULARITY_NS, sleep_model=None
+        )
+
+    @pytest.mark.parametrize(
+        ('options', 'expected'),
+        [
+            (
+                {'timer_backend': 'auto', 'sleep_granularity_ns': 1_000_000},
+                PacingTimer(backend='fast', sleep_granularity_ns=1_000_000, sleep_model=None),
+            ),
+            (
+                {'timer_backend': 'fast', 'sleep_granularity_ns': 2_000_000},
+                PacingTimer(backend='fast', sleep_granularity_ns=2_000_000, sleep_model=None),
+            ),
+            (
+                {'timer_backend': 'fast', 'sleep_granularity_ns': None},
+                PacingTimer(
+                    backend='fast',
+                    sleep_granularity_ns=DEFAULT_SLEEP_GRANULARITY_NS,
+                    sleep_model=None,
+                ),
+            ),
+            (
+                {'timer_backend': 'pygame'},
+                PacingTimer(backend='pygame', sleep_granularity_ns=None, sleep_model=None),
+            ),
+        ],
+        ids=['auto', 'fast', 'fast-default-granularity', 'pygame'],
+    )
+    def test_options_describe_the_timer_they_would_create(self, options, expected):
+        """Before (or without) a timer, the options say which it is, uncalibrated."""
+        assert pacing_timer_for_options(options=options) == expected
+
+    def test_the_pygame_timer_describes_itself(self):
+        """The legacy backend sleeps in whole milliseconds and has no granularity."""
+        timer = PygameTimer()
+        timer.calibrate()  # nothing to calibrate
+        assert timer.pacing_timer() == PacingTimer(
+            backend='pygame', sleep_granularity_ns=None, sleep_model=None
+        )
+
+
+class TestDescribePacingTimer:
+    """describe_pacing_timer names the backend, its final spin and its calibration."""
+
+    def test_pygame_timer_is_named_by_its_backend_alone(self):
+        """A timer without a sleep granularity (the pygame backend) is just its backend's name."""
+        pacing = PacingTimer(backend='pygame', sleep_granularity_ns=None, sleep_model=None)
+
+        assert describe_pacing_timer(pacing=pacing) == 'pygame'
+
+    def test_uncalibrated_fast_timer_gives_its_final_spin(self):
+        """An uncalibrated fast timer is described by its final spin, in milliseconds."""
+        pacing = PacingTimer(backend='fast', sleep_granularity_ns=1_500_000, sleep_model=None)
+
+        assert describe_pacing_timer(pacing=pacing) == 'fast, final spin 1.5 ms'
+
+    def test_calibrated_fast_timer_gives_its_sleep_model(self):
+        """A calibrated fast timer adds how late its sleeps wake."""
+        pacing = PacingTimer(
+            backend='fast',
+            sleep_granularity_ns=1_000_000,
+            sleep_model=SleepModel(constant_ns=120_000, fraction=0.25),
+        )
+
+        assert describe_pacing_timer(pacing=pacing) == (
+            'fast, final spin 1.0 ms (calibrated: sleeps wake 0.12 ms + 25% of their length late)'
+        )
+
+
+class FakeWinmm:
+    """Stands in for ctypes.windll.winmm: records the timer period calls it gets."""
+
+    def __init__(self, *, failure: Exception | None = None) -> None:
+        """Start with no calls; raise failure from timeEndPeriod when given."""
+        self.calls: list[tuple[str, int]] = []
+        self.failure = failure
+
+    def timeBeginPeriod(self, period: int) -> int:  # ruff: ignore[invalid-function-name]  # the Windows API's name
+        """Record a timer resolution request.
+
+        Returns:
+            int: 0, TIMERR_NOERROR.
+
+        """
+        self.calls.append(('timeBeginPeriod', period))
+        return 0
+
+    def timeEndPeriod(self, period: int) -> int:  # ruff: ignore[invalid-function-name]  # the Windows API's name
+        """Record a timer resolution release, or raise the failure this stand-in was made with.
+
+        Returns:
+            int: 0, TIMERR_NOERROR.
+
+        """
+        if self.failure is not None:
+            raise self.failure
+        self.calls.append(('timeEndPeriod', period))
+        return 0
+
+
+class TestFastTimerWindowsTimerResolution:
+    """On Windows, --windows-timer-1ms asks WinMM for 1 ms timer resolution and gives it back.
+
+    The platform is faked: timing's ``sys`` is replaced with one reporting ``win32``, and
+    ``ctypes.windll`` (absent off Windows) with a recording stand-in.
+    """
+
+    @pytest.fixture
+    def on_windows(self, mocker):
+        """Make glitchygames.timing see a Windows platform."""
+        from glitchygames import timing
+
+        mocker.patch.object(timing, 'sys', mocker.Mock(platform='win32'))
+
+    def test_requests_and_releases_1ms_resolution(self, on_windows, monkeypatch):
+        """The timer begins a 1 ms period at construction and ends it when it is deleted."""
+        import ctypes
+
+        winmm = FakeWinmm()
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+
+        timer = FastTimer(windows_timer_1ms=True)
+        assert timer._win_period_on is True
+        assert winmm.calls == [('timeBeginPeriod', 1)]
+
+        timer.__del__()
+        assert winmm.calls == [('timeBeginPeriod', 1), ('timeEndPeriod', 1)]
+
+    def test_without_the_flag_winmm_is_not_touched(self, on_windows, monkeypatch):
+        """Without windows_timer_1ms, a Windows timer leaves the system timer alone."""
+        import ctypes
+
+        winmm = FakeWinmm()
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+
+        timer = FastTimer()
+
+        assert timer._win_period_on is False
+        assert winmm.calls == []
+
+    def test_unavailable_winmm_leaves_the_resolution_alone(self, on_windows, monkeypatch, caplog):
+        """Without ctypes.windll the request fails quietly (debug log) and nothing is released."""
+        import ctypes
+
+        monkeypatch.delattr(ctypes, 'windll', raising=False)
+
+        with caplog.at_level('DEBUG', logger='glitchygames.timing'):
+            timer = FastTimer(windows_timer_1ms=True)
+
+        assert timer._win_period_on is False
+        assert 'Windows timer resolution setup failed' in caplog.text
+
+    def test_a_failed_release_is_logged_not_raised(self, on_windows, monkeypatch, caplog):
+        """An error ending the period in __del__ is logged at debug level, never raised."""
+        import ctypes
+
+        winmm = FakeWinmm(failure=OSError('winmm went away'))
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+        timer = FastTimer(windows_timer_1ms=True)
+
+        with caplog.at_level('DEBUG', logger='glitchygames.timing'):
+            timer.__del__()
+
+        assert 'Windows timer resolution cleanup failed: winmm went away' in caplog.text
+
+
+def fake_windll(*, winmm: FakeWinmm) -> SimpleNamespace:
+    """Return a ctypes.windll stand-in whose winmm is the given recorder.
+
+    Returns:
+        SimpleNamespace: An object with only a ``winmm`` attribute.
+
+    """
+    return SimpleNamespace(winmm=winmm)

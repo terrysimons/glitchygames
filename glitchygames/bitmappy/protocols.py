@@ -83,7 +83,7 @@ class EditorContext(Protocol):
 
     # ── Pixel change tracking ────────────────────────────────────────────
 
-    _pixel_change_timer: float | None
+    pixel_change_timer: float | None
 
     # ── Selection state ──────────────────────────────────────────────────
 

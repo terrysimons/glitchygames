@@ -2617,17 +2617,18 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """Debug image data for a frame."""
         try:
             pixel_array = pygame.surfarray.array3d(frame.image)  # type: ignore[no-untyped-call]
-            self.log.debug(f'  Image surface size: {frame.image.get_size()}')
-            self.log.debug(f'  Pixel array shape: {pixel_array.shape}')
-            # Show a small sample of pixel data
-            if pixel_array.size > 0:
-                if len(pixel_array.shape) == PIXEL_ARRAY_SHAPE_DIMENSIONS:
-                    sample_data = str(pixel_array[0, 0, :])  # pyright: ignore[reportUnknownArgumentType]
-                else:
-                    sample_data = str(pixel_array[0])
-                self.log.debug(f'  Sample pixel data: {sample_data}')
         except (ValueError, pygame.error) as e:
             self.log.debug(f'  Could not get pixel data from image: {e}')
+            return
+        self.log.debug(f'  Image surface size: {frame.image.get_size()}')
+        self.log.debug(f'  Pixel array shape: {pixel_array.shape}')
+        # Show a small sample of pixel data
+        if pixel_array.size > 0:
+            if len(pixel_array.shape) == PIXEL_ARRAY_SHAPE_DIMENSIONS:
+                sample_data = str(pixel_array[0, 0, :])  # pyright: ignore[reportUnknownArgumentType]
+            else:
+                sample_data = str(pixel_array[0])
+            self.log.debug(f'  Sample pixel data: {sample_data}')
 
     def _update_surface_and_mark_dirty(self) -> None:
         """Update the sprite's surface and mark as dirty for efficient rendering."""

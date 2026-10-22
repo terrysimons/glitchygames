@@ -1,4 +1,19 @@
-"""CLI client for the GlitchyGames Sprite Generation API."""
+"""CLI client for the GlitchyGames Sprite Generation API.
+
+Exit codes (``ExitCode``, glitchygames/exit_codes.py; logged as ``Exiting with ...``):
+
+- ``SUCCESS``.
+- ``GENERATION_REJECTED`` / ``EXTRACTION_REJECTED``: the server answered an error status (other
+  than 503) or a response that says the request failed.
+- ``SERVICE_UNAVAILABLE``: the server cannot be reached, stops answering, or answers 503.
+- ``OPTIONS_REFUSED``: --server-url is not a usable URL.
+- ``MISSING_INPUT``: the APNG to extract does not exist.
+- ``UNUSABLE_INPUT``: an input file that cannot be read, or a response that cannot be decoded
+  or is malformed (a missing field or one of the wrong type counts as the server's fault).
+- ``CANNOT_WRITE_OUTPUT``: an output file or directory cannot be written.
+- ``INTERNAL_ERROR``: any other exception (a client bug), logged with its traceback.
+- argparse's ``ARGUMENT_PARSER_ERROR`` for a usage error.
+"""
 
 import argparse
 import base64
@@ -8,11 +23,13 @@ import logging
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from apng import APNG, PNG
 
+from glitchygames.clock import wall_clock_epoch_seconds
+from glitchygames.exit_codes import ExitCode
 from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
 LOG = logging.getLogger('glitchygames.api.client')
@@ -138,6 +155,30 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _response_object(*, response: httpx.Response) -> dict[str, Any]:
+    """Return a successful response's JSON body, which the API always sends as an object.
+
+    A body that is not JSON raises ValueError (from ``response.json()``). Both that and the
+    TypeError below are a malformed response (``ExitCode.UNUSABLE_INPUT`` through
+    ``_exit_code_for_request_error``).
+
+    Args:
+        response: The server's answer (a 2xx status).
+
+    Returns:
+        The decoded JSON object.
+
+    Raises:
+        TypeError: If the body is JSON but not an object (a list, a string).
+
+    """
+    body = response.json()
+    if not isinstance(body, dict):
+        message = f'the server response is a JSON {type(body).__name__}, not an object'
+        raise TypeError(message)
+    return cast('dict[str, Any]', body)
+
+
 def extract_apng_frames(
     server_url: str,
     apng_path: str,
@@ -167,7 +208,7 @@ def extract_apng_frames(
     with httpx.Client(timeout=60.0) as client:
         response = client.post(url, json=payload)
         response.raise_for_status()
-        return response.json()
+        return _response_object(response=response)
 
 
 def generate_sprite(  # ruff: ignore[too-many-arguments]
@@ -234,7 +275,7 @@ def generate_sprite(  # ruff: ignore[too-many-arguments]
     with httpx.Client(timeout=300.0) as client:
         response = client.post(url, json=payload)
         response.raise_for_status()
-        return response.json()
+        return _response_object(response=response)
 
 
 def display_sprite_ascii(toml_content: str) -> None:
@@ -245,37 +286,52 @@ def display_sprite_ascii(toml_content: str) -> None:
 
     """
     try:
-        sprite_data = tomllib.loads(toml_content)
-        renderer = ASCIIRenderer()
-        colors = renderer.extract_colors_from_toml(sprite_data)
-
-        # Check if it's an animated sprite
-        if sprite_data.get('animation'):
-            animations = sprite_data['animation']
-            for anim_index, animation in enumerate(animations):
-                anim_name = animation.get('namespace', f'animation-{anim_index}')
-                frames = animation.get('frame', [])
-
-                print(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')  # ruff: ignore[print]
-
-                for frame_index, frame in enumerate(frames):
-                    pixels = frame.get('pixels', '')
-                    if pixels:
-                        print(f'\n--- Frame {frame_index} ---')  # ruff: ignore[print]
-                        colorized = renderer.colorize_pixels(pixels, colors)
-                        print(colorized)  # ruff: ignore[print]
-        else:
-            # Static sprite
-            pixels = renderer.extract_pixels_from_toml(sprite_data)
-            if pixels:
-                print('\n=== Sprite Preview ===')  # ruff: ignore[print]
-                colorized = renderer.colorize_pixels(pixels, colors)
-                print(colorized)  # ruff: ignore[print]
-
-        print()  # ruff: ignore[print]  # Empty line after output
-
+        preview_lines = _sprite_ascii_preview_lines(toml_content=toml_content)
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         LOG.warning('Could not render ASCII preview: %s', e)
+        return
+    for line in preview_lines:
+        print(line)  # ruff: ignore[print]
+    print()  # ruff: ignore[print]  # Empty line after output
+
+
+def _sprite_ascii_preview_lines(*, toml_content: str) -> list[str]:
+    """Render a sprite as colorized ASCII art, one printed line per entry.
+
+    Args:
+        toml_content: TOML content of the sprite
+
+    Returns:
+        The preview's lines: each animation's frames, or the static sprite.
+
+    """
+    sprite_data = tomllib.loads(toml_content)
+    renderer = ASCIIRenderer()
+    colors = renderer.extract_colors_from_toml(sprite_data)
+    lines: list[str] = []
+
+    # Check if it's an animated sprite
+    if sprite_data.get('animation'):
+        animations = sprite_data['animation']
+        for anim_index, animation in enumerate(animations):
+            anim_name = animation.get('namespace', f'animation-{anim_index}')
+            frames = animation.get('frame', [])
+
+            lines.append(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')
+
+            for frame_index, frame in enumerate(frames):
+                pixels = frame.get('pixels', '')
+                if pixels:
+                    lines.extend((
+                        f'\n--- Frame {frame_index} ---',
+                        renderer.colorize_pixels(pixels, colors),
+                    ))
+    else:
+        # Static sprite
+        pixels = renderer.extract_pixels_from_toml(sprite_data)
+        if pixels:
+            lines.extend(('\n=== Sprite Preview ===', renderer.colorize_pixels(pixels, colors)))
+    return lines
 
 
 def create_apng_from_frames(
@@ -336,9 +392,7 @@ def find_available_path(base_path: Path) -> Path:
         counter += 1
 
     # Fallback: use timestamp if we somehow hit 999 files
-    import time
-
-    timestamp = int(time.time())
+    timestamp = int(wall_clock_epoch_seconds())
     return parent / f'{stem}_{timestamp}{suffix}'
 
 
@@ -366,9 +420,7 @@ def find_available_directory(base_dir: Path) -> Path:
         counter += 1
 
     # Fallback: use timestamp if we somehow hit 999 directories
-    import time
-
-    timestamp = int(time.time())
+    timestamp = int(wall_clock_epoch_seconds())
     return parent / f'{name}-{timestamp}'
 
 
@@ -546,6 +598,122 @@ def save_files_locally(  # ruff: ignore[too-many-arguments]
     return saved_files
 
 
+# What sending a request and reading its response can raise (_exit_code_for_request_error):
+# httpx's errors, its InvalidURL (not an HTTPError), an input file that cannot be read,
+# ValueError from decoding the response's JSON, and TypeError for JSON that is not an object
+# (raised by _response_object)
+REQUEST_ERRORS = (httpx.HTTPError, httpx.InvalidURL, OSError, ValueError, TypeError)
+
+# What handling a successful response can raise (_exit_code_for_response_handling_error):
+# writing the output (OSError), and a malformed response (ValueError such as binascii.Error from
+# bad base64, KeyError for a missing field, TypeError for a field of the wrong type)
+RESPONSE_HANDLING_ERRORS = (OSError, ValueError, KeyError, TypeError)
+
+# The HTTP status of a server that is overloaded or down for maintenance: unavailable, not a
+# rejection of the request
+HTTP_SERVICE_UNAVAILABLE = 503
+
+
+def _print_traceback_if_verbose(*, parsed_args: argparse.Namespace) -> None:
+    """Print the exception being handled when --verbose is given (call from an except block)."""
+    if parsed_args.verbose:
+        import traceback
+
+        traceback.print_exc()
+
+
+def _exit_code_for_server_error(
+    *, error: Exception, server_url: str, rejected_exit_code: ExitCode
+) -> ExitCode | None:
+    """Log and return the exit code of an error in reaching the server or in its answer.
+
+    Args:
+        error: One of ``REQUEST_ERRORS``.
+        server_url: The --server-url given.
+        rejected_exit_code: The code for a server that refused this kind of request.
+
+    Returns:
+        ``ExitCode.OPTIONS_REFUSED`` for a server URL that is not usable;
+        ``ExitCode.SERVICE_UNAVAILABLE`` when the server cannot be reached, stops answering or
+        answers 503; ``rejected_exit_code`` for any other error status; None for any other
+        error (not about the server's reachability or status).
+
+    """
+    if isinstance(error, (httpx.InvalidURL, httpx.UnsupportedProtocol)):
+        LOG.error(f'Cannot use the server URL {server_url!r}: {error}')
+        return ExitCode.OPTIONS_REFUSED
+    if isinstance(error, httpx.ConnectError):
+        LOG.error(f'Could not connect to server at {server_url}')
+        LOG.error('Is the server running? Start it with: glitchygames-server')
+        return ExitCode.SERVICE_UNAVAILABLE
+    if isinstance(error, httpx.TransportError):
+        LOG.error(f'The server at {server_url} did not answer: {error!r}')
+        return ExitCode.SERVICE_UNAVAILABLE
+    if isinstance(error, httpx.HTTPStatusError):
+        LOG.error(f'HTTP error: {error.response.status_code} - {error.response.text}')
+        if error.response.status_code == HTTP_SERVICE_UNAVAILABLE:
+            return ExitCode.SERVICE_UNAVAILABLE
+        return rejected_exit_code
+    return None
+
+
+def _exit_code_for_request_error(
+    *, error: Exception, parsed_args: argparse.Namespace, rejected_exit_code: ExitCode
+) -> ExitCode:
+    """Log why a request failed and return its exit code (call from an except block).
+
+    Args:
+        error: One of ``REQUEST_ERRORS``.
+        parsed_args: Parsed command line arguments (``server_url``, ``verbose``).
+        rejected_exit_code: The code for a server that refused this kind of request
+            (``GENERATION_REJECTED`` or ``EXTRACTION_REJECTED``).
+
+    Returns:
+        The server's code (``_exit_code_for_server_error``), else ``ExitCode.MISSING_INPUT``
+        for an input file that does not exist, else ``ExitCode.UNUSABLE_INPUT`` (an unreadable
+        input file, or a response that cannot be decoded: bad JSON, JSON that is not an object,
+        a redirect loop, an undecodable body).
+
+    """
+    server_exit_code = _exit_code_for_server_error(
+        error=error, server_url=parsed_args.server_url, rejected_exit_code=rejected_exit_code
+    )
+    if server_exit_code is not None:
+        return server_exit_code
+    if isinstance(error, FileNotFoundError):
+        LOG.error('Input file not found: %s', error.filename or error)
+        return ExitCode.MISSING_INPUT
+    LOG.error('Error: %s', error)
+    _print_traceback_if_verbose(parsed_args=parsed_args)
+    return ExitCode.UNUSABLE_INPUT
+
+
+def _exit_code_for_response_handling_error(
+    *, error: Exception, parsed_args: argparse.Namespace
+) -> ExitCode:
+    """Log why handling a response failed and return its exit code (call from an except block).
+
+    A KeyError or TypeError here is read as a malformed server response (a field missing or of
+    the wrong type), not a client bug: the response's shape is the server's to guarantee.
+
+    Args:
+        error: One of ``RESPONSE_HANDLING_ERRORS``.
+        parsed_args: Parsed command line arguments (``verbose``).
+
+    Returns:
+        ``ExitCode.CANNOT_WRITE_OUTPUT`` for a file or directory that cannot be written
+        (including a FileNotFoundError while writing), otherwise ``ExitCode.UNUSABLE_INPUT``.
+
+    """
+    if isinstance(error, OSError):
+        LOG.error('Cannot write the output: %s', error)
+        _print_traceback_if_verbose(parsed_args=parsed_args)
+        return ExitCode.CANNOT_WRITE_OUTPUT
+    LOG.error('The server response is malformed: %r', error)
+    _print_traceback_if_verbose(parsed_args=parsed_args)
+    return ExitCode.UNUSABLE_INPUT
+
+
 def _log_extraction_metadata(response: dict[str, Any]) -> None:
     """Log metadata from an APNG extraction response.
 
@@ -592,7 +760,7 @@ def _process_extraction_response(
     response: dict[str, Any],
     parsed_args: argparse.Namespace,
     apng_path: str,
-) -> int:
+) -> ExitCode:
     """Process a successful APNG extraction response.
 
     Args:
@@ -601,12 +769,13 @@ def _process_extraction_response(
         apng_path: Path to the original APNG file
 
     Returns:
-        Exit code (0 for success, 1 for failure)
+        ``ExitCode.SUCCESS``, or ``ExitCode.EXTRACTION_REJECTED`` when the server says the
+        extraction failed.
 
     """
     if not response.get('success'):
         LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
-        return 1
+        return ExitCode.EXTRACTION_REJECTED
 
     _log_extraction_metadata(response)
 
@@ -624,17 +793,17 @@ def _process_extraction_response(
                 frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
         print(json.dumps(output_data, indent=2))  # ruff: ignore[print]
 
-    return 0
+    return ExitCode.SUCCESS
 
 
-def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
+def _handle_extract_frames(parsed_args: argparse.Namespace) -> ExitCode:
     """Handle the --extract-frames command.
 
     Args:
         parsed_args: Parsed command line arguments
 
     Returns:
-        Exit code (0 for success, non-zero for errors)
+        The exit code (``ExitCode``; see the module docstring).
 
     """
     apng_path = parsed_args.extract_frames
@@ -645,25 +814,16 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             server_url=parsed_args.server_url,
             apng_path=apng_path,
         )
-    except FileNotFoundError:
-        LOG.error('APNG file not found: %s', apng_path)  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except httpx.ConnectError:
-        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # ruff: ignore[error-instead-of-exception]
-        LOG.error('Is the server running? Start it with: glitchygames-server')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except httpx.HTTPStatusError as e:
-        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error('Error: %s', e)  # ruff: ignore[error-instead-of-exception]
-        if parsed_args.verbose:
-            import traceback
-
-            traceback.print_exc()
-        return 1
-    else:
+    except REQUEST_ERRORS as error:
+        return _exit_code_for_request_error(
+            error=error,
+            parsed_args=parsed_args,
+            rejected_exit_code=ExitCode.EXTRACTION_REJECTED,
+        )
+    try:
         return _process_extraction_response(response, parsed_args, apng_path)
+    except RESPONSE_HANDLING_ERRORS as error:
+        return _exit_code_for_response_handling_error(error=error, parsed_args=parsed_args)
 
 
 def _log_generation_results(response: dict[str, Any]) -> None:
@@ -684,7 +844,7 @@ def _log_generation_results(response: dict[str, Any]) -> None:
         display_sprite_ascii(response['toml_content'])
 
 
-def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: list[str]) -> int:
+def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: list[str]) -> ExitCode:
     """Handle sprite generation and output.
 
     Args:
@@ -692,30 +852,58 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         output_formats: List of requested output formats
 
     Returns:
-        Exit code (0 for success, non-zero for errors)
+        The exit code (``ExitCode``; see the module docstring): ``GENERATION_REJECTED`` when
+        the server says the generation failed.
 
     """
     LOG.info(f'Generating sprite: {parsed_args.prompt}')
     if parsed_args.animation_language_model:
         LOG.info(f'Using model: {parsed_args.animation_language_model}')
-    response = generate_sprite(
-        server_url=parsed_args.server_url,
-        prompt=parsed_args.prompt,
-        output_formats=output_formats,
-        output_path=None,  # Always save locally, not on server
-        width=parsed_args.width,
-        height=parsed_args.height,
-        frame_count=parsed_args.frame_count,
-        film_strip_count=parsed_args.film_strip_count,
-        animation_duration=parsed_args.animation_duration,
-        png_scale=parsed_args.png_scale,
-        model=parsed_args.animation_language_model,
-    )
+    try:
+        response = generate_sprite(
+            server_url=parsed_args.server_url,
+            prompt=parsed_args.prompt,
+            output_formats=output_formats,
+            output_path=None,  # Always save locally, not on server
+            width=parsed_args.width,
+            height=parsed_args.height,
+            frame_count=parsed_args.frame_count,
+            film_strip_count=parsed_args.film_strip_count,
+            animation_duration=parsed_args.animation_duration,
+            png_scale=parsed_args.png_scale,
+            model=parsed_args.animation_language_model,
+        )
+    except REQUEST_ERRORS as error:
+        return _exit_code_for_request_error(
+            error=error,
+            parsed_args=parsed_args,
+            rejected_exit_code=ExitCode.GENERATION_REJECTED,
+        )
 
     if not response.get('success'):
         LOG.error(f'Generation failed: {response.get("error", "Unknown error")}')
-        return 1
+        return ExitCode.GENERATION_REJECTED
 
+    try:
+        _output_generated_sprite(
+            response=response, parsed_args=parsed_args, output_formats=output_formats
+        )
+    except RESPONSE_HANDLING_ERRORS as error:
+        return _exit_code_for_response_handling_error(error=error, parsed_args=parsed_args)
+    return ExitCode.SUCCESS
+
+
+def _output_generated_sprite(
+    *, response: dict[str, Any], parsed_args: argparse.Namespace, output_formats: list[str]
+) -> None:
+    """Log a generated sprite, save its files (with --output-path) or print its TOML.
+
+    Args:
+        response: The successful generation response.
+        parsed_args: Parsed command line arguments.
+        output_formats: The requested output formats.
+
+    """
     _log_generation_results(response)
 
     # Save files locally if output_path specified
@@ -739,8 +927,6 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
             print('\n--- TOML Content ---')  # ruff: ignore[print]
         print(response['toml_content'])  # ruff: ignore[print]
 
-    return 0
-
 
 def main(args: list[str] | None = None) -> int:
     """Run the CLI client.
@@ -749,7 +935,8 @@ def main(args: list[str] | None = None) -> int:
         args: Command line arguments (defaults to sys.argv[1:])
 
     Returns:
-        Exit code (0 for success, non-zero for errors)
+        The exit code (``ExitCode``; see the module docstring). A usage error exits through
+        argparse instead (SystemExit with ``ExitCode.ARGUMENT_PARSER_ERROR``).
 
     """
     parser = create_parser()
@@ -763,33 +950,23 @@ def main(args: list[str] | None = None) -> int:
     else:
         logging.basicConfig(level=logging.INFO, format='%(message)s')
 
-    # Handle --extract-frames mode
-    if parsed_args.extract_frames:
-        return _handle_extract_frames(parsed_args)
-
     # Validate that prompt is provided for generation
-    if not parsed_args.prompt:
+    if not parsed_args.extract_frames and not parsed_args.prompt:
         parser.error('prompt is required unless using --extract-frames')
 
-    # Use default output formats if none specified
-    output_formats = parsed_args.output_formats or DEFAULT_OUTPUT_FORMATS
-
     try:
-        return _handle_generate_sprite(parsed_args, output_formats)
-    except httpx.ConnectError:
-        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # ruff: ignore[error-instead-of-exception]
-        LOG.error('Is the server running? Start it with: glitchygames-server')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except httpx.HTTPStatusError as e:
-        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error('Error: %s', e)  # ruff: ignore[error-instead-of-exception]
-        if parsed_args.verbose:
-            import traceback
-
-            traceback.print_exc()
-        return 1
+        if parsed_args.extract_frames:
+            exit_code = _handle_extract_frames(parsed_args)
+        else:
+            # Use default output formats if none specified
+            output_formats = parsed_args.output_formats or DEFAULT_OUTPUT_FORMATS
+            exit_code = _handle_generate_sprite(parsed_args, output_formats)
+    except Exception:
+        # The handlers map every error they expect, so anything else is a client bug
+        LOG.exception('Unexpected error in the sprite client')
+        exit_code = ExitCode.INTERNAL_ERROR
+    LOG.info(f'Exiting with {ExitCode(exit_code).describe()}')
+    return ExitCode(exit_code)
 
 
 def run() -> None:

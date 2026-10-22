@@ -16,6 +16,7 @@ from glitchygames.color import (
     ALPHA_TRANSPARENCY_THRESHOLD,
     RGBA_COMPONENT_COUNT,
 )
+from glitchygames.input.state import current_input
 
 from .models import MockEvent
 from .toml_processing import (
@@ -117,17 +118,17 @@ class FileIOManager:
 
         """
         # Get current mouse position since drop events don't include position
-        mouse_pos = pygame.mouse.get_pos()
+        mouse_position = current_input().mouse_position
         if not (
             hasattr(self.editor, 'canvas')
             and self.editor.canvas is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.editor.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
-            and self.editor.canvas.rect.collidepoint(mouse_pos)
+            and self.editor.canvas.rect.collidepoint(mouse_position)
         ):
-            self.log.info('Drop not on canvas or film strip - ignoring drop at %s', mouse_pos)
+            self.log.info('Drop not on canvas or film strip - ignoring drop at %s', mouse_position)
             return
 
-        self.log.info('Drop detected on canvas at %s', mouse_pos)
+        self.log.info('Drop detected on canvas at %s', mouse_position)
         if file_path.lower().endswith('.png'):
             self.log.info('PNG file detected - converting to bitmappy format')
             converted_toml_path = self._convert_png_to_bitmappy(file_path)

@@ -3,7 +3,10 @@
 Targets uncovered lines in selection state management.
 """
 
-from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.controllers.selection import (
+    ControllerSelection,
+    ControllerSelectionState,
+)
 
 
 class TestControllerSelectionFillDirection:
@@ -176,3 +179,92 @@ class TestControllerSelectionActivity:
         selection = ControllerSelection(controller_id=0, instance_id=0)
         age = selection.get_activity_age()
         assert age >= 0.0
+
+    def test_activity_age_before_any_activity_is_infinite(self, mocker):
+        """With no activity yet the age is inf, even at elapsed 0.0 (a replay's start)."""
+        from glitchygames.bitmappy.controllers import selection as selection_module
+
+        mocker.patch.object(selection_module, 'elapsed_seconds', return_value=0.0)
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        assert selection.get_activity_age() == float('inf')
+
+
+class TestControllerSelectionSlider:
+    """Test the slider selection."""
+
+    def test_selects_a_valid_slider(self):
+        """A valid slider name becomes the selection and counts as activity."""
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        selection.set_slider('G')
+
+        assert selection.get_slider() == 'G'
+        assert selection.state.last_update_time == 0.0
+
+    def test_ignores_an_invalid_slider(self):
+        """A name other than R, G or B is ignored."""
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        selection.set_slider('A')
+
+        assert selection.get_slider() == 'R'
+        assert selection.state.last_update_time == float('-inf')
+
+    def test_reselecting_the_same_slider_is_not_activity(self):
+        """Selecting the slider already selected changes nothing."""
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        selection.set_slider('R')
+
+        assert selection.state.last_update_time == float('-inf')
+
+
+class TestControllerSelectionUnchangedSelection:
+    """Selecting what is already selected records nothing."""
+
+    def test_same_animation_adds_no_history(self):
+        """Re-selecting the current animation adds no navigation history."""
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+        selection.set_animation('walk')
+
+        selection.set_animation('walk')
+
+        navigation_history = selection.get_navigation_history()
+        assert [entry['animation'] for entry in navigation_history] == ['']
+
+    def test_same_frame_is_not_activity(self):
+        """Re-selecting the current frame leaves the activity time alone."""
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        selection.set_frame(0)
+
+        assert selection.state.last_update_time == float('-inf')
+
+
+class TestControllerSelectionStateHistory:
+    """The selection state keeps a navigation history it is given."""
+
+    def test_a_given_history_is_kept(self):
+        """A state built with a history keeps that list."""
+        history = [{'animation': 'run', 'frame': 2, 'timestamp': 0.0}]
+
+        state = ControllerSelectionState(controller_id=0, instance_id=0, navigation_history=history)
+
+        assert state.navigation_history is history
+
+
+class TestControllerSelectionPreserveFrameFromNegativeHistory:
+    """A remembered frame below zero is clamped."""
+
+    def test_a_negative_remembered_frame_becomes_zero(self):
+        """A history entry with a negative frame preserves frame 0."""
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+        assert selection.state.navigation_history is not None
+        selection.state.navigation_history.append({
+            'animation': 'jump',
+            'frame': -3,
+            'timestamp': 0.0,
+        })
+
+        assert selection.preserve_frame_for_animation('jump', available_frames=4) == 0

@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 import pygame
 
 from glitchygames.events import JOYSTICK_EVENTS, HashableEvent, JoystickEvents, ResourceManager
+from glitchygames.input.state import current_input
+from glitchygames.sources import active_sources
 
 LOG = logging.getLogger('game.joysticks')
 LOG.addHandler(logging.NullHandler())
@@ -51,18 +53,21 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self._id = instance_id if instance_id is not None else joystick_id
             # Store the device index for reference
             self._device_id = joystick_id
-            try:
-                if instance_id is not None and hasattr(
-                    pygame.joystick.Joystick,
-                    'from_instance_id',
-                ):
-                    self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)  # type: ignore[reportFunctionMemberAccess]
-                else:
-                    self.joystick = pygame.joystick.Joystick(joystick_id)
-            except pygame.error:
-                # Fallback to index
-                self.joystick = pygame.joystick.Joystick(joystick_id)
-            self.joystick.init()  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+            # Devices are opened only through the devices door (glitchygames/input/devices.py);
+            # a device it already opened for this instance id is reused, not opened again
+            devices = active_sources().devices()
+            opened = (
+                None
+                if instance_id is None
+                else devices.joystick_for_instance(instance_id=instance_id)
+            )
+            self.joystick: Any = (
+                opened if opened is not None else devices.open_joystick(device_index=joystick_id)
+            )
+            # The snapshot (glitchygames/input/state.py) keys positions by the opened device's
+            # instance id
+            self._instance_id: int = int(self.joystick.get_instance_id())
+            self.joystick.init()
             self._init = self.joystick.get_init()
             self._name = self.joystick.get_name()
 
@@ -81,14 +86,29 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self._numbuttons = self.joystick.get_numbuttons()
             self._numhats = self.joystick.get_numhats()
 
-            # Initialize button state.
-            self._axes = [self.joystick.get_axis(i) for i in range(self.get_numaxes())]
+            # Initialize button state from the frame's input snapshot, never from the device
+            # mid-frame, so live play and a replay start from the same positions.
+            # A hot-plugged device is not in this frame's snapshot (it was opened after the
+            # pump), so its caches start zeroed: intended (snapshot-only reads), do not read
+            # the device instead.
+            snapshot = current_input()
+            self._axes = [
+                snapshot.axis(device_id=self._instance_id, axis=axis)
+                for axis in range(self.get_numaxes())
+            ]
 
-            self._balls = [self.joystick.get_ball(i) for i in range(self.get_numballs())]
+            # Trackballs are not in the snapshot (they report relative motion): they start still
+            self._balls = [(0, 0) for _ball in range(self.get_numballs())]
 
-            self._buttons = [self.joystick.get_button(i) for i in range(self.get_numbuttons())]
+            self._buttons = [
+                snapshot.button(device_id=self._instance_id, button=button)
+                for button in range(self.get_numbuttons())
+            ]
 
-            self._hats = [self.joystick.get_hat(i) for i in range(self.get_numhats())]
+            self._hats = [
+                snapshot.hat(device_id=self._instance_id, hat=hat)
+                for hat in range(self.get_numhats())
+            ]
 
             self.game: Any = game
             self.proxies: list[Any] = [self.game, self.joystick]
@@ -297,39 +317,50 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
         self.log.debug(f'JoystickEventManager init id(self)={id(self)}')
 
-        # Joystick Setup
-        self.log.info(f'Joystick Count: {pygame.joystick.get_count()}')
-        joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
+        # Joystick Setup, through the devices door (glitchygames/input/devices.py)
+        devices = active_sources().devices()
+        joystick_count = devices.joystick_count()
+        self.log.info(f'Joystick Count: {joystick_count}')
 
-        for pygame_joystick_index, joystick in enumerate(joysticks):
-            joystick.init()  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+        for pygame_joystick_index in range(joystick_count):
+            try:
+                joystick = devices.open_joystick(device_index=pygame_joystick_index)
+            except pygame.error:
+                # Unplugged between the count and the open; skip it, keep the others
+                self.log.warning(
+                    'Joystick %d vanished before it could be opened',
+                    pygame_joystick_index,
+                    exc_info=True,
+                )
+                continue
+            joystick.init()
 
             # Deep debug: capture both index and instance identity at init time
             try:
-                idx_get_id = joystick.get_id() if hasattr(joystick, 'get_id') else None  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+                reported_device_id = joystick.get_id() if hasattr(joystick, 'get_id') else None
             except pygame.error:
-                idx_get_id = None
+                reported_device_id = None
             try:
-                idx_instance = (
+                reported_instance_id = (
                     joystick.get_instance_id() if hasattr(joystick, 'get_instance_id') else None
                 )
             except pygame.error:
-                idx_instance = None
+                reported_instance_id = None
             try:
-                idx_name = joystick.get_name() if hasattr(joystick, 'get_name') else None
+                reported_name = joystick.get_name() if hasattr(joystick, 'get_name') else None
             except pygame.error:
-                idx_name = None
+                reported_name = None
             try:
-                idx_guid = joystick.get_guid() if hasattr(joystick, 'get_guid') else None
+                reported_guid = joystick.get_guid() if hasattr(joystick, 'get_guid') else None
             except pygame.error:
-                idx_guid = None
+                reported_guid = None
             self.log.debug(
                 'INIT MAP index=%s get_id=%s instance_id=%s name=%s guid=%s',
                 pygame_joystick_index,
-                idx_get_id,
-                idx_instance,
-                idx_name,
-                idx_guid,
+                reported_device_id,
+                reported_instance_id,
+                reported_name,
+                reported_guid,
             )
 
             # Use stable instance_id as the key when available
@@ -455,66 +486,66 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.log.debug('JOYBALLMOTION triggered: on_joy_ball_motion_event(%s)', event)
         self.joysticks[joystick_id].on_joy_ball_motion_event(event)
 
-    def _log_joystick_debug_info(self: Self, added_idx: int) -> None:
+    def _log_joystick_debug_info(
+        self: Self, added_device_index: int, *, joystick: Any | None
+    ) -> None:
         """Log debug info for a newly added joystick device.
 
         Args:
-            added_idx: The device index of the added joystick.
+            added_device_index: The device index of the added joystick.
+            joystick: The joystick opened for it (None when it could not be opened).
 
         """
-        js = None
-        try:
-            js = pygame.joystick.Joystick(added_idx)
-        except pygame.error as e:
-            self.log.debug('DEVICEADDED could not open Joystick(%s): %s', added_idx, e)
-        if js is not None:
+        if joystick is None:
+            self.log.debug('DEVICEADDED could not open Joystick(%s)', added_device_index)
+        else:
             try:
-                js_name = js.get_name()
+                joystick_name = joystick.get_name()
             except pygame.error:
-                js_name = None
+                joystick_name = None
             try:
-                js_guid = js.get_guid()
+                joystick_guid = joystick.get_guid()
             except pygame.error:
-                js_guid = None
+                joystick_guid = None
             try:
-                js_get_id = js.get_id()  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+                joystick_device_id = joystick.get_id()
             except pygame.error:
-                js_get_id = None
+                joystick_device_id = None
             try:
-                js_instance = js.get_instance_id()
+                joystick_instance_id = joystick.get_instance_id()
             except pygame.error:
-                js_instance = None
+                joystick_instance_id = None
             self.log.debug(
                 'DEVICEADDED index=%s get_id=%s instance_id=%s name=%s guid=%s',
-                added_idx,
-                js_get_id,
-                js_instance,
-                js_name,
-                js_guid,
+                added_device_index,
+                joystick_device_id,
+                joystick_instance_id,
+                joystick_name,
+                joystick_guid,
             )
 
-    def _resolve_instance_id(self: Self, device_index: int) -> int:
-        """Determine the stable instance_id for a joystick device.
+    def _resolve_instance_id(self: Self, device_index: int) -> int | None:
+        """Determine the stable instance_id for a joystick device (opening it, once).
 
         Args:
             device_index: The device index from the event.
 
         Returns:
-            The resolved instance_id (falls back to device_index on error).
+            The resolved instance_id, or None when the device could not be opened. The caller
+            then keys the device by its device index, but never looks that index up as an
+            instance id: another device may have that instance id.
 
         """
         try:
-            js_inst = pygame.joystick.Joystick(device_index)
-            js_inst.init()  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
-            return (
-                js_inst.get_instance_id() if hasattr(js_inst, 'get_instance_id') else device_index
-            )
+            opened_joystick = active_sources().devices().open_joystick(device_index=device_index)
+            opened_joystick.init()
+            return int(opened_joystick.get_instance_id())
         except pygame.error:
             LOG.debug(
                 'Failed to get instance_id for device_index=%s, using device_index as key',
                 device_index,
             )
-            return device_index
+            return None
 
     @override
     def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
@@ -527,45 +558,62 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # JOYDEVICEADDED device_index, guid
 
         # Deep debug: inspect the joystick reported at this device_index
-        added_idx: int | None = getattr(event, 'device_index', None)
-        self.log.debug(f'on_joy_device_added_event id(self)={id(self)} device_index={added_idx}')
-        if added_idx is None:
+        added_device_index: int | None = getattr(event, 'device_index', None)
+        self.log.debug(
+            f'on_joy_device_added_event id(self)={id(self)} device_index={added_device_index}'
+        )
+        if added_device_index is None:
             self.log.debug('DEVICEADDED event has no device_index attribute')
             return
 
-        self._log_joystick_debug_info(added_idx)
+        # Determine stable instance_id for the new device (this opens it, once). When it could
+        # not be opened, the device index is only the tracking key: it is never looked up as an
+        # instance id, and the proxy opens the device by its device index.
+        instance_id = self._resolve_instance_id(added_device_index)
+        tracking_key = instance_id if instance_id is not None else added_device_index
 
-        # Determine stable instance_id for the new device
-        instance_id = self._resolve_instance_id(event.device_index)
+        self._log_joystick_debug_info(
+            added_device_index,
+            joystick=(
+                None
+                if instance_id is None
+                else active_sources().devices().joystick_for_instance(instance_id=instance_id)
+            ),
+        )
 
         # Check if already tracked
-        if instance_id in self.joysticks:
-            self.log.debug('Instance #%s already exists, skipping duplicate creation', instance_id)
+        if tracking_key in self.joysticks:
+            self.log.debug('Instance #%s already exists, skipping duplicate creation', tracking_key)
             return
 
-        joystick_proxy = JoystickEventManager.JoystickEventProxy(
-            joystick_id=event.device_index,
-            instance_id=instance_id,
-            game=self.game,
-        )
+        try:
+            joystick_proxy = JoystickEventManager.JoystickEventProxy(
+                joystick_id=added_device_index,
+                instance_id=instance_id,
+                game=self.game,
+            )
+        except pygame.error:
+            # Unplugged again before it could be opened: there is nothing to track
+            self.log.warning(
+                'Joystick at device index %s vanished before it could be opened',
+                added_device_index,
+                exc_info=True,
+            )
+            return
         self.log.debug(
             'Created JoystickProxy with'
-            f' device_index={event.device_index},'
+            f' device_index={added_device_index},'
             f' instance_id={instance_id},'
             f' _device_id={joystick_proxy._device_id}',  # pyright: ignore[reportPrivateUsage]
         )
-        self.joysticks[instance_id] = joystick_proxy
+        self.joysticks[tracking_key] = joystick_proxy
 
         # The joystick proxy overrides the joystick object
-        self.log.debug(f'Added Joystick #{event.device_index}: {joystick_proxy}')
+        self.log.debug(f'Added Joystick #{added_device_index}: {joystick_proxy}')
         self.log.debug('JOYDEVICEADDED triggered: on_joy_device_added(%s)', event)
 
-        # Need to notify the game after the joystick exists, using stable instance_id
-        if instance_id in self.joysticks:
-            self.joysticks[instance_id].on_joy_device_added_event(event)
-        # Fallback safety: if instance_id could not be derived, try device_index
-        elif hasattr(event, 'device_index') and event.device_index in self.joysticks:
-            self.joysticks[event.device_index].on_joy_device_added_event(event)
+        # Need to notify the game after the joystick exists
+        self.joysticks[tracking_key].on_joy_device_added_event(event)
 
     @override
     def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
@@ -578,6 +626,9 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # JOYDEVICEREMOVED instance_id
         self.log.debug(f'Removed Joystick #{event.instance_id}')
         self.log.debug('JOYDEVICEREMOVED triggered: on_joy_device_removed(%s)', event)
+
+        # The devices door stops polling it (tracked here or not)
+        active_sources().devices().forget_device(instance_id=event.instance_id)
 
         # Need to notify the game first.
         if event.instance_id in self.joysticks:

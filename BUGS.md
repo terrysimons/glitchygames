@@ -4,9 +4,234 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 85. One Process Running the Whole Test Suite Grows to 5.2 GB
+- **Description**: `pytest -n 1` (one xdist worker, coverage on) peaked at 5,188 MB resident (macOS `/usr/bin/time -l`, 2026-10-21, 16,339 tests in 13 min). CircleCI's Linux job (`resource_class: small`, 1 vCPU, 2 GB) runs one worker since the worker count follows its CPU quota, so the out-of-memory killer ends that worker part way (`worker 'gw0' crashed`, then a coverage failure from its lost data)
+- **Status**: Active
+- **Priority**: High (the Linux CI job cannot pass)
+- **Reporter**: Found investigating PR #95's Linux failure
+- **Date Reported**: 2026-10-21
+- **Details**: Run serially (`PYTEST_WORKERS=0`) on the small class, the process was killed (signal 9) 16% of the way through. Not a slow leak but spikes: a serial run recording the peak after each test (coverage off) climbed 322 MB -> 3.5 GB in steps, and three tests raised it by 2 GB, each through a recording mock kept millions of calls: `tests/timing/test_timing.py::TestDeadlineReanchorsAfterHitch::test_average_rate_over_jittery_frames_equals_target_exactly[fast]` (+870 MB; the fake clock patched in with `side_effect` mocks, read every fake microsecond of FastTimer's spin over 1,000 frames) and `tests/animation/test_animation_hardware.py::test_hardware_display_buffer_access` / `test_hardware_buffer_integrity` (+590 / +555 MB; the mocked display's recording `get_at`, 480,000 calls per 800x600 capture). Fixed 2026-10-21 with plain functions in place of the mocks: alone, the timing test peaked 2.09 GB -> 123 MB and the hardware file 1.35 GB -> 246 MB. The Linux job is back on the 2 GB small class, serial; whether the whole suite now fits is the open question (the next spikes: Brave Adventurer's game tests, about 300 MB together). Pattern to avoid: a recording mock (`side_effect=`, a `Mock` method) on anything a test calls in a tight loop
+- **Files**: `tests/`, `noxfile.py`, `.circleci/config.yml`
+
+### 87. Images Dropped onto the Film Strip Never Become Frames
+- **Description**: `FilmStripSprite._convert_image_to_sprite_frame` calls `pygame.surfarray.array4d`, which pygame-ce does not have; the AttributeError is caught at line 698, so every image dropped on the film strip converts to None and the drop silently does nothing
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: The existing drop tests mock `_convert_image_to_sprite_frame`, which hid it. Pinned by the strict xfail `tests/tools/test_film_strip_sprite.py::TestFilmStripSpriteImageDrops::test_png_converts_to_a_frame_of_the_canvas_size`. Lines 666, 678-696 and 702 are reachable only once this is fixed
+- **Files**: `glitchygames/bitmappy/film_strip_sprite.py:677`
+
+### 88. `HashableEvent.get` and `in` Raise, So Film Strip C and V Keys Crash
+- **Description**: `HashableEvent` subclasses `UserDict` but never sets `self.data`, so its `get` and `in` raise AttributeError (a pygame Event has no `get` at all). `FilmStripSprite.on_key_down_event` reads `event.get('mod', 0)`, so any C or V key reaching it raises
+- **Status**: Active
+- **Priority**: High
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_film_strip_sprite.py::TestFilmStripSpriteCopyPasteKeys::test_real_hashable_ctrl_c_event_copies_the_frame`. Other code calling `.get` or `in` on a HashableEvent fails the same way; fix `HashableEvent` (set `self.data` or read attributes) rather than each caller
+- **Files**: `glitchygames/events/base.py`, `glitchygames/bitmappy/film_strip_sprite.py:443`, `:453`
+
+### 89. Loading a PNG Through the Load Dialog Fails
+- **Description**: `AnimatedCanvasSprite` calls `self._convert_png_to_bitmappy`, which only exists on the file I/O delegate (`file_io.py:151`), so loading a PNG through the Load dialog ends in "Error loading sprite"
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the canvas tests; not pinned by an xfail
+- **Files**: `glitchygames/bitmappy/animated_canvas.py:1398`, `glitchygames/bitmappy/file_io.py:151`
+
+### 90. Unconfirmed Deletes Crash Instead of Opening the Confirmation Dialog
+- **Description**: `FilmStripCoordinator._show_delete_animation_confirmation` and `_show_delete_frame_confirmation` call `self.game_engine.scene_manager.switch_to_scene(...)`, but `FilmStripCoordinator` never sets `game_engine`, so every unconfirmed delete raises AttributeError and no dialog opens. `film_strip_events.py:830` also calls `parent_scene._show_delete_frame_confirmation(...)`, which `BitmapEditorScene` does not have (only the coordinator does), so the frame-removal button would raise too (found by reading, not run)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_film_strip_coordinator.py::test_delete_animation_dialog_opens_from_a_new_coordinator`; the dialog-callback tests give the coordinator a `game_engine` explicitly
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py:1007`, `:1077`, `glitchygames/bitmappy/film_strip_events.py:830`
+
+### 91. Events the Delete Confirmation Dialog Does Not Take Crash the Editor
+- **Description**: `BitmapEditorScene.handle_event` calls `super().handle_event`, which no parent class defines, so any event the confirmation dialog does not consume raises AttributeError (lines 1406-1410 can never run)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the editor tests
+- **Files**: `glitchygames/bitmappy/editor.py:1404`
+
+### 92. Transparent Pixels of a Dropped PNG Come Out White
+- **Description**: `_load_and_resize_png` flattens any image with alpha onto a white RGB surface, then `_convert_png_to_bitmappy` checks that flattened surface for `SRCALPHA` (`_detect_png_transparency`), which is always false: transparent pixels map to white, never to the magenta transparency key
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Confirmed with a 4x4 PNG whose pixel (0, 0) is transparent: the TOML maps it to (255, 255, 255). Line 176 is unreachable until fixed
+- **Files**: `glitchygames/bitmappy/file_io.py:249-255`, `:274-275`
+
+### 93. AI Answers Wrapped in Markdown Fences Never Load
+- **Description**: `validate_ai_response` runs before `_clean_ai_response` and rejects any answer starting with ``` or containing ```toml, so a fenced answer is retried and, after the last retry, treated as an error; the cleaning step that would strip the fences never runs
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the AI manager tests
+- **Files**: `glitchygames/bitmappy/ai_manager.py:436`, `:537`
+
+### 94. Deleting a Frame Before the Shown Frame Moves the Canvas Back Two Frames
+- **Description**: When a frame before the shown frame is deleted, `current_frame` is decremented twice: in `_stop_animation_and_adjust_frame_before_deletion` and again in `_adjust_canvas_frame_after_deletion`. `FrameDeleteCommand.execute()` and `FrameAddCommand.undo()` both take this path. In a 3-frame animation showing frame 2, deleting frame 0 shows index 0 instead of 1
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_history_commands.py::TestFrameDeleteCommand::test_deleting_frame_before_shown_frame_keeps_showing_it`
+- **Files**: `glitchygames/bitmappy/history/commands.py:1309-1314`, `:1329-1333`
+
+### 95. Undoing a Trigger Mode Switch Does Nothing
+- **Description**: `handle_trigger_input` has already switched the mode when `_track_controller_mode_change` reads the old mode, so the undo record holds the new mode twice (`('canvas', 'canvas')` instead of `('film_strip', 'canvas')`)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_controller_event_handler.py::TestControllerTriggerAxisMotion::test_a_trigger_mode_switch_records_the_old_and_new_mode_for_undo`
+- **Files**: `glitchygames/bitmappy/controllers/event_handler.py:578-587`, `:748`
+
+### 96. Controller Lookups Pass a Controller Id Where an Instance Id Is Expected
+- **Description**: `MultiControllerManager.get_controller_info` is keyed by SDL instance id (`self.controllers.get(instance_id)`), but `visual_indicators.py:53` and `:102` (and the callers `event_handler.py:187`, `:191`, `:588`, `canvas_operations.py:482`, `history/commands.py:1125`, `:1210`) pass a controller id. When the two differ (after a reconnect, say), no canvas or mode indicator is placed, or another controller's info is used
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Pinned by the strict xfail `tests/tools/test_visual_indicators.py::TestUpdateControllerCanvasVisualIndicator::test_controller_whose_instance_id_differs_gets_indicator`. A fix: look up by controller id (`ControllerEventHandler.find_controller_info`)
+- **Files**: `glitchygames/bitmappy/controllers/visual_indicators.py:53`, `:102`, `glitchygames/bitmappy/controllers/manager.py:283`
+
+### 97. The Canvas Cursor Is Clamped to the Canvas's Screen Size, Not Its Pixels
+- **Description**: `_canvas_move_cursor` clamps to `canvas.width` / `canvas.height`, the on-screen size, so on an 8x8 canvas drawn at 16x the D-pad can move the cursor up to x=127; the line, jump and paint code all use `pixels_across` / `pixels_tall`
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Seen with a real `AnimatedCanvasSprite` (8x8, `pixel_width=16`: `pixels_across` 8, `width` 128). The tests use a fake canvas whose two sizes agree, so they do not pin today's behaviour
+- **Files**: `glitchygames/bitmappy/controllers/canvas_operations.py:437-438`
+
+### 98. Film Strips Are Never Refreshed After an Undo or Redo Sync
+- **Description**: `BitmapEditorScene` checks `hasattr(self, 'update_film_strips_for_frame')`, which is always False (only `FilmStripCoordinator` has that method), so the refresh after an undo/redo sync never runs
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the editor tests
+- **Files**: `glitchygames/bitmappy/editor.py:1291`
+
+### 99. Deleting an Animation Loses the Frame Selection It Computes
+- **Description**: `_select_animation_after_deletion` computes and shows a clamped target frame, then calls `on_sprite_loaded`, which resets `selected_frame` and the canvas to frame 0, so the computed selection is always lost
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: A test showed frame 0 where 1 was expected
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py:870-905`, `:1252-1284`
+
+### 100. Slider Hover Crashes Before the Sliders Are Set Up
+- **Description**: `_update_slider_bbox_hover` guards with `hasattr(self, bbox_attr)`, but `__init__` always sets those attributes to None, so `update_slider_hover_effects` before `setup_sliders_and_color_well` raises `AttributeError: 'NoneType' object has no attribute 'visible'` (the alpha path at line 601 checks `is not None` correctly; line 535 is unreachable)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Reproduced by a script and by the slider manager tests
+- **Files**: `glitchygames/bitmappy/slider_manager.py:532-535`
+
+### 101. Drag Strokes May Never Reach Undo Through the Canvas Drag Path (Suspected)
+- **Description**: `_submit_drag_pixel_changes_to_undo` runs only when `_drag_pixels` is empty, so drag strokes do not reach undo through this path
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Suspected from reading; whether drags record undo elsewhere was not checked
+- **Files**: `glitchygames/bitmappy/animated_canvas.py:1229-1240`
+
+### 102. The System Palette's Color Names Do Not Match Its File
+- **Description**: The names in `palette.py:217-233` are in a different order from `color/resources/system.palette`: loading `System()` gives MAROON=(255, 255, 255), GREEN=(255, 0, 0), RED=(128, 128, 128), WHITE=(0, 0, 128); only BLACK is right
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Seen by printing every named color
+- **Files**: `glitchygames/color/palette.py:217-233`
+
+### 103. `ColorPalette` Size Is Off by One
+- **Description**: `_size` is `len - 1`, so `set_color(last_index, ...)` appends instead of replacing, `_size` is never updated after `set_color` (`get_color` cannot see appended colors), and a one-color palette has `_size == 0` (`get_color` returns magenta for every index)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the palette tests
+- **Files**: `glitchygames/color/palette.py:55`, `:67`, `:87`
+
+### 104. Palette Files Cannot Round-Trip
+- **Description**: `PaletteUtility.write_palette_to_file` writes JSON, but `load_palette_from_file` reads ConfigParser format, so a written palette cannot be loaded back
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by the palette tests
+- **Files**: `glitchygames/color/palette.py:147-148`
+
+### 105. The Voice Assistant's History Breaks After 10 Questions
+- **Description**: History trimming keeps the last 20 of 21 entries, so from the 11th question on the history sent starts with an `assistant` message, which providers requiring a user message first reject ("No response from AI"). A failed request also leaves the question in the history unanswered, so the next request sends two user messages in a row
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Both confirmed by tests on the messages sent; not checked against a live API
+- **Files**: `glitchygames/audio/voice_assistant.py:295`, `:298-299`, `:314-316`
+
+### 106. The `backoff` Retry Decorator Triggers a Python 3.14 Deprecation Warning
+- **Description**: `backoff`'s decorator calls `asyncio.iscoroutinefunction`, deprecated in Python 3.14 and due for removal in 3.16; applying it in the AI worker emits a DeprecationWarning (an error under the test suite's `filterwarnings=error`)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: The AI worker tests patch `ai_worker.backoff` to None and use the no-retry path. Fix by upgrading or replacing `backoff` before 3.16
+- **Files**: `glitchygames/bitmappy/ai_worker.py:549`
+
+### 107. Remote Templates Get a Trailing Newline in Their URL
+- **Description**: `build()` reads the `.repo` file with `fh.readline()`, which keeps the newline, so cookiecutter receives `'url\n'` from a normal `.repo` file
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: The new test writes the file without a newline so it does not lock in the bug
+- **Files**: `glitchygames/templates/game.py:26`
+
+### 108. A DualSense HID Write Error Disables the Controller's Whole Audio
+- **Description**: If `device.write` raises (hidapi can, on a disconnected device), `close()` is skipped and the exception escapes `ControllerAudio.__init__`, so `for_controller` returns None for the whole controller instead of only losing the speaker
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Found by reading, not tested
+- **Files**: `glitchygames/audio/controller_audio.py:134-135`
+
+### 109. `quantize_colors_if_needed` Crashes When There Is No Room for Colors
+- **Description**: When `max_colors` is no more than the slot reserved for transparency (`has_transparency=True, max_colors=1`), it raises `KeyError: None`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: Confirmed by running it; reachable only through direct calls with a tiny `max_colors`
+- **Files**: `glitchygames/bitmappy/toml_processing.py:714`
+
+### 110. Smaller Findings From the Coverage Push
+- **Description**: Small inconsistencies the coverage tests found, none breaking a feature on its own
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the coverage push (2026-10-21, helper agents writing tests; not fixed)
+- **Date Reported**: 2026-10-21
+- **Details**: (1) `animated_canvas.py:1366/1376` writes load errors to `self.parent.debug_text` but a successful load writes `self.parent_scene.debug_text` (`:1527`). (2) `animated_canvas.py:1711-1712`: a resize sets the class attributes `AnimatedCanvasSprite.WIDTH`/`HEIGHT`, global state shared by every canvas. (3) `slider_manager.py:807` and `ui/sliders.py:322` read typed text as hex only when it contains a-f, even on the hex tab ("10" is 10, not 16). (4) `slider_manager.py:701-735` refreshes only the R, G and B text formats on a tab change, not alpha. (5) `audio/tts.py:92` calls `subprocess.run` directly instead of `glitchygames.process.run_command`, the engine's one launcher. (6) `services/renderer_service.py:101-102` always overwrites `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER`; its `pygame_initialized` class flag never resets after `pygame.quit()`; `:415-418` leaves the frame manager on the last rendered frame when its starting animation is None. (7) `ai_manager.py:588-590`/`616-620`: each TOML rewrite adds a blank line to every pixel block (tomllib keeps the trailing newline; loading ignores it). (8) No production callers: `visual_indicators._update_slider_indicator` and `_draw_visual_indicator`, the `animated_canvas` panning helpers, `_convert_static_to_animated`, `_mark_film_strips_dirty`, `_clear_existing_film_strips`, `adaptive_clamping.get_statistical_aggregates`. (9) `tests/animation/test_animation_hardware.py`'s 9 "hardware" tests read the shared mocked display, whose `get_at` answers black for every pixel: they check no real rendering, whatever their names say. (10) Unreachable code the tests could not reach is listed in each agent's notes: e.g. `film_strip_operations.py:324-328`/`388-391`, `modes.py:146`/`367`/`373`, `sprite_generation_service.py:176-181`. Also: a joystick in film strip mode always reads R2 as pressed because of #67, so its triggers never switch modes
+- **Files**: see Details
+
 ### 19. Ruff PLW0717: 102 Try Blocks Too Broad
 - **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
-- **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done)
+- **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done). 2026-10-21: every site outside Bitmappy is narrowed; 62 remain in `glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py` and `tests/tools/` (plan: `plans/2026-10-20-lint-ignores-cleanup.md`, phase 3)
 - **Priority**: Low
 - **Reporter**: Found while fixing the pre-push hooks
 - **Date Reported**: 2026-10-15
@@ -30,7 +255,219 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
 - **Files**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
 
+### 67. Bitmappy's Joystick-Event Trigger Conversion Assumes pygame 1's Integer Axis Scale
+- **Description**: `ControllerEventHandler._read_joystick_trigger_values` converts trigger axes with `(raw + 32768) / 65535`, but pygame 2 reports joystick axes as -1.0..1.0, so both triggers always read about 0.5 whatever their position
+- **Status**: Active (latent: only events without an `instance_id` take this path, and pygame-ce's joystick and controller events all carry one, so they go to `_read_controller_trigger_values`, which converts correctly)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Details**: Fix with the `(raw + 1.0) / 2.0` conversion the controller path uses (or drop the path if no event without an `instance_id` can reach it). `TestTriggerValuesFromSnapshot` in `tests/tools/test_bitmap_editor_scene.py` pins today's values
+- **Files**: `glitchygames/bitmappy/controllers/event_handler.py`
+
+### 68. ControllerEventManager Keys Controllers by Device Index but Routes Events by Instance Id
+- **Description**: `ControllerEventManager.__init__` and `on_controller_device_added_event` store each proxy under its device index (`self.controllers[controller_id]`, `self.controllers[event.device_index]`), but the axis, button, touchpad, sensor and removal handlers look proxies up by `event.instance_id`. The two agree only while every controller's instance id equals its device index (the first controllers plugged in at startup); after a reconnect the lookup raises `KeyError` or reaches the wrong controller
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Details**: Key the proxies by instance id (`ControllerEventProxy._instance_id`, set from the controller's joystick view since Task 6), as `JoystickEventManager` does. The joystick demo's controller-mode tab code treats the keys as device indexes, so it needs updating with it
+- **Files**: `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
+
+### 72. MultiControllerEnhancements Stores a Duration Where Its Next Call Expects a Timestamp
+- **Description**: `MultiControllerEnhancements._update_performance_metrics` stores the first reading as `performance_metrics[operation]`, then on each later call replaces it with `timestamp - performance_metrics[operation]`. From the third call on it subtracts a duration from a timestamp, so `'visual_update'` alternates between a duration and a timestamp-sized number
+- **Status**: Active (diagnostic only: the value is reported by `get_controller_performance_stats` and nothing acts on it)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 9)
+- **Date Reported**: 2026-10-19
+- **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `measured_seconds()` (real time, diagnostics only) since Task 12b
+- **Files**: `glitchygames/bitmappy/controllers/enhancements.py`
+
+### 73. PaddleSlap Sets the `game` Logger to INFO at Import, Overriding `--log-level`
+- **Description**: `glitchygames/examples/paddleslap.py:46-47` calls `logging.getLogger('game').setLevel(logging.INFO)` when the module is imported (and `glitchygames/game_objects/paddle.py:18-19` does the same for `game.paddle`). The level set on the `game` logger wins over the root level `--log-level` configures, so `--log-level warning` or `error` still prints every `game.*` INFO line when PaddleSlap runs
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14: the `--audit` children of the PaddleSlap golden replay printed INFO lines under `--log-level error`)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected
+- **Files**: `glitchygames/examples/paddleslap.py`, `glitchygames/game_objects/paddle.py`
+
+### 74. `debug_events` Is Always False: `--log-level` Is Compared With Upper-Case Names
+- **Description**: `GameEngine.initialize_arguments` (`glitchygames/engine/game_engine.py`, around line 634) sets `OPTIONS['debug_events']` from `OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}`, but `--log-level` (`glitchygames/events/game.py`) is lower-cased by `type=str.lower` and its choices are lower case, so the test never matches and unhandled events are never logged through `debug_events`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here: correcting the case would turn event debug logging on for `--log-level error` and `critical` runs too, which looks unintended (the set probably meant `debug` only); the intended levels need deciding first
+- **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/events/game.py`, `glitchygames/events/base.py`
+
+### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately
+- **Description**: `pygame_needs_fastevents()` (`glitchygames/engine/game_engine.py`, around line 107) returns `vernum[0] < 2 and vernum[1] < 2`, so it is True only when both the major and the minor version are below 2. pygame 1.9 (major 1, minor 9) gets False and would not read events with `pygame.fastevent`, although its docstring says "True for pygame < 2.2". The intended test is `(vernum[0], vernum[1]) < (PYGAME_MIN_MAJOR_VERSION, PYGAME_MIN_MINOR_VERSION)`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 12 review)
+- **Date Reported**: 2026-10-19
+- **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
+- **Files**: `glitchygames/engine/game_engine.py`
+
+### 76. Graphics Options: `--resolution` Help, `--windowed` and the macOS Video-Driver Check Disagree With the Code
+- **Description**: In `GameEngine.args()` (`glitchygames/engine/game_engine.py`): `--resolution`'s help says "default: 1024x768" while its default is `800x480`; `-w`/`--windowed` is `store_true` with `default=True`, so the flag can never change anything (there is no way to ask for fullscreen); and the video-driver block checks `platform.system() == 'MacOS'`, which never matches (`platform.system()` returns `'Darwin'`), so the macOS branch is dead (harmless today, since it would also give no choices)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 15: correcting `docs/architecture/argument_system.md` against the argparse definitions)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here (documentation task). The help text is a one-line fix; `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
+- **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
+
+### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
+- **Description**: Recordings now hold the key codes the held keys had (`held_key_codes`), so a replay on another keyboard layout answers `key_pressed(K_*)` as recorded. Only pygame's named `K_*` codes are recorded (`glitchygames.input.state.NAMED_KEY_CODES`): a key code a layout adds that pygame names no constant for (say a Unicode letter key) is never reported held in a replay, even on the recording machine
+- **Status**: Active (documented limitation)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A4)
+- **Date Reported**: 2026-10-20
+- **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code. Documented for game authors in `docs/architecture/gameplay_replay.md` (Polled input): handle such keys through events or by position (`scancode_pressed`, `ActionMap.bind(scancode=...)`), not by polling their key code
+- **Files**: `glitchygames/input/state.py`
+
 ## Resolved Bugs
+
+### 86. FastTimer Woke Most Frames 1-2 ms Late on macOS
+- **Description**: FastTimer slept until 1 ms before each frame deadline, assuming a sleep wakes on time. macOS lets a normal-priority sleep run late by a quarter of its length (4 ms wakes 1.01 ms late, 16 ms 4.01 ms; measured 2026-10-21), so an ~11 ms frame sleep woke ~2.75 ms late and frames finished 1.5 ms past their deadline (60 FPS, 4 ms of work: median 1.54 ms, p90 1.85 ms). The average rate held (deadlines do not accumulate lateness); every frame's present jittered. Where sleeps wake much later (a virtual machine, a background process: a flat 85-100 ms), frames fell to about 10 FPS
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found while calibrating timers for the CircleCI macOS timing failure
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/timing.py`, `glitchygames/engine/game_engine.py`, `glitchygames/recording_history.py`
+- **Date Resolved**: 2026-10-21
+- **Solution**: `--timer-backend auto`, the new default: the engine measures the machine's sleep delay as a constant plus a fraction of the sleep's length (`SleepModel`, `measure_sleep_model`) when it starts a paced live game, and FastTimer sizes each sleep so its predicted wake lands `sleep_granularity_ns` before the deadline, spinning the whole wait when no sleep could. Same measurement: frames on time (median 0.000 ms) at 30% CPU instead of 24%; at background priority on time at 92% CPU. A paced recording names its timer (`MeasurementRun.pacing_timer`). `--timer-backend fast` keeps the old behaviour
+
+### 82. A Recording That Cannot Be Written Part Way Ends the Run as an Internal Error
+- **Description**: An unwritable `--record-trace` (or `--rebaseline` partial, `--replay-digest`) file is refused before the run with one line and `CANNOT_WRITE_OUTPUT` (73), and a digest file that fails at the end exits 73 after the report. But a recording whose writes start failing part way (the disk fills, the file system goes away) raises `OSError` from `GameplayRecorder.record_frame` inside the frame loop, so the run exits `INTERNAL_ERROR` (70) with a traceback
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A5)
+- **Date Reported**: 2026-10-20
+- **Details**: Catching `OSError` around the recorder's writes and ending the run with `CANNOT_WRITE_OUTPUT` (after closing what was written) would match the up-front refusal; not done here, as the review asked for the path checks only
+- **Files**: `glitchygames/recording.py`, `glitchygames/engine/game_engine.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: `GameplayRecorder` turns a failed write into `RecordingWriteError` (an `OSError`): it logs one line (`<path> could not be written: No space left on device`, no traceback), closes the file as far as it can (the frames before stay readable) and writes nothing more; `GameEngine.start` ends the run with `CANNOT_WRITE_OUTPUT` (73). A failure as the file is closed in the teardown (the gzip trailer) is logged, not raised, so the teardown finishes, and the run exits 73 too (`GameEngine.recording_write_failed`). A rebaseline's NEW goes through the same recorder
+
+### 78. A Stale `glitchygames.egg-info` in the Checkout Root Hides the Installed Package Metadata
+- **Description**: The checkout root holds an untracked, git-ignored `glitchygames.egg-info/` from April 2025 (version 0.1.0, no entry points). Whenever the checkout root comes before `site-packages` on `sys.path` (pytest's rootdir insertion, `python -c` or `python -m` run from the root), `importlib.metadata` finds it first: `importlib.metadata.version('glitchygames')` returns `0.1.0` instead of `1.0.0`, so `--replay-trace` logs "The recording was made with engine version 1.0.0; this is 0.1.0" and recordings made that way would record `engine_version` 0.1.0; `importlib.metadata.entry_points()` (which keeps only the first distribution of each name) lists none of the project's console scripts
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay tooling, Task 5: the replay plugin's console-script lookup failed under pytest)
+- **Date Reported**: 2026-10-20
+- **Details**: Not a code bug and not removed here (it is the user's file). Deleting the directory fixes it; `glitchygames/testing/replays.py` (`game_entry_point`) searches every distribution so the plugin works either way. `replay/driver.py` (`_installed_engine_version`) and `state/manager.py` still read the first one
+- **Files**: `glitchygames.egg-info/` (untracked), `glitchygames/replay/driver.py`, `glitchygames/state/manager.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: Deleted the stale directory (with the user's go-ahead); `importlib.metadata.version('glitchygames')` run from the checkout root now gives 1.0.0 and the console scripts are listed. `game_entry_point`'s search of every distribution (`glitchygames/testing/replays.py`) is left as it is: harmless, and it guards against the next stray egg-info (the src/ layout move would remove the cause)
+
+### 84. A Live Supervisor's `post_event` Is Recorded as the Scene's Own Internal Event
+- **Description**: When a live supervisor (or control-event handler) calls `glitchygames.recording.post_event` in an ordinary live frame, the post is journaled and recorded as one of the scene's internal events. A later `instant_replay()` across that frame diverges (`event UserEvent missing internal event expected {...}, got None`), because nothing in the played scene makes that post; a post made in the frame just before `instant_replay()` plays the first time, but a second replay across that scope diverges. A `--replay-trace` replay of a `--record-trace` session diverges the same way unless the replay adds the same supervisor
+- **Status**: Resolved
+- **Priority**: Low (supervisors are an engine hook; no shipped game posts from one)
+- **Reporter**: Found by reading during the gameplay-replay final review fixes; confirmed by the re-review's probe
+- **Date Reported**: 2026-10-20
+- **Details**: Predates 77ed933 (present at 00b795d). Inside a playback scope, 77ed933 already keeps live supervisors' posts apart (`recording.live_game_posts`) and re-posts them after the scope; outside a scope they are not marked. Golden replays avoid it because `ScriptedInputSupervisor` (`scripts/record_scripted_session.py`) posts SDL input types with raw `pygame.event.post`, which are recorded as external input. A fix could mark supervisor-slot posts outside scopes too and record them as external (or as control events), so a replay serves them instead of expecting the game to make them
+- **Files**: `glitchygames/recording.py`, `glitchygames/scenes/scene.py`, `glitchygames/replay/playback.py`, `glitchygames/replay/driver.py`, `glitchygames/engine/game_engine.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: An explicit API instead of guessing whose supervisor it is: `recording.post_input_event` posts an event as input to the game (a supervisor driving it, a harness, a tool). Recordings and the instant-replay journal record it as `external`, whatever its type, so every replay serves it whether or not it runs the poster again; a copy the replayed code posts (a supervisor the played scene's setup() added) is dropped (`ReplaySources._sort_live_events`; inside a scope `PlaybackSources._sort_base_events`, which notes the input posts before the installed doors pump, since a replay's pump forgets them). The live game's input posts held by a scope are redelivered as external or re-posted as input; scene starts and resume bridges count only the game's own posts as earlier events (`pending_code_post_count`). `post_event` keeps meaning "the game posted it", so a supervisor that posts with it still gets the old behaviour (documented in the module docstring). Remaining limit: a `--replay-trace` of a session whose live supervisor posted during an instant replay diverges if the replay lacks that supervisor (the scope's pump cannot tell the served event from a scope post; `replay/playback.py` Limits)
+
+### 79. Clockwork Keep's `--floor` Option Is Parsed but Never Read
+- **Description**: `ClockworkKeepScene.args` adds `--floor` ("Starting floor (0=Boiler Room, 1=Gear Works, 2=Clock Face)"), but nothing reads `options['floor']`: the game always starts on floor 0 (`ClockworkKeepScene()` with its default `floor_index`)
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 1: Clockwork Keep's `replay_arguments`)
+- **Date Reported**: 2026-10-20
+- **Details**: Either read the option where the first floor is built (`floor_index=options.get('floor', 0)`, which would make `--floor` a recorded option a replay applies) or drop the argument. Not fixed here: it changes the game's behaviour, outside this task
+- **Files**: `glitchygames/examples/clockwork_keep/game.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: Read it where the first floor is built: `ClockworkKeepScene(floor_index=None)` (the default, which is how the engine builds the first scene from options alone) takes `options['floor']` (`_starting_floor_index`); the elevator and a playback's rebuild still name their floor. `--floor` now refuses a floor that does not exist (`choices=range(len(ALL_FLOORS))`), and as a recorded option a replay applies it; recordings without it start on floor 0 as before
+
+### 80. Playbacks Found a Scene Class by Its Bare Name, So Two Loaded Scenes Named Alike Refused It
+- **Description**: A scene start recorded only the class name (`SceneStart.scene_class`, e.g. `Game`), and `find_scene_class` refused a playback when several loaded `Scene` subclasses shared it ("Several scene classes are named Game"). Ten example and script scenes are named `Game` (PaddleSlap, the joystick, dt and text-input demos, six in `scripts/`), and the full suite loads more than one
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 4: PaddleSlap's bundled demo)
+- **Date Reported**: 2026-10-20
+- **Files**: `glitchygames/scene_start.py`, `glitchygames/replay/playback.py`, `glitchygames/replay/driver.py`, `glitchygames/engine/game_engine.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: A start records `scene_module` and the class's `__qualname__`; `find_scene_class` takes the one loaded class with that module and qualified name, else (no module recorded, a game run as `__main__`) a qualified name no other loaded scene shares, and still refuses an ambiguous one; nothing is imported from recording data. The trace header holds `game_module` too, and `check_recorded_game` refuses a same-named game from another module (name only for headers without it, or when either side is `__main__`). PaddleSlap's bundled demo was re-recorded; the golden replay fixtures (no module) still replay
+
+### 81. A Playback Scope Left `SceneManager.previous_scene` Pointing at Its Own Scenes
+- **Description**: A demo whose recording switches scenes (to the pause screen, to game over) set `SceneManager.previous_scene` through `switch_to_scene`; `_exit_playback` restored the live scene but not `previous_scene`, so `GameOverScene.resume` (which restarts `type(previous_scene)`) or the default `Scene.resume` could restart or resume a playback scene
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 4)
+- **Date Reported**: 2026-10-20
+- **Files**: `glitchygames/scenes/scene.py`, `glitchygames/replay/playback.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: `PlaybackRequest.begin_session` saves `previous_scene` (`PlaybackSession.saved_previous_scene`) as the scope begins and `_exit_playback` restores it
+
+### 77. Multi-Controller Stress Tests Time Themselves With the Wall Clock
+- **Description**: `tests/tools/test_multi_controller_stress.py` asserts elapsed `time.time()` differences (e.g. `test_concurrent_operations_stress`: `< 10.0` seconds), so a wall-clock jump fails it: one full-suite run measured 732 s inside a 68 s run
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay tooling, Task 4: full-suite run)
+- **Date Reported**: 2026-10-20
+- **Files**: `tests/tools/test_multi_controller_stress.py`
+- **Date Resolved**: 2026-10-20
+- **Solution**: Every duration in the file is measured with `time.perf_counter()` (monotonic, never stepped by sleep or NTP) instead of `time.time()`
+
+### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them
+- **Description**: `LiveDeviceRegistry` appends every enumeration answer and every opened device's descriptor to lists that only `take_enumeration_answers()` / `take_opened_descriptors()` empty, and nothing calls them yet (the recorder will). Without a recorder they grow for the whole run: the joystick demo counts devices every frame (one answer per frame), and Bitmappy's controller scan reopens every joystick once a second
+- **Status**: Resolved
+- **Priority**: Low (tens of bytes per answer)
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Files**: `glitchygames/input/devices.py`, `glitchygames/live_sources.py`
+- **Date Resolved**: 2026-10-19
+- **Solution**: `LiveSources.end_frame` calls `LiveDeviceRegistry.discard_untaken()`, which drops the frame's answers and descriptors nobody took; a recorder (Task 11) takes them before `end_frame`. The registry also forgets a device when it is removed (the joystick and controller managers' removal handlers call `forget_device`) or when `poll()` finds it detached or raising, instead of logging a traceback every frame. The joystick demo looks joystick device indexes up once per frame instead of once per tracked device
+- **Files Modified**: `glitchygames/input/devices.py`, `glitchygames/live_sources.py`, `glitchygames/events/joystick.py`, `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
+- **Tests**: `test_live_frames_without_a_recorder_keep_no_enumeration_answers`, `test_answers_taken_before_the_end_of_a_live_frame_are_intact` and the forget tests in `tests/input/test_devices.py`; the removal tests in `tests/events/`; `test_joystick_device_index_lookup_opens_each_joystick_once_per_frame` in `tests/examples/test_joystick_demo.py`
+
+### 71. The Joystick Demo Called `get_id` / `get_instance_id` on Game Controllers
+- **Description**: In controller mode the demo's device panel called `get_id()` and `get_instance_id()` on the `pygame._sdl2.controller.Controller`, which has neither, so the `AttributeError` (not caught by `except pygame.error`) would have stopped the demo once #66 no longer did
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Date Resolved**: 2026-10-19
+- **Solution**: Both lookups also catch `AttributeError`; the controller-mode readout takes the instance id from the controller's joystick view
+- **Files Modified**: `glitchygames/examples/joystick_demo.py`
+
+### 70. Bitmappy Read Controller State From the Wrong Device
+- **Description**: `ControllerEventHandler._read_controller_trigger_values` opened `pygame.joystick.Joystick(event.instance_id)` and `is_controller_button_held` opened `pygame.joystick.Joystick(controller_id)`, but pygame's joystick constructor takes a device index. An instance id differs from the device index after a reconnect, and `controller_id` is Bitmappy's slot number (0-3), so both read the wrong device or raised `pygame.error` (read as "not held" / 0.0)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the replay core pre-flight on feature/gameplay-replay (Task 6)
+- **Date Reported**: 2026-10-19
+- **Date Resolved**: 2026-10-19
+- **Solution**: Both read the frame's input snapshot (`current_input()`) by instance id; `is_controller_button_held` finds the slot's instance id through `find_controller_info`
+- **Files Modified**: `glitchygames/bitmappy/controllers/event_handler.py`
+- **Tests**: `TestIsControllerButtonHeld` and `TestTriggerValuesFromSnapshot` in `tests/tools/test_bitmap_editor_scene.py`
+
+### 66. The Joystick Demo Calls `pygame._sdl2.controller.name_forindex`, Which pygame-ce Does Not Have
+- **Description**: `joystick_demo.py` calls `pygame._sdl2.controller.name_forindex` in controller mode (building a proxy's name and validating a controller), but pygame-ce 2.5.8 has no such function, so the call raises `AttributeError`, which the surrounding `except pygame.error` does not catch
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 5)
+- **Date Reported**: 2026-10-19
+- **Details**: The `# type: ignore[attr-defined]` on both lines hid it from the type checkers. Only pygame-ce's legacy stub `pygame/_sdl2/controller_old.pyi` declares it; the live `pygame/_sdl2/controller.pyi` does not
+- **Date Resolved**: 2026-10-19
+- **Solution**: Both calls go through the devices door's `name_for_index` (glitchygames/input/devices.py, replay core Task 6), which answers None when pygame has no lookup; the device panel then shows 'Unknown Controller'. The `# type: ignore` comments are gone
+- **Files Modified**: `glitchygames/examples/joystick_demo.py`
+
+### 65. A Test Left GameEngine.USE_FASTEVENTS Set for Every Later Test on Its Worker
+- **Description**: `test_use_fastevents_with_old_pygame` mocks pygame as version 1.1, so `GameEngine.__init__` sets the class attribute `GameEngine.USE_FASTEVENTS = True`; nothing undid it, so every later engine on that pytest worker chose the fastevent path (and, since the engine's doors, created fastevent `LiveSources`). Harmless only because `pygame.fastevent` no longer exists once the test's mock is undone
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 2 review)
+- **Date Reported**: 2026-10-19
+- **Date Resolved**: 2026-10-19
+- **Root Cause**: The autouse `restore_game_engine_class_state` fixture restored only `game`, `icon` and `OPTIONS`, not the other class attribute engine code writes
+- **Solution**: The fixture also restores `USE_FASTEVENTS`, and the test patches it with `mocker.patch.object` so it undoes its own write
+- **Files Modified**: `tests/conftest.py`, `tests/engine/test_game_engine.py`
+- **Tests**: `TestGameEngineFastEvents` in `tests/engine/test_game_engine.py`; the full suite
 
 ### 64. Collision Used the Previous Frame's Pose (Hitbox Up to 4 px Inside a Wall for One Frame)
 - **Description**: In Brave Adventurer and Clockwork Keep, on the frame the player turned toward a wall or started to run while standing at it, the drawn hitbox sat 1-4 px inside the wall for one frame; the first ground check after a respawn also ran on the blank image, so the player stood 1-2 px high

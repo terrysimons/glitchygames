@@ -90,16 +90,8 @@ class TestShiftRightClickSampling:
         event.pos = (150, 150)  # Inside the film strip bounds
         event.button = 3  # Right mouse button
 
-        # Mock pygame key state to return False for shift keys
-        mock_key_state = [False] * 512
-        # Use actual pygame constants if available, otherwise use known values
-        try:
-            mock_key_state[pygame.K_LSHIFT] = False
-            mock_key_state[pygame.K_RSHIFT] = False
-        except IndexError, AttributeError:
-            # Fallback: just return all False
-            pass
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        # No shift key held this frame
+        MockFactory.install_frame_input()
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -120,12 +112,8 @@ class TestShiftRightClickSampling:
         event.pos = (150, 150)  # Inside the film strip bounds
         event.button = 3  # Right mouse button
 
-        # Set pygame.key.get_pressed to return shift-pressed state.
-        # Since setup_pygame_mocks_with_mocker replaces pygame.key entirely,
-        # we set get_pressed directly on the mocked key object.
-        mock_key_state = [False] * 512
-        mock_key_state[pygame.K_LSHIFT] = True  # Left shift pressed
-        pygame.key.get_pressed = mocker.Mock(return_value=mock_key_state)
+        # Left shift held this frame (the sprite reads the frame's polled input)
+        MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -224,16 +212,8 @@ class TestShiftRightClickSampling:
         event = MockFactory.create_pygame_event_mock()
         event.pos = (50, 50)  # On canvas
 
-        # Mock pygame key state to return False for shift keys
-        mock_key_state = [False] * 512
-        # Use actual pygame constants if available, otherwise use known values
-        try:
-            mock_key_state[pygame.K_LSHIFT] = False
-            mock_key_state[pygame.K_RSHIFT] = False
-        except IndexError, AttributeError:
-            # Fallback: just return all False
-            pass
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        # No shift key held this frame
+        MockFactory.install_frame_input()
 
         # Call the scene's right-click handler
         scene.on_right_mouse_button_up_event(event)
@@ -270,18 +250,14 @@ class TestShiftRightClickSampling:
 
         scene._sample_color_from_screen = _sample_color_impl
 
-        # Build a key state list with shift pressed, then create a mock
-        # get_pressed function that returns it. We set it directly on
-        # the mocked pygame.key object to avoid patch ordering issues.
-        mock_key_state = [False] * 512
-        mock_key_state[pygame.K_LSHIFT] = True
-        mock_get_pressed = self._mocker.Mock(return_value=mock_key_state)
+        # Left shift held this frame
+        held_keys = MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
 
-        # Add the right-click handler method to the mock scene.
-        # Capture mock_get_pressed to avoid depending on pygame.key patching.
+        # Add the right-click handler method to the mock scene
         def mock_on_right_mouse_button_up_event(event):
-            key_state = mock_get_pressed()
-            is_shift_click = key_state[pygame.K_LSHIFT] or key_state[pygame.K_RSHIFT]
+            is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
+                pygame.K_RSHIFT
+            )
 
             if (
                 hasattr(scene, 'canvas')
@@ -359,10 +335,8 @@ class TestShiftRightClickSampling:
         event.pos = (50, 50)  # Outside the film strip bounds
         event.button = 3  # Right mouse button
 
-        # Mock pygame key state to return True for shift key
-        mock_key_state = [False] * 512
-        mock_key_state[pygame.K_LSHIFT] = True  # Left shift pressed
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        # Left shift held this frame
+        MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -377,16 +351,8 @@ class TestShiftRightClickSampling:
         event.pos = (50, 50)  # Outside the film strip bounds
         event.button = 3  # Right mouse button
 
-        # Mock pygame key state to return False for shift keys
-        mock_key_state = [False] * 512
-        # Use actual pygame constants if available, otherwise use known values
-        try:
-            mock_key_state[pygame.K_LSHIFT] = False
-            mock_key_state[pygame.K_RSHIFT] = False
-        except IndexError, AttributeError:
-            # Fallback: just return all False
-            pass
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        # No shift key held this frame
+        MockFactory.install_frame_input()
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
@@ -407,10 +373,8 @@ class TestShiftRightClickSampling:
         event.pos = (150, 150)  # Inside the film strip bounds
         event.button = 3  # Right mouse button
 
-        # Mock pygame key state to return True for shift key
-        mock_key_state = [False] * 512
-        mock_key_state[pygame.K_LSHIFT] = True  # Left shift pressed
-        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
+        # Left shift held this frame
+        MockFactory.install_frame_input(held_scancodes={pygame.KSCAN_LSHIFT})
 
         # Call the event handler - should not crash
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)

@@ -14,7 +14,6 @@ Domain-specific operations are provided by composition delegates:
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -35,6 +34,8 @@ from glitchygames.bitmappy.controllers.selection import (
 )
 from glitchygames.bitmappy.controllers.slider_operations import SliderOperations
 from glitchygames.bitmappy.controllers.visual_indicators import VisualIndicators
+from glitchygames.clock import elapsed_seconds
+from glitchygames.input.state import current_input
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.protocols import EditorContext
@@ -462,7 +463,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.log.debug('DEBUG: Controller selection not active, ignoring analog stick input')
             return
 
-        current_time = time.time()
+        current_time = elapsed_seconds()
 
         if event.axis == pygame.CONTROLLER_AXIS_LEFTX:
             self._handle_left_stick_x_axis(event, current_time)
@@ -526,7 +527,8 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         """
         # Apply deadzone
         if abs(event.value) < self._controller_axis_deadzone:
-            self._controller_axis_cooldown[event.axis] = 0
+            # No cooldown (-inf), whatever elapsed_seconds() reads (the frame clock)
+            self._controller_axis_cooldown[event.axis] = float('-inf')
             self._controller_axis_last_values[event.axis] = 0
             return False
 
@@ -568,7 +570,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.editor.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
             self.log.debug(f'DEBUG: Registered controller {controller_id} with mode switcher')
 
-        current_time = time.time()
+        current_time = elapsed_seconds()
 
         l2_value, r2_value = self._read_trigger_values(event, controller_id)
 
@@ -665,24 +667,22 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.log.debug(f'DEBUG: No controller info found for instance_id={event.instance_id}')
             return 0.0, 0.0
 
-        try:
-            controller = pygame.joystick.Joystick(event.instance_id)
-            # Convert pygame trigger values (-1.0 to 1.0) to our expected range (0.0 to 1.0)
-            l2_raw = controller.get_axis(pygame.CONTROLLER_AXIS_TRIGGERLEFT)
-            r2_raw = controller.get_axis(pygame.CONTROLLER_AXIS_TRIGGERRIGHT)
-            l2_value = (l2_raw + 1.0) / 2.0
-            r2_value = (r2_raw + 1.0) / 2.0
-            self.log.debug(
-                f'DEBUG: Controller {controller_id} triggers - L2: {l2_value:.2f}, R2:'
-                f' {r2_value:.2f}',
-            )
-        except (pygame.error, OSError, AttributeError) as e:
-            self.log.debug(
-                f'DEBUG: Error getting controller object for instance_id={event.instance_id}: {e}',
-            )
-            return 0.0, 0.0
-        else:
-            return l2_value, r2_value
+        # The frame's input snapshot (glitchygames/input/state.py) holds the joystick-layer
+        # axes by instance id. (This used to open a pygame joystick with the event's instance
+        # id, but pygame's joystick constructor takes a device index, which differs from the
+        # instance id after a reconnect, so it read the wrong device or raised pygame.error.)
+        snapshot = current_input()
+        # Convert pygame trigger values (-1.0 to 1.0) to our expected range (0.0 to 1.0)
+        l2_raw = snapshot.axis(device_id=event.instance_id, axis=pygame.CONTROLLER_AXIS_TRIGGERLEFT)
+        r2_raw = snapshot.axis(
+            device_id=event.instance_id, axis=pygame.CONTROLLER_AXIS_TRIGGERRIGHT
+        )
+        l2_value = (l2_raw + 1.0) / 2.0
+        r2_value = (r2_raw + 1.0) / 2.0
+        self.log.debug(
+            f'DEBUG: Controller {controller_id} triggers - L2: {l2_value:.2f}, R2: {r2_value:.2f}',
+        )
+        return l2_value, r2_value
 
     def _read_joystick_trigger_values(
         self,
@@ -704,35 +704,33 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             controller_id,
             event.joy,
         )
-        try:
-            joystick = pygame.joystick.Joystick(event.joy)
-            self.log.debug(f'DEBUG: Created joystick object for joy {event.joy}')
-            l2_raw = joystick.get_axis(4)  # TRIGGERLEFT
-            r2_raw = joystick.get_axis(5)  # TRIGGERRIGHT
+        # The frame's input snapshot (glitchygames/input/state.py), never the device mid-frame.
+        # Only events without an instance id come here (_read_trigger_values), so ``joy`` is
+        # the only id they carry.
+        snapshot = current_input()
+        l2_raw = snapshot.axis(device_id=event.joy, axis=4)  # TRIGGERLEFT
+        r2_raw = snapshot.axis(device_id=event.joy, axis=5)  # TRIGGERRIGHT
 
-            # Convert joystick raw values to 0.0..1.0 range
-            # Joystick values are typically in the range -32768 to 32767
-            # We need to normalize them to 0.0 to 1.0
-            l2_value = max(0.0, min(1.0, (l2_raw + 32768.0) / 65535.0))
-            r2_value = max(0.0, min(1.0, (r2_raw + 32768.0) / 65535.0))
+        # Convert joystick raw values to 0.0..1.0 range
+        # Joystick values are typically in the range -32768 to 32767
+        # We need to normalize them to 0.0 to 1.0
+        # (pygame 2 reports -1.0..1.0, so this reads about 0.5 for any position: BUGS.md #67)
+        l2_value = max(0.0, min(1.0, (l2_raw + 32768.0) / 65535.0))
+        r2_value = max(0.0, min(1.0, (r2_raw + 32768.0) / 65535.0))
 
-            self.log.debug(
-                'DEBUG: Joystick %s raw values - L2: %.2f, R2: %.2f',
-                controller_id,
-                l2_raw,
-                r2_raw,
-            )
-            self.log.debug(
-                'DEBUG: Joystick %s triggers - L2: %.2f, R2: %.2f',
-                controller_id,
-                l2_value,
-                r2_value,
-            )
-        except (pygame.error, OSError, AttributeError) as e:
-            self.log.debug(f'DEBUG: Error getting joystick trigger values: {e}')
-            return 0.0, 0.0
-        else:
-            return l2_value, r2_value
+        self.log.debug(
+            'DEBUG: Joystick %s raw values - L2: %.2f, R2: %.2f',
+            controller_id,
+            l2_raw,
+            r2_raw,
+        )
+        self.log.debug(
+            'DEBUG: Joystick %s triggers - L2: %.2f, R2: %.2f',
+            controller_id,
+            l2_value,
+            r2_value,
+        )
+        return l2_value, r2_value
 
     def _track_controller_mode_change(self, controller_id: int, new_mode: ControllerMode) -> None:
         """Track a controller mode change for undo/redo.
@@ -762,16 +760,22 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     def is_controller_button_held(self, controller_id: int, button: int) -> bool:
         """Check if a controller button is currently held down.
 
+        Reads the frame's input snapshot (glitchygames/input/state.py) by the controller's
+        instance id. (This used to open a pygame joystick with the controller id, but the
+        controller id is Bitmappy's slot number, not a device index.)
+
+        Args:
+            controller_id: Bitmappy's controller slot.
+            button: The joystick button index.
+
         Returns:
             bool: True if the condition is met, False otherwise.
 
         """
-        try:
-            # Get the controller instance
-            controller = pygame.joystick.Joystick(controller_id)
-            return controller.get_button(button)
-        except pygame.error, ValueError:
+        controller_info = self.find_controller_info(controller_id)
+        if controller_info is None:
             return False
+        return current_input().button(device_id=controller_info.instance_id, button=button)
 
     def find_controller_info(self, controller_id: int) -> Any:
         """Find controller info by controller ID.

@@ -15,6 +15,9 @@ from glitchygames.engine.game_engine import (
 # Re-export GameEventManager since it was importable from glitchygames.engine
 from glitchygames.events.game import GameEventManager
 
+# Re-exported so games and scripts can exit with the engine's codes (glitchygames/exit_codes.py)
+from glitchygames.exit_codes import ExitCode
+
 __all__ = [
     'ASSET_PATH',
     'DEFAULT_TARGET_FPS',
@@ -24,6 +27,7 @@ __all__ = [
     'PYGAME_MIN_MINOR_VERSION',
     'TEST_MODE',
     'UNKNOWN_SDL2_EVENT_TYPE_1543',
+    'ExitCode',
     'GameEngine',
     'GameEventManager',
 ]

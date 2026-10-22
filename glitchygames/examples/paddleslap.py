@@ -6,10 +6,11 @@ This is a simple game where you try to keep the ball from hitting your side of t
 
 from __future__ import annotations
 
+import copy
 import logging
 import math
-import time
-from typing import TYPE_CHECKING, Self, cast, override
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Self, cast, override
 
 if TYPE_CHECKING:
     import argparse
@@ -42,7 +43,7 @@ from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
-from glitchygames.state import SaveManager, SaveNotFoundError
+from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -68,6 +69,15 @@ SPAWN_RANDOM_STREAM = 'paddleslap.spawn'
 COLOR_RANDOM_STREAM = 'paddleslap.colors'
 # Each colour channel is drawn from range(COLOR_CHANNEL_LEVELS)
 COLOR_CHANNEL_LEVELS = 256
+
+# Attract mode: PaddleSlap has no title screen (a game starts serving at once), so its idle
+# screen is the game-over screen. After GAME_OVER_IDLE_SECONDS of its game time (Scene.game_time)
+# without a key or button press, it plays the bundled demo (SceneManager.play_recording), which
+# any press ends, returning to the game-over screen. The demo was recorded with
+# scripts/record_scripted_session.py --game paddleslap --frames 450 (before the golden script
+# pauses), and tests/replay/test_bundled_demos.py replays it.
+PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'paddleslap_demos' / 'rally.jsonl.gz'
+GAME_OVER_IDLE_SECONDS = 10.0
 
 # Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
 # off so long rallies stay playable, preserving the angle the paddle set, capped at 500.
@@ -297,8 +307,10 @@ class Game(Scene):
 
         self.balls: list[BallSprite] = []
         self.rally_count: int = 0  # Total paddle hits across all balls
-        self.saves = SaveManager(app_name='paddleslap')
-        self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
+        self.saves: SaveManager = open_saves(app_name='paddleslap')
+        # Game time of the last spawn (Scene.game_time); -inf so the first spawn is never held
+        # back by the cooldown, as with the old wall-clock start of 0.0
+        self.last_ball_spawn_time = -math.inf
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
         # when ball bounding boxes overlap across multiple consecutive frames.
@@ -524,7 +536,7 @@ class Game(Scene):
     def _show_game_over(self: Self) -> None:
         """Save high score and show the Game Over scene."""
         high_scores = self._save_high_score()
-        self.next_scene = GameOverScene(
+        self.next_scene = PaddleSlapGameOverScene(
             final_score=self.rally_count,
             high_scores=high_scores,
             options=self.options,
@@ -647,7 +659,7 @@ class Game(Scene):
 
         # Check cooldown if enabled
         if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
-            current_time = time.time()
+            current_time = self.game_time
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
@@ -667,7 +679,7 @@ class Game(Scene):
 
         # Spawn conditions met, spawn a new ball
         if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
-            self.last_ball_spawn_time = time.time()
+            self.last_ball_spawn_time = self.game_time
         self._spawn_new_ball()
 
     def _get_spawn_cooldown(self: Self) -> float:
@@ -984,17 +996,19 @@ class Game(Scene):
             Tuple of (player1_actions, player2_actions, pause_actions).
 
         """
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause included (ActionMap module docstring)
         player1_actions = ActionMap(input_mode=input_mode)
         player1_actions.bind(
             'up',
-            keyboard=pygame.K_w,
+            scancode=pygame.KSCAN_W,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
             instance_id=0,
         )
         player1_actions.bind(
             'down',
-            keyboard=pygame.K_s,
+            scancode=pygame.KSCAN_S,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
             instance_id=0,
@@ -1003,21 +1017,21 @@ class Game(Scene):
         player2_actions = ActionMap(input_mode=input_mode)
         player2_actions.bind(
             'up',
-            keyboard=pygame.K_UP,
+            scancode=pygame.KSCAN_UP,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
             instance_id=1,
         )
         player2_actions.bind(
             'down',
-            keyboard=pygame.K_DOWN,
+            scancode=pygame.KSCAN_DOWN,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
             controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
             instance_id=1,
         )
 
         pause_actions = ActionMap(input_mode=input_mode)
-        pause_actions.bind('pause', keyboard=pygame.K_SPACE)
+        pause_actions.bind('pause', scancode=pygame.KSCAN_SPACE)
 
         return player1_actions, player2_actions, pause_actions
 
@@ -1137,6 +1151,104 @@ class Game(Scene):
         elif self.pause_actions.get_action(event) is None:
             # Let base Scene handle ESC/q to quit
             super().on_key_up_event(event)
+
+
+class PaddleSlapGameOverScene(GameOverScene):
+    """PaddleSlap's game-over screen: plays the bundled demo while nobody presses anything.
+
+    After GAME_OVER_IDLE_SECONDS of game time without a key or button press, the demo plays
+    (``SceneManager.play_recording``) and returns here; the idle wait starts again when the demo
+    starts, and game time does not advance while it plays. SPACE starts a new PaddleSlap game.
+    The press that ends a demo is consumed (it never reaches this screen), so starting a new
+    game after a demo takes a second press.
+    """
+
+    def __init__(
+        self: Self,
+        final_score: int | None = None,
+        high_scores: list[dict[str, int]] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the game-over screen.
+
+        Args:
+            final_score: The rally count of the game that ended.
+            high_scores: The high scores, sorted descending.
+            **kwargs: Scene keyword arguments (``options``).
+
+        """
+        super().__init__(final_score=final_score, high_scores=high_scores, **kwargs)
+        # Game time (Scene.game_time) the idle wait began at: the last press, or the last demo
+        self.idle_since_game_time = 0.0
+
+    @override
+    def replay_arguments(self: Self) -> dict[str, Any]:
+        """Return the score and high scores this screen was built with.
+
+        Returns:
+            ``final_score`` and ``high_scores``, as passed to the constructor.
+
+        """
+        return {
+            'final_score': self.final_score,
+            'high_scores': copy.deepcopy(self.high_scores),
+        }
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Play the bundled demo once the screen has been idle for GAME_OVER_IDLE_SECONDS.
+
+        Args:
+            dt: The frame's delta time.
+
+        """
+        super().dt_tick(dt)
+        if self.game_time - self.idle_since_game_time >= GAME_OVER_IDLE_SECONDS:
+            self.idle_since_game_time = self.game_time
+            self.scene_manager.play_recording(path=PADDLESLAP_DEMO_PATH, then=self)
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Start the idle wait again, then handle the key as the game-over screen does.
+
+        Args:
+            event: The key down event.
+
+        """
+        self.idle_since_game_time = self.game_time
+        super().on_key_down_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Start the idle wait again.
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        self.idle_since_game_time = self.game_time
+        super().on_joy_button_down_event(event)
+
+    @override
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Start the idle wait again.
+
+        Args:
+            event: The controller button down event.
+
+        """
+        self.idle_since_game_time = self.game_time
+        super().on_controller_button_down_event(event)
+
+    @override
+    def resume(self: Self) -> None:
+        """Start a new PaddleSlap game.
+
+        Explicitly a ``Game``: GameOverScene.resume restarts the type of the scene manager's
+        ``previous_scene``, which depends on how this screen was reached (a playback scope
+        restores it as it ends: BUGS.md #81), while game over here always starts a new game.
+        """
+        self.scene_manager.switch_to_scene(Game(options=self.options))
 
 
 def main() -> None:

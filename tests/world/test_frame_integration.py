@@ -8,7 +8,10 @@ does, without pacing. Nothing in pygame is mocked: the rects asserted are the on
 from __future__ import annotations
 
 import contextlib
+import json
 import math
+import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
@@ -16,11 +19,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 import pytest
 from scripts.record_golden_traces import (
-    FAKE_CLOCK_START_SECONDS,
     FRAME_SECONDS,
     RANDOM_SEED,
     SCREEN_RESOLUTION,
-    FakeClock,
     GoldenTraceEngine,
     GoldenTraceSceneManager,
     command_line,
@@ -30,23 +31,35 @@ from scripts.record_golden_traces import (
     release,
 )
 
+from glitchygames import live_sources as live_sources_module
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
+from glitchygames.engine import GameEngine
 from glitchygames.examples import paddleslap
+from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
+from glitchygames.process import run_command
+from glitchygames.randomness import capture_stream_states, random_stream
+from glitchygames.replay.ghosts import GhostRecorder, GhostSample, GhostSprite, GhostTrack
+from glitchygames.scene_start import SceneStart, rebuild_scene, scene_start_capture_enabled
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sources import active_sources, advance_frame_clock, frame_clock_seconds
+from glitchygames.state import open_saves
+from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, screen_position_for
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
 
     from pytest_mock import MockerFixture
 
+
 SPRITE_SIZE = 16
+INPUT_SNAPSHOT_FRAMES = 3
 PLAYER_START = (400.5, 300.25)
 PLAYER_STEP_X = 3.5
 SPAWNED_SPRITE_WORLD_POSITION = (520.75, 330.5)
@@ -64,6 +77,8 @@ PLAYER_COLOR = (250, 20, 200)
 LANDMARK_COLOR = (20, 230, 40)
 LANDMARK_OFFSET_X = 80.0
 EXACT_COLOR_THRESHOLD = (1, 1, 1, 255)
+# A ghost of the player is recorded over this many frames, then played beside a new live run
+GHOST_RECORDED_FRAMES = 8
 
 
 class WorldSprite(pygame.sprite.DirtySprite):
@@ -403,20 +418,22 @@ class DoubleMovedCameraScene(GameMovedCameraScene):
 
 
 @contextlib.contextmanager
-def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]:
+def running_scene(
+    scene_class: type[Scene], *, extra_arguments: Sequence[str] = ()
+) -> Generator[GoldenTraceSceneManager]:
     """Start a scene headless in the harness's deterministic environment.
 
     Args:
         scene_class: The scene class to make active.
+        extra_arguments: More command-line arguments (``--replay-trace PATH``).
 
     Yields:
         The scene manager with the scene active.
 
     """
-    clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
     with (
         tempfile.TemporaryDirectory(prefix='frame-integration-saves-') as save_directory,
-        deterministic_environment(clock=clock, save_root=Path(save_directory)),
+        deterministic_environment(save_root=Path(save_directory)),
     ):
         manager = GoldenTraceSceneManager.install()
         try:
@@ -428,6 +445,7 @@ def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager
                 'warning',
                 '--random-seed',
                 str(RANDOM_SEED),
+                *extra_arguments,
             ]):
                 engine = GoldenTraceEngine(game=scene_class)
             engine.install_game(scene_class=scene_class)
@@ -439,6 +457,12 @@ def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager
 
 def step(manager: GoldenTraceSceneManager, *events: pygame.event.Event, frames: int = 1) -> None:
     """Run frames at the harness's fixed dt, posting events before the first one.
+
+    It sets ``manager.dt`` itself and never calls ``SceneManager._finish_frame``, so a playback
+    scope's frames get the harness's dt, not the recording's: playback tests stepped with it
+    only work for recordings made by the harness (at FRAME_SECONDS). A recording made by the
+    real frame loop (``--record-trace``, scripts/record_scripted_session.py) is played with
+    ``step_finishing`` (tests/replay/playback_fixtures.py) instead.
 
     Args:
         manager: The running scene manager.
@@ -650,6 +674,329 @@ class TestResumeAfterPause:
             assert (game_scene.camera.world_x, game_scene.camera.world_y) != camera_before_resume
 
 
+class GameTimeScene(CameraFreeScene):
+    """Overrides dt_tick without calling super: game time is the engine's, not the scene's."""
+
+    NAME = 'Game Time'
+    MAX_FRAME_SECONDS: ClassVar[float | None] = 0.05
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Remember the dt, skipping Scene.dt_tick.
+
+        Args:
+            dt: The frame's (capped) delta time in seconds.
+
+        """
+        self.last_dt = dt
+
+
+class TestGameTime:
+    """Scene.game_time sums the scene's (capped) dt and stops while the scene is not running."""
+
+    def test_game_time_sums_the_scene_dt_even_without_super(self):
+        """A dt_tick override that skips super() still advances game time."""
+        with running_scene(GameTimeScene) as manager:
+            step(manager, frames=4)
+            assert manager.active_scene is not None
+            assert manager.active_scene.game_time == pytest.approx(4 * FRAME_SECONDS)
+
+    def test_game_time_uses_the_capped_dt(self):
+        """A long frame advances game time by MAX_FRAME_SECONDS only."""
+        with running_scene(GameTimeScene) as manager:
+            manager.dt = 2.0
+            manager.run_frame()
+            assert manager.active_scene is not None
+            assert manager.active_scene.game_time == pytest.approx(GameTimeScene.MAX_FRAME_SECONDS)
+
+    def test_game_time_stops_while_paused(self):
+        """While the pause scene runs, the paused game's time stands still."""
+        with running_scene(StillCameraScene) as manager:
+            step(manager, frames=2)
+            game_scene = manager.active_scene
+            assert game_scene is not None
+            # pause() switches at the end of the next frame, after the game's dt_tick
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            paused_at = game_scene.game_time
+            assert paused_at > 0
+            step(manager, frames=PAUSE_FRAMES)
+            assert isinstance(manager.active_scene, PauseScene)
+            assert game_scene.game_time == paused_at
+
+
+START_CAPTURE_SAVE_NAMESPACE = 'start-capture-test'
+SHARED_STREAM_NAME = 'test.shared'
+# Prints the replay package's modules loaded by importing glitchygames.scenes
+REPLAY_MODULES_AFTER_IMPORTING_SCENES = (
+    'import sys, glitchygames.scenes\n'
+    "print(sorted(name for name in sys.modules if name.startswith('glitchygames.replay')))"
+)
+# Frame time that passes between building a scene and setting it up (a floor built a frame early)
+FRAME_SECONDS_BEFORE_SETUP = 0.5
+
+
+class StartCapturedScene(CameraFreeScene):
+    """Draws as it is built and as it is set up, carries a level and saves while it is built."""
+
+    NAME = 'Start Captured'
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+        level: int = 1,
+    ) -> None:
+        """Draw the spawn position, then write a save slot (before setup()).
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+            level: The level this scene plays (its replay argument).
+
+        """
+        super().__init__(options=options, groups=groups)
+        self.level = level
+        self.spawn_x = random_stream('test.spawn').randrange(0, 100)
+        self.saves = open_saves(app_name=START_CAPTURE_SAVE_NAMESPACE)
+        self.saves_seen_while_built = self.saves.slot_names()
+        self.saves.save('progress', {'level': level})
+        self.setup_draw: float | None = None
+        self.setup_frame_clock: float | None = None
+
+    @override
+    def setup(self: Self) -> None:
+        """Draw from a stream other code shares and read the frame clock."""
+        super().setup()
+        self.setup_draw = random_stream(SHARED_STREAM_NAME).random()
+        self.setup_frame_clock = frame_clock_seconds()
+
+    @override
+    def replay_arguments(self: Self) -> dict[str, Any]:
+        """Rebuild with the same level.
+
+        Returns:
+            The level.
+
+        """
+        return {'level': self.level}
+
+
+class UncapturedScene(StartCapturedScene):
+    """A scene that cannot be rebuilt on its own opts out of start capture."""
+
+    CAPTURES_SCENE_START: ClassVar[bool] = False
+
+
+def _built_early(*, options: dict[str, Any]) -> StartCapturedScene:
+    """Build a scene, then let other code draw and frame time pass before it is set up.
+
+    Args:
+        options: The scene's options.
+
+    Returns:
+        The scene, not set up.
+
+    """
+    scene = StartCapturedScene(options=options, level=2)
+    random_stream(SHARED_STREAM_NAME).random()
+    advance_frame_clock(seconds=FRAME_SECONDS_BEFORE_SETUP)
+    return scene
+
+
+class TestSceneStart:
+    """A scene's start capture holds what rebuilding it as it began needs."""
+
+    def test_start_capture_holds_arguments_streams_clock_and_saves(self, mocker):
+        """The start names the class, its arguments, both moments and the saves before __init__."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(StartCapturedScene) as manager:
+            start = manager.active_scene_start
+            assert start is not None
+            assert start.scene_class == 'StartCapturedScene'
+            assert start.arguments == {'level': 1}
+            assert start.construction_frame_clock_seconds == 0.0
+            assert start.setup_frame_clock_seconds == 0.0
+            assert start.construction_random_states['seed'] == RANDOM_SEED
+            # First opened inside __init__: snapshotted when opened, before __init__ wrote to it
+            assert start.saves == {START_CAPTURE_SAVE_NAMESPACE: {}}
+            assert SceneStart.from_json(json.loads(json.dumps(start.to_json()))) == start
+
+    def test_stores_open_before_construction_are_seen_as_they_were(self, mocker):
+        """A store already open when the scene is built is snapshotted before __init__ writes."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(CameraFreeScene) as manager:
+            assert manager.active_scene is not None
+            open_saves(app_name=START_CAPTURE_SAVE_NAMESPACE).save('progress', {'level': 7})
+            scene = StartCapturedScene(options=manager.active_scene.options, level=3)
+            manager.switch_to_scene(scene)
+            start = manager.active_scene_start
+            assert start is not None
+            progress = start.saves[START_CAPTURE_SAVE_NAMESPACE]['progress']
+            assert progress['data'] == {'level': 7}
+
+    def test_the_first_logic_frame_is_captured_at_its_top(self, mocker):
+        """The start is completed as the first frame running the scene's logic begins."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(StartCapturedScene) as manager:
+            start = manager.active_scene_start
+            assert start is not None
+            assert start.first_logic_frame is None
+            states_before_the_frame = capture_stream_states()
+            step(manager)
+            completed = manager.active_scene_start
+            assert completed is not None
+            first_logic_frame = completed.first_logic_frame
+            assert first_logic_frame is not None
+            assert first_logic_frame.random_states == states_before_the_frame
+            assert first_logic_frame.frame_clock_seconds == frame_clock_seconds()
+            assert first_logic_frame.earlier_internal_event_count == 0
+            assert first_logic_frame.arrived_by_transition is False
+            # Later frames keep it
+            step(manager)
+            assert manager.active_scene_start is completed
+
+    def test_rebuilt_scene_draws_the_same_randomness(self, mocker):
+        """A rebuild restores the streams and frame clock the original began with."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(StartCapturedScene) as manager:
+            original = manager.active_scene
+            start = manager.active_scene_start
+            assert isinstance(original, StartCapturedScene)
+            assert start is not None
+            step(manager, frames=2)
+            # Advance the stream after the start, so only a restore draws the same value
+            random_stream('test.spawn').random()
+            rebuilt = rebuild_scene(
+                start=start, scene_class=StartCapturedScene, options=original.options
+            )
+            assert isinstance(rebuilt, StartCapturedScene)
+            assert rebuilt.spawn_x == original.spawn_x
+            assert rebuilt.level == 1
+            assert frame_clock_seconds() == start.setup_frame_clock_seconds
+
+    def test_a_scene_built_early_rebuilds_exactly(self, mocker):
+        """Draws and frame time between building and setting up a scene are restored too."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(CameraFreeScene) as manager:
+            assert manager.active_scene is not None
+            original = _built_early(options=manager.active_scene.options)
+            manager.switch_to_scene(original)
+            start = manager.active_scene_start
+            assert start is not None
+            assert start.setup_frame_clock_seconds == pytest.approx(
+                start.construction_frame_clock_seconds + FRAME_SECONDS_BEFORE_SETUP
+            )
+            original_next_draw = random_stream(SHARED_STREAM_NAME).random()
+            rebuilt = rebuild_scene(
+                start=start, scene_class=StartCapturedScene, options=original.options
+            )
+            assert isinstance(rebuilt, StartCapturedScene)
+            manager.switch_to_scene(rebuilt)
+            assert rebuilt.spawn_x == original.spawn_x
+            assert rebuilt.setup_draw == original.setup_draw
+            assert rebuilt.setup_frame_clock == original.setup_frame_clock
+            # The save view is the one the original's __init__ saw, before its own write (the
+            # playback scope sandboxes it for the rebuilt scene; here the real store has the write)
+            assert original.saves_seen_while_built == []
+            assert start.saves == {START_CAPTURE_SAVE_NAMESPACE: {}}
+            assert random_stream(SHARED_STREAM_NAME).random() == original_next_draw
+
+    def test_the_start_shares_no_mutable_state(self, mocker):
+        """Changing what to_json returned, or the record read, never changes the start."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(StartCapturedScene) as manager:
+            start = manager.active_scene_start
+            assert start is not None
+            record = start.to_json()
+            record['arguments']['level'] = 99
+            record['construction_random_states']['seed'] = 0
+            assert start.arguments == {'level': 1}
+            assert start.construction_random_states['seed'] == RANDOM_SEED
+            read_back = SceneStart.from_json(record)
+            record['arguments']['level'] = 5
+            assert read_back.arguments == {'level': 99}
+
+    def test_non_json_arguments_are_refused(self, mocker):
+        """replay_arguments() that would not read back from JSON is a TypeError naming the scene."""
+
+        class BadArguments(StartCapturedScene):
+            @override
+            def replay_arguments(self: Self) -> dict[str, Any]:
+                return {'surface': object()}
+
+        mocker.patch.object(BadArguments, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with pytest.raises(TypeError, match='BadArguments'), running_scene(BadArguments):
+            pass
+
+    def test_tuple_arguments_are_refused(self, mocker):
+        """A tuple reads back from JSON as a list, so the rebuild would differ: refused."""
+
+        class TupleArguments(StartCapturedScene):
+            @override
+            def replay_arguments(self: Self) -> dict[str, Any]:
+                return {'position': (1, 2)}
+
+        mocker.patch.object(TupleArguments, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with pytest.raises(TypeError, match='TupleArguments'), running_scene(TupleArguments):
+            pass
+
+
+class TestSceneStartCaptureScope:
+    """Starts are captured only while they can be used, and a scene keeps its first one."""
+
+    def test_live_play_captures_nothing(self):
+        """Without recording, playback or instant replay, no scene start is captured."""
+        with running_scene(StartCapturedScene) as manager:
+            assert manager.active_scene_start is None
+
+    def test_a_scene_that_opts_out_captures_nothing(self, mocker):
+        """CAPTURES_SCENE_START = False wins over instant replay and capturing doors."""
+        mocker.patch.object(UncapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(UncapturedScene) as manager:
+            assert manager.active_scene_start is None
+
+    def test_the_pause_screen_opts_out(self):
+        """PauseScene presents another scene, so it cannot be rebuilt on its own."""
+        assert PauseScene.CAPTURES_SCENE_START is False
+        assert scene_start_capture_enabled(scene_class=PauseScene) is False
+
+    def test_resume_from_pause_keeps_the_first_capture(self, mocker):
+        """Resuming runs the scene's setup again but keeps the start of its first setup."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
+        with running_scene(StartCapturedScene) as manager:
+            game_scene = manager.active_scene
+            assert game_scene is not None
+            step(manager, frames=2)
+            # Complete once its first logic frame began (glitchygames/scene_start.py, rule 7)
+            first = manager.active_scene_start
+            assert first is not None
+            assert first.first_logic_frame is not None
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            step(manager, press(pygame.K_SPACE))
+            step(manager, release(pygame.K_SPACE))
+            assert manager.active_scene is game_scene
+            assert manager.active_scene_start is first
+
+    def test_scenes_do_not_import_the_replay_driver(self):
+        """glitchygames.scenes stays light: start capture lives in a leaf module."""
+        completed = run_command(
+            command=[
+                sys.executable,
+                '-c',
+                REPLAY_MODULES_AFTER_IMPORTING_SCENES,
+            ],
+            environment=dict(os.environ),
+            timeout_seconds=60.0,
+            capture_output=True,
+        )
+        assert completed.returncode == 0, completed.stdout
+        assert completed.stdout.strip().splitlines()[-1] == '[]'
+
+
 class TestTransitionCapture:
     """The arriving scene's transition screenshot shows its world sprites in place."""
 
@@ -846,3 +1193,322 @@ class TestWorldShakeOnAStillCamera:
             assert [call.args for call in shake_update_spy.call_args_list] == [
                 (FRAME_SECONDS,)
             ] * SHAKE_ADVANCE_FRAMES
+
+
+class TestInputSnapshotInTheFrame:
+    """The snapshot is taken once per frame, right after the pump, and stays fixed."""
+
+    def test_snapshot_taken_after_the_pump_is_the_frames_input(self, mocker: MockerFixture):
+        """Each frame pumps, then captures one snapshot, which becomes the engine's input."""
+        order: list[str] = []
+        captured: list[InputSnapshot] = []
+        original_pump = GameEngine._pump_events
+
+        def recording_pump(engine: GameEngine) -> list[pygame.event.Event]:
+            order.append('pump')
+            return original_pump(engine)
+
+        def distinct_capture(**keywords: Any) -> InputSnapshot:
+            # A different snapshot every frame, so each frame's input is identifiable
+            order.append('capture')
+            snapshot = InputSnapshot(
+                pressed_scancodes=frozenset(),
+                modifiers=0,
+                mouse_position=(len(captured), 0),
+                mouse_buttons=(False, False, False),
+                mouse_focused=True,
+                **keywords,
+            )
+            captured.append(snapshot)
+            return snapshot
+
+        mocker.patch.object(GameEngine, '_pump_events', autospec=True, side_effect=recording_pump)
+        # LiveSources calls the name it imported into glitchygames/live_sources.py
+        mocker.patch.object(live_sources_module, 'capture_live_snapshot', distinct_capture)
+        with running_scene(CameraFreeScene) as manager:
+            assert manager.game_engine is not None
+            for frame_index in range(INPUT_SNAPSHOT_FRAMES):
+                step(manager)
+                assert len(captured) == frame_index + 1
+                assert manager.game_engine.input is captured[-1]
+                assert current_input() is captured[-1]
+        assert order == ['pump', 'capture'] * INPUT_SNAPSHOT_FRAMES
+
+
+class OrderRecordingSupervisor:
+    """A supervisor that records each call's frame number and scene class name."""
+
+    def __init__(self: Self) -> None:
+        """Create the supervisor with no calls recorded yet."""
+        self.calls: list[tuple[int, str]] = []
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Record the frame number and the scene's class name."""
+        self.calls.append((frame_number, type(scene).__name__))
+
+
+class TestSupervisorHook:
+    """Supervisors run once per frame at their slot, after events and before frame services."""
+
+    def test_supervisors_run_once_per_frame_after_events(self, mocker: MockerFixture) -> None:
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            manager.add_supervisor(supervisor=supervisor)
+            order: list[str] = []
+            mocker.patch.object(
+                manager, '_process_events', side_effect=lambda: order.append('events')
+            )
+            mocker.patch.object(
+                manager, '_update_frame_services', side_effect=lambda: order.append('services')
+            )
+            original_on_frame = supervisor.on_frame
+
+            def ordered_on_frame(**keywords: Any) -> None:
+                order.append('supervisor')
+                original_on_frame(**keywords)
+
+            mocker.patch.object(supervisor, 'on_frame', side_effect=ordered_on_frame)
+            step(manager, frames=2)
+        assert order == ['events', 'supervisor', 'services'] * 2
+        assert supervisor.calls == [(0, 'CameraFreeScene'), (1, 'CameraFreeScene')]
+
+    def test_supervisors_run_in_transition_frames(self, mocker: MockerFixture) -> None:
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            manager.add_supervisor(supervisor=supervisor)
+            order: list[str] = []
+            mocker.patch.object(
+                manager,
+                '_process_transition_events',
+                side_effect=lambda: order.append('transition events'),
+            )
+            mocker.patch.object(
+                manager, '_update_frame_services', side_effect=lambda: order.append('services')
+            )
+            original_on_frame = supervisor.on_frame
+
+            def ordered_on_frame(**keywords: Any) -> None:
+                order.append('supervisor')
+                original_on_frame(**keywords)
+
+            mocker.patch.object(supervisor, 'on_frame', side_effect=ordered_on_frame)
+            manager._active_transition = mocker.Mock(**{'update.return_value': False})
+            step(manager, frames=1)
+            manager._active_transition = None
+        assert order == ['transition events', 'supervisor', 'services']
+        assert supervisor.calls == [(0, 'CameraFreeScene')]
+
+    def test_removed_supervisor_is_not_called(self) -> None:
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            manager.add_supervisor(supervisor=supervisor)
+            manager.remove_supervisor(supervisor=supervisor)
+            step(manager, frames=1)
+        assert supervisor.calls == []
+
+
+class TestControlEvents:
+    """Control events reach their handlers and the doors' end_frame, live or scheduled."""
+
+    def test_recorded_control_events_reach_handlers_and_end_frame(
+        self, mocker: MockerFixture
+    ) -> None:
+        handled: list[ControlEvent] = []
+        with running_scene(CameraFreeScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'here'})
+            step(manager, frames=2)
+        assert handled == [ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'here'})]
+        first_frame_call, second_frame_call = end_frame.call_args_list
+        assert first_frame_call.kwargs['control_events'] == handled
+        # Each frame's list holds that frame's control events only
+        assert second_frame_call.kwargs['control_events'] == []
+
+    def test_scheduled_control_events_are_applied_at_the_slot(self, mocker: MockerFixture) -> None:
+        scheduled = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'from recording'})
+        handled: list[ControlEvent] = []
+        with running_scene(CameraFreeScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            mocker.patch.object(
+                active_sources(),
+                'control_events_for_frame',
+                side_effect=lambda frame_number: [scheduled] if frame_number == 1 else [],
+            )
+            step(manager, frames=3)
+        assert handled == [scheduled]
+
+    def test_a_failing_handler_still_lets_the_others_run_then_fails_loudly(
+        self, mocker: MockerFixture
+    ) -> None:
+        handled: list[ControlEvent] = []
+
+        def broken_handler(control_event: ControlEvent) -> None:
+            message = f'broken handler got {control_event.kind}'
+            raise ValueError(message)
+
+        def also_broken_handler(control_event: ControlEvent) -> None:
+            message = f'second broken handler got {control_event.kind}'
+            raise KeyError(message)
+
+        with running_scene(CameraFreeScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=broken_handler)
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=also_broken_handler)
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            with pytest.raises(ValueError, match='broken handler got breakpoint'):
+                manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'here'})
+            step(manager, frames=1)
+        recorded = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'here'})
+        assert handled == [recorded]
+        assert end_frame.call_args.kwargs['control_events'] == [recorded]
+
+    def test_recorded_data_is_a_read_only_copy(self, mocker: MockerFixture) -> None:
+        data: dict[str, Any] = {'label': 'here', 'path': {'steps': [1, 2]}}
+        with running_scene(CameraFreeScene) as manager:
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            manager.record_control_event(kind=BREAKPOINT_KIND, data=data)
+            data['label'] = 'changed'
+            data['path']['steps'].append(3)
+            step(manager, frames=1)
+        (recorded,) = end_frame.call_args.kwargs['control_events']
+        assert recorded.to_json() == {
+            'kind': 'breakpoint',
+            'label': 'here',
+            'path': {'steps': [1, 2]},
+        }
+        recorded_data = recorded.data
+        with pytest.raises(TypeError):
+            recorded_data['label'] = 'changed'
+        with pytest.raises(TypeError):
+            recorded_data['path']['steps'] = []
+        with pytest.raises(AttributeError):
+            recorded_data['path']['steps'].append(3)
+
+    def test_to_json_returns_plain_json_types(self) -> None:
+        event = ControlEvent(kind=BREAKPOINT_KIND, data={'path': {'steps': [1, 2]}})
+        record = event.to_json()
+        assert type(record) is dict
+        assert type(record['path']) is dict
+        assert type(record['path']['steps']) is list
+        assert json.loads(json.dumps(record)) == record
+
+    def test_control_event_json_round_trip(self) -> None:
+        event = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'x'})
+        assert event.to_json() == {'kind': 'breakpoint', 'label': 'x'}
+        assert ControlEvent.from_json(event.to_json()) == event
+
+
+def ghost_square(_sample: GhostSample) -> pygame.Surface:
+    """Draw any ghost sample as a square the player's size.
+
+    Returns:
+        A new surface.
+
+    """
+    return pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+
+
+class TestGhostsInTheFrame:
+    """Ghosts are recorded at the supervisor slot and positioned by the engine like any sprite."""
+
+    def test_recorder_samples_once_per_frame_and_stops_on_finish(self):
+        with running_scene(FollowingScene) as manager:
+            scene = active_following_scene(manager)
+            recorder = GhostRecorder(sprite=scene.player, scene=scene)
+            step(manager, frames=4)
+            track = recorder.finish()
+            step(manager, frames=2)
+        assert len(track.samples) == 4
+        assert [recorded.game_seconds for recorded in track.samples] == pytest.approx([
+            FRAME_SECONDS * index for index in range(1, 5)
+        ])
+        # Sampled after the frame's logic: the player had moved PLAYER_STEP_X each frame
+        assert [recorded.world_x for recorded in track.samples] == pytest.approx([
+            PLAYER_START[0] + PLAYER_STEP_X * index for index in range(1, 5)
+        ])
+
+    def test_recorder_skips_the_frames_its_scene_is_paused(self):
+        """Behind the pause screen the scene's game time stands still: nothing is sampled."""
+        with running_scene(FollowingScene) as manager:
+            game_scene = active_following_scene(manager)
+            recorder = GhostRecorder(sprite=game_scene.player, scene=game_scene)
+            step(manager, frames=2)
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            step(manager, frames=PAUSE_FRAMES)
+            step(manager, press(pygame.K_SPACE))
+            step(manager, release(pygame.K_SPACE))
+            assert manager.active_scene is game_scene
+            step(manager, frames=2)
+            track = recorder.finish()
+        game_seconds = [recorded.game_seconds for recorded in track.samples]
+        assert game_seconds == sorted(set(game_seconds))
+        assert game_seconds[-1] == pytest.approx(game_scene.game_time)
+        # Frames 1-3 ran the scene's logic (pause() switches at the end of the third),
+        # the resume frame ran none, the two after it did
+        assert len(track.samples) == 5
+
+    def test_a_ghost_lines_up_with_a_live_run_of_the_same_scene(self):
+        """Drawn where the player is, each frame: the ghost lags no frame behind."""
+        with running_scene(FollowingScene) as manager:
+            recorded_scene = active_following_scene(manager)
+            recorder = GhostRecorder(sprite=recorded_scene.player, scene=recorded_scene)
+            step(manager, frames=GHOST_RECORDED_FRAMES)
+            track = recorder.finish()
+        with running_scene(FollowingScene) as manager:
+            scene = active_following_scene(manager)
+            ghost = GhostSprite(track=track, image_for=ghost_square)
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+            drawn: list[tuple[tuple[int, int], tuple[int, int]]] = []
+            for _frame in range(GHOST_RECORDED_FRAMES):
+                step(manager)
+                drawn.append((ghost.rect.topleft, scene.player.rect.topleft))
+        assert all(ghost_topleft == player_topleft for ghost_topleft, player_topleft in drawn)
+        assert ghost.visible
+        assert ghost.hidden is False
+
+    def test_ghost_is_culled_like_any_world_sprite(self):
+        far_away = GhostTrack(
+            samples=(
+                GhostSample(
+                    game_seconds=0.0, world_x=100_000.0, world_y=0.0, appearance={}, visible=True
+                ),
+            )
+        )
+        with running_scene(CameraFreeScene) as manager:
+            scene = manager.active_scene
+            assert scene is not None
+            ghost = GhostSprite(track=far_away, image_for=ghost_square)
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+            step(manager, frames=1)
+        assert ghost.visible == 0  # outside the screen plus CULL_MARGIN_PIXELS
+        assert ghost.hidden is False  # culled by the engine, not hidden by the track
+
+    def test_a_ghost_with_nothing_to_show_is_culled_by_the_engine(self):
+        """Before its first sample its image is empty, which the engine's culling hides."""
+        later = GhostTrack(
+            samples=(
+                GhostSample(
+                    game_seconds=1.0,
+                    world_x=PLAYER_START[0],
+                    world_y=PLAYER_START[1],
+                    appearance={},
+                    visible=True,
+                ),
+            )
+        )
+        with running_scene(CameraFreeScene) as manager:
+            scene = manager.active_scene
+            assert scene is not None
+            ghost = GhostSprite(track=later, image_for=ghost_square)
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+            step(manager, frames=1)
+            assert ghost.visible == 0
+            assert ghost.hidden is False
+            step(manager, frames=round(1.0 / FRAME_SECONDS) + 1)
+            assert ghost.visible == 1

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import pygame
+import pytest
 
 from glitchygames.events.base import HashableEvent
 from glitchygames.input.action_map import ActionMap
+from glitchygames.testing.keys import qwerty_scancode
 
 
 def _key_down(key: int) -> HashableEvent:
@@ -551,3 +553,134 @@ class TestPersistence:
         # Restored uses default joystick mode, so feed a joystick axis event
         restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.7))
         assert restored.is_held('move_right') is True
+
+
+def _positional_key_down(*, key: int, scancode: int) -> HashableEvent:
+    """Create a KEYDOWN HashableEvent with the physical key position it came from."""
+    return HashableEvent(type=pygame.KEYDOWN, key=key, scancode=scancode, mod=0, unicode='')
+
+
+def _positional_key_up(*, key: int, scancode: int) -> HashableEvent:
+    """Create a KEYUP HashableEvent with the physical key position it came from."""
+    return HashableEvent(type=pygame.KEYUP, key=key, scancode=scancode, mod=0)
+
+
+class TestScancodeBindings:
+    """scancode= binds a physical key position, the same place on every keyboard layout."""
+
+    def test_a_position_matches_whatever_the_layout_calls_the_key(self) -> None:
+        """On AZERTY the key in QWERTY's A position reports K_q; its scancode is still A's."""
+        actions = ActionMap()
+        actions.bind('move_left', scancode=pygame.KSCAN_A)
+        azerty_press = _positional_key_down(key=pygame.K_q, scancode=pygame.KSCAN_A)
+        assert actions.get_action(azerty_press) == 'move_left'
+
+    def test_a_key_code_binding_follows_the_layout_instead(self) -> None:
+        """keyboard= stays the layout's key (mnemonic keys: P for pause)."""
+        actions = ActionMap()
+        actions.bind('move_left', keyboard=pygame.K_a)
+        azerty_press = _positional_key_down(key=pygame.K_q, scancode=pygame.KSCAN_A)
+        assert actions.get_action(azerty_press) is None
+
+    def test_a_scancode_is_never_matched_against_a_key_code(self) -> None:
+        """The two kinds of key binding are looked up apart (KSCAN_A and a key code can be 4)."""
+        actions = ActionMap()
+        actions.bind('move_left', scancode=pygame.KSCAN_A)
+        other_key = _positional_key_down(key=pygame.KSCAN_A, scancode=pygame.KSCAN_B)
+        assert actions.get_action(other_key) is None
+
+    def test_an_event_without_a_scancode_matches_no_position(self) -> None:
+        actions = ActionMap()
+        actions.bind('move_left', scancode=pygame.KSCAN_A)
+        assert actions.get_action(_key_down(pygame.K_a)) is None
+
+    def test_held_pressed_and_released_by_position(self) -> None:
+        actions = ActionMap()
+        actions.bind('jump', scancode=pygame.KSCAN_SPACE)
+        actions.handle_event(_positional_key_down(key=pygame.K_SPACE, scancode=pygame.KSCAN_SPACE))
+        assert actions.is_held('jump') is True
+        assert actions.just_pressed('jump') is True
+        actions.begin_frame()
+        actions.handle_event(_positional_key_up(key=pygame.K_SPACE, scancode=pygame.KSCAN_SPACE))
+        assert actions.is_held('jump') is False
+        assert actions.just_released('jump') is True
+
+    def test_a_position_and_a_key_code_can_share_an_action(self) -> None:
+        actions = ActionMap()
+        actions.bind('move_left', scancode=pygame.KSCAN_A, keyboard=pygame.K_LEFT)
+        assert actions.get_actions(
+            _positional_key_down(key=pygame.K_LEFT, scancode=pygame.KSCAN_LEFT)
+        ) == ['move_left']
+        assert actions.get_actions(
+            _positional_key_down(key=pygame.K_q, scancode=pygame.KSCAN_A)
+        ) == ['move_left']
+
+    def test_unbind_and_clear_remove_positions(self) -> None:
+        press = _positional_key_down(key=pygame.K_a, scancode=pygame.KSCAN_A)
+        actions = ActionMap()
+        actions.bind('move_left', scancode=pygame.KSCAN_A)
+        actions.unbind('move_left')
+        assert actions.get_action(press) is None
+        actions.bind('move_left', scancode=pygame.KSCAN_A)
+        actions.clear()
+        assert actions.get_action(press) is None
+
+    def test_positions_round_trip_through_to_dict(self) -> None:
+        original = ActionMap()
+        original.bind('move_left', scancode=pygame.KSCAN_A)
+        data = original.to_dict()
+        assert data == {'move_left': [{'type': 'KeyDown', 'scancode': pygame.KSCAN_A}]}
+        restored = ActionMap.from_dict(data)
+        press = _positional_key_down(key=pygame.K_q, scancode=pygame.KSCAN_A)
+        assert restored.get_action(press) == 'move_left'
+
+    def test_default_positions_fill_actions_the_file_leaves_out(self) -> None:
+        defaults = ActionMap()
+        defaults.bind('move_left', scancode=pygame.KSCAN_A)
+        defaults.bind('jump', scancode=pygame.KSCAN_SPACE)
+        file_data: dict[str, list[dict[str, object]]] = {
+            'jump': [{'type': 'KeyDown', 'code': pygame.K_RETURN}],
+        }
+        restored = ActionMap.from_dict(file_data, defaults=defaults)
+        assert (
+            restored.get_action(_positional_key_down(key=pygame.K_q, scancode=pygame.KSCAN_A))
+            == 'move_left'
+        )
+        assert (
+            restored.get_action(
+                _positional_key_down(key=pygame.K_SPACE, scancode=pygame.KSCAN_SPACE)
+            )
+            is None
+        )
+
+
+class TestQwertyScancodes:
+    """Fabricated key events carry the US QWERTY position of their key (testing/keys.py)."""
+
+    @pytest.mark.parametrize(
+        ('key', 'scancode'),
+        [
+            (pygame.K_w, pygame.KSCAN_W),
+            (pygame.K_s, pygame.KSCAN_S),
+            (pygame.K_LSHIFT, pygame.KSCAN_LSHIFT),
+            (pygame.K_RIGHT, pygame.KSCAN_RIGHT),
+            (pygame.K_ESCAPE, pygame.KSCAN_ESCAPE),
+            (pygame.K_SPACE, pygame.KSCAN_SPACE),
+            (pygame.K_1, pygame.KSCAN_1),
+            (pygame.K_KP_1, pygame.KSCAN_KP_1),
+        ],
+    )
+    def test_a_key_maps_to_its_qwerty_position(self, key, scancode):
+        assert qwerty_scancode(key=key) == scancode
+
+    def test_a_key_with_no_position_is_unknown(self):
+        """SDL's own answer for a key it cannot place."""
+        assert qwerty_scancode(key=-1) == pygame.KSCAN_UNKNOWN
+
+    def test_a_fabricated_press_is_bound_by_its_position(self):
+        actions = ActionMap()
+        actions.bind('move_left', scancode=pygame.KSCAN_A)
+        press = HashableEvent(
+            type=pygame.KEYDOWN, key=pygame.K_a, scancode=qwerty_scancode(key=pygame.K_a), mod=0
+        )
+        assert actions.get_action(press) == 'move_left'

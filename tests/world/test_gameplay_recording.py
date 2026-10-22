@@ -10,11 +10,14 @@ checks the recording's sprites against the golden harness's own frames.
 from __future__ import annotations
 
 import contextlib
+import errno
 import gzip
 import importlib.metadata
 import json
+import os
 import platform
 import signal
+import sys
 import threading
 import types
 from datetime import datetime
@@ -30,25 +33,47 @@ from scripts.record_golden_traces import (
     record_trace,
 )
 
+from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
+from glitchygames.examples import paddleslap
+from glitchygames.exit_codes import ExitCode
+from glitchygames.input import devices as devices_module
+from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
+from glitchygames.live_sources import LiveSources
+from glitchygames.process import run_command
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
+    CONTROL_EVENTS_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+    DEVICES_OPENED_FIELD,
     DT_FIELD,
     EVENT_BATCHES_FIELD,
     EXTERNAL_ORIGIN,
+    INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     RECORDING_SOURCE,
+    SAVES_HEADER_FIELD,
+    SAVES_OPENED_FIELD,
+    SCENE_START_FIELD,
+    RecordingSources,
+    TraceRecordingAlreadyStartedError,
     UnrepresentableValue,
     event_from_record,
 )
+from glitchygames.recording_history import CONTENT_HASH_FIELD, PROCESSING_SECONDS_FIELD
+from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
-from glitchygames.tracing import read_trace_result
+from glitchygames.sources import active_sources, install_sources
+from glitchygames.state import DiskSaveManager, MemorySaveManager
+from glitchygames.state.sandbox import open_saves
+from glitchygames.supervision import BREAKPOINT_KIND
+from glitchygames.tracing import TraceWriter, read_trace_result
 from glitchygames.transitions import FadeTransition
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Sequence
     from pathlib import Path
 
 # Each perf_counter() read advances the fake clock by this much, so frame times differ by
@@ -75,6 +100,20 @@ SCRIPTED_EVENT_TYPES = frozenset({
     pygame.MOUSEBUTTONDOWN,
     pygame.MOUSEBUTTONUP,
     pygame.QUIT,
+})
+
+# The fields a recording adds to each sprite frame (each format-3 field only where not empty)
+RECORDING_FRAME_FIELDS = frozenset({
+    DT_FIELD,
+    EVENT_BATCHES_FIELD,
+    INPUT_CHANGES_FIELD,
+    CONTROL_EVENTS_FIELD,
+    DEVICES_OPENED_FIELD,
+    SAVES_OPENED_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+    SCENE_START_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    CONTENT_HASH_FIELD,
 })
 
 # The whole Clockwork Keep golden script: the elevator ride (frames 352-592) and a pause (740-790)
@@ -217,11 +256,91 @@ class DepartureRecordedScene(ArrivalRecordedScene):
             self.transition_to(ArrivalRecordedScene(options=self.options), ScriptedTransition())
 
 
-def call_sigterm_handler() -> None:
-    """Call the installed SIGTERM handler the way a delivered SIGTERM would."""
-    handler = signal.getsignal(signal.SIGTERM)
-    assert callable(handler), f'No SIGTERM handler is installed (found {handler!r})'
-    handler(signal.SIGTERM, None)
+# A child game that sends itself SIGTERM in its third frame (a real signal, delivered by the OS)
+SELF_TERMINATING_GAME_SOURCE = """\
+import os
+import signal
+
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
+
+SIGNAL_FRAME = 3
+
+
+class SelfTerminatingGame(Scene):
+    NAME = 'SelfTerminatingGame'
+
+    def __init__(self, options=None, groups=None):
+        super().__init__(options=options, groups=groups)
+        self.frames = 0
+
+    def dt_tick(self, dt):
+        self.frames += 1
+        if self.frames == SIGNAL_FRAME:
+            os.kill(os.getpid(), signal.SIGTERM)
+
+
+if __name__ == '__main__':
+    GameEngine(game=SelfTerminatingGame).start()
+"""
+# Windows delivers no SIGTERM: os.kill(pid, SIGTERM) calls TerminateProcess with exit code 15,
+# so no handler runs (only CTRL_C_EVENT and CTRL_BREAK_EVENT are delivered; SIGBREAK, its real
+# external stop, has its own tests)
+SKIP_WITHOUT_A_DELIVERABLE_SIGTERM = pytest.mark.skipif(
+    sys.platform == 'win32',
+    reason='os.kill(SIGTERM) is TerminateProcess on Windows: no handler can run',
+)
+
+# A child game that only runs a few frames is killed after this long
+SIGNAL_CHILD_TIMEOUT_SECONDS = 120.0
+
+
+def run_self_terminating_game(*, game_file: Path, extra_arguments: tuple[str, ...]):
+    """Run SELF_TERMINATING_GAME_SOURCE --headless as a child, with no preset SDL signal hint.
+
+    Returns:
+        The finished process (subprocess.CompletedProcess, output captured).
+
+    """
+    environment = {
+        name: value for name, value in os.environ.items() if name != 'SDL_NO_SIGNAL_HANDLERS'
+    }
+    return run_command(
+        command=[
+            sys.executable,
+            str(game_file),
+            '--target-fps',
+            '0',
+            '--log-level',
+            'error',
+            '--resolution',
+            '320x240',
+            '--headless',
+            *extra_arguments,
+        ],
+        environment=environment,
+        timeout_seconds=SIGNAL_CHILD_TIMEOUT_SECONDS,
+        capture_output=True,
+    )
+
+
+def call_signal_handler(*, signal_number: int) -> None:
+    """Call the installed handler of a signal the way the delivered signal would."""
+    handler = signal.getsignal(signal_number)
+    assert callable(handler), f'No handler is installed for {signal_number} (found {handler!r})'
+    handler(signal_number, None)
+
+
+def platform_signal(signal_name: str) -> int:
+    """Return a signal's number, skipping the test where this platform does not have it.
+
+    Returns:
+        The signal number.
+
+    """
+    if not hasattr(signal, signal_name):
+        pytest.skip(f'signal.{signal_name} does not exist on this platform')
+    return getattr(signal, signal_name)
 
 
 def _key(event_type: int, key: int, *, unicode: str = '') -> pygame.event.Event:
@@ -249,12 +368,44 @@ def engine_run_environment(mocker) -> Generator[FakePerfCounter]:
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch.object(pygame, 'quit')
     mocker.patch.object(pygame.display, 'quit')
+    # --headless sets the SDL driver variables; the test's own values come back afterwards
+    mocker.patch.dict(os.environ)
     GoldenTraceSceneManager.install()
     try:
         yield fake_perf_counter
     finally:
         pygame.event.clear()
         GoldenTraceSceneManager.uninstall()
+
+
+# The command line run_engine gives every engine before its own arguments
+RUN_ENGINE_ARGUMENTS = (
+    '--resolution',
+    RECORDING_RESOLUTION,
+    '--log-level',
+    'warning',
+    '--input-mode',
+    'joystick',
+    '--target-fps',
+    '0',
+    '--fps-log-interval-ms',
+    '1000000000',
+)
+
+
+def build_engine(*, scene_class: type[Scene], arguments: Sequence[str]) -> GoldenTraceEngine:
+    """Construct (not start) the engine with a game scene, on a given command line.
+
+    Args:
+        scene_class: The game scene.
+        arguments: The whole command line (RUN_ENGINE_ARGUMENTS and any extra arguments).
+
+    Returns:
+        The engine, constructed.
+
+    """
+    with command_line(list(arguments)):
+        return GoldenTraceEngine(game=scene_class)
 
 
 def run_engine(*arguments: str) -> GoldenTraceEngine:
@@ -267,20 +418,9 @@ def run_engine(*arguments: str) -> GoldenTraceEngine:
         The engine, after GameEngine.start() returned (shut down).
 
     """
-    with command_line([
-        '--resolution',
-        RECORDING_RESOLUTION,
-        '--log-level',
-        'warning',
-        '--input-mode',
-        'joystick',
-        '--target-fps',
-        '0',
-        '--fps-log-interval-ms',
-        '1000000000',
-        *arguments,
-    ]):
-        engine = GoldenTraceEngine(game=DepartureRecordedScene)
+    engine = build_engine(
+        scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, *arguments)
+    )
     engine.start()
     return engine
 
@@ -315,6 +455,7 @@ def _assert_recording_header(header: dict[str, Any]) -> None:
     assert header['frame_seconds'] is None
     assert header['random_seed'] == RANDOM_SEED
     assert header['game_class'] == 'DepartureRecordedScene'
+    assert header['game_module'] == DepartureRecordedScene.__module__
     assert header['scene_class'] == 'DepartureRecordedScene'
     assert header['engine_version'] == importlib.metadata.version('glitchygames')
     assert header['pygame_version'] == pygame.version.ver
@@ -323,7 +464,7 @@ def _assert_recording_header(header: dict[str, Any]) -> None:
     assert datetime.fromisoformat(header['recorded_at']).tzinfo is not None
     options = header['options']
     assert options['target_fps'] == 0.0
-    assert options['timer_backend'] == 'fast'
+    assert options['timer_backend'] == 'auto'
     assert options['input_mode'] == 'joystick'
     assert options['resolution'] == RECORDING_RESOLUTION
     assert options['random_seed'] == RANDOM_SEED
@@ -383,7 +524,6 @@ class TestRecordingThroughTheEngine:
             result = read_trace_result(path=path)
 
         assert result.is_complete
-        assert engine.scene_manager.trace_recorder is None
         header = result.trace
         _assert_recording_header(header)
 
@@ -505,24 +645,35 @@ class TestRecordingThroughTheEngine:
         assert frames[1]['scene'] is None
         assert frames[1]['sprites'] == []
 
-    def test_sigterm_ends_the_run_and_closes_the_recording(self, mocker, tmp_path):
-        """SIGTERM while recording unwinds through the shutdown path; the file is complete."""
+    @pytest.mark.parametrize(
+        ('signal_name', 'expected_exit_code'),
+        [
+            ('SIGTERM', ExitCode.TERMINATED),
+            ('SIGHUP', ExitCode.HANGUP),
+            ('SIGBREAK', ExitCode.BREAK),
+        ],
+    )
+    def test_a_terminating_signal_ends_the_run_and_closes_the_recording(
+        self, mocker, tmp_path, signal_name, expected_exit_code
+    ):
+        """The signal while recording unwinds through the shutdown path; the file is complete."""
+        signal_number = platform_signal(signal_name)
         path = tmp_path / 'session.jsonl.gz'
-        previous_handler = signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        previous_handler = signal.signal(signal_number, signal.SIG_DFL)
         try:
             with engine_run_environment(mocker):
-                # Call the installed handler as the signal would (a real SIGTERM with no
+                # Call the installed handler as the signal would (a real signal with no
                 # handler installed would kill the test worker)
                 Script.action_frame = 2
-                Script.action = call_sigterm_handler
+                Script.action = lambda: call_signal_handler(signal_number=signal_number)
                 with pytest.raises(SystemExit) as exit_info:
                     run_engine('--record-trace', str(path))
-            handler_after_run = signal.getsignal(signal.SIGTERM)
+            handler_after_run = signal.getsignal(signal_number)
         finally:
-            signal.signal(signal.SIGTERM, previous_handler)
+            signal.signal(signal_number, previous_handler)
 
         result = read_trace_result(path=path)
-        assert exit_info.value.code == 128 + signal.SIGTERM
+        assert exit_info.value.code == expected_exit_code
         assert result.is_complete
         # Frames 0 and 1 finished; frame 2 was interrupted inside its logic
         assert [frame['frame'] for frame in result.trace['frames']] == [0, 1]
@@ -538,34 +689,242 @@ class TestRecordingThroughTheEngine:
         with engine_run_environment(mocker):
             Script.action_frame = 1
             Script.action = interrupt
-            with pytest.raises(KeyboardInterrupt):
+            with pytest.raises(SystemExit) as exit_info:
                 run_engine('--record-trace', str(path))
 
         result = read_trace_result(path=path)
+        assert exit_info.value.code == ExitCode.INTERRUPTED
         assert result.is_complete
         assert [frame['frame'] for frame in result.trace['frames']] == [0]
 
-    def test_existing_sigterm_handler_is_left_alone(self, mocker, tmp_path):
-        """A game that installed its own SIGTERM handler (Bitmappy) keeps it."""
+    def test_a_recording_that_fails_part_way_ends_the_run_cannot_write_output(
+        self, mocker, tmp_path, caplog
+    ):
+        """The disk fills on frame 2: one error line, the frames before kept (BUGS.md #82)."""
+        path = tmp_path / 'session.jsonl.gz'
+        real_write_frame = TraceWriter.write_frame
+        frames_written: list[int] = []
+
+        def write_until_the_disk_fills(writer: TraceWriter, **arguments: Any) -> None:
+            # Frames 0 and 1 fit
+            if len(frames_written) == 2:
+                raise OSError(errno.ENOSPC, 'No space left on device')
+            frames_written.append(len(frames_written))
+            real_write_frame(writer, **arguments)
+
+        mocker.patch.object(
+            TraceWriter, 'write_frame', autospec=True, side_effect=write_until_the_disk_fills
+        )
+        with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
+            run_engine('--record-trace', str(path))
+
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+        result = read_trace_result(path=path)
+        assert result.is_complete
+        assert [frame['frame'] for frame in result.trace['frames']] == [0, 1]
+        failures = [
+            record for record in caplog.records if 'could not be written' in record.getMessage()
+        ]
+        assert len(failures) == 1
+        assert 'No space left on device' in failures[0].getMessage()
+        # One line, not a traceback
+        assert failures[0].exc_info is None
+
+    def test_a_recording_that_fails_to_close_ends_the_run_cannot_write_output(
+        self, mocker, tmp_path
+    ):
+        """The last write (the gzip trailer, at teardown) fails: the teardown still finishes."""
+        path = tmp_path / 'session.jsonl.gz'
+        real_close = TraceWriter.close
+
+        def close_then_fail(writer: TraceWriter) -> None:
+            real_close(writer)
+            raise OSError(errno.EIO, 'Input/output error')
+
+        mocker.patch.object(TraceWriter, 'close', autospec=True, side_effect=close_then_fail)
+        with engine_run_environment(mocker):
+            _schedule_quit_in_arrival()
+            with pytest.raises(SystemExit) as exit_info:
+                run_engine('--record-trace', str(path))
+
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+
+    @pytest.mark.parametrize('signal_name', ['SIGTERM', 'SIGHUP', 'SIGBREAK'])
+    def test_existing_signal_handler_is_left_alone(self, mocker, tmp_path, signal_name):
+        """A game that installed its own handler for a signal (Bitmappy) keeps it."""
+        signal_number = platform_signal(signal_name)
         path = tmp_path / 'session.jsonl.gz'
         observed_handlers: list[object] = []
 
         def game_handler(_signal_number: int, _frame: object) -> None:
             return None
 
-        previous_handler = signal.signal(signal.SIGTERM, game_handler)
+        previous_handler = signal.signal(signal_number, game_handler)
         try:
             with engine_run_environment(mocker):
                 Script.events_by_frame = {2: [pygame.event.Event(pygame.QUIT)]}
                 Script.action_frame = 1
-                Script.action = lambda: observed_handlers.append(signal.getsignal(signal.SIGTERM))
+                Script.action = lambda: observed_handlers.append(signal.getsignal(signal_number))
                 run_engine('--record-trace', str(path))
-            handler_after_run = signal.getsignal(signal.SIGTERM)
+            handler_after_run = signal.getsignal(signal_number)
         finally:
-            signal.signal(signal.SIGTERM, previous_handler)
+            signal.signal(signal_number, previous_handler)
 
         assert observed_handlers == [game_handler]
         assert handler_after_run is game_handler
+
+    def test_recording_holds_input_changes_and_control_events(self, mocker, tmp_path):
+        """Control events land in their frame; polled input is recorded as changes."""
+        recording_path = tmp_path / 'session.jsonl.gz'
+        served_snapshots = mocker.spy(LiveSources, 'input_snapshot')
+        # engine_run_environment resets Script, so the script is set inside it
+        with engine_run_environment(mocker):
+            Script.events_by_frame = {
+                1: [_key(pygame.KEYDOWN, pygame.K_a, unicode='a')],
+                2: [_key(pygame.KEYUP, pygame.K_a)],
+            }
+            Script.action_frame = 1
+            Script.action = lambda: SceneManager().record_control_event(
+                kind=BREAKPOINT_KIND, data={'label': 'scripted'}
+            )
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        trace = read_trace_result(path=recording_path).trace
+        frames = trace['frames']
+        assert frames[1][CONTROL_EVENTS_FIELD] == [{'kind': 'breakpoint', 'label': 'scripted'}]
+        assert all(CONTROL_EVENTS_FIELD not in frame for frame in frames if frame['frame'] != 1)
+        # Folding each frame's input_changes onto the previous frame's snapshot (IDLE_INPUT
+        # before the first) rebuilds exactly the snapshot the doors served in that frame.
+        # (Posted keys do not change the dummy driver's key state, so which fields change is
+        # up to the environment, e.g. mouse focus in frame 0; the fold must hold either way.)
+        rebuilt_snapshot = IDLE_INPUT
+        for frame, served_snapshot in zip(
+            frames, served_snapshots.spy_return_list[: len(frames)], strict=True
+        ):
+            rebuilt_snapshot = apply_snapshot_changes(
+                previous=rebuilt_snapshot, changes=frame.get(INPUT_CHANGES_FIELD, {})
+            )
+            assert rebuilt_snapshot == served_snapshot
+
+    def test_saves_opened_after_recording_started_are_snapshotted_in_their_frame(
+        self, mocker, tmp_path
+    ):
+        """A save namespace first opened during the run is recorded in that frame."""
+        save_directory = tmp_path / 'saves'
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: save_directory / app_name,
+        )
+        DiskSaveManager(app_name='recording-test').save('high_scores', {'scores': [{'score': 900}]})
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            Script.action_frame = 0
+            Script.action = lambda: open_saves(app_name='recording-test')
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        frames = read_trace_result(path=recording_path).trace['frames']
+        # Opened in frame 0, after recording started: snapshotted into that frame
+        (opened,) = [frame[SAVES_OPENED_FIELD] for frame in frames if SAVES_OPENED_FIELD in frame]
+        assert opened['recording-test']['high_scores']['data'] == {'scores': [{'score': 900}]}
+        assert frames[0]['frame'] == 0
+        assert SAVES_OPENED_FIELD in frames[0]
+
+    def test_recording_holds_each_scene_start(self, mocker, tmp_path):
+        """Frame 0 holds the first scene's start, and each start is on its first logic frame."""
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        frames = read_trace_result(path=recording_path).trace['frames']
+        first_start = SceneStart.from_json(frames[0][SCENE_START_FIELD])
+        assert first_start.scene_class == 'DepartureRecordedScene'
+        assert first_start.construction_random_states['seed'] == RANDOM_SEED
+        starts_by_frame = {
+            frame['frame']: frame[SCENE_START_FIELD]['scene_class']
+            for frame in frames
+            if SCENE_START_FIELD in frame
+        }
+        # The arriving scene is set up in the frame that starts the transition; its logic
+        # begins on the first frame after the ride, where its start is written
+        assert starts_by_frame == {
+            0: 'DepartureRecordedScene',
+            TRANSITION_START_FRAME + TRANSITION_FRAME_COUNT + 1: 'ArrivalRecordedScene',
+        }
+        arrival_start = SceneStart.from_json(
+            frames[TRANSITION_START_FRAME + TRANSITION_FRAME_COUNT + 1][SCENE_START_FIELD]
+        )
+        assert arrival_start.first_logic_frame is not None
+        assert arrival_start.first_logic_frame.arrived_by_transition is True
+        assert first_start.first_logic_frame is not None
+        assert first_start.first_logic_frame.arrived_by_transition is False
+
+    def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
+        """A store the game opened before recording started is snapshotted into the header."""
+        recording_path = tmp_path / 'session.jsonl.gz'
+
+        def write_a_score(scene: Scene) -> None:
+            # PaddleSlap opened its saves in __init__, before recording starts
+            assert isinstance(scene, paddleslap.Game)
+            scene.saves.save('high_scores', {'scores': [{'score': 7}]})
+
+        record_trace(
+            'paddleslap',
+            frame_count=2,
+            recording_path=recording_path,
+            before_recording=write_a_score,
+        )
+        header = read_trace_result(path=recording_path).trace
+        assert header[SAVES_HEADER_FIELD]['paddleslap']['high_scores']['data'] == {
+            'scores': [{'score': 7}]
+        }
+        assert all(SAVES_OPENED_FIELD not in frame for frame in header['frames'])
+
+    def test_devices_opened_are_recorded(self, mocker, tmp_path):
+        """A device opened during the run: its descriptor, its open answer and its positions."""
+        fake_device = mocker.Mock(**{
+            'get_instance_id.return_value': 5,
+            'get_name.return_value': 'Fake Pad',
+            'get_guid.return_value': 'guid',
+            'get_numaxes.return_value': 2,
+            'get_numbuttons.return_value': 4,
+            'get_numhats.return_value': 1,
+            'get_numballs.return_value': 0,
+            # Polled into the input snapshot every frame from the frame it was opened
+            'get_axis.return_value': 0.5,
+            'get_button.return_value': False,
+            'get_hat.return_value': (0, 1),
+        })
+        mocker.patch.object(devices_module.pygame.joystick, 'Joystick', return_value=fake_device)
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            Script.action_frame = 1
+            Script.action = lambda: active_sources().devices().open_joystick(device_index=0)
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        frames = read_trace_result(path=recording_path).trace['frames']
+        assert frames[1][DEVICES_OPENED_FIELD] == [
+            {
+                'kind': 'joystick',
+                'device_index': 0,
+                'instance_id': 5,
+                'name': 'Fake Pad',
+                'guid': 'guid',
+                'axis_count': 2,
+                'button_count': 4,
+                'hat_count': 1,
+                'ball_count': 0,
+            }
+        ]
+        assert frames[1][DEVICE_ENUMERATION_FIELD] == [
+            {'call': 'open_joystick', 'device_index': 0, 'value': 5, 'error': None}
+        ]
+        assert all(DEVICES_OPENED_FIELD not in frame for frame in frames if frame['frame'] != 1)
+        # Opened in frame 1's logic, before its pump: frame 1's snapshot holds its positions,
+        # and later frames, where nothing changed, record no change
+        frame_one_changes = frames[1][INPUT_CHANGES_FIELD]
+        assert frame_one_changes['device_axes'] == {'5': [0.5, 0.5]}
+        assert frame_one_changes['device_hats'] == {'5': [[0, 1]]}
+        assert all('device_axes' not in frame.get(INPUT_CHANGES_FIELD, {}) for frame in frames[2:])
 
 
 @contextlib.contextmanager
@@ -637,11 +996,7 @@ def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     assert transition_frames.call_count > 0
     assert 'PauseScene' in {frame['scene'] for frame in recorded_frames}
     sprite_frames = [
-        {
-            field: value
-            for field, value in frame.items()
-            if field not in {DT_FIELD, EVENT_BATCHES_FIELD}
-        }
+        {field: value for field, value in frame.items() if field not in RECORDING_FRAME_FIELDS}
         for frame in recorded_frames
     ]
     assert sprite_frames == golden['frames']
@@ -677,16 +1032,68 @@ def constructed_engine(*arguments: str) -> Generator[GoldenTraceEngine]:
 class TestRecordingEdgeCases:
     """Recording set-up that the normal run does not reach."""
 
-    def test_sigterm_handler_is_skipped_off_the_main_thread(self):
+    def test_the_engine_turns_off_sdls_signal_handlers(self, monkeypatch):
+        """SDL must not turn SIGINT/SIGTERM into QUIT events: the engine owns the signals."""
+        monkeypatch.delenv('SDL_NO_SIGNAL_HANDLERS', raising=False)
+        with constructed_engine():
+            assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '1'
+
+    def test_a_preset_sdl_signal_handler_hint_is_kept(self, monkeypatch):
+        monkeypatch.setenv('SDL_NO_SIGNAL_HANDLERS', '0')
+        with constructed_engine():
+            assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '0'
+
+    def test_pygame_initialized_before_the_engine_is_warned_about(self, mocker, caplog):
+        mocker.patch.object(game_engine_module.pygame, 'get_init', return_value=True)
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' in caplog.text
+
+    @SKIP_WITHOUT_A_DELIVERABLE_SIGTERM
+    def test_a_real_sigterm_ends_a_live_run_as_terminated_not_as_a_quit(self, tmp_path):
+        """End to end, without recording: the engine's handler, not SDL's QUIT, ends the run."""
+        game_file = tmp_path / 'self_terminating_game.py'
+        game_file.write_text(SELF_TERMINATING_GAME_SOURCE, encoding='utf-8')
+        process = run_self_terminating_game(game_file=game_file, extra_arguments=())
+        assert process.returncode == ExitCode.TERMINATED, process.stdout
+
+    @SKIP_WITHOUT_A_DELIVERABLE_SIGTERM
+    def test_a_real_sigterm_ends_a_recording_run_as_terminated_not_as_a_quit(self, tmp_path):
+        """End to end: a delivered SIGTERM is never an SDL QUIT event, in the run or the file."""
+        game_file = tmp_path / 'self_terminating_game.py'
+        game_file.write_text(SELF_TERMINATING_GAME_SOURCE, encoding='utf-8')
+        recording_path = tmp_path / 'terminated.jsonl.gz'
+        process = run_self_terminating_game(
+            game_file=game_file, extra_arguments=('--record-trace', str(recording_path))
+        )
+
+        assert process.returncode == ExitCode.TERMINATED, process.stdout
+        result = read_trace_result(path=recording_path)
+        assert result.is_complete
+        recorded_events = [
+            event
+            for frame in result.trace['frames']
+            for batch in frame['event_batches']
+            for event in batch
+        ]
+        assert all(event['type'] != pygame.QUIT for event in recorded_events)
+
+    def test_signal_handlers_are_skipped_off_the_main_thread(self):
         """signal.signal only works on the main thread; elsewhere recording goes on without it."""
         with constructed_engine() as engine:
-            original_handler = signal.getsignal(signal.SIGTERM)
-            install_thread = threading.Thread(target=engine._install_sigterm_handler)
+            original_handlers = {
+                signal_number: signal.getsignal(signal_number)
+                for signal_number in game_engine_module.terminating_signals()
+            }
+            install_thread = threading.Thread(target=engine._install_signal_handlers)
             install_thread.start()
             install_thread.join()
 
-            assert engine._installed_sigterm_handler is False
-            assert signal.getsignal(signal.SIGTERM) == original_handler
+            assert engine._installed_signal_handlers == []
+            assert {
+                signal_number: signal.getsignal(signal_number)
+                for signal_number in original_handlers
+            } == original_handlers
 
     def test_header_without_installed_package_metadata(self, mocker):
         """Running from a source tree without package metadata records engine_version null."""
@@ -708,8 +1115,93 @@ class TestRecordingEdgeCases:
         finally:
             signal.signal(signal.SIGTERM, previous_handler)
 
-        assert exit_info.value.code == 128 + signal.SIGTERM
+        assert exit_info.value.code == ExitCode.TERMINATED
         assert handler_after_signal == signal.SIG_IGN
+
+    def test_starting_a_second_recording_is_refused(self, tmp_path):
+        """A second start_trace_recording would wrap the doors twice: it raises instead."""
+        with constructed_engine() as engine:
+            engine.start_trace_recording(path=tmp_path / 'first.jsonl.gz')
+            try:
+                with pytest.raises(TraceRecordingAlreadyStartedError):
+                    engine.start_trace_recording(path=tmp_path / 'second.jsonl.gz')
+                installed_sources = active_sources()
+            finally:
+                engine.stop_trace_recording()
+
+        assert isinstance(installed_sources, RecordingSources)
+        assert isinstance(installed_sources.inner, LiveSources)
+        assert not (tmp_path / 'second.jsonl.gz').exists()
+
+    def test_recording_records_saves_opened_by_any_doors(self, tmp_path, mocker):
+        """Header saves come from the doors' opened_save_namespaces, whatever doors they are."""
+        # Doors that are not LiveSources (a replay's hand out memory stores)
+        store = MemorySaveManager(app_name='other-doors', snapshot={})
+        store.save('progress', {'level': 4})
+        live_sources = LiveSources(random_seed=RANDOM_SEED)
+        other_sources = mocker.Mock(
+            wraps=live_sources,
+            random_seed=RANDOM_SEED,
+            opened_save_namespaces={'other-doors': store},
+        )
+        path = tmp_path / 'session.jsonl.gz'
+        with constructed_engine() as engine:
+            install_sources(sources=other_sources)
+            engine.start_trace_recording(path=path)
+            engine.stop_trace_recording()
+
+        header = read_trace_result(path=path).trace
+        assert header[SAVES_HEADER_FIELD]['other-doors']['progress']['data'] == {'level': 4}
+
+    def test_an_unwritable_recording_is_refused_before_the_game_runs(
+        self, mocker, tmp_path, caplog
+    ):
+        """--record-trace into a directory: CANNOT_WRITE_OUTPUT with one line, no frame run."""
+        recording_path = tmp_path / 'a-directory.jsonl.gz'
+        recording_path.mkdir()
+        caplog.clear()
+        with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
+            run_engine('--record-trace', str(recording_path))
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+        refusals = [record for record in caplog.records if 'Cannot write' in record.getMessage()]
+        assert len(refusals) == 1
+        assert '--record-trace' in refusals[0].getMessage()
+        assert refusals[0].exc_info is None
+        assert Script.logic_dts == []
+
+    def test_a_recording_check_leaves_no_file_behind(self, tmp_path):
+        """Checking that the recording can be written does not leave an empty file."""
+        recording_path = tmp_path / 'new-directory' / 'session.jsonl.gz'
+        with constructed_engine('--record-trace', str(recording_path)):
+            assert not recording_path.exists()
+            assert recording_path.parent.is_dir()
+
+    def test_a_new_engine_begins_a_fresh_run_on_the_singleton_scene_manager(self, mocker):
+        """Nothing an earlier run left on the scene manager carries into the next run."""
+        manager = GoldenTraceSceneManager.install()
+        try:
+            manager.frame_number = 7
+            manager.quit_requested = True
+            manager._timer_prev_deadline_ns = 123
+            manager._display_is_stale = True
+            manager._last_playback_result = mocker.Mock()
+            manager._last_playback_outcome = mocker.Mock()
+            manager.screen_shake.add(
+                Shake(style=ShakeStyle.JITTER, strength=4.0, duration=10.0, frequency=30.0)
+            )
+            manager.add_supervisor(supervisor=mocker.Mock())
+            with command_line(['--log-level', 'warning']):
+                GoldenTraceEngine(game=DepartureRecordedScene)
+            assert manager.frame_number == 0
+            assert manager.quit_requested is False
+            assert manager._timer_prev_deadline_ns is None
+            assert manager._display_is_stale is False
+            assert manager.last_playback_result is None
+            assert manager.last_playback_outcome is None
+            assert not manager.screen_shake.is_active
+            assert manager._supervisors == []
+        finally:
+            GoldenTraceSceneManager.uninstall()
 
     def test_stop_without_a_recording_does_nothing(self):
         """stop_trace_recording is safe to call when nothing is recording (every teardown)."""

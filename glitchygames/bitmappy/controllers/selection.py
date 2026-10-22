@@ -14,9 +14,10 @@ Features:
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass
 from typing import Any, TypedDict
+
+from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
 
 LOG = logging.getLogger('game.tools.controller_selection')
 
@@ -40,7 +41,9 @@ class ControllerSelectionState:
     selected_slider: str = 'R'  # R, G, or B
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
-    last_update_time: float = 0.0
+    # elapsed_seconds() of the last activity; -inf before any, so the activity age is inf
+    # rather than whatever elapsed_seconds() reads (the frame clock)
+    last_update_time: float = float('-inf')
     navigation_history: list[NavigationEntry] | None = None
 
     def __post_init__(self) -> None:
@@ -67,7 +70,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         self.controller_id = controller_id
         self.instance_id = instance_id
         self.state = ControllerSelectionState(controller_id=controller_id, instance_id=instance_id)
-        self.creation_time = time.time()
+        self.creation_time = elapsed_seconds()
 
     def set_animation(self, animation_name: str) -> None:
         """Set the selected animation for this controller.
@@ -82,11 +85,11 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
             self.state.navigation_history.append({
                 'animation': self.state.selected_animation,
                 'frame': self.state.selected_frame,
-                'timestamp': time.time(),
+                'timestamp': wall_clock_epoch_seconds(),
             })
 
             self.state.selected_animation = animation_name
-            self.state.last_update_time = time.time()
+            self.state.last_update_time = elapsed_seconds()
 
             LOG.debug("Controller %s selected animation '%s'", self.controller_id, animation_name)
 
@@ -99,7 +102,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         """
         if self.state.selected_frame != frame_index:
             self.state.selected_frame = frame_index
-            self.state.last_update_time = time.time()
+            self.state.last_update_time = elapsed_seconds()
 
             LOG.debug('Controller %s selected frame %s', self.controller_id, frame_index)
 
@@ -122,12 +125,12 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
                 self.state.navigation_history.append({
                     'animation': self.state.selected_animation,
                     'frame': self.state.selected_frame,
-                    'timestamp': time.time(),
+                    'timestamp': wall_clock_epoch_seconds(),
                 })
 
             self.state.selected_animation = animation_name
             self.state.selected_frame = frame_index
-            self.state.last_update_time = time.time()
+            self.state.last_update_time = elapsed_seconds()
 
             LOG.debug(
                 "Controller %s selected animation '%s', frame %s",
@@ -172,7 +175,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         """
         if slider_name in {'R', 'G', 'B'} and self.state.selected_slider != slider_name:
             self.state.selected_slider = slider_name
-            self.state.last_update_time = time.time()
+            self.state.last_update_time = elapsed_seconds()
 
             LOG.debug("Controller %s selected slider '%s'", self.controller_id, slider_name)
 
@@ -194,7 +197,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         """
         if direction in {'HORIZONTAL', 'VERTICAL'}:
             self.state.controller_fill_direction = direction
-            self.state.last_update_time = time.time()
+            self.state.last_update_time = elapsed_seconds()
             LOG.debug('Controller %s fill direction set to %s', self.controller_id, direction)
         else:
             LOG.debug(
@@ -216,7 +219,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         """Activate this controller for navigation."""
         if not self.state.is_active:
             self.state.is_active = True
-            self.state.last_update_time = time.time()
+            self.state.last_update_time = elapsed_seconds()
             LOG.debug('Controller %s activated', self.controller_id)
 
     def deactivate(self) -> None:
@@ -270,7 +273,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
 
     def update_activity(self) -> None:
         """Update the last activity timestamp."""
-        self.state.last_update_time = time.time()
+        self.state.last_update_time = elapsed_seconds()
 
     def get_activity_age(self) -> float:
         """Get the age of the last activity in seconds.
@@ -279,7 +282,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
             Age in seconds since last activity
 
         """
-        return time.time() - self.state.last_update_time
+        return elapsed_seconds() - self.state.last_update_time
 
     def get_navigation_history(self) -> list[NavigationEntry]:
         """Get the navigation history.
@@ -322,7 +325,7 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         self.state.selected_animation = ''
         self.state.selected_frame = 0
         self.state.is_active = False
-        self.state.last_update_time = time.time()
+        self.state.last_update_time = elapsed_seconds()
         assert self.state.navigation_history is not None
         self.state.navigation_history.clear()
         LOG.debug('Controller %s reset to default state', self.controller_id)

@@ -73,7 +73,7 @@ class TestTOMLOnlySupport:
 
         # Verify file was created
         assert toml_file.exists()
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Check TOML structure
         assert '[sprite]' in content
@@ -118,7 +118,7 @@ class TestTOMLOnlySupport:
 
         # Verify file was created
         assert toml_file.exists()
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Check TOML structure
         assert '[sprite]' in content

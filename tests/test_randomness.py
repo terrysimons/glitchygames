@@ -9,6 +9,7 @@ package.
 from __future__ import annotations
 
 import ast
+import json
 import random
 from pathlib import Path
 
@@ -18,14 +19,17 @@ import pytest
 from glitchygames import randomness
 from glitchygames.randomness import (
     SEED_BITS,
+    capture_stream_states,
     engine_random,
     engine_random_seed,
     numpy_stream,
     random_stream,
     reset_streams,
+    restore_stream_states,
     seed_engine_random,
     stream_seed,
 )
+from tests.ast_scanning import dynamic_import_name, import_bindings, qualified_name
 
 DRAW_COUNT = 20
 TEST_SEED = 123
@@ -220,6 +224,88 @@ class TestMasterSeed:
         assert engine_random_seed() == 42
 
 
+class TestStreamStates:
+    """capture_stream_states/restore_stream_states save and restore every stream exactly."""
+
+    def test_restore_reproduces_the_next_draws(self):
+        """After a restore, every stream (and a stream not yet created) draws as it would have."""
+        reset_streams(seed=TEST_SEED)
+        random_stream('shake').random()
+        numpy_stream('audio.live').random()
+        states = capture_stream_states()
+        expected = (
+            random_stream('shake').random(),
+            numpy_stream('audio.live').random(),
+            random_stream('new').random(),
+        )
+        reset_streams(seed=999)
+        restore_stream_states(states=states)
+
+        assert engine_random_seed() == TEST_SEED
+        assert (
+            random_stream('shake').random(),
+            numpy_stream('audio.live').random(),
+            random_stream('new').random(),
+        ) == expected
+
+    def test_restore_drops_streams_created_after_the_capture(self):
+        """A stream created after the capture is recreated from the seed, as at capture time."""
+        reset_streams(seed=TEST_SEED)
+        states = capture_stream_states()
+        first_draws = _draws('late')
+        restore_stream_states(states=states)
+
+        assert _draws('late') == first_draws
+
+    def test_a_held_stream_object_is_restored_in_place(self):
+        """Code holding a stream (a running shake's random source) sees the restored state."""
+        reset_streams(seed=TEST_SEED)
+        held_random = random_stream('shake')
+        held_numpy = numpy_stream('audio.live')
+        states = capture_stream_states()
+        expected = (held_random.random(), held_numpy.random())
+        held_random.random()
+        held_numpy.random()
+        restore_stream_states(states=states)
+
+        assert random_stream('shake') is held_random
+        assert numpy_stream('audio.live') is held_numpy
+        assert (held_random.random(), held_numpy.random()) == expected
+
+    def test_a_held_stream_the_capture_lacks_is_reseeded_in_place(self):
+        """A stream made after the capture starts over from its seed, in the same object."""
+        reset_streams(seed=TEST_SEED)
+        states = capture_stream_states()
+        held_random = random_stream('late')
+        held_numpy = numpy_stream('late.numpy')
+        expected = (held_random.random(), held_numpy.random())
+        restore_stream_states(states=states)
+
+        assert random_stream('late') is held_random
+        assert numpy_stream('late.numpy') is held_numpy
+        assert (held_random.random(), held_numpy.random()) == expected
+
+    def test_states_are_json_safe(self):
+        """The capture reads back from JSON exactly (lists, not tuples)."""
+        reset_streams(seed=TEST_SEED)
+        random_stream('shake').random()
+        numpy_stream('audio.live').random()
+        states = capture_stream_states()
+
+        assert json.loads(json.dumps(states)) == states
+
+    def test_restored_states_survive_a_json_round_trip(self):
+        """States read back from JSON (a recording's) restore the same draws."""
+        reset_streams(seed=TEST_SEED)
+        random_stream('shake').random()
+        numpy_stream('audio.live').random()
+        states = json.loads(json.dumps(capture_stream_states()))
+        expected = (random_stream('shake').random(), numpy_stream('audio.live').random())
+        restore_stream_states(states=states)
+
+        assert (random_stream('shake').random(), numpy_stream('audio.live').random()) == expected
+
+
 # Modules whose import bindings the scan follows (aliases, from-imports, __import__)
 WATCHED_MODULES = frozenset({'numpy', 'numpy.random', 'os', 'random', 'secrets', 'uuid'})
 # Fully qualified names that are unseeded wherever they are used (called or passed around)
@@ -228,71 +314,12 @@ UNSEEDED_NAMES = frozenset({'os.urandom', 'uuid.uuid1', 'uuid.uuid4'})
 SEEDABLE_CONSTRUCTORS = {'random.Random': 'x', 'numpy.random.default_rng': 'seed'}
 
 
-def _import_bindings(tree: ast.Module) -> dict[str, str]:
-    """Map each local name bound to a watched module (or a name in one) to its qualified name.
-
-    ``import random as r`` binds ``r`` to ``random``; ``import numpy.random`` binds
-    ``numpy``; ``from numpy import random as nr`` binds ``nr`` to ``numpy.random``;
-    ``from random import Random`` binds ``Random`` to ``random.Random``. Bindings are
-    module-wide: an import inside a function counts too, and shadowing is ignored.
-
-    Returns:
-        Local name -> fully qualified name.
-
-    """
-    bindings: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.asname is not None and alias.name in WATCHED_MODULES:
-                    bindings[alias.asname] = alias.name
-                elif alias.asname is None and alias.name.split('.')[0] in WATCHED_MODULES:
-                    top_level_name = alias.name.split('.')[0]
-                    bindings[top_level_name] = top_level_name
-        elif isinstance(node, ast.ImportFrom) and node.module in WATCHED_MODULES:
-            for alias in node.names:
-                bindings[alias.asname or alias.name] = f'{node.module}.{alias.name}'
-    return bindings
-
-
-def _dynamic_import_name(node: ast.expr) -> str | None:
-    """Return the watched module ``__import__('<module>')`` imports, else None."""
-    is_dynamic_import = (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == '__import__'
-        and bool(node.args)
-    )
-    if not is_dynamic_import:
-        return None
-    assert isinstance(node, ast.Call)
-    module_argument = node.args[0]
-    if isinstance(module_argument, ast.Constant) and module_argument.value in WATCHED_MODULES:
-        return str(module_argument.value)
-    return None
-
-
-def _qualified_name(node: ast.expr, bindings: dict[str, str]) -> str | None:
-    """Resolve a name or attribute chain through the import bindings.
-
-    Returns:
-        The fully qualified name (``random.uniform``), or None if it is not from a watched module.
-
-    """
-    if isinstance(node, ast.Name):
-        return bindings.get(node.id)
-    if isinstance(node, ast.Attribute):
-        owner = _qualified_name(node.value, bindings)
-        return None if owner is None else f'{owner}.{node.attr}'
-    return _dynamic_import_name(node)
-
-
-def _is_unseeded_name(qualified_name: str) -> bool:
+def _is_unseeded_name(reference_name: str) -> bool:
     # random.Random is the seedable generator; every other random.<name> is the global
     # generator or system entropy
-    if qualified_name.startswith('random.') and qualified_name != 'random.Random':
+    if reference_name.startswith('random.') and reference_name != 'random.Random':
         return True
-    return qualified_name in UNSEEDED_NAMES or qualified_name.endswith('.SystemRandom')
+    return reference_name in UNSEEDED_NAMES or reference_name.endswith('.SystemRandom')
 
 
 def _has_seed(node: ast.Call, *, seed_keyword: str) -> bool:
@@ -319,10 +346,12 @@ def _unseeded_randomness_in_import(node: ast.Import | ast.ImportFrom) -> list[st
 
 
 def _unseeded_randomness_in_call(node: ast.Call, bindings: dict[str, str]) -> str | None:
-    dynamic_import_name = _dynamic_import_name(node)
-    if dynamic_import_name is not None:
-        return f"__import__('{dynamic_import_name}')"
-    function_name = _qualified_name(node.func, bindings)
+    imported_module_name = dynamic_import_name(node=node, watched_modules=WATCHED_MODULES)
+    if imported_module_name is not None:
+        return f"__import__('{imported_module_name}')"
+    function_name = qualified_name(
+        node=node.func, bindings=bindings, watched_modules=WATCHED_MODULES
+    )
     if function_name is None:
         return None
     seed_keyword = SEEDABLE_CONSTRUCTORS.get(function_name)
@@ -338,9 +367,9 @@ def _unseeded_randomness_in_call(node: ast.Call, bindings: dict[str, str]) -> st
 def _unseeded_randomness_in_reference(
     node: ast.Name | ast.Attribute, bindings: dict[str, str]
 ) -> str | None:
-    qualified_name = _qualified_name(node, bindings)
-    if qualified_name is not None:
-        return qualified_name if _is_unseeded_name(qualified_name) else None
+    reference_name = qualified_name(node=node, bindings=bindings, watched_modules=WATCHED_MODULES)
+    if reference_name is not None:
+        return reference_name if _is_unseeded_name(reference_name) else None
     if isinstance(node, ast.Attribute) and node.attr == 'SystemRandom':
         return ast.unparse(node)
     return None
@@ -380,7 +409,7 @@ def unseeded_randomness(source_path: Path) -> list[str]:
 
     """
     tree = ast.parse(source_path.read_text(encoding='utf-8'), filename=str(source_path))
-    bindings = _import_bindings(tree)
+    bindings = import_bindings(tree=tree, watched_modules=WATCHED_MODULES)
     positioned_offenders = sorted(
         (node.lineno, node.col_offset, what)
         for node in ast.walk(tree)

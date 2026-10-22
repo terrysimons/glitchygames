@@ -22,7 +22,9 @@ from glitchygames.game_objects.ball import (
     SpeedUpSettings,
     SpeedUpTrigger,
 )
+from glitchygames.recording_history import frame_content_hash
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from glitchygames.tracing import read_trace_result
 from tests.mocks import MockFactory
 
 # Path to the static sprite fixture
@@ -33,6 +35,10 @@ STATIC_TOML = str(
     / 'resources'
     / 'sprites'
     / 'static.toml',
+)
+
+BRAVE_ADVENTURER_GOLDEN = (
+    Path(__file__).parent.parent / 'fixtures' / 'replays' / 'brave-adventurer' / 'golden.jsonl.gz'
 )
 
 # Frame time at 60 FPS
@@ -326,3 +332,11 @@ class TestVisualCollisionBenchmarks:
             call_count += 1
 
         benchmark(update_position)
+
+
+def test_benchmark_frame_content_hash_of_the_largest_golden_frame(benchmark):
+    """Hash one frame (105 sprites, about 7 KB of JSON): about 107 microseconds (2026-10-21)."""
+    frames = read_trace_result(path=BRAVE_ADVENTURER_GOLDEN).trace['frames']
+    largest = max(frames, key=lambda frame: len(frame.get('sprites', [])))
+    digest = benchmark(lambda: frame_content_hash(frame_record=largest))
+    assert len(digest) == 16

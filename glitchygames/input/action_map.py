@@ -14,6 +14,8 @@ Usage:
                  controller_button=pygame.CONTROLLER_BUTTON_A)
     actions.bind('move_right', keyboard=pygame.K_RIGHT,
                  controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.3))
+    # A physical key position: the same place on every keyboard layout
+    actions.bind('move_left', scancode=pygame.KSCAN_A)
 
     # In event handlers:
     actions.handle_event(event)
@@ -23,6 +25,14 @@ Usage:
     actions.begin_frame()
     if actions.is_held('move_right'):
         player.move_right()
+
+Keyboard bindings come in two kinds. ``keyboard=`` binds a key code (``pygame.K_*``), which
+the keyboard layout decides: right for mnemonic keys (P for pause, I for inventory), wrong for
+positional controls, which land elsewhere on another layout (WASD is ZQSD's place on AZERTY).
+``scancode=`` binds a physical key position (``pygame.KSCAN_*``, the event's ``scancode``),
+which is the same on every layout: use it for movement and other positional controls.
+Recordings hold every key event with its scancode, so a scancode binding also replays exactly
+on any layout.
 """
 
 from __future__ import annotations
@@ -71,8 +81,10 @@ class Binding:
     Attributes:
         action: The game action name (e.g. 'jump', 'move_right').
         event_type: The pygame event type (KEYDOWN, CONTROLLERBUTTONDOWN, etc.).
-        input_code: The key or button constant.
+        input_code: The key or button constant (a scancode when ``is_scancode``).
         instance_id: Controller instance filter (None accepts any controller).
+        is_scancode: True for a physical key position (``bind(scancode=...)``), matched
+            against the event's ``scancode``; False for a key code, matched against ``key``.
 
     """
 
@@ -80,6 +92,7 @@ class Binding:
     event_type: int
     input_code: int
     instance_id: int | None = None
+    is_scancode: bool = False
 
 
 @dataclass(frozen=True)
@@ -136,6 +149,9 @@ class ActionMap:
 
         # Digital bindings: (event_type, input_code) → list of Binding
         self._bindings: dict[tuple[int, int], list[Binding]] = {}
+        # Key position bindings: (KEYDOWN or KEYUP, scancode) → list of Binding, apart from
+        # the key codes (a scancode and a key code can have the same number)
+        self._scancode_bindings: dict[tuple[int, int], list[Binding]] = {}
 
         # Analog axis bindings (small list, iterated on axis events)
         self._axis_bindings: list[AxisBinding] = []
@@ -153,6 +169,7 @@ class ActionMap:
         action: str,
         *,
         keyboard: int | None = None,
+        scancode: int | None = None,
         controller_button: int | None = None,
         controller_axis: tuple[int, float] | None = None,
         joystick_button: int | None = None,
@@ -165,7 +182,10 @@ class ActionMap:
 
         Args:
             action: The game action name.
-            keyboard: A pygame key constant (e.g. pygame.K_SPACE).
+            keyboard: A pygame key constant (e.g. pygame.K_SPACE): the key the layout
+                calls that, wherever it is.
+            scancode: A physical key position (e.g. pygame.KSCAN_A): the key in that place
+                on every layout, whatever the layout calls it.
             controller_button: A gamepad button constant. Automatically
                 uses the correct event type based on input_mode.
             controller_axis: Tuple of (axis_constant, threshold).
@@ -193,6 +213,17 @@ class ActionMap:
                     input_code=keyboard,
                 )
             )
+
+        if scancode is not None:
+            for event_type in (pygame.KEYDOWN, pygame.KEYUP):
+                self._add_binding(
+                    Binding(
+                        action=action,
+                        event_type=event_type,
+                        input_code=scancode,
+                        is_scancode=True,
+                    )
+                )
 
         if controller_button is not None:
             # Register the event family matching the active input mode.
@@ -260,18 +291,17 @@ class ActionMap:
             action: The action name to unbind.
 
         """
-        # Remove digital bindings
-        keys_to_remove = [
-            key
-            for key, bindings in self._bindings.items()
-            if all(binding.action == action for binding in bindings)
-        ]
-        for key in keys_to_remove:
-            del self._bindings[key]
-        for key in self._bindings:
-            self._bindings[key] = [
-                binding for binding in self._bindings[key] if binding.action != action
+        # Remove digital bindings (key codes and buttons, then key positions)
+        for table in (self._bindings, self._scancode_bindings):
+            keys_to_remove = [
+                key
+                for key, bindings in table.items()
+                if all(binding.action == action for binding in bindings)
             ]
+            for key in keys_to_remove:
+                del table[key]
+            for key in table:
+                table[key] = [binding for binding in table[key] if binding.action != action]
 
         # Remove axis bindings
         self._axis_bindings = [
@@ -287,6 +317,7 @@ class ActionMap:
     def clear(self) -> None:
         """Remove all bindings and reset all state."""
         self._bindings.clear()
+        self._scancode_bindings.clear()
         self._axis_bindings.clear()
         self._held.clear()
         self._just_pressed.clear()
@@ -321,16 +352,9 @@ class ActionMap:
             List of matching action names (may be empty).
 
         """
-        input_code = self._extract_input_code(event)
-        if input_code is None:
-            return []
-
-        key = (event.type, input_code)
-        bindings = self._bindings.get(key, [])
-
         return [
             binding.action
-            for binding in bindings
+            for binding in self._bindings_for_event(event)
             if self._instance_matches(binding.instance_id, event)
         ]
 
@@ -347,26 +371,23 @@ class ActionMap:
 
         """
         # Handle digital inputs (keyboard + controller/joystick buttons)
-        input_code = self._extract_input_code(event)
-        if input_code is not None:
-            key = (event.type, input_code)
-            for binding in self._bindings.get(key, []):
-                if not self._instance_matches(binding.instance_id, event):
-                    continue
+        for binding in self._bindings_for_event(event):
+            if not self._instance_matches(binding.instance_id, event):
+                continue
 
-                is_down = event.type in {
-                    pygame.KEYDOWN,
-                    pygame.CONTROLLERBUTTONDOWN,
-                    pygame.JOYBUTTONDOWN,
-                }
-                if is_down:
-                    if binding.action not in self._held:
-                        self._just_pressed.add(binding.action)
-                    self._held.add(binding.action)
-                else:
-                    if binding.action in self._held:
-                        self._just_released.add(binding.action)
-                    self._held.discard(binding.action)
+            is_down = event.type in {
+                pygame.KEYDOWN,
+                pygame.CONTROLLERBUTTONDOWN,
+                pygame.JOYBUTTONDOWN,
+            }
+            if is_down:
+                if binding.action not in self._held:
+                    self._just_pressed.add(binding.action)
+                self._held.add(binding.action)
+            else:
+                if binding.action in self._held:
+                    self._just_released.add(binding.action)
+                self._held.discard(binding.action)
 
         # Handle analog axis inputs (only the active event family)
         expected_axis_type = (
@@ -456,8 +477,9 @@ class ActionMap:
         """
         result: dict[str, list[dict[str, Any]]] = {}
 
-        # Digital bindings (only DOWN events, UP is derived)
-        for bindings in self._bindings.values():
+        # Digital bindings (only DOWN events, UP is derived); a key position is stored as
+        # 'scancode', a key code or button as 'code'
+        for bindings in [*self._bindings.values(), *self._scancode_bindings.values()]:
             for binding in bindings:
                 if binding.event_type not in {pygame.KEYDOWN, pygame.CONTROLLERBUTTONDOWN}:
                     continue
@@ -465,7 +487,7 @@ class ActionMap:
                     result[binding.action] = []
                 entry: dict[str, Any] = {
                     'type': pygame.event.event_name(binding.event_type),
-                    'code': binding.input_code,
+                    ('scancode' if binding.is_scancode else 'code'): binding.input_code,
                 }
                 if binding.instance_id is not None:
                     entry['instance_id'] = binding.instance_id
@@ -560,6 +582,10 @@ class ActionMap:
             return
 
         event_type = event_name_to_type.get(binding_type)
+        scancode = entry.get('scancode')
+        if event_type == pygame.KEYDOWN and scancode is not None:
+            action_map.bind(action_name, scancode=int(scancode))
+            return
         code = entry.get('code')
         if event_type is None or code is None:
             return
@@ -587,7 +613,7 @@ class ActionMap:
             loaded_actions: Set of action names already loaded from data.
 
         """
-        for bindings in defaults._bindings.values():
+        for bindings in [*defaults._bindings.values(), *defaults._scancode_bindings.values()]:
             for binding in bindings:
                 if binding.action not in loaded_actions:
                     action_map._add_binding(binding)
@@ -605,7 +631,30 @@ class ActionMap:
 
         """
         key = (binding.event_type, binding.input_code)
-        self._bindings.setdefault(key, []).append(binding)
+        table = self._scancode_bindings if binding.is_scancode else self._bindings
+        table.setdefault(key, []).append(binding)
+
+    def _bindings_for_event(self, event: HashableEvent) -> list[Binding]:
+        """Return the digital bindings an event matches: by key code or button, and by position.
+
+        Args:
+            event: The event to look up.
+
+        Returns:
+            The bindings, key code and button ones first.
+
+        """
+        bindings: list[Binding] = []
+        input_code = self._extract_input_code(event)
+        if input_code is not None:
+            bindings.extend(self._bindings.get((event.type, input_code), []))
+        if self._scancode_bindings and event.type in {pygame.KEYDOWN, pygame.KEYUP}:
+            # Only an int is a position: a key event made without one (a game's own post, a
+            # stand-in) matches no position
+            scancode = getattr(event, 'scancode', None)
+            if isinstance(scancode, int):
+                bindings.extend(self._scancode_bindings.get((event.type, scancode), []))
+        return bindings
 
     def _extract_input_code(self, event: HashableEvent) -> int | None:
         """Extract the input code from a HashableEvent.

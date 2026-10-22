@@ -205,6 +205,46 @@ class TestProbeMicrophoneBackend:
         assert 'Voice backend probe failed' in format_args[0]
         assert format_args[1] == 'FailingBackend'
 
+    def test_probe_unexpected_error_returns_none_and_logs(self, mocker):
+        """A backend failing with an unexpected error type is logged and not selected."""
+        mock_mic_cls = mocker.Mock(side_effect=ValueError('bad sample rate'))
+        mock_mic_cls.__name__ = 'OddBackend'
+        manager = VoiceEventManager.__new__(VoiceEventManager)
+        voice_logger = mocker.patch.object(VoiceEventManager, 'log')
+
+        result = manager._probe_microphone_backend(mock_mic_cls)
+
+        assert result is None
+        voice_logger.exception.assert_called_once_with(
+            'Unexpected error while probing voice backend %s', 'OddBackend'
+        )
+
+    def test_probe_backend_with_enter_but_no_exit(self, mocker):
+        """A backend that can be entered but has no __exit__ is still opened and selected."""
+
+        class EnterOnlyMicrophone:
+            """A microphone with __enter__ only."""
+
+            entered_count = 0
+
+            def __enter__(self):
+                """Count the open.
+
+                Returns:
+                    EnterOnlyMicrophone: This microphone.
+
+                """
+                EnterOnlyMicrophone.entered_count += 1
+                return self
+
+        manager = VoiceEventManager.__new__(VoiceEventManager)
+        mocker.patch.object(VoiceEventManager, 'log')
+
+        result = manager._probe_microphone_backend(EnterOnlyMicrophone)
+
+        assert isinstance(result, EnterOnlyMicrophone)
+        assert EnterOnlyMicrophone.entered_count == 1
+
 
 class TestSetupMicrophone:
     """Test _setup_microphone edge cases."""
@@ -353,8 +393,12 @@ class TestListenLoop:
         mock_microphone.__exit__ = mocker.Mock(return_value=False)
 
         manager = VoiceEventManager()
+        # The loop runs only while listening (start_listening sets this before the thread starts)
+        manager.is_listening = True
         mock_audio = mocker.Mock()
         mock_recognizer.recognize_google.side_effect = mock_sr.UnknownValueError()
+        command_callback = mocker.Mock()
+        manager.register_command('jump', command_callback)
 
         call_count = [0]
 
@@ -366,8 +410,12 @@ class TestListenLoop:
 
         mock_recognizer.listen.side_effect = stop_after_first
 
-        # Should not raise
+        # Should not raise: unintelligible speech is skipped and the loop keeps listening
         manager._listen_loop()
+
+        assert call_count[0] == 2
+        assert mock_recognizer.recognize_google.call_count == 2
+        command_callback.assert_not_called()
 
     def test_listen_loop_handles_request_error(self, mocker):
         """Test _listen_loop handles RequestError and waits before retrying."""
@@ -430,6 +478,8 @@ class TestListenLoop:
         mock_microphone.__exit__ = mocker.Mock(return_value=False)
 
         manager = VoiceEventManager()
+        # The loop runs only while listening (start_listening sets this before the thread starts)
+        manager.is_listening = True
 
         call_count = [0]
 
@@ -442,8 +492,11 @@ class TestListenLoop:
 
         mock_recognizer.listen.side_effect = timeout_then_stop
 
-        # Should not raise
+        # Should not raise: a timeout just listens again
         manager._listen_loop()
+
+        assert call_count[0] == 2
+        mock_recognizer.recognize_google.assert_not_called()
 
     def test_listen_loop_handles_oserror(self, mocker):
         """Test _listen_loop handles OSError and sleeps before retrying."""
@@ -595,6 +648,50 @@ class TestStartStopListening:
 
         assert manager.is_listening is False
         mock_thread.join.assert_called_once_with(timeout=2.0)
+
+    def test_start_listening_runs_the_loop_in_a_thread_until_stopped(self, mocker):
+        """start_listening starts a daemon thread running the loop; stop_listening ends it."""
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
+        mock_sr = mocker.patch('glitchygames.events.voice.sr')
+        mock_sr.Recognizer = mocker.Mock()
+        mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
+
+        manager = VoiceEventManager()
+        manager.microphone = mocker.Mock()
+        loop_started = threading.Event()
+
+        def wait_for_stop():
+            loop_started.set()
+            manager.stop_listening_event.wait(timeout=TIMEOUT_2_SECONDS)
+
+        mocker.patch.object(manager, '_listen_loop', side_effect=wait_for_stop)
+
+        manager.start_listening()
+        listen_thread = manager.listen_thread
+        try:
+            assert loop_started.wait(timeout=TIMEOUT_2_SECONDS)
+            assert manager.is_listening is True
+            assert listen_thread is not None
+            assert listen_thread.daemon is True
+            assert listen_thread.is_alive()
+        finally:
+            manager.stop_listening()
+
+        assert manager.is_listening is False
+        assert manager.stop_listening_event.is_set()
+        assert not listen_thread.is_alive()
+
+    def test_stop_listening_without_a_thread(self, mocker):
+        """Stopping a manager marked listening but with no thread just clears the flag."""
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
+        manager = VoiceEventManager()
+        manager.is_listening = True
+        manager.listen_thread = None
+
+        manager.stop_listening()
+
+        assert manager.is_listening is False
+        assert manager.stop_listening_event.is_set()
 
 
 class TestHasMicrophone:

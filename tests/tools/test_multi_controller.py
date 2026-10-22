@@ -1,7 +1,5 @@
 """Tests for multi-controller manager functionality and coverage."""
 
-import time
-
 import pytest
 
 from glitchygames.bitmappy.controllers.manager import (
@@ -14,6 +12,8 @@ from glitchygames.bitmappy.indicators.collision import (
     IndicatorShape,
     VisualCollisionManager,
 )
+from glitchygames.clock import elapsed_seconds
+from glitchygames.sources import advance_frame_clock
 
 """Test suite for multi-controller system.
 
@@ -48,13 +48,16 @@ class TestMultiControllerManager:
         assert expected_colors == self.manager.CONTROLLER_COLORS
 
     def test_scan_for_controllers(self, mocker):
-        """Test controller scanning."""
-        # Mock pygame joystick
-        mock_joystick = mocker.Mock()
+        """Test controller scanning (counted and opened through the devices door)."""
+        from glitchygames.sources import active_sources
+
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 1
+        mock_joystick = registry.open_joystick.return_value
         mock_joystick.get_init.return_value = True
         mock_joystick.get_instance_id.return_value = 0
-        mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
-        mocker.patch('pygame.joystick.get_count', return_value=1)
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
 
         # Test scanning
         connected_ids = self.manager.scan_for_controllers()
@@ -62,6 +65,8 @@ class TestMultiControllerManager:
         assert len(connected_ids) == 1
         assert 0 in connected_ids
         assert 0 in self.manager.controllers
+        registry.open_joystick.assert_called_once_with(device_index=0)
+        real_joystick.assert_not_called()
 
     def test_controller_assignment(self):
         """Test controller assignment."""
@@ -179,7 +184,7 @@ class TestMultiControllerManager:
             instance_id=0,
             status=ControllerStatus.ASSIGNED,
             color=(255, 0, 0),
-            last_activity=time.time() - 10,  # 10 seconds ago
+            last_activity=elapsed_seconds() - 10,  # 10 seconds ago
         )
         self.manager.controllers[0] = controller_info
         self.manager.assigned_controllers[0] = 0
@@ -255,15 +260,14 @@ class TestControllerSelection:
         assert target_frame == 1  # 2 - 1 = 1 (last available frame)
 
     def test_activity_tracking(self):
-        """Test activity tracking."""
-        initial_time = self.controller_selection.state.last_update_time
+        """Activity times are elapsed_seconds() readings: the frame clock."""
+        self.controller_selection.update_activity()
+        first_activity_time = self.controller_selection.state.last_update_time
 
-        # Update activity
-        time.sleep(0.01)  # Small delay
+        advance_frame_clock(seconds=0.25)
         self.controller_selection.update_activity()
 
-        # Check that time was updated
-        assert self.controller_selection.state.last_update_time > initial_time
+        assert self.controller_selection.state.last_update_time - first_activity_time == 0.25
 
     def test_navigation_history(self):
         """Test navigation history tracking."""
@@ -583,8 +587,8 @@ class TestMultiControllerManagerCleanup:
             controller_id=0,
             instance_id=100,
             status=ControllerStatus.ACTIVE,
-            assigned_time=time.time() - 100,
-            last_activity=time.time() - 100,  # Very old activity
+            assigned_time=elapsed_seconds() - 100,
+            last_activity=elapsed_seconds() - 100,  # Very old activity
         )
         manager.controllers[100] = controller
         manager.assigned_controllers[100] = 0
@@ -605,8 +609,8 @@ class TestMultiControllerManagerCleanup:
             controller_id=0,
             instance_id=100,
             status=ControllerStatus.ACTIVE,
-            assigned_time=time.time(),
-            last_activity=time.time(),  # Very recent activity
+            assigned_time=elapsed_seconds(),
+            last_activity=elapsed_seconds(),  # Very recent activity
         )
         manager.controllers[100] = controller
         manager.assigned_controllers[100] = 0
@@ -616,6 +620,43 @@ class TestMultiControllerManagerCleanup:
         # Controller should remain ACTIVE
         assert manager.controllers[100].status == ControllerStatus.ACTIVE
         assert 100 in manager.assigned_controllers
+
+    def test_cleanup_counts_activity_at_elapsed_zero(self, mocker):
+        """Activity read at elapsed 0.0 (a replay's first frame) is activity, not 'never'."""
+        from glitchygames.bitmappy.controllers import manager as manager_module
+
+        manager = MultiControllerManager()
+        manager.controllers[100] = ControllerInfo(
+            controller_id=0,
+            instance_id=100,
+            status=ControllerStatus.ACTIVE,
+            assigned_time=0.0,
+            last_activity=0.0,
+        )
+        manager.assigned_controllers[100] = 0
+        mocker.patch.object(
+            manager_module, 'elapsed_seconds', return_value=manager.ASSIGNMENT_TIMEOUT + 1.0
+        )
+
+        manager.cleanup_inactive_controllers()
+
+        assert manager.controllers[100].status == ControllerStatus.CONNECTED
+        assert 100 not in manager.assigned_controllers
+
+    def test_first_scan_runs_when_elapsed_reads_zero(self, mocker):
+        """The first scan is not skipped as 'too soon' at elapsed 0.0 (a replay's start)."""
+        from glitchygames.bitmappy.controllers import manager as manager_module
+        from glitchygames.sources import active_sources
+
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 0
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        mocker.patch.object(manager_module, 'elapsed_seconds', return_value=0.0)
+        manager = MultiControllerManager()
+
+        manager.scan_for_controllers()
+
+        registry.joystick_count.assert_called_once_with()
 
 
 class TestMultiControllerManagerAssignment:
@@ -734,11 +775,12 @@ class TestMultiControllerManagerQueries:
             last_activity=0,
         )
         manager.controllers[100] = controller
+        # Activity times are elapsed_seconds() readings: the frame clock, a few frames later
+        advance_frame_clock(seconds=2.5)
 
         manager.update_controller_activity(100)
 
-        assert controller.last_activity is not None
-        assert controller.last_activity > 0
+        assert controller.last_activity == 2.5
 
     def test_get_active_controllers(self):
         """Test getting list of active controllers."""
@@ -796,3 +838,151 @@ class TestMultiControllerManagerQueries:
 
         # Color should now be one of the CONTROLLER_COLORS
         assert manager.controllers[100].color in MultiControllerManager.CONTROLLER_COLORS
+
+
+class TestMultiControllerManagerScanning:
+    """Scanning connects new devices, disconnects missing ones and skips unusable ones."""
+
+    @pytest.fixture(autouse=True)
+    def fresh_manager(self, mocker):
+        """Give each test its own singleton, restoring the shared one afterwards."""
+        mocker.patch.object(MultiControllerManager, '_instance', None)
+
+    @staticmethod
+    def _devices_door(mocker, *, joysticks):
+        """Make the devices door enumerate ``joysticks`` (a joystick mock or an exception).
+
+        Returns:
+            The registry mock.
+
+        """
+        from glitchygames.sources import active_sources
+
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = len(joysticks)
+        registry.open_joystick.side_effect = joysticks
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        return registry
+
+    @staticmethod
+    def _joystick(mocker, *, initialized, instance_id):
+        """Return a joystick mock with the given init state and instance id.
+
+        Returns:
+            The joystick mock.
+
+        """
+        joystick = mocker.Mock()
+        joystick.get_init.return_value = initialized
+        joystick.get_instance_id.return_value = instance_id
+        return joystick
+
+    def test_scan_keeps_known_drops_missing_and_skips_unusable_devices(self, mocker):
+        """A known device keeps its info, a missing one is removed, unusable ones are skipped."""
+        import pygame
+
+        manager = MultiControllerManager()
+        known_info = ControllerInfo(controller_id=0, instance_id=5, status=ControllerStatus.ACTIVE)
+        manager.controllers[5] = known_info
+        manager.controllers[7] = ControllerInfo(
+            controller_id=1,
+            instance_id=7,
+            status=ControllerStatus.ASSIGNED,
+        )
+        manager.assigned_controllers[7] = 1
+        self._devices_door(
+            mocker,
+            joysticks=[
+                self._joystick(mocker, initialized=True, instance_id=5),
+                self._joystick(mocker, initialized=False, instance_id=6),
+                pygame.error('device vanished'),
+            ],
+        )
+
+        connected_ids = manager.scan_for_controllers()
+
+        assert connected_ids == [5]
+        assert manager.controllers == {5: known_info}
+        assert manager.assigned_controllers == {}
+
+    def test_a_scan_within_the_interval_reuses_the_known_controllers(self, mocker):
+        """A second scan less than scan_interval later enumerates no devices."""
+        manager = MultiControllerManager()
+        registry = self._devices_door(
+            mocker,
+            joysticks=[self._joystick(mocker, initialized=True, instance_id=5)],
+        )
+        manager.scan_for_controllers()
+        advance_frame_clock(seconds=manager.scan_interval / 2)
+
+        connected_ids = manager.scan_for_controllers()
+
+        assert connected_ids == [5]
+        registry.joystick_count.assert_called_once_with()
+
+    def test_disconnecting_an_unassigned_controller(self):
+        """An unassigned controller is removed without touching the assignments."""
+        manager = MultiControllerManager()
+        manager.controllers[5] = ControllerInfo(
+            controller_id=0,
+            instance_id=5,
+            status=ControllerStatus.CONNECTED,
+        )
+        manager.assigned_controllers[8] = 2
+
+        manager._handle_controller_disconnect(5)
+        manager._handle_controller_disconnect(99)
+
+        assert manager.controllers == {}
+        assert manager.assigned_controllers == {8: 2}
+
+
+class TestMultiControllerManagerInconsistentState:
+    """Lookups and updates for instances the manager does not hold."""
+
+    @pytest.fixture(autouse=True)
+    def fresh_manager(self, mocker):
+        """Give each test its own singleton, restoring the shared one afterwards."""
+        mocker.patch.object(MultiControllerManager, '_instance', None)
+
+    def test_activating_an_assignment_without_controller_info_fails(self):
+        """An assignment whose controller info is gone cannot be activated."""
+        manager = MultiControllerManager()
+        manager.assigned_controllers[5] = 0
+
+        assert manager.activate_controller(5) is False
+
+    def test_activity_of_an_unknown_instance_is_ignored(self):
+        """Updating an unknown instance's activity creates no controller."""
+        manager = MultiControllerManager()
+
+        manager.update_controller_activity(5)
+
+        assert manager.controllers == {}
+
+    def test_get_assigned_controllers_lists_instance_ids(self):
+        """The assigned controllers are listed by instance id."""
+        manager = MultiControllerManager()
+        manager.assigned_controllers[5] = 0
+        manager.assigned_controllers[9] = 1
+
+        assert manager.get_assigned_controllers() == [5, 9]
+        assert manager.get_controller_id(9) == 1
+        assert manager.get_controller_id(6) is None
+
+    def test_cleanup_deactivates_an_inactive_unassigned_controller(self):
+        """An idle controller that was never assigned is set back to connected."""
+        manager = MultiControllerManager()
+        manager.controllers[5] = ControllerInfo(
+            controller_id=0,
+            instance_id=5,
+            status=ControllerStatus.ACTIVE,
+            assigned_time=0.0,
+            last_activity=0.0,
+        )
+        advance_frame_clock(seconds=manager.ASSIGNMENT_TIMEOUT + 1.0)
+
+        manager.cleanup_inactive_controllers()
+
+        assert manager.controllers[5].status == ControllerStatus.CONNECTED
+        assert manager.controllers[5].assigned_time is None

@@ -5,7 +5,6 @@ and hardware, providing multiple layers of verification to quickly identify
 where rendering problems occur in the pipeline.
 """
 
-import os
 import sys
 import time
 from pathlib import Path
@@ -20,12 +19,6 @@ from glitchygames.sprites import SpriteFactory
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests.mocks.test_mock_factory import MockFactory
-
-# Skip all hardware tests in CI environments (headless, no GPU)
-pytestmark = pytest.mark.skipif(
-    os.environ.get('CI') == 'true',
-    reason='Hardware rendering tests require a display and GPU, unavailable in CI',
-)
 
 
 def get_resource_path(filename: str) -> str:
@@ -220,8 +213,17 @@ class TestAnimationHardware:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
+        """Set up pygame mocks for testing.
+
+        The mocked display's ``get_at`` answers every pixel black. It is a recording mock, and
+        these tests read the whole 800x600 screen pixel by pixel, so it kept each of the
+        480,000 calls per capture (about 1.3 GB for this file; BUGS.md #85): a plain function
+        gives the same answer without keeping them.
+        """
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
+        display_surface = pygame.display.get_surface()
+        black = pygame.Color(0, 0, 0, 255)
+        display_surface.get_at = lambda position: black  # ty: ignore[invalid-assignment]
 
     def setup_method(self):
         """Set up test fixtures."""

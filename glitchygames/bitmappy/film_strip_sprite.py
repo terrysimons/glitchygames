@@ -8,6 +8,7 @@ import pygame
 
 from glitchygames import events
 from glitchygames.color import RGBA_COMPONENT_COUNT
+from glitchygames.input.state import current_input
 from glitchygames.sprites import BitmappySprite
 
 from .constants import LOG
@@ -121,10 +122,10 @@ class FilmStripSprite(BitmappySprite):
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
 
-            # Check for shift-click using pygame's current key state
-            is_shift_click = (
-                pygame.key.get_pressed()[pygame.K_LSHIFT]
-                or pygame.key.get_pressed()[pygame.K_RSHIFT]
+            # Check for shift-click using the frame's polled input
+            held_keys = current_input()
+            is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
+                pygame.K_RSHIFT
             )
 
             # Handle click in the film strip widget
@@ -178,9 +179,9 @@ class FilmStripSprite(BitmappySprite):
             film_y = event.pos[1] - self.rect.y
 
             # Check for shift-right-click (screen sampling)
-            is_shift_click = (
-                pygame.key.get_pressed()[pygame.K_LSHIFT]
-                or pygame.key.get_pressed()[pygame.K_RSHIFT]
+            held_keys = current_input()
+            is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
+                pygame.K_RSHIFT
             )
 
             # First check if we clicked on a frame for color sampling
@@ -475,10 +476,10 @@ class FilmStripSprite(BitmappySprite):
 
         """
         # Get current mouse position since drop events don't include position
-        mouse_pos = pygame.mouse.get_pos()
+        mouse_position = current_input().mouse_position
 
         # Check if the drop is within the film strip bounds
-        if not self.rect.collidepoint(mouse_pos):
+        if not self.rect.collidepoint(mouse_position):
             return False
 
         # Get the file path from the event
@@ -491,8 +492,8 @@ class FilmStripSprite(BitmappySprite):
             return False
 
         # Convert screen coordinates to film strip coordinates
-        film_x = mouse_pos[0] - self.rect.x
-        film_y = mouse_pos[1] - self.rect.y
+        film_x = mouse_position[0] - self.rect.x
+        film_y = mouse_position[1] - self.rect.y
 
         assert self.film_strip_widget is not None
         # Check if drop is on a specific frame

@@ -76,7 +76,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         frame = SpriteFrame(surface, duration=duration)
 
         # Initialize pixel data (magenta with full alpha)
-        frame.pixels = [(255, 0, 255, 255)] * (width * height)  # ty: ignore[invalid-assignment]
+        frame.pixels = [(255, 0, 255, 255)] * (width * height)
 
         return frame
 
@@ -1266,7 +1266,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                     self.log.debug('Initializing canvas pixels')
                     # Create a blank pixel array
                     pixel_count = self.editor.canvas.pixels_across * self.editor.canvas.pixels_tall
-                    self.editor.canvas.pixels = [(255, 0, 255, 255)] * pixel_count  # ty: ignore[invalid-assignment]  # Magenta background
+                    self.editor.canvas.pixels = [
+                        (255, 0, 255, 255)
+                    ] * pixel_count  # Magenta background
                     self.editor.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(
                         f'Canvas pixels initialized: len={len(self.editor.canvas.pixels)}',

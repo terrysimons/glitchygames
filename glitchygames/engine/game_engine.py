@@ -18,11 +18,12 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
 
 import pygame
 
 from glitchygames import events
+from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
@@ -35,17 +36,86 @@ from glitchygames.events.midi import MidiEventManager
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
+from glitchygames.exit_codes import ExitCode
 from glitchygames.fonts import FontManager
+from glitchygames.input.state import current_input, reset_current_input, set_current_input
+from glitchygames.live_sources import LiveSources
+from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
-from glitchygames.recording import GameplayRecorder, json_safe_value, post_event
+from glitchygames.recording import (
+    DEVICE_ENUMERATION_FIELD,
+    DEVICES_HEADER_FIELD,
+    RECORDED_AT_HEADER_FIELD,
+    SAVES_HEADER_FIELD,
+    GameplayRecorder,
+    RecordingSources,
+    RecordingWriteError,
+    TraceRecordingAlreadyStartedError,
+    forget_pending_posts,
+    json_safe_value,
+    pending_internal_posts,
+    post_event,
+    reset_internal_post_tracking,
+    start_tracking_internal_posts,
+)
+from glitchygames.recording_history import (
+    CONTENT_HASH_SCHEME,
+    MEASUREMENT_RUNS_HEADER_FIELD,
+    MeasurementRun,
+)
+from glitchygames.replay.audit import (
+    AuditRunError,
+    audit_command,
+    audit_recording,
+    environment_reaches_children,
+)
+from glitchygames.replay.driver import (
+    REAL_REPLAY_FPS,
+    REPLAY_FPS_CHOICES,
+    RUNNING_END_REASON,
+    ReplayRefusedError,
+    ReplaySources,
+    announce_replay,
+    installed_engine_version,
+    start_replay,
+)
+from glitchygames.replay.processing import machine_description
+from glitchygames.replay.rebaseline import Rebaseline, rebaseline_refusal
+from glitchygames.replay.rebuild import (
+    ViewerState,
+    parse_viewer_state,
+    relaunch_replay,
+    restart_command,
+)
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.sources import (
+    active_sources,
+    install_sources,
+    reset_sources,
+    take_redelivered_events,
+)
 from glitchygames.sprites import Sprite
-from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
+from glitchygames.state.sandbox import save_namespace_snapshot
+from glitchygames.supervision import BREAKPOINT_KIND
+from glitchygames.timing import (
+    DEFAULT_SLEEP_GRANULARITY_NS,
+    DEFAULT_TARGET_FPS,
+    GIL_SWITCH_INTERVAL_SECONDS,
+    TIMER_BACKEND_AUTO,
+    TIMER_BACKEND_FAST,
+    TIMER_BACKEND_PYGAME,
+    create_timer,
+    pacing_timer_for_options,
+)
+from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
     from collections import OrderedDict
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator, Mapping
     from types import FrameType
+
+    from glitchygames.input.state import InputSnapshot
+    from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -65,9 +135,26 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
+# The SDL video and audio driver --headless runs on (no window, no sound)
+HEADLESS_SDL_DRIVER = 'dummy'
 
-# Exit status after SIGTERM ends a recording run (the shell convention: 128 + signal number)
-SIGNAL_EXIT_STATUS_BASE = 128
+# The signals that end a run through the normal teardown (exit_on_signal), by name:
+# SIGHUP exists only on Unix and SIGBREAK only on Windows, so each is looked up where it runs.
+# SIGINT needs no handler (KeyboardInterrupt); see glitchygames/exit_codes.py for those not wired
+TERMINATING_SIGNAL_NAMES = ('SIGTERM', 'SIGHUP', 'SIGBREAK')
+
+
+def pygame_needs_fastevents() -> bool:
+    """Report whether this pygame is older than 2.2 and so reads events with pygame.fastevent.
+
+    Returns:
+        True for pygame < 2.2.
+
+    """
+    return (
+        pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
+        and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
+    )
 
 
 def unit_interval(value: str) -> float:
@@ -118,6 +205,30 @@ def target_fps_value(value: str) -> float:
     return number
 
 
+def non_negative_percent(value: str) -> float:
+    """Argparse type: a finite percentage >= 0.
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed percentage.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a finite number >= 0.
+
+    """
+    try:
+        number = float(value)
+    except ValueError as error:
+        message = f'{value!r} is not a number'
+        raise argparse.ArgumentTypeError(message) from error
+    if not math.isfinite(number) or number < 0:
+        message = f'{value!r} must be a finite number >= 0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
 def non_negative_int(value: str) -> int:
     """Argparse type: an integer >= 0.
 
@@ -142,27 +253,75 @@ def non_negative_int(value: str) -> int:
     return number
 
 
+def terminating_signals() -> list[int]:
+    """Return the TERMINATING_SIGNAL_NAMES this platform has, as signal numbers.
+
+    Returns:
+        SIGTERM, plus SIGHUP on Unix or SIGBREAK on Windows.
+
+    """
+    return [getattr(signal, name) for name in TERMINATING_SIGNAL_NAMES if hasattr(signal, name)]
+
+
 def exit_on_signal(signal_number: int, _frame: FrameType | None) -> None:
     """End the run with SystemExit, so GameEngine.start()'s teardown still runs.
 
-    Installed for SIGTERM while recording (``GameEngine.start_trace_recording``), so the
-    recording is closed by ``_shutdown``. It ignores further signals of the same kind before
-    raising: a second SIGTERM (``uv run`` forwards one to its child as well, and ``pkill``
-    can match both) would otherwise raise again inside the teardown and leave the recording
-    unclosed. ``stop_trace_recording`` restores the default handling after closing the file.
-    It does nothing else: logging here could fail with "reentrant call" if the signal
-    interrupted a write to the same stream.
+    Installed by ``GameEngine.start`` for each of ``terminating_signals()`` that nothing else
+    handles, for the whole run, so a recording is closed by ``_shutdown``. It ignores further
+    signals of the same kind before raising: a second SIGTERM (``uv run`` forwards one to its
+    child as well, and ``pkill`` can match both) would otherwise raise again inside the teardown
+    and leave the recording unclosed. ``_shutdown`` restores the default handling after closing
+    the recording. It does nothing else: logging here could fail with "reentrant call" if the
+    signal interrupted a write to the same stream.
 
     Args:
         signal_number: The signal received.
         _frame: The interrupted frame (unused).
 
     Raises:
-        SystemExit: Always, with status 128 + the signal number.
+        SystemExit: Always, with ``ExitCode.for_signal(signal_number)`` (``TERMINATED`` for
+            SIGTERM, ``HANGUP`` for SIGHUP, ``BREAK`` for SIGBREAK).
 
     """
     signal.signal(signal_number, signal.SIG_IGN)
-    raise SystemExit(SIGNAL_EXIT_STATUS_BASE + signal_number)
+    raise SystemExit(ExitCode.for_signal(signal_number))
+
+
+def exit_with(*, exit_code: ExitCode, cause: BaseException | None = None) -> NoReturn:
+    """Log the exit code the engine exits with (``ExitCode.describe()``) and exit with it.
+
+    Args:
+        exit_code: The code.
+        cause: The exception that led to the exit, chained as the SystemExit's cause.
+
+    Raises:
+        SystemExit: Always, with ``exit_code``.
+
+    """
+    LOG.info(f'Exiting with {exit_code.describe()}')
+    raise SystemExit(exit_code) from cause
+
+
+def replayed_batch_origins(*, doors: EngineSources) -> list[str] | None:
+    """Return each event's origin in the doors' last batch, when a replay's merge knows them.
+
+    A recorder over a replay (``--rebaseline``) takes them from the replay, and so does the
+    instant-replay journal (glitchygames/instant_replay.py, rule 4): a watched replay's held
+    frames drain the real queue between pumps, so the posts pending before a pump do not tell
+    them.
+
+    Args:
+        doors: The doors that pumped (the run's installed ones, or a recording around them).
+
+    Returns:
+        The origins, or None when the doors are not a replay's.
+
+    """
+    while isinstance(doors, RecordingSources):
+        doors = doors.inner
+    if isinstance(doors, ReplaySources):
+        return doors.last_batch_origins()
+    return None
 
 
 @dataclass
@@ -219,9 +378,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # These are wired up at the end of __init__()
     EVENT_HANDLERS: ClassVar[dict[int, Callable[..., Any]]] = {}
 
-    # The --record-trace recorder while recording (start_trace_recording), else None. A class
-    # default so process_events can check it on an engine whose __init__ did not run.
+    # The --record-trace recorder while recording (start_trace_recording), else None; the
+    # RecordingSources it installs write to it. A class default so it reads None on an engine
+    # whose __init__ did not run.
     trace_recorder: GameplayRecorder | None = None
+    # True once a recording's file could not be written (GameplayRecorder.write_failed, read as
+    # it is closed): the run then exits CANNOT_WRITE_OUTPUT (BUGS.md #82). Set on the instance
+    # only; the class default reads False on an engine whose __init__ did not run.
+    recording_write_failed: bool = False
+    # The --replay-trace doors while replaying (installed in __init__ before the first frame),
+    # else None. A class default so it reads None on an engine whose __init__ did not run.
+    replay_sources: ReplaySources | None = None
+    # The --rebaseline writer while rebaselining (glitchygames/replay/rebaseline.py), else None.
+    # A class default so it reads None on an engine whose __init__ did not run.
+    rebaseline: Rebaseline | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -272,6 +442,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         group = parser.add_argument_group('Graphics Options')
+        # How any run is watched, recorded, replayed or diagnosed, whatever the game
+        diagnostics_group = parser.add_argument_group('Diagnostics Options')
 
         group.add_argument(
             '-f',
@@ -308,15 +480,22 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         group.add_argument(
             '--timer-backend',
-            help='timer backend for draw loop pacing (default: fast; pygame is the legacy backend)',
-            choices=['pygame', 'fast'],
-            default='fast',
+            help=(
+                'timer backend for draw loop pacing (default: auto, the fast backend with this '
+                "machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps "
+                'wake on time; pygame is the legacy backend)'
+            ),
+            choices=[TIMER_BACKEND_AUTO, TIMER_BACKEND_FAST, TIMER_BACKEND_PYGAME],
+            default=TIMER_BACKEND_AUTO,
         )
         group.add_argument(
             '--sleep-granularity-ns',
             type=int,
-            help='minimum sleep granularity for pacing (ns); 0 to uncap',
-            default=1_000_000,
+            help=(
+                'how long before each frame deadline the fast backend is to wake from its sleep '
+                'and spin (ns); 0 spins only'
+            ),
+            default=DEFAULT_SLEEP_GRANULARITY_NS,
         )
         group.add_argument(
             '--windows-timer-1ms',
@@ -324,19 +503,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--log-timer-jitter',
             help='log frame pacing jitter statistics periodically',
             action='store_true',
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--perf-trim-percent',
             type=float,
             help='percent of frames to trim from top and bottom in global FPS report',
             default=5.0,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--fps-histogram',
             choices=['equal-range', 'target-relative'],
             help=(
@@ -346,18 +525,123 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             default='equal-range',
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--debug-overlay',
             help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
-            action='store_true',
+            action=argparse.BooleanOptionalAction,
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--record-trace',
             metavar='PATH',
             help=(
                 'record the session (sprites, frame times, input events, random seed) to a '
                 'gzip JSON Lines trace for inspection and later replay (default: off)'
+            ),
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-trace',
+            metavar='PATH',
+            help=(
+                'replay a --record-trace recording exactly through the engine, comparing every '
+                'frame with it and reporting the first divergence (default: off)'
+            ),
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-fps',
+            choices=REPLAY_FPS_CHOICES,
+            help=(
+                'with --replay-trace: post FPS events from the recorded frame times (recorded, '
+                "the default: exact, and compared with the recording) or from this machine's "
+                'measured frame times (real: what this machine achieves; FPS events are then '
+                'not compared, and sprites that draw the FPS value may diverge)'
+            ),
+            # None (not RECORDED_REPLAY_FPS) so that giving it without --replay-trace can be
+            # warned about; start_replay reads None as recorded
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--audit',
+            action=argparse.BooleanOptionalAction,
+            help=(
+                'with --replay-trace: instead of replaying, replay the recording twice in fresh '
+                'headless processes with different hash seeds and compare every frame with the '
+                f'recording and between the runs; exits {ExitCode.SUCCESS:d} when both match, '
+                f'{ExitCode.AUDIT_NONDETERMINISTIC:d} otherwise, {ExitCode.INTERNAL_ERROR:d} if '
+                'a run could not finish'
+            ),
+            default=False,
+        )
+        diagnostics_group.add_argument(
+            '--compare-processing',
+            action='store_true',
+            help=(
+                "with --replay-trace --headless: measure each frame's processing time (its "
+                'work, without presenting or pacing) and report how it compares with the '
+                "recording's (only meaningful on the machine that recorded)"
+            ),
+            # None (not False) so that giving it without --replay-trace can be warned about
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--max-processing-slowdown',
+            metavar='PERCENT',
+            type=non_negative_percent,
+            help=(
+                'with --replay-trace --headless (implies --compare-processing): a replay that '
+                "matched but took more than PERCENT longer than the recording's processing time "
+                f'exits {ExitCode.PROCESSING_SLOWER:d}; a recording without processing times '
+                f'exits {ExitCode.UNUSABLE_INPUT:d}'
+            ),
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-pause-at-frame',
+            metavar='N',
+            type=non_negative_int,
+            help=(
+                'with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 '
+                'without showing them, then pause with frame N next (what step back restarts '
+                'with; ignored with --headless)'
+            ),
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-restart-handoff',
+            metavar='PATH',
+            # Internal: the supervising replay process passes it to each replay it restarts,
+            # as glitchygames/replay/rebuild.py describes
+            help=argparse.SUPPRESS,
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-viewer-state',
+            metavar='JSON',
+            type=parse_viewer_state,
+            # Internal: a restarted replay's viewer state (speed, debug panel, divergence frame),
+            # as glitchygames/replay/rebuild.py describes
+            help=argparse.SUPPRESS,
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--rebaseline',
+            metavar='NEW',
+            help=(
+                'with --replay-trace OLD and --headless: replay OLD on the current code without '
+                "stopping at divergences, write the run's recording (OLD's inputs, the current "
+                'sprites) to NEW, print a summary of the frames and sprites that changed and '
+                f'exit {ExitCode.SUCCESS:d}'
+            ),
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-digest',
+            metavar='PATH',
+            help=(
+                'with --replay-trace: write a SHA-256 of every replayed frame, then the '
+                'divergence, to PATH as JSON lines (used by --audit)'
             ),
             default=None,
         )
@@ -420,6 +704,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default_videodriver = windows_videodriver_choices
 
         group.add_argument('--video-driver', default=None, choices=default_videodriver)
+
+        diagnostics_group.add_argument(
+            '--headless',
+            action='store_true',
+            help=(
+                "run on SDL's dummy video and audio drivers: no window, no sound. With "
+                '--replay-trace the replay also runs unpaced and prints its report to stdout '
+                f'(exit {ExitCode.SUCCESS:d} when it matches, {ExitCode.REPLAY_DIVERGED:d} '
+                f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
+            ),
+            default=False,
+        )
 
         event_managers = (
             AppEventManager,
@@ -557,25 +853,57 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         super().__init__()
+        # The frame-pacing timer, created as the run starts (_configure_timer_and_performance);
+        # declared first, as a rebaseline names its run (measurement_run) before then
+        self.timer: Any = None
 
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
+        # Before anything starts the display or the mixer (pygame.init() below)
+        if options.get('headless'):
+            self._enter_headless_mode()
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
         super().__init__()
 
         self._active_scene: Scene | None = None
+        # The signals exit_on_signal is installed for (by start(), and around a wait for child
+        # processes: _waiting_for_child_processes, which --audit uses before start() runs)
+        self._installed_signal_handlers: list[int] = []
 
+        # A replay's recorded options and seed are in place from here on (start_replay), so
+        # everything below reads the options as the recorded run did
+        self.replay_sources = self._start_requested_replay(game=game, options=options)
+        # --rebaseline NEW records the replay into NEW (glitchygames/replay/rebaseline.py); its
+        # options were checked with the replay's
+        rebaseline_path = options.get('rebaseline')
+        self.rebaseline = (
+            None
+            if self.replay_sources is None or rebaseline_path is None
+            else Rebaseline(
+                replay_sources=self.replay_sources,
+                source_path=Path(options['replay_trace']),
+                destination=Path(rebaseline_path),
+                # A headless replay: its frames are not paced
+                measurement_run=self.measurement_run(
+                    processing_paced=False, rebaselined_from=options['replay_trace']
+                ),
+            )
+        )
         # Set the master seed of the engine random streams before any game code runs
-        # (see glitchygames/randomness.py)
-        self.random_seed: int = seed_engine_random(seed=options.get('random_seed'))
-        # Set while start_trace_recording's SIGTERM handler is installed
-        self._installed_sigterm_handler: bool = False
+        # (see glitchygames/randomness.py); start_replay already seeded them with the recorded
+        # seed
+        self.random_seed: int = (
+            self.replay_sources.random_seed
+            if self.replay_sources is not None
+            else seed_engine_random(seed=options.get('random_seed'))
+        )
 
-        # Unhandled events by type, reported at teardown (see unhandled_event_report)
-        self._started_at_seconds: float = time.perf_counter()
+        # Unhandled events by type, reported at teardown (see unhandled_event_report); their
+        # first-seen times are elapsed_seconds() readings, the frame clock that
+        # reset_sources() below restarts, so they count from this engine's start
         self.unhandled_events: dict[int, UnhandledEventRecord] = {}
 
         # Pygame stuff.
@@ -595,14 +923,25 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # For compatibility with older versions of pygame, use fast events
         #
         # For versions >= 2.2, we can use the new event loop
-        if (
-            pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
-            and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
-        ):
+        if pygame_needs_fastevents():
             GameEngine.USE_FASTEVENTS = True  # type: ignore[reportConstantRedefinition]
 
         # Ensure Linux/X11 sends DOWN on focus clicks
         os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')
+
+        # The engine alone owns the process's signals. By default SDL installs a C-level
+        # SIGINT/SIGTERM handler at init (wherever the signal is still SIG_DFL) that turns the
+        # signal into a QUIT event, which signal.getsignal cannot see (it still reports
+        # SIG_DFL): SIGTERM would end the run as a normal quit, exit SUCCESS and be recorded as
+        # an external QUIT. A value set beforehand wins. SDL_HINT_NO_SIGNAL_HANDLERS:
+        # https://wiki.libsdl.org/SDL2/SDL_HINT_NO_SIGNAL_HANDLERS
+        if pygame.get_init():
+            self.log.warning(
+                'pygame was initialized before the engine, so SDL may own SIGINT and SIGTERM '
+                '(turning them into QUIT events); the engine still installs its own handlers '
+                "when it starts, which replace SDL's"
+            )
+        os.environ.setdefault('SDL_NO_SIGNAL_HANDLERS', '1')
 
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
         # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
@@ -625,14 +964,58 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # pygame.event doesn't have an init() method, so nothing to do.
             self.log.info(f'Using pygame.events for pygame version {pygame.version.ver}')
 
+        # Fresh doors for this run (glitchygames/sources.py): the replay's when --replay-trace
+        # is given, else live ones
+        reset_sources()
+        # reset_sources() leaves the polled input alone (glitchygames/sources.py is a leaf)
+        reset_current_input()
+        # ...and the internal-post tracker (glitchygames/recording.py): no owners, none pending.
+        # Then the engine owns it for the whole run, so every code-posted event's origin is
+        # known whenever it is needed (an instant-replay journal begun mid-run, a recording
+        # started late); _pump_events forgets the posts after each pump
+        reset_internal_post_tracking()
+        start_tracking_internal_posts()
+        install_sources(
+            sources=self.replay_sources
+            or LiveSources(
+                random_seed=self.random_seed,
+                use_fastevents=GameEngine.USE_FASTEVENTS,
+                # A recorded run captures scene starts from its first scene on, which is built
+                # before recording starts (glitchygames/scene_start.py)
+                captures_scene_starts=options.get('record_trace') is not None,
+            )
+        )
+
         # We are fully initialized now, so we can set up the scene.
         #
         # The scene will start once .start() is called on the GameEngine
         # object
         GameEngine.game = game
+        # ResourceManager makes each engine class a singleton, so a second engine in one process
+        # (a recording and then its replay) is the same object, whose start() set self.game to
+        # the earlier run's game instance: drop it, so self.game reads this run's game above
+        vars(self).pop('game', None)
 
         # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
+        # A watched replay's F3/F4 (and its pause at a divergence) act on the scene manager's
+        # debug overlay, the one drawn (glitchygames/replay/controls.py)
+        if self.replay_sources is not None:
+            # With the panel a restarted replay's viewer had chosen (ReplayOptions.viewer_state)
+            self.scene_manager.debug_overlay.panel = (
+                self.replay_sources.controls.debug_overlay.panel
+            )
+            self.replay_sources.controls.debug_overlay = self.scene_manager.debug_overlay
+        # The singleton outlives an earlier engine in this process: this run starts fresh (its
+        # frames numbered from 0, as reset_sources() above restarted the frame clock, and no
+        # supervision, quit request, shake or playback state left from an earlier run)
+        self.scene_manager.begin_run()
+        # A watched replay pauses at each recorded breakpoint, such as a saved bookmark (rule 16
+        # of glitchygames/replay/driver.py); nobody could unpause a headless one
+        if self.replay_sources is not None and not self.replay_sources.options.headless:
+            self.scene_manager.add_control_event_handler(
+                kind=BREAKPOINT_KIND, handler=self.replay_sources.controls.pause_at_breakpoint
+            )
 
         # Update the scene manager's update_type from the engine's options
         self.scene_manager.update_type = self.update_type
@@ -684,7 +1067,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.window_manager: WindowEventManager
         self.joysticks: list[Any] = []
         self.joystick_count: int = 0
-        self.timer: Any = None
 
     def initialize_display(self: Self) -> None:
         """Initialize the display."""
@@ -801,6 +1183,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         for sprite_type, counters in sprite_counters.items():
             for key, value in counters.items():
                 self.log.info('%s Sprite %s: %s', sprite_type, key, value)
+
+    @property
+    def input(self: Self) -> InputSnapshot:
+        """The polled input captured at the latest pump (glitchygames/input/state.py).
+
+        Read in ``dt_tick``, which runs before the frame's pump, it is the previous frame's
+        snapshot; see ``current_input``.
+
+        Returns:
+            The snapshot.
+
+        """
+        return current_input()
 
     @property
     def screen_width(self: Self) -> int:
@@ -1087,6 +1482,43 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return 'None'
 
+    def measurement_run(
+        self: Self, *, processing_paced: bool, rebaselined_from: str | None
+    ) -> MeasurementRun:
+        """Return this run's provenance for a recording's ``measurement_runs`` (newest first).
+
+        Its ``measured_at`` is the real time now: provenance only, never replayed or served to
+        the game (tests/test_engine_doors.py allows this read for that reason).
+
+        Args:
+            processing_paced: Whether the run paces its frames (a live run with a target FPS; a
+                rebaseline, a headless replay, is not paced).
+            rebaselined_from: The recording this run rebaselines, or None for a fresh recording.
+
+        Returns:
+            The run.
+
+        """
+        # Every run names its timer, paced or not: the one it has, or (a rebaseline names its run
+        # while the engine starts, before any timer exists; a timer that failed to start) the
+        # one its options make, uncalibrated
+        pacing_timer = (
+            pacing_timer_for_options(options=GameEngine.OPTIONS)
+            if self.timer is None
+            else self.timer.pacing_timer()
+        )
+        return MeasurementRun(
+            machine=machine_description(),
+            processing_paced=processing_paced,
+            engine_version=installed_engine_version(),
+            pygame_version=pygame.version.ver,
+            python_version=platform.python_version(),
+            measured_at=datetime.now(tz=UTC).isoformat(),
+            rebaselined_from=rebaselined_from,
+            hash_scheme=CONTENT_HASH_SCHEME,
+            pacing_timer=pacing_timer,
+        )
+
     def trace_recording_header(self: Self) -> dict[str, Any]:
         """Build the header of a --record-trace recording.
 
@@ -1096,12 +1528,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         active_scene = self.scene_manager.active_scene
-        try:
-            engine_version = importlib.metadata.version('glitchygames')
-        except importlib.metadata.PackageNotFoundError:
-            engine_version = None
+        engine_version = installed_engine_version()
         return {
             'game_class': type(self.game).__name__,
+            # With the class name, tells apart two games whose classes share a name
+            'game_module': type(self.game).__module__,
             'scene_class': None if active_scene is None else type(active_scene).__name__,
             'engine_version': engine_version,
             'pygame_version': pygame.version.ver,
@@ -1110,19 +1541,34 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             'options': {
                 str(name): json_safe_value(value) for name, value in GameEngine.OPTIONS.items()
             },
-            # Informational only: replay never depends on wall-clock time
-            'recorded_at': datetime.now(tz=UTC).isoformat(),
+            # The origin of the run's wall clock from here on, recorded and replayed alike:
+            # recorded_at plus the frame clock (RecordingSources.wall_clock_time; rule 9 of
+            # glitchygames/replay/driver.py), so game code reading it replays exactly
+            RECORDED_AT_HEADER_FIELD: datetime.now(tz=UTC).isoformat(),
             'random_seed': self.random_seed,
+            # Each run's provenance, newest first (glitchygames/recording_history.py): this one
+            # paces its frames when it has a target FPS (0 is uncapped)
+            MEASUREMENT_RUNS_HEADER_FIELD: [
+                self.measurement_run(
+                    processing_paced=self.scene_manager.target_fps > 0, rebaselined_from=None
+                ).to_json()
+            ],
         }
 
     def start_trace_recording(self: Self, *, path: Path) -> GameplayRecorder:
-        """Start recording the session to a trace file.
+        """Start recording the session to a trace file (before the first frame).
 
-        The scene manager records one frame after each frame it runs, and process_events
-        records each frame's events. While recording, SIGTERM ends the run through the normal
-        teardown (``exit_on_signal``), unless the game installed its own SIGTERM handler;
-        SIGINT already does (KeyboardInterrupt). ``stop_trace_recording`` (called by
-        ``_shutdown``) closes the file.
+        The header also holds what the run took in before recording started: a snapshot of
+        every save store the doors opened (``saves``), the descriptors of devices opened
+        (``devices``) and the enumeration answers given (``device_enumeration``). Then
+        ``RecordingSources`` are installed around the active doors and record every frame
+        from what passes through them (glitchygames/recording.py). SIGTERM (and SIGHUP on
+        Unix, SIGBREAK on Windows) ends a started run through the normal teardown
+        (``exit_on_signal``, installed by ``start``), and so does SIGINT (KeyboardInterrupt).
+        ``stop_trace_recording`` (called by ``_shutdown``) closes the file.
+
+        Recording must start before the first frame: afterwards installing its doors raises
+        ``SourcesAlreadyRunningError`` (from ``install_sources``; glitchygames/sources.py).
 
         Args:
             path: The recording's file.
@@ -1130,57 +1576,527 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Returns:
             The recorder.
 
+        Raises:
+            TraceRecordingAlreadyStartedError: If this engine is already recording.
+
         """
-        recorder = GameplayRecorder(path=path, header=self.trace_recording_header())
+        if self.trace_recorder is not None:
+            message = (
+                f'start_trace_recording() was called while recording to '
+                f'{self.trace_recorder.path}; one run records once'
+            )
+            raise TraceRecordingAlreadyStartedError(message)
+        inner = active_sources()
+        registry = inner.devices()
+        # A store a run started with --record-trace opened before recording started is in the
+        # header as first opened: the first scene's setup() may have written to it since, and
+        # the replay runs that setup() again (LiveSources.first_open_save_snapshots)
+        first_open_snapshots: Mapping[str, dict[str, Any]] = (
+            inner.first_open_save_snapshots if isinstance(inner, LiveSources) else {}
+        )
+        # A rebaseline copies these fields from the replayed recording instead (rebaseline.py)
+        header = {
+            **self.trace_recording_header(),
+            SAVES_HEADER_FIELD: {
+                namespace: (
+                    first_open_snapshots[namespace]
+                    if namespace in first_open_snapshots
+                    else save_namespace_snapshot(saves=store)
+                )
+                for namespace, store in inner.opened_save_namespaces.items()
+            },
+            DEVICES_HEADER_FIELD: [
+                descriptor.to_json() for descriptor in registry.take_opened_descriptors()
+            ],
+            DEVICE_ENUMERATION_FIELD: [
+                answer.to_json() for answer in registry.take_enumeration_answers()
+            ],
+        }
+        recorder = GameplayRecorder(path=path, header=header)
+        install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
-        self.scene_manager.trace_recorder = recorder
-        self._install_sigterm_handler()
         self.log.info(f'Recording gameplay to {path} (random seed {self.random_seed})')
         return recorder
 
     def _start_requested_trace_recording(self: Self) -> None:
-        """Start recording if --record-trace was given (recording is off by default)."""
+        """Start recording if --record-trace or --rebaseline was given (off by default).
+
+        A rebaseline records over the replay (glitchygames/replay/rebaseline.py), with the
+        replayed recording's header; ``stop_trace_recording`` closes it like any recording.
+        """
+        if self.rebaseline is not None:
+            self.trace_recorder = self.rebaseline.start_recording()
+            return
         record_trace_path = GameEngine.OPTIONS.get('record_trace')
         if record_trace_path is not None:
             self.start_trace_recording(path=Path(record_trace_path))
 
     def stop_trace_recording(self: Self) -> None:
-        """Close the recording, if one is running, and restore the SIGTERM handling."""
+        """Close the recording, if one is running.
+
+        The ``RecordingSources`` stay installed (the run is ending); with the recorder closed
+        they only delegate.
+        """
         recorder = self.trace_recorder
         if recorder is None:
             return
         self.trace_recorder = None
-        self.scene_manager.trace_recorder = None
         recorder.close()
-        # After closing: until then a repeated SIGTERM must stay ignored (exit_on_signal)
-        self._restore_sigterm_handler()
+        if recorder.write_failed:
+            self.recording_write_failed = True
 
-    def _install_sigterm_handler(self: Self) -> None:
-        """Make SIGTERM raise SystemExit, if nothing else handles it yet."""
+    def _install_signal_handlers(self: Self) -> None:
+        """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet.
+
+        Limitation: Python sets signal handlers from the main thread only. An engine started on
+        another thread installs none, and SDL's own handler is off (SDL_NO_SIGNAL_HANDLERS), so
+        SIGTERM (or SIGHUP, SIGBREAK) then kills the process the system's default way, without
+        the teardown: a recording is left unclosed (it still reads up to its last full frame).
+        """
+        for signal_number in terminating_signals():
+            try:
+                # Limitation: a C-level handler (SDL's, when pygame was initialized before the
+                # engine set SDL_NO_SIGNAL_HANDLERS) is invisible here, as getsignal still
+                # reports SIG_DFL; installing then replaces it, which is what the engine wants
+                if signal.getsignal(signal_number) == signal.SIG_DFL:
+                    signal.signal(signal_number, exit_on_signal)
+                    self._installed_signal_handlers.append(signal_number)
+            except ValueError as signal_error:
+                # Signal handlers can only be set from the main thread
+                self.log.debug('Signal %d handler not installed: %s', signal_number, signal_error)
+
+    def _restore_signal_handlers(self: Self) -> None:
+        """Put back the default handling of each signal _install_signal_handlers claimed."""
+        installed, self._installed_signal_handlers = self._installed_signal_handlers, []
+        for signal_number in installed:
+            signal.signal(signal_number, signal.SIG_DFL)
+
+    @contextlib.contextmanager
+    def _waiting_for_child_processes(self: Self) -> Generator[None]:
+        """Install the engine's signal handlers while this process waits for child processes.
+
+        The one way the engine waits for children (``--audit``'s replays, which run in
+        ``__init__`` before ``start`` installs the handlers; a watched replay's restarts, after
+        ``_shutdown`` restored them): a SIGTERM (or SIGHUP, SIGBREAK) raises SystemExit
+        (``exit_on_signal``), so ``subprocess.run`` kills and reaps the child instead of leaving
+        it running, and this process exits with the signal's ``ExitCode``. The default handling
+        comes back afterwards.
+
+        Yields:
+            Nothing: the wait runs inside.
+
+        """
+        self._install_signal_handlers()
         try:
-            if signal.getsignal(signal.SIGTERM) == signal.SIG_DFL:
-                signal.signal(signal.SIGTERM, exit_on_signal)
-                self._installed_sigterm_handler = True
-        except ValueError as signal_error:
-            # Signal handlers can only be set from the main thread
-            self.log.debug('SIGTERM handler not installed: %s', signal_error)
+            yield
+        finally:
+            self._restore_signal_handlers()
 
-    def _restore_sigterm_handler(self: Self) -> None:
-        """Put back the default SIGTERM handling, if _install_sigterm_handler replaced it."""
-        if not self._installed_sigterm_handler:
+    def _start_requested_replay(
+        self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
+    ) -> ReplaySources | None:
+        """Prepare the replay if --replay-trace was given (rule 1 of glitchygames/replay/driver.py).
+
+        With --audit the recording is audited instead (glitchygames/replay/audit.py), once it is
+        known to be replayable, and the process exits with the audit's outcome
+        (``_audit_replay``).
+
+        Refusals exit (``exit_with``) with ``ExitCode.UNUSABLE_INPUT`` when the recording cannot
+        be replayed (a recording of another game, an unsupported format version, an unreadable
+        file), ``ExitCode.MISSING_INPUT`` when it does not exist, and
+        ``ExitCode.OPTIONS_REFUSED`` when --record-trace is given too (recording over a replay
+        is --rebaseline's job), --rebaseline's options are unsound (``rebaseline_refusal``) or
+        it or --audit is given without --replay-trace, or --audit with --replay-fps real or
+        to an interpreter started with -E or -I. Auditing a truncated recording exits with
+        ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording).
+
+        Args:
+            game: The game scene class or instance (its class name must match the recording's).
+            options: The parsed options; a replay puts the recorded ones in place.
+
+        Returns:
+            The replay's sources (not installed yet), or None when not replaying.
+
+        """
+        replay_trace_path = options.get('replay_trace')
+        if replay_trace_path is None:
+            self._check_replay_options_without_a_recording(options=options)
+            self._refuse_unwritable_outputs(options=options)
+            return None
+        self._refuse_an_unsound_recording_over_the_replay(
+            replay_trace_path=replay_trace_path, options=options
+        )
+        self._refuse_an_unsound_processing_comparison(
+            replay_trace_path=replay_trace_path, options=options
+        )
+        if options.get('audit'):
+            self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
+        game_class = game if isinstance(game, type) else type(game)
+        try:
+            sources = start_replay(
+                path=Path(replay_trace_path),
+                game_class_name=game_class.__name__,
+                game_module=game_class.__module__,
+                options=options,
+                # Set by the version check this __init__ runs later, so pygame's version is
+                # asked here too
+                use_fastevents=GameEngine.USE_FASTEVENTS or pygame_needs_fastevents(),
+            )
+        except (ReplayRefusedError, TraceFormatError, OSError) as error:
+            refusal = error
+        else:
+            if options.get('audit'):
+                self._refuse_auditing_a_truncated_recording(
+                    replay_trace_path=replay_trace_path, sources=sources
+                )
+                self._audit_replay(path=Path(replay_trace_path))
+            self._refuse_unwritable_outputs(options=options)
+            announce_replay(path=Path(replay_trace_path), sources=sources)
+            return sources
+        # Logged without a traceback: the message says what is wrong with the recording
+        self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
+        # Only a file that does not exist is missing input; one that cannot be read (no
+        # permission, a directory, not gzip: gzip.BadGzipFile is an OSError) is unusable
+        exit_with(
+            exit_code=(
+                ExitCode.MISSING_INPUT
+                if isinstance(refusal, FileNotFoundError)
+                else ExitCode.UNUSABLE_INPUT
+            ),
+            cause=refusal,
+        )
+
+    def _check_replay_options_without_a_recording(self: Self, *, options: dict[str, Any]) -> None:
+        """Refuse --audit and --rebaseline without --replay-trace; warn about ignored options.
+
+        Exits (``exit_with``) with ``ExitCode.OPTIONS_REFUSED`` for --audit or --rebaseline;
+        --replay-fps, --replay-digest and --replay-pause-at-frame are only warned about.
+
+        Args:
+            options: The parsed options (no ``replay_trace``).
+
+        """
+        if options.get('audit'):
+            self.log.error('--audit needs --replay-trace PATH: the recording to audit')
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        if options.get('rebaseline') is not None:
+            self.log.error('--rebaseline needs --replay-trace OLD: the recording to rebaseline')
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        for option_name, flag in (
+            ('replay_fps', '--replay-fps'),
+            ('replay_digest', '--replay-digest'),
+            ('replay_pause_at_frame', '--replay-pause-at-frame'),
+            ('compare_processing', '--compare-processing'),
+            ('max_processing_slowdown', '--max-processing-slowdown'),
+        ):
+            if options.get(option_name) is not None:
+                self.log.warning(f'{flag} is ignored without --replay-trace')
+
+    def _refuse_unwritable_outputs(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.CANNOT_WRITE_OUTPUT if an output file of the run cannot be written.
+
+        Checked before any game code runs (``glitchygames.output_files.output_refusal``):
+        ``--record-trace``'s recording, ``--rebaseline``'s partial file (NEW itself is only
+        moved into place at the end: glitchygames/replay/rebaseline.py, rule 4) and
+        ``--replay-digest``'s digest file. The refusal is logged on one line, without a
+        traceback.
+
+        Args:
+            options: The parsed options (a recording over a replay already refused).
+
+        """
+        outputs: list[tuple[str, Path]] = []
+        record_trace_path = options.get('record_trace')
+        if record_trace_path is not None:
+            outputs.append(('--record-trace', Path(record_trace_path)))
+        rebaseline_path = options.get('rebaseline')
+        if rebaseline_path is not None:
+            outputs.append(('--rebaseline', partial_path(destination=Path(rebaseline_path))))
+        replay_digest_path = options.get('replay_digest')
+        if replay_digest_path is not None:
+            outputs.append(('--replay-digest', Path(replay_digest_path)))
+        for flag, path in outputs:
+            refusal_reason = output_refusal(path=path)
+            if refusal_reason is not None:
+                self.log.error(f'Cannot write {flag}: {refusal_reason}')
+                exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
+
+    def _refuse_an_unsound_recording_over_the_replay(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for a recording over the replay that cannot run.
+
+        That is --rebaseline with unsound options (``rebaseline_refusal``), or --record-trace:
+        a recording over a replay takes the replay's event origins and recorded fields, which
+        only --rebaseline (headless, never stopping at a divergence) wires.
+
+        Args:
+            replay_trace_path: The recording to replay.
+            options: The parsed options.
+
+        """
+        if options.get('rebaseline') is not None:
+            refusal_reason = rebaseline_refusal(options=options)
+            if refusal_reason is not None:
+                self.log.error(f'Cannot rebaseline {replay_trace_path}: {refusal_reason}')
+                exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        elif options.get('record_trace') is not None:
+            self.log.error(
+                f'Cannot replay {replay_trace_path} with --record-trace: record over a replay '
+                'with --rebaseline NEW --headless'
+            )
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _refuse_an_unsound_processing_comparison(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED if processing times could not be compared.
+
+        A comparison (``--compare-processing``, or ``--max-processing-slowdown``, which implies
+        it) needs a headless replay (a watched one presents, steps and rebuilds frames as its
+        viewer asks), and is refused with --audit (its children's exit codes are the audit's
+        verdict) and --rebaseline (which exits on what it wrote; its NEW records this run's
+        processing times anyway). glitchygames/replay/processing.py.
+
+        Args:
+            replay_trace_path: The recording to replay.
+            options: The parsed options.
+
+        """
+        if (
+            options.get('compare_processing') is None
+            and options.get('max_processing_slowdown') is None
+        ):
             return
-        self._installed_sigterm_handler = False
-        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        if not options.get('headless'):
+            reason = '--compare-processing needs --headless'
+        elif options.get('audit'):
+            reason = 'not with --audit'
+        elif options.get('rebaseline') is not None:
+            reason = 'not with --rebaseline'
+        else:
+            return
+        self.log.error(f'Cannot compare the processing times of {replay_trace_path}: {reason}')
+        exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
-    def _shutdown(self: Self) -> None:
-        """Close any recording, print performance reports and shut down pygame."""
-        # First, so the recording is complete even if a report below fails
-        self.stop_trace_recording()
+    def _refuse_an_unsound_audit(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED if an audit's two runs could not be compared.
+
+        That is under --replay-fps real (FPS events from measured frame times differ between the
+        runs), or when Python was started with -E or -I (the children run this interpreter's
+        options again, so they would ignore PYTHONHASHSEED).
+
+        Args:
+            replay_trace_path: The recording to audit.
+            options: The parsed options.
+
+        """
+        if options.get('replay_fps') == REAL_REPLAY_FPS:
+            self.log.error(
+                f'Cannot audit {replay_trace_path} with --replay-fps {REAL_REPLAY_FPS}: --audit '
+                'compares recorded FPS events'
+            )
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        if not environment_reaches_children():
+            self.log.error(
+                f'Cannot audit {replay_trace_path}: Python was started with -E or -I, so the '
+                'audit replays would ignore their PYTHONHASHSEED; run without those options'
+            )
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _refuse_auditing_a_truncated_recording(
+        self: Self, *, replay_trace_path: str, sources: ReplaySources
+    ) -> None:
+        """Exit with ExitCode.UNUSABLE_INPUT if the recording to audit is truncated.
+
+        An audit needs the whole recording: its child replays would end at the cut-off (exit
+        ``ExitCode.UNUSABLE_INPUT``), which the audit could only report as a run that did not
+        finish.
+
+        Args:
+            replay_trace_path: The recording to audit.
+            sources: Its replay sources (read, not installed).
+
+        """
+        if sources.recording.is_truncated:
+            self.log.error(
+                f'Cannot audit {replay_trace_path}: the recording is truncated after '
+                f'{sources.recording.frame_count} complete frames, and an audit needs the whole '
+                'recording'
+            )
+            exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
+
+    def _audit_replay(self: Self, *, path: Path) -> NoReturn:
+        """Audit the recording in two child replays and exit with the outcome (--audit).
+
+        It exits (``exit_with``) with ``ExitCode.SUCCESS`` when the audit passes,
+        ``ExitCode.AUDIT_NONDETERMINISTIC`` when it fails and ``ExitCode.INTERNAL_ERROR`` when
+        it could not run (``AuditRunError``: a child that could not start, hung, crashed or
+        wrote no digests).
+
+        Args:
+            path: The recording.
+
+        """
+        self.log.info(f'Auditing {path}: two replays in fresh processes')
+        try:
+            with self._waiting_for_child_processes():
+                result = audit_recording(
+                    command=audit_command(original_argv=sys.orig_argv), path=path
+                )
+        except AuditRunError as error:
+            run_error = error
+        else:
+            if result.is_deterministic():
+                self.log.info(result.summary())
+                exit_with(exit_code=ExitCode.SUCCESS)
+            self.log.error(result.summary())
+            exit_with(exit_code=ExitCode.AUDIT_NONDETERMINISTIC)
+        # Logged without a traceback: the message says which run failed and how
+        self.log.error(f'Audit could not run: {run_error}')
+        exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=run_error)
+
+    def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
+        """Settle the replay's result and report it, if replaying (rule 11).
+
+        The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
+        is the run's output, and logged otherwise (as an error when the replay diverged).
+
+        Any early end of the run (a crash, Ctrl-C, a signal, or any SystemExit, a game's own
+        ``sys.exit(0)`` included) is reported by what ended it: before the replay reached its
+        result, only where the replay stopped (``Replay stopped at frame N: the run ended with
+        ...``), since its result would call that a length divergence; after the replay reached
+        its result (a late crash or signal, during the teardown of the last scene), that result
+        and then ``then the run ended with ...`` on the next line.
+
+        A rebaseline (glitchygames/replay/rebaseline.py) that ended normally writes its new
+        recording and reports its summary instead; one that ended early writes nothing and
+        says so after the report.
+
+        Args:
+            run_ended_by: What ended the run early (an exit status as
+                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+
+        """
+        if self.replay_sources is None:
+            return
+        result = self.replay_sources.result
+        # Read before finish_run, which turns a replay still running into a length divergence
+        replay_had_ended = result.end_reason != RUNNING_END_REASON
+        self.replay_sources.finish_run()
+        if run_ended_by is not None and replay_had_ended:
+            report = f'{result.report()}\nthen the run ended with {run_ended_by}'
+            is_failure = True
+        elif run_ended_by is not None:
+            report = (
+                f'Replay stopped at frame {result.frames_replayed}: the run ended with '
+                f'{run_ended_by}'
+            )
+            is_failure = True
+        else:
+            report = result.report()
+            is_failure = result.divergence is not None
+        if self.rebaseline is not None:
+            if run_ended_by is None:
+                # The divergences are what the rebaseline reports, not a failure
+                report = self.rebaseline.write(result=result)
+                is_failure = False
+            else:
+                self.rebaseline.discard()
+                report = f'{report}\n{self.rebaseline.destination} was not written'
+        if result.processing is not None:
+            # After the replay's own report (glitchygames/replay/processing.py)
+            report = f'{report}\n{result.processing.describe()}'
+        if self.replay_sources.options.headless:
+            sys.stdout.write(f'{report}\n')
+            sys.stdout.flush()
+        elif is_failure:
+            self.log.error(report)
+        else:
+            self.log.info(report)
+
+    def _enter_headless_mode(self: Self) -> None:
+        """--headless: run on SDL's dummy video and audio drivers (no window, no sound).
+
+        Called right after the options are read, before ``pygame.init()`` and the display. If
+        pygame was started before the engine (at import, by a game's own code), its display and
+        mixer already run on the drivers chosen then, and each that is not on the dummy driver is
+        restarted on it, with one warning naming what was restarted:
+
+        - The display is stopped; ``pygame.init()`` starts it again and the engine opens its
+          window on it, as it always does.
+        - The mixer is stopped and started again at once with the same frequency, sample size
+          and output channels (``pygame.mixer.get_init()``) and the same number of mixing
+          channels. Anything playing stops; sounds loaded before keep the format they were
+          converted to, which still matches. The buffer size cannot be read back, so it is
+          pygame's default. If the dummy mixer cannot start, the run goes on without audio
+          (logged).
+        """
+        os.environ['SDL_VIDEODRIVER'] = HEADLESS_SDL_DRIVER
+        os.environ['SDL_AUDIODRIVER'] = HEADLESS_SDL_DRIVER
+        restarted: list[str] = []
+        if pygame.display.get_init() and pygame.display.get_driver() != HEADLESS_SDL_DRIVER:
+            restarted.append(f'the display (video driver {pygame.display.get_driver()!r})')
+            pygame.display.quit()
+        mixer_format = pygame.mixer.get_init()
+        if mixer_format is not None and pygame.mixer.get_driver() != HEADLESS_SDL_DRIVER:
+            frequency, size, output_channels = mixer_format
+            mixing_channel_count = pygame.mixer.get_num_channels()
+            restarted.append(
+                f'the mixer (audio driver {pygame.mixer.get_driver()!r}; kept: {frequency} Hz, '
+                f'size {size}, {output_channels} output channels, {mixing_channel_count} '
+                'mixing channels)'
+            )
+            pygame.mixer.quit()
+            try:
+                # The environment now names the dummy driver, so this opens the dummy device
+                pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
+            except pygame.error as error:
+                # The run goes on without a mixer: sounds and live voices are silent no-ops
+                self.log.warning(
+                    f'--headless: the mixer could not start on the dummy audio driver ({error}); '
+                    'running without audio'
+                )
+            else:
+                pygame.mixer.set_num_channels(mixing_channel_count)
+        if restarted:
+            self.log.warning(
+                f'--headless: pygame was started before the engine; restarting '
+                f'{" and ".join(restarted)} on the dummy driver, so there is no window and '
+                'audio is muted'
+            )
+
+    def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
+        """Close any recording, report any replay, print performance reports, shut down pygame.
+
+        Args:
+            run_ended_by: What ended the run early (``_report_replay_result``), or None.
+
+        """
+        try:
+            # First, so the recording is complete even if a report below fails
+            self.stop_trace_recording()
+        finally:
+            # After closing: until then a repeated signal must stay ignored (exit_on_signal).
+            # Even when closing failed, the replay is settled (its blocked input restored) and
+            # reported; the closing error then propagates (the teardown failed)
+            self._restore_signal_handlers()
+            self._report_replay_result(run_ended_by=run_ended_by)
+        # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
+        # run, so the end-of-run reports wait for the last replay
+        if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
+            pygame.display.quit()
+            pygame.quit()
+            return
 
         # Print performance report before shutdown
         try:
             from glitchygames.performance import performance_manager
-
+        except ImportError:
+            pass  # Performance module not available
+        else:
             # Configure performance manager with the same log interval as FPS
             if self.fps_log_interval_ms is not None:
                 performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
@@ -1188,19 +2104,104 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             performance_manager.set_target_fps(self.fps)
             performance_manager.print_shutdown_report()
             performance_manager.print_per_scene_shutdown_report()
-        except ImportError:
-            pass  # Performance module not available
 
         self._log_unhandled_event_report()
 
         pygame.display.quit()
         pygame.quit()
 
+    def _configure_timer_and_performance(self: Self) -> None:
+        """Create the frame-pacing timer and configure the performance manager from the options.
+
+        Each part is guarded on its own: a bad option falls back (the pygame clock, the
+        performance defaults) and is logged at debug level, never ending the run.
+        """
+        # Initialize timer backend for draw-loop pacing (after options exist)
+        try:
+            self.timer = create_timer(
+                GameEngine.OPTIONS.get('timer_backend'),
+                GameEngine.OPTIONS,
+            )
+            self.log.info(f'Timer backend: {GameEngine.OPTIONS.get("timer_backend")}')
+            # auto measures this machine's sleep model now for a paced live game, so no frame
+            # pays for it (and logs what it chose); a replay never paces with the timer, and an
+            # uncapped run calibrates only if it starts pacing (at its first paced frame)
+            if GameEngine.OPTIONS.get('target_fps', 0) > 0 and self.replay_sources is None:
+                self.timer.calibrate()
+        except (ValueError, TypeError, OSError) as timer_error:
+            self.timer = None
+            self.log.debug(
+                'Timer backend failed to initialize; using pygame clock only: %s',
+                timer_error,
+            )
+        # Configure performance trim percent and histogram mode, each guarded on its own so
+        # a bad value for one cannot silently skip the other.
+        try:
+            from glitchygames.performance import performance_manager
+
+            trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
+            if hasattr(performance_manager, 'set_trim_percent'):
+                performance_manager.set_trim_percent(trim)
+        except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
+            LOG.debug('Performance trim percent configuration failed: %s', perf_error)
+        try:
+            from glitchygames.performance import performance_manager
+
+            performance_manager.set_histogram_mode(
+                GameEngine.OPTIONS.get('fps_histogram', 'equal-range')
+            )
+        except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
+            LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
+
+    def _tear_down_run(
+        self: Self, *, profiler: cProfile.Profile | None, run_ended_by: str | None
+    ) -> Exception | None:
+        """Run the teardown after a run, whatever ended it, and report how it went.
+
+        Args:
+            profiler: The run's profiler (--profile), stopped and printed here, or None.
+            run_ended_by: What ended the run early (an exit status described), or None when it
+                ended normally.
+
+        Returns:
+            The exception ``_shutdown`` raised (logged with its traceback), or None.
+
+        """
+        teardown_error: Exception | None = None
+        try:
+            self._shutdown(run_ended_by=run_ended_by)
+        except Exception as error:
+            self.log.exception('The teardown failed')
+            teardown_error = error
+        finally:
+            # Again (it is idempotent): _shutdown restores them, but not if it failed first
+            self._restore_signal_handlers()
+        if GameEngine.OPTIONS['profile'] and profiler is not None:
+            profiler.disable()
+            profiler.print_stats()
+        return teardown_error
+
     def start(self: Self) -> None:
         """Start the game engine.
 
+        However the run ends, the teardown (``_shutdown``: recordings closed) runs first; if the
+        teardown itself raises, the run exits ``ExitCode.INTERNAL_ERROR`` (both errors logged).
+        An exception raised before start(), in ``__init__``, is not mapped: it exits with
+        Python's default 1 (each game has its own entry point, so there is no one place to wrap;
+        see glitchygames/exit_codes.py). A replay (``--replay-trace``) that ends normally exits
+        with its own code (``ReplayResult.exit_code`` under its exit policy), watched or
+        headless.
+
         Raises:
             RuntimeError: If the game is not initialized.
+            SystemExit: With ``ExitCode.INTERNAL_ERROR`` after an uncaught exception (logged
+                with its traceback), ``ExitCode.INTERRUPTED`` after Ctrl-C (KeyboardInterrupt),
+                or whatever status a SystemExit raised during the run carries (a signal
+                handler's, a game's own), except a game's own successful exit that cuts a
+                replay short (``ExitCode.REPLAY_DIVERGED``; a rebaseline ends normally then,
+                with what the game ran); at the normal end of a replay, with
+                the replay's exit code (``ExitCode.SUCCESS``, ``ExitCode.REPLAY_DIVERGED`` or
+                ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
 
         """
         # This ensures that logging is enabled as soon as the game object is created.
@@ -1211,72 +2212,245 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
         profiler = None
+        if GameEngine.OPTIONS['profile']:
+            # Enabled before the crash boundary, so the teardown prints only a profiler that ran
+            profiler = cProfile.Profile()
+            profiler.enable()
+        # Set when the run ends in a way that start() turns into an exit code
+        exit_code: ExitCode | None = None
+        run_error: Exception | None = None
+        # What ended the run early, described for the replay report (None: a normal end)
+        run_ended_by: str | None = None
         try:
-            if GameEngine.OPTIONS['profile']:
-                profiler = cProfile.Profile()
-                profiler.enable()
-
-            # Initialize the game instance
-            self.game = self.game(options=GameEngine.OPTIONS)
-
-            # Set the scene manager's OPTIONS class variable for managers that expect it
-            SceneManager.OPTIONS = GameEngine.OPTIONS
-            self.scene_manager.game_engine = self
-
-            self._initialize_event_managers()
-
-            self.scene_manager.switch_to_scene(self.game)
-            # Initialize timer backend for draw-loop pacing (after options exist)
-            try:
-                self.timer = create_timer(
-                    GameEngine.OPTIONS.get('timer_backend'),
-                    GameEngine.OPTIONS,
-                )
-                self.log.info(f'Timer backend: {GameEngine.OPTIONS.get("timer_backend")}')
-            except (ValueError, TypeError, OSError) as timer_error:
-                self.timer = None
-                self.log.debug(
-                    'Timer backend failed to initialize; using pygame clock only: %s',
-                    timer_error,
-                )
-            # Configure performance trim percent and histogram mode, each guarded on its own so
-            # a bad value for one cannot silently skip the other.
-            try:
-                from glitchygames.performance import performance_manager
-
-                trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
-                if hasattr(performance_manager, 'set_trim_percent'):
-                    performance_manager.set_trim_percent(trim)
-            except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
-                LOG.debug('Performance trim percent configuration failed: %s', perf_error)
-            try:
-                from glitchygames.performance import performance_manager
-
-                performance_manager.set_histogram_mode(
-                    GameEngine.OPTIONS.get('fps_histogram', 'equal-range')
-                )
-            except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
-                LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
-            self._start_requested_trace_recording()
-            self.scene_manager.start()
-        except Exception:
+            # The crash boundary: anything the run raises is turned into an exit code below
+            self._run_game()
+        except KeyboardInterrupt:
+            # Ctrl-C: never an internal error; exits INTERRUPTED once the teardown has run
+            exit_code = ExitCode.INTERRUPTED
+            run_ended_by = exit_code.describe()
+        except SystemExit as exit_request:
+            # A deliberate exit (a signal handler's, a game's) keeps its status
+            run_ended_by = self._describe_exit_request(exit_status=exit_request.code)
+            if not self._exit_cuts_a_replay_short(exit_status=exit_request.code):
+                raise
+            exit_code, run_ended_by = self._outcome_of_a_replay_cut_short(run_ended_by=run_ended_by)
+        except RecordingWriteError as error:
+            # The disk filled part way: logged on one line by the recorder (BUGS.md #82)
+            exit_code = ExitCode.CANNOT_WRITE_OUTPUT
+            run_ended_by = exit_code.describe()
+            run_error = error
+        except Exception as error:
             scene_name = self._resolve_scene_name_for_error()
-            # In test environments, use debug level to avoid cluttering test output
-            # In production, log exceptions normally
-            import sys
-
-            if 'pytest' in sys.modules or 'unittest' in sys.modules:
-                self.log.debug("Runtime error during game execution @ scene '%s'", scene_name)
-            else:
-                self.log.exception("Runtime error during game execution @ scene '%s'", scene_name)
-            # In production, handle exceptions gracefully
-            # Tests can override this behavior if needed
+            self.log.exception("Runtime error during game execution @ scene '%s'", scene_name)
+            exit_code = ExitCode.INTERNAL_ERROR
+            run_ended_by = exit_code.describe()
+            run_error = error
         finally:
-            self._shutdown()
+            teardown_error = self._tear_down_run(profiler=profiler, run_ended_by=run_ended_by)
+            if teardown_error is not None:
+                # Replaces whatever was ending the run: a failed teardown is an internal error
+                exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=teardown_error)
+        self._end_run(exit_code=exit_code, run_error=run_error)
 
-            if GameEngine.OPTIONS['profile'] and profiler is not None:
-                profiler.disable()
-                profiler.print_stats()
+    def _run_game(self: Self) -> None:
+        """Construct the game and run its scenes: the whole run inside start()'s crash boundary."""
+        # For the whole run, so a signal always ends it through start()'s teardown
+        self._install_signal_handlers()
+
+        # Initialize the game instance
+        self.game = self.game(options=GameEngine.OPTIONS)
+
+        # Set the scene manager's OPTIONS class variable for managers that expect it
+        SceneManager.OPTIONS = GameEngine.OPTIONS
+        self.scene_manager.game_engine = self
+
+        self._initialize_event_managers()
+
+        self.scene_manager.switch_to_scene(self.game)
+        self._configure_timer_and_performance()
+        self._start_requested_trace_recording()
+        self.scene_manager.start()
+
+    def _describe_exit_request(self: Self, *, exit_status: object) -> str:
+        """Describe a SystemExit that ended the run, for the log and the replay report.
+
+        Args:
+            exit_status: The SystemExit's code.
+
+        Returns:
+            ``ExitCode.describe_status`` of an integer status (logged as ``Exiting with ...``),
+            else ``SystemExit(<code>)``.
+
+        """
+        if isinstance(exit_status, int):
+            description = ExitCode.describe_status(exit_status)
+            self.log.info(f'Exiting with {description}')
+            return description
+        return f'SystemExit({exit_status!r})'
+
+    def _end_run(self: Self, *, exit_code: ExitCode | None, run_error: Exception | None) -> None:
+        """Exit as the run ended, once its teardown has run (the recording is closed).
+
+        Args:
+            exit_code: The code the run ends with (None: it ended normally).
+            run_error: The exception that ended it, chained as the exit's cause, or None.
+
+        """
+        exit_code = self._exit_code_after_recording(exit_code=exit_code)
+        if exit_code is not None:
+            exit_with(exit_code=exit_code, cause=run_error)
+        if self.replay_sources is not None:
+            self._end_replay_run(replay_sources=self.replay_sources)
+
+    def _exit_code_after_recording(self: Self, *, exit_code: ExitCode | None) -> ExitCode | None:
+        """Return the run's exit code, made ``CANNOT_WRITE_OUTPUT`` if its recording failed.
+
+        A recording whose last write failed as it was closed in the teardown (the gzip trailer)
+        turns a run that otherwise ended normally into ``CANNOT_WRITE_OUTPUT``; a run already
+        ending with a code (a crash, a signal) keeps it.
+
+        Args:
+            exit_code: The code the run ends with so far (None: it ended normally).
+
+        Returns:
+            The exit code (None: the run ends normally).
+
+        """
+        if exit_code is None and self.recording_write_failed:
+            return ExitCode.CANNOT_WRITE_OUTPUT
+        return exit_code
+
+    def _outcome_of_a_replay_cut_short(
+        self: Self, *, run_ended_by: str
+    ) -> tuple[ExitCode | None, str | None]:
+        """Return how a run ends when a game's own successful exit cut its replay short.
+
+        A plain replay ends as diverged: ``SUCCESS`` would say it matched (the report says
+        where it stopped). A rebaseline takes it as the game ending early, as ``quit_game()``
+        would: the run ends normally, NEW is written with the frames that ran and the run exits
+        ``REBASELINE_INPUT_LOST`` (glitchygames/replay/rebaseline.py, rule 4).
+
+        Args:
+            run_ended_by: The exit, described (``_describe_exit_request``).
+
+        Returns:
+            The exit code ``start`` exits with (None: the normal end of a replay) and what
+            ended the run early (None: it ended normally).
+
+        """
+        if self.rebaseline is not None:
+            return None, None
+        return ExitCode.REPLAY_DIVERGED, run_ended_by
+
+    def _exit_cuts_a_replay_short(self: Self, *, exit_status: object) -> bool:
+        """Report whether a successful SystemExit ended a replay before it reached its result.
+
+        A game's own ``sys.exit(0)`` (or ``sys.exit()``) during a replay that is still running
+        would end the run ``SUCCESS``, which says the replay matched: ``start`` exits
+        ``REPLAY_DIVERGED`` instead. Any other status (a signal's, a game's failure) is kept, as
+        it already says the run did not succeed.
+
+        Args:
+            exit_status: The SystemExit's code.
+
+        Returns:
+            True while replaying, the replay still running and the status 0 or None.
+
+        """
+        return (
+            self.replay_sources is not None
+            and self.replay_sources.result.end_reason == RUNNING_END_REASON
+            and (
+                exit_status is None
+                or (isinstance(exit_status, int) and exit_status == ExitCode.SUCCESS)
+            )
+        )
+
+    def _end_replay_run(self: Self, *, replay_sources: ReplaySources) -> NoReturn:
+        """Exit a replay's run that ended normally, after the teardown.
+
+        A replay exits with its own code (a divergence is ``REPLAY_DIVERGED``; never the
+        ``INTERNAL_ERROR`` or ``INTERRUPTED`` of an early end), unless the viewer stepped back:
+        then the replay restarts (``_restart_replay``), its window already closed. A rebaseline
+        whose new recording could not be moved into place (glitchygames/replay/rebaseline.py,
+        rule 4), and a replay whose digest file could not be written (rule 12 of
+        glitchygames/replay/driver.py), exit ``CANNOT_WRITE_OUTPUT``.
+
+        Args:
+            replay_sources: The replay's sources.
+
+        """
+        restart_frame = replay_sources.result.restart_frame
+        if restart_frame is not None:
+            self._restart_replay(replay_sources=replay_sources, restart_frame=restart_frame)
+        rebaseline_write_failed = self.rebaseline is not None and self.rebaseline.write_failed
+        if rebaseline_write_failed or replay_sources.digest_write_failed:
+            exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
+        exit_with(
+            exit_code=replay_sources.result.exit_code(policy=replay_sources.options.exit_policy)
+        )
+
+    def _restart_replay(
+        self: Self, *, replay_sources: ReplaySources, restart_frame: int
+    ) -> NoReturn:
+        """Restart the torn-down watched replay at ``restart_frame`` and exit with the outcome.
+
+        The restart (glitchygames/replay/rebuild.py) runs this process's own command line with
+        the pause frame, keeping whether the debug overlay was shown; this process either hands
+        it to the supervising replay process or supervises the restarted replays itself. With
+        bookmarks, the bookmarked copy is saved first and the restart replays it, so the
+        bookmarks survive (rule 16 of glitchygames/replay/driver.py); if it cannot be saved,
+        the restart replays this run's recording without them, with a warning naming them.
+
+        Args:
+            replay_sources: The torn-down replay's sources.
+            restart_frame: The frame the restarted replay pauses at.
+
+        Raises:
+            SystemExit: Always, with the status ``relaunch_replay`` returns.
+
+        """
+        self.log.info(f'Restarting the replay at frame {restart_frame}')
+        debug_overlay = self.scene_manager.debug_overlay
+        controls = replay_sources.controls
+        recording_path = Path(GameEngine.OPTIONS['replay_trace'])
+        if controls.bookmarks:
+            bookmarked_copy = replay_sources.bookmarks.save()
+            if bookmarked_copy is None:
+                self.log.warning(
+                    f'Restarting without the bookmarks {controls.bookmarks}: the bookmarked copy '
+                    f'of {recording_path} could not be saved'
+                )
+            else:
+                recording_path = bookmarked_copy
+        command = restart_command(
+            original=sys.orig_argv,
+            recording_path=recording_path,
+            pause_at_frame=restart_frame,
+            debug_overlay_visible=debug_overlay.is_visible,
+            viewer_state=ViewerState(
+                speed=controls.speed,
+                debug_panel=debug_overlay.panel,
+                divergence_frame=controls.divergence_frame,
+            ),
+        )
+        # _shutdown put the default handling back: while supervising, SIGTERM and SIGHUP end the
+        # run with SystemExit again, so subprocess.run kills and reaps the child
+        with self._waiting_for_child_processes():
+            status = relaunch_replay(
+                command=command,
+                handoff_path=replay_sources.options.restart_handoff_path,
+                result_exit_code=replay_sources.result.exit_code(
+                    policy=replay_sources.options.exit_policy
+                ),
+            )
+        try:
+            exit_code = ExitCode(status)
+        except ValueError:
+            # A status no member names (a game's own exit status, a signal without a member)
+            self.log.info(f'Exiting with {ExitCode.describe_status(status)}')
+            raise SystemExit(status) from None
+        exit_with(exit_code=exit_code)
 
     @classmethod
     def quit_game(cls) -> None:
@@ -1347,6 +2521,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         raw_events = self._pump_events()
+        # Polled input is read once per frame, right after the pump, so it agrees with this
+        # frame's events; it stays fixed until the next frame's pump, so dt_tick (which runs
+        # before this) reads the previous frame's snapshot (glitchygames/input/state.py)
+        set_current_input(snapshot=active_sources().input_snapshot())
         dispatched_event_count = 0
         every_event_was_handled = True
         for pygame_event in raw_events:
@@ -1378,32 +2556,37 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         return dispatched_event_count > 0 and every_event_was_handled
 
     def _pump_events(self: Self) -> list[pygame.event.Event]:
-        """Take every event from SDL's queue: the one place the engine reads it.
+        """Take the next batch from the active sources' event pump: the one place it is read.
 
-        A running recorder (``--record-trace``) records the batch here exactly as pygame
-        returned it, before any dispatch or discarding. This is also the seam a replay will
-        use to hand back a recorded batch instead of reading SDL's queue.
+        Live sources read SDL's queue; a replay's sources hand back a recorded batch instead;
+        ``--record-trace``'s ``RecordingSources`` record the batch exactly as the pump returned
+        it, before any dispatch or discarding (glitchygames/sources.py). Events a playback scope
+        held for the live game come first (``take_redelivered_events``, taken after the doors'
+        pump so a recording can write them into this frame's ``redelivered_events``). The
+        scene manager's instant-replay journal gets the batch too, classified as a recorder
+        classifies it (glitchygames/instant_replay.py, rule 4): by a replay's merge when the
+        doors are a replay's (``ReplaySources.last_batch_origins``), else by the code-posted
+        events pending before the pump. Then the posts the pump did not return are forgotten
+        (the engine owns the internal-post tracker for the whole run).
 
         Returns:
             The batch, in queue order.
 
         """
-        # To use events in a different thread, use the fastevent package from pygame.
-        # if you're using pygame < 2.2, you'll need to use pygame.fastevent.
-        # if you're using pygame >= 2.2, you can use the new pygame.event.
-        # You can create your own new events with the events.HashableEvent() object type.
-        pump_events: Callable[..., Any] = pygame.event.get
-
-        if self.USE_FASTEVENTS and hasattr(pygame, 'fastevent'):
-            pump_events = pygame.fastevent.get  # type: ignore[attr-defined]
-
-        raw_events: list[pygame.event.Event] = cast(  # ty: ignore[redundant-cast]
-            'list[pygame.event.Event]', pump_events()
+        posts_before_pump = list(pending_internal_posts())
+        doors = active_sources()
+        batch = doors.pump_events()
+        redelivered_events = take_redelivered_events()
+        self.scene_manager.journal_pumped_events(
+            raw_events=batch,
+            posts_before_pump=posts_before_pump,
+            origins=replayed_batch_origins(doors=doors),
+            redelivered_events=redelivered_events,
         )
-        # The only per-frame cost of recording when it is off: this check
-        if self.trace_recorder is not None:
-            self.trace_recorder.record_event_batch(raw_events=raw_events)
-        return raw_events
+        # Matched or not returned, the posts made before this pump are done with (a recorder
+        # or a replay pumping underneath has already consumed them)
+        forget_pending_posts()
+        return [*(event for event, _origin in redelivered_events), *batch]
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.
@@ -1887,12 +3070,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
 
             # Check if this might be a controller event by looking at controller count
+            # (through the devices door, glitchygames/input/devices.py)
             try:
-                from pygame._sdl2 import controller as sdl2_controller  # ruff: ignore[import-private-name]
-
-                current_controller_count: int = int(
-                    sdl2_controller.get_count(),
-                )
+                current_controller_count: int = active_sources().devices().controller_count()
                 LOG.debug(
                     'Current controller count when event 1543 received: %s',
                     current_controller_count,
@@ -1941,7 +3121,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         self.unhandled_events[event.type] = UnhandledEventRecord(
             count=1,
-            first_seen_seconds=time.perf_counter() - self._started_at_seconds,
+            # The frame clock, which reset_sources() restarted in __init__
+            first_seen_seconds=elapsed_seconds(),
             attribute_names=attribute_names,
         )
 

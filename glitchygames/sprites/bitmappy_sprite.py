@@ -553,7 +553,7 @@ class BitmappySprite(Sprite):
                 pixel_index = y * pixels_across + x
                 if pixel_index < len(self.pixels):
                     pixel_color = self.pixels[pixel_index]
-                    matched_char: str = cast('str', color_map.get(pixel_color, '.'))  # type: ignore[arg-type] # ty: ignore[no-matching-overload]
+                    matched_char: str = cast('str', color_map.get(pixel_color, '.'))  # type: ignore[arg-type]
                     row += matched_char
                 else:
                     row += '.'  # Default character for missing pixels

@@ -3,13 +3,16 @@
 import sys
 from pathlib import Path
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames import events
 from glitchygames.bitmappy import film_strip
 from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
+from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -263,3 +266,608 @@ class TestFilmStripSprite:
         # Test with no film strip widget
         sprite.film_strip_widget = None
         sprite.on_left_mouse_button_down_event(mock_event)
+
+
+# ---------------------------------------------------------------------------
+# Real-pygame tests: a real FilmStripWidget showing a real AnimatedSprite
+# ---------------------------------------------------------------------------
+
+FRAME_PIXELS_ACROSS = 2
+FRAME_PIXELS_TALL = 2
+TOP_LEFT_COLOR = (10, 20, 30, 40)
+OTHER_COLOR = (200, 100, 50, 255)
+
+
+class RecordingParentScene:
+    """A parent scene stand-in that keeps the colour slider values it is sent."""
+
+    def __init__(self) -> None:
+        """Start with no slider values and no frame insertions."""
+        self.slider_values: dict[str, int] = {}
+        self.inserted_frames: list[tuple[str, int]] = []
+
+    def on_slider_event(self, event: events.HashableEvent, trigger: events.HashableEvent) -> None:
+        """Keep the value sent for one slider.
+
+        Args:
+            event: The slider event (unused).
+            trigger: The trigger naming the slider and its value.
+
+        """
+        del event
+        self.slider_values[trigger.name] = trigger.value
+
+    def on_frame_inserted(self, animation: str, frame_index: int) -> None:
+        """Keep a frame insertion notification.
+
+        Args:
+            animation: The animation the frame was inserted into.
+            frame_index: Where it was inserted.
+
+        """
+        self.inserted_frames.append((animation, frame_index))
+
+
+class RecordingCanvas:
+    """A canvas stand-in that keeps the frames it was asked to show."""
+
+    def __init__(self, *, pixels_across: int = 4, pixels_tall: int = 3) -> None:
+        """Start with no frames shown.
+
+        Args:
+            pixels_across: Canvas width in pixels.
+            pixels_tall: Canvas height in pixels.
+
+        """
+        self.pixels_across = pixels_across
+        self.pixels_tall = pixels_tall
+        self.shown_frames: list[tuple[str, int]] = []
+
+    def show_frame(self, animation: str, frame_index: int) -> None:
+        """Keep the frame shown.
+
+        Args:
+            animation: The animation shown.
+            frame_index: The frame shown.
+
+        """
+        self.shown_frames.append((animation, frame_index))
+
+
+class KeyEventWithGet:
+    """A key event offering ``get``, which FilmStripSprite.on_key_down_event reads ``mod`` with.
+
+    A real HashableEvent cannot be used: its ``get`` raises AttributeError (it is a UserDict
+    that never sets ``data``), see the bug note on TestFilmStripSpriteCopyPasteKeys.
+    """
+
+    def __init__(self, *, key: int, mod: int) -> None:
+        """Build the event.
+
+        Args:
+            key: The key code.
+            mod: The modifier bit mask.
+
+        """
+        self.key = key
+        self.mod = mod
+
+    def get(self, name: str, default: object = None) -> object:
+        """Return an attribute, or the default when it is missing.
+
+        Args:
+            name: The attribute name.
+            default: The value for a missing attribute.
+
+        Returns:
+            The attribute's value or the default.
+
+        """
+        return getattr(self, name, default)
+
+
+def make_two_by_two_frame() -> SpriteFrame:
+    """Build a 2x2 frame whose top-left pixel differs from the other three.
+
+    Returns:
+        The frame.
+
+    """
+    surface = pygame.Surface((FRAME_PIXELS_ACROSS, FRAME_PIXELS_TALL), pygame.SRCALPHA)
+    frame = SpriteFrame(surface, duration=0.5)
+    frame.set_pixel_data([TOP_LEFT_COLOR, OTHER_COLOR, OTHER_COLOR, OTHER_COLOR])
+    return frame
+
+
+@pytest.fixture
+def real_film_strip_sprite() -> FilmStripSprite:
+    """Build a film strip sprite over a real widget showing two 'idle' frames.
+
+    Returns:
+        The film strip sprite, in a sprite group.
+
+    """
+    animated_sprite = AnimatedSprite()
+    animated_sprite._animations = {  # pyright: ignore[reportPrivateUsage]
+        'idle': [make_two_by_two_frame(), make_two_by_two_frame()],
+    }
+    animated_sprite.frame_manager.current_animation = 'idle'
+    widget = film_strip.FilmStripWidget(x=0, y=0, width=400, height=120)
+    widget.set_animated_sprite(animated_sprite)
+    widget.current_animation = 'idle'
+    group = pygame.sprite.LayeredDirty()
+    return FilmStripSprite(widget, x=0, y=0, width=400, height=120, groups=group)
+
+
+def frame_layout_of(sprite: FilmStripSprite, frame_index: int) -> pygame.Rect:
+    """Return where a frame of the 'idle' animation is laid out in the film strip.
+
+    Args:
+        sprite: The film strip sprite.
+        frame_index: The frame.
+
+    Returns:
+        The frame's layout rect.
+
+    """
+    assert sprite.film_strip_widget is not None
+    return sprite.film_strip_widget.frame_layouts['idle', frame_index]
+
+
+def write_png(*, path: Path, size: tuple[int, int], color: tuple[int, ...], alpha: bool) -> str:
+    """Write a single-colour PNG.
+
+    Args:
+        path: Where to write it.
+        size: Its size.
+        color: Its colour.
+        alpha: Whether it has an alpha channel.
+
+    Returns:
+        The path as a string.
+
+    """
+    surface = pygame.Surface(size, pygame.SRCALPHA) if alpha else pygame.Surface(size)
+    surface.fill(color)
+    pygame.image.save(surface, str(path))
+    return str(path)
+
+
+class TestFilmStripSpriteUpdateAndKill:
+    """Test FilmStripSprite.update and kill with a real widget."""
+
+    def test_clean_sprite_in_a_group_is_not_redrawn(self, real_film_strip_sprite):
+        """A sprite that is not dirty keeps its image."""
+        sprite = real_film_strip_sprite
+        sprite.image.fill((1, 2, 3, 255))
+        sprite.dirty = 0
+
+        sprite.update()
+
+        assert tuple(sprite.image.get_at((0, 0))) == (1, 2, 3, 255)
+
+    def test_dirty_sprite_in_a_group_is_redrawn(self, real_film_strip_sprite):
+        """A dirty sprite repaints its image with the film strip."""
+        sprite = real_film_strip_sprite
+        sprite.image.fill((1, 2, 3, 255))
+        sprite.dirty = 1
+
+        sprite.update()
+
+        assert tuple(sprite.image.get_at((0, 0))) != (1, 2, 3, 255)
+
+    def test_update_of_a_killed_sprite_without_widget_attribute_does_nothing(
+        self,
+        real_film_strip_sprite,
+    ):
+        """A sprite outside every group with no widget attribute returns quietly."""
+        sprite = real_film_strip_sprite
+        sprite.kill()
+        del sprite.film_strip_widget
+
+        sprite.update()
+
+        assert not hasattr(sprite, 'film_strip_widget')
+
+    def test_kill_without_widget_attribute_still_leaves_the_groups(self, real_film_strip_sprite):
+        """Killing a sprite whose widget attribute is gone still removes it from its groups."""
+        sprite = real_film_strip_sprite
+        del sprite.film_strip_widget
+
+        sprite.kill()
+
+        assert sprite.groups() == []
+
+
+class TestFilmStripSpriteColorSampling:
+    """Test sampling a frame pixel into the colour sliders."""
+
+    def test_right_click_samples_the_rgba_of_the_clicked_pixel(self, real_film_strip_sprite):
+        """A right-click on a frame's top-left pixel sends its RGBA to the sliders."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        frame_layout = frame_layout_of(sprite, frame_index=1)
+        MockFactory.install_frame_input()
+
+        handled = sprite.on_right_mouse_button_up_event(
+            events.HashableEvent(0, pos=(frame_layout.x + 5, frame_layout.y + 5)),
+        )
+
+        assert handled is True
+        assert parent_scene.slider_values == {'R': 10, 'G': 20, 'B': 30, 'A': 40}
+
+    def test_bottom_right_pixel_is_sampled_too(self, real_film_strip_sprite):
+        """A click near a frame's bottom-right corner samples the last pixel."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+
+        sprite._sample_color_from_frame('idle', 0, frame_layout.right - 5, frame_layout.bottom - 5)
+
+        assert parent_scene.slider_values == {'R': 200, 'G': 100, 'B': 50, 'A': 255}
+
+    def test_rgb_pixel_is_sampled_as_opaque(self, real_film_strip_sprite):
+        """A frame holding RGB pixels is sampled with alpha 255."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        assert sprite.film_strip_widget is not None
+        assert sprite.film_strip_widget.animated_sprite is not None
+        frame = sprite.film_strip_widget.animated_sprite.animations['idle'][0]
+        frame.pixels = [(1, 2, 3)] * 4
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+
+        sprite._sample_color_from_frame('idle', 0, frame_layout.x + 5, frame_layout.y + 5)
+
+        assert parent_scene.slider_values == {'R': 1, 'G': 2, 'B': 3, 'A': 255}
+
+    def test_click_outside_the_frame_samples_nothing(self, real_film_strip_sprite):
+        """Coordinates outside the frame's layout leave the sliders alone."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+
+        sprite._sample_color_from_frame('idle', 0, frame_layout.right + 1, frame_layout.y + 5)
+
+        assert parent_scene.slider_values == {}
+
+    def test_pixel_beyond_short_pixel_data_samples_nothing(self, real_film_strip_sprite):
+        """Pixel data shorter than the frame leaves the sliders alone for missing pixels."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        assert sprite.film_strip_widget is not None
+        assert sprite.film_strip_widget.animated_sprite is not None
+        frame = sprite.film_strip_widget.animated_sprite.animations['idle'][0]
+        frame.pixels = [TOP_LEFT_COLOR]
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+
+        sprite._sample_color_from_frame('idle', 0, frame_layout.right - 5, frame_layout.bottom - 5)
+
+        assert parent_scene.slider_values == {}
+
+    def test_malformed_pixel_is_logged_not_raised(self, real_film_strip_sprite, caplog):
+        """A pixel that is not RGB or RGBA is logged and the sliders are left alone."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        assert sprite.film_strip_widget is not None
+        assert sprite.film_strip_widget.animated_sprite is not None
+        frame = sprite.film_strip_widget.animated_sprite.animations['idle'][0]
+        frame.pixels = [(1, 2)] * 4
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+
+        sprite._sample_color_from_frame('idle', 0, frame_layout.x + 5, frame_layout.y + 5)
+
+        assert parent_scene.slider_values == {}
+        assert 'Error sampling color from frame' in caplog.text
+
+
+class TestFilmStripSpriteCopyPasteKeys:
+    """Test Ctrl+C and Ctrl+V on the film strip sprite.
+
+    BUG: film_strip_sprite.py:443 and :453 read the modifiers with ``event.get('mod', 0)``.
+    Neither a HashableEvent (its UserDict ``get`` needs ``self.data``, which is never set) nor a
+    pygame Event has a working ``get``, so a real Ctrl+C or Ctrl+V (or any C or V key) raises
+    AttributeError there. These tests use KeyEventWithGet to exercise the copy/paste logic.
+    """
+
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AttributeError,
+        reason='BUG: film_strip_sprite.py:443 calls HashableEvent.get, which raises AttributeError',
+    )
+    def test_real_hashable_ctrl_c_event_copies_the_frame(self, real_film_strip_sprite):
+        """A real Ctrl+C HashableEvent copies the current frame."""
+        sprite = real_film_strip_sprite
+        assert sprite.film_strip_widget is not None
+        sprite.film_strip_widget.current_frame = 0
+
+        handled = sprite.on_key_down_event(
+            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
+        )
+
+        assert handled is True
+        assert sprite.film_strip_widget.copied_frame is not None
+
+    def test_keys_are_ignored_without_a_widget(self, real_film_strip_sprite):
+        """A sprite whose widget is gone does not handle keys."""
+        sprite = real_film_strip_sprite
+        sprite.film_strip_widget = None
+
+        handled = sprite.on_key_down_event(
+            KeyEventWithGet(key=pygame.K_c, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+        )
+
+        assert handled is None
+
+    def test_ctrl_c_then_ctrl_v_copies_one_frame_over_another(self, real_film_strip_sprite):
+        """Ctrl+C copies the current frame and Ctrl+V pastes it over the current frame."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        assert widget.animated_sprite is not None
+        frames = widget.animated_sprite.animations['idle']
+        frames[1].set_pixel_data([OTHER_COLOR] * 4)
+        widget.current_frame = 0
+
+        copied = sprite.on_key_down_event(
+            KeyEventWithGet(key=pygame.K_c, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+        )
+        widget.current_frame = 1
+        pasted = sprite.on_key_down_event(
+            KeyEventWithGet(key=pygame.K_v, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+        )
+
+        assert copied is True
+        assert pasted is True
+        assert frames[1].get_pixel_data()[0] == TOP_LEFT_COLOR
+
+    def test_failed_copy_and_paste_are_still_handled(self, real_film_strip_sprite):
+        """Ctrl+C and Ctrl+V with nothing to copy or paste are consumed and change nothing."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        widget.current_frame = 99
+
+        copied = sprite.on_key_down_event(
+            KeyEventWithGet(key=pygame.K_c, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+        )
+        pasted = sprite.on_key_down_event(
+            KeyEventWithGet(key=pygame.K_v, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+        )
+
+        assert copied is True
+        assert pasted is True
+        assert widget.copied_frame is None
+
+    def test_other_keys_are_not_handled(self, real_film_strip_sprite):
+        """A key that is not Ctrl+C or Ctrl+V is not handled."""
+        sprite = real_film_strip_sprite
+
+        handled = sprite.on_key_down_event(
+            KeyEventWithGet(key=pygame.K_c, mod=0),  # type: ignore[arg-type]
+        )
+
+        assert handled is False
+
+
+class TestFilmStripSpriteHover:
+    """Test FilmStripSprite.on_mouse_motion_event hover tracking."""
+
+    def test_motion_is_ignored_without_a_widget(self, real_film_strip_sprite):
+        """A sprite whose widget is gone ignores mouse motion."""
+        sprite = real_film_strip_sprite
+        sprite.film_strip_widget = None
+
+        sprite.on_mouse_motion_event(events.HashableEvent(0, pos=(5, 5)))
+
+        assert sprite.film_strip_widget is None
+
+    def test_moving_within_the_same_frame_does_not_redirty(self, real_film_strip_sprite):
+        """A second motion over the same frame does not mark the widget for redraw."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+        sprite.on_mouse_motion_event(events.HashableEvent(0, pos=frame_layout.center))
+        widget.force_redraw = False
+
+        sprite.on_mouse_motion_event(events.HashableEvent(0, pos=frame_layout.center))
+
+        assert widget.hovered_frame == ('idle', 0)
+        assert widget.force_redraw is False
+
+    def test_moving_outside_without_hover_changes_nothing(self, real_film_strip_sprite):
+        """Motion outside the strip with nothing hovered leaves the widget clean."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        widget.force_redraw = False
+
+        sprite.on_mouse_motion_event(events.HashableEvent(0, pos=(1000, 1000)))
+
+        assert widget.force_redraw is False
+
+    def test_clearing_hover_without_a_widget_does_nothing(self, real_film_strip_sprite):
+        """Clearing hover effects after the widget is gone is harmless."""
+        sprite = real_film_strip_sprite
+        sprite.film_strip_widget = None
+
+        sprite._clear_hover_effects()
+
+        assert sprite.film_strip_widget is None
+
+
+class TestFilmStripSpriteCanvasDimensions:
+    """Test FilmStripSprite._get_canvas_dimensions."""
+
+    def test_parent_canvas_size_wins(self, real_film_strip_sprite):
+        """The parent canvas's pixel size is used first."""
+        sprite = real_film_strip_sprite
+        sprite.parent_canvas = RecordingCanvas(pixels_across=5, pixels_tall=6)  # type: ignore[assignment]
+
+        assert sprite._get_canvas_dimensions() == (5, 6)
+
+    def test_parent_scene_canvas_size_is_used_without_a_parent_canvas(
+        self,
+        real_film_strip_sprite,
+    ):
+        """Without a parent canvas, the parent scene's canvas size is used."""
+        sprite = real_film_strip_sprite
+        sprite.parent_canvas = None  # type: ignore[assignment]
+        parent_scene = RecordingParentScene()
+        parent_scene.canvas = RecordingCanvas(pixels_across=7, pixels_tall=8)  # type: ignore[attr-defined]
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+
+        assert sprite._get_canvas_dimensions() == (7, 8)
+
+    def test_default_size_is_32_by_32(self, real_film_strip_sprite):
+        """With no canvas anywhere, the size is 32x32."""
+        sprite = real_film_strip_sprite
+
+        assert sprite._get_canvas_dimensions() == (32, 32)
+
+
+class TestFilmStripSpriteImageDrops:
+    """Test replacing and inserting frames from dropped image files."""
+
+    def test_unreadable_file_converts_to_nothing(self, real_film_strip_sprite, tmp_path):
+        """A file that is not an image gives no frame."""
+        sprite = real_film_strip_sprite
+        bogus_path = tmp_path / 'bogus.png'
+        bogus_path.write_bytes(b'not a png')
+
+        assert sprite._convert_image_to_sprite_frame(str(bogus_path)) is None
+
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason=(
+            'BUG: film_strip_sprite.py:677 calls pygame.surfarray.array4d, which pygame-ce does '
+            'not have; the AttributeError is caught, so every dropped image converts to None'
+        ),
+    )
+    def test_png_converts_to_a_frame_of_the_canvas_size(self, real_film_strip_sprite, tmp_path):
+        """A dropped PNG is scaled to the canvas size and keeps its colour."""
+        sprite = real_film_strip_sprite
+        sprite.parent_canvas = RecordingCanvas(pixels_across=4, pixels_tall=3)  # type: ignore[assignment]
+        image_path = write_png(
+            path=tmp_path / 'red.png',
+            size=(8, 8),
+            color=(255, 0, 0),
+            alpha=False,
+        )
+
+        frame = sprite._convert_image_to_sprite_frame(image_path)
+
+        assert frame is not None
+        assert frame.get_size() == (4, 3)
+        assert frame.get_pixel_data()[0] == (255, 0, 0, 255)
+
+    def test_replace_fails_when_the_image_cannot_be_converted(self, real_film_strip_sprite, mocker):
+        """A drop that cannot be converted leaves the frame in place."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        assert widget.animated_sprite is not None
+        original_frame = widget.animated_sprite.animations['idle'][0]
+        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=None)
+
+        assert sprite._replace_frame_with_image('dropped.png', 'idle', 0) is False
+        assert widget.animated_sprite.animations['idle'][0] is original_frame
+
+    def test_replace_fails_without_an_animated_sprite(self, real_film_strip_sprite, mocker):
+        """A widget with no sprite cannot have a frame replaced."""
+        sprite = real_film_strip_sprite
+        assert sprite.film_strip_widget is not None
+        sprite.film_strip_widget.animated_sprite = None
+        mocker.patch.object(
+            sprite,
+            '_convert_image_to_sprite_frame',
+            return_value=make_two_by_two_frame(),
+        )
+
+        assert sprite._replace_frame_with_image('dropped.png', 'idle', 0) is False
+
+    def test_replace_fails_for_a_frame_that_does_not_exist(self, real_film_strip_sprite, mocker):
+        """A frame index past the animation's end is refused."""
+        sprite = real_film_strip_sprite
+        mocker.patch.object(
+            sprite,
+            '_convert_image_to_sprite_frame',
+            return_value=make_two_by_two_frame(),
+        )
+
+        assert sprite._replace_frame_with_image('dropped.png', 'idle', 5) is False
+
+    def test_replacing_the_selected_frame_shows_it_on_the_canvas(
+        self,
+        real_film_strip_sprite,
+        mocker,
+    ):
+        """Replacing the frame the scene has selected shows the new frame on the canvas."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        assert widget.animated_sprite is not None
+        new_frame = make_two_by_two_frame()
+        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=new_frame)
+        parent_scene = RecordingParentScene()
+        parent_scene.selected_animation = 'idle'  # type: ignore[attr-defined]
+        parent_scene.selected_frame = 1  # type: ignore[attr-defined]
+        canvas = RecordingCanvas()
+        parent_scene.canvas = canvas  # type: ignore[attr-defined]
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+
+        assert sprite._replace_frame_with_image('dropped.png', 'idle', 1) is True
+        assert widget.animated_sprite.animations['idle'][1] is new_frame
+        assert canvas.shown_frames == [('idle', 1)]
+
+    def test_canvas_is_not_updated_without_a_parent_scene(self, real_film_strip_sprite):
+        """Without a parent scene there is no canvas to update."""
+        sprite = real_film_strip_sprite
+
+        assert sprite._should_update_canvas_frame('idle', 0) is False
+
+    def test_insert_fails_when_the_image_cannot_be_converted(self, real_film_strip_sprite, mocker):
+        """A drop that cannot be converted adds no frame."""
+        sprite = real_film_strip_sprite
+        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=None)
+
+        assert sprite._insert_image_as_new_frame('dropped.png', 0, 0) is False
+        assert sprite.film_strip_widget is not None
+        assert sprite.film_strip_widget.animated_sprite is not None
+        assert len(sprite.film_strip_widget.animated_sprite.animations['idle']) == 2
+
+    def test_insert_fails_without_a_current_animation(self, real_film_strip_sprite, mocker):
+        """A widget with no current animation cannot take a new frame."""
+        sprite = real_film_strip_sprite
+        assert sprite.film_strip_widget is not None
+        sprite.film_strip_widget.current_animation = ''
+        mocker.patch.object(
+            sprite,
+            '_convert_image_to_sprite_frame',
+            return_value=make_two_by_two_frame(),
+        )
+
+        assert sprite._insert_image_as_new_frame('dropped.png', 0, 0) is False
+
+    def test_insert_appends_the_frame_and_tells_the_scene(self, real_film_strip_sprite, mocker):
+        """An inserted frame goes at the end, is selected, and the scene is told."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        assert widget.animated_sprite is not None
+        new_frame = make_two_by_two_frame()
+        mocker.patch.object(sprite, '_convert_image_to_sprite_frame', return_value=new_frame)
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+
+        assert sprite._insert_image_as_new_frame('dropped.png', 0, 0) is True
+        assert widget.animated_sprite.animations['idle'][2] is new_frame
+        assert parent_scene.inserted_frames == [('idle', 2)]
+        assert widget.selected_frame == 2

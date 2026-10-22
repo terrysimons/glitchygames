@@ -185,3 +185,49 @@ class TestMiniaudioMicrophone:
 
         # Despite the exception, cleanup should have occurred
         assert mic._device is None
+
+    @pytest.mark.skipif(not miniaudio_available, reason='miniaudio not installed')
+    def test_enter_without_miniaudio_raises(self, monkeypatch):
+        """A microphone made while miniaudio was there cannot start once it is gone."""
+        import glitchygames.events.voice_miniaudio as voice_module
+        from glitchygames.events.voice_miniaudio import MiniaudioMicrophone
+
+        microphone = MiniaudioMicrophone()
+        monkeypatch.setattr(voice_module, 'mi', None)
+
+        with pytest.raises(RuntimeError, match='miniaudio is not installed'):
+            microphone.__enter__()
+        assert microphone.stream is None
+
+    @pytest.mark.skipif(not miniaudio_available, reason='miniaudio not installed')
+    def test_captured_audio_reaches_the_stream(self, mocker):
+        """Audio the capture device sends is written to the stream; empty chunks are skipped."""
+        from glitchygames.events.voice_miniaudio import MiniaudioMicrophone
+
+        mock_device = mocker.Mock()
+        mocker.patch(
+            'glitchygames.events.voice_miniaudio.mi.CaptureDevice',
+            return_value=mock_device,
+        )
+        microphone = MiniaudioMicrophone()
+
+        with microphone:
+            (capture_generator,) = mock_device.start.call_args.args
+            capture_generator.send(bytearray(b'\x01\x02'))
+            capture_generator.send(b'')
+            capture_generator.send(b'\x03')
+            assert microphone.stream is not None
+            assert microphone.stream._size == 3
+            assert microphone.stream.read(3) == b'\x01\x02\x03'
+
+    @pytest.mark.skipif(not miniaudio_available, reason='miniaudio not installed')
+    def test_exit_without_enter_is_harmless(self):
+        """Exiting a microphone that never started (no device, no stream) does nothing."""
+        from glitchygames.events.voice_miniaudio import MiniaudioMicrophone
+
+        microphone = MiniaudioMicrophone()
+
+        microphone.__exit__(None, None, None)
+
+        assert microphone._device is None
+        assert microphone.stream is None

@@ -115,7 +115,8 @@ def test_spec_uses_the_project_pyinstaller_hooks():
         for keyword in analysis_call.keywords
         if keyword.arg == 'hookspath'
     )
-    assert str(AISUITE_HOOK_PATH.parent) in hook_paths
+    # Compared as paths: the spec writes / separators, which Windows paths print as \\
+    assert AISUITE_HOOK_PATH.parent in [Path(hook_path) for hook_path in hook_paths]
     assert AISUITE_HOOK_PATH.is_file()
 
 

@@ -7,18 +7,19 @@ import contextlib
 import logging
 import multiprocessing
 import signal
-import sys
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
 from glitchygames import events
+from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
-from glitchygames.engine import GameEngine
+from glitchygames.engine import ExitCode, GameEngine
+from glitchygames.engine.game_engine import exit_on_signal
+from glitchygames.input.state import current_input
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.ui.dialogs import (
@@ -45,7 +46,6 @@ from .sprite_inspection import load_ai_training_data
 
 if TYPE_CHECKING:
     import argparse
-    import types
 
     from glitchygames.events.voice import VoiceEventManager
     from glitchygames.sprites.animated import AnimatedSprite
@@ -105,7 +105,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     controller_position_operation_tracker: ControllerPositionOperationTracker
     current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool
-    _pixel_change_timer: float | None
+    pixel_change_timer: float | None
     _applying_undo_redo: bool
     _initialized: bool
 
@@ -343,7 +343,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.canvas.pixel_width = pixel_size
         self.canvas.pixel_height = pixel_size
 
-        self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)  # ty: ignore[invalid-assignment]
+        self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)
         self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
         # Reset viewport/panning system
@@ -481,8 +481,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         """
         # Check for shift-right-click (screen sampling)
-        is_shift_click = (
-            pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
+        held_keys = current_input()
+        is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
+            pygame.K_RSHIFT
         )
 
         # First, check if any sprites have handled the event
@@ -855,8 +856,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         # Log animation state approximately once per second, regardless of fps
         if not hasattr(self, '_last_animation_log_time'):
-            self._last_animation_log_time = time.time()
-        current_time = time.time()
+            self._last_animation_log_time = frame_clock_seconds()
+        current_time = frame_clock_seconds()
         if current_time - self._last_animation_log_time >= 1.0:
             self._last_animation_log_time = current_time
 
@@ -1389,12 +1390,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             and hasattr(self, 'confirmation_dialog')
             and self.confirmation_dialog
         ):
-            mouse_pos = pygame.mouse.get_pos()
-            if self.confirmation_dialog.rect.collidepoint(mouse_pos):
+            mouse_position = current_input().mouse_position
+            if self.confirmation_dialog.rect.collidepoint(mouse_position):
                 # Convert to dialog-relative coordinates
                 dialog_relative_pos = (
-                    mouse_pos[0] - self.confirmation_dialog.rect.x,
-                    mouse_pos[1] - self.confirmation_dialog.rect.y,
+                    mouse_position[0] - self.confirmation_dialog.rect.x,
+                    mouse_position[1] - self.confirmation_dialog.rect.y,
                 )
                 if self.confirmation_dialog.handle_mouse_down(dialog_relative_pos):
                     self.confirmation_dialog = None  # Clear reference after handling
@@ -1579,30 +1580,22 @@ def main() -> None:
     """Run the main function.
 
     Raises:
-        None
+        SystemExit: When the engine's run ends with one (a signal's ``ExitCode`` included).
 
     """
     LOG.setLevel(logging.INFO)
 
-    # Signals received, logged once the engine has stopped (see signal_handler)
+    # SIGINT and SIGTERM end the editor through SystemExit with the signal's exit code
+    # (INTERRUPTED, TERMINATED), the engine's own handler: it ignores a repeated signal while the
+    # run tears down, and does nothing else (logging there could fail with "reentrant call
+    # inside BufferedWriter" while the interrupted code writes to stderr, and a queue put could
+    # block on a lock it holds). SystemExit unwinds the engine (releasing whatever the main
+    # thread held); the finally below then logs and shuts the AI worker down. Installed before
+    # the engine, which then leaves them alone (it claims only signals still at their default)
+    signal.signal(signal.SIGINT, exit_on_signal)
+    signal.signal(signal.SIGTERM, exit_on_signal)
+    # The signal that ended the run, logged once the engine has stopped
     received_signals: list[int] = []
-
-    # Set up signal handling to prevent multiprocessing issues on macOS
-    def signal_handler(signum: int, _frame: types.FrameType | None) -> None:
-        """Handle shutdown signals gracefully.
-
-        Only records the signal and raises SystemExit. SystemExit unwinds the engine
-        (releasing whatever the main thread held) and the finally below then logs and shuts
-        the AI worker down. Doing either here could fail: logging while the interrupted code
-        is writing to stderr raises "reentrant call inside BufferedWriter" (which replaced
-        SystemExit and lost the signal), and a queue put could block on a lock it holds.
-        """
-        received_signals.append(signum)
-        sys.exit(0)
-
-    # Register signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     # Set multiprocessing start method to avoid macOS issues
     with contextlib.suppress(RuntimeError):
@@ -1619,6 +1612,13 @@ def main() -> None:
     # Start the engine
     try:
         engine.start()
+    except SystemExit as exit_request:
+        received_signals.extend(
+            signal_number
+            for signal_number in (signal.SIGINT, signal.SIGTERM)
+            if exit_request.code == ExitCode.for_signal(signal_number)
+        )
+        raise
     finally:
         for received_signal in received_signals:
             LOG.info(f'Received signal {received_signal}, shutting down gracefully...')

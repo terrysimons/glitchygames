@@ -62,12 +62,12 @@ class TestMultiControllerStress:
             )
 
         # Test rapid operations on all controllers
-        start_time = time.time()
+        start_time = time.perf_counter()
         for _ in range(100):
             for i in range(self.manager.MAX_CONTROLLERS):
                 self.controller_selections[i].set_selection(f'animation_{i}', i)
                 self.visual_manager.update_controller_position(i, (i * 10, i * 10))
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         # Should complete within reasonable time
         assert end_time - start_time < 5.0
@@ -89,13 +89,13 @@ class TestMultiControllerStress:
             self.controller_selections[i] = ControllerSelection(i, instance_id)
 
         # Rapidly switch between controllers
-        start_time = time.time()
+        start_time = time.perf_counter()
         for cycle in range(1000):
             for i in range(4):
                 self.controller_selections[i].activate()
                 self.controller_selections[i].set_selection(f'animation_{i}', cycle)
                 time.sleep(0.0001)  # Very small delay
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         assert end_time - start_time < RAPID_CYCLING_TIME_LIMIT
 
@@ -113,10 +113,10 @@ class TestMultiControllerStress:
         self.controller_selections[0].activate()
 
         # Generate extensive navigation history
-        start_time = time.time()
+        start_time = time.perf_counter()
         for i in range(10000):
             self.controller_selections[0].set_selection(f'animation_{i % 100}', i % 50)
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         assert end_time - start_time < NAVIGATION_HISTORY_TIME_LIMIT
 
@@ -132,7 +132,7 @@ class TestMultiControllerStress:
     def test_visual_collision_stress(self):
         """Test visual collision system under stress."""
         # Add many controllers at same position
-        start_time = time.time()
+        start_time = time.perf_counter()
         for i in range(50):
             self.visual_manager.add_controller_indicator(
                 controller_id=i,
@@ -140,7 +140,7 @@ class TestMultiControllerStress:
                 color=(255, 0, 0),
                 position=(100, 100),  # Same position
             )
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         assert end_time - start_time < COLLISION_ADD_TIME_LIMIT
 
@@ -149,11 +149,11 @@ class TestMultiControllerStress:
         assert len(self.visual_manager.film_strip_collision_groups[100, 100]) == 50
 
         # Test rapid position updates
-        update_start = time.time()
+        update_start = time.perf_counter()
         for _ in range(100):
             for i in range(50):
                 self.visual_manager.update_controller_position(i, (100 + i, 100 + i))
-        update_end = time.time()
+        update_end = time.perf_counter()
 
         assert update_end - update_start < COLLISION_UPDATE_TIME_LIMIT
 
@@ -177,7 +177,7 @@ class TestMultiControllerStress:
                 time.sleep(0.001)
 
         # Run concurrent operations
-        start_time = time.time()
+        start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = []
             for i in range(8):
@@ -187,7 +187,7 @@ class TestMultiControllerStress:
             # Wait for all operations to complete
             for future in futures:
                 future.result()
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         assert end_time - start_time < CONCURRENT_OPS_TIME_LIMIT
 
@@ -201,7 +201,7 @@ class TestMultiControllerStress:
     def test_system_resilience_stress(self):
         """Test system resilience under extreme conditions."""
         # Rapidly add and remove controllers
-        start_time = time.time()
+        start_time = time.perf_counter()
         for cycle in range(100):
             # Add controllers
             for i in range(5):
@@ -225,7 +225,7 @@ class TestMultiControllerStress:
                     del self.manager.assigned_controllers[instance_id]
 
                 self.visual_manager.remove_controller_indicator(i)
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         # Should complete without errors
         assert end_time - start_time < 15.0
@@ -270,17 +270,17 @@ class TestMultiControllerStress:
     def test_performance_benchmarks(self):
         """Test performance benchmarks for various operations."""
         # Benchmark controller assignment
-        start_time = time.time()
+        start_time = time.perf_counter()
         for i in range(1000):
             instance_id = i
             self.manager.controllers[instance_id] = self._mocker.Mock()
             self.manager.assign_controller(instance_id)
-        assignment_time = time.time()
+        assignment_time = time.perf_counter()
 
         assert assignment_time - start_time < COLLISION_ADD_TIME_LIMIT
 
         # Benchmark visual indicator operations
-        visual_start = time.time()
+        visual_start = time.perf_counter()
         for i in range(1000):
             self.visual_manager.add_controller_indicator(
                 controller_id=i,
@@ -288,12 +288,12 @@ class TestMultiControllerStress:
                 color=(255, 0, 0),
                 position=(i, i),
             )
-        visual_end = time.time()
+        visual_end = time.perf_counter()
 
         assert visual_end - visual_start < COLLISION_ADD_TIME_LIMIT
 
         # Benchmark collision calculation
-        collision_start = time.time()
+        collision_start = time.perf_counter()
         for i in range(100):
             # Add many indicators at same position
             for j in range(10):
@@ -303,7 +303,7 @@ class TestMultiControllerStress:
                     color=(255, 0, 0),
                     position=(i, i),
                 )
-        collision_end = time.time()
+        collision_end = time.perf_counter()
 
         assert collision_end - collision_start < COLLISION_UPDATE_TIME_LIMIT
 
@@ -340,7 +340,7 @@ class TestMultiControllerStress:
             self.controller_selections[i].activate()
 
         # Mixed operations
-        start_time = time.time()
+        start_time = time.perf_counter()
         for cycle in range(100):
             # Navigation operations
             for i in range(10):
@@ -363,7 +363,7 @@ class TestMultiControllerStress:
             if cycle % 10 == 0:
                 self.visual_manager.clear_all_indicators()
 
-        end_time = time.time()
+        end_time = time.perf_counter()
 
         assert end_time - start_time < RESILIENCE_TIME_LIMIT
 

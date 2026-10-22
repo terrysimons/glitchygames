@@ -183,8 +183,8 @@ All games built on GlitchyGames inherit these command-line options from the engi
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--timer-backend` | Timer backend: `pygame` or `fast` | `pygame` |
-| `--sleep-granularity-ns` | Minimum sleep granularity in nanoseconds (0 = spin-only) | `1000000` (1 ms) |
+| `--timer-backend` | Timer backend: `auto` (fast, with this machine's sleep delay measured so each sleep wakes in time), `fast` (assumes sleeps wake on time) or `pygame` | `auto` |
+| `--sleep-granularity-ns` | How long before each frame deadline the fast backend is to wake from its sleep and spin, in nanoseconds (0 = spin-only) | `1000000` (1 ms) |
 | `--windows-timer-1ms` | Request 1 ms system timer resolution via WinMM (Windows only) | `False` |
 | `--log-timer-jitter` | Log frame pacing jitter statistics (p50/p95/p99/max) | `False` |
 | `--perf-trim-percent` | Percent of frames to trim from FPS reporting (top and bottom) | `5.0` |

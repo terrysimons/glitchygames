@@ -60,6 +60,61 @@ class TestEasingOvershoot:
         assert any(value < 0.0 for value in values)
 
 
+IN_OUT_EASING_NAMES = sorted(name for name in EASING_FUNCTIONS if '_in_out_' in name)
+# t from 0.0 to 1.0 in steps of 0.05
+SAMPLE_TIMES = [step / 20.0 for step in range(21)]
+
+
+class TestInOutSymmetry:
+    """Every in-out curve is point-symmetric about (0.5, 0.5): its two halves mirror each other."""
+
+    @pytest.mark.parametrize('name', IN_OUT_EASING_NAMES)
+    def test_second_half_mirrors_the_first(self, name: str):
+        """f(t) + f(1 - t) == 1 at every sample, so both halves of the curve are exercised."""
+        easing = EASING_FUNCTIONS[name]
+
+        for t in SAMPLE_TIMES:
+            assert easing(t) + easing(1.0 - t) == pytest.approx(1.0), t
+
+    @pytest.mark.parametrize('name', IN_OUT_EASING_NAMES)
+    def test_halfway_is_half(self, name: str):
+        """At t = 0.5 every in-out curve is at 0.5, where its two halves meet."""
+        assert EASING_FUNCTIONS[name](0.5) == pytest.approx(0.5)
+
+    def test_in_out_expo_is_slow_at_the_ends(self):
+        """Expo in-out barely moves in its first and last tenth (its exponential halves)."""
+        easing = EASING_FUNCTIONS['ease_in_out_expo']
+
+        assert easing(0.1) == pytest.approx(0.5 * 2.0**-8)
+        assert easing(0.9) == pytest.approx(1.0 - 0.5 * 2.0**-8)
+
+    def test_in_out_elastic_overshoots_both_ways(self):
+        """Elastic in-out dips below 0 in its first half and rises above 1 in its second."""
+        easing = EASING_FUNCTIONS['ease_in_out_elastic']
+        first_half = [easing(t) for t in SAMPLE_TIMES if t < 0.5]
+        second_half = [easing(t) for t in SAMPLE_TIMES if t > 0.5]
+
+        assert min(first_half) < 0.0
+        assert max(second_half) > 1.0
+
+
+class TestEaseOutBounce:
+    """Penner's bounce: it reaches 1.0 at each bounce and dips less after each one."""
+
+    @pytest.mark.parametrize('boundary', [1.0 / 2.75, 2.0 / 2.75, 2.5 / 2.75])
+    def test_touches_one_at_each_bounce(self, boundary: float):
+        """At the end of each bounce segment the curve is back at 1.0."""
+        assert EASING_FUNCTIONS['ease_out_bounce'](boundary) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize(
+        ('bounce_peak_time', 'expected'),
+        [(1.5 / 2.75, 0.75), (2.25 / 2.75, 0.9375), (2.625 / 2.75, 0.984375)],
+    )
+    def test_each_bounce_dips_less(self, bounce_peak_time: float, expected: float):
+        """The dips of the three bounces are 0.75, 0.9375 and 0.984375."""
+        assert EASING_FUNCTIONS['ease_out_bounce'](bounce_peak_time) == pytest.approx(expected)
+
+
 class TestEasingCount:
     """Verify we have all 31 easing functions."""
 

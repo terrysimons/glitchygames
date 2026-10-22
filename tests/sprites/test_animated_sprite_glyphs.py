@@ -299,7 +299,7 @@ class TestAnimatedSpriteGlyphs:
         toml_file = self.temp_path / 'test_single_color.toml'
         animated_sprite.save(str(toml_file), 'toml')
 
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Should have animation sections
         assert '[animation]' in content
@@ -328,7 +328,7 @@ class TestAnimatedSpriteGlyphs:
 
         # Verify file was created
         assert toml_file.exists()
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Check TOML structure (saved as static sprite for readability)
         assert '[sprite]' in content

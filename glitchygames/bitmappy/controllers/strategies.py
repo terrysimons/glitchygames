@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Protocol
 
 import pygame
 
+from glitchygames.clock import elapsed_seconds
+
 if TYPE_CHECKING:
     from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 
@@ -222,8 +224,6 @@ class CanvasModeStrategy:
 
     def _handle_a_button(self, controller_id: int) -> None:
         """Handle A button press in canvas mode (start drag/paint)."""
-        import time
-
         handler = self.handler
         editor = handler.editor
 
@@ -244,7 +244,7 @@ class CanvasModeStrategy:
             'active': True,
             'start_position': editor.mode_switcher.get_controller_position(controller_id),
             'pixels_drawn': [],
-            'start_time': time.time(),
+            'start_time': elapsed_seconds(),
         }
 
         # Paint at the current position

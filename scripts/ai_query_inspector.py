@@ -299,37 +299,32 @@ class AIQueryInspectorScene(Scene):
         if not self.messages:
             return
 
+        # Create API call parameters
+        api_kwargs: dict[str, Any] = {
+            'model': AI_MODEL,
+            'messages': self.messages,
+            'max_tokens': AI_MAX_INPUT_TOKENS,
+        }
+
         try:
-            import logging
-
             import aisuite as ai
-
-            log: logging.Logger = logging.getLogger('ai_query_inspector')
-            log.setLevel(logging.INFO)
-
-            # Create API call parameters
-            api_kwargs: dict[str, Any] = {
-                'model': AI_MODEL,
-                'messages': self.messages,
-                'max_tokens': AI_MAX_INPUT_TOKENS,
-            }
 
             # Send request
             client: Any = ai.Client()
             response: Any = client.chat.completions.create(**api_kwargs)
-
-            if response.choices:
-                ai_response: str = str(response.choices[0].message.content)
-                if self.query_display is not None:
-                    self.query_display.text = (
-                        f'AI Response ({len(ai_response)} characters):\n\n{ai_response}'
-                    )
-            elif self.query_display is not None:
-                self.query_display.text = 'No response received from AI'
-
         except (ImportError, OSError, ValueError, RuntimeError) as exception:
             if self.query_display is not None:
                 self.query_display.text = f'Error sending request: {exception}'
+            return
+
+        if response.choices:
+            ai_response: str = str(response.choices[0].message.content)
+            if self.query_display is not None:
+                self.query_display.text = (
+                    f'AI Response ({len(ai_response)} characters):\n\n{ai_response}'
+                )
+        elif self.query_display is not None:
+            self.query_display.text = 'No response received from AI'
 
     def on_back(self) -> None:
         """Go back to previous scene."""

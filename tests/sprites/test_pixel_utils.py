@@ -4,10 +4,20 @@ Tests bounding box computation, pixel transparency detection,
 and envelope bounding box calculation.
 """
 
+import pytest
+
 from glitchygames.sprites.pixel_utils import (
     compute_bounding_box,
+    compute_bounding_box_from_pixels,
     compute_envelope_bounding_box,
+    convert_pixels_to_rgb_if_possible,
+    create_alpha_surface,
+    create_indexed_surface,
+    extract_pixel_colors,
+    is_color_transparent,
     is_pixel_transparent,
+    lookup_rgba_pixel_char,
+    needs_alpha_channel,
 )
 
 
@@ -304,3 +314,143 @@ class TestComputeEnvelopeBoundingBox:
         ]
         result = compute_envelope_bounding_box(boxes)
         assert result == {'offset_x': 0, 'offset_y': 0, 'width': 18, 'height': 27}
+
+
+class TestNeedsAlphaChannel:
+    """needs_alpha_channel looks at every pixel until one needs alpha."""
+
+    def test_opaque_rgb_pixels_before_magenta_are_skipped(self):
+        """Ordinary RGB pixels do not need alpha, but a later RGB magenta pixel does."""
+        assert needs_alpha_channel(pixels=[(1, 2, 3), (4, 5, 6), (255, 0, 255)]) is True
+
+    def test_all_opaque_pixels_need_no_alpha(self):
+        """Only opaque non-magenta pixels (RGB or RGBA alpha 255) need no alpha channel."""
+        assert needs_alpha_channel(pixels=[(1, 2, 3), (4, 5, 6, 255)]) is False
+
+    def test_pixels_of_other_lengths_are_ignored(self):
+        """A pixel that is neither RGB nor RGBA (here a 2-tuple) never asks for alpha."""
+        assert needs_alpha_channel(pixels=[(255, 0), (1, 2, 3)]) is False
+
+
+class TestConvertPixelsToRgbIfPossible:
+    """Opaque RGBA pixels collapse to RGB."""
+
+    def test_opaque_rgba_pixels_collapse_to_rgb(self):
+        """All-opaque RGBA pixels become RGB; RGB pixels pass through unchanged."""
+        converted = convert_pixels_to_rgb_if_possible(pixels=[(1, 2, 3, 255), (4, 5, 6)])
+
+        assert converted == [(1, 2, 3), (4, 5, 6)]
+
+
+class TestLookupRgbaPixelChar:
+    """Magenta lookups fail clearly when the map has no magenta entry."""
+
+    def test_magenta_pixel_without_a_magenta_entry_raises(self):
+        """An RGBA magenta pixel with neither RGB nor RGBA magenta in the map is a KeyError."""
+        with pytest.raises(KeyError, match='255, 0, 255'):
+            lookup_rgba_pixel_char(
+                pixel=(255, 0, 255, 255), color_map={(0, 0, 0): '.'}, map_uses_alpha=False
+            )
+
+
+class TestExtractPixelColors:
+    """extract_pixel_colors reads characters through the color map."""
+
+    def test_characters_outside_the_frame_read_as_magenta(self):
+        """A row longer than the width, or rows past the height, are magenta, not mapped."""
+        color_map: dict[str, tuple[int, ...]] = {'#': (10, 20, 30)}
+
+        pixels = extract_pixel_colors(
+            pixel_lines=['##', '#'], width=1, height=1, color_map=color_map
+        )
+
+        assert pixels == [(10, 20, 30), (255, 0, 255), (255, 0, 255)]
+
+    def test_unmapped_characters_read_as_magenta(self):
+        """A character with no color map entry defaults to the magenta transparency key."""
+        pixels = extract_pixel_colors(pixel_lines=['?'], width=1, height=1, color_map={})
+
+        assert pixels == [(255, 0, 255)]
+
+
+class TestIsColorTransparent:
+    """is_color_transparent applies the transparency rules to resolved color tuples."""
+
+    def test_rgba_alpha_zero_is_transparent(self):
+        """Any RGBA color with alpha 0 is transparent."""
+        assert is_color_transparent(color=(12, 34, 56, 0)) is True
+
+    def test_rgba_opaque_magenta_is_transparent(self):
+        """Opaque RGBA magenta is the transparency key stored as RGBA."""
+        assert is_color_transparent(color=(255, 0, 255, 255)) is True
+
+    def test_semi_transparent_magenta_is_visible(self):
+        """Magenta with a partial alpha is visibly drawn, so it counts as opaque."""
+        assert is_color_transparent(color=(255, 0, 255, 128)) is False
+
+    def test_rgb_magenta_is_transparent_and_other_rgb_is_not(self):
+        """For RGB colors only magenta is transparent."""
+        assert is_color_transparent(color=(255, 0, 255)) is True
+        assert is_color_transparent(color=(255, 0, 254)) is False
+
+
+class TestComputeBoundingBoxFromPixels:
+    """The bounding box of resolved pixel data, without a color map."""
+
+    MAGENTA = (255, 0, 255)
+
+    def test_box_spans_the_visible_pixels(self):
+        """A 4x3 frame with visible pixels at (1, 0) and (2, 2) is boxed from (1, 0), 2x3."""
+        pixels: list[tuple[int, ...]] = [self.MAGENTA] * 12
+        pixels[1] = (1, 1, 1)
+        pixels[2 * 4 + 2] = (2, 2, 2, 255)
+
+        assert compute_bounding_box_from_pixels(pixels=pixels, width=4, height=3) == {
+            'offset_x': 1,
+            'offset_y': 0,
+            'width': 2,
+            'height': 3,
+        }
+
+    def test_fully_transparent_frame_has_no_box(self):
+        """A frame of only transparent pixels answers None."""
+        pixels = [self.MAGENTA, (0, 0, 0, 0)]
+
+        assert compute_bounding_box_from_pixels(pixels=pixels, width=2, height=1) is None
+
+    def test_pixels_beyond_width_times_height_are_ignored(self):
+        """Extra trailing pixels past width * height do not grow the box."""
+        pixels = [(1, 1, 1), self.MAGENTA, (9, 9, 9)]
+
+        assert compute_bounding_box_from_pixels(pixels=pixels, width=2, height=1) == {
+            'offset_x': 0,
+            'offset_y': 0,
+            'width': 1,
+            'height': 1,
+        }
+
+
+class TestSurfaceCreationClipsToTheFrame:
+    """Characters outside width x height are not drawn on either surface kind."""
+
+    def test_alpha_surface_ignores_characters_outside_the_frame(self):
+        """A 1x1 alpha surface draws only the first character; the rest are dropped."""
+        color_map = {'#': (10, 20, 30), '@': (40, 50, 60, 70)}
+
+        surface = create_alpha_surface(
+            width=1, height=1, pixel_lines=['#@', '@@'], color_map=color_map
+        )
+
+        assert surface.get_size() == (1, 1)
+        assert tuple(surface.get_at((0, 0))) == (10, 20, 30, 255)
+
+    def test_indexed_surface_ignores_characters_outside_the_frame(self):
+        """A 1x1 indexed surface draws only the first character; the rest are dropped."""
+        color_map = {'#': (10, 20, 30), '@': (40, 50, 60, 255)}
+
+        surface = create_indexed_surface(
+            width=1, height=1, pixel_lines=['#@', '@@'], color_map=color_map
+        )
+
+        assert surface.get_size() == (1, 1)
+        assert tuple(surface.get_at((0, 0)))[:3] == (10, 20, 30)

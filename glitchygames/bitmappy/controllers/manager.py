@@ -13,12 +13,14 @@ Features:
 """
 
 import logging
-import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar, Self
 
 import pygame
+
+from glitchygames.clock import elapsed_seconds
+from glitchygames.sources import active_sources
 
 LOG = logging.getLogger('game.tools.multi_controller_manager')
 
@@ -82,7 +84,9 @@ class MultiControllerManager:
         self.assigned_controllers: dict[int, int] = {}  # instance_id -> controller_id
         self.next_controller_id = 0
         self.next_color_index = 0  # Track color assignment order
-        self.last_scan_time = 0
+        # Never scanned: -inf, so the first scan runs even when elapsed_seconds() reads
+        # near 0 (the frame clock, from 0)
+        self.last_scan_time = float('-inf')
         self.scan_interval = 1.0  # seconds
         self._initialized = True
 
@@ -107,17 +111,18 @@ class MultiControllerManager:
             List of controller instance IDs that are connected
 
         """
-        current_time = time.time()
+        current_time = elapsed_seconds()
         if current_time - self.last_scan_time < self.scan_interval:
             return list(self.controllers.keys())
 
         self.last_scan_time = current_time
 
-        # Get all connected controllers
+        # Get all connected controllers, through the devices door (glitchygames/input/devices.py)
+        devices = active_sources().devices()
         connected_instance_ids: list[int] = []
-        for i in range(pygame.joystick.get_count()):
+        for device_index in range(devices.joystick_count()):
             try:
-                joystick = pygame.joystick.Joystick(i)
+                joystick = devices.open_joystick(device_index=device_index)
                 if joystick.get_init():
                     instance_id = joystick.get_instance_id()
                     connected_instance_ids.append(instance_id)
@@ -243,8 +248,8 @@ class MultiControllerManager:
 
         # Assign the controller
         controller_info.status = ControllerStatus.ASSIGNED
-        controller_info.assigned_time = time.time()
-        controller_info.last_activity = time.time()
+        controller_info.assigned_time = elapsed_seconds()
+        controller_info.last_activity = elapsed_seconds()
 
         self.assigned_controllers[instance_id] = controller_info.controller_id
 
@@ -270,7 +275,7 @@ class MultiControllerManager:
 
         if instance_id in self.controllers:
             self.controllers[instance_id].status = ControllerStatus.ACTIVE
-            self.controllers[instance_id].last_activity = time.time()
+            self.controllers[instance_id].last_activity = elapsed_seconds()
             return True
 
         return False
@@ -335,7 +340,7 @@ class MultiControllerManager:
 
         """
         if instance_id in self.controllers:
-            self.controllers[instance_id].last_activity = time.time()
+            self.controllers[instance_id].last_activity = elapsed_seconds()
 
     def get_active_controllers(self) -> list[int]:
         """Get list of active controller instance IDs.
@@ -361,12 +366,12 @@ class MultiControllerManager:
 
     def cleanup_inactive_controllers(self) -> None:
         """Clean up controllers that have been inactive for too long."""
-        current_time = time.time()
+        current_time = elapsed_seconds()
         inactive_controllers: list[int] = []
 
         for instance_id, controller_info in self.controllers.items():
             if (
-                controller_info.last_activity
+                controller_info.last_activity is not None
                 and current_time - controller_info.last_activity > self.ASSIGNMENT_TIMEOUT
             ):
                 inactive_controllers.append(instance_id)

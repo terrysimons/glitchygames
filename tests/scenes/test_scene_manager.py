@@ -247,6 +247,52 @@ class TestSceneManager:
         scene_manager.handle_event(mock_event)
 
 
+class TestPostFpsEvent:
+    """SceneManager._post_fps_event posts the FPS from dt, which replays exactly."""
+
+    @pytest.fixture
+    def scene_manager(self):
+        """A fresh SceneManager, reset afterwards.
+
+        Yields:
+            The scene manager.
+
+        """
+        SceneManager._reset()
+        yield SceneManager()
+        SceneManager._reset()
+
+    def test_post_fps_event_reports_the_frame_time_fps(self, scene_manager, mocker):
+        """The FPS event's value is 1 / dt (dt comes through the frame-time door)."""
+        from glitchygames.scenes import scene as scene_module
+
+        posted = mocker.patch.object(scene_module, 'post_event')
+        event_class = mocker.patch.object(scene_module.pygame.event, 'Event')
+        scene_manager.dt = 0.02
+
+        scene_manager._post_fps_event()
+
+        posted.assert_called_once_with(event_class.return_value)
+        assert event_class.call_args.args[1]['fps'] == pytest.approx(50.0)
+
+    def test_post_fps_event_with_zero_dt_reports_zero_without_the_pacing_clock(
+        self, scene_manager, mocker
+    ):
+        """A zero dt gives 0.0, never pygame's real-time Clock.get_fps(), so a replay is exact."""
+        from glitchygames.scenes import scene as scene_module
+
+        posted = mocker.patch.object(scene_module, 'post_event')
+        event_class = mocker.patch.object(scene_module.pygame.event, 'Event')
+        get_fps = mocker.patch.object(scene_manager.clock, 'get_fps', return_value=123.0)
+        scene_manager.dt = 0.0
+
+        scene_manager._post_fps_event()
+
+        posted.assert_called_once_with(event_class.return_value)
+        assert event_class.call_args.args[1]['fps'] == 0.0
+        get_fps.assert_not_called()
+
+
 class TestSceneManagerInternals:
     """Test SceneManager internal methods."""
 

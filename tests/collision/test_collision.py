@@ -119,6 +119,15 @@ class TestGetCollisionRect:
         # 32x32 shrunk by 4 on each side = 24x24 at (104, 204)
         assert rect.width == 24
         assert rect.height == 24
+        assert rect.topleft == (104, 204)
+
+    def test_zero_margin_keeps_the_full_rect(self):
+        """A margin of 0 (the default) returns the collision rect unchanged."""
+        sprite = FakeSprite(world_x=100.0, world_y=200.0)
+
+        rect = get_collision_rect_with_margin(sprite, world_x=100.0, world_y=200.0)
+
+        assert rect == pygame.Rect(100, 200, 32, 32)
 
 
 class TestCheckAABBOverlap:
@@ -177,6 +186,20 @@ class TestComputePushOut:
         displacement_x, displacement_y = compute_push_out(mover, static)
         assert displacement_x == 0.0
         assert displacement_y == 0.0
+
+    def test_landing_on_top_pushes_up_by_the_overlap(self):
+        """A mover sunk 3 px into the top of a wide static is pushed up 3 px."""
+        mover = pygame.Rect(10, 0, 20, 20)
+        static = pygame.Rect(0, 17, 100, 20)
+
+        assert compute_push_out(mover, static, velocity_x=50.0) == (0.0, -3.0)
+
+    def test_hitting_from_below_pushes_down_by_the_overlap(self):
+        """A mover 4 px into the bottom of a wide static is pushed down 4 px."""
+        mover = pygame.Rect(10, 33, 20, 20)
+        static = pygame.Rect(0, 17, 100, 20)
+
+        assert compute_push_out(mover, static) == (0.0, 4.0)
 
 
 # --- Layers ---

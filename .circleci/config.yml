@@ -11,51 +11,55 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.14.3"
+    default: "3.14.8"
   XCODE_LATEST_VERSION:
     type: string
-    default: "26.3.0"
+    default: "27.1.0"
+  # nox runs through uvx (no project venv; each nox session syncs its own from uv.lock):
+  # keep this at the version uv.lock pins
+  NOX_VERSION:
+    type: string
+    default: "2026.7.11"
 
 orbs:
   win: circleci/windows@5.1.1
-  macos: circleci/macos@2.5.4
+  macos: circleci/macos@3.0.0
   jira: circleci/jira@2.2.0
   slack: circleci/slack@6.1.3
 
 commands:
+  # One cache per OS: uv's wheel cache and its managed Python, which every nox session's
+  # `uv sync --frozen` draws on. There is no project venv to cache: nox runs through uvx and
+  # each session syncs its own venv from uv.lock (noxfile.py)
   restore-uv-cache-posix:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v1-{{ arch }}-{{ checksum "uv.lock" }}
-            - uv-cache-v1-{{ arch }}-
+            - uv-cache-v2-{{ arch }}-{{ checksum "uv.lock" }}
+            - uv-cache-v2-{{ arch }}-
 
+  # Saved at the end of the job, once the nox sessions have filled it, and after
+  # `uv cache prune --ci` drops what is cheaper to download again than to restore (pre-built
+  # wheels), keeping what was built from source. Skipped when the key already exists
   save-uv-cache-posix:
     steps:
+      - run:
+          name: "Prune the uv cache"
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv cache prune --ci
       - save_cache:
-          key: uv-cache-v1-{{ arch }}-{{ checksum "uv.lock" }}
+          key: uv-cache-v2-{{ arch }}-{{ checksum "uv.lock" }}
+          when: always
           paths:
             - ~/.cache/uv
             - ~/.local/share/uv
 
-  restore-venv-posix:
-    steps:
-      - restore_cache:
-          keys:
-            - venv-v1-{{ arch }}-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
-            - venv-v1-{{ arch }}-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-
-
-  save-venv-posix:
-    steps:
-      - save_cache:
-          key: venv-v1-{{ arch }}-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
-          paths:
-            - .venv
-
   install-deps-posix:
     steps:
       - run:
-          name: "Install uv and dependencies"
+          name: "Install uv and Python"
           command: |
             set -euo pipefail
 
@@ -63,14 +67,10 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
 
             uv --version
-            python --version
 
-            # Use the requested interpreter (download if needed on this executor)
+            # Use the requested interpreter (download if needed on this executor); the nox
+            # sessions install the project from uv.lock themselves
             uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-            uv venv --clear --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-
-            # Reproducible, lockfile-based install
-            uv sync --frozen --extra dev --extra docs
 
   nox-format:
     steps:
@@ -78,7 +78,7 @@ commands:
           name: "Format check"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s format
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s format
 
   nox-lint:
     steps:
@@ -86,7 +86,7 @@ commands:
           name: "Lint (ruff)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s lint
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s lint
 
   nox-static-analysis:
     steps:
@@ -94,7 +94,7 @@ commands:
           name: "Static analysis (basedpyright)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s static-analysis
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s static-analysis
 
   nox-lint-docs:
     steps:
@@ -102,24 +102,44 @@ commands:
           name: "Lint docs (mkdocs)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s lint-docs
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s lint-docs
+
+  nox-timer-report:
+    steps:
+      # Diagnostic only (always succeeds): whether this machine is a VM, its CPU share, and how
+      # late it wakes sleeping code; the timing tests judge, this explains their numbers. The
+      # nox session detects the OS itself
+      - run:
+          name: "Timer report (diagnostic)"
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s timer-report
 
   nox-test:
     steps:
+      # Tests run (and report) even when an earlier lint or format step failed, so a lint
+      # failure never hides the test results. Headless: the test session defaults SDL's video
+      # and audio drivers to dummy, and the Linux image has no clipboard tool, so the real
+      # clipboard test checks the no-clipboard path there.
       - run:
           name: "Tests (pytest + coverage)"
           no_output_timeout: 120m
+          when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s test
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s test
       - store_test_results:
           path: test-results
+          when: always
       - store_artifacts:
           path: test-results
           destination: test-results
+          when: always
       - store_artifacts:
           path: htmlcov
           destination: coverage-html
+          when: always
 
   nox-security-scan:
     steps:
@@ -127,7 +147,7 @@ commands:
           name: "Security scan (bandit + safety)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s security-scan
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s security-scan
 
   nox-performance-test:
     steps:
@@ -135,7 +155,7 @@ commands:
           name: "Performance benchmarks"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s performance-test
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s performance-test
 
   nox-build:
     steps:
@@ -143,39 +163,35 @@ commands:
           name: "Build binary and wheel"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s build
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s build
       - store_artifacts:
           path: dist
           destination: dist
 
+  # As restore-uv-cache-posix / save-uv-cache-posix
   restore-uv-cache-windows:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v1-windows-{{ checksum "uv.lock" }}
-            - uv-cache-v1-windows-
+            - uv-cache-v2-windows-{{ checksum "uv.lock" }}
+            - uv-cache-v2-windows-
 
   save-uv-cache-windows:
     steps:
+      - run:
+          name: "Prune the uv cache"
+          when: always
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv cache prune --ci
       - save_cache:
-          key: uv-cache-v1-windows-{{ checksum "uv.lock" }}
+          key: uv-cache-v2-windows-{{ checksum "uv.lock" }}
+          when: always
           paths:
             - C:\Users\circleci\AppData\Local\uv\cache
             - C:\Users\circleci\AppData\Local\uv\python
-
-  restore-venv-windows:
-    steps:
-      - restore_cache:
-          keys:
-            - venv-v1-windows-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
-            - venv-v1-windows-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-
-
-  save-venv-windows:
-    steps:
-      - save_cache:
-          key: venv-v1-windows-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
-          paths:
-            - .venv
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
@@ -188,10 +204,14 @@ jobs:
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
+    # small (1 vCPU, 2 GB): one process runs the whole suite. It grew past 2 GB until the recording
+    # mocks in two timing and hardware tests were replaced (BUGS.md #85)
     resource_class: small
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
+      PYTEST_WORKERS: "0"
 
     steps:
       - checkout
@@ -204,18 +224,13 @@ jobs:
             sudo apt-get install -y fontconfig
 
       - restore-uv-cache-posix
-      - restore-venv-posix
       - install-deps-posix
-      - save-venv-posix
-      - save-uv-cache-posix
-      - nox-format
-      - nox-lint
-      - nox-static-analysis
-      - nox-lint-docs
+      # Only what differs by platform; format, lint, type checks, docs, security scans and
+      # benchmarks give the same answer on every OS and run on macOS (the fastest runner)
+      - nox-timer-report
       - nox-test
-      - nox-security-scan
-      - nox-performance-test
       - nox-build
+      - save-uv-cache-posix
 
   build-and-test-macos:
     macos:
@@ -224,27 +239,26 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
-      # Build a universal2 (arm64 + x86_64) fat binary on macOS.
-      # Requires a universal2 Python interpreter from python.org.
-      # If the CI Python is single-arch, PyInstaller falls back to native arch.
-      PYINSTALLER_TARGET_ARCH: "universal2"
+      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
+      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
+      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for Python
+      # 3.14 (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
 
     steps:
       - checkout
 
       - restore-uv-cache-posix
-      - restore-venv-posix
       - install-deps-posix
-      - save-venv-posix
-      - save-uv-cache-posix
       - nox-format
       - nox-lint
       - nox-static-analysis
       - nox-lint-docs
+      - nox-timer-report
       - nox-test
       - nox-security-scan
       - nox-performance-test
       - nox-build
+      - save-uv-cache-posix
 
   build-and-test-windows:
     executor:
@@ -258,9 +272,8 @@ jobs:
       - checkout
 
       - restore-uv-cache-windows
-      - restore-venv-windows
       - run:
-          name: "Install uv and dependencies"
+          name: "Install uv and Python"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
@@ -271,82 +284,50 @@ jobs:
 
             uv --version
 
-            # Provision Python + env
+            # The nox sessions install the project from uv.lock themselves
             uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-            uv venv --clear --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-
-            # Reproducible, lockfile-based install
-            uv sync --frozen --extra dev --extra docs
-      - save-venv-windows
-      - save-uv-cache-windows
+      # Only what differs by platform, as on Linux; the rest runs on macOS
+      # Diagnostic only, as in nox-timer-report
       - run:
-          name: "Format check"
+          name: "Timer report (diagnostic)"
+          when: always
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s format
-      - run:
-          name: "Lint (ruff)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s lint
-      - run:
-          name: "Static analysis (basedpyright)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s static-analysis
-      - run:
-          name: "Lint docs (mkdocs)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s lint-docs
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s timer-report
+      # Tests run (and report) even when an earlier step failed, as in nox-test
       - run:
           name: "Tests (pytest + coverage)"
           no_output_timeout: 120m
+          when: always
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s test
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s test
       - store_test_results:
           path: test-results
+          when: always
       - store_artifacts:
           path: test-results
           destination: test-results
+          when: always
       - store_artifacts:
           path: htmlcov
           destination: coverage-html
-      - run:
-          name: "Security scan (bandit + safety)"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s security-scan
-      - run:
-          name: "Performance benchmarks"
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s performance-test
+          when: always
       - run:
           name: "Build binary and wheel"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s build
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s build
       - store_artifacts:
           path: dist
           destination: dist
+      - save-uv-cache-windows
 
 
 # Invoke jobs via workflows

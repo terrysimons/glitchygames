@@ -10,16 +10,37 @@ import nox
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-# Common install target — all extras so every tool can resolve imports.
-# Update this if new [project.optional-dependencies] sections are added.
-_ALL_EXTRAS = '.[api,dev,docs]'
-
 _CODE_DIRS = ['noxfile.py', 'glitchygames', 'scripts', 'tests']
 
 
 # ---------------------------------------------------------------------------
 # Helper functions (reusable logic, not sessions themselves)
 # ---------------------------------------------------------------------------
+
+
+def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> None:
+    """Install the project into the session's venv exactly as uv.lock pins it.
+
+    ``uv sync --frozen`` never re-resolves, so every session, local or CI, on every OS, runs
+    the locked versions (installing ``.[api,dev,docs]`` with pip-style resolution picked the
+    newest matching versions, so a new release of any dependency could change what CI tested
+    without the lockfile changing). ``--no-editable`` installs the built package, as before,
+    not the source tree.
+
+    Args:
+        session: The nox session whose venv to fill.
+        all_extras: Every extra (dev, docs, api) when True; the runtime dependencies only
+            when False.
+
+    """
+    session.run_install(
+        'uv',
+        'sync',
+        '--frozen',
+        '--no-editable',
+        *(['--all-extras'] if all_extras else []),
+        env={'UV_PROJECT_ENVIRONMENT': session.virtualenv.location},
+    )
 
 
 def _format_code(session: nox.Session) -> None:
@@ -135,7 +156,7 @@ def _lint_cves(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='format')
 def format_all(session: nox.Session) -> None:
     """Run all formatters (code + TOML)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _format_code(session)
     _format_toml(session)
 
@@ -143,7 +164,7 @@ def format_all(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
     """Run all linters (code, docs, YAML, TOML, deps, dead code, CVEs)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_code(session)
     _lint_docs(session)
     _lint_yaml(session)
@@ -163,7 +184,7 @@ def lint_all(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='format-code', default=False)
 def format_code(session: nox.Session) -> None:
     """Format Python code with ruff (import sorting + black-style formatting)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _format_code(session)
 
 
@@ -181,14 +202,14 @@ def format_toml(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-code', default=False)
 def lint_code(session: nox.Session) -> None:
     """Lint Python code with ruff."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_code(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-docs', default=False)
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_docs(session)
 
 
@@ -226,21 +247,21 @@ def lint_toml(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies', default=False)
 def lint_dependencies(session: nox.Session) -> None:
     """Check for dependency issues with deptry."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_dependencies(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code', default=False)
 def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_dead_code(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint-cves', default=False)
 def lint_cves(session: nox.Session) -> None:
     """Audit dependencies for known CVEs with pip-audit."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _lint_cves(session)
 
 
@@ -262,21 +283,21 @@ def _static_analysis_ty(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright', default=False)
 def static_analysis_basedpyright(session: nox.Session) -> None:
     """Run static type analysis with basedpyright."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _static_analysis_basedpyright(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty', default=False)
 def static_analysis_ty(session: nox.Session) -> None:
     """Run static type analysis with ty (Astral's type checker)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _static_analysis_ty(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='static-analysis')
 def static_analysis(session: nox.Session) -> None:
     """Run all static type analysis (basedpyright + ty)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _static_analysis_basedpyright(session)
     _static_analysis_ty(session)
 
@@ -286,36 +307,86 @@ def static_analysis(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
+# cgroup v2's CPU limit: "<quota> <period>" in microseconds, or "max <period>" for no limit
+_CGROUP_CPU_MAX = Path('/sys/fs/cgroup/cpu.max')
+
+
+def _usable_cpu_count() -> int:
+    """Count the CPUs this process may use: its CPU set, capped by a container's CPU quota.
+
+    A container sees the host's CPUs (CircleCI's small Linux executor has 1 vCPU on a host
+    with dozens), so the count alone would start dozens of test workers in its 2 GB.
+
+    Returns:
+        The usable CPU count, at least 1.
+
+    """
+    cpus = os.process_cpu_count() or 1
+    try:
+        quota, period = _CGROUP_CPU_MAX.read_text(encoding='utf-8').split()
+    except OSError, ValueError:
+        return cpus
+    if quota == 'max':
+        return cpus
+    return max(1, min(cpus, int(quota) // int(period)))
+
+
 @nox.session(python=['3.14'], reuse_venv=False)
 def test(session: nox.Session) -> None:
     """Run tests."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
 
-    # Use dummy SDL video driver in CI/headless environments to prevent segfaults.
-    # This is set here so it applies before pygame is imported by any test worker.
-    env = {}
-    if os.environ.get('CI') == 'true' or os.environ.get('SDL_VIDEODRIVER') == 'dummy':
-        env['SDL_VIDEODRIVER'] = 'dummy'
+    # Default both SDL drivers to the dummy driver (windowless, silent), keeping any value the
+    # caller already set so a real driver can still be requested. This is set here so it applies
+    # before pygame is imported by any test worker.
+    env = {
+        'SDL_VIDEODRIVER': os.environ.get('SDL_VIDEODRIVER', 'dummy'),
+        'SDL_AUDIODRIVER': os.environ.get('SDL_AUDIODRIVER', 'dummy'),
+    }
 
-    # In CI, limit xdist workers to half the CPU count to avoid resource exhaustion.
+    # PYTEST_WORKERS, when set, is the xdist worker count as given (0: run serially in this
+    # process, no worker; CircleCI's Linux job sets it). Otherwise, in CI, use half the CPUs the
+    # job may use, to avoid resource exhaustion, or run serially with too few for two workers.
     # Locally, -n auto (from pyproject.toml addopts) uses all cores.
     args: list[str] = []
-    if os.environ.get('CI') == 'true':
-        import multiprocessing
+    requested_workers = os.environ.get('PYTEST_WORKERS')
+    if requested_workers is not None:
+        args.extend(['-n', str(int(requested_workers))])
+    elif os.environ.get('CI') == 'true':
+        half_cpus = _usable_cpu_count() // 2
+        args.extend(['-n', str(half_cpus if half_cpus > 1 else 0)])
 
-        half_cpus = max(1, multiprocessing.cpu_count() // 2)
-        args.extend(['-n', str(half_cpus)])
+    # Live log output: pyproject.toml's addopts stream every DEBUG record as tests run. In CI
+    # that is only WARNING and above (a serial run printed every debug line into the job log);
+    # PYTEST_LOG_CLI_LEVEL overrides it (e.g. DEBUG, to re-run a failing job with full logs).
+    # A test's captured logs are still reported when it fails.
+    log_cli_level = os.environ.get('PYTEST_LOG_CLI_LEVEL')
+    if log_cli_level is None and os.environ.get('CI') == 'true':
+        log_cli_level = 'WARNING'
+    if log_cli_level is not None:
+        args.append(f'--log-cli-level={log_cli_level}')
 
-    # Run tests with coverage — all coverage reports (term, html, xml, json, lcov)
-    # are generated by pytest-cov via pyproject.toml addopts.
-    # JUnit XML output is stored for CI test result ingestion.
+    # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
+    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args, env=env)
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='timer-report', default=False)
+def timer_report(session: nox.Session) -> None:
+    """Report this machine's timer accuracy (diagnostic; always succeeds).
+
+    The same command on every OS: scripts/timer_report.py detects the OS itself (macOS's
+    kern.hv_vmm_present, Linux's hypervisor CPU flag) for whether it runs in a VM, then measures
+    the CPU share and how late FastTimer, time.sleep and spin-only sleeps wake.
+    """
+    _install_from_lockfile(session, all_extras=False)
+    session.run('python', 'scripts/timer_report.py')
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
 
     # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
@@ -377,21 +448,21 @@ def _safety_scan(session: nox.Session) -> None:
 @nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _bandit_scan(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='safety-scan', default=False)
 def safety_scan(session: nox.Session) -> None:
     """Run safety vulnerability scan."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _safety_scan(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
     """Run all security scanning tools (bandit + safety)."""
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _bandit_scan(session)
     _safety_scan(session)
 
@@ -431,7 +502,7 @@ def build_binary(session: nox.Session) -> None:
     Usage:
         nox -s build-binary
     """
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _build_binary(session)
 
 
@@ -452,7 +523,7 @@ def build_all(session: nox.Session) -> None:
     Usage:
         nox -s build
     """
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
     _build_binary(session)
     _build_wheel(session)
 
@@ -473,7 +544,7 @@ def code_complexity(session: nox.Session) -> None:
         nox -s code-complexity -- --graphs  # Also generate HTML graphs for docs
         nox -s code-complexity -- --rank    # Show files ranked by complexity
     """
-    session.install(_ALL_EXTRAS)
+    _install_from_lockfile(session)
 
     # Build the wily cache from git history
     session.run('wily', 'build')

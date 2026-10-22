@@ -18,9 +18,9 @@ A trace in memory is a dict of header fields plus ``frames``, a list of full fra
         ],
     }
 
-On disk (format version 2) a trace is gzip-compressed JSON Lines:
+On disk (format version 3, which reads version 2 files too) a trace is gzip-compressed JSON Lines:
 
-- Line 1 is the header: ``{"format_version": 2, ...}`` followed by the trace's header fields
+- Line 1 is the header: ``{"format_version": 3, ...}`` followed by the trace's header fields
   (``game`` or ``source``, ``frame_seconds`` or ``null`` for a live recording, and any other
   metadata the writer was given).
 - Then one line per frame. Frame 0, every frame whose scene differs from the previous
@@ -41,6 +41,13 @@ On disk (format version 2) a trace is gzip-compressed JSON Lines:
   ones", the delta also carries ``"order": [every id, in order]``.
 - Any other frame field (a recording's ``dt`` or input events, for example) is written to
   the frame's line unchanged, keyframe or delta.
+- Format version 3 adds the recording fields ``input_changes``, ``control_events``,
+  ``devices_opened``, ``saves_opened`` and ``device_enumeration`` on frames, and ``saves``,
+  ``devices`` and ``device_enumeration`` in the header; later fields need no version, as
+  readers pass frame fields they do not use through unchanged: a recording's ``scene_start``
+  and ``redelivered_events`` and an instant-replay journal's ``resume_bridge`` and
+  ``playback_answers`` (all described in ``glitchygames/recording.py``). The encoding passes
+  them through like any other field; version 2 files simply lack them.
 
 Reserved names (the encoding owns them; ``TraceWriter.write_frame`` and ``encode_frame``
 reject a record that uses one, ``TraceWriter`` rejects a header that does):
@@ -78,7 +85,7 @@ import zlib
 from typing import TYPE_CHECKING, Any, Self, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
     from types import TracebackType
 
@@ -86,7 +93,10 @@ if TYPE_CHECKING:
 
 LOG = logging.getLogger(__name__)
 
-TRACE_FORMAT_VERSION = 2
+TRACE_FORMAT_VERSION = 3
+# Versions this reader decodes: version 3 only adds frame and header fields a recording uses
+# (glitchygames/recording.py), so a version 2 file decodes exactly as before
+READABLE_FORMAT_VERSIONS = (2, 3)
 
 KEYFRAME_KIND = 'keyframe'
 DELTA_KIND = 'delta'
@@ -110,6 +120,10 @@ RECT_DELTA_FIELD = 'rect_delta'
 FORMAT_VERSION_FIELD = 'format_version'
 FRAMES_FIELD = 'frames'
 RESERVED_HEADER_FIELDS = (FORMAT_VERSION_FIELD, FRAMES_FIELD)
+# The header field naming a bookmarked copy's source (glitchygames/replay/driver.py, rule 16):
+# here, beside the reader, so tools that must tell a copy apart (the replay pytest plugin,
+# glitchygames/testing/replays.py) need not import the engine (is_bookmarked_copy)
+BOOKMARKED_COPY_OF_HEADER_FIELD = 'bookmarked_copy_of'
 
 # zlib wbits for a gzip stream (16 + the 15-bit window)
 GZIP_WINDOW_BITS = 16 + zlib.MAX_WBITS
@@ -129,10 +143,23 @@ class StableSpriteIds:
     shifts the ids of the others.
     """
 
-    def __init__(self) -> None:
-        """Start with no sprites seen."""
+    def __init__(self, *, recorded_ids: Iterable[str] = ()) -> None:
+        """Start with no sprites seen, each class's count following ids already given.
+
+        Args:
+            recorded_ids: Ids given before (a recording's frames before the one a playback
+                starts at; glitchygames/replay/driver.py), so the sprites seen from now on take
+                the ids the recording gave them. Their sprites are not known: an id is never
+                given again, whichever object comes.
+
+        """
         self._ids_by_object_id: dict[int, str] = {}
         self._class_counts: dict[str, int] = {}
+        for sprite_id in recorded_ids:
+            class_name, _, index = sprite_id.rpartition('#')
+            self._class_counts[class_name] = max(
+                self._class_counts.get(class_name, 0), int(index) + 1
+            )
         # Held so a removed sprite's id(sprite) can never be reused by a new object
         self._seen_objects: list[object] = []
 
@@ -709,6 +736,7 @@ class TraceReader:
     Attributes:
         path: The trace file.
         header: The header fields, without ``format_version``.
+        format_version: The file's ``format_version`` (one of ``READABLE_FORMAT_VERSIONS``).
         bytes_read: Compressed bytes read from the file so far.
         dropped_partial_line: After iteration, the text after the last newline (a line cut
             off part way), or None if the file ended on a complete line.
@@ -737,6 +765,7 @@ class TraceReader:
         self._pending = b''
         self._line_number = 0
         self._has_iterated = False
+        self.format_version: int = TRACE_FORMAT_VERSION
         try:
             self.header = self._read_header()
         except BaseException:
@@ -757,12 +786,13 @@ class TraceReader:
             )
             raise TraceFormatError(message) from error
         format_version = header.pop(FORMAT_VERSION_FIELD, None)
-        if format_version != TRACE_FORMAT_VERSION:
+        if format_version not in READABLE_FORMAT_VERSIONS:
             message = (
                 f'{self.path}: unsupported trace format_version {format_version} '
-                f'(this reader understands {TRACE_FORMAT_VERSION})'
+                f'(this reader understands {list(READABLE_FORMAT_VERSIONS)})'
             )
             raise TraceFormatError(message)
+        self.format_version = cast('int', format_version)
         return header
 
     def _next_line(self) -> bytes | None:
@@ -771,7 +801,8 @@ class TraceReader:
         At the end, any bytes after the last newline become ``dropped_partial_line``.
 
         Raises:
-            TraceFormatError: If data follows the end of the gzip stream.
+            TraceFormatError: If the file is not gzip data, or data follows the end of the gzip
+                stream.
 
         """
         while b'\n' not in self._pending:
@@ -781,7 +812,11 @@ class TraceReader:
             if not chunk:
                 break
             self.bytes_read += len(chunk)
-            self._pending += self._decompressor.decompress(chunk)
+            try:
+                self._pending += self._decompressor.decompress(chunk)
+            except zlib.error as error:
+                message = f'{self.path}: not a gzip trace ({error})'
+                raise TraceFormatError(message) from error
             if self._decompressor.unused_data:
                 message = f'{self.path}: unexpected data after the end of the gzip stream'
                 raise TraceFormatError(message)
@@ -854,6 +889,7 @@ class TraceReadResult:
 
     Attributes:
         trace: The header fields (without ``format_version``) plus the full ``frames``.
+        format_version: The file's ``format_version`` (2 or 3).
         dropped_partial_line: The text after the last newline (a frame line cut off part
             way), or None if the file ended on a complete line.
         is_complete: Whether the gzip stream ended properly (False for a recording whose
@@ -862,6 +898,7 @@ class TraceReadResult:
     """
 
     trace: dict[str, Any]
+    format_version: int
     dropped_partial_line: str | None
     is_complete: bool
 
@@ -880,6 +917,7 @@ def read_trace_result(*, path: Path) -> TraceReadResult:
         frames = list(reader)
     return TraceReadResult(
         trace={**reader.header, FRAMES_FIELD: frames},
+        format_version=reader.format_version,
         dropped_partial_line=reader.dropped_partial_line,
         is_complete=reader.is_complete,
     )
@@ -904,3 +942,24 @@ def read_trace(*, path: Path) -> dict[str, Any]:
             len(result.trace[FRAMES_FIELD]),
         )
     return result.trace
+
+
+def is_bookmarked_copy(*, path: Path) -> bool:
+    """Report whether a file is a bookmarked copy (its header names the copy's source).
+
+    Args:
+        path: The file.
+
+    Returns:
+        True when it exists, is a readable trace and its header has
+        ``BOOKMARKED_COPY_OF_HEADER_FIELD``.
+
+    """
+    if not path.exists():
+        return False
+    try:
+        with TraceReader(path=path) as reader:
+            return BOOKMARKED_COPY_OF_HEADER_FIELD in reader.header
+    # A TraceFormatError is a ValueError: not a trace, so not a copy
+    except OSError, ValueError:
+        return False

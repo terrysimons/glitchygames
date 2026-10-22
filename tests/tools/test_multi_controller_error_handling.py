@@ -282,7 +282,7 @@ class TestMultiControllerConfig:
             'visual_indicator_shape': 'circle',
         }
         config_file = tmp_path / 'config.json'
-        config_file.write_text(json.dumps(config_data))
+        config_file.write_text(json.dumps(config_data), encoding='utf-8')
 
         config = MultiControllerConfig.from_file(str(config_file))
         assert config.max_controllers == 8
@@ -292,7 +292,7 @@ class TestMultiControllerConfig:
     def test_from_file_invalid_json(self, tmp_path):
         """Test loading config from an invalid JSON file returns defaults."""
         config_file = tmp_path / 'config.json'
-        config_file.write_text('not valid json {{{')
+        config_file.write_text('not valid json {{{', encoding='utf-8')
 
         config = MultiControllerConfig.from_file(str(config_file))
         assert config.max_controllers == 4  # Default
@@ -307,7 +307,7 @@ class TestMultiControllerConfig:
         assert config_file.exists()
 
         # Verify the saved data
-        saved_data = json.loads(config_file.read_text())
+        saved_data = json.loads(config_file.read_text(encoding='utf-8'))
         assert saved_data['max_controllers'] == 8
         assert saved_data['visual_indicator_shape'] == 'circle'
 

@@ -1284,7 +1284,7 @@ green = 255
 blue = 255
 """
         toml_file = tmp_path / 'test.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         sprite.inflate_from_file(str(toml_file))
@@ -1314,7 +1314,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'simple.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         # Mock factory to fail so it falls through to _load_static_only
@@ -1381,7 +1381,7 @@ green = 0
 blue = 255
 """
         toml_file = tmp_path / 'loaded.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=5, y=10, filename=str(toml_file))
         assert sprite.rect is not None
@@ -1432,7 +1432,7 @@ class TestBitmappySpriteSave:
         save_path = tmp_path / 'saved.toml'
         sprite.save(str(save_path), file_format='toml')
         assert save_path.exists()
-        content = save_path.read_text()
+        content = save_path.read_text(encoding='utf-8')
         assert 'save_test' in content
 
     def test_save_unsupported_format_raises(self):
@@ -1497,7 +1497,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'display.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=1, height=1, name='display_test')
         sprite.filename = str(toml_file)
@@ -1559,7 +1559,7 @@ green = 0
 blue = 255
 """
         toml_file = tmp_path / 'init_test.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=3, y=7, filename=str(toml_file))
         assert sprite.rect is not None
@@ -1593,7 +1593,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'load_delegate.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=1, height=1)
         image, _rect, name = sprite._load(str(toml_file))
@@ -1686,7 +1686,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'nested.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         result = SpriteFactory._analyze_toml_file(str(toml_file))
         assert result['has_animation_sections'] is True
@@ -1699,7 +1699,7 @@ name = "empty"
 pixels = "   "
 """
         toml_file = tmp_path / 'empty.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         result = SpriteFactory._analyze_toml_file(str(toml_file))
         assert result['has_sprite_pixels'] is False
@@ -1777,7 +1777,7 @@ green = 255
 blue = 255
 """
         toml_file = tmp_path / 'load_test.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         image, _rect, name = sprite._load(str(toml_file))
@@ -1797,7 +1797,7 @@ class TestBitmappySpriteLoadStaticTomlException:
         """Test _load_static_toml re-raises on exception after logging."""
         # Write invalid TOML that will parse but has missing sprite data
         toml_file = tmp_path / 'bad.toml'
-        toml_file.write_text('[other]\nkey = "value"\n')
+        toml_file.write_text('[other]\nkey = "value"\n', encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         with pytest.raises(KeyError):
@@ -1826,7 +1826,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'no_colors.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=1, height=1)
         # Without colors, inflate will fail on unknown char '#'
@@ -1934,7 +1934,7 @@ green = 0
 blue = 0
 """
         toml_file = tmp_path / 'unknown_chars.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         result = sprite._inflate_toml(str(toml_file))
@@ -1951,7 +1951,7 @@ BA
 \"\"\"
 """
         toml_file = tmp_path / 'no_colors.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         result = sprite._inflate_toml(str(toml_file))
@@ -1961,7 +1961,7 @@ BA
     def test_inflate_toml_exception_reraises(self, tmp_path):
         """Test _inflate_toml re-raises exceptions (lines 1432-1434)."""
         toml_file = tmp_path / 'bad.toml'
-        toml_file.write_text('[other]\nkey = "value"\n')
+        toml_file.write_text('[other]\nkey = "value"\n', encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         with pytest.raises(KeyError):
@@ -2086,7 +2086,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'animated.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         sprite = BitmappySprite(x=0, y=0, width=1, height=1, name='animated_test')
         sprite.filename = str(toml_file)
@@ -2219,7 +2219,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'animated.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         result = SpriteFactory._analyze_toml_file(str(toml_file))
         assert result['has_animation_sections'] is True
@@ -2234,7 +2234,7 @@ name = "test"
 pixels = "#"
 """
         toml_file = tmp_path / 'frame.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         result = SpriteFactory._analyze_toml_file(str(toml_file))
         assert result['has_frame_sections'] is True
@@ -2246,7 +2246,7 @@ name = "test"
 pixels = "   "
 """
         toml_file = tmp_path / 'empty_pixels.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         result = SpriteFactory._analyze_toml_file(str(toml_file))
         assert result['has_sprite_pixels'] is False
@@ -2265,7 +2265,7 @@ pixels = \"\"\"
 \"\"\"
 """
         toml_file = tmp_path / 'nested_frame.toml'
-        toml_file.write_text(toml_content)
+        toml_file.write_text(toml_content, encoding='utf-8')
 
         result = SpriteFactory._analyze_toml_file(str(toml_file))
         assert result['has_animation_sections'] is True

@@ -11,13 +11,12 @@ This module consolidates tests from:
 import math
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
-
-if TYPE_CHECKING:
-    from unittest.mock import Mock
 
 import pygame
 import pytest
+
+from glitchygames.clock import frame_clock_milliseconds
+from glitchygames.sources import advance_frame_clock
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -2449,6 +2448,68 @@ class TestMultiLineTextBoxClipboard:
         text_box._handle_cut()
         # Should not raise
 
+    def test_handle_cut_without_pyperclip_keeps_the_text(self, text_box, mocker):
+        """No clipboard: a cut with a selection warns and leaves the text alone (no crash)."""
+        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
+        text_box.selection_start = 0
+        text_box.selection_end = 5
+        original_text = text_box._original_text
+        text_box._handle_cut()
+        assert text_box._original_text == original_text
+
+    @pytest.mark.parametrize('operation', ['copy', 'paste', 'cut'])
+    def test_clipboard_without_a_copy_mechanism_keeps_the_text(self, text_box, mocker, operation):
+        """No clipboard tool (headless Linux without xclip/xsel/wl-clipboard): no crash.
+
+        pyperclip raises its own PyperclipException there, from copy() and paste().
+        """
+        import pyperclip as real_pyperclip
+
+        no_mechanism = real_pyperclip.PyperclipException('no copy/paste mechanism')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
+        mock_pyperclip.copy.side_effect = no_mechanism
+        mock_pyperclip.paste.side_effect = no_mechanism
+        text_box.selection_start = 0
+        text_box.selection_end = 5
+        original_text = text_box._original_text
+
+        getattr(text_box, f'_handle_{operation}')()
+
+        assert text_box._original_text == original_text
+
+    def test_copy_and_paste_through_the_real_clipboard(self, text_box):
+        """Copy, then paste, through this machine's real clipboard (pyperclip unmocked).
+
+        Where there is a clipboard the text survives the round trip; where there is none (a
+        headless Linux CI runner), the text box must survive that instead. The clipboard's
+        prior contents are restored afterwards.
+        """
+        import pyperclip as real_pyperclip
+
+        # A clipboard counts only if both calls work (copying back what is there changes nothing)
+        try:
+            saved_clipboard = real_pyperclip.paste()
+            real_pyperclip.copy(saved_clipboard)
+        except real_pyperclip.PyperclipException:
+            saved_clipboard = None
+        try:
+            text_box.text = 'Round trip'
+            text_box.selection_start = 0
+            text_box.selection_end = len('Round')
+            text_box._handle_copy()
+            text_box.text = ''
+            text_box.cursor_pos = 0
+            text_box.selection_start = None
+            text_box.selection_end = None
+            text_box._handle_paste()
+            if saved_clipboard is None:
+                assert not text_box._original_text
+            else:
+                assert text_box._original_text == 'Round'
+        finally:
+            if saved_clipboard is not None:
+                real_pyperclip.copy(saved_clipboard)
+
     def test_clipboard_operation_copy_key(self, text_box, mocker):
         """Test _handle_clipboard_operation dispatches Ctrl+C to copy."""
         mocker.patch('glitchygames.ui.text_widgets.pyperclip')
@@ -2529,14 +2590,15 @@ class TestMultiLineTextBoxDeactivation:
         assert text_box.is_active is False
 
     def test_mouse_down_inside_activates(self, text_box, mocker):
-        """Test clicking inside the text box activates it."""
+        """Clicking inside activates the text box and restarts its blink on the frame clock."""
         text_box.is_active = False
+        advance_frame_clock(seconds=1.25)
         # Position inside the text box (rect starts at 100, 100 with 300x200)
         event = mocker.Mock()
         event.pos = (150, 150)
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.on_left_mouse_button_down_event(event)
         assert text_box.is_active is True
+        assert text_box.cursor_blink_time == 1250
 
     def test_key_down_escape_deactivates(self, text_box, mocker):
         """Test pressing Escape deactivates the text box."""
@@ -2660,7 +2722,6 @@ class TestMultiLineTextBoxKeyHandling:
     def setup_mocks(self, mocker, mock_pygame_patches):
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self._mock_pygame_patches = mock_pygame_patches
 
     @pytest.fixture
     def text_box(self, mocker):
@@ -2680,14 +2741,10 @@ class TestMultiLineTextBoxKeyHandling:
         tb.is_active = True
         return tb
 
-    def _set_key_mods(self, mods_value):
-        """Set the key mods return value on the mocked pygame.key module."""
-        if 'key_mock' in self._mock_pygame_patches:
-            self._mock_pygame_patches['key_mock'].get_mods.return_value = mods_value
-        else:
-            # Fallback: pygame.key is mocked in tests, so cast to access mock attributes
-            key_mock = cast('Mock', pygame.key.get_mods)
-            key_mock.return_value = mods_value
+    @staticmethod
+    def _set_key_mods(modifiers):
+        """Make ``modifiers`` the held modifier keys in this frame's polled input."""
+        MockFactory.install_frame_input(modifiers=modifiers)
 
     def test_key_down_inactive_returns(self, text_box, mocker):
         """Test key_down_event returns when not active."""
@@ -2846,7 +2903,6 @@ class TestMultiLineTextBoxUpdate:
 
     def test_update_hovered_not_active(self, text_box, mocker):
         """Test update with hover state but not active uses hover color."""
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.is_hovered = True
         text_box.is_active = False
         text_box.update()
@@ -2854,7 +2910,6 @@ class TestMultiLineTextBoxUpdate:
 
     def test_update_active(self, text_box, mocker):
         """Test update when active renders cursor."""
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.is_active = True
         text_box.cursor_visible = True
         text_box.update()
@@ -4295,8 +4350,14 @@ class TestInputBoxCursorBlink:
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def test_update_draws_cursor_when_active_and_blink_visible(self, mocker):
-        """Test InputBox update draws cursor when active and in blink cycle."""
+    @pytest.mark.parametrize(
+        ('frame_clock_seconds', 'cursor_drawn'),
+        [(1.7, True), (1.2, False)],
+    )
+    def test_update_draws_cursor_in_the_visible_half_of_the_blink(
+        self, mocker, frame_clock_seconds, cursor_drawn
+    ):
+        """The InputBox cursor blinks on the frame clock: drawn when its fraction is past 0.5."""
         groups = _RealLayeredDirty()
         parent = mocker.Mock()
         parent.x = 0
@@ -4311,11 +4372,13 @@ class TestInputBoxCursorBlink:
             groups=groups,
         )
         input_box.is_active = True
-        # Mock time.time to return a value that triggers cursor draw
-        # time.time() % 1 > 0.5 when e.g. time returns 1.7
-        mocker.patch('glitchygames.ui.inputs.time.time', return_value=1.7)
+        draw_rect = mocker.patch('glitchygames.ui.inputs.pygame.draw.rect')
+        advance_frame_clock(seconds=frame_clock_seconds)
+
         input_box.update()
-        # Should have drawn cursor rect; verify it doesn't raise
+
+        drawn_rects = [call.args[2] for call in draw_rect.call_args_list]
+        assert (input_box.cursor in drawn_rects) is cursor_drawn
 
 
 class TestSliderKnobSpriteInit:
@@ -4887,7 +4950,7 @@ class TestMultiLineTextBoxScrolling:
         textbox.cursor_pos = 0  # Cursor at top
         textbox.cursor_blink_time = 0
         # Should not raise even though cursor is outside visible range
-        textbox._update_cursor_blink(pygame.time.get_ticks(), 16)
+        textbox._update_cursor_blink(frame_clock_milliseconds(), 16)
 
 
 class TestMultiLineTextBoxMouseEvents:
@@ -5097,7 +5160,7 @@ class TestMultiLineTextBoxMouseWheel:
         lines = [f'Line {i}' for i in range(30)]
         textbox.text = '\n'.join(lines)
         textbox.scroll_offset = 10
-        mocker.patch('pygame.mouse.get_pos', return_value=(TEST_X + 5, TEST_Y + 5))
+        MockFactory.install_frame_input(mouse_position=(TEST_X + 5, TEST_Y + 5))
         event = mocker.Mock(spec=['button'])  # No 'y' attribute
         event.button = 4  # PYGAME_MOUSE_SCROLL_UP_BUTTON
         textbox.on_mouse_wheel_event(event)
@@ -5118,7 +5181,7 @@ class TestMultiLineTextBoxMouseWheel:
         lines = [f'Line {i}' for i in range(30)]
         textbox.text = '\n'.join(lines)
         textbox.scroll_offset = 5
-        mocker.patch('pygame.mouse.get_pos', return_value=(TEST_X + 5, TEST_Y + 5))
+        MockFactory.install_frame_input(mouse_position=(TEST_X + 5, TEST_Y + 5))
         event = mocker.Mock(spec=['button'])  # No 'y' attribute
         event.button = 5  # PYGAME_MOUSE_SCROLL_DOWN_BUTTON
         textbox.on_mouse_wheel_event(event)

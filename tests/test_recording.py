@@ -10,10 +10,13 @@ pygame objects and a marker for values that cannot be stored.
 from __future__ import annotations
 
 import ast
+import dataclasses
+import errno
 import gzip
 import json
 import math
 import types
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,22 +26,52 @@ import pytest
 
 from glitchygames import recording
 from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
+from glitchygames.input import devices as devices_module
+from glitchygames.input.state import IDLE_INPUT, held_key_codes
+from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
+    CONTROL_EVENTS_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+    DEVICES_OPENED_FIELD,
     DT_FIELD,
     EVENT_BATCHES_FIELD,
     EXTERNAL_ORIGIN,
+    INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     RECORDING_SOURCE,
+    SAVES_HEADER_FIELD,
+    SAVES_OPENED_FIELD,
+    SCENE_START_FIELD,
     GameplayRecorder,
     RecordedReference,
+    RecordingSources,
+    RecordingWriteError,
     UnrepresentableValue,
     event_from_record,
+    event_origin,
     event_to_record,
+    forget_pending_posts,
+    is_live_game_post,
     json_safe_value,
+    live_game_posts,
+    pending_code_post_count,
+    pending_internal_posts,
     post_event,
+    post_input_event,
+    reset_internal_post_tracking,
+    set_live_game_code_running,
+    start_tracking_internal_posts,
+    stop_tracking_internal_posts,
     value_from_json,
 )
-from glitchygames.tracing import TraceFormatError, read_trace_result
+from glitchygames.recording_history import (
+    CONTENT_HASH_FIELD,
+    PROCESSING_SECONDS_FIELD,
+    frame_content_hash,
+)
+from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
+from glitchygames.supervision import ControlEvent
+from glitchygames.tracing import TraceFormatError, TraceWriter, read_trace_result
 
 WINDOW_SIZE = (16, 16)
 TEST_JOYSTICK_INSTANCE_ID = 7
@@ -461,11 +494,195 @@ class TestEventOrigin:
         assert was_posted is False
         assert pending_after_post == []
 
+    def test_a_live_game_post_is_told_from_an_equal_scope_post(self, tmp_path, event_queue):
+        """Posts made while the live game's code runs in a scope are marked, by identity."""
+        with GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={}):
+            post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+            set_live_game_code_running(running=True)
+            try:
+                post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+            finally:
+                set_live_game_code_running(running=False)
+            scope_post, live_post = pending_internal_posts()
+            assert scope_post == live_post
+            assert is_live_game_post(post=live_post) is True
+            assert is_live_game_post(post=scope_post) is False
+        # Closing the last recorder forgets them, as it forgets the pending posts
+        assert live_game_posts() == []
+        pygame.event.clear()
+
+    def test_an_input_post_is_external_whatever_its_type(self, tmp_path, event_queue):
+        """post_input_event is input to the game (a replay serves it), even a custom type."""
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+            post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 2}))
+            post_input_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+            _pump_batch(recorder)
+            recorder.record_frame(dt=0.01, scene=None)
+
+        assert _origins(read_trace_result(path=path).trace['frames'][0]) == [
+            (pygame.USEREVENT, EXTERNAL_ORIGIN),
+            (pygame.USEREVENT, INTERNAL_ORIGIN),
+            (pygame.KEYDOWN, EXTERNAL_ORIGIN),
+        ]
+
+    def test_an_input_post_is_told_from_an_equal_code_post(self, event_queue):
+        """Matched by identity: an equal post_event queued first is still the game's own."""
+        start_tracking_internal_posts()
+        post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        pending = pending_internal_posts()
+        first, second = pygame.event.get()
+
+        assert event_origin(event=first, pending=pending) == INTERNAL_ORIGIN
+        assert event_origin(event=second, pending=pending) == EXTERNAL_ORIGIN
+        stop_tracking_internal_posts()
+
+    def test_pending_code_posts_leave_out_input_posts(self, event_queue):
+        """A scene start's earlier internal events are the game's own posts only."""
+        start_tracking_internal_posts()
+        post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 2}))
+
+        assert len(pending_internal_posts()) == 2
+        assert pending_code_post_count() == 1
+        stop_tracking_internal_posts()
+
+    def test_forgetting_pending_posts_forgets_input_posts(self, event_queue):
+        start_tracking_internal_posts()
+        post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        forget_pending_posts()
+
+        assert pending_internal_posts() == []
+        assert recording._INTERNAL_POSTS.input_posts == []
+        stop_tracking_internal_posts()
+
+    def test_input_posts_are_not_tracked_without_a_recorder(self, event_queue):
+        """With no recording open, post_input_event only posts."""
+        assert post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1})) is True
+        assert recording._INTERNAL_POSTS.pending == []
+        assert recording._INTERNAL_POSTS.input_posts == []
+        assert [event.type for event in pygame.event.get()] == [pygame.USEREVENT]
+
     def test_posts_are_not_tracked_without_a_recorder(self, event_queue):
         """With no recording open, post_event only posts."""
         assert post_event(pygame.event.Event(pygame.QUIT)) is True
         assert recording._INTERNAL_POSTS.pending == []
         assert [event.type for event in pygame.event.get()] == [pygame.QUIT]
+
+
+class TestRecorderWriteFailures:
+    """A recording that cannot be written part way (the disk fills): BUGS.md #82."""
+
+    def test_a_failed_frame_write_raises_and_keeps_the_frames_before(self, tmp_path, mocker):
+        path = tmp_path / 'play.jsonl.gz'
+        recorder = GameplayRecorder(path=path, header={})
+        recorder.record_frame(dt=0.01, scene=None)
+        mocker.patch.object(
+            TraceWriter, 'write_frame', side_effect=OSError(28, 'No space left on device')
+        )
+        with pytest.raises(RecordingWriteError, match='No space left on device') as error_info:
+            recorder.record_frame(dt=0.01, scene=None)
+        assert error_info.value.path == path
+        assert recorder.write_failed is True
+        # Abandoned: closed, posts no longer tracked, later frames are not written
+        assert recording._INTERNAL_POSTS.is_tracking is False
+        recorder.record_frame(dt=0.01, scene=None)
+        recorder.close()
+        result = read_trace_result(path=path)
+        assert result.is_complete
+        assert len(result.trace['frames']) == 1
+
+    def test_a_failed_close_is_noted_not_raised(self, tmp_path, mocker, caplog):
+        """The teardown goes on; the engine reads write_failed and exits CANNOT_WRITE_OUTPUT."""
+        recorder = GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={})
+        real_close = TraceWriter.close
+
+        def close_then_fail(writer: TraceWriter) -> None:
+            real_close(writer)
+            raise OSError(errno.EIO, 'Input/output error')
+
+        mocker.patch.object(TraceWriter, 'close', autospec=True, side_effect=close_then_fail)
+        recorder.close()
+        assert recorder.write_failed is True
+        assert 'could not be written' in caplog.text
+
+
+class TestFrameHistories:
+    """Each written frame carries its content hash and processing time, newest first."""
+
+    def test_a_fresh_recording_starts_each_history_with_one_entry(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(dt=0.01, scene=None, processing_seconds=0.0021)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[PROCESSING_SECONDS_FIELD] == [0.0021]
+        assert frame[CONTENT_HASH_FIELD] == [frame_content_hash(frame_record=frame)]
+
+    def test_an_unmeasured_frame_keeps_its_place(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(dt=0.01, scene=None)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[PROCESSING_SECONDS_FIELD] == [None]
+
+    def test_a_recording_over_a_replay_stacks_onto_the_replayed_frame(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(
+                dt=0.01,
+                scene=None,
+                processing_seconds=0.003,
+                previous_histories={
+                    PROCESSING_SECONDS_FIELD: [0.002],
+                    CONTENT_HASH_FIELD: ['0123456789abcdef'],
+                },
+            )
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[PROCESSING_SECONDS_FIELD] == [0.003, 0.002]
+        assert frame[CONTENT_HASH_FIELD][1] == '0123456789abcdef'
+
+    def test_the_stored_hash_is_the_hash_of_the_frame_read_back(self, tmp_path, event_queue):
+        """A reader recomputes the hash from what it decodes: tagged floats, tuples, non-ASCII."""
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            post_event(
+                pygame.event.Event(
+                    pygame.USEREVENT, {'speed': float('inf'), 'pair': (1, 2), 'name': 'Ünïcødé'}
+                )
+            )
+            _pump_batch(recorder)
+            recorder.record_frame(dt=0.01, scene=None, processing_seconds=0.001)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame)
+
+
+class TestFrameHashesDescribeWhatAReaderGets:
+    """The hash is of the frame as JSON decodes it: keys become strings (final review #1)."""
+
+    def test_integer_keys_hash_as_the_string_keys_a_reader_gets(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(
+                dt=0.01,
+                scene=None,
+                control_events=[{'kind': 'cheat', 'data': {'slots': {1: 'a', 10: 'b', 2: 'c'}}}],
+            )
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame)
+
+    def test_mixed_key_types_still_record(self, tmp_path):
+        """Sorting int and str keys together raised TypeError and ended the run."""
+        path = tmp_path / 'play.jsonl.gz'
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(
+                dt=0.01,
+                scene=None,
+                control_events=[{'kind': 'cheat', 'data': {1: 'a', 'x': 'b'}}],
+            )
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[CONTENT_HASH_FIELD][0] == frame_content_hash(frame_record=frame)
 
 
 class TestGameplayRecorder:
@@ -527,6 +744,27 @@ class TestGameplayRecorder:
             [],
             [1, 2],
         ]
+
+    def test_given_origins_are_recorded_without_classifying(self, tmp_path, event_queue):
+        """A pump that knows its origins (a replay's merge) is not re-classified by the tracker."""
+        path = tmp_path / 'play.jsonl.gz'
+        quit_event = pygame.event.Event(pygame.QUIT)
+        with GameplayRecorder(path=path, header={}) as recorder:
+            post_event(quit_event)
+            recorder.record_event_batch(
+                raw_events=[pygame.event.Event(pygame.KEYDOWN, key=1), quit_event],
+                origins=[INTERNAL_ORIGIN, EXTERNAL_ORIGIN],
+            )
+            pending_after_batch = list(pending_internal_posts())
+            recorder.record_frame(dt=0.01, scene=None)
+
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert _origins(frame) == [
+            (pygame.KEYDOWN, INTERNAL_ORIGIN),
+            (pygame.QUIT, EXTERNAL_ORIGIN),
+        ]
+        # The tracker's pending post was neither matched nor forgotten by this batch
+        assert pending_after_batch == [(pygame.QUIT, {})]
 
     def test_new_scene_object_starts_a_keyframe_even_with_the_same_class(self, tmp_path):
         """A switch between two scenes of one class (two floors) writes a keyframe."""
@@ -626,61 +864,471 @@ class TestGameplayRecorder:
         recorder.close()
 
 
-# Calls that read (or drain) SDL's event queue; only GameEngine._pump_events may use them
+class TestInternalPostTracking:
+    """Post tracking has owners: it runs while at least one owner holds it."""
+
+    def test_tracking_runs_until_the_last_owner_stops(self):
+        """A second owner keeps tracking on after the first one stops."""
+        start_tracking_internal_posts()
+        start_tracking_internal_posts()
+        stop_tracking_internal_posts()
+        tracking_with_one_owner = recording._INTERNAL_POSTS.is_tracking
+        stop_tracking_internal_posts()
+
+        assert tracking_with_one_owner is True
+        assert recording._INTERNAL_POSTS.is_tracking is False
+
+    def test_closing_a_recorder_leaves_another_owner_tracking(self, tmp_path, event_queue):
+        """A recorder closing never switches tracking off under another owner (a replay)."""
+        start_tracking_internal_posts()
+        GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={}).close()
+        post_event(pygame.event.Event(pygame.QUIT))
+
+        assert recording._INTERNAL_POSTS.is_tracking is True
+        assert pending_internal_posts() == [(pygame.QUIT, {})]
+        stop_tracking_internal_posts()
+
+    def test_stopping_with_no_owner_stays_at_zero(self):
+        """An unmatched stop cannot make the count negative (a later start still tracks)."""
+        stop_tracking_internal_posts()
+        start_tracking_internal_posts()
+
+        assert recording._INTERNAL_POSTS.is_tracking is True
+        stop_tracking_internal_posts()
+        assert recording._INTERNAL_POSTS.is_tracking is False
+
+    def test_reset_forgets_owners_and_pending_posts(self, event_queue):
+        """reset_internal_post_tracking: no owners and nothing pending (a new run, a test)."""
+        start_tracking_internal_posts()
+        post_event(pygame.event.Event(pygame.QUIT))
+        reset_internal_post_tracking()
+
+        assert recording._INTERNAL_POSTS.is_tracking is False
+        assert pending_internal_posts() == []
+
+    def test_pending_posts_are_the_trackers_own_list(self, event_queue):
+        """event_origin removes a match from pending_internal_posts() (a replay's pump does)."""
+        start_tracking_internal_posts()
+        post_event(pygame.event.Event(pygame.QUIT))
+        pending = pending_internal_posts()
+        (pumped,) = pygame.event.get()
+
+        assert event_origin(event=pumped, pending=pending) == INTERNAL_ORIGIN
+        assert pending_internal_posts() == []
+        stop_tracking_internal_posts()
+
+
+def _recording_sources(*, path: Path) -> tuple[RecordingSources, GameplayRecorder, LiveSources]:
+    recorder = GameplayRecorder(path=path, header={'game_class': 'Unit'})
+    inner = LiveSources(random_seed=1)
+    return RecordingSources(inner=inner, recorder=recorder), recorder, inner
+
+
+def _end_frame(sources: RecordingSources, *, frame_number: int) -> None:
+    sources.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
+
+
+class TestRecordingSources:
+    """RecordingSources records what passes through the doors it wraps."""
+
+    def test_recording_sources_write_only_non_empty_fields(self, tmp_path):
+        """A frame with no control events has no control_events field."""
+        path = tmp_path / 'unit.jsonl.gz'
+        recorder = GameplayRecorder(path=path, header={'game_class': 'Unit'})
+        sources = RecordingSources(inner=LiveSources(random_seed=1), recorder=recorder)
+        sources.end_frame(frame_number=0, dt=0.016, scene=None, control_events=[])
+        sources.end_frame(
+            frame_number=1,
+            dt=0.016,
+            scene=None,
+            control_events=[ControlEvent(kind='breakpoint', data={'label': 'b'})],
+        )
+        recorder.close()
+        first, second = read_trace_result(path=path).trace['frames']
+        assert CONTROL_EVENTS_FIELD not in first
+        assert second[CONTROL_EVENTS_FIELD] == [{'kind': 'breakpoint', 'label': 'b'}]
+        for field in (
+            INPUT_CHANGES_FIELD,
+            DEVICES_OPENED_FIELD,
+            SAVES_OPENED_FIELD,
+            DEVICE_ENUMERATION_FIELD,
+        ):
+            assert field not in first
+            assert field not in second
+
+    def test_input_changes_diff_against_the_previous_frame(self, tmp_path, mocker):
+        """The first snapshot diffs against IDLE_INPUT; an unchanged frame records nothing."""
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, inner = _recording_sources(path=path)
+        held_a = dataclasses.replace(IDLE_INPUT, pressed_scancodes=frozenset({4}))
+        mocker.patch.object(inner, 'input_snapshot', side_effect=[held_a, held_a, IDLE_INPUT])
+        served_snapshots = []
+        for frame_number in range(3):
+            served_snapshots.append(sources.input_snapshot())
+            _end_frame(sources, frame_number=frame_number)
+        # A frame that took no snapshot (none asked) records no change either
+        _end_frame(sources, frame_number=3)
+        recorder.close()
+
+        frames = read_trace_result(path=path).trace['frames']
+        assert served_snapshots == [held_a, held_a, IDLE_INPUT]
+        # Scancode 4 is held as the key code this machine's keymap gives it (A on QWERTY)
+        assert frames[0][INPUT_CHANGES_FIELD] == {
+            'pressed_scancodes': [4],
+            'held_key_codes': sorted(held_key_codes(snapshot=held_a)),
+        }
+        assert INPUT_CHANGES_FIELD not in frames[1]
+        assert frames[2][INPUT_CHANGES_FIELD] == {'pressed_scancodes': [], 'held_key_codes': []}
+        assert INPUT_CHANGES_FIELD not in frames[3]
+
+    def test_a_save_namespace_is_snapshotted_once_when_first_opened(self, tmp_path, mocker):
+        """Opened during recording: snapshotted in that frame, before the game writes to it."""
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: tmp_path / 'saves' / app_name,
+        )
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, inner = _recording_sources(path=path)
+        store = sources.saves(namespace='unit-game')
+        store.save('progress', {'level': 3})
+        reopened = sources.saves(namespace='unit-game')
+        _end_frame(sources, frame_number=0)
+        sources.saves(namespace='unit-game')
+        _end_frame(sources, frame_number=1)
+        recorder.close()
+
+        frames = read_trace_result(path=path).trace['frames']
+        assert reopened is store
+        assert store is inner.opened_save_namespaces['unit-game']
+        # Snapshotted when opened, while it was still empty
+        assert frames[0][SAVES_OPENED_FIELD] == {'unit-game': {}}
+        assert SAVES_OPENED_FIELD not in frames[1]
+
+    def test_a_namespace_in_the_header_is_not_snapshotted_again(self, tmp_path, mocker):
+        """A store the header already holds (opened before recording) is not re-recorded."""
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: tmp_path / 'saves' / app_name,
+        )
+        path = tmp_path / 'unit.jsonl.gz'
+        recorder = GameplayRecorder(path=path, header={SAVES_HEADER_FIELD: {'unit-game': {}}})
+        sources = RecordingSources(inner=LiveSources(random_seed=1), recorder=recorder)
+        sources.saves(namespace='unit-game')
+        _end_frame(sources, frame_number=0)
+        recorder.close()
+
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert SAVES_OPENED_FIELD not in frame
+
+    def test_pumped_batches_are_recorded_with_their_origins(self, tmp_path, event_queue):
+        """Each pump's batch is recorded raw; a post_event post is internal."""
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, _inner = _recording_sources(path=path)
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+        post_event(pygame.event.Event(pygame.QUIT))
+        batch = sources.pump_events()
+        empty_batch = sources.pump_events()
+        _end_frame(sources, frame_number=0)
+        recorder.close()
+
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert [event.type for event in batch] == [pygame.KEYDOWN, pygame.QUIT]
+        assert empty_batch == []
+        assert _origins(frame) == [
+            (pygame.KEYDOWN, EXTERNAL_ORIGIN),
+            (pygame.QUIT, INTERNAL_ORIGIN),
+        ]
+        assert frame[EVENT_BATCHES_FIELD][1] == []
+
+    def test_untaken_device_answers_are_recorded_before_the_inner_end_frame(self, tmp_path, mocker):
+        """Answers given in a frame are taken before LiveSources.end_frame discards them."""
+        mocker.patch.object(devices_module.pygame.joystick, 'get_count', return_value=2)
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, inner = _recording_sources(path=path)
+        inner_end_frame = mocker.spy(inner, 'end_frame')
+        assert sources.devices() is inner.devices()
+        assert sources.devices().joystick_count() == 2
+        _end_frame(sources, frame_number=0)
+        _end_frame(sources, frame_number=1)
+        recorder.close()
+
+        first, second = read_trace_result(path=path).trace['frames']
+        assert first[DEVICE_ENUMERATION_FIELD] == [
+            {'call': 'joystick_count', 'device_index': None, 'value': 2, 'error': None}
+        ]
+        assert DEVICE_ENUMERATION_FIELD not in second
+        assert inner_end_frame.call_count == 2
+
+    def test_everything_else_is_delegated(self, tmp_path, mocker):
+        """Seed, opened stores, stop request, frame time, clocks and control events: inner's."""
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: tmp_path / 'saves' / app_name,
+        )
+        sources, recorder, inner = _recording_sources(path=tmp_path / 'unit.jsonl.gz')
+        recorder.close()
+        opened_by_inner = inner.saves(namespace='opened-inside')
+
+        assert sources.inner is inner
+        assert sources.random_seed == 1
+        assert dict(sources.opened_save_namespaces) == {'opened-inside': opened_by_inner}
+        assert sources.stop_requested is False
+        assert sources.frame_seconds(measured=0.25) == 0.25
+        assert sources.control_events_for_frame(frame_number=3) == []
+        assert sources.wall_clock_time().tzinfo is not None
+
+    def test_the_wall_clock_is_the_recorded_start_plus_the_frame_clock(self, tmp_path):
+        """A recorded run reads the wall clock its replay will serve, so it replays exactly."""
+        recorder = GameplayRecorder(
+            path=tmp_path / 'unit.jsonl.gz',
+            header={'game_class': 'Unit', 'recorded_at': '2026-10-19T12:00:00+00:00'},
+        )
+        sources = RecordingSources(inner=LiveSources(random_seed=1), recorder=recorder)
+        frame_clock_before = frame_clock_seconds()
+        try:
+            set_frame_clock_seconds(seconds=2.5)
+            assert sources.wall_clock_time() == datetime(2026, 10, 19, 12, 0, 2, 500000, tzinfo=UTC)
+        finally:
+            set_frame_clock_seconds(seconds=frame_clock_before)
+            recorder.close()
+
+    def test_scene_starts_are_captured_while_recording(self, tmp_path):
+        """Open, the doors capture scene starts; closed, they answer as the inner doors do."""
+        sources, recorder, inner = _recording_sources(path=tmp_path / 'unit.jsonl.gz')
+
+        assert inner.captures_scene_starts is False
+        assert sources.captures_scene_starts is True
+        recorder.close()
+        assert sources.captures_scene_starts is False
+
+    def test_a_scene_stand_in_has_no_scene_start(self, tmp_path):
+        """A SceneInterface stand-in without a start capture is recorded without scene_start."""
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, _inner = _recording_sources(path=path)
+        sources.end_frame(
+            frame_number=0, dt=0.016, scene=_scene(FakeSprite(x=0, y=0)), control_events=[]
+        )
+        recorder.close()
+
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert SCENE_START_FIELD not in frame
+
+    def test_a_closed_recorder_records_nothing_more(self, tmp_path, event_queue):
+        """After stop_trace_recording closes the recorder, the doors only delegate."""
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, _inner = _recording_sources(path=path)
+        _end_frame(sources, frame_number=0)
+        recorder.close()
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
+        batch = sources.pump_events()
+        _end_frame(sources, frame_number=1)
+
+        assert [event.type for event in batch] == [pygame.QUIT]
+        assert recorder.frame_count == 1
+        assert len(read_trace_result(path=path).trace['frames']) == 1
+
+
+# Calls that read (or drain) SDL's event queue. Only the doors' event pumps may use them, each
+# named by (file relative to the package, qualified function name); GameEngine._pump_events
+# reads through the active sources. A new pump (e.g. a replay's) is added here on purpose
+_PUMP_SEAMS = frozenset({('live_sources.py', 'LiveSources.pump_events')})
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
 _EVENT_MODULE_NAMES = frozenset({'event', 'fastevent'})
+_GETATTR_MINIMUM_ARGUMENTS = 2
 
 
-def _is_queue_read(node: ast.AST) -> bool:
-    """Report whether a node is ``pygame.event.<read>`` or ``pygame.fastevent.<read>``."""
-    if not isinstance(node, ast.Attribute) or node.attr not in _QUEUE_READING_ATTRIBUTES:
-        return False
-    module = node.value
-    if not isinstance(module, ast.Attribute) or module.attr not in _EVENT_MODULE_NAMES:
-        return False
-    return isinstance(module.value, ast.Name) and module.value.id == 'pygame'
+def _is_pygame_event_module(node: ast.AST) -> bool:
+    """Report whether a node is ``pygame.event``/``pygame.fastevent`` or a getattr of one."""
+    if isinstance(node, ast.Attribute):
+        return (
+            node.attr in _EVENT_MODULE_NAMES
+            and isinstance(node.value, ast.Name)
+            and node.value.id == 'pygame'
+        )
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'getattr':
+        # getattr(object, name[, default]): fewer arguments cannot name a module
+        if len(node.args) < _GETATTR_MINIMUM_ARGUMENTS:
+            return False
+        target, name = node.args[0], node.args[1]
+        return (
+            isinstance(target, ast.Name)
+            and target.id == 'pygame'
+            and isinstance(name, ast.Constant)
+            and name.value in _EVENT_MODULE_NAMES
+        )
+    return False
 
 
-def _queue_reads_outside_the_pump_seam(source_path: Path) -> list[str]:
-    """List each reference to a queue-reading pygame call outside ``_pump_events``."""
-    tree = ast.parse(source_path.read_text(encoding='utf-8'), filename=str(source_path))
-    allowed_nodes: set[int] = set()
+def _event_module_aliases(tree: ast.AST) -> set[str]:
+    """Return the names the file binds to a pygame event module (``x = getattr(pygame, ...)``).
+
+    Returns:
+        Every name assigned a pygame event module anywhere in the file.
+
+    """
+    aliases: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == '_pump_events':
-            allowed_nodes.update(id(child) for child in ast.walk(node))
-    return [
-        f'{source_path}:{node.lineno} pygame.{node.value.attr}.{node.attr}'
-        for node in ast.walk(tree)
-        if _is_queue_read(node)
-        and id(node) not in allowed_nodes
-        and isinstance(node, ast.Attribute)
-        and isinstance(node.value, ast.Attribute)
-    ]
+        if isinstance(node, ast.Assign) and _is_pygame_event_module(node.value):
+            aliases.update(target.id for target in node.targets if isinstance(target, ast.Name))
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and node.value is not None
+            and _is_pygame_event_module(node.value)
+            and isinstance(node.target, ast.Name)
+        ):
+            aliases.add(node.target.id)
+    return aliases
+
+
+def _queue_read_description(*, node: ast.AST, aliases: set[str]) -> str | None:
+    """Describe a queue read (``pygame.event.get``, or ``<alias>.get`` through an alias).
+
+    Returns:
+        The read as written, or None when the node is not a queue read.
+
+    """
+    if not isinstance(node, ast.Attribute) or node.attr not in _QUEUE_READING_ATTRIBUTES:
+        return None
+    module = node.value
+    if _is_pygame_event_module(module) and isinstance(module, ast.Attribute):
+        return f'pygame.{module.attr}.{node.attr}'
+    if isinstance(module, ast.Name) and module.id in aliases:
+        return f'{module.id}.{node.attr}'
+    return None
+
+
+def _nodes_with_qualified_names(*, node: ast.AST, qualified_name: str) -> list[tuple[ast.AST, str]]:
+    """List every node under ``node`` with the qualified name of the def/class enclosing it.
+
+    Returns:
+        (node, qualified name) pairs; module-level nodes have the name ''.
+
+    """
+    pairs: list[tuple[ast.AST, str]] = []
+    for child in ast.iter_child_nodes(node):
+        child_qualified_name = qualified_name
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            child_qualified_name = (
+                f'{qualified_name}.{child.name}' if qualified_name else child.name
+            )
+        pairs.append((child, child_qualified_name))
+        pairs.extend(_nodes_with_qualified_names(node=child, qualified_name=child_qualified_name))
+    return pairs
+
+
+def _queue_reads_outside_the_pump_seam(*, source_path: Path, relative_path: str) -> list[str]:
+    """List each queue read in a file outside the pump seams named in ``_PUMP_SEAMS``.
+
+    Args:
+        source_path: The file to scan.
+        relative_path: Its path relative to the package root, as ``_PUMP_SEAMS`` names it.
+
+    Returns:
+        One ``path:line qualified.name read`` entry per offending read.
+
+    """
+    tree = ast.parse(source_path.read_text(encoding='utf-8'), filename=str(source_path))
+    aliases = _event_module_aliases(tree)
+    offenders: list[str] = []
+    for node, qualified_name in _nodes_with_qualified_names(node=tree, qualified_name=''):
+        description = _queue_read_description(node=node, aliases=aliases)
+        if description is None or (relative_path, qualified_name) in _PUMP_SEAMS:
+            continue
+        line_number = getattr(node, 'lineno', 0)
+        offenders.append(f'{relative_path}:{line_number} {qualified_name} {description}')
+    return offenders
 
 
 def test_pump_seam_is_the_only_place_the_engine_reads_sdl_queue():
-    """Every read of SDL's queue in the package goes through GameEngine._pump_events.
+    """Every read of SDL's queue in the package goes through the doors' event pump.
 
     A recording must see every batch, and a replay must be able to substitute every batch,
-    so no other code may call pygame.event.get/poll/wait/peek/pump/clear.
+    so no other code may call pygame.event.get/poll/wait/peek/pump/clear (directly or through
+    an alias such as ``getattr(pygame, 'fastevent')``).
     """
     package_root = Path(recording.__file__).parent
     offenders = [
         offender
         for source_path in sorted(package_root.rglob('*.py'))
-        for offender in _queue_reads_outside_the_pump_seam(source_path)
+        for offender in _queue_reads_outside_the_pump_seam(
+            source_path=source_path,
+            relative_path=source_path.relative_to(package_root).as_posix(),
+        )
     ]
 
     assert offenders == []
 
 
-def test_pump_seam_scan_finds_a_read(tmp_path):
-    """The scan above does report a read outside the seam (it is not vacuous)."""
+def test_every_pump_seam_still_reads_the_queue():
+    """Each allowed seam exists and reads the queue (the allow list cannot go stale)."""
+    package_root = Path(recording.__file__).parent
+    for relative_path, qualified_name in _PUMP_SEAMS:
+        source_path = package_root / relative_path
+        tree = ast.parse(source_path.read_text(encoding='utf-8'), filename=str(source_path))
+        aliases = _event_module_aliases(tree)
+        seam_reads = [
+            description
+            for node, node_qualified_name in _nodes_with_qualified_names(
+                node=tree, qualified_name=''
+            )
+            if node_qualified_name == qualified_name
+            and (description := _queue_read_description(node=node, aliases=aliases)) is not None
+        ]
+        # LiveSources.pump_events reads pygame.event.get and the fastevent alias's get
+        assert seam_reads, (relative_path, qualified_name)
+
+
+_OFFENDER_FIXTURE = """import pygame
+
+
+class LiveSources:
+    def pump_events(self):
+        fastevent = getattr(pygame, 'fastevent', None)
+        if fastevent is not None:
+            return list(fastevent.get())
+        return list(pygame.event.get())
+
+
+class OtherSources:
+    def pump_events(self):
+        return pygame.event.get()
+
+
+def elsewhere():
+    return pygame.event.poll()
+
+
+def sneaky():
+    queue = getattr(pygame, 'event')
+    return queue.peek()
+"""
+
+
+def test_pump_seam_scan_allows_only_the_named_seam(tmp_path):
+    """The scan reports reads outside the named (file, function), aliases included."""
+    source_path = tmp_path / 'live_sources.py'
+    source_path.write_text(_OFFENDER_FIXTURE, encoding='utf-8')
+
+    assert _queue_reads_outside_the_pump_seam(
+        source_path=source_path, relative_path='live_sources.py'
+    ) == [
+        'live_sources.py:14 OtherSources.pump_events pygame.event.get',
+        'live_sources.py:18 elsewhere pygame.event.poll',
+        'live_sources.py:23 sneaky queue.peek',
+    ]
+
+
+def test_pump_seam_scan_names_the_file_too(tmp_path):
+    """The same LiveSources.pump_events in another file is not a seam."""
     source_path = tmp_path / 'reader.py'
-    source_path.write_text(
-        'import pygame\n\n\ndef _pump_events():\n    return pygame.event.get()\n\n\n'
-        'def elsewhere():\n    return pygame.event.poll()\n',
-        encoding='utf-8',
+    source_path.write_text(_OFFENDER_FIXTURE, encoding='utf-8')
+
+    offenders = _queue_reads_outside_the_pump_seam(
+        source_path=source_path, relative_path='reader.py'
     )
 
-    assert _queue_reads_outside_the_pump_seam(source_path) == [f'{source_path}:9 pygame.event.poll']
+    assert offenders[:2] == [
+        'reader.py:8 LiveSources.pump_events fastevent.get',
+        'reader.py:9 LiveSources.pump_events pygame.event.get',
+    ]
+    assert len(offenders) == 5

@@ -624,3 +624,60 @@ class TestGetIndicatorsByLocationDefault:
         result = self.manager.get_indicators_by_location(None)  # type: ignore[arg-type]
 
         assert result is self.manager.indicators
+
+
+class TestGetIndicatorsByLocationEachType:
+    """Test get_indicators_by_location returns the dictionary for each location."""
+
+    def test_film_strip_and_canvas_locations_return_their_own_indicators(self):
+        """Each location returns only the indicators added to it."""
+        manager = VisualCollisionManager()
+        manager.add_controller_indicator(
+            controller_id=0,
+            instance_id=0,
+            color=(255, 0, 0),
+            position=(10, 10),
+            location_type=LocationType.FILM_STRIP,
+        )
+        manager.add_controller_indicator(
+            controller_id=1,
+            instance_id=1,
+            color=(0, 255, 0),
+            position=(10, 10),
+            location_type=LocationType.CANVAS,
+        )
+
+        film_strip_result = manager.get_indicators_by_location(LocationType.FILM_STRIP)
+        canvas_result = manager.get_indicators_by_location(LocationType.CANVAS)
+
+        assert list(film_strip_result) == [0]
+        assert list(canvas_result) == [1]
+
+
+class TestHiddenIndicatorsSkipCollisionAvoidance:
+    """Test that hidden indicators do not take part in collision avoidance."""
+
+    def test_hidden_indicator_is_left_out_of_collision_groups(self):
+        """Two indicators at one spot, one hidden: no collision group, no offset."""
+        manager = VisualCollisionManager()
+        manager.add_controller_indicator(
+            controller_id=0,
+            instance_id=0,
+            color=(255, 0, 0),
+            position=(40, 40),
+            location_type=LocationType.CANVAS,
+        )
+        manager.add_controller_indicator(
+            controller_id=1,
+            instance_id=1,
+            color=(0, 255, 0),
+            position=(40, 40),
+            location_type=LocationType.CANVAS,
+        )
+        manager.canvas_indicators[1].is_visible = False
+        manager.canvas_indicators[0].offset = (0, 0)
+
+        manager.optimize_positioning()
+
+        assert manager.canvas_collision_groups == {(40, 40): [0]}
+        assert manager.canvas_indicators[0].offset == (0, 0)
