@@ -1131,9 +1131,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             controller_pixel_index = y * self.canvas_sprite.pixels_across + x
             if controller_pixel_index != pixel_index:
                 continue
-            if not hasattr(scene, 'multi_controller_manager'):
+            if not hasattr(scene, 'controller_handler'):
                 continue
-            controller_info = scene.multi_controller_manager.get_controller_info(controller_id)
+            # Look up by controller id: MultiControllerManager.get_controller_info takes an SDL
+            # instance id, which differs from the controller id after a reconnect (BUGS.md #96)
+            controller_info = scene.controller_handler.find_controller_info(controller_id)
             if controller_info:
                 return controller_info.color
         return None

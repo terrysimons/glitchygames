@@ -117,6 +117,16 @@ class TestSetup:
 class TestHoverEffects:
     """Test bounding box and text box hover borders."""
 
+    def test_hover_before_the_sliders_are_set_up_does_nothing(self, screen):
+        """Hover effects before setup skip the missing bounding boxes (BUGS.md #100)."""
+        slider_manager = SliderManager(_EditorStandIn(screen=screen))  # type: ignore[arg-type]
+
+        slider_manager.update_slider_hover_effects(_outside_everything())
+
+        assert slider_manager.red_slider_bbox is None
+        assert slider_manager.green_slider_bbox is None
+        assert slider_manager.blue_slider_bbox is None
+
     def test_hovering_alpha_slider_draws_gradient_border(self, editor):
         """Hovering the alpha slider shows a left-transparent, right-magenta border."""
         slider_manager = editor.slider_manager
@@ -270,6 +280,21 @@ class TestSliderEvents:
 
         assert editor.blue_slider.text_sprite.text == '200'
 
+    def test_tab_change_refreshes_the_alpha_text_too(self, editor):
+        """The hex tab shows alpha in hex like R, G and B (BUGS.md #110 item 4)."""
+        editor.slider_manager.on_slider_event(
+            event=events.HashableEvent(0),
+            trigger=events.HashableEvent(0, name='A', value=171),
+        )
+
+        editor.slider_manager.on_tab_change_event('%X')
+
+        assert editor.alpha_slider.text_sprite.text == 'AB'
+
+        editor.slider_manager.on_tab_change_event('%d')
+
+        assert editor.alpha_slider.text_sprite.text == '171'
+
     def test_color_well_event_changes_nothing(self, editor):
         """The color well event only logs; the colors stay as they were."""
         editor.slider_manager.on_color_well_event(events.HashableEvent(0), None)
@@ -311,6 +336,27 @@ class TestCommitAndDeactivateSlider:
         assert slider.text_sprite.text == 'FF'
         assert slider.text_sprite.is_active is False
 
+    def test_digits_typed_on_the_hex_tab_are_hex(self, editor):
+        """On the hex tab "10" is 16, not 10 (BUGS.md #110 item 3)."""
+        editor.slider_input_format = '%X'
+        slider = editor.green_slider
+        self._activate_with_text(slider, '10')
+
+        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'green')
+
+        assert slider.value == 16
+        assert slider.text_sprite.text == '10'
+
+    def test_digits_typed_on_the_decimal_tab_are_decimal(self, editor):
+        """On the decimal tab "10" is 10."""
+        slider = editor.green_slider
+        self._activate_with_text(slider, '10')
+
+        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'green')
+
+        assert slider.value == 10
+        assert slider.text_sprite.text == '10'
+
     @pytest.mark.parametrize('typed_text', ['', '   ', '999', 'zz'])
     def test_empty_out_of_range_or_invalid_text_restores_original(self, editor, typed_text):
         """Empty, out-of-range or unparsable text restores the original value."""
@@ -322,6 +368,20 @@ class TestCommitAndDeactivateSlider:
 
         assert slider.value == 42
         assert slider.text_sprite.text == '42'
+        assert slider.text_sprite.is_active is False
+
+    @pytest.mark.parametrize('typed_text', ['', '999', 'zz'])
+    def test_restoring_on_the_hex_tab_writes_hex(self, editor, typed_text):
+        """On the hex tab a restored original value is written in hex ('2A', not '42')."""
+        editor.slider_input_format = '%X'
+        slider = editor.blue_slider
+        slider.value = 42
+        self._activate_with_text(slider, typed_text)
+
+        editor.slider_manager.commit_and_deactivate_slider(slider, None, 'blue')
+
+        assert slider.value == 42
+        assert slider.text_sprite.text == '2A'
         assert slider.text_sprite.is_active is False
 
     def test_clicking_the_same_slider_keeps_editing(self, editor):

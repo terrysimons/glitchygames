@@ -433,7 +433,7 @@ class AIManager:
         request_state = self.pending_ai_requests[request_id]
 
         # Validate the response
-        is_valid, validation_error = validate_ai_response(response.content)
+        is_valid, validation_error = self._validate_ai_content(response.content)
 
         if not is_valid:
             self.log.warning(f'AI response validation failed: {validation_error}')
@@ -482,17 +482,23 @@ class AIManager:
 
                 # DON'T delete from pending_ai_requests - we're retrying
                 return
-            # Max retries reached, load anyway and show error
+            # Max retries reached: give up without loading. This used to say "loading sprite
+            # anyway", but _load_ai_sprite validates the same content and rejects it, so nothing
+            # was ever loaded
             self.log.error(
-                f'Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, loading sprite anyway',
+                f'Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, the sprite was not loaded:'
+                f' {validation_error}',
             )
             if hasattr(self.editor, 'debug_text'):
                 self.editor.debug_text.text = (
                     f'Failed after {AI_VALIDATION_MAX_RETRIES} retries:\n{validation_error}\n\n'
-                    f'Attempting to load anyway...'
+                    f'The sprite was not loaded.'
                 )
+            # Show the answer (and the original prompt) below the notice, then drop the request
+            self._handle_ai_error_message(request_id, response.content)
+            return
 
-        # Valid response or max retries reached - load the sprite
+        # Valid response - load the sprite
         self._load_ai_sprite(request_id, response.content)
 
         # Remove from pending requests
@@ -586,7 +592,10 @@ class AIManager:
                     f'namespace = "{animation["namespace"]}"',
                     f'frame_index = {frame["frame_index"]}',
                     'pixels = """',
-                    frame['pixels'],
+                    # The closing quotes go on their own line, which ends the last pixel row:
+                    # keeping the parsed trailing newline too would add a blank line per
+                    # rewrite (BUGS.md #110 item 7)
+                    frame['pixels'].removesuffix('\n'),
                     '"""',
                     '',
                 ])
@@ -615,7 +624,8 @@ class AIManager:
             if 'pixels' in sprite_data:
                 lines.extend((
                     'pixels = """',
-                    sprite_data['pixels'],
+                    # The closing quotes' line ends the last row (see _format_animation_sections)
+                    sprite_data['pixels'].removesuffix('\n'),
                     '"""',
                 ))
             lines.append('')
@@ -976,36 +986,43 @@ pixels = \"\"\"
         try:
             import tomllib
 
-            # Read the file as text first to preserve newlines
             file_content = Path(temp_toml_path).read_text(encoding='utf-8')
+            # tomllib keeps the newlines inside a multi-line pixels string; only the newline
+            # before the closing quotes is extra
+            config_data = tomllib.loads(file_content)
+            sprite_name = config_data.get('sprite', {}).get('name', 'current_frame')
+            colors = config_data.get('colors', {})
 
-            # Extract pixel data directly from the text to preserve newlines
-            pixels_data = ''
-            in_pixels_section = False
-            for line in file_content.split('\n'):
-                if line.strip() == 'pixels = """':
-                    in_pixels_section = True
-                    continue
-                if line.strip() == '"""' and in_pixels_section:
-                    in_pixels_section = False
-                    break
-                if in_pixels_section:
-                    pixels_data += line + '\n'
-
-            # Remove the trailing newline
-            pixels_data = pixels_data.removesuffix('\n')
-
-            # Load the TOML file for other data (colors, etc.)
-            with Path(temp_toml_path).open(mode='rb') as f:
-                config_data = tomllib.load(f)
-
-            # Convert to training example format
-            sprite_data = {
-                'name': config_data.get('sprite', {}).get('name', 'current_frame'),
-                'sprite_type': 'static',
-                'pixels': pixels_data,  # Use the directly extracted pixel data
-                'colors': config_data.get('colors', {}),
-            }
+            animations = config_data.get('animation', [])
+            if animations:
+                # An animation strip: every frame goes in, not only the first pixels block
+                # (which was all the example held, labelled static)
+                for animation in animations:
+                    for frame in animation.get('frame', []):
+                        frame['pixels'] = frame.get('pixels', '').removesuffix('\n')
+                every_frame_pixels = [
+                    frame['pixels']
+                    for animation in animations
+                    for frame in animation.get('frame', [])
+                ]
+                sprite_data: dict[str, Any] = {
+                    'name': sprite_name,
+                    'sprite_type': 'animated',
+                    # Every frame's rows, one blank line between frames
+                    'pixels': '\n\n'.join(every_frame_pixels),
+                    'animations': animations,
+                    'colors': colors,
+                    # format_training_example sends the file itself, frames and all
+                    'raw_content': file_content,
+                }
+            else:
+                pixels_data = config_data.get('sprite', {}).get('pixels', '')
+                sprite_data = {
+                    'name': sprite_name,
+                    'sprite_type': 'static',
+                    'pixels': pixels_data.removesuffix('\n'),
+                    'colors': colors,
+                }
 
             # Clean up temporary file
             try:
@@ -1021,6 +1038,29 @@ pixels = \"\"\"
         else:
             return sprite_data
 
+    def _validate_ai_content(self, content: str) -> tuple[bool, str]:
+        """Validate AI response content, accepting content that cleaning makes valid.
+
+        Loading cleans markdown fences and leading explanations off an answer before parsing
+        it, so an answer that is valid once cleaned is valid: validating only the raw answer
+        rejected (and retried) every fenced one (BUGS.md #93).
+
+        Args:
+            content: The raw AI response content.
+
+        Returns:
+            Tuple of (is_valid, error_message); the error is the raw content's.
+
+        """
+        is_valid, error_message = validate_ai_response(content)
+        if is_valid:
+            return True, ''
+
+        cleaned_is_valid, _ = validate_ai_response(self._clean_ai_response(content))
+        if cleaned_is_valid:
+            return True, ''
+        return False, error_message
+
     def _is_ai_error_message(self, content: str) -> bool:
         """Check if AI response is an error message rather than valid sprite code.
 
@@ -1034,7 +1074,7 @@ pixels = \"\"\"
 
         """
         # Use the new AI module's validation function
-        is_valid, error_msg = validate_ai_response(content)
+        is_valid, error_msg = self._validate_ai_content(content)
 
         if not is_valid:
             self.log.warning(f'AI response validation failed: {error_msg}')

@@ -1,6 +1,7 @@
 """Tests for canvas interface functionality, coverage, and edge cases."""
 
 import sys
+from types import SimpleNamespace
 from typing import cast
 
 import pygame
@@ -15,6 +16,7 @@ from glitchygames.bitmappy.canvas_interfaces import (
     StaticCanvasInterface,
     StaticSpriteSerializer,
 )
+from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import AnimatedCanvasSprite
 from glitchygames.sprites.animated import (
     AnimatedSprite,
@@ -1068,7 +1070,7 @@ class TestGetControllerIndicatorForPixel:
 
         mock_controller_info = mocker.Mock()
         mock_controller_info.color = (255, 0, 0)
-        mock_scene.multi_controller_manager.get_controller_info.return_value = mock_controller_info
+        mock_scene.controller_handler.find_controller_info.return_value = mock_controller_info
 
         canvas_sprite.parent_scene = mock_scene
 
@@ -1076,6 +1078,7 @@ class TestGetControllerIndicatorForPixel:
         result = renderer._get_controller_indicator_for_pixel(1)  # pixel_index 1
 
         assert result == (255, 0, 0)
+        mock_scene.controller_handler.find_controller_info.assert_called_once_with(0)
 
     def test_controller_on_different_pixel_returns_none(self, mocker):
         """Test returns None when controller is on a different pixel."""
@@ -1102,8 +1105,8 @@ class TestGetControllerIndicatorForPixel:
 
         assert result is None
 
-    def test_controller_without_multi_controller_manager_returns_none(self, mocker):
-        """Test returns None when scene has no multi_controller_manager."""
+    def test_controller_without_controller_handler_returns_none(self, mocker):
+        """Test returns None when scene has no controller handler to look controllers up."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
@@ -1120,7 +1123,7 @@ class TestGetControllerIndicatorForPixel:
         mock_position.position = (0, 0)
         mock_scene.mode_switcher.get_controller_position.return_value = mock_position
 
-        del mock_scene.multi_controller_manager
+        del mock_scene.controller_handler
 
         canvas_sprite.parent_scene = mock_scene
 
@@ -1147,7 +1150,7 @@ class TestGetControllerIndicatorForPixel:
         mock_position.position = (0, 0)
         mock_scene.mode_switcher.get_controller_position.return_value = mock_position
 
-        mock_scene.multi_controller_manager.get_controller_info.return_value = None
+        mock_scene.controller_handler.find_controller_info.return_value = None
 
         canvas_sprite.parent_scene = mock_scene
 
@@ -1155,6 +1158,35 @@ class TestGetControllerIndicatorForPixel:
         result = renderer._get_controller_indicator_for_pixel(0)
 
         assert result is None
+
+    def test_controllers_with_swapped_instance_ids_get_their_own_color(self, mocker):
+        """The indicator uses the info found by controller id, not by instance id (#96).
+
+        Controller 0 has SDL instance id 1 and controller 1 has instance id 0, so looking
+        controller 0 up by instance id finds controller 1's info and colour.
+        """
+        canvas_sprite = mocker.Mock()
+        canvas_sprite.pixels_across = CANVAS_SIZE
+        canvas_sprite.pixels_tall = CANVAS_SIZE
+        red_controller_info = SimpleNamespace(controller_id=0, instance_id=1, color=(255, 0, 0))
+        blue_controller_info = SimpleNamespace(controller_id=1, instance_id=0, color=(0, 0, 255))
+        controllers_by_instance_id = {1: red_controller_info, 0: blue_controller_info}
+        scene = mocker.Mock()
+        scene.controller_selections = {0: mocker.Mock()}
+        scene.mode_switcher.get_controller_mode.return_value = SimpleNamespace(value='canvas')
+        scene.mode_switcher.get_controller_position.return_value = SimpleNamespace(
+            is_valid=True, position=(0, 0)
+        )
+        scene.multi_controller_manager = SimpleNamespace(
+            controllers=controllers_by_instance_id,
+            get_controller_info=controllers_by_instance_id.get,
+        )
+        scene.controller_handler = ControllerEventHandler(scene)
+        canvas_sprite.parent_scene = scene
+
+        renderer = AnimatedCanvasRenderer(canvas_sprite)
+
+        assert renderer._get_controller_indicator_for_pixel(0) == (255, 0, 0)
 
 
 class TestAnimatedCanvasRendererForceRedraw:

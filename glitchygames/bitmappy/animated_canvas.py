@@ -1125,13 +1125,21 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         ):
             return
 
-        pixel_changes = list(self._drag_pixels.values())
-        if not pixel_changes:
+        if not self._drag_pixels:
             return
 
-        if not hasattr(self.parent_scene, 'current_pixel_changes'):
-            self.parent_scene.current_pixel_changes = []
-        self.parent_scene.current_pixel_changes.extend(pixel_changes)  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]
+        # Merge into the pending changes dict the click's pixel went into (through
+        # canvas_interface.set_pixel_at), keeping each pixel's first old colour, so the click
+        # and the drag become one stroke. The scene's submit takes the dict and drops the list
+        # when the dict holds anything, so changes added to the list were lost (BUGS.md #101)
+        if not hasattr(self.parent_scene, 'current_pixel_changes_dict'):
+            self.parent_scene.current_pixel_changes_dict = {}
+        pending_changes = self.parent_scene.current_pixel_changes_dict
+        for pixel_key, (x, y, drag_old_color, new_color) in self._drag_pixels.items():
+            first_old_color = (
+                pending_changes[pixel_key][2] if pixel_key in pending_changes else drag_old_color
+            )
+            pending_changes[pixel_key] = (x, y, first_old_color, new_color)
 
         if hasattr(self.parent_scene, '_submit_pixel_changes_if_ready'):
             self.parent_scene._submit_pixel_changes_if_ready()  # type: ignore[reportPrivateUsage]
@@ -1157,9 +1165,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         if hasattr(self, '_drag_pixels') and self._drag_pixels:
             self._flush_batched_drag_pixels()
+            # The stroke goes to undo here; it used to be submitted only from the branch
+            # below, where there are no drag pixels to submit (BUGS.md #101)
+            self._submit_drag_pixel_changes_to_undo()
         else:
             self._sync_drag_frame_surface()
-            self._submit_drag_pixel_changes_to_undo()
 
             if hasattr(self, 'animated_sprite'):
                 self._update_animated_sprite_frame()
@@ -1365,8 +1375,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         except FileNotFoundError as e:
             self.log.exception('File not found')
             # Show user-friendly error message instead of crashing
-            if hasattr(self, 'parent') and hasattr(self.parent, 'debug_text'):
-                self.parent.debug_text.text = f'Error: File not found - {e}'
+            self._show_load_message(f'Error: File not found - {e}')
         except (OSError, ValueError, KeyError, TypeError, AttributeError, pygame.error) as e:
             self.log.exception('Error in on_load_file_event for animated sprite')
             self.log.exception(f'Exception type: {type(e).__name__}')
@@ -1374,8 +1383,21 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
             self.log.exception(f'Traceback: {traceback.format_exc()}')
             # Show user-friendly error message instead of crashing
-            if hasattr(self, 'parent') and hasattr(self.parent, 'debug_text'):
-                self.parent.debug_text.text = f'Error loading sprite: {e}'
+            self._show_load_message(f'Error loading sprite: {e}')
+
+    def _show_load_message(self, message: str) -> None:
+        """Show a load message in the editor's debug text box, where a successful load reports.
+
+        Load errors used to go to ``self.parent``, which the editor never sets, so they were
+        never shown (BUGS.md #110 item 1).
+
+        Args:
+            message: The message to show.
+
+        """
+        parent_scene = getattr(self, 'parent_scene', None)
+        if parent_scene is not None and hasattr(parent_scene, 'debug_text'):
+            parent_scene.debug_text.text = message
 
     def _load_sprite_from_file(self, filename: str) -> AnimatedSprite:
         """Load an animated sprite from a file.
@@ -1395,21 +1417,27 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Check if this is a PNG file and convert it first
         if filename.lower().endswith('.png'):
             self.log.info('PNG file detected - converting to bitmappy format first')
-            converted_toml_path = self._convert_png_to_bitmappy(filename)  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+            # The conversion lives on the editor's file I/O delegate, not the canvas
+            # (BUGS.md #89: the canvas called a method it never had)
+            parent_scene = getattr(self, 'parent_scene', None)
+            if parent_scene is None:
+                msg = 'Cannot convert a PNG: the canvas has no editor to convert it with'
+                raise ValueError(msg)
+            converted_toml_path = parent_scene._file_io._convert_png_to_bitmappy(filename)
             if converted_toml_path:
-                filename = converted_toml_path  # type: ignore[assignment]
-                self.log.info('Using converted TOML file: %s', filename)  # type: ignore[reportUnknownArgumentType]
+                filename = converted_toml_path
+                self.log.info('Using converted TOML file: %s', filename)
             else:
                 msg = 'Failed to convert PNG to bitmappy format'
                 raise ValueError(msg)
 
         # Detect file format and load the sprite
-        file_format = detect_file_format(filename)  # type: ignore[arg-type]
+        file_format = detect_file_format(filename)
         self.log.debug('Detected file format: %s', file_format)
 
         # Create a new animated sprite and load it
         loaded_sprite = AnimatedSprite()
-        loaded_sprite.load(filename)  # type: ignore[arg-type]
+        loaded_sprite.load(filename)
 
         # Debug: Check what was loaded
         self.log.debug(f'Loaded sprite has _animations: {hasattr(loaded_sprite, "_animations")}')
@@ -1657,13 +1685,13 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         LOG.debug('===== END DEBUG =====\n')
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
-        # Update class dimensions
+        # The new size is this canvas's own (pixels_across / pixels_tall, set above); a resize
+        # no longer sets the class-wide AnimatedCanvasSprite.WIDTH / HEIGHT, which every canvas
+        # shared and nothing read (BUGS.md #110 item 2).
 
         # Update AI sprite positioning after canvas resize
         if hasattr(self, 'parent_scene') and self.parent_scene:
             self.parent_scene._update_ai_sprite_position()  # type: ignore[reportPrivateUsage]
-        AnimatedCanvasSprite.WIDTH = sprite_width  # ty: ignore[unresolved-attribute]
-        AnimatedCanvasSprite.HEIGHT = sprite_height  # ty: ignore[unresolved-attribute]
 
         self.log.info(
             'Canvas resized to %sx%s with pixel size %s',

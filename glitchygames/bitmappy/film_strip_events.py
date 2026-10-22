@@ -825,9 +825,10 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
                     LOG.debug(
                         f'FilmStripWidget: Removal button clicked for {anim_name}[{frame_idx}]',
                     )
-                    # Show confirmation dialog instead of directly removing
+                    # Show confirmation dialog instead of directly removing. The dialog
+                    # belongs to the scene's film strip coordinator, not the scene (BUGS.md #90)
                     if hasattr(self.widget, 'parent_scene') and self.widget.parent_scene:
-                        self.widget.parent_scene._show_delete_frame_confirmation(
+                        self.widget.parent_scene.film_strip_coordinator._show_delete_frame_confirmation(
                             anim_name, frame_idx
                         )
                     return True

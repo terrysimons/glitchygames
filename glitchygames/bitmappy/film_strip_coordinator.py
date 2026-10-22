@@ -896,6 +896,15 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         max_frame = len(self.editor.canvas.animated_sprite._animations[new_animation]) - 1  # type: ignore[reportPrivateUsage]
         target_frame = min(target_frame, max_frame)
 
+        # Recreate film strips to reflect the deletion first: on_sprite_loaded resets the
+        # canvas and the selection to frame 0 of the first animation, so the frame computed
+        # above is shown after it, not before (BUGS.md #99: it was always lost)
+        self.log.debug(
+            'Recreating film strips after animation deletion. Remaining animations: %s',
+            remaining_animations,
+        )
+        self.on_sprite_loaded(self.editor.canvas.animated_sprite)
+
         self.editor.canvas.show_frame(new_animation, target_frame)
 
         # Update selection state
@@ -908,13 +917,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             new_animation,
             deleted_animation_name,
         )
-
-        # Recreate film strips to reflect the deletion
-        self.log.debug(
-            'Recreating film strips after animation deletion. Remaining animations: %s',
-            remaining_animations,
-        )
-        self.on_sprite_loaded(self.editor.canvas.animated_sprite)
 
     def _handle_no_remaining_animations(
         self,
@@ -1003,8 +1005,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Set the dialog's background to the screenshot
         confirmation_scene.background = self.editor.screenshot
 
-        # Switch to the confirmation dialog scene
-        self.game_engine.scene_manager.switch_to_scene(confirmation_scene)  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+        # Switch to the confirmation dialog at the end of the frame, as the editor's other
+        # dialogs do. The coordinator has no game_engine (BUGS.md #90: switching through it
+        # raised AttributeError, so no unconfirmed delete ever opened its dialog)
+        self.editor.next_scene = confirmation_scene
 
     def _show_delete_frame_confirmation(self, animation_name: str, frame_index: int) -> None:
         """Show confirmation dialog before deleting a frame.
@@ -1073,8 +1077,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Set the dialog's background to the screenshot
         confirmation_scene.background = self.editor.screenshot
 
-        # Switch to the confirmation dialog scene
-        self.game_engine.scene_manager.switch_to_scene(confirmation_scene)  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+        # Switch to the confirmation dialog at the end of the frame, as the editor's other
+        # dialogs do. The coordinator has no game_engine (BUGS.md #90: switching through it
+        # raised AttributeError, so no unconfirmed delete ever opened its dialog)
+        self.editor.next_scene = confirmation_scene
 
     def is_mouse_in_film_strip_area(self, mouse_pos: tuple[int, int]) -> bool:
         """Check if mouse position is within the film strip area.

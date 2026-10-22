@@ -432,13 +432,14 @@ class CanvasOperations:
             old_position = position.position
             new_position = (position.position[0] + dx, position.position[1] + dy)
 
-        # Clamp to canvas bounds
+        # Clamp to canvas bounds, in canvas pixels: width/height are the canvas's on-screen
+        # size, pixel_width times larger (BUGS.md #97)
         if hasattr(self.handler.editor, 'canvas') and self.handler.editor.canvas:
-            canvas_width = getattr(self.handler.editor.canvas, 'width', 32)
-            canvas_height = getattr(self.handler.editor.canvas, 'height', 32)
+            pixels_across = getattr(self.handler.editor.canvas, 'pixels_across', 32)
+            pixels_tall = getattr(self.handler.editor.canvas, 'pixels_tall', 32)
             new_position = (
-                max(0, min(canvas_width - 1, new_position[0])),
-                max(0, min(canvas_height - 1, new_position[1])),
+                max(0, min(pixels_across - 1, new_position[0])),
+                max(0, min(pixels_tall - 1, new_position[1])),
             )
 
         # Track controller position change for undo/redo (only if position actually changed and not

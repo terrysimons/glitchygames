@@ -21,6 +21,8 @@ from glitchygames.bitmappy.canvas_interfaces import (
     AnimatedCanvasRenderer,
     AnimatedSpriteSerializer,
 )
+from glitchygames.bitmappy.file_io import FileIOManager
+from glitchygames.bitmappy.frame_operations import FrameOperationManager
 from glitchygames.bitmappy.pixel_sprite import BitmapPixelSprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory
@@ -1470,6 +1472,18 @@ class UndoFrameRecorder:
         self.current_frames.append((animation, frame))
 
 
+class StrokeRecorder:
+    """Canvas operation tracker stand-in that records the pixel strokes submitted for undo."""
+
+    def __init__(self) -> None:
+        """Start with no strokes."""
+        self.strokes: list[tuple[str, int, list[tuple[object, ...]]]] = []
+
+    def add_frame_pixel_changes(self, animation: str, frame: int, pixels: list) -> None:
+        """Record a stroke on a frame."""
+        self.strokes.append((animation, frame, list(pixels)))
+
+
 class ParentSceneStandIn:
     """The parts of BitmapEditorScene the canvas talks to."""
 
@@ -2010,6 +2024,58 @@ class TestMouseEditing:
         assert canvas._drag_pixels == {}
         assert not hasattr(canvas, '_drag_frame')
 
+    def test_drag_stroke_reaches_undo(self):
+        """A real click-and-drag stroke is recorded for undo, every pixel of it (BUGS.md #101).
+
+        The release submitted drag pixels only when there were none, and the scene's submit
+        used the click's pixel alone, so the dragged pixels never reached undo.
+        """
+        canvas, animated_sprite = _make_real_canvas()
+        original_pixels = animated_sprite._animations['idle'][0].get_pixel_data()
+        parent_scene = ParentSceneStandIn()
+        parent_scene.canvas = canvas
+        parent_scene.canvas_operation_tracker = StrokeRecorder()
+        frame_operations = FrameOperationManager(parent_scene)
+        parent_scene._submit_pixel_changes_if_ready = frame_operations.submit_pixel_changes_if_ready
+        canvas.parent_scene = parent_scene
+        canvas.active_color = RED_RGBA
+
+        canvas.on_left_mouse_button_down_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                pos=_canvas_position(canvas, pixel_x=0, pixel_y=0),
+            ),
+        )
+        for pixel_x in (1, 2):
+            canvas.on_left_mouse_drag_event(
+                pygame.event.Event(
+                    pygame.MOUSEMOTION,
+                    pos=_canvas_position(canvas, pixel_x=pixel_x, pixel_y=0),
+                ),
+                None,
+            )
+        canvas.on_left_mouse_button_up_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONUP,
+                pos=_canvas_position(canvas, pixel_x=2, pixel_y=0),
+            ),
+        )
+        # The editor's generic button-up handler submits whatever is still pending
+        frame_operations.submit_pixel_changes_if_ready()
+
+        recorded_changes = {
+            (x, y): (old_color, new_color)
+            for _animation, _frame, pixels in parent_scene.canvas_operation_tracker.strokes
+            for x, y, old_color, new_color in pixels
+        }
+        assert recorded_changes == {
+            (pixel_x, 0): (original_pixels[pixel_x], RED_RGBA) for pixel_x in (0, 1, 2)
+        }
+        assert all(
+            animation == 'idle' and frame == 0
+            for animation, frame, _pixels in parent_scene.canvas_operation_tracker.strokes
+        )
+
     def test_drag_outside_the_canvas_is_ignored(self):
         """Drag events outside the canvas paint nothing and start no drag."""
         canvas, _ = _make_real_canvas()
@@ -2229,8 +2295,27 @@ class TestDragFrameHelpers:
 
         canvas._submit_drag_pixel_changes_to_undo()
 
-        assert parent_scene.current_pixel_changes == [(0, 0, BLACK_RGBA, RED_RGBA)]
+        assert parent_scene.current_pixel_changes_dict == {(0, 0): (0, 0, BLACK_RGBA, RED_RGBA)}
         assert submitted == [True]
+
+    def test_submit_to_undo_keeps_the_first_old_colour_of_a_clicked_pixel(self):
+        """A pixel the click already changed keeps the colour it had before the click."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        parent_scene.canvas_operation_tracker = object()
+        parent_scene.current_pixel_changes_dict = {(0, 0): (0, 0, BLACK_RGBA, GREEN_RGBA)}
+        canvas.parent_scene = parent_scene
+        canvas._drag_pixels = {
+            (0, 0): (0, 0, GREEN_RGBA, RED_RGBA),
+            (1, 0): (1, 0, BLACK_RGBA, RED_RGBA),
+        }
+
+        canvas._submit_drag_pixel_changes_to_undo()
+
+        assert parent_scene.current_pixel_changes_dict == {
+            (0, 0): (0, 0, BLACK_RGBA, RED_RGBA),
+            (1, 0): (1, 0, BLACK_RGBA, RED_RGBA),
+        }
 
     def test_submit_to_undo_without_changes_queues_nothing(self):
         """With no drag changes nothing is queued."""
@@ -2242,7 +2327,7 @@ class TestDragFrameHelpers:
 
         canvas._submit_drag_pixel_changes_to_undo()
 
-        assert not hasattr(parent_scene, 'current_pixel_changes')
+        assert not hasattr(parent_scene, 'current_pixel_changes_dict')
 
 
 class TestPixelUpdateAndFrameSync:
@@ -2369,17 +2454,6 @@ class TestSaving:
 class TestLoading:
     """Test on_load_file_event and its helpers."""
 
-    @pytest.fixture(autouse=True)
-    def restore_canvas_class_size(self, mocker):
-        """Undo the class-level WIDTH/HEIGHT a canvas resize sets, so no other test sees it."""
-        for attribute_name in ('WIDTH', 'HEIGHT'):
-            mocker.patch.object(
-                AnimatedCanvasSprite,
-                attribute_name,
-                getattr(AnimatedCanvasSprite, attribute_name, None),
-                create=True,
-            )
-
     def test_loading_an_animation_shows_its_first_frame_and_notifies(self, tmp_path):
         """Loading a file replaces the sprite, plays it and tells the scene."""
         canvas, _ = _make_real_canvas()
@@ -2432,6 +2506,22 @@ class TestLoading:
         assert canvas.rect.size == (320, 320)
         assert parent_scene.ai_sprite_position_updates == 1
 
+    def test_resize_changes_only_its_own_canvas(self):
+        """A resize sets the canvas's own size, never class-wide state (BUGS.md #110 item 2)."""
+        pygame.display.set_mode((800, 600))
+        resized_canvas, _ = _make_real_canvas()
+        other_canvas, _ = _make_real_canvas()
+
+        resized_canvas._resize_canvas_to_sprite_size(8, 6)
+
+        assert (resized_canvas.pixels_across, resized_canvas.pixels_tall) == (8, 6)
+        assert (other_canvas.pixels_across, other_canvas.pixels_tall) == (
+            CANVAS_SIZE,
+            CANVAS_SIZE,
+        )
+        assert 'WIDTH' not in vars(AnimatedCanvasSprite)
+        assert 'HEIGHT' not in vars(AnimatedCanvasSprite)
+
     def test_large_sprite_gets_the_minimum_pixel_size(self):
         """A 128x128 sprite is drawn with the minimum pixel size."""
         pygame.display.set_mode((800, 600))
@@ -2443,43 +2533,87 @@ class TestLoading:
         assert canvas.rect.size == (256, 256)
 
     def test_missing_file_is_reported_without_raising(self, tmp_path):
-        """A missing file is reported in the parent's debug text instead of raising."""
+        """A missing file is reported in the editor's debug text, where a load reports too."""
         canvas, _ = _make_real_canvas()
-        canvas.parent = ParentSceneStandIn()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
 
         canvas.on_load_file_event(str(tmp_path / 'missing.toml'))
 
-        assert canvas.parent.debug_text.text.startswith('Error: File not found')
+        assert parent_scene.debug_text.text.startswith('Error: File not found')
 
     def test_unreadable_file_is_reported_without_raising(self, tmp_path):
-        """A malformed file is reported in the parent's debug text instead of raising."""
+        """A malformed file is reported in the editor's debug text instead of raising."""
         canvas, _ = _make_real_canvas()
-        canvas.parent = ParentSceneStandIn()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
         sprite_path = tmp_path / 'broken.toml'
         sprite_path.write_text('[sprite\nname = = "broken"\n')
 
         canvas.on_load_file_event(str(sprite_path))
 
-        assert canvas.parent.debug_text.text.startswith('Error loading sprite')
+        assert parent_scene.debug_text.text.startswith('Error loading sprite')
+
+    def test_load_error_without_an_editor_is_only_logged(self, tmp_path):
+        """With no editor to show it in, a load error is logged and nothing raises."""
+        canvas, _ = _make_real_canvas()
+        canvas.parent_scene = None
+
+        canvas.on_load_file_event(str(tmp_path / 'missing.toml'))
+
+        assert canvas.parent_scene is None
 
     def test_png_that_cannot_convert_is_refused(self, mocker):
         """A PNG that does not convert raises ValueError from the loader."""
         canvas, _ = _make_real_canvas()
-        canvas._convert_png_to_bitmappy = mocker.Mock(return_value=None)
+        parent_scene = ParentSceneStandIn()
+        parent_scene._file_io = mocker.Mock(spec=FileIOManager)
+        parent_scene._file_io._convert_png_to_bitmappy.return_value = None
+        canvas.parent_scene = parent_scene
 
         with pytest.raises(ValueError, match='Failed to convert PNG'):
             canvas._load_sprite_from_file('picture.png')
 
+    def test_png_without_an_editor_is_refused(self):
+        """A canvas with no editor has no file I/O to convert a PNG with: ValueError."""
+        canvas, _ = _make_real_canvas()
+        canvas.parent_scene = None
+
+        with pytest.raises(ValueError, match='no editor'):
+            canvas._load_sprite_from_file('picture.png')
+
     def test_png_is_converted_before_loading(self, tmp_path, mocker):
-        """A PNG is loaded from the TOML file its conversion produced."""
+        """A PNG is loaded from the TOML file the editor's file I/O converted it to."""
         canvas, _ = _make_real_canvas()
         sprite_path = tmp_path / 'blinker.toml'
         sprite_path.write_text(ANIMATED_SPRITE_TOML)
-        canvas._convert_png_to_bitmappy = mocker.Mock(return_value=str(sprite_path))
+        parent_scene = ParentSceneStandIn()
+        parent_scene._file_io = mocker.Mock(spec=FileIOManager)
+        parent_scene._file_io._convert_png_to_bitmappy.return_value = str(sprite_path)
+        canvas.parent_scene = parent_scene
 
         loaded_sprite = canvas._load_sprite_from_file('picture.png')
 
         assert list(loaded_sprite._animations) == ['blink']
+        assert parent_scene._file_io._convert_png_to_bitmappy.call_args.args == ('picture.png',)
+
+    def test_png_loads_through_the_load_dialog(self, tmp_path):
+        """A real PNG loaded through on_load_file_event ends on the canvas (BUGS.md #89)."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        parent_scene.canvas = canvas
+        parent_scene._file_io = FileIOManager(parent_scene)
+        canvas.parent_scene = parent_scene
+        image = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
+        image.fill(RED_RGB)
+        image_path = tmp_path / 'red.png'
+        pygame.image.save(image, str(image_path))
+
+        canvas.on_load_file_event(str(image_path))
+
+        assert not parent_scene.debug_text.text.startswith('Error')
+        assert canvas.pixels[0][:3] == RED_RGB
+        assert parent_scene.film_strip_coordinator.names()[0] == 'on_sprite_loaded'
 
     def test_sprite_load_callback_is_used_without_a_parent_scene(self):
         """Without a parent scene, the canvas's own on_sprite_loaded callback is called."""

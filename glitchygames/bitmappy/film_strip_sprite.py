@@ -670,22 +670,16 @@ class FilmStripSprite(BitmappySprite):
                 rgba_image.blit(image, (0, 0))
                 image = rgba_image
 
-            # Get pixel data with alpha support
+            # The image has an alpha channel by now. pygame-ce has no surfarray.array4d
+            # (BUGS.md #87), so read the colour and alpha planes separately; both are
+            # indexed [x, y], and the pixel list is row-major (y outer, x inner).
+            color_planes: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
+            alpha_plane: Any = pygame.surfarray.array_alpha(image)  # type: ignore[reportUnknownMemberType]
             pixels: list[tuple[int, ...]] = []
-            if image.get_flags() & pygame.SRCALPHA:
-                # Image has alpha channel - use array4d to preserve alpha
-                pixel_array: Any = pygame.surfarray.array4d(image)  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                for y in range(canvas_height):
-                    for x in range(canvas_width):
-                        r, g, b, a = pixel_array[x, y]  # type: ignore[index]
-                        pixels.append((int(r), int(g), int(b), int(a)))  # type: ignore[arg-type]
-            else:
-                # Image has no alpha channel - use array3d and add alpha
-                pixel_array = pygame.surfarray.array3d(image)  # type: ignore[assignment]
-                for y in range(canvas_height):
-                    for x in range(canvas_width):
-                        r, g, b = pixel_array[x, y]
-                        pixels.append((int(r), int(g), int(b), 255))  # Add full alpha
+            for y in range(canvas_height):
+                for x in range(canvas_width):
+                    red, green, blue = color_planes[x, y]
+                    pixels.append((int(red), int(green), int(blue), int(alpha_plane[x, y])))
 
             # Create a new SpriteFrame with the surface
             from glitchygames.sprites import SpriteFrame

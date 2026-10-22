@@ -381,6 +381,49 @@ class TestHashableEventStringRepresentations:
         assert str(event) == repr(event)
 
 
+class TestHashableEventMappingAccess:
+    """HashableEvent.get, `in`, keys and iteration read the event's attributes (BUGS.md #88)."""
+
+    def test_hashable_event_get_reads_attributes(self, mock_pygame_patches):
+        """HashableEvent.get answers from the event's attributes (BUGS.md #88)."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_c, mod=pygame.KMOD_CTRL)
+
+        assert event.get('mod', 0) == pygame.KMOD_CTRL
+        assert event.get('key') == pygame.K_c
+        assert event.get('unicode', 'fallback') == 'fallback'
+        assert event.get('unicode') is None
+
+    def test_hashable_event_in_tests_attributes(self, mock_pygame_patches):
+        """`in` on a HashableEvent tests the event's attributes (BUGS.md #88)."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_c)
+
+        assert 'key' in event
+        assert 'type' in event
+        assert 'mod' not in event
+
+        event['mod'] = pygame.KMOD_SHIFT
+        assert 'mod' in event
+        del event['mod']
+        assert 'mod' not in event
+
+    def test_hashable_event_keys_iteration_and_items_agree(self, mock_pygame_patches):
+        """keys(), iteration and items() all list the event's attributes (BUGS.md #88)."""
+        event = HashableEvent(pygame.MOUSEMOTION, pos=(1, 2), rel=(3, 4))
+
+        assert {'type', 'pos', 'rel'} <= set(event.keys())
+        assert list(event) == list(event.keys())
+        assert dict(event.items())['pos'] == (1, 2)
+        assert dict(event.items())['rel'] == (3, 4)
+
+    def test_hashable_event_with_a_data_attribute_keeps_mapping_access(self, mock_pygame_patches):
+        """An event attribute named `data` does not shadow mapping access (BUGS.md #88)."""
+        event = HashableEvent(type=1, data='payload')
+
+        assert event.get('data') == 'payload'
+        assert 'data' in event
+        assert 'missing' not in event
+
+
 class TestHashableEventGetSetContains:
     """Test HashableEvent.__getitem__, __setitem__, and __contains__."""
 
@@ -413,19 +456,14 @@ class TestHashableEventGetSetContains:
         event['key'] = pygame.K_b
         assert event['key'] == pygame.K_b
 
-    def test_contains_raises_attribute_error(self, mock_pygame_patches):
-        """'in' operator raises AttributeError because UserDict.data is never initialized.
-
-        BUG: HashableEvent extends UserDict but never calls super().__init__(),
-        so the inherited __contains__ method fails when trying to access self.data.
-        Use has_key() as a workaround.
-        """
+    def test_contains_tests_attributes(self, mock_pygame_patches):
+        """The 'in' operator tests the event's attributes (it raised before BUGS.md #88)."""
         event = HashableEvent(pygame.MOUSEMOTION, pos=(10, 20))
-        with pytest.raises(AttributeError):
-            _ = 'pos' in event
+        assert 'pos' in event
+        assert 'nonexistent_key' not in event
 
-    def test_has_key_workaround_for_contains(self, mock_pygame_patches):
-        """has_key() works as a substitute for the broken 'in' operator."""
+    def test_has_key_agrees_with_contains(self, mock_pygame_patches):
+        """has_key() answers as the 'in' operator does."""
         event = HashableEvent(pygame.MOUSEMOTION, pos=(10, 20))
         assert event.has_key('pos') is True
         assert event.has_key('nonexistent_key') is False

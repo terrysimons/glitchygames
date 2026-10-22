@@ -56,13 +56,23 @@ class FakeCanvasInterface:
 class InterfaceCanvas:
     """A canvas reached through a canvas interface, like AnimatedCanvasSprite."""
 
-    def __init__(self, *, pixels_across: int = 8, pixels_tall: int = 8) -> None:
-        """Make a canvas of the given pixel size whose screen size equals its pixel size."""
+    def __init__(
+        self,
+        *,
+        pixels_across: int = 8,
+        pixels_tall: int = 8,
+        pixel_width: int = 1,
+    ) -> None:
+        """Make a canvas of the given pixel size, each pixel drawn ``pixel_width`` wide.
+
+        As on AnimatedCanvasSprite, ``width``/``height`` are the on-screen size (pixel count
+        times ``pixel_width``) and ``pixels_across``/``pixels_tall`` the pixel count.
+        """
         self.canvas_interface = FakeCanvasInterface()
         self.pixels_across = pixels_across
         self.pixels_tall = pixels_tall
-        self.width = pixels_across
-        self.height = pixels_tall
+        self.width = pixels_across * pixel_width
+        self.height = pixels_tall * pixel_width
         self.current_animation: str | None = 'idle'
         self.current_frame: int | None = 0
         self.redraw_count = 0
@@ -568,6 +578,16 @@ class TestCanvasMoveCursor:
 
         assert _position_of(editor) == (7, 0)
         assert editor.controller_position_operation_tracker.position_changes == []
+
+    def test_clamps_to_the_pixel_count_not_the_screen_size(self):
+        """An 8x8 canvas drawn at 16x clamps the cursor to pixel 7, not 127 (BUGS.md #97)."""
+        canvas = InterfaceCanvas(pixels_across=8, pixels_tall=8, pixel_width=16)
+        handler, editor = _make_handler(canvas=canvas, position=(6, 1))
+
+        handler.canvas._canvas_move_cursor(CONTROLLER_ID, 50, 50)
+
+        assert (canvas.width, canvas.height) == (128, 128)
+        assert _position_of(editor) == (7, 7)
 
     def test_without_a_canvas_the_move_is_not_clamped(self):
         """No canvas: nothing to clamp against."""

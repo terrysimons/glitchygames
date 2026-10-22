@@ -113,6 +113,7 @@ class EditorContext(Protocol):
     options: dict[str, Any]
     name: Any  # Class attribute NAME on Scene, type varies
     confirmation_dialog: Any  # Confirmation dialog or None
+    next_scene: Any  # Scene to switch to at the end of the frame (Scene | None)
 
     @property
     def log(self) -> logging.Logger:

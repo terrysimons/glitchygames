@@ -4,16 +4,20 @@ This module tests that the AI receives both the current frame and the current
 animation strip as context when generating sprites.
 """
 
+import queue
 from pathlib import Path
 
 import pygame
 import pytest
 
 from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from tests.mocks import MockFactory
+from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
 
-# Test constants to avoid magic values
-TEST_SIZE_2 = 2
+ANIMATION_NAME = 'walk'
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
 
 
 class TestAISStripIntegration:
@@ -106,119 +110,94 @@ class TestAISStripIntegration:
         # Should return None for missing animation
         assert temp_path is None
 
-    @pytest.mark.skip(reason='Not yet implemented')
-    def test_ai_integration_with_frame_and_strip(self, mocker):
-        """Test that AI integration provides both frame and strip context."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = self._mocker.Mock()
-        self._setup_ai_integration(scene)
-        scene._ai_integration.ai_request_queue = self._mocker.Mock()
-        scene._ai_integration.ai_request_queue.put = self._mocker.Mock()
 
-        # Mock canvas with content
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.pixels = [(255, 0, 0), (0, 255, 0)]  # Non-magenta pixels
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.current_animation = 'test_animation'
+class TestAIContextFromEditor(FilmStripTestBase):
+    """Test the AI context a real editor sends for its selected frame and strip."""
 
-        # Mock animation data
-        mock_frame1 = self._mocker.Mock()
-        mock_frame1.pixels = [(255, 0, 0), (0, 255, 0)]
-        mock_frame2 = self._mocker.Mock()
-        mock_frame2.pixels = [(0, 0, 255), (255, 255, 0)]
+    def create_scene_with_red_green_strip(self):
+        """Load a red frame then a green frame into a real editor, with the red one shown.
 
-        scene.canvas.animated_sprite._animations = {'test_animation': [mock_frame1, mock_frame2]}
+        Returns:
+            BitmapEditorScene: The editor, with an in-process AI request queue.
 
-        # Mock the helper methods (these are on _ai_integration, not the scene)
-        scene._ai_integration._check_current_frame_has_content = self._mocker.Mock(
-            return_value=True,
-        )
-        scene._ai_integration._save_current_frame_to_temp_toml = self._mocker.Mock(
-            return_value='/tmp/frame.toml',  # ruff: ignore[hardcoded-temp-file]
-        )
-        scene._ai_integration._save_current_strip_to_temp_toml = self._mocker.Mock(
-            return_value='/tmp/strip.toml',  # ruff: ignore[hardcoded-temp-file]
-        )
-        scene._ai_integration._load_temp_toml_as_example = self._mocker.Mock(
-            side_effect=[
-                {'name': 'selected_frame', 'sprite_type': 'static', 'pixels': 'test_frame'},
-                {'name': 'selected_strip', 'sprite_type': 'animated', 'pixels': 'test_strip'},
-            ],
-        )
+        """
+        animated_sprite = AnimatedSprite()
+        frames = []
+        for frame_color in (RED, GREEN):
+            frame_surface = pygame.Surface((FRAME_SIZE, FRAME_SIZE))
+            frame_surface.fill(frame_color)
+            frames.append(SpriteFrame(frame_surface, duration=0.5))
+        animated_sprite.add_animation(ANIMATION_NAME, frames)
 
-        # Mock debug_text
-        scene.debug_text = self._mocker.Mock()
-        scene.debug_text.text = 'test'
+        scene = self.create_optimized_scene()
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
+        # Stands in for the worker process's multiprocessing.Queue (AIManager.setup)
+        scene._ai_integration.ai_request_queue = queue.Queue()
+        return scene
 
-        # Mock the missing constants and functions
-        mocker.patch('glitchygames.bitmappy.editor.AI_TRAINING_FORMAT', 'toml')
-        mocker.patch('glitchygames.bitmappy.editor.SPRITE_GLYPHS', '0123456789ABCDEF')
-        mocker.patch('glitchygames.bitmappy.editor.COMPLETE_TOML_FORMAT', 'test format')
-        mock_select = mocker.patch(
-            'glitchygames.bitmappy.editor._select_relevant_training_examples',
-        )
+    @staticmethod
+    def submitted_training_examples(scene):
+        """Take the one submitted AI request and return its training examples.
 
-        mock_select.return_value = []
+        Returns:
+            list[dict]: The training examples recorded for the request.
 
-        # Test AI request submission
+        """
+        ai_manager = scene._ai_integration
+        request = ai_manager.ai_request_queue.get_nowait()
+        assert ai_manager.ai_request_queue.empty()
+        return ai_manager.pending_ai_requests[request.request_id].training_examples
+
+    def test_ai_integration_with_frame_and_strip(self):
+        """Test that a request carries the shown frame and its animation strip as context."""
+        scene = self.create_scene_with_red_green_strip()
+        assert scene.canvas.current_animation == ANIMATION_NAME
+        assert scene.canvas.current_frame == 0
+
         scene.on_text_submit_event('Create a new sprite')
 
-        # Verify both frame and strip were saved
-        scene._ai_integration._save_current_frame_to_temp_toml.assert_called_once()
-        scene._ai_integration._save_current_strip_to_temp_toml.assert_called_once()
+        frame_example, strip_example = self.submitted_training_examples(scene)
+        assert frame_example['name'] == 'selected_frame'
+        assert strip_example['name'] == 'selected_strip'
+        frame_colors = {
+            (color['red'], color['green'], color['blue'])
+            for color in frame_example['colors'].values()
+        }
+        strip_colors = {
+            (color['red'], color['green'], color['blue'])
+            for color in strip_example['colors'].values()
+        }
+        # The frame is the red one on the canvas; the strip holds both frames' colours
+        assert frame_colors == {RED}
+        assert strip_colors == {RED, GREEN}
 
-        # Verify both examples were loaded
-        assert scene._ai_integration._load_temp_toml_as_example.call_count == TEST_SIZE_2
+    def test_ai_strip_context_includes_every_frame(self):
+        """Test that the strip example's pixels include the second (green) frame."""
+        scene = self.create_scene_with_red_green_strip()
 
-        # Verify AI request was submitted
-        scene._ai_integration.ai_request_queue.put.assert_called_once()
+        scene.on_text_submit_event('Create a new sprite')
 
-    @pytest.mark.skip(reason='Not yet implemented')
+        _frame_example, strip_example = self.submitted_training_examples(scene)
+        green_glyphs = [
+            glyph
+            for glyph, color in strip_example['colors'].items()
+            if (color['red'], color['green'], color['blue']) == GREEN
+        ]
+        assert len(green_glyphs) == 1
+        assert green_glyphs[0] in strip_example['pixels']
+
     def test_ai_integration_fallback_to_regular_examples(self, mocker):
-        """Test that AI integration falls back to regular examples if context fails."""
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        scene = BitmapEditorScene({})
-        scene.log = self._mocker.Mock()
-        self._setup_ai_integration(scene)
-        scene._ai_integration.ai_request_queue = self._mocker.Mock()
-        scene._ai_integration.ai_request_queue.put = self._mocker.Mock()
-
-        # Mock canvas with content
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.pixels = [(255, 0, 0), (0, 255, 0)]  # Non-magenta pixels
-
-        # Mock the helper methods to fail (these are on _ai_integration)
-        scene._ai_integration._check_current_frame_has_content = self._mocker.Mock(
-            return_value=True,
-        )
-        scene._ai_integration._save_current_frame_to_temp_toml = self._mocker.Mock(
-            return_value=None,
-        )
-        scene._ai_integration._save_current_strip_to_temp_toml = self._mocker.Mock(
-            return_value=None,
+        """Test that the request falls back to regular examples if the context cannot be saved."""
+        scene = self.create_scene_with_red_green_strip()
+        ai_manager = scene._ai_integration
+        mocker.patch.object(ai_manager, '_save_current_frame_to_temp_toml', return_value=None)
+        mocker.patch.object(ai_manager, '_save_current_strip_to_temp_toml', return_value=None)
+        regular_examples = [{'name': 'regular_example', 'sprite_type': 'static', 'pixels': '#'}]
+        mocker.patch(
+            'glitchygames.bitmappy.ai_manager.select_relevant_training_examples',
+            return_value=regular_examples,
         )
 
-        # Mock debug_text
-        scene.debug_text = self._mocker.Mock()
-        scene.debug_text.text = 'test'
-
-        # Mock the missing constants and functions
-        mocker.patch('glitchygames.bitmappy.editor.AI_TRAINING_FORMAT', 'toml')
-        mocker.patch('glitchygames.bitmappy.editor.SPRITE_GLYPHS', '0123456789ABCDEF')
-        mocker.patch('glitchygames.bitmappy.editor.COMPLETE_TOML_FORMAT', 'test format')
-        mock_select = mocker.patch(
-            'glitchygames.bitmappy.editor._select_relevant_training_examples',
-        )
-
-        mock_select.return_value = []
-
-        # Test AI request submission
         scene.on_text_submit_event('Create a new sprite')
 
-        # Verify fallback to regular examples
-        scene._ai_integration._save_current_frame_to_temp_toml.assert_called_once()
-        scene._ai_integration._save_current_strip_to_temp_toml.assert_called_once()
-
-        # Verify AI request was still submitted
-        scene._ai_integration.ai_request_queue.put.assert_called_once()
+        assert self.submitted_training_examples(scene) == regular_examples

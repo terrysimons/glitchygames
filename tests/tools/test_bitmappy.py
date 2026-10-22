@@ -46,22 +46,20 @@ LOG = logging.getLogger('test.bitmappy_coverage')
 class TestBitmappyFunctionality:
     """Test bitmappy module functionality."""
 
-    @pytest.mark.skip(reason='Not yet implemented')
     def test_bitmappy_classes_exist(self, mock_pygame_patches):
-        """Test that bitmappy classes exist."""
-        # Test that main classes are available
-        assert hasattr(bitmappy, 'BitmapPixelSprite')
-        assert hasattr(bitmappy, 'FilmStripSprite')
-        assert hasattr(bitmappy, 'AnimatedCanvasSprite')
-        assert hasattr(bitmappy, 'MiniView')
-        assert hasattr(bitmappy, 'BitmapEditorScene')
+        """Test that the editor's scene and sprite classes are importable from their modules."""
+        from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
+        from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 
-        # Test that classes are callable
-        assert callable(bitmappy.BitmapPixelSprite)
-        assert callable(bitmappy.FilmStripSprite)
-        assert callable(bitmappy.AnimatedCanvasSprite)
-        assert callable(bitmappy.MiniView)  # type: ignore[unresolved-attribute]
-        assert callable(bitmappy.BitmapEditorScene)
+        for editor_class in (
+            BitmapPixelSprite,
+            FilmStripSprite,
+            bitmappy.AnimatedCanvasSprite,
+            bitmappy.BitmapEditorScene,
+        ):
+            assert isinstance(editor_class, type)
+        # editor re-exports AnimatedCanvasSprite from its own module
+        assert bitmappy.AnimatedCanvasSprite is AnimatedCanvasSprite
 
     def test_bitmappy_exceptions(self, mock_pygame_patches):
         """Test bitmappy exception classes.
@@ -84,14 +82,17 @@ class TestBitmappyFunctionality:
         assert callable(AIRequest)
         assert callable(AIResponse)
 
-    @pytest.mark.skip(reason='Not yet implemented')
     def test_bitmappy_sprite_inheritance(self, mock_pygame_patches):
-        """Test bitmappy sprite inheritance."""
-        # Test that sprite classes exist and are callable
-        assert callable(bitmappy.BitmapPixelSprite)  # type: ignore[unresolved-attribute]
-        assert callable(bitmappy.FilmStripSprite)  # type: ignore[unresolved-attribute]
-        assert callable(bitmappy.AnimatedCanvasSprite)  # type: ignore[unresolved-attribute]
-        assert callable(bitmappy.MiniView)  # type: ignore[unresolved-attribute]
+        """Test that the editor's sprites are BitmappySprites and its scene is a Scene."""
+        from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
+        from glitchygames.scenes import Scene
+        from glitchygames.sprites.bitmappy_sprite import BitmappySprite
+
+        assert issubclass(BitmapPixelSprite, BitmappySprite)
+        assert issubclass(FilmStripSprite, BitmappySprite)
+        assert issubclass(bitmappy.AnimatedCanvasSprite, BitmappySprite)
+        assert issubclass(BitmappySprite, pygame.sprite.DirtySprite)
+        assert issubclass(bitmappy.BitmapEditorScene, Scene)
 
     def test_bitmappy_scene_inheritance(self, mock_pygame_patches):
         """Test bitmappy scene inheritance."""
@@ -2048,13 +2049,17 @@ class TestAnimatedCanvasSpriteDragMethods:
         canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
         mock_scene = MagicMock()
         mock_scene._applying_undo_redo = False
-        mock_scene.current_pixel_changes = []
+        mock_scene.current_pixel_changes_dict = {}
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {
             (0, 0): (0, 0, (0, 0, 0, 255), (255, 0, 0, 255)),
         }
         canvas._submit_drag_pixel_changes_to_undo()
-        assert len(mock_scene.current_pixel_changes) == 1
+        # Merged into the dict the scene submits from (BUGS.md #101)
+        assert mock_scene.current_pixel_changes_dict == {
+            (0, 0): (0, 0, (0, 0, 0, 255), (255, 0, 0, 255)),
+        }
+        mock_scene._submit_pixel_changes_if_ready.assert_called_once_with()
 
     def test_submit_drag_pixel_changes_no_parent_scene(self, pygame_mocks, mock_groups):
         """Does nothing when no parent scene."""

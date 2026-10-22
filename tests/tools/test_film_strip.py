@@ -1,6 +1,7 @@
 """Tests for film strip tool functionality, coverage, and edge cases."""
 
 import math
+from types import SimpleNamespace
 from typing import cast
 
 import pygame
@@ -1683,12 +1684,13 @@ class TestFilmStripHandleRemovalButtonClick:
         )
         widget.set_animated_sprite(sprite)
         widget.removal_button_layouts = {('idle', 0): pygame.Rect(5, 20, 11, 30)}
-        parent_scene = mocker.Mock()
-        parent_scene._show_delete_frame_confirmation = mocker.Mock()
-        widget.parent_scene = parent_scene
+        film_strip_coordinator = mocker.Mock()
+        # Only the coordinator has the confirmation (BUGS.md #90): a stand-in scene with
+        # nothing but the coordinator fails if the widget asks the scene itself
+        widget.parent_scene = SimpleNamespace(film_strip_coordinator=film_strip_coordinator)
         result = widget._handle_removal_button_click((10, 30))
         assert result is True
-        parent_scene._show_delete_frame_confirmation.assert_called_once()
+        film_strip_coordinator._show_delete_frame_confirmation.assert_called_once_with('idle', 0)
 
 
 class TestFilmStripGetTotalWidth:
@@ -2557,7 +2559,9 @@ class TestHandleRemovalButtonClick:
         widget.parent_scene = mock_parent
         result = widget._handle_removal_button_click((15, 50))
         assert result is True
-        mock_parent._show_delete_frame_confirmation.assert_called_once_with('idle', 1)
+        mock_parent.film_strip_coordinator._show_delete_frame_confirmation.assert_called_once_with(
+            'idle', 1
+        )
 
     def test_click_miss_returns_false(self):
         """Test clicking outside removal buttons returns False."""
@@ -3873,7 +3877,9 @@ class TestFilmStripHandleRemovalButton:
 
         result = widget._handle_removal_button_click((15, 25))
         assert result is True
-        widget.parent_scene._show_delete_frame_confirmation.assert_called_once_with('idle', 0)
+        widget.parent_scene.film_strip_coordinator._show_delete_frame_confirmation.assert_called_once_with(
+            'idle', 0
+        )
 
     def test_removal_button_out_of_range(self, mocker):
         """Test removal button returns False when frame index is out of range (lines 2898-2899)."""

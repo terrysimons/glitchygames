@@ -103,7 +103,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     film_strip_operation_tracker: FilmStripOperationTracker
     cross_area_operation_tracker: CrossAreaOperationTracker
     controller_position_operation_tracker: ControllerPositionOperationTracker
-    current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]]
+    current_pixel_changes: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool
     pixel_change_timer: float | None
     _applying_undo_redo: bool
@@ -214,10 +214,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Used by _refresh_all_film_strip_widgets and undo/redo methods
         self.film_strip_widget: FilmStripWidget | None = None
 
-        # Pixel change tracking dict for deduplication (used alongside _current_pixel_changes list)
+        # Pixel change tracking dict for deduplication (used alongside _current_pixel_changes list):
+        # (x, y) -> (x, y, old_color, new_color), as canvas_interfaces and the canvas's drag fill it
         self.current_pixel_changes_dict: dict[
-            int,
-            tuple[int, tuple[int, ...], tuple[int, ...]],
+            tuple[int, int],
+            tuple[int, int, tuple[int, ...], tuple[int, ...]],
         ] = {}
 
         # Initialize scroll arrows
@@ -1287,12 +1288,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Force a complete canvas refresh to ensure everything is in sync
         self.canvas.force_redraw()
 
-        # Update film strips to reflect the current state
-        if hasattr(self, 'update_film_strips_for_frame'):
-            self.film_strip_coordinator.update_film_strips_for_frame(
-                current_animation,
-                current_frame,
-            )
+        # Update film strips to reflect the current state. Only the coordinator has this
+        # method; the old hasattr(self, ...) guard was always False (BUGS.md #98)
+        self.film_strip_coordinator.update_film_strips_for_frame(
+            current_animation,
+            current_frame,
+        )
 
     def handle_redo(self) -> None:
         """Handle redo operation."""
@@ -1401,7 +1402,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                     self.confirmation_dialog = None  # Clear reference after handling
                     return  # Event handled, don't pass to other handlers
 
-        super().handle_event(event)  # type: ignore[arg-type] # ty: ignore[unresolved-attribute]
+        # No parent class defines handle_event (Scene receives events through its on_*_event
+        # methods), so the old super().handle_event(event) fallback raised AttributeError for
+        # every event the dialog did not take (BUGS.md #91). Nothing more to pass on here.
 
         if event.type == pygame.WINDOWLEAVE:
             # Notify sprites that mouse left window

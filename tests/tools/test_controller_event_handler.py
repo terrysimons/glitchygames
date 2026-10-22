@@ -542,15 +542,8 @@ class TestControllerTriggerAxisMotion:
 
         assert editor.mode_switcher.get_controller_mode(CONTROLLER_ID) == ControllerMode.CANVAS
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'BUG: _track_controller_mode_change reads the old mode after handle_trigger_input'
-            ' already switched it, so the undo record holds the new mode twice'
-        ),
-    )
     def test_a_trigger_mode_switch_records_the_old_and_new_mode_for_undo(self):
-        """The undo record of a trigger mode switch holds the mode switched from."""
+        """The undo record of a trigger mode switch holds the mode switched from (#95)."""
         handler, editor = _make_handler()
         _connect_controller(editor, assigned=True)
         _snapshot_with_axes({INSTANCE_ID: (0.0, 0.0, 0.0, 0.0, 1.0, -1.0)})

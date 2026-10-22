@@ -531,10 +531,12 @@ class SliderManager:
             border_color: The RGB color for the border
 
         """
-        if not hasattr(self, bbox_attr):
+        # __init__ sets every bounding box to None until setup_sliders_and_color_well runs, so
+        # check for None, as the alpha path does (BUGS.md #100)
+        bbox = getattr(self, bbox_attr, None)
+        if bbox is None:
             return
 
-        bbox = getattr(self, bbox_attr)
         if is_hovered and not bbox.visible:
             bbox.image.fill((0, 0, 0, 0))  # Clear surface
             pygame.draw.rect(
@@ -709,39 +711,18 @@ class SliderManager:
         if tab_format is None:
             tab_format = getattr(self.editor, 'slider_input_format', '%d')
 
-        if hasattr(self.editor, 'red_slider') and hasattr(self.editor.red_slider, 'text_sprite'):
+        # Every slider with a text box follows the tab, alpha included (BUGS.md #110 item 4)
+        for slider_name in ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider'):
+            slider = getattr(self.editor, slider_name, None)
+            if slider is None or not hasattr(slider, 'text_sprite'):
+                continue
             if tab_format == '%X':
                 # Convert to hex
-                self.editor.red_slider.text_sprite.text = f'{self.editor.red_slider.value:02X}'
+                slider.text_sprite.text = f'{slider.value:02X}'
             else:
                 # Convert to decimal
-                self.editor.red_slider.text_sprite.text = str(self.editor.red_slider.value)
-            self.editor.red_slider.text_sprite.update_text(self.editor.red_slider.text_sprite.text)
-
-        if hasattr(self.editor, 'green_slider') and hasattr(
-            self.editor.green_slider,
-            'text_sprite',
-        ):
-            if tab_format == '%X':
-                # Convert to hex
-                self.editor.green_slider.text_sprite.text = f'{self.editor.green_slider.value:02X}'
-            else:
-                # Convert to decimal
-                self.editor.green_slider.text_sprite.text = str(self.editor.green_slider.value)
-            self.editor.green_slider.text_sprite.update_text(
-                self.editor.green_slider.text_sprite.text,
-            )
-
-        if hasattr(self.editor, 'blue_slider') and hasattr(self.editor.blue_slider, 'text_sprite'):
-            if tab_format == '%X':
-                # Convert to hex
-                self.editor.blue_slider.text_sprite.text = f'{self.editor.blue_slider.value:02X}'
-            else:
-                # Convert to decimal
-                self.editor.blue_slider.text_sprite.text = str(self.editor.blue_slider.value)
-            self.editor.blue_slider.text_sprite.update_text(
-                self.editor.blue_slider.text_sprite.text,
-            )
+                slider.text_sprite.text = str(slider.value)
+            slider.text_sprite.update_text(slider.text_sprite.text)
 
     # ──────────────────────────────────────────────────────────────────────
     # Interaction
@@ -767,6 +748,20 @@ class SliderManager:
             ):
                 return name
         return None
+
+    def _format_slider_text(self, value: int) -> str:
+        """Format a channel value for a slider text box in the active tab's format.
+
+        Args:
+            value: The channel value.
+
+        Returns:
+            str: The value in hex ('FF') on the hex tab, otherwise in decimal ('255').
+
+        """
+        if self.editor.slider_input_format == '%X':
+            return f'{value:02X}'
+        return str(value)
 
     def commit_and_deactivate_slider(
         self,
@@ -794,15 +789,18 @@ class SliderManager:
 
         # Commit any uncommitted value before deactivating
         if not slider.text_sprite.text.strip():
-            # If empty, restore original value
-            slider.text_sprite.text = str(slider.original_value)
+            # If empty, restore original value (in the active tab's format, not always decimal)
+            slider.text_sprite.text = self._format_slider_text(slider.original_value)
         else:
-            # Try to commit the current text value - parse as hex if contains letters, otherwise
-            # decimal
+            # Try to commit the current text value - parse as hex on the hex tab or if it
+            # contains hex letters, otherwise decimal
             try:
                 text = slider.text_sprite.text.strip().lower()
-                # Parse as hex if contains hex letters, otherwise decimal
-                new_value = int(text, 16) if any(c in 'abcdef' for c in text) else int(text)
+                # On the hex tab "10" is 16, not 10 (BUGS.md #110 item 3)
+                is_hex = self.editor.slider_input_format == '%X' or any(
+                    character in 'abcdef' for character in text
+                )
+                new_value = int(text, 16) if is_hex else int(text)
 
                 if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
                     slider.value = new_value
@@ -826,10 +824,10 @@ class SliderManager:
                     slider.text_sprite.dirty = 2  # Force redraw
                 else:
                     # Invalid range, restore original
-                    slider.text_sprite.text = str(slider.original_value)
+                    slider.text_sprite.text = self._format_slider_text(slider.original_value)
             except ValueError:
                 # Invalid input, restore original
-                slider.text_sprite.text = str(slider.original_value)
+                slider.text_sprite.text = self._format_slider_text(slider.original_value)
 
         slider.text_sprite.is_active = False
         slider.text_sprite.update_text(slider.text_sprite.text)

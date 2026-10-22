@@ -574,6 +574,10 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
 
         l2_value, r2_value = self._read_trigger_values(event, controller_id)
 
+        # Read the mode before handle_trigger_input switches it, so undo can restore it
+        # (BUGS.md #95)
+        old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
+
         # Handle mode switching
         new_mode = self.editor.mode_switcher.handle_trigger_input(
             controller_id,
@@ -584,7 +588,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
 
         if new_mode:
             self.log.debug(f'DEBUG: Controller {controller_id} switched to mode: {new_mode.value}')
-            self._track_controller_mode_change(controller_id, new_mode)
+            self._track_controller_mode_change(controller_id, new_mode, old_mode=old_mode)
             self.indicators.update_controller_visual_indicator_for_mode(controller_id, new_mode)
         else:
             self.log.debug(
@@ -732,12 +736,21 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         )
         return l2_value, r2_value
 
-    def _track_controller_mode_change(self, controller_id: int, new_mode: ControllerMode) -> None:
+    def _track_controller_mode_change(
+        self,
+        controller_id: int,
+        new_mode: ControllerMode,
+        *,
+        old_mode: ControllerMode | None = None,
+    ) -> None:
         """Track a controller mode change for undo/redo.
 
         Args:
             controller_id: The controller ID.
             new_mode: The new ControllerMode.
+            old_mode: The mode switched from. A caller that has already switched the mode
+                must pass it (BUGS.md #95); when None, the controller's current mode is read,
+                which is right only before the switch.
 
         """
         if getattr(self, '_applying_undo_redo', False):
@@ -745,7 +758,8 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         if not hasattr(self.editor, 'controller_position_operation_tracker'):
             return
 
-        old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
+        if old_mode is None:
+            old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
         if old_mode:
             self.editor.controller_position_operation_tracker.add_controller_mode_change(
                 controller_id,

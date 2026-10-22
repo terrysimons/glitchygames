@@ -49,10 +49,9 @@ class VisualIndicators:
         controller_id: int,
     ) -> None:
         """Update the visual indicator for a controller's canvas position."""
-        # Get controller info
-        controller_info = self.handler.editor.multi_controller_manager.get_controller_info(
-            controller_id,
-        )
+        # Get controller info, by controller id: get_controller_info is keyed by SDL instance
+        # id, which differs from the controller id after a reconnect (BUGS.md #96)
+        controller_info = self.handler.find_controller_info(controller_id)
         if not controller_info:
             return
 
@@ -98,10 +97,8 @@ class VisualIndicators:
             f' {new_mode.value} (selected controller)',
         )
 
-        # Get controller info
-        controller_info = self.handler.editor.multi_controller_manager.get_controller_info(
-            controller_id,
-        )
+        # Get controller info, by controller id (see update_controller_canvas_visual_indicator)
+        controller_info = self.handler.find_controller_info(controller_id)
         if not controller_info:
             self.handler.log.debug(
                 f'DEBUG: No controller info found for controller {controller_id}',

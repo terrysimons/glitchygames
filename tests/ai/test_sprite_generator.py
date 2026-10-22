@@ -143,6 +143,31 @@ class TestTrainingExampleFormatting:
         assert 'namespace = "walk"' in result
         assert '[[animation.frame]]' in result
 
+    def test_animated_example_with_a_pixels_summary_stays_animated(self):
+        """An animated example that also carries a 'pixels' summary is rebuilt as animated."""
+        example = {
+            'name': 'selected_strip',
+            'sprite_type': 'animated',
+            'pixels': 'AB\n\nBA',
+            'animations': [
+                {
+                    'namespace': 'blink',
+                    'frame_interval': 0.5,
+                    'loop': True,
+                    'frame': [
+                        {'frame_index': 0, 'pixels': 'AB'},
+                        {'frame_index': 1, 'pixels': 'BA'},
+                    ],
+                },
+            ],
+            'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
+        }
+
+        result = format_training_example(example, include_raw=False)
+
+        assert result.count('[[animation.frame]]') == 2
+        assert 'pixels = "BA"' in result
+
     def test_alpha_sprite_formatting(self):
         """Test formatting includes alpha flag."""
         example = {

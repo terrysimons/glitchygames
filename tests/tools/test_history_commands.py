@@ -518,6 +518,20 @@ class TestFrameAddCommand:
         assert _first_pixel_colors(animated_sprite, 'idle') == [RED, GREEN, BLUE]
         assert editor.film_strip_coordinator.notifications[-1] == ('removed', 'idle', 3)
 
+    def test_undoing_an_add_before_the_shown_frame_keeps_showing_it(self, editor, animated_sprite):
+        """Undoing an add before the shown frame returns the canvas to the same (blue) frame.
+
+        Undo deletes through the same helpers as FrameDeleteCommand (BUGS.md #94).
+        """
+        animated_sprite.frame_manager.current_frame = 2
+        command = FrameAddCommand(editor, 0, 'idle', self._frame_data())
+
+        assert command.execute() is True
+        assert animated_sprite.frame_manager.current_frame == 3
+        assert command.undo() is True
+        assert animated_sprite.frame_manager.current_frame == 2
+        assert animated_sprite._animations['idle'][2].get_pixel_data()[0] == BLUE
+
     def test_add_to_other_animation_leaves_current_frame(self, editor, animated_sprite):
         """Adding to an animation the canvas is not showing does not move the canvas."""
         command = FrameAddCommand(editor, 0, 'walk', self._frame_data())
@@ -658,22 +672,27 @@ class TestFrameDeleteCommand:
         assert animated_sprite.frame_manager.current_frame == 1
         assert editor.canvas.shown_frames[-1] == ('idle', 1)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Bug: deleting a frame before the shown frame moves the canvas back two frames; '
-            '_stop_animation_and_adjust_frame_before_deletion and '
-            '_adjust_canvas_frame_after_deletion both decrement current_frame'
-        ),
-    )
     def test_deleting_frame_before_shown_frame_keeps_showing_it(self, editor, animated_sprite):
-        """Deleting a frame before the shown one keeps the canvas on the same (blue) frame."""
+        """Deleting a frame before the shown one keeps the canvas on the same (blue) frame.
+
+        Both deletion helpers used to decrement current_frame (BUGS.md #94).
+        """
         animated_sprite.frame_manager.current_frame = 2
         command = FrameDeleteCommand(editor, 0, 'idle', {'width': 2, 'height': 2})
 
         assert command.execute() is True
         shown_frame_index = animated_sprite.frame_manager.current_frame
         assert animated_sprite._animations['idle'][shown_frame_index].get_pixel_data()[0] == BLUE
+        assert editor.canvas.shown_frames[-1] == ('idle', 1)
+
+    def test_deleting_shown_middle_frame_shows_the_frame_before_it(self, editor, animated_sprite):
+        """Deleting the shown middle frame moves the canvas to the (red) frame before it."""
+        animated_sprite.frame_manager.current_frame = 1
+        command = FrameDeleteCommand(editor, 1, 'idle', {'width': 2, 'height': 2})
+
+        assert command.execute() is True
+        assert animated_sprite.frame_manager.current_frame == 0
+        assert editor.canvas.shown_frames[-1] == ('idle', 0)
 
 
 class TestFrameReorderCommand:

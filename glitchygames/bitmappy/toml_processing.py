@@ -683,6 +683,10 @@ def quantize_colors_if_needed(
     Returns:
         Possibly reduced set of unique colors.
 
+    Raises:
+        ValueError: When colors must be quantized but ``max_colors`` leaves no slot for them
+            (all of it reserved for transparency); grouping would have no group to join.
+
     """
     if log is None:
         log = LOG
@@ -692,6 +696,14 @@ def quantize_colors_if_needed(
 
     if len(unique_colors) <= available_colors:
         return unique_colors
+
+    # With no slot, the first color would join a group that does not exist (BUGS.md #109)
+    if available_colors < 1:
+        message = (
+            f'max_colors={max_colors} leaves no palette slot for colors'
+            f' ({reserved_for_transparency} reserved for transparency)'
+        )
+        raise ValueError(message)
 
     log.info('Too many colors detected, using color quantization...')
     color_groups: dict[tuple[int, int, int], list[tuple[int, int, int]]] = {}

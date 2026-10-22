@@ -1314,7 +1314,11 @@ def _stop_animation_and_adjust_frame_before_deletion(
 
 
 def _adjust_canvas_frame_after_deletion(editor: Any, animation_name: str, frame_index: int) -> None:
-    """Adjust canvas frame selection after a frame has been deleted.
+    """Clamp and show the canvas frame after a frame has been deleted.
+
+    The shown frame was already moved back past the deleted one by
+    _stop_animation_and_adjust_frame_before_deletion; moving it back here too moved the
+    canvas back two frames (BUGS.md #94), so this only clamps and shows it.
 
     Args:
         editor: The editor context.
@@ -1326,13 +1330,7 @@ def _adjust_canvas_frame_after_deletion(editor: Any, animation_name: str, frame_
     if frame_manager.current_animation != animation_name:
         return
 
-    if frame_manager.current_frame >= frame_index:
-        if frame_manager.current_frame > 0:
-            frame_manager.current_frame -= 1
-            LOG.debug(f'Selected previous frame {frame_manager.current_frame} after frame deletion')
-        else:
-            frame_manager.current_frame = 0
-            LOG.debug('Stayed at frame 0 after deleting frame 0')
+    LOG.debug(f'Showing frame {frame_manager.current_frame} after deleting frame {frame_index}')
 
     max_frame = len(editor.canvas.animated_sprite._animations[animation_name]) - 1
     if frame_manager.current_frame > max_frame:

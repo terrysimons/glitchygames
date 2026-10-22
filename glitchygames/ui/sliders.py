@@ -304,9 +304,26 @@ class SliderSprite(BitmappySprite):
 
         self.text_sprite.on_left_mouse_button_down_event = handle_text_click  # type: ignore[assignment] # ty: ignore[invalid-assignment]
 
+    def _format_value(self, value: int) -> str:
+        """Format a value for the text box in the parent's input format.
+
+        Args:
+            value: The channel value.
+
+        Returns:
+            str: The value in hex ('FF') on the hex tab, otherwise in decimal ('255').
+
+        """
+        if hasattr(self.parent, 'slider_input_format') and self.parent.slider_input_format == '%X':
+            return f'{value:02X}'
+        return str(value)
+
     def _restore_original_value(self) -> None:
-        """Restore the slider text to its original value and deactivate."""
-        self.text_sprite.text = str(self.original_value)
+        """Restore the slider text to its original value, in the active format, and deactivate.
+
+        It was always written in decimal, even on the hex tab.
+        """
+        self.text_sprite.text = self._format_value(self.original_value)
         self.text_sprite.is_active = False
         self.text_sprite.update_text(self.text_sprite.text)
 
@@ -318,9 +335,14 @@ class SliderSprite(BitmappySprite):
             return
 
         # Validate and apply new value
-        # Check if input is hex (contains letters) or decimal
+        # Input is hex on the hex tab (where "10" is 16, BUGS.md #110 item 3) or when it
+        # contains hex letters; otherwise decimal
         text = self.text_sprite.text.strip().lower()
-        base = 16 if any(c in 'abcdef' for c in text) else 10
+        is_hex_tab = (
+            hasattr(self.parent, 'slider_input_format') and self.parent.slider_input_format == '%X'
+        )
+        is_hex = is_hex_tab or any(character in 'abcdef' for character in text)
+        base = 16 if is_hex else 10
         try:
             new_value = int(text, base)
         except ValueError:
@@ -335,10 +357,7 @@ class SliderSprite(BitmappySprite):
         self.value = new_value
 
         # Convert text to appropriate format based on parent's format setting
-        if hasattr(self.parent, 'slider_input_format') and self.parent.slider_input_format == '%X':
-            self.text_sprite.text = f'{new_value:02X}'
-        else:
-            self.text_sprite.text = str(new_value)
+        self.text_sprite.text = self._format_value(new_value)
 
         self.text_sprite.is_active = False
         self.text_sprite.update_text(self.text_sprite.text)

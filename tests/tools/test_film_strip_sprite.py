@@ -334,38 +334,6 @@ class RecordingCanvas:
         self.shown_frames.append((animation, frame_index))
 
 
-class KeyEventWithGet:
-    """A key event offering ``get``, which FilmStripSprite.on_key_down_event reads ``mod`` with.
-
-    A real HashableEvent cannot be used: its ``get`` raises AttributeError (it is a UserDict
-    that never sets ``data``), see the bug note on TestFilmStripSpriteCopyPasteKeys.
-    """
-
-    def __init__(self, *, key: int, mod: int) -> None:
-        """Build the event.
-
-        Args:
-            key: The key code.
-            mod: The modifier bit mask.
-
-        """
-        self.key = key
-        self.mod = mod
-
-    def get(self, name: str, default: object = None) -> object:
-        """Return an attribute, or the default when it is missing.
-
-        Args:
-            name: The attribute name.
-            default: The value for a missing attribute.
-
-        Returns:
-            The attribute's value or the default.
-
-        """
-        return getattr(self, name, default)
-
-
 def make_two_by_two_frame() -> SpriteFrame:
     """Build a 2x2 frame whose top-left pixel differs from the other three.
 
@@ -569,17 +537,10 @@ class TestFilmStripSpriteColorSampling:
 class TestFilmStripSpriteCopyPasteKeys:
     """Test Ctrl+C and Ctrl+V on the film strip sprite.
 
-    BUG: film_strip_sprite.py:443 and :453 read the modifiers with ``event.get('mod', 0)``.
-    Neither a HashableEvent (its UserDict ``get`` needs ``self.data``, which is never set) nor a
-    pygame Event has a working ``get``, so a real Ctrl+C or Ctrl+V (or any C or V key) raises
-    AttributeError there. These tests use KeyEventWithGet to exercise the copy/paste logic.
+    film_strip_sprite.py reads the modifiers with ``event.get('mod', 0)``; these tests use real
+    HashableEvents, whose ``get`` raised AttributeError before BUGS.md #88 was fixed.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AttributeError,
-        reason='BUG: film_strip_sprite.py:443 calls HashableEvent.get, which raises AttributeError',
-    )
     def test_real_hashable_ctrl_c_event_copies_the_frame(self, real_film_strip_sprite):
         """A real Ctrl+C HashableEvent copies the current frame."""
         sprite = real_film_strip_sprite
@@ -599,7 +560,7 @@ class TestFilmStripSpriteCopyPasteKeys:
         sprite.film_strip_widget = None
 
         handled = sprite.on_key_down_event(
-            KeyEventWithGet(key=pygame.K_c, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
         )
 
         assert handled is None
@@ -615,11 +576,11 @@ class TestFilmStripSpriteCopyPasteKeys:
         widget.current_frame = 0
 
         copied = sprite.on_key_down_event(
-            KeyEventWithGet(key=pygame.K_c, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
         )
         widget.current_frame = 1
         pasted = sprite.on_key_down_event(
-            KeyEventWithGet(key=pygame.K_v, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+            events.HashableEvent(0, key=pygame.K_v, mod=pygame.KMOD_CTRL),
         )
 
         assert copied is True
@@ -634,10 +595,10 @@ class TestFilmStripSpriteCopyPasteKeys:
         widget.current_frame = 99
 
         copied = sprite.on_key_down_event(
-            KeyEventWithGet(key=pygame.K_c, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+            events.HashableEvent(0, key=pygame.K_c, mod=pygame.KMOD_CTRL),
         )
         pasted = sprite.on_key_down_event(
-            KeyEventWithGet(key=pygame.K_v, mod=pygame.KMOD_CTRL),  # type: ignore[arg-type]
+            events.HashableEvent(0, key=pygame.K_v, mod=pygame.KMOD_CTRL),
         )
 
         assert copied is True
@@ -649,7 +610,7 @@ class TestFilmStripSpriteCopyPasteKeys:
         sprite = real_film_strip_sprite
 
         handled = sprite.on_key_down_event(
-            KeyEventWithGet(key=pygame.K_c, mod=0),  # type: ignore[arg-type]
+            events.HashableEvent(0, key=pygame.K_c, mod=0),
         )
 
         assert handled is False
@@ -743,14 +704,6 @@ class TestFilmStripSpriteImageDrops:
 
         assert sprite._convert_image_to_sprite_frame(str(bogus_path)) is None
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason=(
-            'BUG: film_strip_sprite.py:677 calls pygame.surfarray.array4d, which pygame-ce does '
-            'not have; the AttributeError is caught, so every dropped image converts to None'
-        ),
-    )
     def test_png_converts_to_a_frame_of_the_canvas_size(self, real_film_strip_sprite, tmp_path):
         """A dropped PNG is scaled to the canvas size and keeps its colour."""
         sprite = real_film_strip_sprite
@@ -767,6 +720,47 @@ class TestFilmStripSpriteImageDrops:
         assert frame is not None
         assert frame.get_size() == (4, 3)
         assert frame.get_pixel_data()[0] == (255, 0, 0, 255)
+
+    def test_png_with_alpha_keeps_its_alpha_and_pixel_order(self, real_film_strip_sprite, tmp_path):
+        """A PNG with an alpha channel keeps each pixel's alpha, row by row (BUGS.md #87)."""
+        sprite = real_film_strip_sprite
+        sprite.parent_canvas = RecordingCanvas(pixels_across=2, pixels_tall=2)  # type: ignore[assignment]
+        surface = pygame.Surface((2, 2), pygame.SRCALPHA)
+        surface.fill((0, 0, 255, 255))
+        surface.set_at((1, 0), (10, 20, 30, 0))
+        surface.set_at((0, 1), (40, 50, 60, 128))
+        image_path = tmp_path / 'alpha.png'
+        pygame.image.save(surface, str(image_path))
+
+        frame = sprite._convert_image_to_sprite_frame(str(image_path))
+
+        assert frame is not None
+        assert frame.get_size() == (2, 2)
+        assert frame.get_pixel_data() == [
+            (0, 0, 255, 255),
+            (10, 20, 30, 0),
+            (40, 50, 60, 128),
+            (0, 0, 255, 255),
+        ]
+
+    def test_dropped_png_replaces_the_frame(self, real_film_strip_sprite, tmp_path):
+        """A real dropped PNG (no mocked conversion) replaces the frame it was dropped on."""
+        sprite = real_film_strip_sprite
+        widget = sprite.film_strip_widget
+        assert widget is not None
+        assert widget.animated_sprite is not None
+        sprite.parent_canvas = RecordingCanvas(pixels_across=2, pixels_tall=2)  # type: ignore[assignment]
+        image_path = write_png(
+            path=tmp_path / 'green.png',
+            size=(2, 2),
+            color=(0, 255, 0),
+            alpha=False,
+        )
+
+        assert sprite._replace_frame_with_image(image_path, 'idle', 0) is True
+        assert (
+            widget.animated_sprite.animations['idle'][0].get_pixel_data() == [(0, 255, 0, 255)] * 4
+        )
 
     def test_replace_fails_when_the_image_cannot_be_converted(self, real_film_strip_sprite, mocker):
         """A drop that cannot be converted leaves the frame in place."""

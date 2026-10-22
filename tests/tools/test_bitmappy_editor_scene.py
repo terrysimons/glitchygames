@@ -1014,9 +1014,13 @@ class TestSynchronizeCanvasState:
         mock_editor.canvas.animated_sprite._animations = {
             'default': [mocker.Mock(), mocker.Mock()],
         }
-        mocker.patch.object(mock_editor.film_strip_coordinator, 'update_film_strips_for_frame')
+        update_film_strips = mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'update_film_strips_for_frame'
+        )
         mock_editor._synchronize_canvas_state_after_undo()
         mock_editor.canvas.force_redraw.assert_called()
+        # BUGS.md #98: the refresh was guarded by a hasattr on the editor, always False
+        update_film_strips.assert_called_once_with('default', 0)
 
 
 # ===========================================================================
@@ -2400,11 +2404,12 @@ class TestFinalizeCanvasSetup:
     """Tests for EditorSetup._finalize_canvas_setup (static method)."""
 
     def test_starts_animation(self, mocker):
-        """Starts animation and sets WIDTH/HEIGHT."""
+        """Starts animation and leaves no class-wide canvas size (BUGS.md #110 item 2)."""
         animated_sprite = mocker.Mock()
-        options = {'size': '16x16'}
-        bitmappy_setup.EditorSetup._finalize_canvas_setup(animated_sprite, options)
+        bitmappy_setup.EditorSetup._finalize_canvas_setup(animated_sprite)
         animated_sprite.play.assert_called_once()
+        assert 'WIDTH' not in vars(bitmappy_setup.AnimatedCanvasSprite)
+        assert 'HEIGHT' not in vars(bitmappy_setup.AnimatedCanvasSprite)
 
 
 # ===========================================================================
@@ -3231,6 +3236,37 @@ class TestEventHandlingAndDeflate:
 
         confirmation_dialog.handle_mouse_down.assert_called_once_with((50, 30))
         assert mock_editor.confirmation_dialog is None
+
+    def test_event_the_dialog_does_not_take_reaches_the_sprites(self, mock_editor, mocker):
+        """An event no confirmation dialog takes does not raise (BUGS.md #91).
+
+        handle_event called super().handle_event, which no parent class defines.
+        """
+        mock_editor.confirmation_dialog = None
+        leave_window_sprite = mocker.Mock()
+        mock_editor.all_sprites = [leave_window_sprite]
+        event = _make_event(type=pygame.WINDOWLEAVE)
+
+        mock_editor.handle_event(event)
+
+        leave_window_sprite.on_mouse_leave_window_event.assert_called_once_with(event)
+
+    def test_click_outside_the_confirmation_dialog_is_not_consumed(self, mock_editor, mocker):
+        """A click outside the dialog leaves it open and falls through without raising."""
+        confirmation_dialog = mocker.Mock()
+        confirmation_dialog.rect = pygame.Rect(100, 100, 200, 100)
+        mock_editor.confirmation_dialog = confirmation_dialog
+        mock_editor.all_sprites = []
+        mocker.patch.object(
+            bitmappy,
+            'current_input',
+            return_value=SimpleNamespace(mouse_position=(5, 5)),
+        )
+
+        mock_editor.handle_event(_make_event(type=pygame.MOUSEBUTTONDOWN))
+
+        confirmation_dialog.handle_mouse_down.assert_not_called()
+        assert mock_editor.confirmation_dialog is confirmation_dialog
 
     def test_drop_file_goes_to_file_io(self, mock_editor, mocker):
         """A dropped file is handed to the file I/O manager."""

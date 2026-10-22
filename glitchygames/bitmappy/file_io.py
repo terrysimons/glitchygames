@@ -271,24 +271,30 @@ class FileIOManager:
     ) -> tuple[bool, pygame.Surface | None]:
         """Detect whether the original PNG image has transparency.
 
+        The converted image has already been flattened onto white, so it never has an alpha
+        channel: the original file is checked instead (BUGS.md #92), and its alpha image is
+        scaled to the converted image's size so its pixels line up with the converted ones.
+
         Args:
-            image: The converted RGB image surface.
+            image: The converted (resized and flattened) RGB image surface.
             file_path: Path to the original PNG file.
 
         Returns:
-            Tuple of (has_transparency, original_image_with_alpha_or_None).
+            Tuple of (has_transparency, original_image_with_alpha_or_None), the original image
+            at the converted image's size.
 
         """
-        if not (image.get_flags() & pygame.SRCALPHA):
+        original_image = pygame.image.load(file_path)
+        if not (original_image.get_flags() & pygame.SRCALPHA):
             return False, None
 
-        original_image = pygame.image.load(file_path)
-        if original_image.get_flags() & pygame.SRCALPHA:
-            self.log.info(
-                'Image has transparency - will map transparent pixels to magenta (255, 0, 255)',
-            )
-            return True, original_image
-        return False, None
+        converted_size = image.get_size()
+        if original_image.get_size() != converted_size:
+            original_image = pygame.transform.scale(original_image, converted_size)
+        self.log.info(
+            'Image has transparency - will map transparent pixels to magenta (255, 0, 255)',
+        )
+        return True, original_image
 
     def _sample_png_colors(
         self,
@@ -325,17 +331,20 @@ class FileIOManager:
                 r, g, b = pixel_array[x, y]
                 # Ensure we're working with Python ints, not numpy types
                 color = (int(r), int(g), int(b))
-                unique_colors.add(color)
                 sample_count += 1
 
-                # Check for transparency if we have the original image
-                if has_transparency and original_image is not None:
-                    original_pixel = original_image.get_at((x, y))
-                    if original_pixel.a < ALPHA_TRANSPARENCY_THRESHOLD:
-                        transparent_pixels += 1
-                        # Map transparent pixels to magenta
-                        unique_colors.discard(color)
-                        unique_colors.add((255, 0, 255))
+                # Map transparent pixels to magenta. Only the transparent pixel's own color is
+                # replaced: discarding its flattened color (white) from the set would also
+                # drop an opaque pixel of that color sampled elsewhere
+                if (
+                    has_transparency
+                    and original_image is not None
+                    and original_image.get_at((x, y)).a < ALPHA_TRANSPARENCY_THRESHOLD
+                ):
+                    transparent_pixels += 1
+                    unique_colors.add((255, 0, 255))
+                else:
+                    unique_colors.add(color)
 
         return unique_colors, sample_count, transparent_pixels
 

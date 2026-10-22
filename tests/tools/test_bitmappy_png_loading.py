@@ -2,13 +2,16 @@
 
 import tempfile
 import tomllib
+import types
 from pathlib import Path
 from typing import cast
 
+import pygame
 import pytest
 
 from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.file_io import FileIOManager
 from glitchygames.bitmappy.toml_processing import normalize_toml_data
 from tests.mocks import MockFactory
 
@@ -67,10 +70,12 @@ class TestPNGLoading:
         tmp_png_path.write_bytes(b'fake png data')
 
         try:
-            # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
-            # AnimatedCanvasSprite, so set it directly as a Mock attribute
+            # _convert_png_to_bitmappy lives on the editor's file I/O delegate; the canvas
+            # converts through its parent scene's (BUGS.md #89)
             mock_convert = self._mocker.Mock(return_value='mock_converted_file.toml')
-            self.mock_canvas._convert_png_to_bitmappy = mock_convert  # type: ignore[invalid-assignment]
+            self.mock_scene._file_io = self._mocker.Mock(spec=FileIOManager)
+            self.mock_scene._file_io._convert_png_to_bitmappy = mock_convert
+            self.mock_canvas.parent_scene = self.mock_scene
 
             # Mock the AnimatedSprite.load method
             mock_sprite_class = self._mocker.patch(
@@ -103,10 +108,12 @@ class TestPNGLoading:
         tmp_png_path.write_bytes(b'fake png data')
 
         try:
-            # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
-            # AnimatedCanvasSprite, so set it directly as a Mock attribute
+            # _convert_png_to_bitmappy lives on the editor's file I/O delegate; the canvas
+            # converts through its parent scene's (BUGS.md #89)
             mock_convert = self._mocker.Mock(return_value=None)
-            self.mock_canvas._convert_png_to_bitmappy = mock_convert  # type: ignore[invalid-assignment]
+            self.mock_scene._file_io = self._mocker.Mock(spec=FileIOManager)
+            self.mock_scene._file_io._convert_png_to_bitmappy = mock_convert
+            self.mock_canvas.parent_scene = self.mock_scene
 
             with pytest.raises(ValueError, match='Failed to convert PNG to bitmappy format'):
                 self.mock_canvas._load_sprite_from_file(str(tmp_png_path))
@@ -310,112 +317,90 @@ class TestTOMLConstruction:
         assert 'ABC\\nDEF\\nGHI\\n' not in result
 
 
+PNG_SIZE = 8
+PNG_BLUE = (0, 0, 255)
+PNG_RED = (255, 0, 0)
+MAGENTA = (255, 0, 255)
+TRANSPARENT_CORNER = pygame.Rect(0, 0, 2, 2)
+
+
+def blue_left_red_right_surface():
+    """Draw an 8x8 image, blue on the left half and red on the right half.
+
+    Returns:
+        pygame.Surface: The image, with an alpha channel.
+
+    """
+    surface = pygame.Surface((PNG_SIZE, PNG_SIZE), pygame.SRCALPHA)
+    surface.fill((*PNG_RED, 255))
+    surface.fill((*PNG_BLUE, 255), pygame.Rect(0, 0, PNG_SIZE // 2, PNG_SIZE))
+    return surface
+
+
+def decode_converted_sprite(toml_path):
+    """Decode a converted sprite's pixels back into colours.
+
+    Returns:
+        list[list[tuple[int, int, int]]]: The colour of every pixel, row by row.
+
+    """
+    toml_data = tomllib.loads(Path(toml_path).read_text(encoding='utf-8'))
+    glyph_colors = {
+        glyph: (color['red'], color['green'], color['blue'])
+        for glyph, color in toml_data['colors'].items()
+    }
+    return [
+        [glyph_colors[glyph] for glyph in row] for row in toml_data['sprite']['pixels'].splitlines()
+    ]
+
+
 class TestPNGConversionIntegration:
-    """Integration tests for PNG conversion functionality."""
+    """Integration tests for PNG conversion, run on real PNG files."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
-        self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
+    @staticmethod
+    def file_io_for_canvas_size(*, pixels_across, pixels_tall):
+        """Create a FileIOManager whose editor canvas has the given size.
 
-        # Create a real BitmapEditorScene instance with mocked dependencies
-        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        self.mock_scene = BitmapEditorScene({})
-        self.mock_scene.log = mocker.Mock()
-        self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
+        Returns:
+            FileIOManager: The manager; conversion reads only the canvas size.
 
-        # Initialize extracted subsystem managers
-        from glitchygames.bitmappy.file_io import FileIOManager
+        """
+        editor = types.SimpleNamespace(
+            canvas=types.SimpleNamespace(pixels_across=pixels_across, pixels_tall=pixels_tall),
+        )
+        return FileIOManager(editor)  # type: ignore[arg-type]
 
-        self.mock_scene._file_io = FileIOManager(self.mock_scene)  # type: ignore[arg-type]
+    def test_png_conversion_generates_valid_toml(self, tmp_path):
+        """Test that PNG conversion writes a TOML sprite that decodes to the PNG's pixels."""
+        png_path = tmp_path / 'blue_red.png'
+        pygame.image.save(blue_left_red_right_surface(), str(png_path))
+        file_io = self.file_io_for_canvas_size(pixels_across=PNG_SIZE, pixels_tall=PNG_SIZE)
 
-    @pytest.mark.skip(reason='PNG conversion method not implemented')
-    def test_png_conversion_generates_valid_toml(self):
-        """Test that PNG conversion generates valid TOML with proper formatting."""
-        # Create a simple 32x32 PNG image
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-            self._mocker.patch('pygame.image.save')
-            # Create a simple test file
-            Path(tmp_png.name).write_bytes(b'fake png data')
+        result = file_io._convert_png_to_bitmappy(str(png_path))
 
-            result = None
-            try:
-                # Mock the canvas to avoid display requirements
-                mock_canvas = self._mocker.patch.object(self.mock_scene, 'canvas')
-                mock_canvas.pixels_across = 32
-                mock_canvas.pixels_tall = 32
+        assert result == str(tmp_path / 'blue_red.toml')
+        content = Path(result).read_text(encoding='utf-8')
+        # The pixels keep real newlines in a multi-line string, never escaped ones
+        assert 'pixels = """' in content
+        assert '\\n' not in content
+        expected_row = [PNG_BLUE] * (PNG_SIZE // 2) + [PNG_RED] * (PNG_SIZE // 2)
+        assert decode_converted_sprite(result) == [expected_row] * PNG_SIZE
 
-                # Call the conversion method
-                result = self.mock_scene._file_io._convert_png_to_bitmappy(tmp_png.name)
+    def test_png_conversion_handles_transparency(self, tmp_path):
+        """Test that transparent PNG pixels become the magenta transparency key (BUGS.md #92)."""
+        surface = blue_left_red_right_surface()
+        surface.fill((0, 0, 0, 0), TRANSPARENT_CORNER)
+        png_path = tmp_path / 'transparent_corner.png'
+        pygame.image.save(surface, str(png_path))
+        file_io = self.file_io_for_canvas_size(pixels_across=PNG_SIZE, pixels_tall=PNG_SIZE)
 
-                # Should return a TOML file path
-                assert result is not None
-                assert result.endswith('.toml')
+        result = file_io._convert_png_to_bitmappy(str(png_path))
 
-                # Check that the TOML file exists and is valid
-                assert Path(result).exists()
-
-                # Load and validate the TOML content
-                content = Path(result).read_text(encoding='utf-8')
-
-                # Should contain proper TOML structure
-                assert '[sprite]' in content
-                assert '[colors]' in content
-                assert 'pixels = """' in content
-
-                # Should not contain escaped newlines in the file
-                assert '\\n' not in content or content.count('\\n') == content.count('pixels = """')
-
-                # Parse with toml to ensure it's valid
-                toml_data = tomllib.loads(Path(result).read_text(encoding='utf-8'))
-
-                assert 'sprite' in toml_data
-                assert 'colors' in toml_data
-
-                # Check that pixel data has actual newlines when parsed
-                if 'pixels' in toml_data['sprite']:
-                    pixels = toml_data['sprite']['pixels']
-                    assert '\n' in pixels
-                    assert '\\n' not in pixels
-
-            finally:
-                # Clean up
-                Path(tmp_png.name).unlink()
-                if result and Path(result).exists():
-                    Path(result).unlink()
-
-    def test_png_conversion_handles_transparency(self):
-        """Test that PNG conversion handles transparent pixels correctly."""
-        # Create a PNG with transparency
-        self._mocker.patch('pygame.image.save')
-
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-            tmp_png_path = Path(tmp_png.name)
-        tmp_png_path.write_bytes(b'fake png data')
-
-        result = None
-        try:
-            mock_canvas = self._mocker.patch.object(self.mock_scene, 'canvas')
-            mock_canvas.pixels_across = 32
-            mock_canvas.pixels_tall = 32
-
-            result = self.mock_scene._file_io._convert_png_to_bitmappy(str(tmp_png_path))
-
-            if result and Path(result).exists():
-                # Load the TOML and check for magenta color (transparency)
-                content = Path(result).read_text(encoding='utf-8')
-
-                # Should contain magenta color definition for transparency
-                assert 'red = 255' in content
-                assert 'green = 0' in content
-                assert 'blue = 255' in content
-        finally:
-            tmp_png_path.unlink(missing_ok=True)
-            if result and Path(result).exists():
-                Path(result).unlink(missing_ok=True)
+        assert result is not None
+        decoded_pixels = decode_converted_sprite(result)
+        for row_index in range(TRANSPARENT_CORNER.height):
+            for column_index in range(TRANSPARENT_CORNER.width):
+                assert decoded_pixels[row_index][column_index] == MAGENTA
 
 
 class TestDragAndDropPNG:

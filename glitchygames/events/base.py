@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast, override
 import pygame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, KeysView, ValuesView
+    from collections.abc import Callable, Iterator, KeysView, ValuesView
 
 
 class UnhandledEventError(Exception):
@@ -398,6 +398,40 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
 
         """
         return key in self.__dict__
+
+    # UserDict's own __contains__, __iter__ and get read self.data, which this class never
+    # sets (its items live in __dict__, and an event may have an attribute named `data`), so
+    # they raised or answered from the wrong object (BUGS.md #88). Mapping's items() and
+    # friends go through __iter__ and __getitem__, so they follow these.
+    @override
+    def __contains__(self: Self, key: object) -> bool:
+        """Return True if the event has the attribute `key`.
+
+        Returns:
+            bool: True if the event has the attribute, False otherwise.
+
+        """
+        return key in self.__dict__
+
+    @override
+    def __iter__(self: Self) -> Iterator[str]:
+        """Iterate over the event's attribute names.
+
+        Returns:
+            Iterator[str]: The attribute names.
+
+        """
+        return iter(self.__dict__)
+
+    @override
+    def get(self: Self, key: str, default: Any = None) -> Any:
+        """Return the event's attribute `key`, or `default` when it has none.
+
+        Returns:
+            Any: The attribute's value, or `default`.
+
+        """
+        return self.__dict__.get(key, default)
 
     @override
     def update(self: Self, *args: Any, **kwargs: Any) -> None:

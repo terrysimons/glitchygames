@@ -2344,7 +2344,8 @@ class TestSliderSpriteCoverage:
         del parent.visual_collision_manager
 
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
-        slider.text_sprite.text = '128'
+        # On the hex tab digits without a-f are hex too (BUGS.md #110 item 3)
+        slider.text_sprite.text = '80'
         slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
@@ -3905,6 +3906,32 @@ class TestSliderSpriteDeeper:
         assert slider.text_sprite.text == '42'
         assert slider.text_sprite.is_active is False
 
+    @pytest.mark.parametrize(
+        ('input_format', 'expected_text'),
+        [pytest.param('%X', 'FF', id='hex_tab'), pytest.param('%d', '255', id='decimal_tab')],
+    )
+    def test_slider_restore_original_value_uses_the_active_format(
+        self, mocker, input_format, expected_text
+    ):
+        """Restoring writes the original value in the tab's format: 'FF' on the hex tab."""
+        groups = _RealLayeredDirty()
+        parent = self._make_slider_parent(mocker)
+        parent.slider_input_format = input_format
+        slider = SliderSprite(
+            x=TEST_X,
+            y=TEST_Y,
+            width=256,
+            height=9,
+            name='R',
+            parent=parent,
+            groups=groups,
+        )
+        slider.original_value = 255
+        slider.text_sprite.is_active = True
+        slider._restore_original_value()
+        assert slider.text_sprite.text == expected_text
+        assert slider.text_sprite.is_active is False
+
     def test_slider_handle_text_enter_empty_restores(self, mocker):
         """Test _handle_text_enter with empty text restores original."""
         groups = _RealLayeredDirty()
@@ -3963,6 +3990,45 @@ class TestSliderSpriteDeeper:
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider._value == 255
+
+    def test_slider_handle_text_enter_digits_on_the_hex_tab_are_hex(self, mocker):
+        """On the hex tab "10" is 16, not 10 (BUGS.md #110 item 3)."""
+        groups = _RealLayeredDirty()
+        parent = self._make_slider_parent(mocker)
+        parent.slider_input_format = '%X'
+        slider = SliderSprite(
+            x=TEST_X,
+            y=TEST_Y,
+            width=256,
+            height=9,
+            name='R',
+            parent=parent,
+            groups=groups,
+        )
+        slider.text_sprite.text = '10'
+        slider.text_sprite.is_active = True
+        slider._handle_text_enter(mocker.Mock())
+        assert slider._value == 16
+        assert slider.text_sprite.text == '10'
+
+    def test_slider_handle_text_enter_digits_on_the_decimal_tab_are_decimal(self, mocker):
+        """On the decimal tab "10" is 10."""
+        groups = _RealLayeredDirty()
+        parent = self._make_slider_parent(mocker)
+        parent.slider_input_format = '%d'
+        slider = SliderSprite(
+            x=TEST_X,
+            y=TEST_Y,
+            width=256,
+            height=9,
+            name='R',
+            parent=parent,
+            groups=groups,
+        )
+        slider.text_sprite.text = '10'
+        slider.text_sprite.is_active = True
+        slider._handle_text_enter(mocker.Mock())
+        assert slider._value == 10
 
     def test_slider_handle_text_enter_out_of_range_restores(self, mocker):
         """Test _handle_text_enter with out-of-range value restores."""

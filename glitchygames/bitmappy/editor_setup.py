@@ -167,7 +167,7 @@ class EditorSetup:
         self._create_canvas_sprite(animated_sprite, pixels_across, pixels_tall, pixel_size)
 
         # Finalize setup and start animation
-        self._finalize_canvas_setup(animated_sprite, options)
+        self._finalize_canvas_setup(animated_sprite)
 
     def _calculate_canvas_dimensions(
         self,
@@ -317,22 +317,19 @@ class EditorSetup:
         self.editor.log.info(f'AnimatedCanvasSprite dirty: {self.editor.canvas.dirty}')
 
     @staticmethod
-    def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict[str, Any]) -> None:
+    def _finalize_canvas_setup(animated_sprite: AnimatedSprite) -> None:
         """Finalize canvas setup and start animation.
+
+        The canvas's size lives on the canvas itself (pixels_across / pixels_tall); this no
+        longer sets the class-wide AnimatedCanvasSprite.WIDTH / HEIGHT, which every canvas
+        shared and nothing read (BUGS.md #110 item 2).
 
         Args:
             animated_sprite: The animated sprite to finalize
-            options: Dictionary containing canvas configuration
 
         """
         # Start the animation after everything is set up
         animated_sprite.play()
-
-        size_str = options.get('size')
-        assert size_str is not None
-        width, height = size_str.split('x')
-        AnimatedCanvasSprite.WIDTH = int(width)  # ty: ignore[unresolved-attribute]
-        AnimatedCanvasSprite.HEIGHT = int(height)  # ty: ignore[unresolved-attribute]
 
     # ------------------------------------------------------------------
     # Debug text box / AI label

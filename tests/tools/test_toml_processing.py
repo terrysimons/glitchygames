@@ -298,6 +298,21 @@ class TestQuantizeColorsIfNeeded:
         assert len(result) == 2
         assert result <= colors
 
+    @pytest.mark.parametrize(
+        ('has_transparency', 'max_colors'),
+        [(True, 1), (False, 0)],
+    )
+    def test_no_room_for_colors_raises_a_clear_error(self, has_transparency, max_colors):
+        """A limit that leaves no slot for colors is refused clearly (BUGS.md #109)."""
+        colors = {(0, 0, 0), (255, 255, 255)}
+
+        with pytest.raises(ValueError, match='leaves no palette slot for colors'):
+            quantize_colors_if_needed(
+                colors,
+                has_transparency=has_transparency,
+                max_colors=max_colors,
+            )
+
     def test_logs_through_the_given_logger(self, caplog):
         """Quantization reports its result on the logger passed in."""
         colors = {(0, 0, 0), (255, 255, 255)}
