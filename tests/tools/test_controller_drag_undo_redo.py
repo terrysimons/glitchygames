@@ -26,7 +26,7 @@ class TestControllerDragUndoRedo:
         scene = mocker.Mock()
 
         # Set real attributes needed by command objects
-        scene._applying_undo_redo = False
+        scene.applying_undo_redo = False
         scene.canvas = mocker.Mock()
         scene.canvas.canvas_interface = mocker.Mock()
         scene.canvas.canvas_interface.get_pixel_at = mocker.Mock(

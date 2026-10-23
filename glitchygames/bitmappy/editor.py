@@ -106,7 +106,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     current_pixel_changes: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool
     pixel_change_timer: float | None
-    _applying_undo_redo: bool
+    applying_undo_redo: bool
     _initialized: bool
 
     # Set your game name/version here.

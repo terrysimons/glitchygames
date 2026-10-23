@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests for canvas operation tracking."""
 
+import pytest
+
 from glitchygames.bitmappy.history.operations import CanvasOperationTracker, PixelChange
 from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
@@ -8,10 +10,11 @@ from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 class TestCanvasOperationTracker:
     """Test canvas operation tracking with frame-specific operations."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
+    @pytest.fixture(autouse=True)
+    def set_up_tracker(self, bitmap_editor):
+        """Set up a tracker for a real editor, on its own undo/redo manager."""
         self.manager = UndoRedoManager()
-        self.tracker = CanvasOperationTracker(self.manager)
+        self.tracker = CanvasOperationTracker(self.manager, editor=bitmap_editor)
 
     def test_add_frame_pixel_changes(self):
         """Test adding frame-specific pixel changes."""

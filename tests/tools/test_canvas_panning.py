@@ -714,7 +714,7 @@ class TestCanvasPanCommand:
 
     def test_undo_without_a_canvas_fails(self, mocker):
         """With no canvas there is nothing to restore, so undo reports failure."""
-        editor = mocker.Mock(canvas=None, _applying_undo_redo=False)
+        editor = mocker.Mock(canvas=None, applying_undo_redo=False)
         pan_command = CanvasPanCommand(
             editor,
             animation='idle',
@@ -729,7 +729,7 @@ class TestCanvasPanCommand:
 
     def test_redo_on_a_deleted_frame_fails(self, real_canvas, mocker):
         """A pan of a frame that was deleted since cannot be redone."""
-        editor = mocker.Mock(canvas=real_canvas, _applying_undo_redo=False)
+        editor = mocker.Mock(canvas=real_canvas, applying_undo_redo=False)
         pan_command = CanvasPanCommand(
             editor,
             animation='idle',

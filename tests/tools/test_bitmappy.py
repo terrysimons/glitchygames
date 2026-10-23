@@ -14,9 +14,6 @@ import pytest
 from glitchygames.bitmappy import editor as bitmappy
 from glitchygames.bitmappy.ai_worker import (
     _check_ollama_model_status,
-    _configure_client_timeouts,
-    _configure_ollama_provider,
-    _configure_provider_client_timeout,
     _create_ollama_config,
     _get_provider_timeout_value,
     _initialize_ai_client,
@@ -921,147 +918,92 @@ class TestGetProviderTimeoutValue:
 
 
 # ---------------------------------------------------------------------------
-# TestConfigureProviderClientTimeout
+# TestProviderConfigTimeouts
 # ---------------------------------------------------------------------------
 
 
-class TestConfigureProviderClientTimeout:
-    """Tests for _configure_provider_client_timeout function."""
+def _real_client_provider_configs(log: logging.Logger) -> dict[str, dict[str, object]]:
+    """Build the real aisuite Client _initialize_ai_client makes and read its provider configs.
 
-    def test_provider_without_client(self, mock_logger, mocker):
-        """Provider without client attribute does nothing."""
-        provider = mocker.MagicMock(spec=[])  # No 'client' attribute
-        _configure_provider_client_timeout(mock_logger, 'test_provider', provider, 600)
+    aisuite creates each provider lazily from these configs on the first request, so they are
+    what gives the providers their timeouts. Nothing is sent.
 
-    def test_client_with_timeout_attribute(self, mock_logger, mocker):
-        """Sets timeout on provider.client.timeout."""
-        provider = mocker.MagicMock()
-        provider.client.timeout = 30
-        _configure_provider_client_timeout(mock_logger, 'anthropic', provider, 600)
-        assert provider.client.timeout == 600
+    Returns:
+        The client's provider configurations.
 
-    def test_client_with_nested_client_timeout(self, mock_logger, mocker):
-        """Sets timeout on provider.client._client.timeout when no direct timeout."""
-        provider = mocker.MagicMock()
-        # Remove direct timeout attribute
-        del provider.client.timeout
-        provider.client._client.timeout = 30
-        _configure_provider_client_timeout(mock_logger, 'test', provider, 600)
-        assert provider.client._client.timeout == 600
+    """
+    import aisuite
 
-    def test_ollama_additional_timeout_attrs(self, mock_logger, mocker):
-        """Ollama model configures additional timeout attributes."""
-        import glitchygames.bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        provider = mocker.MagicMock()
-        provider.client.timeout = 30
-        provider.client.request_timeout = 30
-        provider.client.read_timeout = 30
-        _configure_provider_client_timeout(mock_logger, 'ollama', provider, 600)
-        assert provider.client.timeout == 600
-        assert provider.client.request_timeout == ai_worker_module.AI_TIMEOUT
-        assert provider.client.read_timeout == ai_worker_module.AI_TIMEOUT
-        ai_worker_module.AI_MODEL = original
+    client = _initialize_ai_client(log)
+    assert isinstance(client, aisuite.Client)
+    assert client.providers == {}
+    return client.provider_configs
 
 
-# ---------------------------------------------------------------------------
-# TestConfigureClientTimeouts
-# ---------------------------------------------------------------------------
+class TestProviderConfigTimeouts:
+    """The real aisuite Client gets each provider's timeout in its provider configuration."""
 
+    @pytest.fixture(autouse=True)
+    def restore_the_environment(self, mocker):
+        """Keep the OLLAMA_TIMEOUT that _initialize_ai_client sets for ollama out of later tests."""
+        mocker.patch.dict(os.environ)
 
-class TestConfigureClientTimeouts:
-    """Tests for _configure_client_timeouts function."""
+    def test_hosted_model_configures_only_the_anthropic_timeout(self, mock_logger, mocker):
+        """With a hosted model, Anthropic gets the AI timeout and no ollama provider is set up."""
+        mocker.patch('glitchygames.bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
 
-    def test_client_without_providers(self, mock_logger, mocker):
-        """Client without _providers attribute logs warning."""
-        client = mocker.MagicMock(spec=[])  # No _providers
-        _configure_client_timeouts(mock_logger, client)
-        # Should not raise
+        provider_configs = _real_client_provider_configs(mock_logger)
 
-    def test_client_with_providers(self, mock_logger, mocker):
-        """Client with providers configures timeouts."""
+        assert provider_configs == {'anthropic': {'timeout': AI_TIMEOUT}}
+
+    def test_ollama_model_keeps_the_anthropic_timeout(self, mock_logger, mocker):
+        """The ollama configuration leaves the Anthropic provider's timeout as it was."""
+        mocker.patch('glitchygames.bitmappy.ai_worker.AI_MODEL', 'ollama:testmodel')
         mocker.patch(
-            'glitchygames.bitmappy.ai_worker._get_provider_timeout_value',
-            return_value=600,
+            'glitchygames.bitmappy.ai_worker._check_ollama_model_status',
+            return_value={'downloaded': True},
         )
-        provider = mocker.MagicMock()
-        provider.client.timeout = 30
-        client = mocker.MagicMock()
-        client._providers = {'anthropic': provider}
-        _configure_client_timeouts(mock_logger, client)
-        assert provider.client.timeout == 600
 
-    def test_client_exception_handled(self, mock_logger, mocker):
-        """Exception during configuration is handled gracefully."""
-        client = mocker.MagicMock()
-        client._providers = mocker.MagicMock(side_effect=Exception('config error'))
-        # The items() call raises an exception
-        client._providers.items.side_effect = Exception('config error')
-        _configure_client_timeouts(mock_logger, client)
-        # Should not raise
+        provider_configs = _real_client_provider_configs(mock_logger)
 
+        assert provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
 
-# ---------------------------------------------------------------------------
-# TestConfigureOllamaProvider
-# ---------------------------------------------------------------------------
-
-
-class TestConfigureOllamaProvider:
-    """Tests for _configure_ollama_provider function."""
-
-    def test_non_ollama_model_skipped(self, mock_logger, mocker):
-        """Non-ollama model skips provider configuration."""
+    def test_ollama_model_needing_download_gets_the_download_timeout(self, mock_logger, mocker):
+        """An ollama model that must be downloaded first gets the longer download timeout."""
         import glitchygames.bitmappy.ai_worker as ai_worker_module
 
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        client = mocker.MagicMock()
-        _configure_ollama_provider(mock_logger, client)
-        ai_worker_module.AI_MODEL = original
+        mocker.patch('glitchygames.bitmappy.ai_worker.AI_MODEL', 'ollama:testmodel')
+        mocker.patch(
+            'glitchygames.bitmappy.ai_worker._check_ollama_model_status',
+            return_value={'downloaded': False},
+        )
 
-    def test_client_without_providers_skipped(self, mock_logger, mocker):
-        """Client without _providers skips configuration."""
-        import glitchygames.bitmappy.ai_worker as ai_worker_module
+        provider_configs = _real_client_provider_configs(mock_logger)
 
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        client = mocker.MagicMock(spec=[])  # No _providers
-        _configure_ollama_provider(mock_logger, client)
-        ai_worker_module.AI_MODEL = original
+        assert provider_configs['ollama'] == {
+            'timeout': ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT,
+        }
 
-    def test_ollama_provider_configured(self, mock_logger, mocker):
-        """Ollama provider gets timeout configured."""
-        import glitchygames.bitmappy.ai_worker as ai_worker_module
+    def test_ollama_config_holds_only_keys_the_openai_client_accepts(self, mock_logger, mocker):
+        """The ollama config has no request_timeout or read_timeout.
 
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        provider = mocker.MagicMock()
-        provider.timeout = 30
-        provider.client.timeout = 30
-        provider.client.request_timeout = 30
-        client = mocker.MagicMock()
-        client._providers = {'ollama': provider}
-        _configure_ollama_provider(mock_logger, client)
-        assert provider.timeout == ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT
-        assert provider.client.timeout == ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT
-        ai_worker_module.AI_MODEL = original
+        aisuite's OllamaProvider passes its config to openai.OpenAI, which raised TypeError on
+        those keys, so every ollama request failed when the provider was created.
+        """
+        import inspect
 
-    def test_non_ollama_provider_in_dict_skipped(self, mock_logger, mocker):
-        """Non-ollama provider in providers dict is skipped."""
-        import glitchygames.bitmappy.ai_worker as ai_worker_module
+        import openai
 
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        anthropic_provider = mocker.MagicMock()
-        anthropic_provider.timeout = 30
-        client = mocker.MagicMock()
-        client._providers = {'anthropic': anthropic_provider}
-        _configure_ollama_provider(mock_logger, client)
-        # anthropic provider should not be modified
-        assert anthropic_provider.timeout == 30
-        ai_worker_module.AI_MODEL = original
+        mocker.patch('glitchygames.bitmappy.ai_worker.AI_MODEL', 'ollama:testmodel')
+        mocker.patch(
+            'glitchygames.bitmappy.ai_worker._check_ollama_model_status',
+            return_value={'downloaded': True},
+        )
+
+        provider_configs = _real_client_provider_configs(mock_logger)
+
+        accepted_keys = set(inspect.signature(openai.OpenAI).parameters)
+        assert set(provider_configs['ollama']) <= accepted_keys
 
 
 # ---------------------------------------------------------------------------
@@ -1089,8 +1031,6 @@ class TestInitializeAiClient:
             'glitchygames.bitmappy.ai_worker._create_ollama_config',
             return_value={},
         )
-        mocker.patch('glitchygames.bitmappy.ai_worker._configure_ollama_provider')
-        mocker.patch('glitchygames.bitmappy.ai_worker._configure_client_timeouts')
         result = _initialize_ai_client(mock_logger)
         assert result == mock_client
 
@@ -1106,8 +1046,6 @@ class TestInitializeAiClient:
             'glitchygames.bitmappy.ai_worker._create_ollama_config',
             return_value=provider_config,
         )
-        mocker.patch('glitchygames.bitmappy.ai_worker._configure_ollama_provider')
-        mocker.patch('glitchygames.bitmappy.ai_worker._configure_client_timeouts')
         result = _initialize_ai_client(mock_logger)
         mock_ai.Client.assert_called_once_with({
             'anthropic': {'timeout': AI_TIMEOUT},
@@ -1130,8 +1068,6 @@ class TestInitializeAiClient:
             'glitchygames.bitmappy.ai_worker._create_ollama_config',
             return_value={},
         )
-        mocker.patch('glitchygames.bitmappy.ai_worker._configure_ollama_provider')
-        mocker.patch('glitchygames.bitmappy.ai_worker._configure_client_timeouts')
 
         _initialize_ai_client(mock_logger)
 
@@ -2121,7 +2057,7 @@ class TestAnimatedCanvasSpriteDragMethods:
         """Submits pixel changes to undo system."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
         mock_scene = mocker.MagicMock()
-        mock_scene._applying_undo_redo = False
+        mock_scene.applying_undo_redo = False
         mock_scene.current_pixel_changes_dict = {}
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {
@@ -2186,7 +2122,7 @@ class TestAnimatedCanvasSpriteDragCleanup:
         """Does nothing during undo/redo application."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
         mock_scene = mocker.MagicMock()
-        mock_scene._applying_undo_redo = True
+        mock_scene.applying_undo_redo = True
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {(0, 0): (0, 0, (0, 0, 0), (255, 0, 0))}
         canvas._submit_drag_pixel_changes_to_undo()
@@ -2196,7 +2132,7 @@ class TestAnimatedCanvasSpriteDragCleanup:
         """Does nothing when no pixel changes."""
         canvas = self._make_canvas_sprite(mock_groups, mocker)
         mock_scene = mocker.MagicMock()
-        mock_scene._applying_undo_redo = False
+        mock_scene.applying_undo_redo = False
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {}
         canvas._submit_drag_pixel_changes_to_undo()

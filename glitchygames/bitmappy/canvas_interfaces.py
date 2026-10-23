@@ -388,7 +388,7 @@ class AnimatedCanvasInterface:
         parent = self.canvas_sprite.parent_scene
         return hasattr(parent, 'canvas_operation_tracker') and not getattr(
             parent,
-            '_applying_undo_redo',
+            'applying_undo_redo',
             False,
         )
 

@@ -109,27 +109,18 @@ class _FilmStripCoordinator:
 
 
 class _FilmStripWidget:
-    """Film strip widget stand-in counting its refresh calls."""
+    """Film strip widget stand-in recording its refresh calls.
+
+    FilmStripWidget.refresh itself is tested on a real widget in test_film_strip_layout.py
+    (TestRefresh).
+    """
 
     def __init__(self):
         self.refresh_calls = []
 
-    def _initialize_preview_animations(self):
-        self.refresh_calls.append('initialize_preview_animations')
-
-    def _calculate_layout(self):
-        self.refresh_calls.append('calculate_layout')
-
-    def update_layout(self):
-        """Record a layout update."""
-        self.refresh_calls.append('update_layout')
-
-    def _create_film_tabs(self):
-        self.refresh_calls.append('create_film_tabs')
-
-    def mark_dirty(self):
-        """Record a dirty mark."""
-        self.refresh_calls.append('mark_dirty')
+    def refresh(self, *, recalculate_layout):
+        """Record a refresh and whether it recalculated the layout."""
+        self.refresh_calls.append({'recalculate_layout': recalculate_layout})
 
 
 class _FilmStripSprite:
@@ -160,7 +151,7 @@ class _Editor:
     """Editor stand-in with the attributes the commands read."""
 
     def __init__(self, animated_sprite):
-        self._applying_undo_redo = False
+        self.applying_undo_redo = False
         self.canvas = _Canvas(animated_sprite)
         self.film_strip_coordinator = _FilmStripCoordinator(animated_sprite)
         self.selected_animation = 'idle'
@@ -200,7 +191,7 @@ def _first_pixel_colors(sprite, animation_name):
         list[tuple[int, ...]]: One color per frame.
 
     """
-    return [frame.get_pixel_data()[0] for frame in sprite._animations[animation_name]]
+    return [frame.get_pixel_data()[0] for frame in sprite.animation_data[animation_name]]
 
 
 class TestBrushStrokeCommand:
@@ -234,7 +225,7 @@ class TestBrushStrokeCommand:
         assert editor.canvas.canvas_interface.pixels == {(0, 0): GREEN, (1, 1): GREEN}
         assert command.undo() is True
         assert editor.canvas.canvas_interface.pixels == {(0, 0): RED, (1, 1): BLUE}
-        assert editor._applying_undo_redo is False
+        assert editor.applying_undo_redo is False
 
     def test_undo_without_canvas_fails(self, editor):
         """Without a canvas nothing can be painted, so undo reports failure."""
@@ -258,7 +249,7 @@ class TestBrushStrokeCommand:
         editor.canvas.canvas_interface.error_to_raise = IndexError('outside the canvas')
 
         assert command.execute() is False
-        assert editor._applying_undo_redo is False
+        assert editor.applying_undo_redo is False
 
 
 class TestFloodFillCommand:
@@ -361,7 +352,7 @@ class TestFramePasteCommand:
 
     def test_paste_into_displayed_frame_updates_canvas_and_undo_restores(self, editor):
         """Pasting into the shown frame repaints the canvas; undo restores frame and canvas."""
-        frame = editor.canvas.animated_sprite._animations['idle'][0]
+        frame = editor.canvas.animated_sprite.animation_data['idle'][0]
         old_pixels = frame.get_pixel_data()
         new_pixels = [BLUE] * (FRAME_WIDTH * FRAME_HEIGHT)
         command = FramePasteCommand(
@@ -401,7 +392,9 @@ class TestFramePasteCommand:
         )
 
         assert command.execute() is True
-        assert editor.canvas.animated_sprite._animations['idle'][2].get_pixel_data() == new_pixels
+        assert (
+            editor.canvas.animated_sprite.animation_data['idle'][2].get_pixel_data() == new_pixels
+        )
         assert editor.canvas.pixels == canvas_pixels_before
 
     def test_paste_without_canvas_fails(self, editor):
@@ -496,7 +489,7 @@ class TestFrameAddCommand:
         )
 
         assert command.execute() is True
-        frames = animated_sprite._animations['idle']
+        frames = animated_sprite.animation_data['idle']
         assert len(frames) == 4
         assert frames[1].get_pixel_data() == [BLUE] * 4
         assert frames[1].duration == pytest.approx(0.25)
@@ -530,14 +523,14 @@ class TestFrameAddCommand:
         assert animated_sprite.frame_manager.current_frame == 3
         assert command.undo() is True
         assert animated_sprite.frame_manager.current_frame == 2
-        assert animated_sprite._animations['idle'][2].get_pixel_data()[0] == BLUE
+        assert animated_sprite.animation_data['idle'][2].get_pixel_data()[0] == BLUE
 
     def test_add_to_other_animation_leaves_current_frame(self, editor, animated_sprite):
         """Adding to an animation the canvas is not showing does not move the canvas."""
         command = FrameAddCommand(editor, 0, 'walk', self._frame_data())
 
         assert command.execute() is True
-        assert len(animated_sprite._animations['walk']) == 1
+        assert len(animated_sprite.animation_data['walk']) == 1
         assert animated_sprite.frame_manager.current_animation == 'idle'
         assert editor.canvas.shown_frames == []
 
@@ -556,7 +549,7 @@ class TestFrameAddCommand:
         command = FrameAddCommand(editor, 3, 'idle', frame_data)
 
         assert command.execute() is True
-        added_frame = animated_sprite._animations['idle'][3]
+        added_frame = animated_sprite.animation_data['idle'][3]
         assert added_frame.get_size() == (FRAME_WIDTH, FRAME_HEIGHT)
         assert added_frame.duration == pytest.approx(1.0)
 
@@ -572,7 +565,7 @@ class TestFrameAddCommand:
         command = FrameAddCommand(editor, 0, 'idle', {'pixels': [RED]})
 
         assert command.execute() is False
-        assert len(animated_sprite._animations['idle']) == 3
+        assert len(animated_sprite.animation_data['idle']) == 3
 
     def test_undo_without_canvas_fails(self, editor):
         """Without a canvas the frame cannot be removed."""
@@ -592,7 +585,7 @@ class TestFrameAddCommand:
         command = FrameAddCommand(editor, 7, 'idle', self._frame_data())
 
         assert command.undo() is False
-        assert len(animated_sprite._animations['idle']) == 3
+        assert len(animated_sprite.animation_data['idle']) == 3
 
     def test_undo_error_while_refreshing_fails(self, editor, mocker):
         """An error from the film strip refresh is reported as a failure."""
@@ -627,11 +620,11 @@ class TestFrameDeleteCommand:
 
     def test_deleting_shown_first_frame_keeps_frame_zero(self, editor, animated_sprite):
         """Deleting frame 0 while it is shown keeps the canvas on frame 0 and stops playback."""
-        animated_sprite._is_playing = True
+        animated_sprite.play()
         command = FrameDeleteCommand(editor, 0, 'idle', {'width': 2, 'height': 2})
 
         assert command.execute() is True
-        assert animated_sprite._is_playing is False
+        assert animated_sprite.is_playing is False
         assert animated_sprite.frame_manager.current_frame == 0
         assert editor.canvas.shown_frames[-1] == ('idle', 0)
 
@@ -644,7 +637,7 @@ class TestFrameDeleteCommand:
         command = FrameDeleteCommand(single_frame_editor, 0, 'solo', {'width': 2, 'height': 2})
 
         assert command.execute() is True
-        assert single_frame_sprite._animations['solo'] == []
+        assert single_frame_sprite.animation_data['solo'] == []
         assert single_frame_sprite.frame_manager.current_frame == 0
 
     def test_deleting_frame_after_shown_frame_keeps_shown_frame(self, editor, animated_sprite):
@@ -660,7 +653,7 @@ class TestFrameDeleteCommand:
         command = FrameDeleteCommand(editor, 0, 'walk', {'width': 2, 'height': 2})
 
         assert command.execute() is True
-        assert len(animated_sprite._animations['walk']) == 1
+        assert len(animated_sprite.animation_data['walk']) == 1
         assert editor.canvas.shown_frames == []
 
     def test_deleting_shown_frame_shows_the_frame_before_it(self, editor, animated_sprite):
@@ -682,7 +675,7 @@ class TestFrameDeleteCommand:
 
         assert command.execute() is True
         shown_frame_index = animated_sprite.frame_manager.current_frame
-        assert animated_sprite._animations['idle'][shown_frame_index].get_pixel_data()[0] == BLUE
+        assert animated_sprite.animation_data['idle'][shown_frame_index].get_pixel_data()[0] == BLUE
         assert editor.canvas.shown_frames[-1] == ('idle', 1)
 
     def test_deleting_shown_middle_frame_shows_the_frame_before_it(self, editor, animated_sprite):
@@ -707,12 +700,7 @@ class TestFrameReorderCommand:
         assert command.description == "Moved frame 0 to 2 in 'idle'"
         assert command.execute() is True
         assert _first_pixel_colors(animated_sprite, 'idle') == [GREEN, BLUE, RED]
-        assert film_strip_widget.refresh_calls == [
-            'initialize_preview_animations',
-            'update_layout',
-            'create_film_tabs',
-            'mark_dirty',
-        ]
+        assert film_strip_widget.refresh_calls == [{'recalculate_layout': False}]
         assert command.undo() is True
         assert _first_pixel_colors(animated_sprite, 'idle') == [RED, GREEN, BLUE]
 
@@ -739,7 +727,7 @@ class TestFrameReorderCommand:
     def test_reorder_widget_error_fails(self, editor, mocker):
         """An error while refreshing the widget is reported as a failure."""
         film_strip_widget = _FilmStripWidget()
-        mocker.patch.object(film_strip_widget, 'update_layout', side_effect=TypeError('layout'))
+        mocker.patch.object(film_strip_widget, 'refresh', side_effect=TypeError('layout'))
         editor.film_strip_widget = film_strip_widget
 
         assert FrameReorderCommand(editor, 0, 1, 'idle').execute() is False
@@ -769,19 +757,13 @@ class TestAnimationAddCommand:
         command = AnimationAddCommand(editor, 'walk', self._animation_data())
 
         assert command.execute() is True
-        walk_frames = animated_sprite._animations['walk']
+        walk_frames = animated_sprite.animation_data['walk']
         assert len(walk_frames) == 2
         assert walk_frames[0].get_pixel_data() == [GREEN] * 4
         assert walk_frames[0].duration == pytest.approx(0.2)
         assert walk_frames[1].duration == pytest.approx(1.0)
-        assert 'mark_dirty' in film_strip_widget.refresh_calls
-        assert sprite_widget.refresh_calls == [
-            'initialize_preview_animations',
-            'calculate_layout',
-            'update_layout',
-            'create_film_tabs',
-            'mark_dirty',
-        ]
+        assert film_strip_widget.refresh_calls == [{'recalculate_layout': False}]
+        assert sprite_widget.refresh_calls == [{'recalculate_layout': True}]
         assert film_strip_sprite.dirty == 1
 
     def test_undo_deletes_animation_and_reloads_film_strips(self, editor, animated_sprite):
@@ -790,7 +772,7 @@ class TestAnimationAddCommand:
         command.execute()
 
         assert command.undo() is True
-        assert 'walk' not in animated_sprite._animations
+        assert 'walk' not in animated_sprite.animation_data
         assert editor.film_strip_coordinator.notifications == [
             ('sprite_loaded', animated_sprite),
         ]
@@ -851,12 +833,12 @@ class TestAnimationDeleteCommand:
         command = AnimationDeleteCommand(editor, 'idle', animation_data)
 
         assert command.execute() is True
-        assert list(animated_sprite._animations) == ['walk']
+        assert list(animated_sprite.animation_data) == ['walk']
         assert animated_sprite.transition_data == []
         assert 'idle' not in animated_sprite._loop_flags
 
         assert command.undo() is True
-        assert list(animated_sprite._animations) == ['idle', 'walk']
+        assert list(animated_sprite.animation_data) == ['idle', 'walk']
         assert _first_pixel_colors(animated_sprite, 'idle') == [RED, GREEN, BLUE]
         assert animated_sprite._loop_flags['idle'] is False
         assert animated_sprite._animation_frame_intervals['idle'] == pytest.approx(0.3)
@@ -868,7 +850,7 @@ class TestAnimationDeleteCommand:
         command = AnimationDeleteCommand(editor, 'walk', animation_data)
 
         assert command.undo() is True
-        assert list(animated_sprite._animations) == ['idle', 'walk']
+        assert list(animated_sprite.animation_data) == ['idle', 'walk']
 
     def test_execute_of_unknown_animation_fails(self, editor):
         """Deleting an animation that does not exist fails."""
@@ -889,9 +871,9 @@ class TestAnimationRenameCommand:
         command = AnimationRenameCommand(editor, 'idle', 'rest')
 
         assert command.execute() is True
-        assert list(animated_sprite._animations) == ['rest']
+        assert list(animated_sprite.animation_data) == ['rest']
         assert command.undo() is True
-        assert list(animated_sprite._animations) == ['idle']
+        assert list(animated_sprite.animation_data) == ['idle']
 
     def test_rename_without_canvas_fails(self, editor):
         """Without a canvas there is nothing to rename."""
@@ -904,7 +886,7 @@ class TestAnimationRenameCommand:
         animated_sprite.add_animation('walk', [_make_frame(RED)])
 
         assert AnimationRenameCommand(editor, 'idle', 'walk').execute() is False
-        assert list(animated_sprite._animations) == ['idle', 'walk']
+        assert list(animated_sprite.animation_data) == ['idle', 'walk']
 
 
 class TestControllerPositionCommand:
@@ -959,7 +941,7 @@ class TestControllerPositionCommand:
         command = ControllerPositionCommand(editor, 0, old_position=(0, 0), new_position=(1, 1))
 
         assert command.execute() is False
-        assert editor._applying_undo_redo is False
+        assert editor.applying_undo_redo is False
 
 
 class TestControllerModeCommand:

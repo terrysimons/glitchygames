@@ -369,7 +369,7 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChangeDeeper:
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = False
+        canvas_sprite.parent_scene.applying_undo_redo = False
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)
@@ -381,7 +381,7 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChangeDeeper:
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = True
+        canvas_sprite.parent_scene.applying_undo_redo = True
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)

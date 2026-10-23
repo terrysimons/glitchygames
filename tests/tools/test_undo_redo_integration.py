@@ -9,6 +9,7 @@ from glitchygames.bitmappy.history.operations import (
     PixelChange,
 )
 from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
+from glitchygames.sprites.animated import AnimatedSprite
 
 
 class TestUndoRedoCallbacks:
@@ -105,13 +106,12 @@ class TestIntegrationScenarios:
     def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         self.manager = UndoRedoManager()
-        # Create a mock editor so command objects can access editor._applying_undo_redo
+        # Create a mock editor so command objects can access editor.applying_undo_redo
         # and editor.canvas.canvas_interface.set_pixel_at()
         self.mock_editor = mocker.Mock()
-        self.mock_editor._applying_undo_redo = False
-        # Use a real dict for _animations so FrameAddCommand._delete_frame can check membership
-        self.mock_editor.canvas.animated_sprite._animations = {}
-        self.mock_editor.canvas.animated_sprite._is_playing = False
+        self.mock_editor.applying_undo_redo = False
+        # A real sprite, so FrameAddCommand._delete_frame finds its animations
+        self.mock_editor.canvas.animated_sprite = AnimatedSprite()
         self.canvas_tracker = CanvasOperationTracker(self.manager, editor=self.mock_editor)
         self.film_tracker = FilmStripOperationTracker(self.manager, editor=self.mock_editor)
 
@@ -128,10 +128,11 @@ class TestIntegrationScenarios:
 
         placeholder = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
         added_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-        self.mock_editor.canvas.animated_sprite._animations = {
-            'walk_animation': [placeholder, added_frame],
-        }
-        self.mock_editor.canvas.animated_sprite.frame_manager = mocker.Mock()
+        self.mock_editor.canvas.animated_sprite.add_animation(
+            'walk_animation',
+            [placeholder, added_frame],
+        )
+        # The canvas shows another animation, so deleting the frame moves no shown frame
         self.mock_editor.canvas.animated_sprite.frame_manager.current_animation = ''
 
         # Add frame operation

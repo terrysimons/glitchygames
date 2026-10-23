@@ -1,7 +1,9 @@
 """Tests for glitchygames.bitmappy.ai_worker.
 
-The AI client is always a local fake standing in for aisuite's client (the network boundary):
-no test sends a real AI request or opens a connection.
+The AI client that answers requests is always a local fake standing in for aisuite's client
+(the network boundary); the timeout tests build a real aisuite Client and its providers, which
+connect to nothing until a request is sent. No test sends a real AI request or opens a
+connection.
 """
 
 import inspect
@@ -10,7 +12,10 @@ import queue
 from http import HTTPStatus
 from types import SimpleNamespace
 
+import aisuite
+import aisuite.provider
 import pytest
+from aisuite.provider import ProviderFactory
 
 from glitchygames.bitmappy import ai_worker
 from glitchygames.bitmappy.constants import AI_MODEL_DOWNLOAD_TIMEOUT, AI_TIMEOUT
@@ -104,89 +109,94 @@ def _request(request_id: str = 'request-1') -> AIRequest:
     return AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
 
 
-class TestConfigureOllamaProvider:
-    """Test _configure_ollama_provider."""
+def _initialize_real_client() -> aisuite.Client:
+    """Run _initialize_ai_client, which builds a real aisuite Client (sending nothing).
 
-    def test_only_ollama_providers_get_the_download_timeout(self, mocker):
-        """Ollama providers and their HTTP clients get the long timeout; others are untouched."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        ollama_client = SimpleNamespace(
-            timeout=1,
-            request_timeout=1,
-            read_timeout=1,
-            connect_timeout=1,
-        )
-        ollama_provider = SimpleNamespace(timeout=1, client=ollama_client)
-        other_provider = SimpleNamespace(timeout=1, client=SimpleNamespace(timeout=1))
-        client = SimpleNamespace(_providers={'Ollama': ollama_provider, 'openai': other_provider})
+    Returns:
+        The client.
 
-        ai_worker._configure_ollama_provider(LOG, client)
+    """
+    client = ai_worker._initialize_ai_client(LOG)
+    assert isinstance(client, aisuite.Client)
+    return client
 
-        assert ollama_provider.timeout == AI_MODEL_DOWNLOAD_TIMEOUT
-        assert vars(ollama_client) == dict.fromkeys(
-            ['timeout', 'request_timeout', 'read_timeout', 'connect_timeout'],
-            AI_MODEL_DOWNLOAD_TIMEOUT,
-        )
-        assert other_provider.timeout == 1
-        assert other_provider.client.timeout == 1
 
-    def test_providers_without_timeouts_are_left_without_them(self, mocker):
-        """A provider or client that has no timeout attributes does not gain any."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        bare_client = SimpleNamespace()
-        provider_with_bare_client = SimpleNamespace(client=bare_client)
-        provider_without_client = SimpleNamespace()
-        client = SimpleNamespace(
-            _providers={'ollama': provider_with_bare_client, 'ollama2': provider_without_client},
-        )
+def _provider_created_from(client: aisuite.Client, provider_key: str) -> aisuite.provider.Provider:
+    """Create the provider a real aisuite Client would create for its first request.
 
-        ai_worker._configure_ollama_provider(LOG, client)
+    aisuite creates a provider lazily, on the first request that names it, from the client's
+    ``provider_configs`` entry (``aisuite.client.Completions``); this does the same without
+    sending a request.
 
-        assert vars(provider_with_bare_client) == {'client': bare_client}
-        assert vars(bare_client) == {}
-        assert vars(provider_without_client) == {}
+    Returns:
+        The aisuite provider, holding the vendor SDK client as ``client``.
 
-    def test_non_ollama_model_changes_nothing(self, mocker):
-        """With a hosted model, ollama providers are not reconfigured."""
+    """
+    return ProviderFactory.create_provider(
+        provider_key, dict(client.provider_configs[provider_key])
+    )
+
+
+class TestProviderTimeouts:
+    """The real aisuite Client _initialize_ai_client builds gives its providers the timeouts.
+
+    No request is sent: the providers are created offline, as aisuite creates them for the
+    first request.
+    """
+
+    @pytest.fixture(autouse=True)
+    def restore_the_environment(self, mocker):
+        """Keep the OLLAMA_TIMEOUT that _initialize_ai_client sets for ollama out of later tests."""
+        mocker.patch.dict('os.environ')
+
+    def test_no_provider_exists_before_the_first_request(self, mocker):
+        """The client creates providers lazily, so only its configuration can carry a timeout."""
         mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        provider = SimpleNamespace(timeout=1)
 
-        ai_worker._configure_ollama_provider(LOG, SimpleNamespace(_providers={'ollama': provider}))
+        client = _initialize_real_client()
 
-        assert provider.timeout == 1
+        assert client.providers == {}
 
-
-class TestConfigureProviderClientTimeout:
-    """Test _configure_provider_client_timeout."""
-
-    def test_inner_http_client_gets_the_timeout(self, mocker):
-        """A client without its own timeout passes it to its inner _client."""
+    def test_anthropic_client_gets_the_timeout(self, mocker):
+        """The Anthropic SDK client aisuite creates has the AI timeout, and no ollama is set up."""
         mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        inner_client = SimpleNamespace(timeout=5)
-        provider = SimpleNamespace(client=SimpleNamespace(_client=inner_client))
+        mocker.patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'offline-test-key'})
 
-        ai_worker._configure_provider_client_timeout(LOG, 'anthropic', provider, 42)
+        client = _initialize_real_client()
+        provider = _provider_created_from(client, 'anthropic')
 
-        assert inner_client.timeout == 42
+        assert provider.client.timeout == AI_TIMEOUT
+        assert 'ollama' not in client.provider_configs
 
-    def test_client_without_any_timeout_is_unchanged(self, mocker):
-        """A client with neither a timeout nor an inner client gains nothing."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        provider = SimpleNamespace(client=SimpleNamespace())
+    @pytest.mark.parametrize(
+        ('downloaded', 'expected_timeout'),
+        [(True, AI_TIMEOUT), (False, AI_MODEL_DOWNLOAD_TIMEOUT)],
+    )
+    def test_ollama_client_gets_the_timeout_for_the_model_status(
+        self,
+        mocker,
+        downloaded,
+        expected_timeout,
+    ):
+        """The ollama provider can be created, and its HTTP client has the timeout.
 
-        ai_worker._configure_provider_client_timeout(LOG, 'anthropic', provider, 42)
-
-        assert vars(provider.client) == {}
-
-    def test_ollama_sets_request_and_read_timeouts_present_on_the_client(self, mocker):
-        """For ollama, request_timeout and read_timeout are set where the client has them."""
+        A model that must be downloaded first gets the longer download timeout. The provider
+        passes its configuration to openai.OpenAI, which once raised TypeError on the
+        request_timeout and read_timeout keys the configuration held, so every ollama request
+        failed.
+        """
         mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        provider_client = SimpleNamespace(timeout=1, read_timeout=1)
-        provider = SimpleNamespace(client=provider_client)
+        mocker.patch.object(
+            ai_worker,
+            '_check_ollama_model_status',
+            return_value={'downloaded': downloaded},
+        )
 
-        ai_worker._configure_provider_client_timeout(LOG, 'ollama', provider, 42)
+        client = _initialize_real_client()
+        ollama_provider = _provider_created_from(client, 'ollama')
 
-        assert vars(provider_client) == {'timeout': 42, 'read_timeout': AI_TIMEOUT}
+        assert ollama_provider.client.timeout == expected_timeout
+        assert client.provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
 
 
 class TestQueryModelCapabilities:

@@ -557,7 +557,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if not hasattr(parent, 'undo_redo_manager'):
             return False
         return not (
-            getattr(parent, '_applying_undo_redo', False)
+            getattr(parent, 'applying_undo_redo', False)
             or getattr(parent, '_creating_frame', False)
             or getattr(parent, '_creating_animation', False)
         )
@@ -1110,7 +1110,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             hasattr(self, 'parent_scene')
             and self.parent_scene
             and hasattr(self.parent_scene, 'canvas_operation_tracker')
-            and not getattr(self.parent_scene, '_applying_undo_redo', False)
+            and not getattr(self.parent_scene, 'applying_undo_redo', False)
         ):
             return
 

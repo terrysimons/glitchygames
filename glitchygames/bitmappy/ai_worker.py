@@ -137,36 +137,23 @@ def _setup_ai_worker_logging() -> logging.Logger:
     return log
 
 
-def _create_ollama_config(log: logging.Logger) -> dict[str, Any]:
-    """Create ollama-specific configuration with appropriate timeouts.
+def _create_ollama_config(log: logging.Logger) -> dict[str, dict[str, object]]:
+    """Create the ollama provider's configuration: its timeout.
+
+    aisuite's OllamaProvider passes its configuration to ``openai.OpenAI``, which takes a
+    single ``timeout`` (``request_timeout`` or ``read_timeout`` would make the provider raise
+    ``TypeError`` when the first request creates it).
 
     Returns:
-        dict: The result.
+        ``{'ollama': {'timeout': seconds}}`` for an ollama model, else an empty dict.
 
     """
     if not AI_MODEL.startswith('ollama:'):
         return {}
 
-    # Check if model is already downloaded to choose appropriate timeout
-    model_status = _check_ollama_model_status(log)
-    if model_status['downloaded']:
-        timeout_value = AI_TIMEOUT  # Use normal timeout for downloaded models
-        log.info('Model already downloaded, using %ss timeout', timeout_value)
-    else:
-        timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT  # Use longer timeout for download
-        log.info('Model needs download, using %ss timeout (30 minutes)', timeout_value)
-
-    # Create ollama-specific configuration
-    config = {
-        'ollama': {
-            'timeout': timeout_value,
-            'request_timeout': timeout_value,
-            'read_timeout': timeout_value,
-        },
-    }
-
+    timeout_value = _get_provider_timeout_value(log)
     log.info('Created ollama config with %ss timeout', timeout_value)
-    return config
+    return {'ollama': {'timeout': timeout_value}}
 
 
 def _set_ollama_env_timeout(log: logging.Logger) -> None:
@@ -193,41 +180,6 @@ def _set_ollama_env_timeout(log: logging.Logger) -> None:
     log.info('Set OLLAMA_TIMEOUT environment variable to %s seconds', ollama_timeout)
 
 
-def _configure_ollama_provider(log: logging.Logger, client: Any) -> None:
-    """Apply ollama-specific timeout configuration to the client's providers.
-
-    Args:
-        log: Logger instance.
-        client: The AI client.
-
-    """
-    if not AI_MODEL.startswith('ollama:') or not hasattr(client, '_providers'):
-        return
-
-    log.info('Applying additional ollama-specific configuration...')
-    timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT
-
-    for provider_name, provider in client._providers.items():
-        if 'ollama' not in provider_name.lower():
-            continue
-
-        log.info('Configuring ollama provider: %s', provider_name)
-
-        if hasattr(provider, 'timeout'):
-            provider.timeout = timeout_value
-            log.info('Set ollama provider timeout to %ss', timeout_value)
-
-        if hasattr(provider, 'client') and hasattr(provider.client, 'timeout'):
-            provider.client.timeout = timeout_value
-            log.info('Set ollama HTTP client timeout to %ss', timeout_value)
-
-        if hasattr(provider, 'client'):
-            for timeout_attr in ['request_timeout', 'read_timeout', 'connect_timeout']:
-                if hasattr(provider.client, timeout_attr):
-                    setattr(provider.client, timeout_attr, timeout_value)
-                    log.info('Set ollama %s to %ss', timeout_attr, timeout_value)
-
-
 def _get_provider_timeout_value(log: logging.Logger) -> int:
     """Get the appropriate timeout value based on model status.
 
@@ -235,111 +187,18 @@ def _get_provider_timeout_value(log: logging.Logger) -> int:
         log: Logger instance.
 
     Returns:
-        The timeout value in seconds.
+        The timeout value in seconds: longer for an ollama model that must be downloaded first.
 
     """
     if AI_MODEL.startswith('ollama:'):
         model_status = _check_ollama_model_status(log)
         if not model_status['downloaded']:
+            log.info(
+                'Model needs download, using %ss timeout (30 minutes)', AI_MODEL_DOWNLOAD_TIMEOUT
+            )
             return AI_MODEL_DOWNLOAD_TIMEOUT
+        log.info('Model already downloaded, using %ss timeout', AI_TIMEOUT)
     return AI_TIMEOUT
-
-
-def _configure_provider_client_timeout(
-    log: logging.Logger,
-    provider_name: str,
-    provider: Any,
-    timeout_value: int,
-) -> None:
-    """Configure timeout on a provider's client and underlying HTTP client.
-
-    Args:
-        log: Logger instance.
-        provider_name: Name of the provider.
-        provider: The provider object.
-        timeout_value: Timeout value in seconds.
-
-    """
-    if not hasattr(provider, 'client'):
-        return
-
-    provider_client: object = provider.client
-    log.debug('Provider client: %s', type(provider_client))
-    log.debug('Provider client attributes: %s', dir(provider_client))
-
-    if hasattr(provider.client, 'timeout'):
-        old_timeout = getattr(provider.client, 'timeout', 'unknown')
-        provider.client.timeout = timeout_value
-        log.info(
-            'Set %ss timeout for %s provider (was: %s)',
-            timeout_value,
-            provider_name,
-            old_timeout,
-        )
-    elif hasattr(provider.client, '_client') and hasattr(provider.client._client, 'timeout'):
-        old_timeout = getattr(provider.client._client, 'timeout', 'unknown')
-        provider.client._client.timeout = timeout_value
-        log.info(
-            'Set %ss timeout for %s provider HTTP client (was: %s)',
-            timeout_value,
-            provider_name,
-            old_timeout,
-        )
-
-    # Additional timeout configurations for ollama
-    if AI_MODEL.startswith('ollama:'):
-        for attr_name in ['request_timeout', 'read_timeout']:
-            if hasattr(provider.client, attr_name):
-                old_timeout = getattr(provider.client, attr_name, 'unknown')
-                setattr(provider.client, attr_name, AI_TIMEOUT)
-                log.info('Set %s for %s provider (was: %s)', attr_name, provider_name, old_timeout)
-
-
-def _configure_client_timeouts(log: logging.Logger, client: AIClient) -> None:
-    """Configure timeouts on all providers in the AI client.
-
-    Args:
-        log: Logger instance.
-        client: The AI client.
-
-    """
-    # The providers are third-party objects whose attributes may raise anything: failing to
-    # set a timeout must never stop the client from being used, so the catch stays broad
-    try:
-        _apply_client_timeouts(log, client)
-    except Exception as e:
-        log.warning('Could not configure timeout: %s', e)
-        log.exception('Timeout configuration error details')
-        log.info('AI client initialized with default timeout')
-
-
-def _apply_client_timeouts(log: logging.Logger, client: Any) -> None:
-    """Set the timeout on every provider in the AI client (_configure_client_timeouts's body).
-
-    Args:
-        log: Logger instance.
-        client: The AI client.
-
-    """
-    client_object: object = client
-    log.debug('Client type: %s', type(client_object))
-    log.debug('Client attributes: %s', dir(client_object))
-
-    if not hasattr(client, '_providers'):
-        log.warning('Client does not have _providers attribute')
-        log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
-        return
-
-    timeout_value = _get_provider_timeout_value(log)
-    log.debug('Found %s providers', len(client._providers))
-
-    for provider_name, provider in client._providers.items():
-        provider_object: object = provider
-        log.debug('Provider %s: %s', provider_name, type(provider_object))
-        log.debug('Provider attributes: %s', dir(provider))
-        _configure_provider_client_timeout(log, provider_name, provider, timeout_value)
-
-    log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
 
 
 def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
@@ -359,22 +218,21 @@ def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
     _set_ollama_env_timeout(log)
 
     log.info('Initializing AI client...')
+    # aisuite creates a provider only when the first request needs it (Client.providers is
+    # empty until then), passing it the provider's entry of this configuration, so the
+    # timeouts must be configured here, up front.
     # anthropic>=0.40 refuses non-streaming requests whose max_tokens implies more than
     # 10 minutes ("Streaming is required...") unless the client has a non-default timeout.
-    # aisuite creates providers lazily on first use, so _configure_client_timeouts() below
-    # cannot reach the Anthropic client; the timeout must be passed in up front.
     # See https://github.com/anthropics/anthropic-sdk-python#long-requests
     # aisuite only instantiates the provider named in AI_MODEL, so unused entries are inert.
-    provider_config: dict[str, Any] = {
+    provider_config: dict[str, dict[str, object]] = {
         'anthropic': {'timeout': AI_TIMEOUT},
         **_create_ollama_config(log),
     }
 
     log.info('Initializing client with provider config: %s', provider_config)
     client = ai.Client(provider_config)
-
-    _configure_ollama_provider(log, client)
-    _configure_client_timeouts(log, client)
+    log.info('AI client initialized')
 
     log.debug('Client type: %s', type(client))
     return client

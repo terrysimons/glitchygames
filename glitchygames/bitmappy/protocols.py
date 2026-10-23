@@ -85,6 +85,8 @@ class EditorContext(Protocol):
     # ── Pixel change tracking ────────────────────────────────────────────
 
     pixel_change_timer: float | None
+    # True while an undo or redo applies its change, so the change is not tracked as a new one
+    applying_undo_redo: bool
 
     # ── Selection state ──────────────────────────────────────────────────
 

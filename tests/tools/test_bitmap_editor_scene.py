@@ -101,7 +101,7 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
     editor._is_drag_operation = False
-    editor._applying_undo_redo = False
+    editor.applying_undo_redo = False
 
     # -- Editor setup delegate --
     editor._setup = EditorSetup(editor=editor)
@@ -978,7 +978,7 @@ class TestTrackControllerModeChange:
 
     def test_skips_during_undo_redo(self, mock_editor, mocker):
         """Test that mode changes are not tracked during undo/redo application."""
-        mock_editor.controller_handler._applying_undo_redo = True
+        mock_editor.controller_handler.applying_undo_redo = True
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
         mock_editor.controller_handler._track_controller_mode_change(0, new_mode)
@@ -993,7 +993,7 @@ class TestTrackControllerModeChange:
 
     def test_tracks_mode_change(self, mock_editor, mocker):
         """Test that mode change is tracked properly."""
-        mock_editor._applying_undo_redo = False
+        mock_editor.applying_undo_redo = False
         old_mode = mocker.Mock()
         old_mode.value = 'film_strip'
         new_mode = mocker.Mock()
@@ -1008,7 +1008,7 @@ class TestTrackControllerModeChange:
 
     def test_no_old_mode_does_not_track(self, mock_editor, mocker):
         """Test that no tracking happens when old mode is None."""
-        mock_editor._applying_undo_redo = False
+        mock_editor.applying_undo_redo = False
         mock_editor.mode_switcher.get_controller_mode.return_value = None
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'

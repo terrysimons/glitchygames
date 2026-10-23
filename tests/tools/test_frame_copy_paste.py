@@ -345,7 +345,7 @@ class TestFrameCopyPaste:
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
+        scene.canvas.animated_sprite = AnimatedSprite()
         scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
@@ -356,7 +356,7 @@ class TestFrameCopyPaste:
         target_frame.duration = 0.5
         target_frame.set_pixel_data = self._mocker.Mock()
 
-        scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
+        scene.canvas.animated_sprite.animation_data = {'test_anim': [target_frame]}
 
         # Set up clipboard
         scene._frame_operations._frame_clipboard = {
@@ -387,14 +387,14 @@ class TestFrameCopyPaste:
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
+        scene.canvas.animated_sprite = AnimatedSprite()
         scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # A real green target frame
         target_frame = _real_frame(color=(0, 255, 0), duration=0.5)
 
-        scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
+        scene.canvas.animated_sprite.animation_data = {'test_anim': [target_frame]}
 
         # Create and execute a FramePasteCommand
         command = FramePasteCommand(
@@ -422,8 +422,8 @@ class TestFrameCopyPaste:
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {}
+        scene.canvas.animated_sprite = AnimatedSprite()
+        scene.canvas.animated_sprite.animation_data = {}
 
         # Test executing a paste command to non-existent animation
         command = FramePasteCommand(
@@ -448,8 +448,8 @@ class TestFrameCopyPaste:
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {
+        scene.canvas.animated_sprite = AnimatedSprite()
+        scene.canvas.animated_sprite.animation_data = {
             'test_anim': [],  # Empty frames list
         }
 

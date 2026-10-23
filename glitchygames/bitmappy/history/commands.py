@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
     from glitchygames.bitmappy.history.undo_redo import OperationType
     from glitchygames.bitmappy.protocols import EditorContext
-    from glitchygames.sprites.animated import SpriteFrame
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -61,11 +60,10 @@ class UndoRedoCommand(Protocol):
 
 
 class _ApplyingUndoRedoGuard:
-    """Mixin that sets ``editor._applying_undo_redo`` around a block."""
+    """Mixin that sets ``editor.applying_undo_redo`` around a block."""
 
-    # ``editor`` is ``Any``: see "Protected-member access" at the end of this module.
-    def _guard_execute(self, editor: Any, action: Callable[[], bool]) -> bool:
-        """Run *action* while ``editor._applying_undo_redo`` is True.
+    def _guard_execute(self, editor: EditorContext, action: Callable[[], bool]) -> bool:
+        """Run *action* while ``editor.applying_undo_redo`` is True.
 
         Args:
             editor: The editor context.
@@ -75,11 +73,11 @@ class _ApplyingUndoRedoGuard:
             The bool returned by *action*.
 
         """
-        editor._applying_undo_redo = True
+        editor.applying_undo_redo = True
         try:
             return action()
         finally:
-            editor._applying_undo_redo = False
+            editor.applying_undo_redo = False
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +484,7 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
             LOG.warning('Canvas or animated sprite not available for frame paste')
             return False
 
-        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        animations = self.editor.canvas.animated_sprite.animation_data
         if self.animation not in animations:
             LOG.warning("Animation '%s' not found for frame paste", self.animation)
             return False
@@ -647,7 +645,7 @@ class FrameAddCommand:
                 frame_manager.current_frame += 1
 
             max_frame = (
-                len(_animation_frames(self.editor.canvas.animated_sprite)[self.animation_name]) - 1
+                len(self.editor.canvas.animated_sprite.animation_data[self.animation_name]) - 1
             )
             if frame_manager.current_frame > max_frame:
                 frame_manager.current_frame = max(0, max_frame)
@@ -689,7 +687,7 @@ class FrameAddCommand:
             LOG.warning('Canvas or animated sprite not available for frame deletion')
             return False
 
-        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        animations = self.editor.canvas.animated_sprite.animation_data
         if self.animation_name not in animations:
             LOG.warning("Animation '%s' not found", self.animation_name)
             return False
@@ -866,7 +864,7 @@ class FrameReorderCommand:
             LOG.warning('Canvas or animated sprite not available for frame reorder')
             return False
 
-        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        animations = self.editor.canvas.animated_sprite.animation_data
         if self.animation_name not in animations:
             LOG.warning("Animation '%s' not found", self.animation_name)
             return False
@@ -881,7 +879,7 @@ class FrameReorderCommand:
 
         # Refresh the film strip widget
         if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
-            _refresh_film_strip_widget(self.editor.film_strip_widget, recalculate_layout=False)
+            self.editor.film_strip_widget.refresh(recalculate_layout=False)
 
         LOG.debug("Reordered frame %s -> %s in '%s'", source, destination, self.animation_name)
         return True
@@ -900,7 +898,7 @@ def _refresh_film_strip_widgets(editor: EditorContext) -> None:
 
     """
     if hasattr(editor, 'film_strip_widget') and editor.film_strip_widget:
-        _refresh_film_strip_widget(editor.film_strip_widget, recalculate_layout=False)
+        editor.film_strip_widget.refresh(recalculate_layout=False)
 
     if hasattr(editor, 'film_strip_sprites') and editor.film_strip_sprites:
         for film_strip_sprite in editor.film_strip_sprites.values():
@@ -908,10 +906,7 @@ def _refresh_film_strip_widgets(editor: EditorContext) -> None:
                 hasattr(film_strip_sprite, 'film_strip_widget')
                 and film_strip_sprite.film_strip_widget
             ):
-                _refresh_film_strip_widget(
-                    film_strip_sprite.film_strip_widget,
-                    recalculate_layout=True,
-                )
+                film_strip_sprite.film_strip_widget.refresh(recalculate_layout=True)
                 film_strip_sprite.dirty = 1
 
 
@@ -1001,7 +996,7 @@ class AnimationAddCommand:
             LOG.warning('Canvas or animated sprite not available for animation add')
             return False
 
-        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        animations = self.editor.canvas.animated_sprite.animation_data
         for frame_data in self.animation_data.get('frames', []):
             surface = pygame.Surface((frame_data['width'], frame_data['height']))
             new_frame = SpriteFrame(surface=surface, duration=frame_data.get('duration', 1.0))
@@ -1044,7 +1039,7 @@ class AnimationAddCommand:
             LOG.warning('Canvas or animated sprite not available for animation delete')
             return False
 
-        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        animations = self.editor.canvas.animated_sprite.animation_data
         if self.animation_name not in animations:
             LOG.warning("Animation '%s' not found", self.animation_name)
             return False
@@ -1474,7 +1469,8 @@ def _stop_animation_and_adjust_frame_before_deletion(
     ):
         return
 
-    _stop_playback(editor.canvas.animated_sprite)
+    # pause(), not stop(): stop() would also reset the frame this function adjusts below
+    editor.canvas.animated_sprite.pause()
 
     if editor.canvas.animated_sprite.frame_manager.current_frame >= frame_index:
         if editor.canvas.animated_sprite.frame_manager.current_frame > 0:
@@ -1504,60 +1500,8 @@ def _adjust_canvas_frame_after_deletion(
 
     LOG.debug('Showing frame %s after deleting frame %s', frame_manager.current_frame, frame_index)
 
-    max_frame = len(_animation_frames(editor.canvas.animated_sprite)[animation_name]) - 1
+    max_frame = len(editor.canvas.animated_sprite.animation_data[animation_name]) - 1
     if frame_manager.current_frame > max_frame:
         frame_manager.current_frame = max(0, max_frame)
 
     editor.canvas.show_frame(animation_name, frame_manager.current_frame)
-
-
-# ---------------------------------------------------------------------------
-# Protected-member access
-#
-# The commands reach into protected members of AnimatedSprite (``_animations``,
-# ``_is_playing``) and FilmStripWidget (``_initialize_preview_animations``,
-# ``_calculate_layout``, ``_create_film_tabs``), and the guard writes the editor's protected
-# ``_applying_undo_redo``. Their test stand-ins provide only these protected names, so the
-# commands keep using them. With a typed receiver each access is a basedpyright
-# reportPrivateUsage error, so these helpers (and ``_ApplyingUndoRedoGuard._guard_execute``)
-# take ``Any``; everything else in this module is typed.
-# ---------------------------------------------------------------------------
-
-
-def _animation_frames(animated_sprite: Any) -> dict[str, list[SpriteFrame]]:
-    """Return the sprite's own animation dict (``_animations``, not a copy).
-
-    Args:
-        animated_sprite: The canvas's AnimatedSprite.
-
-    Returns:
-        The animation name to frames mapping the sprite plays from.
-
-    """
-    return animated_sprite._animations
-
-
-def _stop_playback(animated_sprite: Any) -> None:
-    """Stop the sprite's playback without resetting its frame.
-
-    Args:
-        animated_sprite: The canvas's AnimatedSprite.
-
-    """
-    animated_sprite._is_playing = False
-
-
-def _refresh_film_strip_widget(film_strip_widget: Any, *, recalculate_layout: bool) -> None:
-    """Rebuild a film strip widget's previews, layout and film tabs, and mark it dirty.
-
-    Args:
-        film_strip_widget: The FilmStripWidget to refresh.
-        recalculate_layout: Recalculate the frame layout before updating it.
-
-    """
-    film_strip_widget._initialize_preview_animations()
-    if recalculate_layout:
-        film_strip_widget._calculate_layout()
-    film_strip_widget.update_layout()
-    film_strip_widget._create_film_tabs()
-    film_strip_widget.mark_dirty()

@@ -491,11 +491,11 @@ class TestShouldTrackFrameSelection:
         assert canvas._should_track_frame_selection() is False
 
     def test_returns_false_when_applying_undo_redo(self, mocker):
-        """Test returns False when _applying_undo_redo is True."""
+        """Test returns False when applying_undo_redo is True."""
         canvas, _ = _make_canvas(mocker)
         parent = mocker.Mock()
         parent.undo_redo_manager = mocker.Mock()
-        parent._applying_undo_redo = True
+        parent.applying_undo_redo = True
         parent._creating_frame = False
         parent._creating_animation = False
         canvas.parent_scene = parent
@@ -506,7 +506,7 @@ class TestShouldTrackFrameSelection:
         canvas, _ = _make_canvas(mocker)
         parent = mocker.Mock()
         parent.undo_redo_manager = mocker.Mock()
-        parent._applying_undo_redo = False
+        parent.applying_undo_redo = False
         parent._creating_frame = True
         parent._creating_animation = False
         canvas.parent_scene = parent
@@ -517,7 +517,7 @@ class TestShouldTrackFrameSelection:
         canvas, _ = _make_canvas(mocker)
         parent = mocker.Mock()
         parent.undo_redo_manager = mocker.Mock()
-        parent._applying_undo_redo = False
+        parent.applying_undo_redo = False
         parent._creating_frame = False
         parent._creating_animation = True
         canvas.parent_scene = parent
@@ -528,7 +528,7 @@ class TestShouldTrackFrameSelection:
         canvas, _ = _make_canvas(mocker)
         parent = mocker.Mock()
         parent.undo_redo_manager = mocker.Mock()
-        parent._applying_undo_redo = False
+        parent.applying_undo_redo = False
         parent._creating_frame = False
         parent._creating_animation = False
         canvas.parent_scene = parent
@@ -1218,7 +1218,7 @@ class TestNavigationWithParentScene:
         """Frame changes made by an undo are not recorded as new selections."""
         canvas, _ = _make_real_canvas()
         parent_scene = ParentSceneStandIn()
-        parent_scene._applying_undo_redo = True
+        parent_scene.applying_undo_redo = True
         canvas.parent_scene = parent_scene
 
         canvas.show_frame('idle', 1)

@@ -75,7 +75,7 @@ class _Editor:
     """Editor stand-in with the attributes FrameOperationManager reads."""
 
     def __init__(self, animated_sprite):
-        self._applying_undo_redo = False
+        self.applying_undo_redo = False
         self.canvas = _RedrawingCanvas(animated_sprite)
         self.selected_animation = 'idle'
         self.selected_frame = 0

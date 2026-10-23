@@ -69,3 +69,27 @@ class TestGetPreviewAtPosition:
         outside_point = (preview_rect.left - 1, preview_rect.top)
 
         assert film_strip.layout.get_preview_at_position(outside_point) is None
+
+
+class TestRefresh:
+    """Test FilmStripWidget.refresh, which commands call after changing the animations."""
+
+    @pytest.mark.parametrize('recalculate_layout', [False, True])
+    def test_a_frame_added_behind_the_widget_gets_its_layout_tabs_and_a_redraw(
+        self,
+        recalculate_layout,
+    ):
+        """After refresh, a frame added straight to the sprite is laid out, tabbed and drawn."""
+        film_strip = make_film_strip()
+        film_strip.update_layout()
+        tab_count_for_one_frame = len(film_strip.film_tabs)
+        assert film_strip.animated_sprite is not None
+        surface = pygame.Surface((FRAME_SIZE, FRAME_SIZE), pygame.SRCALPHA)
+        film_strip.animated_sprite.add_frame('idle', SpriteFrame(surface, duration=0.5))
+        film_strip.force_redraw = False
+
+        film_strip.refresh(recalculate_layout=recalculate_layout)
+
+        assert ('idle', 1) in film_strip.frame_layouts
+        assert len(film_strip.film_tabs) > tab_count_for_one_frame
+        assert film_strip.force_redraw is True

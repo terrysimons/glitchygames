@@ -771,7 +771,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
                 which is right only before the switch.
 
         """
-        if getattr(self, '_applying_undo_redo', False):
+        if getattr(self, 'applying_undo_redo', False):
             return
         if not hasattr(self.editor, 'controller_position_operation_tracker'):
             return

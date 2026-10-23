@@ -638,7 +638,7 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChange:
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = False
+        canvas_sprite.parent_scene.applying_undo_redo = False
         del canvas_sprite.animated_sprite
         interface = AnimatedCanvasInterface(canvas_sprite)
         result = interface._should_track_color_change(RED, GREEN, controller_drag_active=False)
@@ -649,7 +649,7 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChange:
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = True
+        canvas_sprite.parent_scene.applying_undo_redo = True
         del canvas_sprite.animated_sprite
         interface = AnimatedCanvasInterface(canvas_sprite)
         result = interface._should_track_color_change(RED, GREEN, controller_drag_active=False)
@@ -2010,7 +2010,7 @@ class TestAnimatedCanvasInterfaceShouldTrackWithTracker:
         """Test color change is tracked when operation tracker exists."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = False
+        canvas_sprite.parent_scene.applying_undo_redo = False
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)
@@ -2025,7 +2025,7 @@ class TestAnimatedCanvasInterfaceShouldTrackWithTracker:
         """Test color change not tracked during undo/redo application."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = True
+        canvas_sprite.parent_scene.applying_undo_redo = True
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)

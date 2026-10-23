@@ -134,7 +134,7 @@ def _setup_editor_state(editor, mocker):
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
     editor._is_drag_operation = False
-    editor._applying_undo_redo = False
+    editor.applying_undo_redo = False
     editor.pixel_change_timer = None
 
     editor.controller_handler = ControllerEventHandler(editor)
@@ -1134,18 +1134,18 @@ class TestBrushStrokeCommandUndoRedo:
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 10, (255, 0, 0))
 
     def test_execute_sets_and_resets_flag(self, mock_editor):
-        """Sets _applying_undo_redo during operation and resets after."""
+        """Sets applying_undo_redo during operation and resets after."""
         from glitchygames.bitmappy.history.commands import BrushStrokeCommand
         from glitchygames.bitmappy.history.undo_redo import OperationType
 
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
         command = BrushStrokeCommand(
             mock_editor,
             [(0, 0, (0, 0, 0), (255, 255, 255))],
             OperationType.CANVAS_PIXEL_CHANGE,
         )
         command.execute()
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
 
     def test_no_canvas_returns_false(self, mock_editor):
         """Returns False when canvas is not available."""
@@ -1180,12 +1180,12 @@ class TestFrameSelectionCommandUndoRedo:
         mock_editor.canvas.show_frame.assert_called_once_with('default', 1)
 
     def test_undo_resets_flag_after_operation(self, mock_editor):
-        """Resets _applying_undo_redo flag after undo."""
+        """Resets applying_undo_redo flag after undo."""
         from glitchygames.bitmappy.history.commands import FrameSelectionCommand
 
         command = FrameSelectionCommand(mock_editor, 'default', 0, 'default', 1)
         command.undo()
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
 
     def test_no_canvas_returns_false(self, mock_editor):
         """Returns False when canvas is not available."""
@@ -1632,7 +1632,7 @@ class TestFramePasteCommandUndoRedo:
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
         mock_frame = mocker.Mock()
-        mock_editor.canvas.animated_sprite._animations = {'default': [mock_frame]}
+        mock_editor.canvas.animated_sprite.animation_data = {'default': [mock_frame]}
         new_pixels = [(100, 50, 25)] * 1024
         command = FramePasteCommand(
             editor=mock_editor,
@@ -1669,7 +1669,7 @@ class TestFramePasteCommandUndoRedo:
         """Returns False when animation is not found."""
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
-        mock_editor.canvas.animated_sprite._animations = {}
+        mock_editor.canvas.animated_sprite.animation_data = {}
         command = FramePasteCommand(
             editor=mock_editor,
             animation='missing',
@@ -1686,7 +1686,7 @@ class TestFramePasteCommandUndoRedo:
         """Returns False when frame index is out of range."""
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
-        mock_editor.canvas.animated_sprite._animations = {'default': [mocker.Mock()]}
+        mock_editor.canvas.animated_sprite.animation_data = {'default': [mocker.Mock()]}
         command = FramePasteCommand(
             editor=mock_editor,
             animation='default',
@@ -1704,7 +1704,7 @@ class TestFramePasteCommandUndoRedo:
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
         mock_frame = mocker.Mock()
-        mock_editor.canvas.animated_sprite._animations = {'default': [mock_frame]}
+        mock_editor.canvas.animated_sprite.animation_data = {'default': [mock_frame]}
         mock_editor.selected_animation = 'default'
         mock_editor.selected_frame = 0
         new_pixels = [(100, 50, 25)] * 10

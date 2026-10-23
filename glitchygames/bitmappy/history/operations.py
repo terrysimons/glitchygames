@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from glitchygames.bitmappy.protocols import EditorContext
+
 from .commands import (
     AnimationAddCommand,
     AnimationDeleteCommand,
@@ -56,7 +58,7 @@ class PixelChange:
 class CanvasOperationTracker:
     """Tracks canvas operations for undo/redo by creating command objects."""
 
-    def __init__(self, undo_redo_manager: UndoRedoManager, editor: Any = None) -> None:
+    def __init__(self, undo_redo_manager: UndoRedoManager, *, editor: EditorContext) -> None:
         """Initialize the canvas operation tracker.
 
         Args:
@@ -213,7 +215,7 @@ class CanvasOperationTracker:
 class FilmStripOperationTracker:
     """Tracks film strip operations for undo/redo by creating command objects."""
 
-    def __init__(self, undo_redo_manager: UndoRedoManager, editor: Any = None) -> None:
+    def __init__(self, undo_redo_manager: UndoRedoManager, *, editor: EditorContext) -> None:
         """Initialize the film strip operation tracker.
 
         Args:
@@ -383,7 +385,7 @@ class FilmStripOperationTracker:
 class CrossAreaOperationTracker:
     """Tracks cross-area operations (copy/paste between frames/animations)."""
 
-    def __init__(self, undo_redo_manager: UndoRedoManager, editor: Any = None) -> None:
+    def __init__(self, undo_redo_manager: UndoRedoManager, *, editor: EditorContext) -> None:
         """Initialize the cross-area operation tracker.
 
         Args:
@@ -463,7 +465,7 @@ class CrossAreaOperationTracker:
 class ControllerPositionOperationTracker:
     """Tracks controller position and mode changes for undo/redo."""
 
-    def __init__(self, undo_redo_manager: UndoRedoManager, editor: Any = None) -> None:
+    def __init__(self, undo_redo_manager: UndoRedoManager, *, editor: EditorContext) -> None:
         """Initialize the controller position operation tracker.
 
         Args:

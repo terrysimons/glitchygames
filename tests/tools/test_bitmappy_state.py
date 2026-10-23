@@ -6,9 +6,6 @@ import pytest
 
 from glitchygames.bitmappy.ai_worker import (
     _check_ollama_model_status,
-    _configure_client_timeouts,
-    _configure_ollama_provider,
-    _configure_provider_client_timeout,
     _create_ai_retry_decorator,
     _create_ollama_config,
     _get_provider_timeout_value,
@@ -109,24 +106,6 @@ class TestSetOllamaEnvTimeout:
                 assert os.environ.get('OLLAMA_TIMEOUT') == original_timeout
 
 
-class TestConfigureOllamaProvider:
-    """Test _configure_ollama_provider function."""
-
-    def test_non_ollama_model_noop(self, mocker):
-        """Test that non-ollama models result in no-op."""
-        log = logging.getLogger('test')
-        client = mocker.Mock()
-        if not AI_MODEL.startswith('ollama:'):
-            _configure_ollama_provider(log, client)
-            # Should not access _providers for non-ollama models
-
-    def test_client_without_providers(self, mocker):
-        """Test that client without _providers is handled."""
-        log = logging.getLogger('test')
-        client = mocker.Mock(spec=[])  # No attributes
-        _configure_ollama_provider(log, client)
-
-
 class TestGetProviderTimeoutValue:
     """Test _get_provider_timeout_value function."""
 
@@ -138,60 +117,31 @@ class TestGetProviderTimeoutValue:
             assert result == AI_TIMEOUT
 
 
-class TestConfigureProviderClientTimeout:
-    """Test _configure_provider_client_timeout function."""
+class TestClientProviderTimeouts:
+    """The real aisuite Client _initialize_ai_client builds carries each provider's timeout.
 
-    def test_provider_without_client(self, mocker):
-        """Test provider without client attribute is handled."""
-        log = logging.getLogger('test')
-        provider = mocker.Mock(spec=[])  # No attributes
-        _configure_provider_client_timeout(log, 'test_provider', provider, 600)
+    aisuite creates its providers lazily from these configurations on the first request.
+    """
 
-    def test_provider_with_client_timeout(self, mocker):
-        """Test setting timeout on provider's client."""
-        log = logging.getLogger('test')
-        provider = mocker.Mock()
-        provider.client.timeout = 30
-        _configure_provider_client_timeout(log, 'test_provider', provider, 600)
-        assert provider.client.timeout == 600
+    def test_non_ollama_model_configures_no_ollama_provider(self, mocker):
+        """A hosted model sets up no ollama provider."""
+        import aisuite
 
-    def test_provider_with_nested_client_timeout(self, mocker):
-        """Test setting timeout on provider's nested _client."""
-        log = logging.getLogger('test')
-        provider = mocker.Mock()
-        # Make client.timeout raise AttributeError to test fallback
-        type(provider.client).timeout = mocker.PropertyMock(side_effect=AttributeError)
-        del provider.client.timeout  # Remove the attribute
-        provider.client._client.timeout = 30
-        _configure_provider_client_timeout(log, 'test_provider', provider, 600)
-        assert provider.client._client.timeout == 600
+        mocker.patch('glitchygames.bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
+        client = _initialize_ai_client(logging.getLogger('test'))
 
+        assert isinstance(client, aisuite.Client)
+        assert 'ollama' not in client.provider_configs
 
-class TestConfigureClientTimeouts:
-    """Test _configure_client_timeouts function."""
+    def test_anthropic_provider_gets_the_ai_timeout(self, mocker):
+        """The Anthropic provider is configured with AI_TIMEOUT."""
+        import aisuite
 
-    def test_client_without_providers(self, mocker):
-        """Test client without _providers attribute."""
-        log = logging.getLogger('test')
-        client = mocker.Mock(spec=[])  # No attributes
-        _configure_client_timeouts(log, client)
+        mocker.patch('glitchygames.bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
+        client = _initialize_ai_client(logging.getLogger('test'))
 
-    def test_client_with_empty_providers(self, mocker):
-        """Test client with empty _providers dict."""
-        log = logging.getLogger('test')
-        client = mocker.Mock()
-        client._providers = {}
-        _configure_client_timeouts(log, client)
-
-    def test_client_with_providers(self, mocker):
-        """Test client with providers gets timeouts configured."""
-        log = logging.getLogger('test')
-        provider = mocker.Mock()
-        provider.client.timeout = 30
-        client = mocker.Mock()
-        client._providers = {'anthropic': provider}
-        _configure_client_timeouts(log, client)
-        assert provider.client.timeout == AI_TIMEOUT
+        assert isinstance(client, aisuite.Client)
+        assert client.provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
 
 
 class TestInitializeAIClient:

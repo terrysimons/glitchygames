@@ -146,7 +146,7 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
     editor._is_drag_operation = False
-    editor._applying_undo_redo = False
+    editor.applying_undo_redo = False
 
     # -- Controller handler (extracted subsystem) --
     from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
@@ -1851,7 +1851,7 @@ class TestBrushStrokeCommandUndoRedo:
         result = command.execute()
         assert result is True
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 5, (255, 0, 0))
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
 
     def test_undo_restores_pixel(self, mock_editor):
         """Undo restores pixel to old color."""
@@ -1866,7 +1866,7 @@ class TestBrushStrokeCommandUndoRedo:
         result = command.undo()
         assert result is True
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 5, (0, 0, 0))
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
 
     def test_no_canvas_returns_false(self, mock_editor):
         """No canvas returns False."""

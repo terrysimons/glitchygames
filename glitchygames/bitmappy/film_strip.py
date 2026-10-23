@@ -275,6 +275,20 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         if hasattr(self, 'film_strip_sprite') and self.film_strip_sprite:
             self.film_strip_sprite.dirty = 1
 
+    def refresh(self, *, recalculate_layout: bool) -> None:
+        """Rebuild the previews, layout and film tabs after the animations changed, and redraw.
+
+        Args:
+            recalculate_layout: Recalculate the frame layout before updating it.
+
+        """
+        self._initialize_preview_animations()
+        if recalculate_layout:
+            self._calculate_layout()
+        self.update_layout()
+        self._create_film_tabs()
+        self.mark_dirty()
+
     # ---- Forwarding methods for backward compatibility ----
     # These preserve the existing external API so callers don't need to change.
 
