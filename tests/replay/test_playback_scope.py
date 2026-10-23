@@ -17,13 +17,21 @@ from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
 from glitchygames.audio.live import VoiceState
 from glitchygames.audio.synth import Waveform
-from glitchygames.events import FPSEVENT
+from glitchygames.events import FPSEVENT, GAMEEVENT
 from glitchygames.examples import joystick_demo, paddleslap
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import random_stream
-from glitchygames.recording import SCENE_START_FIELD, post_event, post_input_event
+from glitchygames.recording import (
+    EVENT_BATCHES_FIELD,
+    EVENT_ORIGIN_FIELD,
+    EVENT_TYPE_FIELD,
+    REDELIVERED_EVENTS_FIELD,
+    SCENE_START_FIELD,
+    post_event,
+    post_input_event,
+)
 from glitchygames.replay.driver import DEFAULT_REPLAY_OPTIONS, ReplaySources
 from glitchygames.replay.playback import (
     PlaybackOptions,
@@ -1289,7 +1297,12 @@ class SessionPlayer(Protocol):
         """Play the session on ``manager``; ``is_live`` is False in the replay."""
 
 
-def record_a_session_then_replay_it(*, tmp_path: Path, play_in_the_session: SessionPlayer) -> None:
+def record_a_session_then_replay_it(
+    *,
+    tmp_path: Path,
+    play_in_the_session: SessionPlayer,
+    scene_class: type[CountingScene] = KeyReleaseCountingScene,
+) -> Path:
     """Record ``play_in_the_session`` with its supervisor, then replay it headless without it.
 
     The replay is the one ``--replay-trace`` makes of a live session: the supervisor that
@@ -1300,10 +1313,14 @@ def record_a_session_then_replay_it(*, tmp_path: Path, play_in_the_session: Sess
         tmp_path: Where the session is recorded.
         play_in_the_session: Plays the session; its ``is_live`` is True in the live session
             (with the supervisor), False in the replay (without it).
+        scene_class: The live scene, in the session and in its replay.
+
+    Returns:
+        The session's recording.
 
     """
     session_path = tmp_path / 'session.jsonl.gz'
-    with running_scene(KeyReleaseCountingScene) as manager:
+    with running_scene(scene_class) as manager:
         engine = manager.game_engine
         assert engine is not None
         engine.start_trace_recording(path=session_path)
@@ -1311,7 +1328,7 @@ def record_a_session_then_replay_it(*, tmp_path: Path, play_in_the_session: Sess
         engine.stop_trace_recording()
     _header, session_frames = recorded_trace(path=session_path)
     with running_scene(
-        KeyReleaseCountingScene,
+        scene_class,
         extra_arguments=['--replay-trace', str(session_path), '--headless'],
     ) as manager:
         engine = manager.game_engine
@@ -1322,6 +1339,7 @@ def record_a_session_then_replay_it(*, tmp_path: Path, play_in_the_session: Sess
         replay_sources.finish_run()
         assert replay_sources.result.divergence is None, replay_sources.result.report()
         assert replay_sources.result.frames_replayed == len(session_frames)
+    return session_path
 
 
 class TestALiveSupervisorsInputIsThePlayers:
@@ -1422,6 +1440,316 @@ class TestALiveSupervisorsInputIsThePlayers:
             assert outcome_reason(manager) == 'exit_input'
 
         record_a_session_then_replay_it(tmp_path=tmp_path, play_in_the_session=play_in_the_session)
+
+
+# The game event subtype a GameEventCountingScene registers (SceneManager.register_game_event)
+SUPERVISOR_GAME_EVENT_SUBTYPE = 7
+# What a supervisor's game event carries: its subtype and any data a game puts in one
+SUPERVISOR_GAME_EVENT_DATA = {
+    'subtype': SUPERVISOR_GAME_EVENT_SUBTYPE,
+    'bonus': 'extra_life',
+    'points': 500,
+}
+
+
+def supervisor_game_event() -> pygame.event.Event:
+    """Return the game event a supervisor posts: a type SDL never generates, with data.
+
+    Returns:
+        A ``GAMEEVENT``.
+
+    """
+    return pygame.event.Event(GAMEEVENT, SUPERVISOR_GAME_EVENT_DATA)
+
+
+class GameEventCountingScene(KeyReleaseCountingScene):
+    """Keeps every game event of its subtype, with the frame it came in; moves its marker down.
+
+    The marker moves, so a replay that loses or adds a game event diverges.
+    """
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+    ) -> None:
+        """Start with no game events.
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+
+        """
+        super().__init__(options=options, groups=groups)
+        self.game_events: list[tuple[int, dict[str, Any]]] = []
+
+    @override
+    def setup(self: Self) -> None:
+        """Register for the supervisor's game event subtype, as a game registers its own."""
+        super().setup()
+        SceneManager().register_game_event(
+            event_type=SUPERVISOR_GAME_EVENT_SUBTYPE, callback=self.on_supervisor_game_event
+        )
+
+    def on_supervisor_game_event(self: Self, event: Any) -> None:
+        """Keep the scene manager's frame number and the event's own attributes."""
+        self.game_events.append((
+            SceneManager().frame_number,
+            {
+                name: value
+                for name, value in event.dict.items()
+                if name != 'type' and not name.startswith('_')
+            },
+        ))
+        self.marker.rect.y += 1
+
+
+class CallCountingInputPostingSupervisor:
+    """A live supervisor standing in for the game's driver: posts input on one call only.
+
+    It posts with ``post_input_event`` whether a scope plays or not, so its call count, not
+    the scope's frames, says when.
+    """
+
+    def __init__(self: Self, *, events: list[pygame.event.Event], posting_call: int) -> None:
+        """Post nothing yet.
+
+        Args:
+            events: What to post, in order.
+            posting_call: Which call posts them (1 = the first).
+
+        """
+        self.events = events
+        self.posting_call = posting_call
+        self.calls = 0
+
+    def on_frame(self: Self, *, frame_number: int, scene: Any) -> None:
+        """Post on the chosen call (implements glitchygames.supervision.Supervisor)."""
+        del frame_number, scene
+        self.calls += 1
+        if self.calls == self.posting_call:
+            for event in self.events:
+                post_input_event(event)
+
+
+def recorded_game_event_origins(*, path: Path) -> list[str]:
+    """Return the origin of every game event a recording's pumps returned, in order.
+
+    Returns:
+        Each recorded ``GAMEEVENT``'s origin (its batches' and its redelivered events').
+
+    """
+    _header, frames = recorded_trace(path=path)
+    return [
+        record[EVENT_ORIGIN_FIELD]
+        for frame in frames
+        for records in [
+            *frame.get(EVENT_BATCHES_FIELD, []),
+            frame.get(REDELIVERED_EVENTS_FIELD, []),
+        ]
+        for record in records
+        if record[EVENT_TYPE_FIELD] == GAMEEVENT
+    ]
+
+
+class TestASupervisorPostsAnyEvent:
+    """A supervisor's input post of a type SDL never generates reaches the game, replayed too.
+
+    The user's requirement (2026-10-23): a supervisor may generate every game event, not only
+    the ones a player can. Its game event reaches the live game once (after the scope, when
+    one plays), and a replay of the session without the supervisor delivers it at the same
+    frame and matches every frame.
+    """
+
+    @staticmethod
+    def _received_live_and_replayed(
+        *, tmp_path: Path, play_in_the_session: Callable[[Any], None], posting_call: int
+    ) -> tuple[dict[bool, list[tuple[int, dict[str, Any]]]], Path]:
+        """Record a session with a game-event-posting supervisor; replay it without it.
+
+        Args:
+            tmp_path: Where the session is recorded.
+            play_in_the_session: Steps the session (the supervisor is added around it).
+            posting_call: The supervisor call that posts the game event.
+
+        Returns:
+            The game events the live scene received, live (True) and replayed (False), and
+            the session's recording.
+
+        """
+        received: dict[bool, list[tuple[int, dict[str, Any]]]] = {}
+
+        def play_with_or_without_the_supervisor(manager: Any, *, is_live: bool) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, GameEventCountingScene)
+            supervisor = CallCountingInputPostingSupervisor(
+                events=[supervisor_game_event()], posting_call=posting_call
+            )
+            if is_live:
+                manager.add_supervisor(supervisor=supervisor)
+            play_in_the_session(manager)
+            if is_live:
+                manager.remove_supervisor(supervisor=supervisor)
+            received[is_live] = list(live_scene.game_events)
+
+        session_path = record_a_session_then_replay_it(
+            tmp_path=tmp_path,
+            play_in_the_session=play_with_or_without_the_supervisor,
+            scene_class=GameEventCountingScene,
+        )
+        return received, session_path
+
+    def test_outside_a_scope_it_reaches_the_game_once_live_and_replayed(self, tmp_path):
+        def play_in_the_session(manager: Any) -> None:
+            step(manager, frames=LIVE_FRAMES_BEFORE + LIVE_FRAMES_AFTER)
+
+        received, session_path = self._received_live_and_replayed(
+            tmp_path=tmp_path, play_in_the_session=play_in_the_session, posting_call=2
+        )
+        assert len(received[True]) == 1
+        assert received[True][0][1] == SUPERVISOR_GAME_EVENT_DATA
+        assert received[False] == received[True]
+        assert recorded_game_event_origins(path=session_path) == ['external']
+
+    def test_during_a_demo_it_reaches_the_game_after_the_demo(self, tmp_path):
+        """It is no press: the demo plays on, and the event reaches the game after it."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, GameEventCountingScene)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            manager.play_recording(path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert live_scene.game_events == []
+            step(manager, frames=LIVE_FRAMES_AFTER)
+
+        # Its third call is the scope's second frame (the first runs before the request)
+        received, session_path = self._received_live_and_replayed(
+            tmp_path=tmp_path,
+            play_in_the_session=play_in_the_session,
+            posting_call=LIVE_FRAMES_BEFORE + SUPERVISOR_SCOPE_FRAME,
+        )
+        assert len(received[True]) == 1
+        assert received[True][0][1] == SUPERVISOR_GAME_EVENT_DATA
+        assert received[False] == received[True]
+        # Pumped by the scope, then posted again (as input) after it: each pump's copy
+        assert recorded_game_event_origins(path=session_path) == ['external', 'external']
+
+    def test_during_a_scope_without_exit_on_input_it_reaches_the_game_after_it(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, GameEventCountingScene)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert live_scene.game_events == []
+            step(manager, frames=LIVE_FRAMES_AFTER)
+
+        received, _session_path = self._received_live_and_replayed(
+            tmp_path=tmp_path,
+            play_in_the_session=play_in_the_session,
+            posting_call=LIVE_FRAMES_BEFORE + SUPERVISOR_SCOPE_FRAME,
+        )
+        assert len(received[True]) == 1
+        assert received[False] == received[True]
+
+    def test_just_before_a_scope_it_reaches_the_game_after_it(self, tmp_path):
+        """Posted in the frame that asks for the demo, pumped by the scope's first frame."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, GameEventCountingScene)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            manager.play_recording(path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert live_scene.game_events == []
+            step(manager, frames=LIVE_FRAMES_AFTER)
+
+        received, session_path = self._received_live_and_replayed(
+            tmp_path=tmp_path,
+            play_in_the_session=play_in_the_session,
+            posting_call=LIVE_FRAMES_BEFORE,
+        )
+        assert len(received[True]) == 1
+        assert received[False] == received[True]
+        # Pumped by the scope, then redelivered after it, as the player's
+        assert recorded_game_event_origins(path=session_path) == ['external', 'external']
+
+    @pytest.mark.parametrize(
+        'posting_call',
+        [LIVE_FRAMES_BEFORE, LIVE_FRAMES_BEFORE + SUPERVISOR_SCOPE_FRAME],
+        ids=['just_before_the_scope', 'during_the_scope'],
+    )
+    def test_a_rebaseline_of_the_session_keeps_its_origins(self, tmp_path, posting_call):
+        """--rebaseline records the served game event as the session did; the result replays.
+
+        Posted just before the scope, it is held as the player's and redelivered after it:
+        the rebaseline's ``redelivered_events`` must hold it as external too.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, GameEventCountingScene)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES + LIVE_FRAMES_AFTER)
+            assert manager.playback_session is None
+
+        received, session_path = self._received_live_and_replayed(
+            tmp_path=tmp_path, play_in_the_session=play_in_the_session, posting_call=posting_call
+        )
+        rebaselined_path = tmp_path / 'rebaselined.jsonl.gz'
+        with running_scene(
+            GameEventCountingScene,
+            extra_arguments=[
+                '--replay-trace',
+                str(session_path),
+                '--rebaseline',
+                str(rebaselined_path),
+                '--headless',
+            ],
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            assert engine.rebaseline is not None
+            engine.trace_recorder = engine.rebaseline.start_recording()
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, GameEventCountingScene)
+            play_in_the_session(manager)
+            replay_sources.finish_run()
+            engine.stop_trace_recording()
+            summary = engine.rebaseline.write(result=replay_sources.result)
+            assert 'no frames differ' in summary
+            assert live_scene.game_events == received[True]
+        assert recorded_game_event_origins(path=rebaselined_path) == (
+            recorded_game_event_origins(path=session_path)
+        )
+        _header, rebaselined_frames = recorded_trace(path=rebaselined_path)
+        with running_scene(
+            GameEventCountingScene,
+            extra_arguments=['--replay-trace', str(rebaselined_path), '--headless'],
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            play_in_the_session(manager)
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None, replay_sources.result.report()
+            assert replay_sources.result.frames_replayed == len(rebaselined_frames)
 
 
 class TestLiveVoicesThroughAPlayback:

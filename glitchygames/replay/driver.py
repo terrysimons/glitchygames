@@ -255,6 +255,7 @@ from glitchygames.recording import (
     SAVES_OPENED_FIELD,
     WINDOW_REFERENCE,
     RecordedReference,
+    RecordingSources,
     UnrepresentableValue,
     event_from_record,
     event_to_record,
@@ -320,6 +321,7 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
+    from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
 
 LOG = logging.getLogger('game.replay')
@@ -2401,6 +2403,31 @@ class ReplaySources:
         if self.result.end_reason == RUNNING_END_REASON:
             self.result.end_reason = end_reason
         self._stop_requested = True
+
+
+def replayed_batch_origins(*, doors: EngineSources) -> list[str] | None:
+    """Return each event's origin in the doors' last batch, when a replay's merge knows them.
+
+    A recorder over a replay (``--rebaseline``) takes them from the replay, and so does the
+    instant-replay journal (glitchygames/instant_replay.py, rule 4): a watched replay's held
+    frames drain the real queue between pumps, so the posts pending before a pump do not tell
+    them. So does a playback scope over a replay of the session
+    (glitchygames/replay/playback.py, rule 5): the replay's pump has consumed the posts, and a
+    recorded external event of a type SDL never generates (a live supervisor's input post) is
+    told from the replayed code's posts only by its recorded origin.
+
+    Args:
+        doors: The doors that pumped (the run's installed ones, or a recording around them).
+
+    Returns:
+        The origins, in the batch's order, or None when the doors are not a replay's.
+
+    """
+    while isinstance(doors, RecordingSources):
+        doors = doors.inner
+    if isinstance(doors, ReplaySources):
+        return doors.last_batch_origins()
+    return None
 
 
 def _ids_given_before_start(*, frames: Sequence[dict[str, Any]], start_frame: int) -> set[str]:

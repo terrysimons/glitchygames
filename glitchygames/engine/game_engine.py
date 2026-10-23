@@ -85,6 +85,7 @@ from glitchygames.replay.driver import (
     announce_replay,
     display_size_refusal,
     installed_engine_version,
+    replayed_batch_origins,
     start_replay,
 )
 from glitchygames.replay.processing import machine_description
@@ -123,7 +124,6 @@ if TYPE_CHECKING:
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
-    from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -310,28 +310,6 @@ def exit_with(*, exit_code: ExitCode, cause: BaseException | None = None) -> NoR
     """
     LOG.info('Exiting with %s', exit_code.describe())
     raise SystemExit(exit_code) from cause
-
-
-def replayed_batch_origins(*, doors: EngineSources) -> list[str] | None:
-    """Return each event's origin in the doors' last batch, when a replay's merge knows them.
-
-    A recorder over a replay (``--rebaseline``) takes them from the replay, and so does the
-    instant-replay journal (glitchygames/instant_replay.py, rule 4): a watched replay's held
-    frames drain the real queue between pumps, so the posts pending before a pump do not tell
-    them.
-
-    Args:
-        doors: The doors that pumped (the run's installed ones, or a recording around them).
-
-    Returns:
-        The origins, or None when the doors are not a replay's.
-
-    """
-    while isinstance(doors, RecordingSources):
-        doors = doors.inner
-    if isinstance(doors, ReplaySources):
-        return doors.last_batch_origins()
-    return None
 
 
 @dataclass

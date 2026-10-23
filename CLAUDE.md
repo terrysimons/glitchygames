@@ -399,7 +399,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   sets up the scene (repeating a transition's arrival step), then sets the state its first logic
   frame began in and the recording's prior polled input. Real input reaches only the exit check
   (`exit_on_input`), and so does the live game's `post_input_event` of an SDL type (a
-  supervisor's press ends a demo, as in a replay without it: BUGS.md #196); the live game's
+  supervisor's press ends a demo, as in a replay without it: BUGS.md #196); a supervisor may
+  post any type (`post_input_event`): one SDL never generates (a game event) is held and
+  reaches the live game after the scope, live and in a replay without it; the live game's
   own posts and the player's releases, device and window events are held and redelivered after, in pump order (`sources.redeliver_events`; recorded in
   that frame's `redelivered_events`, which a playback starting there serves; a next scope takes
   pending ones over; dropped at `terminate()`); the recording's QUIT ends the scope (not the

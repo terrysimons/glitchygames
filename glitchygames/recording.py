@@ -142,7 +142,11 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
   replays the exit press and the scene's posts as they happened. The live game's input posts
   (``post_input_event``) of SDL types are recorded external and are the player's input in the
   scope too (glitchygames/replay/playback.py, rule 5), so a replay of the session, run without
-  the supervisor that posted them, serves them to the same exit check (BUGS.md #196).
+  the supervisor that posted them, serves them to the same exit check (BUGS.md #196). Their
+  input posts of any other type (a game event) are recorded external too: the scope holds
+  them and they reach the live game after it, and a replay of the session, which serves them
+  from the recording, holds them by that recorded origin and delivers them after the scope
+  the same way.
 - ``input_changes``: the player's polled input (the scope reads the installed doors' snapshot
   every frame, then serves the recording's to the scene).
 - ``dt``: the installed doors' frame times (the live measurements), not the played
@@ -558,8 +562,10 @@ def post_input_event(event: pygame.event.Event) -> bool:
     serves the recorded event whether or not it runs the poster again; a copy the replayed
     code posts (a supervisor the game's own setup() added) is dropped, so the game gets it
     once. Use ``post_event`` for the game's own posts, which a replay expects it to make again.
-    While a playback scope plays, an input post of an SDL type is the player's input: a press
-    ends a demo (glitchygames/replay/playback.py, rule 5; BUGS.md #196).
+    Any event type may be posted, custom game events included. While a playback scope plays,
+    an input post of an SDL type is the player's input (a press ends a demo); any other
+    reaches the game after the scope, live and replayed alike (glitchygames/replay/playback.py,
+    rule 5; BUGS.md #196).
 
     Args:
         event: The event to post.

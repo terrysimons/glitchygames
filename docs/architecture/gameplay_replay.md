@@ -178,6 +178,10 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
   of SDL types (keys, buttons, device and window events) are the player's input: a press ends
   a demo, a release is held for the live game, exactly as a replay of the session without the
   supervisor serves them.
+- A supervisor may post any event this way, game events (`GAMEEVENT`, `MENUEVENT`, any
+  `pygame.event.custom_type()`) included. The rule: input of an SDL type posted during a demo
+  or instant replay counts as the player's; everything else reaches the game (after the
+  demo or instant replay, if one is playing), live and replayed alike.
 - Draw random numbers from the seeded named streams in `glitchygames/randomness.py`
   (`random_stream('name')`, `numpy_stream('name')`), never from the global `random` functions,
   `secrets` or an unseeded numpy generator.
@@ -679,7 +683,10 @@ second instant replay). What the live game's own supervisors and handlers post w
 stays the live game's: a supervisor that calls `end_playback()` and then posts an event has it
 delivered to the live game after the scope. Their `post_input_event` posts of SDL types are the
 exception: those stand in for the player, so they reach the scope's exit check as the player's
-presses do (a scripted key ends a demo) and their releases are held with the player's. A playback never rumbles the player's controllers,
+presses do (a scripted key ends a demo) and their releases are held with the player's. Their
+`post_input_event` posts of other types (a game event) are held and delivered to the live game
+after the scope, and a replay of the session without the supervisor delivers them at the same
+frame. A playback never rumbles the player's controllers,
 and the live scene's synth voices (and those of the game behind a pause screen the instant
 replay began from) pause behind it and play on after. Inside a scope, a replay of the session still
 applies the session's breakpoints (a bookmark on a frame a demo played pauses there); the

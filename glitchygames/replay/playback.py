@@ -106,7 +106,15 @@ Demos and instant replays run inside a playback scope, not a new engine run
      with the player's (``held_live_events``, external), and the rest reach nothing. A replay
      of the session runs without the poster and serves those events from the recording as
      the player's, so the two agree. Its input posts of a type SDL never generates (no player
-     makes one) are held as its other posts are, and posted (or redelivered) as input again.
+     makes one: a game event, a menu event, any ``custom_type()``) are held as its other
+     posts are, and posted (or redelivered) as input again after the scope. A replay of the
+     session serves those from the recording too (external), and the scope holds a served
+     event of such a type that matches no post the same way, told by its recorded origin
+     (``replayed_batch_origins``: the type alone would call it internal), so it reaches the
+     live game after the scope there as well. The rule: a supervisor may post any event
+     (``post_input_event``); input of an SDL type during a scope counts as the player's;
+     everything else reaches the game (after the scope if one is playing), live and replayed
+     alike.
      The scope's code's own input posts (a supervisor the played scene added again) are
      dropped: the recording holds them as external and the replay serves them, so each
      arrives once. External events reach only the exit check, never the
@@ -181,11 +189,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    play on after it (``LiveAudio.update``'s ``paused_owners``), even when the playback's own
    scene switches change ``previous_scene``; the playback scene's own voices end with it.
 
-Limits: a ``--replay-trace`` replay of a session whose live supervisor posted during a scope
-with ``post_event``, or with ``post_input_event`` an event of a type SDL never generates,
-diverges unless the replay adds that supervisor too: the served event reaches the scope's
-pump, which can no longer tell it from a scope post. Its input posts of SDL types replay
-without it (rule 5).
+Limits: a live supervisor that posts with ``post_event`` (the game's own posts, which a
+replay expects the replayed code to make again) during a scope makes a session that a
+``--replay-trace`` replay without that supervisor cannot match. Supervisors post with
+``post_input_event``, which replays without them, whatever the event's type (rule 5).
 A scope that fast-forwards inside a restarted replay's rebuild silences on top of the
 rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
 pauses it again after the next frame). A scene must be rebuildable from its start
@@ -240,6 +247,7 @@ from glitchygames.replay.driver import (
     SOURCE_TRUNCATED_HEADER_FIELD,
     is_cut_off,
     playback_replay_sources,
+    replayed_batch_origins,
 )
 from glitchygames.replay.silence import FrameSilencer
 from glitchygames.scene_start import FirstLogicFrame, SceneStart
@@ -355,6 +363,25 @@ def _is_sdl_event_type(*, event_type: int) -> bool:
 
     """
     return event_type < pygame.USEREVENT
+
+
+def _is_served_live_input_post(*, event: pygame.event.Event, origin: str) -> bool:
+    """Report whether a replay of the session served the live game's input post (rule 5).
+
+    A recorded external event of a type SDL never generates is an input post
+    (``recording.post_input_event``: no player makes one). Inside a scope, the scope's code's
+    input posts are matched before this is asked, so an unmatched one is the live game's
+    (a supervisor's), which the replay runs without.
+
+    Args:
+        event: The served event, matched to no post.
+        origin: Its recorded origin (``ReplaySources.last_batch_origins``).
+
+    Returns:
+        True when the scope must hold it for the live game, as the live run did.
+
+    """
+    return origin == EXTERNAL_ORIGIN and not _is_sdl_event_type(event_type=event.type)
 
 
 def _add_scope_post(
@@ -584,7 +611,9 @@ class PlaybackSources:
         """
         internal_events: list[pygame.event.Event] = []
         quit_events: list[pygame.event.Event] = []
-        for event in base_events:
+        # A replay of the session knows each served event's recorded origin (None live)
+        served_origins = replayed_batch_origins(doors=self.base)
+        for index, event in enumerate(base_events):
             scope_post = (
                 take_matching_post(event=event, pending=scope_posts)
                 if event.type == pygame.QUIT
@@ -614,6 +643,15 @@ class PlaybackSources:
                     is_input=_is_one_of(post=scope_post, posts=self.input_posts_at_pump),
                     internal_events=internal_events,
                 )
+            elif served_origins is not None and _is_served_live_input_post(
+                event=event, origin=served_origins[index]
+            ):
+                # The live game's input post the replay serves without its poster: held as
+                # the live run held it (_sort_live_post)
+                if is_first_pump:
+                    self.held_live_events.append((event, EXTERNAL_ORIGIN))
+                else:
+                    self.held_live_game_posts.append((event, True))
             elif event_origin(event=event, pending=[]) == INTERNAL_ORIGIN:
                 # Internal by type alone: on the first pump, posted before the scope began
                 if is_first_pump:
