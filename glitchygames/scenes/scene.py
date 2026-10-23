@@ -9,10 +9,15 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 import pygame
 
 from glitchygames import events
+from glitchygames.backgrounds import (
+    BackgroundPattern,
+    active_default_background_pattern,
+    background_pattern_surface,
+)
 from glitchygames.camera import Camera2D
 from glitchygames.clock import frame_clock_seconds, measured_seconds
 from glitchygames.collision import CollisionManager
-from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.color import RGB_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.debug.overlay import OVERLAY_KEYS
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
@@ -2778,6 +2783,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.scene_manager = SceneManager()
         self.name = type(self)
         self._background_color: tuple[int, ...] | None = None
+        self._background_pattern: BackgroundPattern | None = None
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
@@ -2808,7 +2814,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         assert self.screen is not None
         self.background = pygame.Surface(self.screen.get_size())
         self.background.convert()
-        self.background_color = BLACK
+        # A scene that sets no background shows the default pattern (glitchygames/backgrounds.py)
+        # instead of black, which cannot be told from "nothing rendered"
+        self.background_pattern = active_default_background_pattern()
 
         # This allows us to be treated like a sprite
         self.image = self.screen
@@ -2920,7 +2928,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """The background color.
 
         Returns:
-            tuple[int, ...] | None: The background color.
+            tuple[int, ...] | None: The background color, or None while the background is a
+            pattern (background_pattern).
 
         """
         return self._background_color
@@ -2938,9 +2947,41 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if len(new_color) == RGB_COMPONENT_COUNT:
             new_color = (*new_color, 0)
         self._background_color = new_color
+        self._background_pattern = None
         assert self._background_color is not None
         assert self.screen is not None
         self.background.fill(self._background_color)
+        self.all_sprites.clear(self.screen, self.background)
+
+    @property
+    def background_pattern(self: Self) -> BackgroundPattern | None:
+        """The built-in pattern the background shows (glitchygames/backgrounds.py).
+
+        A scene that sets no background gets the active default pattern (the TV test
+        pattern unless --default-background chose another).
+
+        Returns:
+            BackgroundPattern | None: The pattern, or None while the background is a colour
+            (background_color).
+
+        """
+        return self._background_pattern
+
+    @background_pattern.setter
+    def background_pattern(self: Self, new_pattern: BackgroundPattern) -> None:
+        """Show a built-in pattern as the background (it replaces any background colour).
+
+        Args:
+            new_pattern: The pattern.
+
+        """
+        self._background_pattern = new_pattern
+        self._background_color = None
+        assert self.screen is not None
+        self.background.blit(
+            background_pattern_surface(pattern=new_pattern, size=self.background.get_size()),
+            (0, 0),
+        )
         self.all_sprites.clear(self.screen, self.background)
 
     def transition_to(self: Self, next_scene: Scene | None, transition: Transition) -> None:

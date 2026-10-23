@@ -14,6 +14,7 @@ import pygame
 
 from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import (
+    BLACK,
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.engine import ExitCode, GameEngine
@@ -205,6 +206,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             options['size'] = '32x32'  # Default canvas size
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        # Black between the panels (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
 
         # Initialize film strip scrolling attributes
         self.film_strip_scroll_offset = 0

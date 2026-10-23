@@ -6,6 +6,7 @@ import logging
 import pygame
 
 from glitchygames.game_objects.paddle import VerticalPaddle
+from tests.display_canvas import show_canvas_on_new_display
 
 LOG = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ def test_paddle_movement():
 
     # Initialize pygame
     pygame.init()
-    pygame.display.set_mode((800, 600))
+    show_canvas_on_new_display(size=(800, 600))
 
     # Create a paddle
     paddle = VerticalPaddle(

@@ -22,6 +22,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, 
 import pygame
 
 from glitchygames import events
+from glitchygames.backgrounds import (
+    DEFAULT_BACKGROUND_PATTERN,
+    BackgroundPattern,
+    paint_default_background,
+    set_active_default_background_pattern,
+)
 from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
 from glitchygames.events.app import AppEventManager
@@ -672,6 +678,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             help='mixer channels reserved for real-time synth voices (default: 4)',
             default=DEFAULT_LIVE_VOICE_POOL,
         )
+        group.add_argument(
+            '--default-background',
+            choices=[pattern.value for pattern in BackgroundPattern],
+            help=(
+                'the background of a scene that sets none: the TV test pattern or the channel 3 '
+                f'blue screen (default: {DEFAULT_BACKGROUND_PATTERN.value})'
+            ),
+            default=None,
+        )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
         default_videodriver = []
@@ -901,6 +916,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if self.replay_sources is not None
             else seed_engine_random(seed=options.get('random_seed'))
         )
+        # The background a scene that sets none shows (glitchygames/backgrounds.py); without
+        # the option the process's default (the test pattern) stays
+        default_background = options.get('default_background')
+        if default_background is not None:
+            set_active_default_background_pattern(pattern=BackgroundPattern(default_background))
 
         # Unhandled events by type, reported at teardown (see unhandled_event_report); their
         # first-seen times are elapsed_seconds() readings, the frame clock that
@@ -1103,6 +1123,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.desired_resolution,
             self.mode_flags,
         )
+        # A new display is black, which cannot be told from "nothing rendered": until the
+        # first scene draws, it shows the default background (glitchygames/backgrounds.py)
+        paint_default_background(surface=self.screen)
         # A scene manager made before this display (pygame started first) holds the surface
         # of the display it saw then, which a --headless restart closed: it draws on this one
         self.scene_manager.screen = self.screen

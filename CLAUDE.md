@@ -612,6 +612,14 @@ Vera Sans font on translucent cached backings. Scenes or sprites can add annotat
 itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and
 the HUD shows `| paused: <name>`).
 
+**Scene backgrounds** (`glitchygames/backgrounds.py`): a scene that sets no background shows the
+default pattern instead of black (black cannot be told from "nothing rendered"): the SMPTE-style TV
+test pattern, or the channel 3 blue screen with `--default-background channel-3`
+(`BackgroundPattern`; drawn at any size, cached per size). `Scene.background_color = ...` keeps
+working (scenes that want black name it: PaddleSlap, GameOverScene, PauseScene, Bitmappy and its
+dialogs); `Scene.background_pattern = BackgroundPattern.CHANNEL_THREE` picks a pattern. A new
+engine display is painted with the default before the first frame.
+
 **Pixel snapping** (`glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
 sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR
 for retro/platformer games), shared by sprites, collision and the debug overlay. A scene picks its
@@ -724,6 +732,11 @@ Features:
 - `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`)
 - All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
+- The test display rule (`tests/display_canvas.py`): every test starts on the canvas (the default
+  pattern; channel 3 with `GLITCHYGAMES_TEST_CANVAS=channel-3`), its display is presented after the
+  body, and a test whose last frame is entirely black fails as a rendering bug (opt-out:
+  `@pytest.mark.black_frame_expected(reason=...)`, only for a frame black by definition). Assert
+  untouched pixels with `canvas_color_at(x=..., y=...)`, never as black
 - Coverage minimum: 99% (each remaining miss is audited: dead code is removed, deliberate defensive lines carry a `# pragma: no cover` with the reason)
 - Run linting after modifying files
 - Check for real bugs before assuming test failures are test issues

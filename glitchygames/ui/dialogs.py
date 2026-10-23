@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
 
@@ -162,6 +163,8 @@ class InputConfirmationDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+        # Black behind the dialog (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.previous_scene: Any = previous_scene
 
         # Create dialog with its own sprite group
@@ -491,6 +494,8 @@ class DeleteAnimationDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+        # Black behind the dialog (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.previous_scene: Any = previous_scene
         self.animation_name = animation_name
         self.on_confirm_callback = on_confirm_callback
@@ -614,6 +619,8 @@ class DeleteFrameDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+        # Black behind the dialog (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.previous_scene: Any = previous_scene
         self.animation_name = animation_name
         self.frame_index = frame_index

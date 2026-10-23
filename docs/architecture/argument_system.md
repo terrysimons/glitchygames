@@ -24,7 +24,7 @@ sequenceDiagram
     IA->>AP: ArgumentParser("GameName version X.Y")
     IA->>ENGINE: GameEngine.args(parser)
 
-    Note over ENGINE: Adds "Graphics Options" group<br/>14 arguments,<br/>and "Diagnostics Options"<br/>10 arguments
+    Note over ENGINE: Adds "Graphics Options" group<br/>15 arguments,<br/>and "Diagnostics Options"<br/>16 arguments
 
     ENGINE->>MGR: AppEventManager.args(parser)
     Note over MGR: Adds "App Options" group<br/>(empty, reserved)
@@ -96,6 +96,7 @@ flowchart TD
             F16["--random-seed"]
             F17["--screen-shake-intensity, --rumble-intensity"]
             F18["--live-voice-pool"]
+            F20["--default-background"]
             F19["--video-driver"]
         end
 

@@ -17,6 +17,7 @@ from glitchygames.events.base import HashableEvent
 from glitchygames.examples import text_input_demo
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
+from tests.display_canvas import show_canvas_on_new_display
 from tests.examples.demo_runs import engine_run_environment, run_demo_main
 
 if TYPE_CHECKING:
@@ -261,7 +262,7 @@ def test_return_submits_the_text(
 
 def test_the_box_joins_the_sprite_group_it_is_given() -> None:
     """A sprite group passed in holds the box; without one the scene makes its own."""
-    pygame.display.set_mode(DEMO_DISPLAY_SIZE)
+    show_canvas_on_new_display(size=DEMO_DISPLAY_SIZE)
     group: pygame.sprite.LayeredDirty[pygame.sprite.DirtySprite] = pygame.sprite.LayeredDirty()
 
     game = text_input_demo.Game(options={}, groups=group)

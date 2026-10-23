@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
@@ -39,6 +40,8 @@ class GameOverScene(Scene):
 
         """
         super().__init__(**kwargs)
+        # Black behind the text (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.final_score = final_score
         self.high_scores = high_scores or []
         self.text_sprite = None

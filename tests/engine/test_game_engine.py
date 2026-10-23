@@ -46,6 +46,12 @@ from typing import TYPE_CHECKING, override
 import pygame
 import pytest
 
+from glitchygames.backgrounds import (
+    BackgroundPattern,
+    active_default_background_pattern,
+    background_pattern_surface,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Generator
 
@@ -61,6 +67,7 @@ from glitchygames.input.input_devices import InputMode
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import advance_frame_clock, install_sources
+from tests.display_canvas import CANVAS_PATTERN, show_canvas_on_new_display
 from tests.input.stand_in_devices import (
     STAND_IN_PAD,
     STAND_IN_STICK,
@@ -457,7 +464,7 @@ class TestGameEngineShutdown:
         finally:
             # Later tests on this worker need pygame and the default display
             pygame.init()
-            pygame.display.set_mode((800, 600))
+            show_canvas_on_new_display()
 
 
 class TestGameEngineInitializeEventHandlers:
@@ -1569,7 +1576,7 @@ class TestStartMethod:
 
         # Re-init pygame for other tests
         pygame.init()
-        pygame.display.set_mode((800, 600))
+        show_canvas_on_new_display()
 
 
 class TestResolveSceneNameForError:
@@ -2627,7 +2634,35 @@ class TestGameEnginePerformanceImportError:
         finally:
             # Later tests on this worker need pygame and the default display
             pygame.init()
-            pygame.display.set_mode((800, 600))
+            show_canvas_on_new_display()
+
+
+class TestDefaultBackgroundArgument:
+    """--default-background picks what a scene that sets none shows (backgrounds.py)."""
+
+    def test_without_the_option_the_default_stays_and_the_display_shows_it(self, mocker):
+        """No option: the process default (the canvas here) is kept and painted on the display."""
+        engine = _make_engine(mocker)
+
+        assert engine.screen is pygame.display.get_surface()
+        assert active_default_background_pattern() is CANVAS_PATTERN
+        expected = background_pattern_surface(pattern=CANVAS_PATTERN, size=engine.screen.get_size())
+        assert pygame.image.tobytes(engine.screen, 'RGB') == pygame.image.tobytes(expected, 'RGB')
+
+    @pytest.mark.parametrize('pattern', list(BackgroundPattern))
+    def test_the_option_sets_the_default_and_the_new_display_shows_it(self, mocker, pattern):
+        """--default-background NAME: new scenes and the new display show that pattern."""
+        engine = _make_engine(mocker, '--default-background', pattern.value)
+
+        assert active_default_background_pattern() is pattern
+        assert Scene(options={}).background_pattern is pattern
+        expected = background_pattern_surface(pattern=pattern, size=engine.screen.get_size())
+        assert pygame.image.tobytes(engine.screen, 'RGB') == pygame.image.tobytes(expected, 'RGB')
+
+    def test_an_unknown_pattern_is_refused_by_the_parser(self, mocker):
+        """The parser refuses a name that is not a pattern, as for any other choice."""
+        with pytest.raises(SystemExit):
+            _make_engine(mocker, '--default-background', 'snow')
 
 
 class TestShakeAndAudioArguments:

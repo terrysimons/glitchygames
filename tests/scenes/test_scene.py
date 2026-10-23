@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING
 import pygame
 import pytest
 
+from glitchygames.backgrounds import (
+    BackgroundPattern,
+    background_pattern_surface,
+    set_active_default_background_pattern,
+)
 from glitchygames.color import BLUE, RED
 from glitchygames.events import ALL_EVENTS, FPSEVENT
 from glitchygames.input.state import InputSnapshot, set_current_input
@@ -15,6 +20,7 @@ from glitchygames.interfaces import SceneInterface
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
+from tests.display_canvas import CANVAS_PATTERN
 from tests.logged_messages import logged_message
 
 if TYPE_CHECKING:
@@ -119,7 +125,9 @@ class TestScene:
         assert scene.dirty == 1
         assert scene.options == {'debug_events': False, 'no_unhandled_events': False}
         assert scene.name is type(scene)
-        assert scene._background_color == (0, 0, 0, 0)  # BLACK color
+        # No colour set: the background shows the default pattern (glitchygames/backgrounds.py)
+        assert scene.background_color is None
+        assert scene.background_pattern is CANVAS_PATTERN
         assert scene.next_scene == scene
         assert scene.rects is None
         assert scene.screen is not None
@@ -164,12 +172,14 @@ class TestScene:
         """Test Scene background_color property."""
         scene = Scene()
 
-        # Test getting background color
-        assert scene.background_color is not None
+        # No colour until one is set: the background shows the default pattern
+        assert scene.background_color is None
 
         # Test setting background color (RGB gets normalized to RGBA with alpha=0)
         scene.background_color = RED
         assert scene.background_color == (*RED, 0)
+        # A colour replaces the pattern
+        assert scene.background_pattern is None
         # The background surface is filled with it (RGB: alpha 0 is BUGS.md #142's subject)
         background_pixels = pygame.surfarray.pixels3d(scene.background)
         assert (background_pixels == RED[:3]).all()
@@ -2434,14 +2444,52 @@ class TestSceneScreenshotProperty:
         assert screenshot.get_height() == scene.screen_height
 
 
+class TestSceneBackgroundPattern:
+    """A scene that sets no background shows the default pattern; a pattern can be chosen."""
+
+    def test_a_new_scene_shows_the_active_default_pattern(self):
+        """The background surface holds the default pattern, drawn at the screen's size."""
+        scene = Scene()
+
+        expected = background_pattern_surface(
+            pattern=CANVAS_PATTERN, size=scene.background.get_size()
+        )
+        assert pygame.image.tobytes(scene.background, 'RGB') == pygame.image.tobytes(
+            expected, 'RGB'
+        )
+
+    def test_the_default_follows_the_active_default_pattern(self):
+        """A scene made after the default changes gets the new default."""
+        set_active_default_background_pattern(pattern=BackgroundPattern.CHANNEL_THREE)
+
+        assert Scene().background_pattern is BackgroundPattern.CHANNEL_THREE
+
+    def test_choosing_a_pattern_replaces_a_colour(self):
+        """Setting background_pattern draws the pattern and clears background_color."""
+        scene = Scene()
+        scene.background_color = RED
+
+        scene.background_pattern = BackgroundPattern.CHANNEL_THREE
+
+        assert scene.background_color is None
+        assert scene.background_pattern is BackgroundPattern.CHANNEL_THREE
+        expected = background_pattern_surface(
+            pattern=BackgroundPattern.CHANNEL_THREE, size=scene.background.get_size()
+        )
+        assert pygame.image.tobytes(scene.background, 'RGB') == pygame.image.tobytes(
+            expected, 'RGB'
+        )
+
+
 class TestSceneBackgroundColor:
     """Test Scene.background_color property."""
 
     def test_background_color_getter(self):
-        """Test background_color getter returns current color."""
+        """background_color is None by default (a pattern), and the colour once one is set."""
         scene = Scene()
-        # Default is BLACK
-        assert scene.background_color is not None
+        assert scene.background_color is None
+        scene.background_color = BLUE
+        assert scene.background_color == (*BLUE, 0)
 
     def test_background_color_setter(self):
         """Test background_color setter updates the color."""

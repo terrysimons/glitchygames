@@ -38,6 +38,20 @@ def _take_quit_events() -> list[pygame.event.Event]:
     return pygame.event.get(eventtype=pygame.QUIT)
 
 
+def _draw_the_active_scene(scene_manager: SceneManager) -> None:
+    """Draw the active scene's frame on the display, as the next frame of the loop would.
+
+    The test display rule (tests/display_canvas.py): a switch leaves only the scene's (black)
+    background on the display; drawing the frame makes the test end on what the scene shows.
+    """
+    scene = scene_manager.active_scene
+    assert scene is not None
+    display = pygame.display.get_surface()
+    assert display is not None
+    scene.update()
+    scene.render(display)
+
+
 class RecordingDisplayScene(Scene):
     """A real scene that a GameOverScene can follow (and restart)."""
 
@@ -273,6 +287,7 @@ class TestGameOverSceneRestart:
         scene.on_key_up_event(_key_event(event_type=pygame.KEYUP, key=pygame.K_SPACE))
 
         assert scene_manager.active_scene is scene
+        _draw_the_active_scene(scene_manager)
 
     def test_restart_without_a_previous_scene_warns_and_stays(self, caplog):
         """With no previous scene to restart, resume logs a warning and switches nowhere."""
@@ -286,6 +301,7 @@ class TestGameOverSceneRestart:
 
         assert scene_manager.active_scene is scene
         assert 'No previous scene found to restart' in caplog.text
+        _draw_the_active_scene(scene_manager)
 
     def test_other_key_down_goes_to_the_base_scene(self):
         """A key other than SPACE or ESC (here Q) reaches the base scene, which requests quit."""

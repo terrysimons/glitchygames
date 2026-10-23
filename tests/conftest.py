@@ -21,6 +21,7 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 import pygame
 
 from glitchygames import pixel_snap, randomness, sources
+from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -31,6 +32,14 @@ from glitchygames.sprites import (
     FocusableSingletonBitmappySprite,
     Singleton,
     SingletonBitmappySprite,
+)
+from tests.display_canvas import (
+    CANVAS_PATTERN,
+    TEST_DISPLAY_SIZE,
+    display_is_entirely_black,
+    present_display,
+    real_display_surface,
+    show_canvas,
 )
 from tests.signal_handlers import preserved_signal_handlers
 
@@ -53,6 +62,10 @@ def _load_lazy_pygame_modules() -> None:
 
 
 _load_lazy_pygame_modules()
+
+# The test display rule (tests/display_canvas.py): every test starts on the canvas pattern, and
+# a test whose last frame is entirely black fails as a rendering bug
+BLACK_FRAME_EXPECTED_MARKER = 'black_frame_expected'
 
 
 @pytest.fixture(scope='session')
@@ -92,7 +105,12 @@ def _restore_patched_logging_globals() -> list[str]:
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
-    """Fail any test that replaces process-wide logging globals.
+    """Run the test on the canvas, show what it drew, and fail it on a logging or black-frame bug.
+
+    The test display rule (tests/display_canvas.py): a fixture that set a new display mode
+    (a fresh, black display) and drew nothing gets the canvas again before the test body, and
+    after the body the display is presented and an entirely black last frame fails the test
+    (_fail_on_entirely_black_frame).
 
     Patching e.g. 'some.module.logging.getLogger' replaces logging.getLogger for the
     whole process, not just that module. pytest's own logging plugin calls
@@ -107,7 +125,15 @@ def pytest_runtest_call(item):
         object: The wrapped hook's result.
 
     """
-    result = yield
+    display_surface = real_display_surface()
+    if display_surface is not None and display_is_entirely_black(display_surface):
+        show_canvas()
+    try:
+        result = yield
+    finally:
+        # Show what the test drew (a test that only draws, never presents, is visible too)
+        if real_display_surface() is not None:
+            present_display()
     replaced_globals = _restore_patched_logging_globals()
     if replaced_globals:
         pytest.fail(
@@ -116,13 +142,45 @@ def pytest_runtest_call(item):
             "constructor 'logger' argument) or patch the module's own logger object.",
             pytrace=False,
         )
+    _fail_on_entirely_black_frame(item=item)
     return result
 
 
+def _fail_on_entirely_black_frame(*, item: pytest.Item) -> None:
+    """Fail a test whose last frame is entirely black: a rendering bug (the test display rule).
+
+    Every test starts on the canvas pattern (ensure_pygame_graceful_quit), so a black display at
+    the end of the test body was drawn, or set up, by the test. This runs in pytest_runtest_call,
+    before fixture teardown, so no teardown step can leave a black frame behind to trip it.
+    A test whose last frame is black by definition opts out with
+    @pytest.mark.black_frame_expected(reason=...).
+
+    Args:
+        item: The test that just ran.
+
+    """
+    if item.get_closest_marker(BLACK_FRAME_EXPECTED_MARKER) is not None:
+        return
+    display_surface = real_display_surface()
+    if display_surface is None or not display_is_entirely_black(display_surface):
+        return
+    pytest.fail(
+        f"rendering bug: the test's last frame is entirely black ({item.nodeid}). Tests start "
+        'on the canvas pattern and scenes that set no background show it (tests/'
+        'display_canvas.py); something in this test drew black over everything.',
+        pytrace=False,
+    )
+
+
 def pytest_configure(config):
-    """Configure pytest to enable strict event handling for all tests."""
+    """Configure pytest to enable strict event handling for all tests, and register markers."""
     # This ensures that unhandled events cause tests to fail, catching bugs
     # The no_unhandled_events flag is enabled globally in mock_game fixture
+    config.addinivalue_line(
+        'markers',
+        f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame is entirely black by "
+        'definition (e.g. a fade to black), so the black-frame guard skips it',
+    )
 
 
 def _reset_all_singleton_instances():
@@ -233,6 +291,18 @@ def reset_default_snap_mode():
 
 
 @pytest.fixture(autouse=True)
+def reset_default_background_pattern():
+    """Start and end each test with the canvas pattern as the default scene background.
+
+    The default is process-global (glitchygames/backgrounds.py) and GameEngine sets it from
+    --default-background; without this, one test's engine would change the next test's scenes.
+    """
+    set_active_default_background_pattern(pattern=CANVAS_PATTERN)
+    yield
+    set_active_default_background_pattern(pattern=CANVAS_PATTERN)
+
+
+@pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset all singletons before each test to prevent contamination."""
     _reset_all_singleton_instances()
@@ -336,11 +406,12 @@ def mock_game_with_args(mock_game: type[Scene]):
 
 @pytest.fixture(autouse=True)
 def ensure_pygame_graceful_quit():
-    """Give every test an initialized pygame with the default display, and isolate its sound.
+    """Give every test an initialized pygame showing the canvas pattern; isolate its sound.
 
     pygame stays initialized for the whole run: quitting and re-initializing it after every
     test cost about 30 ms per test (most of a serial run). Before each test, pygame and the
-    800x600 display are started again if a test quit them. After each test, every mixer
+    800x600 display are started again if a test quit them, and the canvas is drawn and presented
+    (the test display rule, tests/display_canvas.py). After each test, every mixer
     channel is stopped, so no sound plays on into the next test (audibly, on a real audio
     driver), and a display a test resized is set back to the default size.
     """
@@ -351,7 +422,10 @@ def ensure_pygame_graceful_quit():
         pygame.init()
     if pygame.display.get_surface() is None:
         with contextlib.suppress(pygame.error):
-            pygame.display.set_mode((800, 600))
+            pygame.display.set_mode(TEST_DISPLAY_SIZE)
+    # The canvas: a test that draws nothing shows the pattern, and no test sees an earlier
+    # test's drawing (the guard in pytest_runtest_call fails a test that ends on all black)
+    show_canvas()
 
     yield
 
@@ -359,5 +433,5 @@ def ensure_pygame_graceful_quit():
         pygame.mixer.stop()
     with contextlib.suppress(pygame.error):
         surface = pygame.display.get_surface() if pygame.get_init() else None
-        if surface is not None and surface.get_size() != (800, 600):
-            pygame.display.set_mode((800, 600))
+        if surface is not None and surface.get_size() != TEST_DISPLAY_SIZE:
+            pygame.display.set_mode(TEST_DISPLAY_SIZE)

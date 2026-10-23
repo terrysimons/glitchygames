@@ -83,6 +83,20 @@ def _press_and_release(scene: Scene, key: int) -> None:
     scene.on_key_up_event(_key_event(event_type=pygame.KEYUP, key=key))
 
 
+def _draw_the_active_scene(scene_manager: SceneManager) -> None:
+    """Draw the active scene's frame on the display, as the next frame of the loop would.
+
+    The test display rule (tests/display_canvas.py): a switch leaves only the scene's (black)
+    background on the display; drawing the frame makes the test end on what the scene shows.
+    """
+    scene = scene_manager.active_scene
+    assert scene is not None
+    display = pygame.display.get_surface()
+    assert display is not None
+    scene.update()
+    scene.render(display)
+
+
 def _paused_game(scene_manager: SceneManager) -> tuple[Game, PauseScene]:
     """Start PaddleSlap, pause it with SPACE and switch to the pause scene, as the loop would.
 
@@ -116,6 +130,7 @@ class TestPauseScreen:
         # The pause is requested for the end of the frame (after rendering), not switched mid-frame
         assert isinstance(game.next_scene, PauseScene), 'Expected the pause scene to be requested'
         assert isolated_scene_manager.active_scene is game
+        _draw_the_active_scene(isolated_scene_manager)
         LOG.info('Pause screen condition properly detected')
 
     def test_pause_screen_resume_on_spacebar(self, isolated_scene_manager):
@@ -126,6 +141,7 @@ class TestPauseScreen:
         _press_and_release(pause_scene, pygame.K_SPACE)
 
         assert isolated_scene_manager.active_scene is game, 'Expected the game to resume'
+        _draw_the_active_scene(isolated_scene_manager)
         LOG.info('Pause screen resume properly detected')
 
     def test_pause_screen_gets_game_engine_reference(self, isolated_scene_manager):
@@ -141,6 +157,7 @@ class TestPauseScreen:
 
         assert pause_scene.game_engine is game_engine
         assert pause_scene.overlay is not None  # setup() ran and built the overlay
+        _draw_the_active_scene(isolated_scene_manager)
         LOG.info('Pause screen gets game engine reference properly')
 
 
@@ -167,6 +184,7 @@ class TestPauseScreenIntegration:
         _press_and_release(pause_scene, pygame.K_SPACE)
 
         assert isolated_scene_manager.active_scene is game, 'Expected resume to work'
+        _draw_the_active_scene(isolated_scene_manager)
         LOG.info('Complete pause/resume cycle works properly')
 
 
@@ -204,6 +222,7 @@ class TestPauseSceneBehaviour:
         assert pause_scene.overlay.rect.size == pygame.display.get_surface().get_size()
         # Nothing was paused, so the debug overlay inspects the pause scene itself
         assert pause_scene.debug_subject is pause_scene
+        _draw_the_active_scene(isolated_scene_manager)
 
     def test_escape_quits(self, isolated_scene_manager):
         """ESC on the pause screen quits: the scene manager posts QUIT to the real queue."""
@@ -213,6 +232,7 @@ class TestPauseSceneBehaviour:
         pause_scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_ESCAPE))
 
         assert len(pygame.event.get(eventtype=pygame.QUIT)) == 1
+        _draw_the_active_scene(isolated_scene_manager)
 
     def test_other_key_down_goes_to_the_base_scene(self, isolated_scene_manager):
         """A key other than SPACE or ESC (here Q) reaches the base scene, which requests quit."""
@@ -222,6 +242,7 @@ class TestPauseSceneBehaviour:
 
         assert pause_scene.quit_requested is True
         assert pause_scene._space_pressed is False
+        _draw_the_active_scene(isolated_scene_manager)
 
     def test_space_release_after_press_resumes_the_paused_scene(self, isolated_scene_manager):
         """SPACE down then up switches back to the scene that was paused."""
@@ -240,6 +261,7 @@ class TestPauseSceneBehaviour:
         pause_scene.on_key_up_event(_key_event(event_type=pygame.KEYUP, key=pygame.K_SPACE))
 
         assert isolated_scene_manager.active_scene is pause_scene
+        _draw_the_active_scene(isolated_scene_manager)
 
     def test_focus_gained_right_after_pausing_does_not_resume(self, isolated_scene_manager):
         """The focus pair the scene switch itself causes (within 0.5 s) is ignored."""
@@ -249,6 +271,7 @@ class TestPauseSceneBehaviour:
         pause_scene.on_window_focus_gained_event(events.HashableEvent(pygame.WINDOWFOCUSGAINED))
 
         assert isolated_scene_manager.active_scene is pause_scene
+        _draw_the_active_scene(isolated_scene_manager)
 
     def test_focus_gained_later_resumes_the_paused_scene(self, isolated_scene_manager):
         """Regaining window focus more than 0.5 s after pausing resumes the game."""

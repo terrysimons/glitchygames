@@ -12,6 +12,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from tests.display_canvas import show_canvas_on_new_display
 
 SCREEN_SIZE = (64, 48)
 BACKGROUND_COLOR = (0, 0, 0)
@@ -440,7 +441,7 @@ class TestPausedSceneInspection:
 
     def test_pause_scene_inspects_the_scene_it_paused(self, mocker):
         """After setup, PauseScene.debug_subject is the scene that was active before the pause."""
-        pygame.display.set_mode(SCREEN_SIZE)
+        show_canvas_on_new_display(size=SCREEN_SIZE)
         SceneManager._reset()
         scene_manager = SceneManager()
         gameplay_scene = Scene(options={})

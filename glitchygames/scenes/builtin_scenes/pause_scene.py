@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
+from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
@@ -54,6 +55,10 @@ class PauseScene(Scene):
 
         """
         super().__init__(**kwargs)
+        # Black under the overlay (named: a scene that sets no background shows the test
+        # pattern). On displays with per-pixel alpha the frozen screenshot can be translucent
+        # (BUGS.md #142), so what is under the overlay shows through it
+        self.background_color = BLACK
         self.overlay = None
         self._space_pressed = False
         # The gameplay scene this pause screen froze; the debug overlay inspects it instead

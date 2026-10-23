@@ -27,7 +27,7 @@ import pygame
 
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
-from glitchygames.color import WHITE
+from glitchygames.color import BLACK, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import (
@@ -134,6 +134,8 @@ class Game(Scene):
             groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        # The court is black (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         # FPS will be set by command line arguments or default to 60
 
         v_center = self.screen_height // 2
