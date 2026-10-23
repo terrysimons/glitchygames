@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, override
 
 import pygame
 
@@ -119,7 +119,6 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections import OrderedDict
     from collections.abc import Callable, Generator, Mapping
     from types import FrameType
 
@@ -1219,20 +1218,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         for event_type in events.TEXT_EVENTS:
             GameEngine.EVENT_HANDLERS[event_type] = self.process_text_event
 
-    def __del__(self: Self) -> None:
-        """Delete the game engine."""
-        # This is the total # of sprites.
-        self.log.info('Sprite Count: %s', Sprite.SPRITE_COUNT)
-
-        # This is a count of each type of sprite.
-        sprite_counters: OrderedDict[str, OrderedDict[str, int]] = cast(
-            'OrderedDict[str, OrderedDict[str, int]]',
-            Sprite.SPRITE_COUNTERS,
-        )
-        for sprite_type, counters in sprite_counters.items():
-            for key, value in counters.items():
-                self.log.info('%s Sprite %s: %s', sprite_type, key, value)
-
     @property
     def input(self: Self) -> InputSnapshot:
         """The polled input captured at the latest pump (glitchygames/input/state.py).
@@ -2187,6 +2172,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # reported; the closing error then propagates (the teardown failed)
             self._restore_signal_handlers()
             self._report_replay_result(run_ended_by=run_ended_by)
+        # The run is over, a restart included (its process makes its own timer): give back what
+        # the timer holds here, not in its finaliser, which must not log (BUGS.md #188)
+        if self.timer is not None:
+            self.timer.close()
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
@@ -2208,6 +2197,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             performance_manager.print_shutdown_report()
             performance_manager.print_per_scene_shutdown_report()
 
+        self._log_sprite_count_report()
         self._log_unhandled_event_report()
 
         pygame.display.quit()
@@ -3281,6 +3271,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             f'attributes: {", ".join(record.attribute_names) or "none"}'
             for event_type, record in records
         ]
+
+    def _log_sprite_count_report(self: Self) -> None:
+        """Log the sprite counts at teardown: the total, then each sprite type's counters.
+
+        Logged here, not from a finaliser: a ``__del__`` runs whenever the garbage collector
+        does, possibly in the middle of a write to the stream the log goes to, where a second
+        write raises ``RuntimeError: reentrant call`` (BUGS.md #188).
+        """
+        self.log.info('Sprite Count: %s', Sprite.SPRITE_COUNT)
+        for sprite_type, counters in Sprite.SPRITE_COUNTERS.items():
+            for counter_name, counter_value in counters.items():
+                self.log.info('%s Sprite %s: %s', sprite_type, counter_name, counter_value)
 
     def _log_unhandled_event_report(self: Self) -> None:
         """Log the unhandled event table at teardown; log nothing if there were none."""

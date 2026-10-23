@@ -1,8 +1,11 @@
 """Tests for timing functionality and coverage."""
 
+import io
 import itertools
+import logging
 import sys
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, override
 
 import pytest
 
@@ -20,6 +23,9 @@ from glitchygames.timing import (
     s_to_ns,
     sleep_overshoot_ns,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Buffer, Callable
 
 
 class TestConversionFunctions:
@@ -52,6 +58,12 @@ class TestPygameTimer:
 
     def test_init(self):
         timer = PygameTimer()
+        assert timer._pg is not None
+
+    def test_close_does_nothing(self):
+        """The legacy backend holds nothing, so closing it (as the teardown does) is harmless."""
+        timer = PygameTimer()
+        timer.close()
         assert timer._pg is not None
 
     def test_ns_now_returns_positive(self):
@@ -1055,7 +1067,7 @@ class TestFastTimerWindowsTimerResolution:
         mocker.patch.object(timing, 'sys', mocker.Mock(platform='win32'))
 
     def test_requests_and_releases_1ms_resolution(self, on_windows, monkeypatch):
-        """The timer begins a 1 ms period at construction and ends it when it is deleted."""
+        """The timer begins a 1 ms period at construction and ends it when closed, once."""
         import ctypes
 
         winmm = FakeWinmm()
@@ -1065,7 +1077,24 @@ class TestFastTimerWindowsTimerResolution:
         assert timer._win_period_on is True
         assert winmm.calls == [('timeBeginPeriod', 1)]
 
+        timer.close()
+        assert winmm.calls == [('timeBeginPeriod', 1), ('timeEndPeriod', 1)]
+
+        # Closed: neither a second close nor the finaliser ends the period again
+        timer.close()
         timer.__del__()
+        assert winmm.calls == [('timeBeginPeriod', 1), ('timeEndPeriod', 1)]
+
+    def test_the_finaliser_releases_a_timer_never_closed(self, on_windows, monkeypatch):
+        """A timer dropped without close still gives the resolution back."""
+        import ctypes
+
+        winmm = FakeWinmm()
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+        timer = FastTimer(windows_timer_1ms=True)
+
+        del timer
+
         assert winmm.calls == [('timeBeginPeriod', 1), ('timeEndPeriod', 1)]
 
     def test_without_the_flag_winmm_is_not_touched(self, on_windows, monkeypatch):
@@ -1093,7 +1122,7 @@ class TestFastTimerWindowsTimerResolution:
         assert 'Windows timer resolution setup failed' in caplog.text
 
     def test_a_failed_release_is_logged_not_raised(self, on_windows, monkeypatch, caplog):
-        """An error ending the period in __del__ is logged at debug level, never raised."""
+        """An error ending the period in close is logged at debug level, never raised."""
         import ctypes
 
         winmm = FakeWinmm(failure=OSError('winmm went away'))
@@ -1101,9 +1130,60 @@ class TestFastTimerWindowsTimerResolution:
         timer = FastTimer(windows_timer_1ms=True)
 
         with caplog.at_level('DEBUG', logger='glitchygames.timing'):
-            timer.__del__()
+            timer.close()
 
         assert 'Windows timer resolution cleanup failed: winmm went away' in caplog.text
+
+    def test_the_finaliser_logs_nothing(self, on_windows, monkeypatch, caplog):
+        """A failed release in __del__ is neither logged nor raised: a finaliser does no I/O."""
+        import ctypes
+
+        winmm = FakeWinmm(failure=OSError('winmm went away'))
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+        timer = FastTimer(windows_timer_1ms=True)
+
+        with caplog.at_level('DEBUG'):
+            timer.__del__()
+
+        assert caplog.records == []
+        assert timer._win_period_on is False
+
+    def test_a_finaliser_run_mid_write_does_not_write(self, on_windows, monkeypatch, caplog):
+        """BUGS.md #188: a timer finalised while a log record is being written stays silent.
+
+        The garbage collector can run a finaliser at any allocation, including inside a write to
+        the stream a log handler writes to (pytest's live logging writes to stdout). A finaliser
+        that logged there would write to that stream again from inside its own write, and the
+        stream's buffer refuses that (``RuntimeError: reentrant call inside
+        <_io.BufferedWriter>``), reported as an unraisable exception. Here the last reference to
+        a timer whose release fails (the logging path the finaliser used to take) is dropped
+        from inside the raw write, deterministically, as the collector would.
+        """
+        import ctypes
+
+        winmm = FakeWinmm(failure=OSError('winmm went away'))
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+        unraisable_errors: list[BaseException | None] = []
+        monkeypatch.setattr(
+            sys, 'unraisablehook', lambda unraisable: unraisable_errors.append(unraisable.exc_value)
+        )
+        timer_holder = [FastTimer(windows_timer_1ms=True)]
+        raw_stream = RawStreamRunningDuringWrite(during_write=timer_holder.clear)
+        log_stream = io.TextIOWrapper(
+            io.BufferedWriter(raw_stream), encoding='utf-8', write_through=True
+        )
+        handler = RaisingStreamHandler(log_stream)
+        timing_logger = logging.getLogger('glitchygames.timing')
+        caplog.set_level('DEBUG', logger='glitchygames.timing')
+        timing_logger.addHandler(handler)
+        try:
+            timing_logger.debug('a record being written when the timer is finalised')
+        finally:
+            timing_logger.removeHandler(handler)
+
+        assert timer_holder == []
+        assert unraisable_errors == []
+        assert raw_stream.written == b'a record being written when the timer is finalised\n'
 
 
 def fake_windll(*, winmm: FakeWinmm) -> SimpleNamespace:
@@ -1114,3 +1194,53 @@ def fake_windll(*, winmm: FakeWinmm) -> SimpleNamespace:
 
     """
     return SimpleNamespace(winmm=winmm)
+
+
+class RawStreamRunningDuringWrite(io.RawIOBase):
+    """A raw stream that runs a callback inside its first write, as a garbage collection would.
+
+    A BufferedWriter holds its lock while it writes to its raw stream, so anything the callback
+    writes to the same buffer is a reentrant call.
+    """
+
+    def __init__(self, *, during_write: Callable[[], None]) -> None:
+        """Keep the callback to run inside the first write."""
+        super().__init__()
+        self.during_write: Callable[[], None] | None = during_write
+        self.written = bytearray()
+
+    @override
+    def writable(self) -> bool:
+        """Accept writes.
+
+        Returns:
+            bool: True.
+
+        """
+        return True
+
+    @override
+    def write(self, data: Buffer) -> int:
+        """Keep the bytes, running the callback the first time.
+
+        Returns:
+            int: How many bytes were written (all of them).
+
+        """
+        callback, self.during_write = self.during_write, None
+        if callback is not None:
+            callback()
+        written_bytes = bytes(data)
+        self.written.extend(written_bytes)
+        return len(written_bytes)
+
+
+class RaisingStreamHandler(logging.StreamHandler):
+    """A stream handler that raises a write's error, as pytest's logging handlers do."""
+
+    @override
+    def handleError(self, record: logging.LogRecord) -> None:
+        """Raise the error being handled (the emit's) instead of printing it."""
+        handled_error = sys.exception()
+        if handled_error is not None:
+            raise handled_error

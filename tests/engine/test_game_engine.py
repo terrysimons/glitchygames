@@ -31,7 +31,7 @@ Covers:
 - set_cursor: with custom cursor and None (default cursor)
 - process_events main loop with scene process_event bypass
 - start() method paths
-- __del__ cleanup
+- teardown reports (sprite counts) and the timer closed at teardown
 - quit_game class method
 """
 
@@ -2428,16 +2428,6 @@ class TestGameEngineSuggestedResolutionLinuxNonArm:
         assert result == (1024, 768)
 
 
-class TestGameEngineDelMethod:
-    """Test GameEngine.__del__ method."""
-
-    def test_del_logs_sprite_counts(self, mocker):
-        """Test __del__ logs sprite counts without errors."""
-        engine = _make_engine(mocker)
-        # Should not raise
-        del engine
-
-
 class TestGameEngineQuitGame:
     """Test GameEngine.quit_game class method."""
 
@@ -2557,27 +2547,59 @@ class TestGameEngineInvalidUpdateType:
         assert engine.screen is pygame.display.get_surface()
 
 
-class TestGameEngineDel:
-    """Test GameEngine __del__ with sprite counters (lines 509-510)."""
+class TestGameEngineTeardownReports:
+    """The sprite counts are reported by the teardown, never by a finaliser (BUGS.md #188)."""
 
-    def test_del_logs_sprite_counters(self, mocker):
-        """Test __del__ iterates sprite counters (lines 509-510)."""
+    def test_teardown_logs_the_sprite_counts(self, mocker, caplog):
+        """_shutdown logs the total sprite count, then each sprite type's counters."""
         from glitchygames.sprites import Sprite
 
         engine = _make_engine(mocker)
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        mocker.patch.object(Sprite, 'SPRITE_COUNT', 5)
+        mocker.patch.object(
+            Sprite, 'SPRITE_COUNTERS', OrderedDict({'TestSprite': {'count': 3, 'pixels': 2}})
+        )
 
-        # Set up some sprite counters
-        Sprite.SPRITE_COUNT = 5
-        Sprite.SPRITE_COUNTERS = OrderedDict({
-            'TestSprite': {'created': 3, 'destroyed': 2},
-        })
+        with caplog.at_level('INFO', logger='game.engine'):
+            engine._shutdown()
 
-        # Trigger __del__ via del statement
-        del engine
+        engine_messages = [
+            record.getMessage() for record in caplog.records if record.name == 'game.engine'
+        ]
+        assert 'Sprite Count: 5' in engine_messages
+        assert 'TestSprite Sprite count: 3' in engine_messages
+        assert 'TestSprite Sprite pixels: 2' in engine_messages
 
-        # Clean up
-        Sprite.SPRITE_COUNT = 0
-        Sprite.SPRITE_COUNTERS = OrderedDict()
+    def test_the_engine_has_no_finaliser(self):
+        """No __del__: a finaliser that logs can fail mid-write to the log's stream."""
+        assert not hasattr(GameEngine, '__del__')
+
+    def test_teardown_closes_the_timer(self, mocker):
+        """_shutdown gives back what the frame-pacing timer holds (its close, not its __del__)."""
+        from glitchygames.timing import FastTimer
+
+        engine = _make_engine(mocker)
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        engine.timer = FastTimer()
+        close = mocker.spy(engine.timer, 'close')
+
+        engine._shutdown()
+
+        close.assert_called_once_with()
+
+    def test_teardown_without_a_timer(self, mocker):
+        """An engine whose timer failed to start (None) still tears down."""
+        engine = _make_engine(mocker)
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        engine.timer = None
+
+        engine._shutdown()
+
+        assert engine.timer is None
 
 
 class TestGameEngineTimerCalibration:
