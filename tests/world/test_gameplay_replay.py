@@ -42,6 +42,7 @@ from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
+from glitchygames.machine_state import current_machine_state
 from glitchygames.opacity import OPAQUE
 from glitchygames.process import run_command
 from glitchygames.recording import (
@@ -5200,6 +5201,9 @@ class TestProcessingComparison:
         assert run.source_revision == engine_source_revision()
         assert run.source_revision is not None
         assert run.source_revision.source is RevisionSource.GIT_CHECKOUT
+        # The machine's state as the run started (glitchygames/machine_state.py)
+        assert run.machine_state is not None
+        assert run.machine_state == current_machine_state()
 
     def test_a_run_with_a_target_fps_says_its_frames_are_paced(self, mocker, tmp_path):
         recording_path = record_session(

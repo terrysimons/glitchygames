@@ -36,7 +36,10 @@ leaves unused (headroom) to run AI and GPU work for enhanced gameplay without mi
 **Done (2026-10-23): the source revision.** `glitchygames/build_info.py` (user decision: git in
 a checkout, `export-subst` for archives, a build stamp for packages; no stamp commits):
 `MeasurementRun.source_revision` holds the commit, its date, uncommitted changes and how it is
-known. Still to do in Part 0: machine state and the per-run summary.
+known. **Done (2026-10-23): machine state.** `glitchygames/machine_state.py`:
+`MeasurementRun.machine_state` (CPU model, logical CPUs, memory, mains or battery, macOS's
+`pmset -g therm` report kept as reported, continuous integration), read once per process as its
+first run starts (about 18 ms on macOS; every run cost the suite ~30 s). Still to do in Part 0: the per-run summary.
 
 Each `MeasurementRun` also records the git commit and whether the tree had uncommitted changes
 (absent outside a checkout), the CPU model, power source (AC or battery) and thermal state where

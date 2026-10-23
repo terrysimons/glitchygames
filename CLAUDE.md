@@ -574,7 +574,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
   re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
   lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions, the
-  engine's `source_revision` (see Source revision),
+  engine's `source_revision` (see Source revision), the `machine_state`
+  (`glitchygames/machine_state.py`: CPU, memory, mains or battery, macOS thermal report, CI),
   `measured_at` from `GameEngine.measurement_run`, `rebaselined_from`, `hash_scheme`, and
   `frame_count`, filled in when the next run stacks; read leniently, written strictly); index `i`
   is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run

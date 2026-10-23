@@ -48,6 +48,7 @@ from glitchygames.fonts import FontManager
 from glitchygames.input.input_devices import InputDevices, InputMode
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import (
@@ -1552,6 +1553,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
             source_revision=engine_source_revision(),
+            machine_state=current_machine_state(),
         )
 
     def trace_recording_header(self: Self) -> dict[str, Any]:

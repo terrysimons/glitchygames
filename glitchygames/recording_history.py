@@ -37,6 +37,9 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from glitchygames.build_info import (
     SourceRevision,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.source_revision at runtime
 )
+from glitchygames.machine_state import (
+    MachineState,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.machine_state at runtime
+)
 from glitchygames.timing import (
     PacingTimer,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.pacing_timer at runtime
 )
@@ -246,6 +249,9 @@ class MeasurementRun(BaseModel):
         source_revision: The engine's source revision (glitchygames/build_info.py: the commit,
             whether the checkout had uncommitted changes, and how that is known); None only for
             a run from before this field.
+        machine_state: The machine's state as the run started (glitchygames/machine_state.py:
+            CPU, memory, mains or battery, thermal report, continuous integration); None only
+            for a run from before this field.
 
     """
 
@@ -262,6 +268,7 @@ class MeasurementRun(BaseModel):
     frame_count: int | None = None
     pacing_timer: PacingTimer | None = None
     source_revision: SourceRevision | None = None
+    machine_state: MachineState | None = None
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return the run as the header stores it.
