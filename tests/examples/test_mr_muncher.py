@@ -339,9 +339,15 @@ class TestInput:
         _press(scene, key)
         assert isinstance(scene.next_scene, PauseScene)
 
-    def test_q_quits(self, scene):
-        _press(scene, pygame.K_q)
-        assert scene.next_scene is None
+    def test_q_quits(self):
+        """Q (by its position) ends the run through the engine's frame loop."""
+        with _golden_game('mr_muncher', random_seed=TEST_SEED) as manager:
+            pygame.event.post(press(pygame.K_q))
+            pygame.event.post(release(pygame.K_q))
+            for _ in range(3):
+                manager.dt = FRAME_SECONDS
+                manager.run_frame()
+            assert manager.quit_requested
 
     def test_other_keys_go_to_the_base_scene(self, scene):
         _press(scene, pygame.K_x)
