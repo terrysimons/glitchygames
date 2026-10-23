@@ -437,7 +437,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
   `step` never gives a playback the recording's dt). A scene start records `scene_module` and the
   `__qualname__`, and the header `game_module`, so same-named scenes and games are told apart
-  (bare-name fallback, ambiguity refused). Record a demo with `scripts/record_scripted_session.py --output PATH` (it runs
+  (bare-name fallback, ambiguity refused). Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
   `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
   golden script's pause
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
@@ -522,7 +522,18 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replays it in a child process through the console script's entry point with
   `--replay-trace PATH --headless`, and fails with the exit code and the printed report unless it
   exits `SUCCESS`; `tests/replay/test_golden_replays.py` keeps the fixture-set and tamper checks.
-  Re-record only deliberately (commands in the script's docstring)
+  Re-record only deliberately (commands in the script's docstring). The controls rule: after the
+  script's frames the recorder plays the game's controls tail (`CONTROLS_TAIL_BUILDERS`, never in
+  the golden traces' scripts), so every golden replay pauses and resumes, presses every keyboard
+  control the game binds (each key of an action bound to several), and ends with the game's own
+  quit control: the recorded QUIT is internal, so a game that stops quitting diverges ("missing
+  internal event"); a tail whose quit does not end the run fails the recording
+  (`GameDidNotQuitError`). `test_every_golden_replay_exercises_every_control` maps each
+  recording's external input to controls through the game's own ActionMaps (its static
+  `_create_action_map(s)`) plus the engine scenes' hard-coded keys (`ENGINE_SCENE_CONTROLS`) and
+  fails on an unexercised control unless `UNEXERCISED_CONTROLS` gives its reason (gamepad
+  controls: no session has a device; the pause screen's quit: a session quits once); a new game's
+  bindings must be listed there. Demos are recorded `--script-only` (no tail, no quit)
 - `--replay-trace PATH --audit` (`glitchygames/replay/audit.py`): instead of replaying, runs the
   same command twice as child processes (`--no-audit --headless --replay-digest <temp>`,
   `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two

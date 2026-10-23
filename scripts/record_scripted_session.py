@@ -6,9 +6,25 @@ played by a supervisor (glitchygames/supervision.py): at the supervisor slot of 
 the script's key events and per-frame input for frame N + 1 with
 ``glitchygames.recording.post_input_event``, so the recording holds them as external input,
 exactly what a player's keys are (each key event at its key's US QWERTY position:
-``glitchygames.testing.keys``), and at frame
-``frame_count - 1`` it ends the run (``SceneManager.quit_requested``, no event), so the recording
-holds frames 0 to ``frame_count - 1``.
+``glitchygames.testing.keys``). ``--frames N`` plays the script's frames 0 to N - 1.
+
+The controls rule (golden replays): after the script's frames the supervisor plays the game's
+controls tail (CONTROLS_TAIL_BUILDERS; session-only, so the golden traces, which replay the same
+scripts, never see it). Its first frame releases every key the script left held; then it presses
+the controls the script does not (each key of an action bound to several, every pause key, a
+pause where the script's frames hold none), and ends with the game's own quit control. The game
+ends the run: the recording's last frame holds the QUIT the game posted (internal), so a replay
+whose game no longer quits diverges ("missing internal event"). A game still running
+QUIT_WAIT_FRAMES after the tail's last input fails the recording (GameDidNotQuitError). A session
+is N + T + 2 frames long, T being the tail frame of its last input (the quit): the game posts
+QUIT while handling that frame's events, and the next frame (the last) pumps it.
+tests/replay/test_golden_replays.py checks that every control the game binds is exercised (or
+listed with the reason it cannot be: no gamepad in the session), that the game pauses and
+resumes, and that the recording ends on the game's own QUIT.
+
+``--script-only`` (demos, and short test sessions: ``exercise_controls=False``) leaves the tail
+out: at frame N - 1 the supervisor ends the run (``SceneManager.quit_requested``, no event), so the
+recording holds frames 0 to N - 1 and no quit.
 
 Unlike the golden harness, the session runs the real frame loop (``SceneManager.start``): frames
 are paced at the game's target FPS and each frame's ``dt`` is measured, and FPS events are posted,
@@ -48,7 +64,12 @@ dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one 
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
         --game brave_adventurer_papyrus --frames 400
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
-        --game mr_muncher --frames 2250
+        --game mr_muncher --frames 1950
+
+With their controls tails the recordings hold 622 (PaddleSlap), 532 (Clockwork Keep), 472 (each
+Brave Adventurer edition) and 2072 (Mr. Muncher) frames. Mr. Muncher's script runs 1950 frames,
+not more (its death at about frame 1650 and the next life's READY included), so its fixture
+stays under 100 KB.
 
 Without ``--output`` the recording goes to
 ``tests/fixtures/replays/<console-script>/golden.jsonl.gz`` (``fixture_path``).
@@ -83,9 +104,13 @@ from scripts.record_golden_traces import (
     command_line,
     deterministic_environment,
     discard_environment_events,
+    press,
+    release,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from glitchygames.scenes import Scene, SceneManager
 
 # Games whose script placements only steer the script's own input (they move no sprite)
@@ -95,6 +120,116 @@ INPUT_ONLY_PLACEMENT_GAMES = frozenset({'paddleslap'})
 REPLAY_FIXTURE_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 REPLAY_FIXTURE_SUFFIX = '.jsonl.gz'
 DEFAULT_FIXTURE_NAME = 'golden'
+
+# A controls tail's quit must end the run within this many frames of the tail's last input
+QUIT_WAIT_FRAMES = 10
+
+
+class GameDidNotQuitError(RuntimeError):
+    """The game was still running QUIT_WAIT_FRAMES after its controls tail pressed quit."""
+
+
+def _pause_with(tail: InputScript, *, key: int, pause_frame: int, resume_frame: int) -> None:
+    """Pause with a key, then resume from the engine's pause screen with SPACE.
+
+    Args:
+        tail: The controls tail to add to.
+        key: The game's pause key (tapped within one frame, as the golden scripts do).
+        pause_frame: The tail frame the pause key is tapped before.
+        resume_frame: The tail frame SPACE is pressed before (released two frames later).
+
+    """
+    tail.at(pause_frame, press(key), release(key))
+    tail.at(resume_frame, press(pygame.K_SPACE))
+    tail.at(resume_frame + 2, release(pygame.K_SPACE))
+
+
+def clockwork_keep_controls() -> InputScript:
+    """Clockwork Keep: run right (left shift), jump with SPACE, interact, pause, quit with Q.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_LSHIFT))
+    tail.at(12, press(pygame.K_RIGHT))
+    tail.at(40, release(pygame.K_RIGHT))
+    tail.at(42, release(pygame.K_LSHIFT))
+    tail.tap(60, pygame.K_SPACE, held_frames=12)
+    # Interact away from an elevator: the press is read, nothing rides
+    tail.tap(90, pygame.K_w, held_frames=4)
+    _pause_with(tail, key=pygame.K_ESCAPE, pause_frame=110, resume_frame=160)
+    tail.at(200, press(pygame.K_q))
+    return tail
+
+
+def brave_adventurer_controls() -> InputScript:
+    """Brave Adventurer (both editions): walk left, jump with SPACE, quit with Q.
+
+    The golden script already pauses (ESC) and resumes, inside the recorded frames.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_LEFT))
+    tail.tap(20, pygame.K_SPACE, held_frames=12)
+    tail.at(50, release(pygame.K_LEFT))
+    tail.at(70, press(pygame.K_q))
+    return tail
+
+
+def paddleslap_controls() -> InputScript:
+    """PaddleSlap: quit with both of the base scene's quit keys, Q and ESC, released together.
+
+    PaddleSlap binds no quit of its own: the engine's Scene quits on the release of Q or ESC
+    (each release posts a QUIT), so the recording holds two internal QUITs and a replay in which
+    either key no longer quits diverges.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_q))
+    tail.at(12, press(pygame.K_ESCAPE))
+    tail.at(20, release(pygame.K_q), release(pygame.K_ESCAPE))
+    return tail
+
+
+def mr_muncher_controls() -> InputScript:
+    """Mr. Muncher: steer with WASD (the autopilot uses the arrows), pause with P, quit with Q.
+
+    The golden script already pauses with ESC and resumes. The tail is short: the fixture must
+    stay under 100 KB.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    for tap_frame, key in ((5, pygame.K_w), (20, pygame.K_a), (35, pygame.K_s), (50, pygame.K_d)):
+        tail.tap(tap_frame, key, held_frames=10)
+    _pause_with(tail, key=pygame.K_p, pause_frame=65, resume_frame=95)
+    tail.at(120, press(pygame.K_q))
+    return tail
+
+
+# Game key -> its controls tail: input a golden replay session plays after the golden script's
+# frames (never part of the script, so the golden traces never see it). It exercises the
+# controls the script does not, pauses where the script's frames hold no pause, and ends with
+# the game's own quit control: the recorded QUIT is posted by the game, so a replay whose game
+# no longer quits diverges. tests/replay/test_golden_replays.py checks every bound control is
+# exercised.
+CONTROLS_TAIL_BUILDERS: dict[str, Callable[[], InputScript]] = {
+    'clockwork_keep': clockwork_keep_controls,
+    'brave_adventurer': brave_adventurer_controls,
+    'brave_adventurer_papyrus': brave_adventurer_controls,
+    'paddleslap': paddleslap_controls,
+    'mr_muncher': mr_muncher_controls,
+}
 
 # Console script (pyproject.toml [project.scripts], the fixture's directory name) -> game key:
 # the installed console script whose entry point is in the game's module
@@ -131,7 +266,13 @@ class ScriptedInputSupervisor:
     A glitchygames.supervision.Supervisor: at the supervisor slot of frame N it runs the
     placements and posts the per-frame input and key events the script holds for frame N + 1, so
     frame N + 1's pump returns them, as the golden harness posts them just before frame N + 1.
-    At the slot of the last frame it ends the run.
+
+    Without a controls tail it ends the run at the slot of the last frame (no event). With one,
+    the script stops after ``frame_count`` frames: the tail's first frame releases every key the
+    script left held, then the tail's input follows (its frames count from there), and the game
+    must end the run itself, with the quit control the tail presses; if it is still running
+    QUIT_WAIT_FRAMES after the tail's last input, the supervisor ends the run and sets
+    ``game_did_not_quit``.
     """
 
     def __init__(
@@ -141,18 +282,23 @@ class ScriptedInputSupervisor:
         game_key: str,
         frame_count: int,
         scene_manager: SceneManager,
+        controls_tail: InputScript | None = None,
     ) -> None:
         """Check the script can be recorded as input for this many frames.
 
         Args:
             script: The game's golden input script.
             game_key: Which game (a key of GAME_SCENES).
-            frame_count: How many frames the session runs (frames 0 to frame_count - 1).
+            frame_count: How many of the script's frames the session plays (frames 0 to
+                frame_count - 1); without a controls tail, the session's length.
             scene_manager: The scene manager whose run ends after the last frame.
+            controls_tail: Key events played after the script's frames, ending with the game's
+                quit control (CONTROLS_TAIL_BUILDERS), or None to end after the script.
 
         Raises:
             ValueError: If a placement falls inside the session and the game is not in
-                INPUT_ONLY_PLACEMENT_GAMES, or if the script holds input for frame 0.
+                INPUT_ONLY_PLACEMENT_GAMES, if the script holds input for frame 0, or if the
+                controls tail holds placements, per-frame input or no input at all.
 
         """
         placed_frames = sorted(
@@ -169,9 +315,20 @@ class ScriptedInputSupervisor:
         if script.key_events.get(0) or script.placements.get(0):
             message = f'{game_key} script has input before frame 0, which no supervisor can post'
             raise ValueError(message)
+        if controls_tail is not None and (
+            controls_tail.placements
+            or controls_tail.per_frame is not None
+            or not controls_tail.key_events
+        ):
+            message = f'{game_key} controls tail must hold key events only, and some'
+            raise ValueError(message)
         self.script = script
         self.frame_count = frame_count
         self.scene_manager = scene_manager
+        self.controls_tail = controls_tail
+        # Keys the posted script input left down (released when the controls tail starts)
+        self.held_keys: set[int] = set()
+        self.game_did_not_quit = False
 
     def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
         """Post the next frame's scripted input; end the run at the last frame.
@@ -181,24 +338,63 @@ class ScriptedInputSupervisor:
             scene: The active scene at the supervisor slot.
 
         """
+        next_frame = frame_number + 1
+        if self.controls_tail is not None and next_frame >= self.frame_count:
+            self._post_controls_tail(tail_frame=next_frame - self.frame_count)
+            return
         if frame_number >= self.frame_count - 1:
             # No event: the loop ends after this frame, so the recording holds no quit request
             self.scene_manager.quit_requested = True
             return
-        next_frame = frame_number + 1
         if scene is not None:
             for placement in self.script.placements.get(next_frame, []):
                 placement(scene)
             # Per-frame input for frame 0 is never posted: no supervisor slot runs before it
             if self.script.per_frame is not None:
                 for event in self.script.per_frame(scene):
-                    post_input_event(event)
+                    self._post(event)
         for event in self.script.key_events.get(next_frame, []):
-            post_input_event(event)
+            self._post(event)
+
+    def _post_controls_tail(self: Self, *, tail_frame: int) -> None:
+        """Post a frame of the controls tail; end the run if the game has not quit in time.
+
+        Args:
+            tail_frame: The frame being posted for, counted from the tail's first frame.
+
+        """
+        assert self.controls_tail is not None
+        if tail_frame == 0:
+            for key in sorted(self.held_keys):
+                self._post(release(key))
+        if tail_frame > max(self.controls_tail.key_events) + QUIT_WAIT_FRAMES:
+            self.game_did_not_quit = True
+            self.scene_manager.quit_requested = True
+            return
+        for event in self.controls_tail.key_events.get(tail_frame, []):
+            self._post(event)
+
+    def _post(self: Self, event: pygame.event.Event) -> None:
+        """Post an event as external input, noting which keys are held.
+
+        Args:
+            event: The event.
+
+        """
+        if event.type == pygame.KEYDOWN:
+            self.held_keys.add(event.key)
+        elif event.type == pygame.KEYUP:
+            self.held_keys.discard(event.key)
+        post_input_event(event)
 
 
 def record_scripted_session(
-    *, game_key: str, frame_count: int, path: Path, random_seed: int = RANDOM_SEED
+    *,
+    game_key: str,
+    frame_count: int,
+    path: Path,
+    exercise_controls: bool,
+    random_seed: int = RANDOM_SEED,
 ) -> None:
     """Run a game for real with its golden input script and ``--record-trace``.
 
@@ -207,12 +403,19 @@ def record_scripted_session(
 
     Args:
         game_key: Which game (a key of GAME_SCENES).
-        frame_count: How many frames to record.
+        frame_count: How many of the script's frames to record.
         path: Where the recording goes (its directory is created).
+        exercise_controls: Play the game's controls tail (CONTROLS_TAIL_BUILDERS) after the
+            script, so the session ends when the game quits (golden replays); False ends it
+            after the script's frames (demos, short test sessions).
         random_seed: The run's master seed (``--random-seed``).
+
+    Raises:
+        GameDidNotQuitError: If the controls tail's quit control did not end the run.
 
     """
     script = SCRIPT_BUILDERS[game_key]()
+    controls_tail = CONTROLS_TAIL_BUILDERS[game_key]() if exercise_controls else None
     path.parent.mkdir(parents=True, exist_ok=True)
     with (
         tempfile.TemporaryDirectory(prefix='scripted-session-saves-') as save_directory,
@@ -234,15 +437,15 @@ def record_scripted_session(
                 str(path),
             ]):
                 engine = GoldenTraceEngine(game=GAME_SCENES[game_key])
-            # After the engine: GameEngine.__init__ resets the scene manager's supervision
-            manager.add_supervisor(
-                supervisor=ScriptedInputSupervisor(
-                    script=script,
-                    game_key=game_key,
-                    frame_count=frame_count,
-                    scene_manager=manager,
-                )
+            supervisor = ScriptedInputSupervisor(
+                script=script,
+                game_key=game_key,
+                frame_count=frame_count,
+                scene_manager=manager,
+                controls_tail=controls_tail,
             )
+            # After the engine: GameEngine.__init__ resets the scene manager's supervision
+            manager.add_supervisor(supervisor=supervisor)
             discard_environment_events()
             engine.start()
         finally:
@@ -251,13 +454,29 @@ def record_scripted_session(
             if pygame.display.get_init():
                 pygame.event.clear()
             GoldenTraceSceneManager.uninstall()
+    if supervisor.game_did_not_quit:
+        message = (
+            f'{game_key} was still running {QUIT_WAIT_FRAMES} frames after its controls tail '
+            f'pressed quit: {path} does not end with the game quitting'
+        )
+        raise GameDidNotQuitError(message)
 
 
 def main() -> None:
-    """Command line: --game KEY --frames N [--output PATH]."""
+    """Command line: --game KEY --frames N [--script-only] [--output PATH]."""
     parser = argparse.ArgumentParser(description='Record a scripted session through the engine')
     parser.add_argument('--game', required=True, choices=sorted(GAME_SCENES))
-    parser.add_argument('--frames', required=True, type=int)
+    parser.add_argument(
+        '--frames',
+        required=True,
+        type=int,
+        help="how many of the golden script's frames to record",
+    )
+    parser.add_argument(
+        '--script-only',
+        action='store_true',
+        help="end after the script's frames, without the controls tail and its quit (demos)",
+    )
     parser.add_argument(
         '--output',
         type=Path,
@@ -266,8 +485,13 @@ def main() -> None:
     )
     arguments = parser.parse_args()
     path = arguments.output or fixture_path(game_key=arguments.game)
-    record_scripted_session(game_key=arguments.game, frame_count=arguments.frames, path=path)
-    sys.stdout.write(f'{arguments.game}: {arguments.frames} frames -> {path}\n')
+    record_scripted_session(
+        game_key=arguments.game,
+        frame_count=arguments.frames,
+        path=path,
+        exercise_controls=not arguments.script_only,
+    )
+    sys.stdout.write(f'{arguments.game}: {arguments.frames} script frames -> {path}\n')
 
 
 if __name__ == '__main__':

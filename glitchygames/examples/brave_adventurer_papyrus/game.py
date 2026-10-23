@@ -194,27 +194,43 @@ class PapyrusBraveAdventurerScene(Scene):
         self.hud_font: pygame.font.Font | None = None
 
         # Input action mapping (unifies keyboard + controller)
-        self.actions = ActionMap(input_mode=self.options.get('input_mode', 'joystick'))
+        self.actions = self._create_action_map(
+            input_mode=self.options.get('input_mode', 'joystick')
+        )
+
+    @staticmethod
+    def _create_action_map(*, input_mode: str) -> ActionMap:
+        """Bind the controls: arrows, SPACE, ESC and Q by position; a gamepad's D-pad and A.
+
+        Args:
+            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+
+        Returns:
+            The action map (the golden replays' controls check reads it too).
+
+        """
+        actions = ActionMap(input_mode=input_mode)
         # Every control binds a physical key position (a scancode: the same place on every
         # keyboard layout), pause and quit included (ActionMap module docstring)
-        self.actions.bind(
+        actions.bind(
             'move_right',
             scancode=pygame.KSCAN_RIGHT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
         )
-        self.actions.bind(
+        actions.bind(
             'move_left',
             scancode=pygame.KSCAN_LEFT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
         )
-        self.actions.bind(
+        actions.bind(
             'jump',
             scancode=pygame.KSCAN_SPACE,
             controller_button=pygame.CONTROLLER_BUTTON_A,
         )
-        self.actions.bind('jump', scancode=pygame.KSCAN_UP)
-        self.actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
-        self.actions.bind('quit', scancode=pygame.KSCAN_Q)
+        actions.bind('jump', scancode=pygame.KSCAN_UP)
+        actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
+        actions.bind('quit', scancode=pygame.KSCAN_Q)
+        return actions
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:

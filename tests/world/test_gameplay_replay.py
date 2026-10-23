@@ -1701,7 +1701,10 @@ def record_paddleslap_on_a_window_of_another_size(*, mocker, path: Path) -> None
     window_manager = window_manager_choosing_size(mocker=mocker, size=WINDOW_MANAGER_SIZE)
     try:
         record_scripted_session(
-            game_key='paddleslap', frame_count=DISPLAY_SIZE_FRAME_COUNT, path=path
+            game_key='paddleslap',
+            frame_count=DISPLAY_SIZE_FRAME_COUNT,
+            path=path,
+            exercise_controls=False,
         )
     finally:
         mocker.stop(window_manager)

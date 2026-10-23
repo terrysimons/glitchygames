@@ -12,9 +12,13 @@ from scripts.record_golden_traces import (
     GoldenTraceSceneManager,
     InputScript,
     press,
+    release,
 )
 from scripts.record_scripted_session import (
     CONSOLE_SCRIPT_GAME_KEYS,
+    CONTROLS_TAIL_BUILDERS,
+    QUIT_WAIT_FRAMES,
+    GameDidNotQuitError,
     ScriptedInputSupervisor,
     fixture_path,
     record_scripted_session,
@@ -72,7 +76,12 @@ def test_scripted_session_records_and_replays(mocker, tmp_path):
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
 
-    record_scripted_session(game_key='paddleslap', frame_count=RECORDED_FRAME_COUNT, path=path)
+    record_scripted_session(
+        game_key='paddleslap',
+        frame_count=RECORDED_FRAME_COUNT,
+        path=path,
+        exercise_controls=False,
+    )
 
     frames = read_trace_result(path=path).trace['frames']
     assert [frame['frame'] for frame in frames] == list(range(RECORDED_FRAME_COUNT))
@@ -164,3 +173,116 @@ def test_each_fixture_directory_is_the_games_console_script_in_pyproject():
     for console_script, game_key in CONSOLE_SCRIPT_GAME_KEYS.items():
         entry_point_module = console_scripts[console_script].split(':')[0]
         assert entry_point_module == f'glitchygames.examples.{game_key}'
+
+
+def posted_key_events() -> list[tuple[int, int]]:
+    """Drain the queue and return the key events in it as (type, key).
+
+    Returns:
+        The key events, in order.
+
+    """
+    return [
+        (event.type, event.key)
+        for event in pygame.event.get()
+        if event.type in {pygame.KEYDOWN, pygame.KEYUP}
+    ]
+
+
+def test_every_game_has_a_controls_tail():
+    """Every scripted game's golden replay ends with its controls tail (and its quit)."""
+    assert sorted(CONTROLS_TAIL_BUILDERS) == sorted(SCRIPT_BUILDERS)
+
+
+def test_the_controls_tail_releases_held_keys_then_plays_and_never_ends_the_run(scene_manager):
+    """After the script's frames: held keys are released, then the tail's input is posted."""
+    script = InputScript()
+    script.at(1, press(pygame.K_RIGHT), press(pygame.K_LEFT))
+    script.at(2, release(pygame.K_LEFT))
+    tail = InputScript()
+    tail.at(1, press(pygame.K_q))
+    supervisor = ScriptedInputSupervisor(
+        script=script,
+        game_key='paddleslap',
+        frame_count=3,
+        scene_manager=scene_manager,
+        controls_tail=tail,
+    )
+    pygame.event.clear()
+
+    posted_by_frame = {}
+    for frame_number in range(6):
+        supervisor.on_frame(frame_number=frame_number, scene=None)
+        posted_by_frame[frame_number + 1] = posted_key_events()
+
+    # The game, not the supervisor, ends the run
+    assert scene_manager.quit_requested is False
+    assert supervisor.game_did_not_quit is False
+    assert posted_by_frame[2] == [(pygame.KEYUP, pygame.K_LEFT)]
+    # Tail frame 0 is frame 3: RIGHT was still held
+    assert posted_by_frame[3] == [(pygame.KEYUP, pygame.K_RIGHT)]
+    assert posted_by_frame[4] == [(pygame.KEYDOWN, pygame.K_q)]
+    assert not posted_by_frame[5]
+    assert not posted_by_frame[6]
+
+
+def test_a_game_still_running_after_its_tail_is_stopped_and_flagged(scene_manager):
+    """QUIT_WAIT_FRAMES after the tail's last input, the supervisor ends the run itself."""
+    tail = InputScript()
+    tail.at(1, press(pygame.K_q))
+    supervisor = ScriptedInputSupervisor(
+        script=InputScript(),
+        game_key='paddleslap',
+        frame_count=1,
+        scene_manager=scene_manager,
+        controls_tail=tail,
+    )
+
+    # Tail frame N is posted at the slot of frame N (frame_count 1); the last input is at tail
+    # frame 1, so the slot posting tail frame 1 + QUIT_WAIT_FRAMES + 1 ends the run
+    last_waiting_frame = 1 + QUIT_WAIT_FRAMES
+    for frame_number in range(last_waiting_frame + 1):
+        supervisor.on_frame(frame_number=frame_number, scene=None)
+    assert scene_manager.quit_requested is False
+    supervisor.on_frame(frame_number=last_waiting_frame + 1, scene=None)
+
+    assert scene_manager.quit_requested is True
+    assert supervisor.game_did_not_quit is True
+    pygame.event.clear()
+
+
+def test_a_controls_tail_without_key_events_is_refused(scene_manager):
+    """A tail is key events only (it is input), and it must hold some (its quit)."""
+    with pytest.raises(ValueError, match='controls tail'):
+        ScriptedInputSupervisor(
+            script=InputScript(),
+            game_key='paddleslap',
+            frame_count=10,
+            scene_manager=scene_manager,
+            controls_tail=InputScript(),
+        )
+
+
+@pytest.mark.frames_vary(
+    reason='the session runs the real frame loop: each frame moves by its measured frame time'
+)
+def test_a_tail_whose_quit_does_not_quit_fails_the_recording(mocker, tmp_path):
+    """A controls tail that never ends the game raises GameDidNotQuitError after recording."""
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    tail = InputScript()
+    # X is no PaddleSlap control: nothing quits
+    tail.at(2, press(pygame.K_x))
+    mocker.patch.dict(CONTROLS_TAIL_BUILDERS, {'paddleslap': lambda: tail})
+    path = tmp_path / 'never-quits.jsonl.gz'
+
+    with pytest.raises(GameDidNotQuitError, match='still running'):
+        record_scripted_session(
+            game_key='paddleslap', frame_count=5, path=path, exercise_controls=True
+        )
+
+    frames = read_trace_result(path=path).trace['frames']
+    # The script's 5 frames, the tail's frames 0 to 2 (its last input), QUIT_WAIT_FRAMES more,
+    # and the frame whose slot ends the run
+    assert len(frames) == 5 + 3 + QUIT_WAIT_FRAMES

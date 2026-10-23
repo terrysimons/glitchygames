@@ -315,38 +315,9 @@ class ClockworkKeepScene(Scene):
         self.saves: SaveManager = open_saves(app_name='clockwork-keep')
 
         # Input
-        input_mode = self.options.get('input_mode', 'joystick')
-        self.actions = ActionMap(input_mode=input_mode)
-        # Every control binds a physical key position (a scancode: the same place on every
-        # keyboard layout), pause and quit included (ActionMap module docstring)
-        self.actions.bind(
-            'move_right',
-            scancode=pygame.KSCAN_RIGHT,
-            controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+        self.actions = self._create_action_map(
+            input_mode=self.options.get('input_mode', 'joystick')
         )
-        self.actions.bind(
-            'move_left',
-            scancode=pygame.KSCAN_LEFT,
-            controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
-        )
-        self.actions.bind(
-            'jump',
-            scancode=pygame.KSCAN_SPACE,
-            controller_button=pygame.CONTROLLER_BUTTON_A,
-        )
-        self.actions.bind('jump', scancode=pygame.KSCAN_UP)
-        self.actions.bind(
-            'interact',
-            scancode=pygame.KSCAN_W,
-            controller_button=pygame.CONTROLLER_BUTTON_Y,
-        )
-        self.actions.bind(
-            'run',
-            scancode=pygame.KSCAN_LSHIFT,
-            controller_button=pygame.CONTROLLER_BUTTON_X,
-        )
-        self.actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
-        self.actions.bind('quit', scancode=pygame.KSCAN_Q)
 
         # HUD
         self.hud_font: pygame.font.Font | None = None
@@ -530,6 +501,50 @@ class ClockworkKeepScene(Scene):
 
         # Collectibles
         self._check_collectibles()
+
+    @staticmethod
+    def _create_action_map(*, input_mode: str) -> ActionMap:
+        """Bind the controls: arrows, SPACE, W, left shift, ESC, Q by position; D-pad, A, Y, X.
+
+        Args:
+            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+
+        Returns:
+            The action map (the golden replays' controls check reads it too).
+
+        """
+        actions = ActionMap(input_mode=input_mode)
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause and quit included (ActionMap module docstring)
+        actions.bind(
+            'move_right',
+            scancode=pygame.KSCAN_RIGHT,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+        )
+        actions.bind(
+            'move_left',
+            scancode=pygame.KSCAN_LEFT,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
+        )
+        actions.bind(
+            'jump',
+            scancode=pygame.KSCAN_SPACE,
+            controller_button=pygame.CONTROLLER_BUTTON_A,
+        )
+        actions.bind('jump', scancode=pygame.KSCAN_UP)
+        actions.bind(
+            'interact',
+            scancode=pygame.KSCAN_W,
+            controller_button=pygame.CONTROLLER_BUTTON_Y,
+        )
+        actions.bind(
+            'run',
+            scancode=pygame.KSCAN_LSHIFT,
+            controller_button=pygame.CONTROLLER_BUTTON_X,
+        )
+        actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
+        actions.bind('quit', scancode=pygame.KSCAN_Q)
+        return actions
 
     # --- Movement ---
 

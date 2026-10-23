@@ -243,6 +243,41 @@ This document tracks planned future features for the GlitchyGames project. Featu
     connected; tests check all four), tunnels at the top and bottom, a house with a door
   - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is
     taken at the first open junction; reversing is immediate); four munchers with their own
+### 44. Golden Replays Exercise Every Control, Pause and Quit ✅ COMPLETED
+- **Description**: Q did nothing in four games and no golden replay noticed (BUGS.md #202): every
+  session ended with the recorder's own `quit_requested`, and Clockwork Keep's never paused.
+  Every golden replay now pauses and resumes, presses every keyboard control its game binds, and
+  ends with the game's own quit control (2026-10-23)
+- **Status**: ✅ COMPLETED (keyboard; gamepad is the follow-up below)
+- **Implementation**:
+  - `scripts/record_scripted_session.py`: a per-game controls tail (`CONTROLS_TAIL_BUILDERS`)
+    played after the golden script's frames (session-only: the golden traces never see it); it
+    releases held keys, presses what the script does not (Brave: LEFT, SPACE; Clockwork Keep:
+    left shift + RIGHT, SPACE, W, ESC pause; Mr. Muncher: WASD, P pause; PaddleSlap: Q and ESC
+    released together, two QUITs), then the quit key; the game must quit within
+    `QUIT_WAIT_FRAMES` (`GameDidNotQuitError`); `--script-only` for demos
+  - Brave Adventurer (both editions) and Clockwork Keep build their ActionMap in a static
+    `_create_action_map(*, input_mode)` (as Mr. Muncher and PaddleSlap already did), so tests
+    read the game's own bindings
+  - `tests/replay/test_golden_replays.py`: `test_every_golden_replay_exercises_every_control`
+    (bindings from `ActionMap.to_dict()` plus the engine scenes' hard-coded keys, matched against
+    each recording's external events by receiving scene; `UNEXERCISED_CONTROLS` with reasons,
+    stale entries fail) and `test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit`
+  - Fixtures re-recorded: PaddleSlap 622 frames, Clockwork Keep 532, Brave Adventurer 472 (each
+    edition), Mr. Muncher 2072 (script cut to 1950 frames, death and take 2 still included, to
+    stay under 100 KB)
+- **Follow-up (TODO): gamepad controls in golden replays**. A supervisor can post JOYBUTTONDOWN
+  etc. with `post_input_event`, but the engine drops input events of devices it has not opened
+  (`InputDevices.dispatches`) and the dummy driver has none. A probe with the tests' stand-in
+  devices (`tests/input/stand_in_devices.py`, installed before `GameEngine.start`) moved the
+  player live, but the recording's header held no `devices`/`device_enumeration`
+  (`ReplayDeviceRegistry.take_opened_descriptors` returns only descriptors learned from a
+  recording), so the replay saw no device and diverged. Needed: a stand-in registry that reports
+  what it served (descriptors opened, enumeration answers) the way `LiveDeviceRegistry` does,
+  stand-in pads with instance ids 0 and 1 (PaddleSlap binds per instance), gamepad tails
+  (buttons, axes past their thresholds, Mr. Muncher's hat), and gamepad matching in the test
+  (then shrink `UNEXERCISED_CONTROLS`)
+
     targets (chaser, ambusher, flanker, shy), scatter/chase phases, a frightened random walk on
     the seeded stream, eyes going home and back out
   - `levels.py`: speeds, fright length, mode schedule and bonus per reel, ramping to reel 8

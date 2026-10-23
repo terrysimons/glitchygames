@@ -590,9 +590,15 @@ baselines in the repository keep: behaviour (hashes) and speed (processing times
 ## Golden replays
 
 `tests/fixtures/replays/<game>/golden.jsonl.gz` holds a recorded session of each example game
-(PaddleSlap, Clockwork Keep and both Brave Adventurer editions).
+(PaddleSlap, Clockwork Keep, both Brave Adventurer editions and Mr. Muncher).
 `scripts/record_scripted_session.py` recorded them through the real engine loop, with a
-supervisor posting each game's golden input script. Each recording is a test item of its own:
+supervisor posting each game's golden input script, then the game's controls tail: input that
+presses the controls the script does not, pauses and resumes, and ends with the game's own quit
+control, so every golden replay ends on a QUIT the game posted and diverges when a control stops
+working. `tests/replay/test_golden_replays.py` enforces it: every control the game binds (its
+ActionMaps, plus the keys the engine's pause screen hard-codes) must be pressed in its golden
+replay, or be listed in `UNEXERCISED_CONTROLS` with the reason (gamepad controls: no scripted
+session has a gamepad). Each recording is a test item of its own:
 the pytest plugin `glitchygames/testing/replays.py` (loaded by the root `conftest.py`) collects
 every `.../fixtures/replays/<console-script>/<name>.jsonl.gz` as `<console-script>/<name>`,
 replays it headless in a child process through the console script's entry point
@@ -706,8 +712,9 @@ end, at the player's first press (consumed: it never reaches `then`), at the rec
 quit, or at a divergence (logged at WARNING as `demo diverged: ...`, then back to `then`). A
 recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
 at WARNING and nothing starts. Record a demo with
-`scripts/record_scripted_session.py --output PATH` (it runs `--record-trace`, so its first
-frame holds the scene start).
+`scripts/record_scripted_session.py --script-only --output PATH` (it runs `--record-trace`, so
+its first frame holds the scene start; `--script-only` leaves out the controls tail, whose quit
+would end the demo).
 
 Bundled demos are recordings shipped in the game's package,
 `glitchygames/examples/<game>_demos/<name>.jsonl.gz`. PaddleSlap's game-over screen plays

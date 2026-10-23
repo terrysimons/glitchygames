@@ -468,6 +468,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-23
 - **Files**: `glitchygames/sprites/sprite.py`
 
+### 203. A Scene's Q Key-Down Sets a Quit Flag Nothing Reads
+- **Description**: `Scene._handle_scene_key_events` (`glitchygames/scenes/scene.py`, reached from `Scene.on_key_down_event` for a key no focused sprite takes) logs "Quit requested" and sets the scene's own `quit_requested` on Q, but the frame loop reads only `SceneManager.quit_requested`, and nothing reads `Scene.quit_requested`. The press does nothing; a base scene quits on Q's (or ESC's) release instead (`Scene.on_key_up_event` posts QUIT), which is why PaddleSlap and the pause screen still quit. The same dead-flag shape as #202's `next_scene = None`, one level down: the log line claims a quit that never happens
+- **Status**: Active
+- **Priority**: Low (misleading log line and dead state; the release path quits)
+- **Reporter**: Found auditing every game's controls for the golden replays (plans/future-features.md #44)
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: drop the flag and the Q branch (the release path is the quit), or post QUIT there as `_handle_quit_key_press` does (then Q would quit on its press and its release would post a second QUIT)
+- **Files**: `glitchygames/scenes/scene.py` (`Scene._handle_scene_key_events`, `Scene.__init__`'s `quit_requested`)
+
 ## Resolved Bugs
 
 ### 202. Q Did Not Quit Clockwork Keep, Brave Adventurer, the Papyrus Edition or Mr. Muncher
@@ -477,7 +486,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: The user (Mr. Muncher's Q), 2026-10-23
 - **Date Reported**: 2026-10-23
 - **Date Resolved**: 2026-10-23
-- **Solution**: Quit calls `self.scene_manager.quit()` (posts QUIT, as the game-over screen's ESC does) in all four games; the wrong comment is gone and `docs/architecture/event_system.md` states the rule. Tests press and release Q through the engine's frame loop and assert the run ends: `tests/examples/test_mr_muncher.py::test_q_quits`, `tests/examples/test_clockwork_keep.py::...::test_the_quit_key_ends_the_run`, `tests/examples/test_brave_adventurer_game.py::TestQuitKey` (both editions)
+- **Solution**: Quit calls `self.scene_manager.quit()` (posts QUIT, as the game-over screen's ESC does) in all four games; the wrong comment is gone and `docs/architecture/event_system.md` states the rule. Tests press and release Q through the engine's frame loop and assert the run ends: `tests/examples/test_mr_muncher.py::test_q_quits`, `tests/examples/test_clockwork_keep.py::...::test_the_quit_key_ends_the_run`, `tests/examples/test_brave_adventurer_game.py::TestQuitKey` (both editions). Since then every golden replay ends with its game's quit control, so a game that stops quitting diverges (plans/future-features.md #44)
 - **Files**: `glitchygames/examples/{clockwork_keep,brave_adventurer,brave_adventurer_papyrus,mr_muncher}/game.py`, `glitchygames/scenes/scene.py`, `docs/architecture/event_system.md`
 
 ### 188. GameEngine.__del__ Logs, Which Can Fail When Garbage Collection Runs Mid-Write

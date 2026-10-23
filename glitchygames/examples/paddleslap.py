@@ -76,8 +76,9 @@ COLOR_CHANNEL_LEVELS = 256
 # screen is the game-over screen. After GAME_OVER_IDLE_SECONDS of its game time (Scene.game_time)
 # without a key or button press, it plays the bundled demo (SceneManager.play_recording), which
 # any press ends, returning to the game-over screen. The demo was recorded with
-# scripts/record_scripted_session.py --game paddleslap --frames 450 (before the golden script
-# pauses), and tests/replay/test_bundled_demos.py replays it.
+# scripts/record_scripted_session.py --game paddleslap --frames 450 --script-only (before the
+# golden script pauses; no controls tail, so it never quits), and
+# tests/replay/test_bundled_demos.py replays it.
 PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'paddleslap_demos' / 'rally.jsonl.gz'
 GAME_OVER_IDLE_SECONDS = 10.0
 
