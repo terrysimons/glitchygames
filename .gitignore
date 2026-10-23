@@ -198,3 +198,6 @@ safety-report.json
 /bomb2.png
 /leprechan-128x128.png
 /leprechaun2-128x128.png
+
+# Build stamp: written by nox -s build-wheel / build-binary, removed after (glitchygames/build_info.py)
+glitchygames/_build_info.json

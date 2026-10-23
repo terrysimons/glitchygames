@@ -34,6 +34,9 @@ from typing import TYPE_CHECKING, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from glitchygames.build_info import (
+    SourceRevision,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.source_revision at runtime
+)
 from glitchygames.timing import (
     PacingTimer,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.pacing_timer at runtime
 )
@@ -240,6 +243,9 @@ class MeasurementRun(BaseModel):
         frame_count: How many frames the run wrote, filled in when the next run stacks onto
             its recording (``stacked_measurement_runs``); None for the newest run, whose count
             is its file's frames.
+        source_revision: The engine's source revision (glitchygames/build_info.py: the commit,
+            whether the checkout had uncommitted changes, and how that is known); None only for
+            a run from before this field.
 
     """
 
@@ -255,6 +261,7 @@ class MeasurementRun(BaseModel):
     hash_scheme: int
     frame_count: int | None = None
     pacing_timer: PacingTimer | None = None
+    source_revision: SourceRevision | None = None
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return the run as the header stores it.

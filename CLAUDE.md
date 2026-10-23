@@ -113,6 +113,8 @@ nox -s safety-scan         # Run safety only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build wheel (.whl) only
+# build, build-wheel and build-binary stamp the engine's commit into the package first
+# (glitchygames/_build_info.json, removed after; glitchygames/build_info.py)
 
 # --- Docs ---
 nox -s docs-deploy         # Generate complexity graphs, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages; `-- --build-only`: no push)
@@ -571,7 +573,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `plans/2026-10-20-recording-content-hash-and-history.md`): every recorded frame holds
   newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
   re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
-  lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions,
+  lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions, the
+  engine's `source_revision` (see Source revision),
   `measured_at` from `GameEngine.measurement_run`, `rebaselined_from`, `hash_scheme`, and
   `frame_count`, filled in when the next run stacks; read leniently, written strictly); index `i`
   is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run
@@ -619,6 +622,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `ghost.scene = scene` (a WORLD sprite following `scene.game_time`; no hitbox)
 - Part 2 and Part 3 are done; follow-ups (state snapshots, cheat device) are in
   `plans/future-work.md`. User docs: `docs/architecture/gameplay_replay.md`
+
+**Source revision** (`glitchygames/build_info.py`, the contract): `source_revision()` names the
+engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
+uncommitted changes to tracked files; only when git tracks the package's files, so a copy
+installed in another repository's `.venv` does not count), a git archive
+(`glitchygames/_git_archival.txt`, `export-subst` in `.gitattributes`: `git archive` and GitHub's
+source zips write the commit in), a build stamp (`_build_info.json`, written by
+`scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`, gitignored, packaged
+through hatch `artifacts`), else unknown. Every recorded run holds it
+(`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process)
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

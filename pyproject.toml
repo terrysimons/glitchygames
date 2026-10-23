@@ -94,6 +94,11 @@ dev = [
 ]
 api = []
 
+[tool.hatch.build]
+# The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
+# build-binary write it before building (glitchygames/build_info.py)
+artifacts = ["glitchygames/_build_info.json"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["glitchygames"]
 

@@ -34,6 +34,7 @@ from scripts.record_scripted_session import (
 )
 
 from glitchygames import recording_history
+from glitchygames.build_info import RevisionSource, engine_source_revision
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -5195,6 +5196,10 @@ class TestProcessingComparison:
         # Every run names its timer; nothing paced this one, so auto never measured
         assert run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert run.rebaselined_from is None
+        # The engine's commit, here from this checkout (glitchygames/build_info.py)
+        assert run.source_revision == engine_source_revision()
+        assert run.source_revision is not None
+        assert run.source_revision.source is RevisionSource.GIT_CHECKOUT
 
     def test_a_run_with_a_target_fps_says_its_frames_are_paced(self, mocker, tmp_path):
         recording_path = record_session(

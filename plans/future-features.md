@@ -65,6 +65,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   spare-time queue whose results reach the game through the doors (recorded, served in replays)
 - **Status**: TODO: design in `plans/2026-10-23-recording-metrics.md` (Parts 0-7, all chosen by
   the user 2026-10-23; open decisions listed there)
+  Done: the engine's source revision in every run (`glitchygames/build_info.py`, 2026-10-23)
 - **Priority**: High (requested 2026-10-23)
 
 ## Medium Priority Features

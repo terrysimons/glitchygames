@@ -28,6 +28,7 @@ from glitchygames.backgrounds import (
     paint_default_background,
     set_active_default_background_pattern,
 )
+from glitchygames.build_info import engine_source_revision
 from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
 from glitchygames.display_mode import set_display_mode
@@ -1550,6 +1551,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             rebaselined_from=rebaselined_from,
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
+            source_revision=engine_source_revision(),
         )
 
     def trace_recording_header(self: Self) -> dict[str, Any]:

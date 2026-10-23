@@ -8,9 +8,12 @@ import socket
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import nox
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -1177,6 +1180,38 @@ def security_scan(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def _build_stamp(session: nox.Session) -> Generator[None]:
+    """Write the engine's build stamp for the builds inside, and remove it after.
+
+    A packaged engine has no git checkout, so the stamp (glitchygames/_build_info.json, gitignored,
+    packaged through hatch's ``artifacts``) carries the commit it was built from and whether the
+    checkout had uncommitted changes (glitchygames/build_info.py). It is removed afterwards so no
+    stale stamp reaches a later build. Written before the session installs the package
+    (``--no-editable`` builds it), so the installed copy PyInstaller collects has it too.
+
+    Args:
+        session: The nox session building.
+
+    Yields:
+        Nothing; the builds run inside.
+
+    """
+    session.run('uv', 'run', '--frozen', 'python', 'scripts/write_build_stamp.py', external=True)
+    try:
+        yield
+    finally:
+        session.run(
+            'uv',
+            'run',
+            '--frozen',
+            'python',
+            'scripts/write_build_stamp.py',
+            '--remove',
+            external=True,
+        )
+
+
 def _build_binary(session: nox.Session) -> None:
     """Build a standalone Bitmappy binary with PyInstaller."""
     session.run(
@@ -1207,8 +1242,9 @@ def build_binary(session: nox.Session) -> None:
     Usage:
         nox -s build-binary
     """
-    _install_from_lockfile(session)
-    _build_binary(session)
+    with _build_stamp(session):
+        _install_from_lockfile(session)
+        _build_binary(session)
 
 
 @nox.session(venv_backend='none', name='build-wheel', default=False)
@@ -1218,7 +1254,8 @@ def build_wheel(session: nox.Session) -> None:
     Usage:
         nox -s build-wheel
     """
-    _build_wheel(session)
+    with _build_stamp(session):
+        _build_wheel(session)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='build', default=False)
@@ -1228,9 +1265,10 @@ def build_all(session: nox.Session) -> None:
     Usage:
         nox -s build
     """
-    _install_from_lockfile(session)
-    _build_binary(session)
-    _build_wheel(session)
+    with _build_stamp(session):
+        _install_from_lockfile(session)
+        _build_binary(session)
+        _build_wheel(session)
 
 
 # ---------------------------------------------------------------------------

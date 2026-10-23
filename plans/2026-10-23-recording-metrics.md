@@ -33,6 +33,11 @@ leaves unused (headroom) to run AI and GPU work for enhanced gameplay without mi
 
 ### Part 0: Run provenance (foundation for Parts 1, 2 and 5)
 
+**Done (2026-10-23): the source revision.** `glitchygames/build_info.py` (user decision: git in
+a checkout, `export-subst` for archives, a build stamp for packages; no stamp commits):
+`MeasurementRun.source_revision` holds the commit, its date, uncommitted changes and how it is
+known. Still to do in Part 0: machine state and the per-run summary.
+
 Each `MeasurementRun` also records the git commit and whether the tree had uncommitted changes
 (absent outside a checkout), the CPU model, power source (AC or battery) and thermal state where
 the platform reports them, and CI or local. Without these, "slower" is often a laptop on
