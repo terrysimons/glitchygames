@@ -221,14 +221,40 @@ def lint_docs(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
 def docs_deploy(session: nox.Session) -> None:
-    """Build the docs strictly and publish them to GitHub Pages (pushes the gh-pages branch).
+    """Build the docs strictly and publish them to GitHub Pages.
 
-    https://terrysimons.github.io/glitchygames/ serves the gh-pages branch; ``mkdocs
-    gh-deploy`` builds the site, commits it there and pushes it. Run it from what should be
-    published (usually main after a merge); a warning stops it before anything is pushed.
+    https://terrysimons.github.io/glitchygames/ serves the gh-pages branch. ``mkdocs gh-deploy``
+    builds the site (its hook, scripts/mkdocs_hooks.py, first generates the complexity graphs from
+    HEAD's whole git history when they were made from another commit: about a minute), commits it
+    to gh-pages and pushes it. Run it from what should be published (usually main after a merge);
+    a warning stops it before anything is pushed.
+
+    Usage:
+        nox -s docs-deploy                  # Build (graphs included) and push gh-pages
+        nox -s docs-deploy -- --build-only  # Build into site/; no push
     """
     _install_from_lockfile(session)
+    if '--build-only' in session.posargs:
+        session.run('mkdocs', 'build', '--strict')
+        return
     session.run('mkdocs', 'gh-deploy', '--strict')
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='docs-serve', default=False)
+def docs_serve(session: nox.Session) -> None:
+    """Serve the docs locally, built as docs-deploy builds them (graphs included, strict).
+
+    ``mkdocs serve --strict`` builds the site (its hook generates the complexity graphs when they
+    were made from another commit; each reload with the same HEAD skips that) and serves it at
+    http://127.0.0.1:8000/glitchygames/, rebuilding as files change, until Ctrl-C. Nothing is
+    pushed. Arguments after ``--`` go to ``mkdocs serve``.
+
+    Usage:
+        nox -s docs-serve                               # Serve at http://127.0.0.1:8000/
+        nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
+    """
+    _install_from_lockfile(session)
+    session.run('mkdocs', 'serve', '--strict', *session.posargs)
 
 
 @nox.session(venv_backend='none', name='lint-yaml', default=False)
@@ -1216,11 +1242,13 @@ def build_all(session: nox.Session) -> None:
 def code_complexity(session: nox.Session) -> None:
     """Analyze code complexity with wily and generate optional HTML graphs.
 
-    Tools: wily (complexity analysis), generate_complexity_graphs.py (HTML graph generation)
+    Tools: wily (complexity analysis), generate_complexity_graphs.py (the docs' graphs, generated
+    in a temporary worktree from the whole history into docs/quality/graphs/, which git ignores;
+    nox -s docs-deploy generates them too)
 
     Usage:
         nox -s code-complexity              # Build cache + show diff vs previous revision
-        nox -s code-complexity -- --graphs  # Also generate HTML graphs for docs
+        nox -s code-complexity -- --graphs  # Also generate the docs' complexity graphs
         nox -s code-complexity -- --rank    # Show files ranked by complexity
     """
     _install_from_lockfile(session)

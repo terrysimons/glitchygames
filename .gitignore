@@ -143,6 +143,9 @@ venv.bak/
 # wily complexity cache
 .wily/
 
+# wily complexity graphs (scripts/generate_complexity_graphs.py; nox -s docs-deploy makes them)
+docs/quality/graphs/
+
 # mypy
 .mypy_cache/
 .dmypy.json
