@@ -1,7 +1,9 @@
-"""Golden traces: every game plays exactly as it did before the engine world-space change.
+"""Golden traces: every game older than the world-space change plays exactly as it did before it.
 
 The baselines in ``tests/world/golden/`` were recorded by ``scripts/record_golden_traces.py``
-before any world-space engine change (plans/2026-10-18-engine-world-space.md). Each test
+before any world-space engine change (plans/2026-10-18-engine-world-space.md), for the games
+that existed then (``GOLDEN_TRACE_GAMES``; later games are covered by their golden replays under
+``tests/fixtures/replays/``). Each test
 replays the same scripted, deterministic run and compares every sprite's rect and visibility,
 frame by frame.
 
@@ -26,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GAME_SCENES, golden_path, record_trace
+from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record_trace
 
 from glitchygames.examples.brave_adventurer import constants as brave_constants
 from glitchygames.examples.brave_adventurer.drawing import draw_player, draw_scarab
@@ -1016,11 +1018,11 @@ def _describe(difference: TraceDifference) -> str:
 
 
 def test_expected_differences_cover_every_game():
-    """Every recorded game has an entry, so a new game cannot slip past the list."""
-    assert set(EXPECTED_DIFFERENCES) == set(GAME_SCENES)
+    """Every game with a golden trace has an entry, so a new trace cannot slip past the list."""
+    assert set(EXPECTED_DIFFERENCES) == set(GOLDEN_TRACE_GAMES)
 
 
-@pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
+@pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
 def test_game_matches_golden_trace(game_key):
     """Replaying the game's script reproduces its golden trace, up to listed differences."""
     baseline = read_trace(path=golden_path(game_key))
@@ -1069,7 +1071,7 @@ def test_same_random_seed_gives_identical_paddleslap_traces():
     assert trace_differences(baseline=first_run, current=other_seed_run) != []
 
 
-@pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
+@pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
 def test_committed_trace_reencodes_to_identical_bytes(game_key, tmp_path):
     """Decoding then encoding a committed trace gives back every frame and the same lines.
 
@@ -1094,7 +1096,7 @@ def test_committed_trace_reencodes_to_identical_bytes(game_key, tmp_path):
     assert reencoded_lines[1:] == committed_lines[1:]
 
 
-@pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
+@pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
 def test_streaming_reader_matches_read_trace_and_frame_by_frame_decoding(game_key):
     """TraceReader, read_trace and decode_frame chained by hand give the same frames."""
     path = golden_path(game_key)
@@ -1116,7 +1118,7 @@ def _line_records(path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in trace_file][1:]
 
 
-@pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
+@pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
 def test_altered_middle_frame_is_found_at_its_frame_and_sprite(game_key, tmp_path):
     """Delta encoding hides nothing: one value changed in one middle frame is one difference."""
     baseline = read_trace(path=golden_path(game_key))

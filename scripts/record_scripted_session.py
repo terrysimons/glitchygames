@@ -47,6 +47,8 @@ dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one 
         --game brave_adventurer --frames 400
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
         --game brave_adventurer_papyrus --frames 400
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+        --game mr_muncher --frames 600
 
 Without ``--output`` the recording goes to
 ``tests/fixtures/replays/<console-script>/golden.jsonl.gz`` (``fixture_path``).

@@ -1,10 +1,12 @@
-"""Record golden traces of every example game, driven headless with scripted input.
+"""Record golden traces of the example games, driven headless with scripted input.
 
 A golden trace is the rect and visibility of every sprite in the active scene's
 ``all_sprites``, recorded after each frame of a scripted, fully deterministic run. The
 traces in ``tests/world/golden/`` were recorded before the engine world-space change
 (plans/2026-10-18-engine-world-space.md); ``tests/world/test_golden_traces.py`` replays the
-same scripts and fails on any difference that is not listed and justified there.
+same scripts and fails on any difference that is not listed and justified there. Only the games
+in ``GOLDEN_TRACE_GAMES`` have one; every game in ``GAME_SCENES`` has a golden input script
+(``SCRIPT_BUILDERS``), which scripts/record_scripted_session.py records as its golden replay.
 
 Determinism:
     - Every frame runs with ``dt`` fixed at 1/60 second.
@@ -57,6 +59,7 @@ from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
@@ -93,13 +96,24 @@ ENVIRONMENT_EVENT_TYPES: tuple[int, ...] = (
     pygame.KEYMAPCHANGED,
 )
 
-# Game key -> the game's scene class
+# Game key -> the game's scene class, for every game with a golden input script
 GAME_SCENES: dict[str, type[Scene]] = {
     'clockwork_keep': ClockworkKeepScene,
     'brave_adventurer': BraveAdventurerScene,
     'brave_adventurer_papyrus': PapyrusBraveAdventurerScene,
     'paddleslap': paddleslap.Game,
+    'mr_muncher': MrMuncherScene,
 }
+
+# The games whose golden traces (tests/world/golden/) were recorded before the world-space
+# change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher)
+# have no such baseline; their golden replays (tests/fixtures/replays/) cover them.
+GOLDEN_TRACE_GAMES: tuple[str, ...] = (
+    'clockwork_keep',
+    'brave_adventurer',
+    'brave_adventurer_papyrus',
+    'paddleslap',
+)
 
 # Where the Brave Adventurer script puts the player (world x on screen 2, ground level)
 BRAVE_ADVENTURER_SKIP_TO_WORLD_X = 2400.0
@@ -434,11 +448,30 @@ def paddleslap_script() -> InputScript:
     return script
 
 
+def mr_muncher_script() -> InputScript:
+    """Mr. Muncher: steer right along the top corridor, then down, then back left.
+
+    The player starts at the top left; going right it passes the sprockets of the row below its
+    path close enough to collect them. The munchers start far away and wander at random.
+
+    Returns:
+        The input script.
+
+    """
+    script = InputScript()
+    script.at(5, press(pygame.K_RIGHT))
+    script.at(300, release(pygame.K_RIGHT), press(pygame.K_DOWN))
+    script.at(420, release(pygame.K_DOWN), press(pygame.K_LEFT))
+    script.at(560, release(pygame.K_LEFT))
+    return script
+
+
 SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
     'clockwork_keep': clockwork_keep_script,
     'brave_adventurer': brave_adventurer_script,
     'brave_adventurer_papyrus': brave_adventurer_script,
     'paddleslap': paddleslap_script,
+    'mr_muncher': mr_muncher_script,
 }
 
 
@@ -763,8 +796,8 @@ def golden_path(game_key: str) -> Path:
 
 
 def main() -> None:
-    """Record and write the golden trace of every game."""
-    for game_key in GAME_SCENES:
+    """Record and write the golden trace of every game that has one (GOLDEN_TRACE_GAMES)."""
+    for game_key in GOLDEN_TRACE_GAMES:
         trace = record_trace(game_key, frame_count=DEFAULT_FRAME_COUNT)
         path = golden_path(game_key)
         write_trace(trace={'source': GOLDEN_TRACE_SOURCE, **trace}, path=path)
