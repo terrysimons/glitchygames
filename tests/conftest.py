@@ -42,6 +42,12 @@ from tests.display_canvas import (
     show_canvas,
     show_canvas_on_new_display,
 )
+from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
+from tests.sdl_driver_isolation import (
+    SdlDriverState,
+    live_sdl_driver_state,
+    restore_run_sdl_drivers,
+)
 from tests.signal_handlers import preserved_signal_handlers
 
 
@@ -412,8 +418,33 @@ def mock_game_with_args(mock_game: type[Scene]):
     return MockGameWithArgs
 
 
+def _start_pygame_and_the_test_display() -> None:
+    """Start pygame and open the test display, unless they are already running."""
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        with contextlib.suppress(pygame.error):
+            pygame.display.set_mode(TEST_DISPLAY_SIZE)
+
+
+@pytest.fixture(scope='session')
+def run_sdl_driver_state() -> SdlDriverState:
+    """The drivers this run's display and mixer run on, read before any test body ran.
+
+    Set up in the first test's setup (ensure_pygame_graceful_quit asks for it), while the SDL
+    driver variables are still the run's (tests/sdl_defaults.py): every later test is put back
+    on these drivers (tests/sdl_driver_isolation.py).
+
+    Returns:
+        SdlDriverState: The run's live video and audio drivers and the mixer's format.
+
+    """
+    _start_pygame_and_the_test_display()
+    return live_sdl_driver_state()
+
+
 @pytest.fixture(autouse=True)
-def ensure_pygame_graceful_quit():
+def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     """Give every test an initialized pygame showing the canvas pattern; isolate its sound.
 
     pygame stays initialized for the whole run: quitting and re-initializing it after every
@@ -422,15 +453,16 @@ def ensure_pygame_graceful_quit():
     (the test display rule, tests/display_canvas.py). After each test, every mixer
     channel is stopped, so no sound plays on into the next test (audibly, on a real audio
     driver), and a display a test resized is set back to the default size, showing the canvas.
-    """
-    import pygame
+    The SDL driver variables, display and mixer a test moved off the run's drivers (an engine
+    run with --headless moves them to 'dummy') are put back on them, showing the canvas
+    (tests/sdl_driver_isolation.py); a test that changed none of them costs a few reads.
 
+    Args:
+        run_sdl_driver_state: The drivers the run's display and mixer run on.
+
+    """
     # Ensure pygame is initialized before the test runs
-    if not pygame.get_init():
-        pygame.init()
-    if pygame.display.get_surface() is None:
-        with contextlib.suppress(pygame.error):
-            pygame.display.set_mode(TEST_DISPLAY_SIZE)
+    _start_pygame_and_the_test_display()
     # The canvas: a test that draws nothing shows the pattern, and no test sees an earlier
     # test's drawing (the guard in pytest_runtest_call fails a test that ends on all black)
     show_canvas()
@@ -439,6 +471,9 @@ def ensure_pygame_graceful_quit():
 
     if pygame.mixer.get_init() is not None:
         pygame.mixer.stop()
+    restore_run_sdl_drivers(
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+    )
     with contextlib.suppress(pygame.error):
         surface = pygame.display.get_surface() if pygame.get_init() else None
         if surface is not None and surface.get_size() != TEST_DISPLAY_SIZE:

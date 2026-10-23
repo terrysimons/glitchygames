@@ -114,7 +114,10 @@ from glitchygames.state import DiskSaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
+from tests.display_canvas import display_looks_entirely_black, real_display_surface
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
+from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
+from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
@@ -2025,6 +2028,103 @@ class TestHeadless:
         display_quit.assert_not_called()
         mixer_quit.assert_not_called()
         assert '--headless: pygame was started before the engine' not in caplog.text
+
+
+class TestHeadlessDriverRestore:
+    """--headless sets the SDL driver variables to 'dummy'; they come back when the run ends."""
+
+    def test_a_headless_run_puts_the_driver_variables_back_when_it_ends(self, mocker, monkeypatch):
+        """A process that goes on after a headless run starts pygame on its own drivers again.
+
+        The run sets both variables to 'dummy'; when it ends they are what they were before: a
+        set one gets its value back and an unset one is removed (the names are not drivers
+        pygame starts: the run started it on 'dummy').
+        """
+        with engine_run_environment(mocker):
+            monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+            monkeypatch.delenv('SDL_AUDIODRIVER')
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, '--headless')
+            )
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                'dummy',
+                'dummy',
+            )
+            engine.scene_manager.add_supervisor(supervisor=QuittingSupervisor(quit_frame=1))
+            engine.start()
+
+            assert os.environ['SDL_VIDEODRIVER'] == UNUSED_VIDEO_DRIVER
+            assert 'SDL_AUDIODRIVER' not in os.environ
+
+    def test_a_failed_teardown_still_puts_the_driver_variables_back(self, mocker, monkeypatch):
+        """The variables come back even when _shutdown raises (logged; the run's exit is 70)."""
+        with engine_run_environment(mocker):
+            monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+            monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, '--headless')
+            )
+            mocker.patch.object(
+                engine, '_shutdown', side_effect=RuntimeError('teardown failed for the test')
+            )
+
+            teardown_error = engine._tear_down_run(profiler=None, run_ended_by=None)
+
+            assert isinstance(teardown_error, RuntimeError)
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                UNUSED_VIDEO_DRIVER,
+                UNUSED_AUDIO_DRIVER,
+            )
+
+    def test_a_run_that_is_not_headless_leaves_the_driver_variables_alone(
+        self, mocker, monkeypatch
+    ):
+        """Only --headless changed them, so only a headless run puts anything back."""
+        with engine_run_environment(mocker):
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=RUN_ENGINE_ARGUMENTS
+            )
+            # Set after construction: a run that put back what it saw then would undo these
+            monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+            monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+            engine.scene_manager.add_supervisor(supervisor=QuittingSupervisor(quit_frame=1))
+            engine.start()
+
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                UNUSED_VIDEO_DRIVER,
+                UNUSED_AUDIO_DRIVER,
+            )
+
+    def test_the_harness_puts_a_constructed_headless_engine_back_on_the_runs_drivers(
+        self, run_sdl_driver_state
+    ):
+        """A headless engine that never runs leaves 'dummy' behind; the harness undoes it.
+
+        This is what moved later tests onto the dummy drivers on a real-driver run (cocoa):
+        constructing the engine sets the variables and restarts the display and mixer on
+        'dummy', and nothing ends the run to put them back. The autouse fixture's check
+        (tests/sdl_driver_isolation.py), run here directly, puts back the run's variables,
+        display (showing the canvas) and mixer. On a dummy run the run's drivers are 'dummy'
+        already; tests/test_sdl_driver_defaults.py moves them off on any run.
+        """
+        with constructed_engine('--headless'):
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                'dummy',
+                'dummy',
+            )
+            assert pygame.display.get_driver() == 'dummy'
+
+        restore_run_sdl_drivers(
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        )
+
+        # The drivers only: the engine reserved its live voice channels on the mixer
+        assert live_sdl_driver_state().driver_names() == run_sdl_driver_state.driver_names()
+        for name, run_value in SDL_DRIVER_ENVIRONMENT_FOR_RUN.items():
+            assert os.environ[name] == run_value
+        display = real_display_surface()
+        assert display is not None
+        assert not display_looks_entirely_black(display)
 
 
 def sprite_frame(*, frame_number: int, rect: list[int]) -> dict[str, Any]:

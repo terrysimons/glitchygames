@@ -470,7 +470,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `--headless` (any run; "Diagnostics Options" group): `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` set
   to `dummy` right after the options are read (a display or mixer pygame already started on
   another driver is restarted on the dummy one, the mixer with its format and channel count, with
-  a warning). Live headless runs pace normally and end as the game ends; a
+  a warning); when the run ends (`_tear_down_run`, after `_shutdown` quit pygame) both variables
+  are put back as they were (an unset one removed), so a process that goes on starts pygame on
+  its own drivers again. Live headless runs pace normally and end as the game ends; a
   headless replay is unpaced (`EngineSources.paced_frame_seconds()` returns 0.0: no timer
   deadline, no clock tick) and prints its report to stdout instead of logging it. A replay that a
   crash, Ctrl-C, signal or the game's own exit ends early reports only `Replay stopped at frame
@@ -739,7 +741,10 @@ Features:
   per-pixel alpha)
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
 - `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
-  plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`)
+  plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
+  After each test the variables, display and mixer a test moved off the run's drivers (a
+  constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
+  canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)
 - All tests run with `no_unhandled_events=True` to catch unhandled events as bugs
 - The test display rule (`tests/display_canvas.py`): every test starts on the canvas (the default
   pattern; channel 3 with `GLITCHYGAMES_TEST_CANVAS=channel-3`), its display is presented after the

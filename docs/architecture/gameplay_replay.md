@@ -412,7 +412,9 @@ that draw the FPS value may then diverge. Logic always receives the recorded `dt
 `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` as soon as the options are read, before
 pygame starts its display and mixer. If pygame was already started before the engine (by code
 run at import), a display or mixer on another driver is restarted on the dummy one, with a
-warning.
+warning. When the run ends, after the engine has shut pygame down, both variables are put back as
+they were (one that was not set is removed), so a program that goes on after a headless run
+starts pygame on its own drivers again.
 
 A live headless run is paced to the target FPS as usual (an unpaced live frame would last about
 a millisecond of game time) and ends however the game ends. A headless replay is not paced at

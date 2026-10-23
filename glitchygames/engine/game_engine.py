@@ -143,6 +143,8 @@ DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
 # The SDL video and audio driver --headless runs on (no window, no sound)
 HEADLESS_SDL_DRIVER = 'dummy'
+# The environment variables that choose SDL's video and audio drivers (--headless sets both)
+SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
 
 # The signals that end a run through the normal teardown (exit_on_signal), by name:
 # SIGHUP exists only on Unix and SIGBREAK only on Windows, so each is looked up where it runs.
@@ -876,6 +878,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
+        # The SDL driver variables as they were before --headless set them (by name; None: the
+        # variable was not set), put back when the run ends (_restore_sdl_driver_variables);
+        # None when the run is not headless and changed nothing
+        self._sdl_driver_variables_before_headless: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
         if options.get('headless'):
             self._enter_headless_mode()
@@ -2065,9 +2071,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
           converted to, which still matches. The buffer size cannot be read back, so it is
           pygame's default. If the dummy mixer cannot start, the run goes on without audio
           (logged).
+
+        The variables' earlier values are kept and put back when the run ends
+        (``_restore_sdl_driver_variables``), so a process that goes on after a headless run
+        starts pygame on its own drivers again.
         """
-        os.environ['SDL_VIDEODRIVER'] = HEADLESS_SDL_DRIVER
-        os.environ['SDL_AUDIODRIVER'] = HEADLESS_SDL_DRIVER
+        self._sdl_driver_variables_before_headless = {
+            name: os.environ.get(name) for name in SDL_DRIVER_VARIABLES
+        }
+        for name in SDL_DRIVER_VARIABLES:
+            os.environ[name] = HEADLESS_SDL_DRIVER
         restarted: list[str] = []
         if pygame.display.get_init() and pygame.display.get_driver() != HEADLESS_SDL_DRIVER:
             restarted.append(f'the display (video driver {pygame.display.get_driver()!r})')
@@ -2101,6 +2114,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'audio is muted',
                 ' and '.join(restarted),
             )
+
+    def _restore_sdl_driver_variables(self: Self) -> None:
+        """Put back the SDL driver variables --headless set, as they were before it (idempotent).
+
+        SDL reads them only when the display or mixer starts, so this changes nothing that is
+        running: it is called after ``_shutdown`` quit pygame, so a process that goes on (runs a
+        headless replay, then opens a window) starts pygame on its own drivers, not the dummy
+        ones. A variable that was not set before is removed.
+        """
+        variables_before, self._sdl_driver_variables_before_headless = (
+            self._sdl_driver_variables_before_headless,
+            None,
+        )
+        if variables_before is None:
+            return
+        for name, value in variables_before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
     def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
         """Close any recording, report any replay, print performance reports, shut down pygame.
@@ -2209,6 +2242,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         finally:
             # Again (it is idempotent): _shutdown restores them, but not if it failed first
             self._restore_signal_handlers()
+            # After _shutdown quit pygame: whatever starts it next does so on these drivers
+            self._restore_sdl_driver_variables()
         if GameEngine.OPTIONS['profile'] and profiler is not None:
             profiler.disable()
             profiler.print_stats()
