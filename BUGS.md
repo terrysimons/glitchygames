@@ -31,14 +31,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Deferred by choice: fixing the names or the values changes colours the games draw, so it needs its own review of every user of these constants
 - **Files**: `glitchygames/color/palette.py:200-210`, `glitchygames/color/constants.py`
 
-### 112. The Palette README's Example Cannot Load
-- **Description**: `glitchygames/color/resources/README.md` documents a `[palette]` section, but the loader reads `[default]`
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found fixing #104
-- **Date Reported**: 2026-10-21
-- **Files**: `glitchygames/color/resources/README.md`
-
 ### 113. The Health Route Reports a Stale "pygame initialized" Flag
 - **Description**: `api/routes/health.py:26` reports `RendererService.pygame_initialized`, which stays True after `pygame.quit()` until the next `RendererService()` is made
 - **Status**: Active
@@ -443,7 +435,51 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Replays compare sprite rects, not pixels, so they are unaffected; the clock read is inside pygame, so `tests/test_engine_doors.py` cannot see it. A fix would pin the mode (`LayeredDirty.set_timing_threshold` with a huge threshold keeps dirty-rect mode; `_use_update = False` keeps full-screen mode) wherever the engine makes its groups, after checking which mode each game relies on
 - **Files**: pygame-ce `sprite.py` (`LayeredDirty.draw`); the groups made in `glitchygames/scenes/scene.py` and the games
 
+### 197. Custom Event Ids Collide With pygame.event.custom_type()
+- **Description**: `FPSEVENT`, `GAMEEVENT` and `MENUEVENT` are hard-coded as `USEREVENT + 1..3` (`events/base.py` ~114-116) instead of being allocated with `pygame.event.custom_type()`; a game or library that calls `custom_type()` gets an id equal to `FPSEVENT` (confirmed: 32866)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Details**: Allocating them with `custom_type()` changes their values, which recordings store: check the golden recordings and the recording format before changing (a remap on read may be needed)
+- **Files**: `glitchygames/events/base.py`
+
+### 198. Event Manager Proxies: Lookup Stops at the First Proxy; Re-instantiation Resets a Manager
+- **Description**: `ResourceManager.__getattr__` returns from the first proxy and never tries later ones, so e.g. `MouseEventManager().get_pos()` (on `pygame.mouse`, the second proxy) raises AttributeError; and constructing a manager again re-runs `__init__` with `game=None`, resetting the singleton's state (both reproduced)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/events/base.py` (`ResourceManager`)
+
+### 199. Mouse Events: Wheel Directions Swapped, Some Handlers Never Called
+- **Description**: In `events/mouse.py`, wheel buttons 4 and 5 are swapped (scrolling up calls the scroll-down handler); the button-specific drop handlers and the focus/unfocus handlers are never called (found by reading; verify with tests)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/events/mouse.py`
+
+### 200. Smaller Findings From the Docs Audit
+- **Description**: Minor findings, none breaking a common path
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Details**: (1) TEXTINPUT/TEXTEDITING go to `process_unimplemented_event`; MULTIGESTURE, CLIPBOARDUPDATE, LOCALECHANGED, RENDER_* and some WINDOW* events are never routed. (2) Engine options (as #76): `--resolution` help says 1024x768 but the default is 800x480; `-w` can never change anything; the macOS video-driver check compares with 'MacOS' (it is 'Darwin'); the video-driver lists use SDL 1 names. (3) `api/routes/sprites.py`: an HTTP 400 for a bad `output_path` is caught by `except Exception` and returned as 500. (4) `AnimatedSprite._save_toml_single_frame` writes `alpha = 255` for opaque colours, magenta included. (5) `glitchygames/scenes/builtins` is a tracked symlink to `builtin_scenes` (packaging tools and griffe see two copies). (6) Two PyInstaller specs: `bitmappy.spec` and `glitchygames/bitmappy.spec` (the second ships in the wheel; maybe stale). (7) #72's title uses the old name `MultiControllerEnhancements`; `ControllerSelection.set_fill_direction` can't be reached from a controller; `GameEngine.process_window_focus_event` and probably `handle_event` are called only by tests. (8) Inaccurate docstrings: `SpriteFactory.save_sprite` lists INI/YAML; references to nonexistent `_detect_file_format()` and `AnimatedSprite._load()`; `EditorSetup.setup_voice_recognition` cites a stale line; `AIManager._is_ai_error_message` claims apology detection; `extract_apng_frames` says failures raise 400 (they return 200 with success=False); `FpsEvent` says Scene posts it (SceneManager does); `ResourceManager`'s singleton claim
+- **Files**: see Details
+
 ## Resolved Bugs
+
+### 112. The Palette README's Example Cannot Load
+- **Description**: `glitchygames/color/resources/README.md` documents a `[palette]` section, but the loader reads `[default]`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found fixing #104
+- **Date Reported**: 2026-10-21
+- **Files**: `glitchygames/color/resources/README.md`
+- **Date Resolved**: 2026-10-23
+- **Solution**: The README example uses the loader's `[default]` section and `description` key; it loads now (docs audit, 67605eef)
 
 ### 196. A PaddleSlap Session Recorded on x11 Under Load Can Diverge on Replay
 - **Description**: `tests/replay/test_record_scripted_session.py::test_scripted_session_records_and_replays` records 120 PaddleSlap frames live (in the test process, on the run's display) and replays them headless. On x11-linux (the Docker container drawing on XQuartz), with other tests running beside it, the replay switched to `PaddleSlapGameOverScene` where the recording stayed in `Game` (frame 100, 105 and 115 in three failures); every sprite rect matched until then. It passes alone and under CPU load alone, and never failed on dummy, cocoa or x11-macos
