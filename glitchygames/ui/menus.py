@@ -131,12 +131,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the menu bar.
-
-        Args:
-            None
-
-        """
+        """Update the menu bar."""
         for menu_item in self.menu_items.values():
             # Blit with alpha support
             self.image.blit(menu_item.image, (menu_item.rect.x, menu_item.rect.y))
@@ -410,9 +405,6 @@ class MenuItem(BitmappySprite):
     """A menu item class.
 
     This class represents a menu item.  It can be a root level menu item or a sub menu item.
-
-    Args:
-        BitmappySprite (BitmappySprite): The base sprite class.
 
     """
 

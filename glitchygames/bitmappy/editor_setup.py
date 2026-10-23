@@ -414,8 +414,9 @@ class EditorSetup:
 
         **STATUS: DISABLED BY DEFAULT**
 
-        This functionality is implemented but currently disabled in the setup() method
-        (see line 6413-6414). Voice recognition requires:
+        This functionality is implemented but nothing calls it: BitmapEditorScene.__init__
+        (glitchygames/bitmappy/editor.py) leaves it out where its "Voice recognition is
+        currently disabled" comment stands. Voice recognition requires:
         - A microphone to be connected and available
         - The glitchygames.events.voice module to be importable
         - Proper audio system configuration
@@ -439,7 +440,8 @@ class EditorSetup:
         All commands trigger the clear_ai_sprite_box() callback.
 
         **To Enable:**
-        1. Uncomment the call to setup_voice_recognition() in __init__
+        1. Call setup_voice_recognition() from BitmapEditorScene.__init__, at its "Voice
+           recognition is currently disabled" comment
         2. Ensure speech_recognition is installed (VoiceEventManager.is_available())
         3. Test microphone access and speech recognition accuracy
         4. Verify no performance issues or crashes

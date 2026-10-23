@@ -77,30 +77,17 @@ class BasePaddle(Sprite):
         self.dirty = 1
 
     def move_horizontal(self: Self) -> None:
-        """Move the paddle horizontally.
-
-        Args:
-            None
-
-        """
+        """Move the paddle horizontally."""
         self.rect.x += self._move.current_speed
         self.dirty = 1
 
     def move_vertical(self: Self) -> None:
-        """Move the paddle vertically.
-
-        Args:
-            None
-
-        """
+        """Move the paddle vertically."""
         self.rect.y += self._move.current_speed
         self.dirty = 1
 
     def is_at_bottom_of_screen(self: Self) -> bool:
         """Check if the paddle is at the bottom of the screen.
-
-        Args:
-            None
 
         Returns:
             bool: True if the paddle is at the bottom of the screen, False otherwise.
@@ -111,9 +98,6 @@ class BasePaddle(Sprite):
     def is_at_top_of_screen(self: Self) -> bool:
         """Check if the paddle is at the top of the screen.
 
-        Args:
-            None
-
         Returns:
             bool: True if the paddle is at the top of the screen, False otherwise.
 
@@ -122,9 +106,6 @@ class BasePaddle(Sprite):
 
     def is_at_left_of_screen(self: Self) -> bool:
         """Check if the paddle is at the left of the screen.
-
-        Args:
-            None
 
         Returns:
             bool: True if the paddle is at the left of the screen, False otherwise.
@@ -137,9 +118,6 @@ class BasePaddle(Sprite):
 
     def is_at_right_of_screen(self: Self) -> bool:
         """Check if the paddle is at the right of the screen.
-
-        Args:
-            None
 
         Returns:
             bool: True if the paddle is at the right of the screen, False otherwise.
@@ -211,44 +189,24 @@ class HorizontalPaddle(BasePaddle):
             self.stop()
 
     def left(self: Self) -> None:
-        """Move left.
-
-        Args:
-            None
-
-        """
+        """Move left."""
         assert isinstance(self._move, Horizontal)
         self._move.left()
         self.dirty = 1
 
     def right(self: Self) -> None:
-        """Move right.
-
-        Args:
-            None
-
-        """
+        """Move right."""
         assert isinstance(self._move, Horizontal)
         self._move.right()
         self.dirty = 1
 
     def stop(self: Self) -> None:
-        """Stop moving.
-
-        Args:
-            None
-
-        """
+        """Stop moving."""
         self._move.stop()
         self.dirty = 1
 
     def speed_up(self: Self) -> None:
-        """Speed up.
-
-        Args:
-            None
-
-        """
+        """Speed up."""
         self._move.speed.speed_up_horizontal()
         self._move.current_speed = self._move.speed.x
 
@@ -311,12 +269,7 @@ class VerticalPaddle(BasePaddle):
 
     @override
     def update(self: Self) -> None:
-        """Update the paddle.
-
-        Args:
-            None
-
-        """
+        """Update the paddle."""
         # Movement is now handled in dt_tick() for frame-rate independence
         # Constrain position at boundaries AND stop movement to prevent bouncing
         if self.rect.y < 0:
@@ -329,44 +282,24 @@ class VerticalPaddle(BasePaddle):
             self.stop()
 
     def up(self: Self) -> None:
-        """Move up.
-
-        Args:
-            None
-
-        """
+        """Move up."""
         assert isinstance(self._move, Vertical)
         self._move.up()
         self.dirty = 1
 
     def down(self: Self) -> None:
-        """Move down.
-
-        Args:
-            None
-
-        """
+        """Move down."""
         assert isinstance(self._move, Vertical)
         self._move.down()
         self.dirty = 1
 
     def stop(self: Self) -> None:
-        """Stop moving.
-
-        Args:
-            None
-
-        """
+        """Stop moving."""
         self._move.stop()
         self.dirty = 1
 
     def speed_up(self: Self) -> None:
-        """Speed up.
-
-        Args:
-            None
-
-        """
+        """Speed up."""
         self._move.speed.speed_up_vertical()
         self._move.current_speed = self._move.speed.y
 

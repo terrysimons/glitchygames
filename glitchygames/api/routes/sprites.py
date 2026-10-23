@@ -464,10 +464,11 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         request: APNG extraction request with base64-encoded APNG data
 
     Returns:
-        Extracted frames and metadata
+        Extracted frames and metadata. Bad base64 or an APNG that cannot be parsed is not an
+        HTTP error: the response (200) has success=False and the reason in its error field.
 
     Raises:
-        HTTPException: If APNG parsing fails (400) or other errors (500)
+        HTTPException: 500 for any unexpected error
 
     """
     try:

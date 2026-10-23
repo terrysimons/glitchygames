@@ -115,12 +115,7 @@ class GameOverScene(Scene):
 
     @override
     def update(self: Self) -> None:
-        """Update the Game Over scene.
-
-        Args:
-            None
-
-        """
+        """Update the Game Over scene."""
         # Call the parent update method to handle sprite updates
         super().update()
         log.debug('GameOverScene update() called')

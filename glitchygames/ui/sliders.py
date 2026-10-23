@@ -481,9 +481,6 @@ class ColorWellSprite(BitmappySprite):
     def active_color(self: Self) -> tuple[int, int, int, int]:
         """The active color.
 
-        Args:
-            None
-
         Returns:
             tuple[R: int, G: int, B: int, A: int]: The active color.
 
@@ -514,21 +511,11 @@ class ColorWellSprite(BitmappySprite):
 
     @override
     def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        """
+        """Update the nested sprites."""
 
     @override
     def update(self: Self) -> None:
-        """Update the color well sprite.
-
-        Args:
-            None
-
-        """
+        """Update the color well sprite."""
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
 
         # Draw the color directly on the alpha-compatible surface
@@ -609,12 +596,7 @@ class TabControlSprite(BitmappySprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the tab control sprite.
-
-        Args:
-            None
-
-        """
+        """Update the tab control sprite."""
         if self.dirty:
             # Clear the surface to black: the image has no SRCALPHA flag, so it is copied onto
             # the screen whole and was never transparent (alpha 0 only showed black on cocoa)

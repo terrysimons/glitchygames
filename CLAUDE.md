@@ -102,7 +102,7 @@ nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
 # --- Code quality ---
-nox -s code-complexity     # wily complexity diff; `-- --graphs` regenerates docs/quality/, `-- --rank` ranks files
+nox -s code-complexity     # wily complexity diff; `-- --graphs` generates docs/quality/graphs/ (gitignored), `-- --rank` ranks files
 
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)
@@ -115,7 +115,9 @@ nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build wheel (.whl) only
 
 # --- Docs ---
-nox -s docs-deploy         # Publish the docs to https://terrysimons.github.io/glitchygames/ (pushes gh-pages)
+nox -s docs-deploy         # Generate complexity graphs, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages; `-- --build-only`: no push)
+nox -s docs-serve          # Serve the docs locally (same strict build, graphs included) at http://127.0.0.1:8000/glitchygames/
+# Every mkdocs build generates the complexity graphs first when HEAD changed (hook: scripts/mkdocs_hooks.py)
 ```
 
 ### Running Bitmappy (Pixel Art Editor)
@@ -136,6 +138,10 @@ uv run bitmappy --timer-backend=fast --log-timer-jitter
 # Windows: Enable 1ms timer resolution
 uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
+
+### Example Games
+`uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep` and
+`mr-muncher` (a Pac-Man style maze, `glitchygames/examples/mr_muncher/`) start the example games.
 
 ## Architecture Overview
 
@@ -278,7 +284,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   arriving capture snaps the camera to `camera_target()` on its followed axes only
   (`camera.snap_followed_axes_to`), or to the player on both axes when there is no target
 - Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
-  every example game and compare each sprite's rect and visibility, frame by frame, with
+  every game older than the world-space change (`GOLDEN_TRACE_GAMES`; Mr. Muncher, newer, has
+  only its golden replay) and compare each sprite's rect and visibility, frame by frame, with
   baselines recorded before the world-space change. Every difference must be explained by
   exactly one `ExpectedDifference` entry whose rule proves it exactly (an entry that explains
   nothing fails too); never re-record the baselines to make a change pass
@@ -623,6 +630,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)
 - GIL: the engine sets `sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)` (0.5 ms, `timing.py`) so the
   mixer callback can queue the next chunk; check with `uv run python scripts/audio_glitch_probe.py`
+- Microphone: `uv run python scripts/microphone_capture_check.py [--duration 3] [--device NAME]`
+  captures from it with miniaudio and reports bytes, frames and levels (exit codes in its docstring)
 
 **Transitions** (`glitchygames/transitions/`): `on_update` callback, `add_cue(progress, callback)`,
 `eased_velocity_at(progress)`; cues run after the old scene's cleanup, so they may use only

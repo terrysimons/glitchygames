@@ -495,9 +495,6 @@ class BallSprite(Sprite):
     def color(self: Self) -> tuple[int, int, int]:
         """The color of the ball.
 
-        Args:
-            None
-
         Returns:
             tuple[int, int, int]: The color of the ball.
 
@@ -667,12 +664,7 @@ class BallSprite(Sprite):
             self.speed_up()
 
     def on_paddle_bounce(self: Self) -> None:
-        """Speed up for a paddle hit if PADDLE_BOUNCE is a configured trigger.
-
-        Args:
-            None
-
-        """
+        """Speed up for a paddle hit if PADDLE_BOUNCE is a configured trigger."""
         self._apply_triggered_speed_up(SpeedUpTrigger.PADDLE_BOUNCE)
 
     @override
@@ -712,22 +704,12 @@ class BallSprite(Sprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the ball.
-
-        Args:
-            None
-
-        """
+        """Update the ball."""
         # Movement is now handled in dt_tick() for frame-rate independence
         # This method is kept for compatibility but no longer moves the ball
 
     def _do_bounce(self: Self) -> None:
-        """Enhanced ball boundary physics with improved collision response.
-
-        Args:
-            None
-
-        """
+        """Enhanced ball boundary physics with improved collision response."""
         # Every ball checks every frame: read the eight arguments only when DEBUG is on
         if log.isEnabledFor(logging.DEBUG):
             log.debug(

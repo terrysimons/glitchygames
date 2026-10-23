@@ -62,22 +62,12 @@ class Game(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Set up the game.
-
-        Args:
-            None
-
-        """
+        """Set up the game."""
         pygame.key.set_repeat(350)
 
     @override
     def update(self: Self) -> None:
-        """Update the game.
-
-        Args:
-            None
-
-        """
+        """Update the game."""
         self.input_box.update()
         assert self.screen is not None
         assert self.input_box.image is not None

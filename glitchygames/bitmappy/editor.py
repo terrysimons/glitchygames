@@ -194,9 +194,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             options: Dictionary of configuration options for the scene.
             groups: Optional pygame sprite groups for sprite management.
 
-        Raises:
-            None
-
         """
         if options is None:  # type: ignore[reportUnnecessaryComparison]
             options = {}
@@ -304,9 +301,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         Args:
             event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
 
         """
         self.log.info('Scene got menu item event: %s', event)
@@ -490,9 +484,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         Args:
             event (MouseButtonEvent): The pygame event.
 
-        Raises:
-            None
-
         """
         # Check for shift-right-click (screen sampling)
         held_keys = current_input()
@@ -608,9 +599,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         Args:
             event (MouseButtonEvent): The pygame event.
 
-        Raises:
-            None
-
         """
         sprites = self.sprites_at_position(pos=event.pos)
 
@@ -679,9 +667,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         Args:
             event (MouseButtonEvent): The pygame event.
 
-        Raises:
-            None
-
         """
         # Stop film strip drag scrolling if active
         if self.is_dragging_film_strips:
@@ -704,9 +689,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         Args:
             event (MouseMotionEvent): The pygame event.
             trigger (object): The trigger object.
-
-        Raises:
-            None
 
         """
         # Handle film strip drag scrolling
@@ -1340,9 +1322,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
-
-        Raises:
-            None
 
         """
         parser.add_argument(

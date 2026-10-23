@@ -232,6 +232,22 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
+### 41. Mr. Muncher Example Game and Microphone Capture Check ✅ COMPLETED
+- **Description**: Two untracked toys brought up to the project's standards (2026-10-23): the
+  plain-pygame Pac-Man toy `scripts/mr_muncher.py` became the example game
+  `glitchygames/examples/mr_muncher/` (`uv run mr-muncher`), and `scripts/audio_test.py` became
+  `scripts/microphone_capture_check.py`
+- **Status**: ✅ COMPLETED (2026-10-23)
+- **Implementation**:
+  - Mr. Muncher: a `Scene` run by `GameEngine`; scancode `ActionMap` controls; the maze, its
+    sprockets and the munchers' turns from seeded random streams; frame-rate independent speeds;
+    sprites (compared by replays) instead of direct drawing; golden replay
+    `tests/fixtures/replays/mr-muncher/golden.jsonl.gz` (600 frames,
+    `scripts/record_golden_traces.py: mr_muncher_script`); `tests/examples/test_mr_muncher.py`
+  - Microphone check: capture `--duration` seconds (default 3) from the default or a named
+    (`--device`) capture device with miniaudio, report bytes, frames and peak/RMS levels, exit
+    with an `ExitCode`; `tests/test_microphone_capture_check.py`
+
 ### 40. Gameplay Replay ✅ COMPLETED (Parts 1-3)
 - **Description**: Replay a `--record-trace` recording exactly through the real engine
   (`--replay-trace PATH`), comparing every frame's sprites with the recording and reporting the
@@ -1058,6 +1074,49 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Files to Create/Modify**:
   - Bitmappy film strip / animation menu (new command)
   - `tests/tools/` - Alignment tests: every mode, hitbox shift, off-canvas refusal, undo
+
+### 42. Sound Effects From a Description
+- **Description**: Describe a sound effect in words ("a short wet pop, like a bubble bursting
+  underwater", "a heavy mechanical clunk, then a slow hiss") and the engine works out how to make it:
+  an LLM (or a rule-based process) plans one or more source sounds, and a chain of audio
+  operations shapes them into the sound you asked for
+- **Use Case**: Fast, reproducible sound design for games without a sound library or audio tools;
+  iterate in plain language ("punchier", "an octave lower", "make the tail longer")
+- **Status**: Planned (requested 2026-10-23)
+- **Priority**: Medium
+- **Implementation**:
+  - **Plan from the description**: the LLM (through the existing AI client used for sprite
+    generation, `glitchygames/ai/`) returns a structured plan (a pydantic model, validated): the
+    source sounds and the operations to apply, in order. A rule-based fallback maps common words
+    (pop, click, thud, whoosh, zap, chirp) to recipes when no model is available
+  - **Source sounds**, any of:
+    - synthesized: the existing toolkit (`glitchygames/audio/synth.py` oscillators, noise,
+      envelopes, pitch curves) and `SoundRecipe`/`Tone` (`glitchygames/audio/recipes.py`)
+    - spoken: words or syllables rendered with text-to-speech (`glitchygames/audio/tts.py`)
+    - performed: the engine suggests sounds for you to make yourself ("say 'pop' with your lips
+      closed", "click your tongue twice", "say 'tsss'") and records them from the microphone
+      (the microphone capture script, `scripts/`), then trims the silence
+  - **Operations** (the shaping chain, each with parameters the plan chooses):
+    - pitch: shift by octaves or semitones, keeping the length (or resample to change both)
+    - time: stretch or compress the length without changing the pitch (phase vocoder or a
+      granular method), clip to a range, extend (loop with a crossfade, or a decaying tail)
+    - dynamics: gain, compression, limiting, hard or soft clipping (distortion), envelope
+      (attack, decay, sustain, release)
+    - tone: low-, high- and band-pass filters (the existing FIR filters), EQ
+    - layering: mix several sources with offsets (a click on top of a thud)
+  - **Iterate**: preview the result, then refine with more words; the plan is updated, not
+    regenerated from scratch, so a good result isn't lost
+  - **Save it reproducibly**: store the plan (sources and operation chain) as a TOML recipe next to
+    the rendered sound, so it can be regenerated and edited by hand; recorded sources are saved
+    as files the recipe references. Rendering must be deterministic (seeded noise through the
+    engine's random streams) so games and replays sound the same everywhere
+- **Technical Requirements**:
+  - DSP operations on numpy arrays at the mixer's format (44100 Hz, 16-bit, stereo), unit-tested
+    against known signals (a sine's pitch after a shift, a length after a stretch)
+  - A schema for the plan the LLM returns, with validation and clear errors for bad plans
+  - Microphone capture with a device choice and silence trimming
+  - An editor or command-line front end (e.g. a `glitchygames-sfx` console script, or a panel in
+    Bitmappy or Glitchy Studio)
 
 ## Notes
 

@@ -1,6 +1,3 @@
-<!-- Rendered in part: glitchygames.examples.paddleslap and text_input_demo have docstrings with a malformed section
-     (e.g. an "Args: None" block) that fail the strict build. Add them back once fixed. -->
-
 ::: glitchygames.examples
     options:
       heading_level: 2
@@ -15,6 +12,24 @@
       show_submodules: false
 
 ::: glitchygames.examples.joystick_demo
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: false
+
+::: glitchygames.examples.mr_muncher.game
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: false
+
+::: glitchygames.examples.paddleslap
+    options:
+      heading_level: 2
+      inherited_members: true
+      show_submodules: false
+
+::: glitchygames.examples.text_input_demo
     options:
       heading_level: 2
       inherited_members: true

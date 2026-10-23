@@ -252,12 +252,7 @@ class Game(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Set up the game.
-
-        Args:
-            None
-
-        """
+        """Set up the game."""
         pygame.key.set_repeat(1)
 
     def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:

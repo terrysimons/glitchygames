@@ -164,7 +164,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 event (JoyAxisEvent): The event to handle.
 
             """
-            # JOYAXISMOTION    joy, axis, value
+            # JOYAXISMOTION    instance_id, axis, value
             self._axes[event.axis] = event.value
             self.game.on_joy_axis_motion_event(event)
 
@@ -176,7 +176,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 event (JoyButtonEvent): The event to handle.
 
             """
-            # JOYBUTTONDOWN    joy, button
+            # JOYBUTTONDOWN    instance_id, button
             # Ensure storage accommodates this button index
             if event.button < 0:
                 return
@@ -193,7 +193,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 event (JoyButtonEvent): The event to handle.
 
             """
-            # JOYBUTTONUP      joy, button
+            # JOYBUTTONUP      instance_id, button
             if event.button < 0:
                 return
             if event.button >= len(self._buttons):
@@ -209,7 +209,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 event (JoyHatEvent): The event to handle.
 
             """
-            # JOYHATMOTION     joy, hat, value
+            # JOYHATMOTION     instance_id, hat, value
             self._hats[event.hat] = event.value
             self.game.on_joy_hat_motion_event(event)
 
@@ -221,7 +221,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 event (JoyBallEvent): The event to handle.
 
             """
-            # JOYBALLMOTION    joy, ball, rel
+            # JOYBALLMOTION    instance_id, ball, rel
             self._balls[event.ball] = event.rel
             self.game.on_joy_ball_motion_event(event)
 
@@ -244,7 +244,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 event (JoyDeviceRemovedEvent): The event to handle.
 
             """
-            # JOYDEVICEREMOVED device_index
+            # JOYDEVICEREMOVED instance_id
             self.game.on_joy_device_removed_event(event)
 
         # We can't make these properties, because then they
@@ -449,7 +449,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             event (JoyAxisEvent): The event to handle.
 
         """
-        # JOYAXISMOTION    joy, axis, value
+        # JOYAXISMOTION    instance_id, axis, value
         try:
             joystick_id = event.instance_id
         except AttributeError:
@@ -466,7 +466,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             event (JoyButtonEvent): The event to handle.
 
         """
-        # JOYBUTTONDOWN    joy, button
+        # JOYBUTTONDOWN    instance_id, button
         try:
             joystick_id = event.instance_id
         except AttributeError:
@@ -483,7 +483,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             event (JoyButtonEvent): The event to handle.
 
         """
-        # JOYBUTTONUP      joy, button
+        # JOYBUTTONUP      instance_id, button
         try:
             joystick_id = event.instance_id
         except AttributeError:
@@ -500,7 +500,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             event (JoyHatEvent): The event to handle.
 
         """
-        # JOYHATMOTION     joy, hat, value
+        # JOYHATMOTION     instance_id, hat, value
         try:
             joystick_id = event.instance_id
         except AttributeError:
@@ -517,7 +517,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             event (JoyBallEvent): The event to handle.
 
         """
-        # JOYBALLMOTION    joy, ball, rel
+        # JOYBALLMOTION    instance_id, ball, rel
         try:
             joystick_id = event.instance_id
         except AttributeError:

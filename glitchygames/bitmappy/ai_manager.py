@@ -1159,15 +1159,17 @@ pixels = \"\"\"
         return False, error_message
 
     def _is_ai_error_message(self, content: str) -> bool:
-        """Check if AI response is an error message rather than valid sprite code.
+        """Check if an AI response is not valid sprite code.
 
-        Uses the AI module's validation function for comprehensive checking.
+        Any validation failure counts (see _validate_ai_content: the raw answer and its cleaned
+        form both fail validate_ai_response), whatever the reason; it does not look for
+        apologies or error wording. The failure is logged as a warning.
 
         Args:
             content: The AI response content to check
 
         Returns:
-            True if the content appears to be an error/apology message
+            True if the content fails validation, False if it is valid sprite code
 
         """
         # Use the new AI module's validation function

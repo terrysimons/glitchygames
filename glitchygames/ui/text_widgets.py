@@ -426,22 +426,12 @@ class TextBoxSprite(BitmappySprite):
 
     @override
     def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        """
+        """Update the nested sprites."""
         self.text_box.dirty = self.dirty
 
     @override
     def update(self: Self) -> None:
-        """Update the text box sprite.
-
-        Args:
-            None
-
-        """
+        """Update the text box sprite."""
         if self.text_box:
             self.text_box.background_color = self.background_color
             self.image.blit(self.text_box.image, (self.x, self.y, self.width, self.height))

@@ -191,13 +191,7 @@ class InputConfirmationDialogScene(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Set up the scene.
-
-        Args:
-            None
-
-
-        """
+        """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
             'on_left_mouse_button_up_event': self.on_cancel_event,
         }
@@ -209,23 +203,11 @@ class InputConfirmationDialogScene(Scene):
 
     @override
     def cleanup(self: Self) -> None:
-        """Cleanup the scene.
-
-        Args:
-            None
-
-
-        """
+        """Cleanup the scene."""
         self.next_scene = self
 
     def dismiss(self: Self) -> None:
-        """Dismiss the dialog.
-
-        Args:
-            None
-
-
-        """
+        """Dismiss the dialog."""
         # Set next scene before cleanup
         self.previous_scene.next_scene = self.previous_scene
         self.next_scene = self.previous_scene

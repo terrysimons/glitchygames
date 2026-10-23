@@ -339,9 +339,6 @@ class BitmappySprite(Sprite):
         Returns:
             A tuple containing the sprite's image and rect.
 
-        Raises:
-            None
-
         """
         image = pygame.Surface((width, height))
         image.convert()
@@ -387,7 +384,7 @@ class BitmappySprite(Sprite):
         """Save a static sprite to a file (legacy method).
 
         Currently only supports TOML format. To add new formats:
-        1. Add format detection in _detect_file_format()
+        1. Add format detection in SpriteFactory.detect_file_format()
         2. Add save logic here (e.g., _save_json(), _save_xml())
         3. Add load methods in _load_static_only()
         4. Update tests
@@ -453,7 +450,7 @@ class BitmappySprite(Sprite):
         """Deflate a sprite to a configuration format.
 
         Currently only supports TOML format. To add new formats:
-        1. Add format detection in _detect_file_format()
+        1. Add format detection in SpriteFactory.detect_file_format()
         2. Add deflate logic here (e.g., _deflate_json(), _deflate_xml())
         3. Add inflate methods in _load_static_only()
         4. Update tests

@@ -115,22 +115,12 @@ class InputBox(Sprite):
         self.dirty = 2
 
     def activate(self: Self) -> None:
-        """Activate the input box.
-
-        Args:
-            None
-
-        """
+        """Activate the input box."""
         self.is_active = True
         self.dirty = 2
 
     def deactivate(self: Self) -> None:
-        """Deactivate the input box.
-
-        Args:
-            None
-
-        """
+        """Deactivate the input box."""
         self.is_active = False
         self.dirty = 0
 
@@ -152,12 +142,7 @@ class InputBox(Sprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the input box.
-
-        Args:
-            None
-
-        """
+        """Update the input box."""
         self.image.fill((0, 0, 0))
         self.image.blit(self.text_image, (4, 4))
 
@@ -341,12 +326,7 @@ class InputDialog(BitmappySprite):
 
     @override
     def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        """
+        """Update the nested sprites."""
         self.cancel_button.dirty = self.dirty
         self.confirm_button.dirty = self.dirty
 

@@ -262,20 +262,17 @@ class ResourceManager:
     Unless you're implementing a new pygame event manager,
     you probably don't need to worry about this.
 
-    Any subclass of ResourceManager will become
-    a singleton class automatically.  This ensures that
-    there is only ever a single manager for any given
-    resource.
+    ``__new__`` keeps one instance per subclass: a second
+    instantiation of MouseEventManager returns the same object
+    that the GameEngine created to process mouse events with
+    (GameEngine, an EventManager, is a ResourceManager too).
 
-    For instance, a second instantiation of MouseEventManager
-    would return the same MouseEventManager object that the
-    GameEngine created to process mouse events with.
-
-    This behavior allows easy access to resource managers
-    anywhere in the game without needing an explicit copy
-    of the game object, although since GameEngine is also
-    a subclass of EventManager, it too is a ResourceManager
-    which can be gotten to from anywhere, since it's a singleton.
+    It is not a full singleton, though: Python still runs
+    ``__init__`` on the shared instance at every instantiation,
+    so constructing a manager again re-initializes it with the
+    new arguments and resets its state (BUGS.md #198). Keep a
+    reference to the manager you were given instead of
+    constructing it again.
     """
 
     log: ClassVar[logging.Logger] = LOG
@@ -1216,7 +1213,7 @@ class VideoResizeEvent(HashableEvent):
 
 
 class FpsEvent(HashableEvent):
-    """FPSEVENT, posted by ``Scene`` with its measured frame rate."""
+    """FPSEVENT, posted by ``SceneManager`` with its measured frame rate."""
 
     fps: float
 

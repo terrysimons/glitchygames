@@ -1,6 +1,3 @@
-<!-- Rendered in part: glitchygames.sprites.bitmappy_sprite has docstrings with a malformed section
-     (e.g. an "Args: None" block) that fail the strict build. Add them back once fixed. -->
-
 ::: glitchygames.sprites
     options:
       heading_level: 2
@@ -15,6 +12,12 @@
       show_submodules: false
 
 ::: glitchygames.sprites.animated_interface
+    options:
+      heading_level: 2
+      inherited_members: false
+      show_submodules: false
+
+::: glitchygames.sprites.bitmappy_sprite
     options:
       heading_level: 2
       inherited_members: false

@@ -56,14 +56,8 @@ class BitmapPixelSprite(BitmappySprite):
     def pixel_color(self: Self) -> tuple[int, int, int, int]:
         """The pixel color.
 
-        Args:
-            None
-
         Returns:
             tuple[int, int, int, int]: The pixel color with alpha.
-
-        Raises:
-            None
 
         """
         return self._pixel_color
@@ -78,9 +72,6 @@ class BitmapPixelSprite(BitmappySprite):
         Args:
             new_pixel_color (tuple): The new pixel color (RGB or RGBA).
 
-        Raises:
-            None
-
         """
         # Convert RGB to RGBA if needed
         if len(new_pixel_color) == RGB_COMPONENT_COUNT:
@@ -91,15 +82,7 @@ class BitmapPixelSprite(BitmappySprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the sprite.
-
-        Args:
-            None
-
-        Raises:
-            None
-
-        """
+        """Update the sprite."""
         cache_key = (self.pixel_color, self.border_thickness)
         cached_image = BitmapPixelSprite.PIXEL_CACHE.get(cache_key)
 
@@ -133,9 +116,6 @@ class BitmapPixelSprite(BitmappySprite):
         Args:
             event (pygame.event.Event): The pygame event.
 
-        Raises:
-            None
-
         """
         if self.callbacks:
             callback = self.callbacks.get('on_pixel_update_event', None)
@@ -149,9 +129,6 @@ class BitmapPixelSprite(BitmappySprite):
 
         Args:
             event (MouseButtonEvent): The pygame event.
-
-        Raises:
-            None
 
         """
         self.dirty = 1

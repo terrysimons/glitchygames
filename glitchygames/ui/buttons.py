@@ -100,9 +100,6 @@ class ButtonSprite(BitmappySprite):
     def x(self: Self) -> int:
         """The x coordinate of the button sprite.
 
-        Args:
-            None
-
         Returns:
             int: The x coordinate of the button sprite.
 
@@ -124,9 +121,6 @@ class ButtonSprite(BitmappySprite):
     @property
     def y(self: Self) -> int:
         """The y coordinate of the button sprite.
-
-        Args:
-            None
 
         Returns:
             int: The y coordinate of the button sprite.
@@ -151,9 +145,6 @@ class ButtonSprite(BitmappySprite):
         """Update the nested sprites.
 
         Sets the dirty flag on the nested sprites.
-
-        Args:
-            None
 
         """
         self.text.dirty = self.dirty
@@ -221,12 +212,7 @@ class CheckboxSprite(ButtonSprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the checkbox sprite.
-
-        Args:
-            None
-
-        """
+        """Update the checkbox sprite."""
         if not self.checked:
             self.image.fill((0, 0, 0))
 
