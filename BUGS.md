@@ -114,23 +114,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Pinned by the strict xfail `tests/tools/test_visual_collision.py::TestCachedOffsetsForAGrowingGroup`
 - **Files**: `glitchygames/bitmappy/indicators/collision.py`
 
-### 142. On Displays With Per-Pixel Alpha, Translucent Sprites Over a Bare Scene Background Do Not Blend
-- **Description**: The `Scene.background_color` setter deliberately adds alpha 0 (`scenes/scene.py` ~2853-2860). On displays with an alpha channel (cocoa) the restored background pixels have alpha 0, and pygame-ce's alpha blitter copies the source colour onto them instead of blending: foo2 in a Scene shows corner (255, 0, 255, 0) and an unblended body (80, 220, 120, 137) on cocoa, (20, 20, 40) and a blended (52, 127, 83) on dummy
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the coverage audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Details**: Affects every SRCALPHA sprite over bare background (Brave Adventurer, Clockwork Keep, Papyrus's alpha-0 pixels), probably visible as boxes in a macOS window. Colorkeyed TOML frames are immune (#133). Found investigating #133
-- **Files**: `glitchygames/scenes/scene.py`
-
-### 143. `Scene` Discards Its Converted Background
-- **Description**: `scenes/scene.py:~2756` calls `self.background.convert()` and throws the result away
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the coverage audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Files**: `glitchygames/scenes/scene.py`
-
 ### 144. An AnimatedSprite's Rect Comes From the Unscaled Frame Surface
 - **Description**: `_update_surface_and_mark_dirty` sets `rect` from the 1x cached frame surface; a game that scales `sprite.image` itself (Papyrus) gets the right size back only because `apply_transparency_and_scale` runs straight after. Latent
 - **Status**: Active
@@ -250,7 +233,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Medium
 - **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
 - **Date Reported**: 2026-10-22
-- **Details**: Pinned: `tests/scenes/test_scene_rendering.py::TestSceneRenderingEdgeCases::test_scene_rendering_with_render_state_changes_manager`. Also: #142 makes `Scene.screenshot` black on displays with per-pixel alpha, so PauseScene's frozen backdrop is black on macOS (pinned on such displays: `TestSceneRendering::test_scene_rendering_with_surface_management_manager`)
+- **Details**: Pinned: `tests/scenes/test_scene_rendering.py::TestSceneRenderingEdgeCases::test_scene_rendering_with_render_state_changes_manager`. (The screenshot half, black on displays with per-pixel alpha, was #142, resolved)
 - **Files**: `glitchygames/scenes/scene.py`
 
 ### 168. Clicking a Film Strip's Empty Area Does Nothing in the Editor
@@ -443,6 +426,29 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see Details
 
 ## Resolved Bugs
+
+### 142. On Displays With Per-Pixel Alpha, Translucent Sprites Over a Bare Scene Background Do Not Blend
+- **Description**: The `Scene.background_color` setter added alpha 0 to an RGB colour. On displays with an alpha channel (cocoa) the restored background pixels had alpha 0, and pygame-ce's alpha blitter copied the source colour onto them instead of blending: foo2 in a Scene showed corner (255, 0, 255, 0) and an unblended body (80, 220, 120, 137) on cocoa, (20, 20, 40) and a blended (52, 127, 83) on dummy. The cocoa window shows a pixel with alpha 0 as black whatever its colour, so every scene with a background colour (PaddleSlap, Clockwork Keep, the text input demo, game over, pause, dialogs) presented black frames or black holes on macOS, and `Scene.screenshot` came out transparent, so the pause screen showed black where the frozen game should be
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Date Resolved**: 2026-10-22
+- **Root Cause**: Alpha 0 came in by the PR #87 "normalize to RGBA" change (nothing relied on a transparent scene background: no scene sets a four-component one). Underneath it, on a display with per-pixel alpha a plain `pygame.Surface(size)` (and `convert()`'s result) takes the display's format, alpha mask included, without the SRCALPHA flag: blitting such a surface copies its alpha unblended, and alpha-blending anything (text, a SRCALPHA copy) onto it leaves alpha 0 there. The dummy and x11 displays have no alpha channel, so none of this shows off macOS
+- **Solution**: A scene background is opaque: an RGB colour becomes RGBA with alpha 255, and a translucent colour (alpha below 255) raises `ValueError` (the background is the frame's bottom layer: nothing is under it to show through, and the drivers would disagree about how to show it). `glitchygames/opacity.py` (`has_per_pixel_alpha`, `make_opaque`: a `BLEND_RGBA_MAX` fill with opaque black, which raises alpha to 255 and keeps the colours, about 0.04 ms at 800x600) makes every presented frame opaque (`SceneManager._show_frame`), so the window shows the colours the dummy driver shows; the background patterns are made opaque (their text is blended); `Scene.screenshot` is opaque (opaque black, then a `BLEND_RGBA_MAX` blit of the screen: the screen's colours, unblended, as the presented frame shows them); `SliderSprite` copies its kept gradient back unblended (`set_alpha(None)`), and `TabControlSprite` and `InputBox` make their images opaque after drawing their text. The test display guard judges what the window shows (`display_looks_entirely_black`: on a display with per-pixel alpha a pixel looks black when its colour or its alpha is 0), and the conftest teardown that sets the display back to 800x600 presents the canvas, so no window is left black (under the last scene's caption, e.g. "Arrival v1.0") while a worker waits. A cocoa run (`SDL_VIDEODRIVER=cocoa`) of the whole suite went from 15 tests whose last frame looked entirely black (all alpha 0), 50 more with alpha-0 regions and 4 that presented black-looking frames, to none
+- **Tests**: `tests/test_opacity.py`; `tests/scenes/test_scene.py` (`TestSceneBackgroundColor`: opaque RGB and RGBA, translucent refused, non-RGB(A) refused, opaque on a per-pixel-alpha target; `TestSceneScreenshot`); `tests/scenes/test_scene_rendering.py::TestSceneBackgroundOpacity` (foo2's blend); `tests/test_display_canvas.py` (`TestTheBlackFrameCheck`, per-pixel-alpha surfaces built explicitly so it runs on dummy); `tests/effects/test_shake.py` and `tests/world/test_gameplay_replay.py::TestWatched` (presented frames opaque); `tests/ui/test_ui_sliders.py`, `test_ui_tab_control.py`, `test_ui_input.py` (images opaque in cocoa's format). The cocoa-only strict xfail `tests/scenes/test_scene_rendering.py::TestSceneRendering::test_scene_rendering_with_surface_management_manager` passes now (marker removed)
+- **Files**: `glitchygames/opacity.py`, `glitchygames/scenes/scene.py`, `glitchygames/backgrounds.py`, `glitchygames/ui/sliders.py`, `glitchygames/ui/inputs.py`, `glitchygames/scenes/builtin_scenes/pause_scene.py` (comment), `tests/conftest.py`, `tests/display_canvas.py`
+
+### 143. `Scene` Discards Its Converted Background
+- **Description**: `Scene.__init__` called `self.background.convert()` and threw the result away; `Scene.screenshot` did the same with `screenshot.convert()`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Date Resolved**: 2026-10-22
+- **Solution**: Both keep `convert()`'s result (`pygame.Surface(size).convert()`); the screenshot is also made opaque (#142). The same discarded `convert()` remains in `ui/inputs.py` (`InputBox.__init__`), `BitmappySprite.__init__` (#173.5) and `BitmappySprite.inflate`
+- **Tests**: `tests/scenes/test_scene.py` (background and screenshot tests), run on dummy and cocoa
+- **Files**: `glitchygames/scenes/scene.py`
 
 ### 181. Controller Mode Crashes After a Controller Is Replugged
 - **Description**: `ControllerEventManager` stored each controller under its device index (`self.controllers[controller_id]` at startup, `self.controllers[event.device_index]` on CONTROLLERDEVICEADDED) but looked it up by the event's instance id (`self.controllers[event.instance_id]` in every axis/button/touchpad handler). They are equal only until a device is replugged (SDL gives it a new instance id) or devices are opened out of order; then the first axis or button event raised KeyError

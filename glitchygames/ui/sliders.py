@@ -13,6 +13,7 @@ import pygame
 from pygame import Rect
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
+from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
 )
@@ -362,6 +363,10 @@ class SliderSprite(BitmappySprite):
                 color = (intensity, intensity, intensity)
             pygame.draw.line(self.image, color, (x, 0), (x, self.height))
         self._gradient = self.image.copy()
+        # Copied back, never blended: on a display with per-pixel alpha (cocoa) the image takes
+        # the display's format, and alpha-blending onto it leaves alpha 0, which the window
+        # shows as black (glitchygames/opacity.py)
+        self._gradient.set_alpha(None)
         self._gradient_drawn_on = self.image
         self._gradient_drawn_for = (self.width, self.height, self.name)
 
@@ -611,8 +616,9 @@ class TabControlSprite(BitmappySprite):
 
         """
         if self.dirty:
-            # Clear the surface
-            self.image.fill((0, 0, 0, 0))  # Transparent background
+            # Clear the surface to black: the image has no SRCALPHA flag, so it is copied onto
+            # the screen whole and was never transparent (alpha 0 only showed black on cocoa)
+            self.image.fill((0, 0, 0))
 
             # Draw tabs
             for i, tab_text in enumerate(self.tabs):
@@ -635,3 +641,7 @@ class TabControlSprite(BitmappySprite):
                 except pygame.error, AttributeError:
                     # Handle font loading errors gracefully
                     pass
+
+            # The text was alpha-blended onto the image, which leaves alpha 0 on a surface in the
+            # format of a display with per-pixel alpha (cocoa's): black holes in the window
+            make_opaque(surface=self.image)

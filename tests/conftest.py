@@ -36,10 +36,11 @@ from glitchygames.sprites import (
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
-    display_is_entirely_black,
+    display_looks_entirely_black,
     present_display,
     real_display_surface,
     show_canvas,
+    show_canvas_on_new_display,
 )
 from tests.signal_handlers import preserved_signal_handlers
 
@@ -109,8 +110,8 @@ def pytest_runtest_call(item):
 
     The test display rule (tests/display_canvas.py): a fixture that set a new display mode
     (a fresh, black display) and drew nothing gets the canvas again before the test body, and
-    after the body the display is presented and an entirely black last frame fails the test
-    (_fail_on_entirely_black_frame).
+    after the body the display is presented and a last frame that looks entirely black fails
+    the test (_fail_on_entirely_black_frame).
 
     Patching e.g. 'some.module.logging.getLogger' replaces logging.getLogger for the
     whole process, not just that module. pytest's own logging plugin calls
@@ -126,7 +127,7 @@ def pytest_runtest_call(item):
 
     """
     display_surface = real_display_surface()
-    if display_surface is not None and display_is_entirely_black(display_surface):
+    if display_surface is not None and display_looks_entirely_black(display_surface):
         show_canvas()
     try:
         result = yield
@@ -146,28 +147,35 @@ def pytest_runtest_call(item):
     return result
 
 
-def _fail_on_entirely_black_frame(*, item: pytest.Item) -> None:
-    """Fail a test whose last frame is entirely black: a rendering bug (the test display rule).
+def _fail_on_entirely_black_frame(
+    *, item: pytest.Item, display_surface: pygame.Surface | None = None
+) -> None:
+    """Fail a test whose last frame looks entirely black: a rendering bug (the display rule).
 
     Every test starts on the canvas pattern (ensure_pygame_graceful_quit), so a black display at
     the end of the test body was drawn, or set up, by the test. This runs in pytest_runtest_call,
     before fixture teardown, so no teardown step can leave a black frame behind to trip it.
-    A test whose last frame is black by definition opts out with
-    @pytest.mark.black_frame_expected(reason=...).
+    It judges what the window shows (display_looks_entirely_black): on a display with per-pixel
+    alpha (cocoa's) alpha 0 shows black whatever the colour. A test whose last frame is black by
+    definition opts out with @pytest.mark.black_frame_expected(reason=...).
 
     Args:
         item: The test that just ran.
+        display_surface: The frame judged; None for the real display (tests of the guard pass
+            a surface with per-pixel alpha, which the dummy display does not have).
 
     """
     if item.get_closest_marker(BLACK_FRAME_EXPECTED_MARKER) is not None:
         return
-    display_surface = real_display_surface()
-    if display_surface is None or not display_is_entirely_black(display_surface):
+    if display_surface is None:
+        display_surface = real_display_surface()
+    if display_surface is None or not display_looks_entirely_black(display_surface):
         return
     pytest.fail(
-        f"rendering bug: the test's last frame is entirely black ({item.nodeid}). Tests start "
-        'on the canvas pattern and scenes that set no background show it (tests/'
-        'display_canvas.py); something in this test drew black over everything.',
+        f"rendering bug: the test's last frame looks entirely black ({item.nodeid}). Tests "
+        'start on the canvas pattern and scenes that set no background show it (tests/'
+        'display_canvas.py); something in this test drew black (or, on a display with '
+        'per-pixel alpha, alpha 0) over everything.',
         pytrace=False,
     )
 
@@ -178,7 +186,7 @@ def pytest_configure(config):
     # The no_unhandled_events flag is enabled globally in mock_game fixture
     config.addinivalue_line(
         'markers',
-        f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame is entirely black by "
+        f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame looks entirely black by "
         'definition (e.g. a fade to black), so the black-frame guard skips it',
     )
 
@@ -413,7 +421,7 @@ def ensure_pygame_graceful_quit():
     800x600 display are started again if a test quit them, and the canvas is drawn and presented
     (the test display rule, tests/display_canvas.py). After each test, every mixer
     channel is stopped, so no sound plays on into the next test (audibly, on a real audio
-    driver), and a display a test resized is set back to the default size.
+    driver), and a display a test resized is set back to the default size, showing the canvas.
     """
     import pygame
 
@@ -434,4 +442,7 @@ def ensure_pygame_graceful_quit():
     with contextlib.suppress(pygame.error):
         surface = pygame.display.get_surface() if pygame.get_init() else None
         if surface is not None and surface.get_size() != TEST_DISPLAY_SIZE:
-            pygame.display.set_mode(TEST_DISPLAY_SIZE)
+            # Shown at once: a window set_mode resizes is black until presented, and on a real
+            # driver it would stay black (under the last scene's caption) while the worker waits
+            # for its next test, or for the run to end
+            show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)

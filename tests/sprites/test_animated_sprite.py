@@ -2782,9 +2782,9 @@ blue = 30
     def test_keyed_magenta_is_not_written_over_a_destination_without_alpha(self, tmp_path):
         """Keyed pixels leave a destination pixel of alpha 0 untouched.
 
-        A display with an alpha channel (cocoa) holds the scene background at alpha 0; a
-        per-pixel alpha source copies its color onto such pixels instead of blending, but
-        colorkeyed pixels are skipped.
+        A surface with an alpha channel can hold pixels at alpha 0 (cocoa's display held the
+        scene background so until BUGS.md #142); a per-pixel alpha source copies its color onto
+        such pixels instead of blending, but colorkeyed pixels are skipped.
         """
         sprite = self._load_sprite(tmp_path=tmp_path, toml_content=self.INDEXED_SPRITE_TOML)
         destination = pygame.Surface(sprite.image.get_size(), pygame.SRCALPHA)

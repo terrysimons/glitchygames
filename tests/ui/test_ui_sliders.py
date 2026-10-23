@@ -690,6 +690,22 @@ class TestSliderSpriteWithRealSurfaces:
         """
         return SliderSprite(x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT)
 
+    def test_the_kept_gradient_repaints_the_image_opaque_in_the_cocoa_format(self, slider):
+        """The kept gradient is copied back, never blended: blending left alpha 0 on cocoa."""
+        cocoa_format_image = pygame.Surface(
+            (TEST_WIDTH, TEST_HEIGHT),
+            depth=32,
+            masks=(0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000),
+        )
+        slider.image = cocoa_format_image
+        slider.update()  # Draws the gradient column by column and keeps a copy
+        gradient_colours = pygame.image.tobytes(slider.image, 'RGB')
+
+        slider.update()  # Repaints the image from the kept copy
+
+        assert pygame.image.tobytes(slider.image, 'RGB') == gradient_colours
+        assert (pygame.surfarray.array_alpha(slider.image) == 255).all()
+
     def test_typing_a_key_that_is_not_a_hex_digit_is_ignored(self, slider):
         slider.text_sprite.is_active = True
         slider.text_sprite.text = '1'

@@ -625,6 +625,15 @@ sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-moti
 for retro/platformer games), shared by sprites, collision and the debug overlay. A scene picks its
 mode with `Scene.PIXEL_SNAP_MODE`; a sprite may override it with `pixel_snap_mode` (the ball does).
 
+**Opaque frames** (`glitchygames/opacity.py`, BUGS.md #142): on macOS (cocoa) the display has
+per-pixel alpha and the window shows alpha 0 as black; a plain `pygame.Surface(size)` there takes
+the display's format (alpha mask, no SRCALPHA flag), so blending text onto it leaves alpha 0 and
+blitting it copies that alpha. The scene background is opaque (`background_color` refuses alpha
+below 255), `Scene.screenshot` is opaque, and `SceneManager._show_frame` runs `make_opaque` on the
+display before every present. The test guard judges what the window shows
+(`display_looks_entirely_black`); check rendering on the real driver with
+`SDL_VIDEODRIVER=cocoa uv run pytest`.
+
 ### Event System
 
 **Event Flow**: `active_sources().pump_events()` (live: `pygame.event.get()`) → `GameEngine.process_events()` → `EVENT_HANDLERS[type]()` → `SceneManager.on_*_event()` → `Scene.on_*_event()` → `Sprite.on_*_event()`

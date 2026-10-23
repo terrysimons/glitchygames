@@ -56,8 +56,8 @@ class PauseScene(Scene):
         """
         super().__init__(**kwargs)
         # Black under the overlay (named: a scene that sets no background shows the test
-        # pattern). On displays with per-pixel alpha the frozen screenshot can be translucent
-        # (BUGS.md #142), so what is under the overlay shows through it
+        # pattern), so the pause screen's own background is never the pattern wherever the
+        # frozen screenshot does not cover it (a custom screenshot may be smaller)
         self.background_color = BLACK
         self.overlay = None
         self._space_pressed = False

@@ -17,7 +17,7 @@ from tests.display_canvas import (
     TEST_CANVAS_VARIABLE,
     TEST_DISPLAY_SIZE,
     canvas_color_at,
-    display_is_entirely_black,
+    display_looks_entirely_black,
     real_display_surface,
     show_canvas,
     show_canvas_on_new_display,
@@ -77,14 +77,14 @@ class TestTheCanvas:
 
 
 class TestTheBlackFrameCheck:
-    """display_is_entirely_black, and the guard that fails a test ending on black."""
+    """display_looks_entirely_black, and the guard failing a test that ends looking black."""
 
     def test_black_is_entirely_black(self):
         """A display filled black is entirely black."""
         surface = pygame.Surface((32, 24))
         surface.fill(BLACK_RGB)
 
-        assert display_is_entirely_black(surface)
+        assert display_looks_entirely_black(surface)
 
     def test_a_few_dim_pixels_are_not_black(self):
         """A dim pixel the average rounds away is still found, pixel by pixel."""
@@ -93,7 +93,48 @@ class TestTheBlackFrameCheck:
         surface.set_at((799, 599), DIM_GREY)
 
         assert pygame.transform.average_color(surface)[:3] == BLACK_RGB
-        assert not display_is_entirely_black(surface)
+        assert not display_looks_entirely_black(surface)
+
+    def test_colours_under_alpha_0_look_black(self):
+        """On a display with per-pixel alpha (cocoa's) the window shows alpha 0 as black.
+
+        Built as a SRCALPHA surface so the rule is tested on the dummy driver too.
+        """
+        surface = pygame.Surface((32, 24), pygame.SRCALPHA)
+        surface.fill((200, 100, 50, 0))
+
+        assert display_looks_entirely_black(surface)
+
+    def test_one_coloured_pixel_under_alpha_0_still_looks_black(self):
+        """An opaque black frame whose only colour has alpha 0 looks entirely black."""
+        surface = pygame.Surface((800, 600), pygame.SRCALPHA)
+        surface.fill((*BLACK_RGB, 255))
+        surface.set_at((5, 5), (200, 100, 50, 0))
+
+        assert display_looks_entirely_black(surface)
+
+    def test_one_visible_pixel_among_transparent_ones_does_not_look_black(self):
+        """A coloured pixel with any alpha shows; the rest of the frame looking black is fine."""
+        surface = pygame.Surface((800, 600), pygame.SRCALPHA)
+        surface.fill((200, 100, 50, 0))
+        surface.set_at((799, 599), (*DIM_GREY, 1))
+
+        assert not display_looks_entirely_black(surface)
+
+    def test_an_opaque_coloured_frame_with_per_pixel_alpha_does_not_look_black(self):
+        """The usual frame on cocoa: opaque colours (alpha 255 everywhere)."""
+        surface = pygame.Surface((32, 24), pygame.SRCALPHA)
+        surface.fill((*DIM_GREY, 255))
+
+        assert not display_looks_entirely_black(surface)
+
+    def test_the_guard_fails_a_frame_that_only_looks_black(self, request):
+        """The guard judges what the window shows: colours under alpha 0 are a black frame."""
+        transparent_frame = pygame.Surface(TEST_DISPLAY_SIZE, pygame.SRCALPHA)
+        transparent_frame.fill((200, 100, 50, 0))
+
+        with pytest.raises(pytest.fail.Exception, match='looks entirely black'):
+            _fail_on_entirely_black_frame(item=request.node, display_surface=transparent_frame)
 
     def test_the_guard_fails_a_test_whose_last_frame_is_black(self, request):
         """The guard fails with the rendering-bug message when the display is all black."""

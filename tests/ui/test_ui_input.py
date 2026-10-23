@@ -44,6 +44,19 @@ def input_box():
     )
 
 
+def _surface_in_cocoa_format(size):
+    """A surface in the format a plain pygame.Surface takes on cocoa: alpha mask, no SRCALPHA.
+
+    Alpha-blending text onto such a surface leaves alpha 0, which the window shows as black
+    (glitchygames/opacity.py). Built explicitly, so the rule is tested on the dummy driver too.
+
+    Returns:
+        pygame.Surface: The surface.
+
+    """
+    return pygame.Surface(size, depth=32, masks=(0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000))
+
+
 @pytest.fixture
 def key_repeat_off():
     """Turn key repeat off for the test and restore the previous setting after it.
@@ -249,6 +262,17 @@ class TestInputBoxDrawing:
         assert (with_cursor[changed] == INPUT_BOX_COLOR).all()
         # The cursor is 3 px wide
         assert np.flatnonzero(changed.any(axis=1)).size == input_box.cursor.width
+
+    def test_the_image_stays_opaque_under_its_text_in_the_cocoa_format(self, input_box):
+        """The text is blended onto the image, which is then opaque: no black hole on cocoa."""
+        input_box.image = _surface_in_cocoa_format((TEST_INPUT_WIDTH, TEST_INPUT_HEIGHT))
+        input_box.text = 'hello'
+        input_box.render()
+
+        input_box.update()
+
+        assert (pygame.surfarray.array_alpha(input_box.image) == 255).all()
+        assert _interior_text_pixel_count(input_box) > 0
 
     def test_inactive_box_draws_no_cursor(self, input_box, mocker):
         mocker.patch('glitchygames.ui.inputs.frame_clock_seconds', return_value=0.75)

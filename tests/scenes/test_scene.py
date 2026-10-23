@@ -17,6 +17,7 @@ from glitchygames.color import BLUE, RED
 from glitchygames.events import ALL_EVENTS, FPSEVENT
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.interfaces import SceneInterface
+from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
@@ -175,23 +176,25 @@ class TestScene:
         # No colour until one is set: the background shows the default pattern
         assert scene.background_color is None
 
-        # Test setting background color (RGB gets normalized to RGBA with alpha=0)
+        # An RGB colour is normalized to opaque RGBA
         scene.background_color = RED
-        assert scene.background_color == (*RED, 0)
+        assert scene.background_color == (*RED, OPAQUE)
         # A colour replaces the pattern
         assert scene.background_pattern is None
-        # The background surface is filled with it (RGB: alpha 0 is BUGS.md #142's subject)
+        # The background surface is filled with it, opaque (alpha 0 showed black on cocoa,
+        # BUGS.md #142)
         background_pixels = pygame.surfarray.pixels3d(scene.background)
         assert (background_pixels == RED[:3]).all()
         del background_pixels  # release the background's pixel lock
+        assert scene.background.get_at((0, 0)) == (*RED, OPAQUE)
 
     def test_scene_background_color_setter(self, mocker):
         """Test Scene background_color setter."""
         scene = Scene()
 
-        # Test setting background color (RGB gets normalized to RGBA with alpha=0)
+        # An RGB colour is normalized to opaque RGBA
         scene.background_color = BLUE
-        assert scene.background_color == (*BLUE, 0)
+        assert scene.background_color == (*BLUE, OPAQUE)
 
     def test_scene_setup_method(self, mocker):
         """Test Scene setup method."""
@@ -2481,6 +2484,32 @@ class TestSceneBackgroundPattern:
         )
 
 
+class TestSceneScreenshot:
+    """Scene.screenshot: what the presented frame shows."""
+
+    def test_the_screenshot_of_a_screen_with_per_pixel_alpha_is_opaque(self):
+        """Transparent and translucent screen pixels keep their colours, opaque (BUGS.md #142).
+
+        The screenshot shows what the presented frame shows (the display is made opaque
+        before each present, glitchygames/opacity.py), never alpha 0 (black on cocoa). The
+        screen is a per-pixel-alpha surface built explicitly, so this holds on dummy too.
+        """
+        scene = Scene()
+        screen_with_alpha = pygame.Surface(
+            (scene.screen_width, scene.screen_height), pygame.SRCALPHA
+        )
+        screen_with_alpha.fill((*BLUE, 0))
+        screen_with_alpha.set_at((1, 1), (200, 100, 50, 128))
+        scene.screen = screen_with_alpha
+
+        screenshot = scene.screenshot
+
+        assert screenshot.get_at((0, 0)) == (*BLUE, OPAQUE)
+        assert screenshot.get_at((1, 1)) == (200, 100, 50, OPAQUE)
+        if has_per_pixel_alpha(surface=screenshot):
+            assert (pygame.surfarray.array_alpha(screenshot) == OPAQUE).all()
+
+
 class TestSceneBackgroundColor:
     """Test Scene.background_color property."""
 
@@ -2489,20 +2518,58 @@ class TestSceneBackgroundColor:
         scene = Scene()
         assert scene.background_color is None
         scene.background_color = BLUE
-        assert scene.background_color == (*BLUE, 0)
+        assert scene.background_color == (*BLUE, OPAQUE)
 
     def test_background_color_setter(self):
         """Test background_color setter updates the color."""
         scene = Scene()
-        # RGB gets normalized to RGBA with alpha=0
+        # RGB gets normalized to opaque RGBA
         scene.background_color = (255, 0, 0)
-        assert scene.background_color == (255, 0, 0, 0)
+        assert scene.background_color == (255, 0, 0, OPAQUE)
 
-    def test_an_rgba_background_color_keeps_its_alpha(self):
-        """An RGBA colour is kept as given; only RGB colours get alpha 0 appended."""
+    def test_an_opaque_rgba_background_color_is_kept(self):
+        """An RGBA colour with alpha 255 is kept as given."""
         scene = Scene()
-        scene.background_color = (*RED, 255)
-        assert scene.background_color == (*RED, 255)
+        scene.background_color = (*RED, OPAQUE)
+        assert scene.background_color == (*RED, OPAQUE)
+
+    @pytest.mark.parametrize('alpha', [0, 128, 254])
+    def test_a_translucent_background_color_is_refused(self, alpha):
+        """The background is the frame's bottom layer: nothing is under it to show through.
+
+        A translucent colour would be shown opaque by the dummy and x11 drivers and as black
+        (alpha 0) or darkened on cocoa, so it is refused and the background is left as it was.
+        """
+        scene = Scene()
+        scene.background_color = BLUE
+
+        with pytest.raises(ValueError, match=f'must be opaque: .* has alpha {alpha},'):
+            scene.background_color = (*RED, alpha)
+
+        assert scene.background_color == (*BLUE, OPAQUE)
+        assert scene.background.get_at((0, 0)) == (*BLUE, OPAQUE)
+
+    def test_a_background_color_that_is_not_rgb_or_rgba_is_refused(self):
+        """A colour of neither three nor four components is refused with its value."""
+        scene = Scene()
+
+        with pytest.raises(ValueError, match=r'\(1, 2\)'):
+            scene.background_color = (1, 2)
+
+    def test_the_background_copies_opaque_onto_a_surface_with_per_pixel_alpha(self):
+        """Rendering onto a transparent per-pixel-alpha surface leaves it opaque (BUGS.md #142).
+
+        Built explicitly so the rule holds on the dummy driver too, whose display has no alpha.
+        """
+        scene = Scene()
+        scene.background_color = BLUE
+        target = pygame.Surface(scene.background.get_size(), pygame.SRCALPHA)
+        target.fill((0, 0, 0, 0))
+
+        scene.render(target)
+
+        assert target.get_at((0, 0)) == (*BLUE, OPAQUE)
+        assert (pygame.surfarray.array_alpha(target) == OPAQUE).all()
 
 
 class TestSceneUpdate:

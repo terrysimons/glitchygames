@@ -37,6 +37,7 @@ from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
+from glitchygames.opacity import OPAQUE
 from glitchygames.process import run_command
 from glitchygames.recording import (
     EXTERNAL_ORIGIN,
@@ -2826,7 +2827,9 @@ class TestWatched:
         Real video drivers (cocoa) give the display surface per-pixel alpha, and a scene's
         pixels can hold alpha below 255 (a background Surface starts at alpha 0): blending the
         clean copy back then left the status bar in the frame screenshots and dirty-rect
-        updates use. A per-pixel alpha screen with alpha-0 pixels shows it on any driver.
+        updates use. A per-pixel alpha screen with alpha-0 pixels shows it on any driver. The
+        frame comes back with its colours, opaque: every presented frame is made opaque first,
+        since the window shows alpha 0 as black (glitchygames/opacity.py).
         """
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -2834,11 +2837,12 @@ class TestWatched:
         alpha_screen = pygame.Surface(manager.screen.get_size(), pygame.SRCALPHA)
         alpha_screen.fill((10, 20, 30, 0))
         manager.screen = alpha_screen
-        clean_frame = pygame.image.tobytes(alpha_screen, 'RGBA')
+        clean_frame_colours = pygame.image.tobytes(alpha_screen, 'RGB')
 
         manager._present_held_frame()
 
-        assert pygame.image.tobytes(alpha_screen, 'RGBA') == clean_frame
+        assert pygame.image.tobytes(alpha_screen, 'RGB') == clean_frame_colours
+        assert (pygame.surfarray.array_alpha(alpha_screen) == OPAQUE).all()
         GoldenTraceSceneManager.uninstall()
 
 

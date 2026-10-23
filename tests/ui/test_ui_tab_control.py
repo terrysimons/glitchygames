@@ -23,6 +23,19 @@ TEST_TAB_COUNT = 2
 TAB_WIDTH = TEST_WIDTH // TEST_TAB_COUNT
 
 
+def _surface_in_cocoa_format(size):
+    """A surface in the format a plain pygame.Surface takes on cocoa: alpha mask, no SRCALPHA.
+
+    Alpha-blending text onto such a surface leaves alpha 0, which the window shows as black
+    (glitchygames/opacity.py). Built explicitly, so the rule is tested on the dummy driver too.
+
+    Returns:
+        pygame.Surface: The surface.
+
+    """
+    return pygame.Surface(size, depth=32, masks=(0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000))
+
+
 class _TabParent:
     """A slider-like parent that records the tab changes it is told about."""
 
@@ -318,3 +331,13 @@ class TestTabControlSpriteWithRealSurfaces:
 
         assert pygame.image.tobytes(tab_control.image, 'RGBA') != drawn_pixels
         assert tab_control.image.get_at((0, 0)) == (1, 2, 3, 255)
+
+    def test_the_image_stays_opaque_under_its_text_in_the_cocoa_format(self):
+        """The tab text is blended onto the image, which is then opaque: no black on cocoa."""
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=_TabParent())
+        tab_control.image = _surface_in_cocoa_format((TEST_WIDTH, TEST_HEIGHT))
+        tab_control.dirty = 1
+
+        tab_control.update()
+
+        assert (pygame.surfarray.array_alpha(tab_control.image) == 255).all()

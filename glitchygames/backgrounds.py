@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from glitchygames.opacity import make_opaque
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -258,6 +260,9 @@ def background_pattern_surface(
     """
     surface = pygame.Surface(size)
     PATTERN_DRAWERS[pattern](surface=surface)
+    # Text is alpha-blended onto it, which leaves alpha 0 on a surface in the format of a
+    # display with per-pixel alpha (cocoa's): black holes in the window (glitchygames/opacity.py)
+    make_opaque(surface=surface)
     return surface
 
 

@@ -17,7 +17,7 @@ from glitchygames.backgrounds import (
 from glitchygames.camera import Camera2D
 from glitchygames.clock import frame_clock_seconds, measured_seconds
 from glitchygames.collision import CollisionManager
-from glitchygames.color import RGB_COMPONENT_COUNT
+from glitchygames.color import BLACK, RGB_COMPONENT_COUNT, RGBA_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.debug.overlay import OVERLAY_KEYS
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
@@ -35,6 +35,7 @@ from glitchygames.input.state import (
 )
 from glitchygames.instant_replay import InstantReplayJournal
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
 from glitchygames.recording import (
@@ -1342,6 +1343,11 @@ class SceneManager(SceneInterface, events.EventManager):
                 configured update type.
 
         """
+        if self.screen is not None:
+            # Every presented frame is opaque: on a display with per-pixel alpha (cocoa) the
+            # window shows alpha 0 as black, so a pixel copied from a surface carrying alpha 0
+            # would be a black hole only on macOS (glitchygames/opacity.py, BUGS.md #142)
+            make_opaque(surface=self.screen)
         # The overlay also draws during transitions (it reflects active_scene); captures stay clean
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
@@ -2812,8 +2818,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         self.screen = pygame.display.get_surface()
         assert self.screen is not None
-        self.background = pygame.Surface(self.screen.get_size())
-        self.background.convert()
+        # In the display's format (BUGS.md #143: convert() returns the converted surface)
+        self.background = pygame.Surface(self.screen.get_size()).convert()
         # A scene that sets no background shows the default pattern (glitchygames/backgrounds.py)
         # instead of black, which cannot be told from "nothing rendered"
         self.background_pattern = active_default_background_pattern()
@@ -2918,9 +2924,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         assert self.screen is not None
-        screenshot = pygame.Surface((self.screen_width, self.screen_height))
-        screenshot.convert()
-        screenshot.blit(self.screen, (0, 0))
+        # In the display's format (BUGS.md #143: convert() returns the converted surface)
+        screenshot = pygame.Surface((self.screen_width, self.screen_height)).convert()
+        # Opaque black, then the channel-wise maximum with the screen: its red, green and blue
+        # are copied unblended and every pixel stays opaque, as the presented frame shows them
+        # (glitchygames/opacity.py). A plain blit would blend away colours under alpha 0, and on
+        # a display with per-pixel alpha (cocoa) leave alpha 0 behind: a black screenshot
+        # (BUGS.md #142)
+        screenshot.fill(BLACK)
+        screenshot.blit(self.screen, (0, 0), special_flags=pygame.BLEND_RGBA_MAX)
         return screenshot
 
     @property
@@ -2938,14 +2950,29 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def background_color(self: Self, new_color: tuple[int, ...]) -> None:
         """Set the background color.
 
-        Normalizes RGB colors to RGBA by appending alpha=0 (fully transparent background).
+        The background is the frame's bottom layer, so it is opaque: an RGB colour is
+        normalized to RGBA with alpha 255. A translucent colour is refused: nothing is under the
+        background to show through it, so the dummy and x11 drivers would show it opaque while
+        cocoa, whose display has per-pixel alpha, shows alpha 0 as black (BUGS.md #142).
 
         Args:
-            new_color (tuple[int, ...]): The new background color (RGB or RGBA).
+            new_color (tuple[int, ...]): The new background color (RGB, or RGBA with alpha 255).
+
+        Raises:
+            ValueError: The colour is translucent, or has neither three nor four components.
 
         """
         if len(new_color) == RGB_COMPONENT_COUNT:
-            new_color = (*new_color, 0)
+            new_color = (*new_color, OPAQUE)
+        if len(new_color) != RGBA_COMPONENT_COUNT:
+            message = f'A scene background colour is RGB or RGBA, not {new_color!r}'
+            raise ValueError(message)
+        if new_color[-1] != OPAQUE:
+            message = (
+                f'A scene background colour must be opaque: {new_color!r} has alpha '
+                f'{new_color[-1]}, and nothing is under the background to show through it'
+            )
+            raise ValueError(message)
         self._background_color = new_color
         self._background_pattern = None
         assert self._background_color is not None

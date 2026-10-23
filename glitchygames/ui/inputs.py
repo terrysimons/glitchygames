@@ -15,6 +15,7 @@ from glitchygames.clock import frame_clock_seconds
 from glitchygames.fonts import FontManager, GameFont
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import current_input
+from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
     Sprite,
@@ -169,6 +170,10 @@ class InputBox(Sprite):
             self.cursor.midleft = self.cursor_rect.midright
 
             pygame.draw.rect(self.image, self.color, self.cursor)
+
+        # The text was alpha-blended onto the image, which leaves alpha 0 on a surface in the
+        # format of a display with per-pixel alpha (cocoa's): a black hole in the window
+        make_opaque(surface=self.image)
 
     @override
     def render(self: Self, screen: pygame.Surface | None = None) -> None:

@@ -21,6 +21,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.scenes import Scene, SceneManager
 
 SCREEN_SIZE = (800, 600)
@@ -29,6 +30,8 @@ OTHER_BACKGROUND = (0, 0, 99)
 SPRITE_COLOR = (0, 255, 0)
 TOP_SPRITE_COLOR = (255, 0, 255)
 MARKER_COLOR = (250, 250, 0)
+TRANSLUCENT_SPRITE_COLOR = (80, 220, 120)
+TRANSLUCENT_SPRITE_ALPHA = 137
 
 
 def _rgb_at(surface: pygame.Surface, position: tuple[int, int]) -> tuple[int, int, int]:
@@ -63,17 +66,6 @@ class SolidSprite(pygame.sprite.DirtySprite):
 
     def update_nested_sprites(self):
         """Update no nested sprites (this sprite has none)."""
-
-
-def _display_has_per_pixel_alpha() -> bool:
-    """Return whether the display has an alpha channel (cocoa's does; dummy's and x11's not).
-
-    Returns:
-        bool: True when the display surface has per-pixel alpha.
-
-    """
-    surface = pygame.display.get_surface()
-    return surface is not None and surface.get_masks()[3] != 0
 
 
 def _solid_sprite(
@@ -334,21 +326,8 @@ class TestSceneRendering:
         assert (scene.screen_width, scene.screen_height) == SCREEN_SIZE
         assert _count_rgb(scene.background, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
-    def test_scene_rendering_with_surface_management_manager(self, display, request):
+    def test_scene_rendering_with_surface_management_manager(self, display):
         """A screenshot is a copy of the display: later drawing does not change it."""
-        if _display_has_per_pixel_alpha():
-            # Decided here, not at collection: the display is open only once tests run
-            request.applymarker(
-                pytest.mark.xfail(
-                    strict=True,
-                    reason=(
-                        'BUGS.md #142 family: on a display with per-pixel alpha (cocoa) the bare'
-                        ' background has alpha 0, and Scene.screenshot blends the display onto'
-                        ' an opaque surface, so the screenshot comes out black (PauseScene'
-                        ' shows it)'
-                    ),
-                )
-            )
         scene = _scene_with_background(BACKGROUND)
         self.scene_manager.switch_to_scene(scene)
 
@@ -470,3 +449,41 @@ class TestSceneRenderingEdgeCases:
 
         assert _count_rgb(display, SPRITE_COLOR) == 10 * 10
         assert _rgb_at(display, (799, 599)) == SPRITE_COLOR
+
+
+class TestSceneBackgroundOpacity:
+    """The scene background is opaque, so sprites blend over it (BUGS.md #142)."""
+
+    def test_a_translucent_sprite_blends_over_the_bare_background(self, display):
+        """BUGS.md #142: the background is opaque, so a translucent sprite blends over it.
+
+        With an alpha-0 background, a display with per-pixel alpha (cocoa's) got the sprite's
+        colour copied unblended, and the background pixels showed black in the window.
+        """
+        scene = _scene_with_background(BACKGROUND)
+        translucent_sprite = SolidSprite()
+        translucent_sprite.image = pygame.Surface((20, 10), pygame.SRCALPHA)
+        translucent_sprite.image.fill((*TRANSLUCENT_SPRITE_COLOR, TRANSLUCENT_SPRITE_ALPHA))
+        translucent_sprite.rect = pygame.Rect(100, 100, 20, 10)
+        translucent_sprite.dirty = 1
+        scene.all_sprites.add(translucent_sprite)
+
+        scene.render(display)
+
+        blended_color = tuple(
+            round(
+                sprite_channel * TRANSLUCENT_SPRITE_ALPHA / 255
+                + background_channel * (255 - TRANSLUCENT_SPRITE_ALPHA) / 255
+            )
+            for sprite_channel, background_channel in zip(
+                TRANSLUCENT_SPRITE_COLOR, BACKGROUND, strict=True
+            )
+        )
+        for channel, expected_channel in zip(
+            _rgb_at(display, (105, 105)), blended_color, strict=True
+        ):
+            # pygame's blitter divides by 256, not 255: within one step of the exact blend
+            assert abs(channel - expected_channel) <= 1
+        if has_per_pixel_alpha(surface=display):
+            assert display.get_at((105, 105)).a == OPAQUE
+            assert display.get_at((0, 0)).a == OPAQUE

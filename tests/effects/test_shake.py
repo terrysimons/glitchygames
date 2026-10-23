@@ -14,6 +14,7 @@ from glitchygames.effects.shake import (
     ShakeAxis,
     ShakeStyle,
 )
+from glitchygames.opacity import OPAQUE
 from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from glitchygames.scenes import SceneManager
 
@@ -378,7 +379,8 @@ class TestScreenShakePresentation:
         """A shaken frame with per-pixel alpha is presented shifted, not blended away.
 
         Real video drivers (cocoa) give the display per-pixel alpha: pixels below 255 must
-        still reach the presented frame, not blend into the border fill.
+        still reach the presented frame with their colours, not blend into the border fill,
+        and opaque, since the window shows alpha 0 as black (glitchygames/opacity.py).
         """
         manager, flip, _update = scene_manager_with_screen
         manager.screen = pygame.Surface(manager.screen.get_size(), pygame.SRCALPHA)
@@ -401,8 +403,8 @@ class TestScreenShakePresentation:
 
         flip.side_effect = capture_flip
         manager._present_frame(full_update=False)
-        assert presented == {'marker': (255, 0, 0, 0), 'frame': (0, 0, 255, 0)}
-        assert tuple(manager.screen.get_at((10, 10))) == (255, 0, 0, 0)
+        assert presented == {'marker': (255, 0, 0, OPAQUE), 'frame': (0, 0, 255, OPAQUE)}
+        assert tuple(manager.screen.get_at((10, 10))) == (255, 0, 0, OPAQUE)
 
     def test_first_frame_after_shake_is_a_full_flip(self, scene_manager_with_screen):
         manager, flip, update = scene_manager_with_screen
