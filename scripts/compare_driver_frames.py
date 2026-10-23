@@ -2,8 +2,10 @@ r"""Compare the frames tests presented on different SDL video drivers (or in rep
 
 The runs are recorded by the frame fingerprints plugin (glitchygames/testing/frame_fingerprints.py,
 loaded with ``-p glitchygames.testing.frame_fingerprints --frame-fingerprints DIRECTORY``); each
-run is named ``LABEL=DIRECTORY``, the label being its driver. ``nox -s compare-drivers`` runs the
-whole comparison (two dummy runs, one real-driver run, then images of the differences).
+run is named ``LABEL=DIRECTORY``, the label being its driver. Every local pytest run uses it to
+compare the dummy driver with the native one (tests/driver_comparison.py); ``nox -s
+compare-drivers`` compares every configuration with every other (scripts/driver_frame_matrix.py,
+built on this module's comparisons).
 
 Two commands:
 
@@ -56,7 +58,7 @@ from glitchygames.testing.frame_fingerprints import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
 # Differing pixels in a difference image, and how bright the baseline frame shows under them
 DIFFERENCE_COLOR = (255, 0, 255)
@@ -448,15 +450,34 @@ def image_request_for(*, drivers: Sequence[DriverComparison]) -> FrameImageReque
         The request, by node id.
 
     """
+    return image_request_for_differences(
+        differences=[difference for driver in drivers for difference in driver.differences]
+    )
+
+
+def image_request_for_differences(
+    *, differences: Iterable[FrameSequenceDifference]
+) -> FrameImageRequest:
+    """Name the frames to save in a re-run of the tests these differences are in.
+
+    Each difference's first differing frame (in both runs) and both runs' final frames; a test
+    in several differences (several driver pairs) has all their frames.
+
+    Args:
+        differences: The differences.
+
+    Returns:
+        The request, by node id.
+
+    """
     positions_by_test: dict[str, set[int]] = {}
-    for driver in drivers:
-        for difference in driver.differences:
-            positions_by_test.setdefault(difference.nodeid, set()).update({
-                difference.baseline_position,
-                difference.candidate_position,
-                difference.baseline_frame_count - 1,
-                difference.candidate_frame_count - 1,
-            })
+    for difference in differences:
+        positions_by_test.setdefault(difference.nodeid, set()).update({
+            difference.baseline_position,
+            difference.candidate_position,
+            difference.baseline_frame_count - 1,
+            difference.candidate_frame_count - 1,
+        })
     return FrameImageRequest(
         positions_by_test={
             nodeid: tuple(sorted(positions))

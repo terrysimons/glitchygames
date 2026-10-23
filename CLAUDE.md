@@ -17,6 +17,14 @@ uv sync --extra dev
 
 # Install with all extras
 uv sync --all-extras
+
+# Optional: trust the project's .envrc (direnv); on entering the repo it runs
+# `uv sync --all-extras --all-groups` (the locked versions) and, on macOS, installs PulseAudio with
+# Homebrew (sound from the Linux test container, nox -s test-linux-x11)
+direnv allow
+
+# Upgrade dependencies deliberately, then review the uv.lock change
+uv sync --upgrade --all-extras --all-groups
 ```
 
 ## Common Commands
@@ -89,8 +97,9 @@ nox -s static-analysis-ty           # Run ty only
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
-nox -s test-linux-x11      # Tests on Linux in Docker with real X11 windows on XQuartz (macOS; see its docstring)
-nox -s compare-drivers     # On demand: dummy twice (nondeterminism) + native, PNG diffs; `-- tests/x` selects, `-- --driver x11` (macOS: in test-linux-x11's container)
+nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
+nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
+nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)
@@ -759,8 +768,11 @@ Features:
   `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` (that driver alone), and on Linux without a display. A test
   whose frames legitimately differ between runs or drivers (measured frame times, the live
   window's mouse focus) carries `@pytest.mark.frames_vary(reason=...)`: listed, not compared.
-  `nox -s compare-drivers` is the on-demand deeper check (two dummy runs to find nondeterministic
-  tests, reports without failing)
+  `nox -s compare-drivers` is the on-demand deeper check: an N-way matrix of dummy (run twice to
+  find nondeterministic tests), the native driver, `x11-macos` (x11 on XQuartz through an SDL
+  built with x11, `scripts/build_sdl_x11.py`) and `x11-linux` (Docker, forwarded to XQuartz);
+  it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing
+  (`docs/quality/driver_comparison.md`)
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
   canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)

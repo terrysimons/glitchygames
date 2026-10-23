@@ -1,8 +1,9 @@
 """Child processes: ``run_command`` and ``start_command``, the engine's child-process launchers.
 
 ``run_command`` waits for its child: used by the determinism audit's replays
-(glitchygames/replay/audit.py), a watched replay's restarts (glitchygames/replay/rebuild.py) and
-the replay pytest plugin (glitchygames/testing/replays.py). ``start_command`` does not: the test
+(glitchygames/replay/audit.py), a watched replay's restarts (glitchygames/replay/rebuild.py),
+the replay pytest plugin (glitchygames/testing/replays.py) and the driver comparison's tools
+(scripts/build_sdl_x11.py, scripts/driver_configurations.py). ``start_command`` does not: the test
 suite's driver comparison (tests/driver_comparison.py) runs the suite on the native driver
 alongside the dummy run, and ``stop_command`` ends that child with every process it started.
 Children get an argument list, never a shell, with the environment in place before the child's
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING, TextIO
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from pathlib import Path
 
 # What run_command raises for a child that outlives its timeout (subprocess's own exception,
 # named here so callers need not import subprocess)
@@ -107,6 +109,7 @@ def run_command(
     environment: Mapping[str, str],
     timeout_seconds: float | None,
     capture_output: bool = False,
+    working_directory: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
 
@@ -121,6 +124,8 @@ def run_command(
             as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
         capture_output: True to capture standard output and error together in ``stdout``;
             False to let the child write to this process's.
+        working_directory: The child's working directory (None: this process's), e.g. a
+            build's directory for SDL's configure script (scripts/build_sdl_x11.py).
 
     Returns:
         The finished process (``returncode``; ``stdout`` when captured, else None).
@@ -134,6 +139,7 @@ def run_command(
         text=True,
         check=False,
         timeout=timeout_seconds,
+        cwd=working_directory,
     )
 
 

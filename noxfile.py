@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import nox
 
@@ -439,6 +440,76 @@ def _write_wildcard_xauthority(session: nox.Session, *, path: Path) -> None:
     session.error('XQuartz has no TCP cookie for display :0 (is XQuartz running?)')
 
 
+# The Mac's PulseAudio server, which the Linux container plays its sound through: its TCP port,
+# the addresses that may connect without a cookie (loopback and Docker's private ranges; the
+# container's connections arrive from Docker Desktop's network), and how long it may take to
+# start listening
+_PULSEAUDIO_PORT = 4713
+_PULSEAUDIO_ALLOWED_ADDRESSES = '127.0.0.1;192.168.0.0/16;172.16.0.0/12'
+_PULSEAUDIO_TCP_MODULE = (
+    'module-native-protocol-tcp',
+    f'auth-ip-acl={_PULSEAUDIO_ALLOWED_ADDRESSES}',
+    'auth-anonymous=1',
+)
+_PULSEAUDIO_START_SECONDS = 15
+
+
+def _pulseaudio_listening() -> bool:
+    """Tell whether something accepts connections on PulseAudio's TCP port here.
+
+    Returns:
+        True when a connection to localhost's port 4713 succeeds.
+
+    """
+    with contextlib.suppress(OSError), socket.create_connection(('localhost', _PULSEAUDIO_PORT)):
+        return True
+    return False
+
+
+def _start_pulseaudio(session: nox.Session) -> bool:
+    """Start the Mac's PulseAudio server with TCP for the container, unless it runs already.
+
+    The server is left running afterwards, as XQuartz is (`pulseaudio --kill` stops it). A
+    server already running without TCP gets the TCP module loaded (`pactl load-module`).
+
+    Args:
+        session: The nox session.
+
+    Returns:
+        True when the server accepts TCP connections; False (logged in one line: the container
+        then uses the dummy audio driver) when PulseAudio is not installed or will not start.
+
+    """
+    if shutil.which('pulseaudio') is None:
+        session.warn('PulseAudio is not installed (brew install pulseaudio): dummy audio instead')
+        return False
+    if not _pulseaudio_listening():
+        # A server already running gets the TCP module (pactl fails, harmlessly, without one);
+        # then one is started if still nothing listens (it fails, harmlessly, if one runs)
+        session.run(
+            'pactl', 'load-module', *_PULSEAUDIO_TCP_MODULE, external=True, success_codes=[0, 1]
+        )
+    if not _pulseaudio_listening():
+        session.run(
+            'pulseaudio',
+            '--daemonize=yes',
+            '--exit-idle-time=-1',
+            f'--load={" ".join(_PULSEAUDIO_TCP_MODULE)}',
+            external=True,
+            success_codes=[0, 1],
+        )
+    deadline = time.monotonic() + _PULSEAUDIO_START_SECONDS
+    while time.monotonic() < deadline:
+        if _pulseaudio_listening():
+            return True
+        time.sleep(0.5)
+    session.warn(
+        f'PulseAudio is not listening on port {_PULSEAUDIO_PORT} (see `pulseaudio --check -v`): '
+        'dummy audio instead'
+    )
+    return False
+
+
 # The container's setup before its command: the locked dev dependencies into the venv volume
 _LINUX_X11_SYNC = 'uv sync --frozen --extra dev --no-install-package taplo --quiet'
 
@@ -448,18 +519,22 @@ def _run_in_linux_x11_container(
     *,
     command: list[str],
     video_driver: str = 'x11',
+    audio_driver: str = 'dummy',
     success_codes: list[int] | None = None,
 ) -> None:
     """Run a command in the Linux test container, its windows on this Mac's XQuartz.
 
     Starts XQuartz, copies its cookie and builds the image (each a no-op when already done),
-    then runs the command in /work (this checkout, mounted) with the dummy audio driver and
-    the venv kept in a Docker volume between runs.
+    then runs the command in /work (this checkout, mounted) with the venv kept in a Docker
+    volume between runs. The container is named after this process and removed afterwards,
+    even when the session is interrupted.
 
     Args:
         session: The nox session.
         command: The command, as an argument list.
         video_driver: SDL's video driver in the container (``x11``, or ``dummy``).
+        audio_driver: SDL's audio driver in the container: ``dummy``, or ``pulseaudio`` (the
+            Mac's PulseAudio server over TCP: start it first with ``_start_pulseaudio``).
         success_codes: The exit codes that count as success (default: 0 only).
 
     """
@@ -473,140 +548,178 @@ def _run_in_linux_x11_container(
     session.run(
         'docker', 'build', '--quiet', '--tag', _LINUX_X11_IMAGE, 'scripts/linux_x11', external=True
     )
-    session.run(
-        'docker',
-        'run',
-        '--rm',
-        '--env',
-        'DISPLAY=host.docker.internal:0',
-        '--env',
-        'XAUTHORITY=/x11/xauthority',
-        '--env',
-        f'SDL_VIDEODRIVER={video_driver}',
-        '--env',
-        'SDL_AUDIODRIVER=dummy',
-        '--env',
-        'UV_PROJECT_ENVIRONMENT=/venv',
-        '--env',
-        'UV_LINK_MODE=copy',
-        # Coverage data stays in the container, apart from the host's own runs
-        '--env',
-        'COVERAGE_FILE=/venv/.coverage',
-        '--volume',
-        f'{xauthority}:/x11/xauthority:ro',
-        '--volume',
-        f'{Path.cwd()}:/work',
-        '--volume',
-        f'{_LINUX_X11_VENV_VOLUME}:/venv',
-        _LINUX_X11_IMAGE,
-        *command,
-        external=True,
-        success_codes=success_codes,
+    audio_environment = (
+        ['--env', f'PULSE_SERVER=tcp:host.docker.internal:{_PULSEAUDIO_PORT}']
+        if audio_driver == 'pulseaudio'
+        else []
     )
+    container_name = f'{_LINUX_X11_IMAGE}-{os.getpid()}'
+    try:
+        session.run(
+            'docker',
+            'run',
+            '--rm',
+            '--name',
+            container_name,
+            '--env',
+            'DISPLAY=host.docker.internal:0',
+            '--env',
+            'XAUTHORITY=/x11/xauthority',
+            '--env',
+            f'SDL_VIDEODRIVER={video_driver}',
+            '--env',
+            f'SDL_AUDIODRIVER={audio_driver}',
+            *audio_environment,
+            '--env',
+            'UV_PROJECT_ENVIRONMENT=/venv',
+            '--env',
+            'UV_LINK_MODE=copy',
+            # Coverage data stays in the container, apart from the host's own runs
+            '--env',
+            'COVERAGE_FILE=/venv/.coverage',
+            '--volume',
+            f'{xauthority}:/x11/xauthority:ro',
+            '--volume',
+            f'{Path.cwd()}:/work',
+            '--volume',
+            f'{_LINUX_X11_VENV_VOLUME}:/venv',
+            _LINUX_X11_IMAGE,
+            *command,
+            external=True,
+            success_codes=success_codes,
+        )
+    finally:
+        # Gone already after a normal end (--rm): "No such container" (exit 1) is expected
+        session.run(
+            'docker',
+            'rm',
+            '--force',
+            container_name,
+            external=True,
+            silent=True,
+            success_codes=[0, 1],
+        )
 
 
 @nox.session(venv_backend='none', name='test-linux-x11', default=False)
 def test_linux_x11(session: nox.Session) -> None:
-    """Run the tests on Linux in Docker, drawing real windows on this Mac's XQuartz (macOS only).
+    """Run the tests on Linux in Docker, windows on this Mac's XQuartz, sound on its PulseAudio.
 
     The suite runs with SDL's x11 video driver (a real framebuffer: real pixel formats and
-    window behaviour, unlike the dummy driver) and the dummy audio driver. Needs Docker and
-    XQuartz with TCP connections enabled (`defaults write org.xquartz.X11 nolisten_tcp -bool
-    false`, then restart XQuartz). The container's venv is kept in a Docker volume between
-    runs. Arguments after `--` replace the command, e.g. `nox -s test-linux-x11 -- uv run pytest
-    tests/animation`. `nox -s compare-drivers -- --driver x11` compares its frames with the
-    dummy driver's.
+    window behaviour, unlike the dummy driver) and the pulseaudio audio driver, playing through
+    the Mac's PulseAudio server over TCP (`brew install pulseaudio`; the session starts it when
+    it is not running, accepting connections from loopback and Docker's private ranges, and
+    leaves it running, as XQuartz: `pulseaudio --kill` stops it). Without PulseAudio, or when
+    it will not start, the container uses the dummy audio driver (one line says so). Needs
+    Docker and XQuartz with TCP connections enabled (`defaults write org.xquartz.X11
+    nolisten_tcp -bool false`, then restart XQuartz). The container's venv is kept in a Docker
+    volume between runs. Arguments after `--` replace the command, e.g. `nox -s test-linux-x11
+    -- uv run pytest tests/animation`. `nox -s compare-drivers -- --drivers dummy,x11-linux`
+    compares its frames with the dummy driver's.
     """
     command = session.posargs or [
         'sh',
         '-c',
         f'{_LINUX_X11_SYNC} && uv run pytest -p no:randomly -p no:cacheprovider',
     ]
-    _run_in_linux_x11_container(session, command=command)
+    audio_driver = 'pulseaudio' if _start_pulseaudio(session) else 'dummy'
+    _run_in_linux_x11_container(session, command=command, audio_driver=audio_driver)
 
 
-# compare-drivers: its output folder (test-results/ is git-ignored), its xdist workers (a
-# modest count keeps the machine usable through its four runs; all cores starved other work),
-# the master seed each test's unseeded engines draw from (with its node id), and the real
-# drivers it compares with the dummy driver, with their SDL audio drivers
+@nox.session(venv_backend='none', name='build-sdl-x11', default=False)
+def build_sdl_x11(session: nox.Session) -> None:
+    """Build SDL with x11 for macOS, so pygame-ce draws on XQuartz (compare-drivers' x11-macos).
+
+    pygame-ce's macOS SDL has no x11. scripts/build_sdl_x11.py builds the SDL version the wheel
+    reports, from its GitHub release tarball (SHA-256 pinned per version), with x11 enabled
+    against XQuartz (/opt/X11), into ~/Library/Caches/glitchygames/sdl-x11/<version>/ (reused
+    when present), then checks that pygame opens and fills a window on XQuartz with
+    SDL_DYNAMIC_API naming the library (SDL's dynamic API then runs it in place of the wheel's
+    SDL). `nox -s compare-drivers` builds it when needed; this session builds and checks it
+    alone. Arguments after `--` go to the script's build command (e.g. `--cache-root DIR`).
+    """
+    if sys.platform != 'darwin':
+        session.error('SDL with x11 is built for macOS only (Linux has x11 in its own SDL)')
+    _wait_for_xquartz(session)
+    session.run(
+        'uv',
+        'run',
+        'python',
+        'scripts/build_sdl_x11.py',
+        'build',
+        '--check',
+        *session.posargs,
+        external=True,
+    )
+
+
+# compare-drivers: its output folder (test-results/ is git-ignored), its xdist workers per run
+# (a modest count keeps the machine usable: the runs go one after another, and the container's
+# run counts too; all cores starved other work), and the master seed each test's unseeded
+# engines draw from (with its node id)
 _COMPARE_DRIVERS_OUTPUT = Path('test-results/driver-comparison/nox')
 _COMPARE_DRIVERS_WORKERS = 4
 _COMPARE_DRIVERS_SEED = 20261023
-_COMPARE_DRIVERS_AUDIO = {
-    'cocoa': 'coreaudio',
-    'windows': 'wasapi',
-    'wayland': 'dummy',
-    'x11': 'dummy',
-}
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
 # pytest's exit codes the comparison continues after: all passed, or some tests failed (a
-# failure on one driver is a finding, reported with the frames)
+# failure on one configuration is a finding, reported with the frames)
 _PYTEST_FINISHED_CODES = [0, 1]
+_DRIVERS_OPTION = '--drivers'
+_SOUND_OPTION = '--sound'
 
 
-def _native_video_driver() -> str | None:
-    """Return this platform's native SDL video driver (as tests/driver_comparison.py picks it).
-
-    Returns:
-        cocoa (macOS), windows, wayland or x11 (Linux, by WAYLAND_DISPLAY or DISPLAY); None for
-        a Linux without a display.
-
-    """
-    if sys.platform == 'darwin':
-        return 'cocoa'
-    if sys.platform == 'win32':
-        return 'windows'
-    if os.environ.get('WAYLAND_DISPLAY'):
-        return 'wayland'
-    if os.environ.get('DISPLAY'):
-        return 'x11'
-    return None
-
-
-def _compare_drivers_arguments(session: nox.Session) -> tuple[str, list[str]]:
-    """Read compare-drivers' arguments: ``--driver DRIVER`` and pytest's test selection.
+def _compare_drivers_arguments(session: nox.Session) -> tuple[str | None, bool, list[str]]:
+    """Read compare-drivers' arguments: ``--drivers A,B``, ``--sound`` and the test selection.
 
     Args:
         session: The nox session (its posargs).
 
     Returns:
-        The real driver (default: the native one) and the remaining arguments (test paths;
-        none: the whole suite).
+        The configurations asked for (None: every available one), whether the container plays
+        sound through PulseAudio, and the remaining arguments (test paths; none: the suite).
 
     """
     arguments = list(session.posargs)
-    driver = _native_video_driver()
-    if '--driver' in arguments:
-        index = arguments.index('--driver')
-        if index + 1 >= len(arguments) or arguments[index + 1] not in _COMPARE_DRIVERS_AUDIO:
-            session.error(f'--driver takes one of: {", ".join(_COMPARE_DRIVERS_AUDIO)}')
-        driver = arguments[index + 1]
-        del arguments[index : index + 2]
-    if driver is None:
-        session.error('no native display (no WAYLAND_DISPLAY or DISPLAY): name one with --driver')
-    return driver, arguments
+    drivers = None
+    for index, argument in enumerate(arguments):
+        if argument.startswith(f'{_DRIVERS_OPTION}='):
+            drivers = argument.partition('=')[2]
+            del arguments[index]
+            break
+        if argument == _DRIVERS_OPTION:
+            if index + 1 >= len(arguments):
+                session.error(f'{_DRIVERS_OPTION} takes a comma-separated list')
+            drivers = arguments[index + 1]
+            del arguments[index : index + 2]
+            break
+    sound = _SOUND_OPTION in arguments
+    if sound:
+        arguments.remove(_SOUND_OPTION)
+    return drivers, sound, arguments
 
 
 def _run_fingerprinted_tests(
     session: nox.Session,
     *,
-    driver: str,
-    in_linux_container: bool,
+    configuration: dict[str, Any],
     directory: Path,
     arguments: list[str],
+    container_audio_driver: str = 'dummy',
 ) -> None:
-    """Run tests on one SDL video driver with the frame fingerprints plugin.
+    """Run tests on one driver configuration with the frame fingerprints plugin.
 
     Coverage is off (it would only slow the runs); the live log shows warnings only.
 
     Args:
         session: The nox session.
-        driver: SDL's video driver (``dummy``, ``cocoa`` or ``x11``).
-        in_linux_container: Run in the Linux X11 container (``--driver x11``) instead of here.
+        configuration: A planned configuration (scripts/driver_configurations.py's
+            ``PlannedConfiguration`` as JSON): its name, environment and where it runs.
         directory: The run's fingerprints directory (relative to the checkout).
         arguments: More pytest arguments (the test selection, the image request).
+        container_audio_driver: The container's audio driver (``dummy`` or ``pulseaudio``).
 
     """
+    environment: dict[str, str] = configuration['environment']
     pytest_arguments = [
         '-n',
         str(_COMPARE_DRIVERS_WORKERS),
@@ -620,7 +733,7 @@ def _run_fingerprinted_tests(
         f'--frame-fingerprints-seed={_COMPARE_DRIVERS_SEED}',
         *arguments,
     ]
-    if in_linux_container:
+    if configuration['runs_in_linux_container']:
         _run_in_linux_x11_container(
             session,
             command=[
@@ -630,97 +743,222 @@ def _run_fingerprinted_tests(
                 'pytest',
                 *pytest_arguments,
             ],
-            video_driver=driver,
+            video_driver=environment['SDL_VIDEODRIVER'],
+            audio_driver=container_audio_driver,
             success_codes=_PYTEST_FINISHED_CODES,
         )
         return
-    audio_driver = _COMPARE_DRIVERS_AUDIO.get(driver, 'dummy')
     session.run(
         'uv',
         'run',
         'pytest',
         *pytest_arguments,
-        env={'SDL_VIDEODRIVER': driver, 'SDL_AUDIODRIVER': audio_driver},
+        env=environment,
         success_codes=_PYTEST_FINISHED_CODES,
         external=True,
     )
 
 
-@nox.session(venv_backend='none', name='compare-drivers', default=False)
-def compare_drivers(session: nox.Session) -> None:
-    """Find tests whose presented frames differ between SDL's dummy driver and a real one.
+def _plan_driver_configurations(
+    session: nox.Session, *, drivers: str | None, output: Path
+) -> list[dict[str, Any]]:
+    """Choose compare-drivers' configurations (scripts/driver_configurations.py), dummy first.
 
-    Compares the dummy driver with this platform's native one (macOS cocoa with coreaudio,
-    Windows windows, Linux wayland or x11). Every local `pytest` run compares the two already
-    (tests/driver_comparison.py); this session is the on-demand, deeper check. Both drivers
-    draw in software through the same code and the engine presents opaque frames, so a test
-    should present the same pixels on both; a difference is a driver dependence (BUGS.md #142,
-    #189). The frame fingerprints plugin (glitchygames/testing/frame_fingerprints.py) records
-    every frame each test presents. The suite runs twice on dummy (tests whose frames differ
-    between those runs are nondeterministic: listed apart, never counted as driver
-    differences; mark them `@pytest.mark.frames_vary(reason=...)`) and once on the native
-    driver, with 4 workers each, one run after another; scripts/compare_driver_frames.py
-    compares the runs, then the differing tests are re-run on both drivers saving PNGs of
-    their differing frames, and a difference image of each (differing pixels magenta) goes to
-    test-results/driver-comparison/nox/differences/. The report names every file. It reports;
-    it does not fail on a difference.
+    Builds SDL with x11 when x11-macos is chosen.
 
-    `--driver DRIVER` compares with another driver. On macOS, `--driver x11` runs both runs
-    in the Linux container of `test-linux-x11` (same needs: Docker, XQuartz). Other arguments
-    after `--` select tests, e.g. `nox -s compare-drivers -- tests/scenes`. The runs use the
-    project's own environment (`uv run`), as a developer's `uv run pytest` does; each names
-    its driver, so none starts a comparison of its own.
+    Args:
+        session: The nox session.
+        drivers: The configurations asked for (None: every available one).
+        output: The comparison's folder (the plan goes in it).
+
+    Returns:
+        The planned configurations (``PlannedConfiguration`` as JSON).
+
     """
-    driver, selection = _compare_drivers_arguments(session)
-    in_linux_container = driver == 'x11' and sys.platform == 'darwin'
-    output = _COMPARE_DRIVERS_OUTPUT
-    shutil.rmtree(output, ignore_errors=True)
-    output.mkdir(parents=True)
-    runs = [('dummy', output / 'dummy-1'), ('dummy', output / 'dummy-2'), (driver, output / driver)]
-    for run_driver, directory in runs:
-        _run_fingerprinted_tests(
-            session,
-            driver=run_driver,
-            in_linux_container=in_linux_container,
-            directory=directory,
-            arguments=selection,
-        )
-    request = output / 'image-request.json'
+    plan_path = output / 'plan.json'
     session.run(
         'uv',
         'run',
         'python',
-        'scripts/compare_driver_frames.py',
-        'compare',
-        *(f'{run_driver}={directory}' for run_driver, directory in runs),
-        f'--image-request={request}',
+        '-m',
+        'scripts.driver_configurations',
+        'plan',
+        f'--output={plan_path}',
+        *([] if drivers is None else [f'{_DRIVERS_OPTION}={drivers}']),
         external=True,
     )
+    return json.loads(plan_path.read_text(encoding='utf-8'))['configurations']
+
+
+def _prepare_driver_configurations(
+    session: nox.Session, *, configurations: list[dict[str, Any]], sound: bool
+) -> str:
+    """Start what the configurations need: XQuartz, PulseAudio (``--sound``); check x11-macos.
+
+    Args:
+        session: The nox session.
+        configurations: The planned configurations.
+        sound: The container plays its sound through the Mac's PulseAudio.
+
+    Returns:
+        The container's audio driver: ``pulseaudio``, or ``dummy``.
+
+    """
+    in_container = any(configuration['runs_in_linux_container'] for configuration in configurations)
+    libraries = [
+        configuration['environment']['SDL_DYNAMIC_API']
+        for configuration in configurations
+        if 'SDL_DYNAMIC_API' in configuration['environment']
+    ]
+    if in_container or libraries:
+        _wait_for_xquartz(session)
+    for library in libraries:
+        session.run(
+            'uv',
+            'run',
+            'python',
+            'scripts/build_sdl_x11.py',
+            'check',
+            f'--library={library}',
+            external=True,
+        )
+    if sound and in_container and _start_pulseaudio(session):
+        return 'pulseaudio'
+    return 'dummy'
+
+
+def _run_timed_configurations(
+    session: nox.Session,
+    *,
+    runs: list[tuple[dict[str, Any], str]],
+    output: Path,
+    arguments: list[str],
+    container_audio_driver: str,
+) -> Path:
+    """Run the suite on each configuration, one after another, timing each run.
+
+    Args:
+        session: The nox session.
+        runs: Each run's configuration and directory name.
+        output: The comparison's folder.
+        arguments: More pytest arguments (the test selection).
+        container_audio_driver: The container's audio driver.
+
+    Returns:
+        The file of each run's seconds by its directory name (JSON).
+
+    """
+    run_seconds: dict[str, float] = {}
+    for configuration, directory_name in runs:
+        started = time.monotonic()
+        _run_fingerprinted_tests(
+            session,
+            configuration=configuration,
+            directory=output / directory_name,
+            arguments=arguments,
+            container_audio_driver=container_audio_driver,
+        )
+        run_seconds[directory_name] = time.monotonic() - started
+        session.log(f'{directory_name}: {run_seconds[directory_name]:.0f} s')
+    run_seconds_path = output / 'run-seconds.json'
+    run_seconds_path.write_text(json.dumps(run_seconds, indent=2), encoding='utf-8')
+    return run_seconds_path
+
+
+@nox.session(venv_backend='none', name='compare-drivers', default=False)
+def compare_drivers(session: nox.Session) -> None:
+    """Compare the frames tests present on every SDL driver configuration available here.
+
+    Every local `pytest` run compares the dummy driver with the native one already
+    (tests/driver_comparison.py); this session is the on-demand, deeper check, an N-way matrix.
+    The configurations (scripts/driver_configurations.py): `dummy` (the baseline), the native
+    driver (`cocoa`, `windows`, `wayland` or `x11`), and on macOS `x11-macos` (x11 drawing on
+    XQuartz through an SDL built with x11, `nox -s build-sdl-x11`, built here when needed) and
+    `x11-linux` (the Linux container of `test-linux-x11`, forwarding to XQuartz: needs Docker).
+    By default every configuration available here runs; `-- --drivers dummy,cocoa,x11-macos`
+    chooses (dummy is always the baseline). Every configuration draws in software through the
+    same code and the engine presents opaque frames, so a test should present the same pixels
+    on each; a difference is a driver dependence (BUGS.md #142, #189).
+
+    The frame fingerprints plugin (glitchygames/testing/frame_fingerprints.py) records every
+    frame each test presents. The suite runs twice on dummy (tests whose frames differ between
+    those runs are nondeterministic: listed apart, never counted as driver differences; mark
+    them `@pytest.mark.frames_vary(reason=...)`) and once on each other configuration, one run
+    after another with 4 workers each; scripts/driver_frame_matrix.py compares every pair. The
+    differing tests are re-run on every configuration saving PNGs of their differing frames,
+    and each differing pair gets a difference image (differing pixels magenta) under
+    test-results/driver-comparison/nox/differences/<first>-vs-<second>/. The report,
+    test-results/driver-comparison/nox/matrix.md, has each run's time, a summary per pair, the
+    patterns of agreement and a table per test (first differing frame, differing pixels,
+    linked images); the summary is printed at the end. It reports; it does not fail on a
+    difference.
+
+    The container uses dummy audio; `--sound` plays its sound through the Mac's PulseAudio, as
+    `test-linux-x11` does. Other arguments after `--` select tests, e.g. `nox -s
+    compare-drivers -- tests/scenes`. The host runs use the project's own environment (`uv
+    run`), as a developer's `uv run pytest` does; each names its driver, so none starts a
+    comparison of its own.
+    """
+    drivers, sound, selection = _compare_drivers_arguments(session)
+    output = _COMPARE_DRIVERS_OUTPUT
+    shutil.rmtree(output, ignore_errors=True)
+    output.mkdir(parents=True)
+    configurations = _plan_driver_configurations(session, drivers=drivers, output=output)
+    container_audio_driver = _prepare_driver_configurations(
+        session, configurations=configurations, sound=sound
+    )
+    runs = [
+        (configuration, configuration['name'])
+        for configuration in configurations
+        if configuration['name'] != 'dummy'
+    ]
+    runs[:0] = [(configurations[0], 'dummy-1'), (configurations[0], 'dummy-2')]
+    run_seconds_path = _run_timed_configurations(
+        session,
+        runs=runs,
+        output=output,
+        arguments=selection,
+        container_audio_driver=container_audio_driver,
+    )
+    matrix_command = [
+        'uv',
+        'run',
+        'python',
+        '-m',
+        'scripts.driver_frame_matrix',
+        *(
+            f'{configuration["name"]}={output / directory_name}'
+            for configuration, directory_name in runs
+        ),
+        f'--output={output}',
+        f'--run-seconds={run_seconds_path}',
+    ]
+    request = output / 'image-request.json'
+    summary = session.run(*matrix_command, f'--image-request={request}', external=True, silent=True)
     differing_tests = list(json.loads(request.read_text(encoding='utf-8'))['positions_by_test'])
     if not differing_tests:
-        session.log('No driver differences: nothing to re-run')
+        session.log(f'No driver differences: nothing to re-run\n{summary}')
         return
     # One node id per line, passed as @FILE: node ids may hold spaces
     tests_file = output / 'differing-tests.txt'
     tests_file.write_text('\n'.join(differing_tests) + '\n', encoding='utf-8')
-    reruns = [('dummy', output / 'dummy-images'), (driver, output / f'{driver}-images')]
-    for run_driver, directory in reruns:
+    reruns = [
+        (configuration, f'{configuration["name"]}-images') for configuration in configurations
+    ]
+    for configuration, directory_name in reruns:
         _run_fingerprinted_tests(
             session,
-            driver=run_driver,
-            in_linux_container=in_linux_container,
-            directory=directory,
+            configuration=configuration,
+            directory=output / directory_name,
             arguments=[f'--frame-images-request={request}', f'@{tests_file}'],
+            container_audio_driver=container_audio_driver,
         )
     session.run(
-        'uv',
-        'run',
-        'python',
-        'scripts/compare_driver_frames.py',
-        'images',
-        *(f'{run_driver}={directory}' for run_driver, directory in reruns),
-        f'--request={request}',
-        f'--output={output / "differences"}',
+        *matrix_command,
+        *(
+            f'--rerun={configuration["name"]}={output / directory_name}'
+            for configuration, directory_name in reruns
+        ),
         external=True,
     )
 

@@ -2324,7 +2324,9 @@ class TestRealInput:
         real_events = [
             _key(pygame.KEYDOWN, pygame.K_b, unicode='b'),
             pygame.event.Event(pygame.MOUSEMOTION, pos=(5, 5), rel=(1, 1), buttons=(0, 0, 0)),
-            pygame.event.Event(pygame.WINDOWFOCUSLOST, window=None),
+            # Marked: on a real windowing driver (x11) the recording holds the window's own
+            # focus changes too, which the replay serves; only the injected one must not arrive
+            pygame.event.Event(pygame.WINDOWFOCUSLOST, window=None, injected_during_replay=True),
         ]
         engine = replay_session(
             recording_path=recording_path,
@@ -2340,10 +2342,7 @@ class TestRealInput:
             event.type == pygame.KEYDOWN and event.key == pygame.K_b for event in delivered
         )
         assert not any(event.type == pygame.MOUSEMOTION for event in delivered)
-        assert not any(
-            event.type == pygame.WINDOWFOCUSLOST and event.dict == {'window': None}
-            for event in delivered
-        )
+        assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
     def test_closing_the_window_ends_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -4011,7 +4010,8 @@ class TestEventMerge:
             events_by_frame={
                 1: [
                     _key(pygame.KEYDOWN, pygame.K_z, unicode='z'),
-                    pygame.event.Event(pygame.WINDOWFOCUSLOST, {}),
+                    # Marked: a real windowing driver's recording holds real focus changes
+                    pygame.event.Event(pygame.WINDOWFOCUSLOST, injected_during_replay=True),
                 ]
             },
         )
@@ -4021,7 +4021,7 @@ class TestEventMerge:
         assert not any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_z for event in delivered
         )
-        assert not any(event.type == pygame.WINDOWFOCUSLOST for event in delivered)
+        assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
 
 # A recorded external joystick button press of a device instance, by reference

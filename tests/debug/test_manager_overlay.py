@@ -14,7 +14,9 @@ from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from tests.display_canvas import show_canvas_on_new_display
 
-SCREEN_SIZE = (64, 48)
+# Wider than a window manager's smallest window: XQuartz's widens a 64-pixel window to 72, so a
+# real x11 display (nox -s compare-drivers' x11 configurations) would not be the size asked for
+SCREEN_SIZE = (96, 64)
 BACKGROUND_COLOR = (0, 0, 0)
 MARKER_COLOR = (255, 255, 255)
 MARKER_POSITION = (10, 20)
@@ -72,7 +74,7 @@ def focused_sprite(*, is_active: bool) -> pygame.sprite.DirtySprite:
 
 @pytest.fixture
 def scene(mocker):
-    """A real scene on a 64x48 display, with no sprites and a recording key handler.
+    """A real scene on a 96x64 display, with no sprites and a recording key handler.
 
     Returns:
         The scene, made on a fresh SceneManager singleton (the manager fixture's).
@@ -87,7 +89,7 @@ def scene(mocker):
 
 @pytest.fixture
 def manager(scene):
-    """The SceneManager the scene was made on, with a real 64x48 screen and the scene active.
+    """The SceneManager the scene was made on, with a real 96x64 screen and the scene active.
 
     Yields:
         The SceneManager singleton.

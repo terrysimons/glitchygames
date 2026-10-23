@@ -51,10 +51,12 @@ class TestTheCanvas:
 
     def test_a_new_display_gets_the_canvas(self):
         """show_canvas_on_new_display sets the mode and shows the canvas at the new size."""
-        display = show_canvas_on_new_display(size=(64, 48))
+        # Wider than a window manager's smallest window (XQuartz widens 64 pixels to 72)
+        size = (96, 64)
+        display = show_canvas_on_new_display(size=size)
 
-        assert display.get_size() == (64, 48)
-        assert display.get_at((63, 47))[:3] == canvas_color_at(x=63, y=47, size=(64, 48))[:3]
+        assert display.get_size() == size
+        assert display.get_at((95, 63))[:3] == canvas_color_at(x=95, y=63, size=size)[:3]
 
     def test_the_canvas_is_skipped_without_a_display(self):
         """With the display module stopped there is nothing to draw on or present."""

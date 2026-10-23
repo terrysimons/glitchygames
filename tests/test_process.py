@@ -1,4 +1,4 @@
-"""glitchygames/process.py: ``start_command`` starts a child, ``stop_command`` ends it.
+"""glitchygames/process.py: ``run_command`` runs a child; ``start_command`` and ``stop_command``.
 
 The children are real Python processes. A child that starts a grandchild shows that stopping
 ends the whole group (a pytest run's xdist workers with it).
@@ -9,15 +9,12 @@ from __future__ import annotations
 import os
 import sys
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
 from glitchygames import process
 from glitchygames.process import start_command, stop_command
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # How long a test waits for a child to write its line, or for a stopped process to be gone
 WAIT_SECONDS = 10.0
@@ -70,6 +67,32 @@ def is_running(*, pid: int) -> bool:
     except ProcessLookupError:
         return False
     return True
+
+
+class TestRunCommand:
+    """``run_command`` runs a child, by default in this process's working directory."""
+
+    def test_the_child_runs_in_the_given_working_directory(self, tmp_path):
+        completed = process.run_command(
+            command=[sys.executable, '-c', 'import os; print(os.getcwd())'],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            capture_output=True,
+            working_directory=tmp_path,
+        )
+
+        assert completed.returncode == 0
+        assert completed.stdout.strip() == str(tmp_path.resolve())
+
+    def test_without_a_working_directory_the_child_inherits_this_one(self):
+        completed = process.run_command(
+            command=[sys.executable, '-c', 'import os; print(os.getcwd())'],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            capture_output=True,
+        )
+
+        assert completed.stdout.strip() == str(Path.cwd().resolve())
 
 
 class TestStartCommand:
