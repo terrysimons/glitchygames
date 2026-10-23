@@ -20,6 +20,7 @@ from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandl
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.bitmappy.slider_manager import SliderManager
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events import HashableEvent
 
 # ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@ def _ensure_pygame_init():
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 @pytest.fixture

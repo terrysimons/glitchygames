@@ -16,6 +16,7 @@ import numpy as np
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from tests.animation.test_animation_hardware import (
     BACKGROUND_COLOR,
     COLORS_FILE,
@@ -76,7 +77,7 @@ class TestAnimationVisual:
 
         """
         pygame.init()
-        yield pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        yield set_display_mode(size=(SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.quit()
 
     def test_animation_scene_setup(self):

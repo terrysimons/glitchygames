@@ -21,6 +21,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import (
     BUNDLED_FONT_DIRECTORY,
@@ -477,7 +478,7 @@ class TestInputBoxFont:
         """
         if not pygame.get_init():
             pygame.init()
-        return pygame.display.set_mode((320, 240))
+        return set_display_mode(size=(320, 240))
 
     def test_input_box_loads_no_system_font(self, display, fontconfig_unavailable):
         with warnings.catch_warnings():

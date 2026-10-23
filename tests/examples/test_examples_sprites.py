@@ -13,6 +13,7 @@ import numpy as np
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import SpriteFactory
 
 # Constants for test thresholds
@@ -50,7 +51,7 @@ class TestExamplesSprites:
     def setup_method(self):
         """Set up test fixtures."""
         pygame.init()
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
@@ -371,7 +372,7 @@ def real_display():
     """Give AnimatedSprite a real display for loading and saving."""
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((64, 64))
+        set_display_mode(size=(96, 64))
 
 
 @pytest.mark.usefixtures('real_display')

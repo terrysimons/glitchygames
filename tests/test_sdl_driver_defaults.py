@@ -10,6 +10,7 @@ import os
 
 import pygame
 
+from glitchygames.display_mode import set_display_mode
 from tests.display_canvas import (
     TEST_DISPLAY_SIZE,
     canvas_color_at,
@@ -120,7 +121,7 @@ def test_a_display_on_another_driver_is_reopened_on_the_runs_showing_the_canvas(
     """
     live_video_driver = pygame.display.get_driver()
     pygame.display.get_surface().fill((0, 0, 0))
-    pygame.display.set_mode((320, 200))
+    set_display_mode(size=(320, 200))
     other_run_state = run_sdl_driver_state.model_copy(update={'video_driver': OTHER_VIDEO_DRIVER})
 
     restored = restore_run_sdl_drivers(

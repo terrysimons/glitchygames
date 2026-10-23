@@ -4,6 +4,7 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.display_mode import set_display_mode
 
 # Test constants to avoid magic values
 MAX_VISIBLE_STRIPS = 2
@@ -24,7 +25,7 @@ class TestFilmStripScrolling:
 
         # Use real pygame initialization since BitmapEditorScene requires it
         pygame.init()
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
         # Create scene
         self.scene = BitmapEditorScene(options={})

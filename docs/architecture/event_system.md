@@ -226,6 +226,37 @@ call `register_game_event()`.
 This pattern gives you an unlimited number of game-specific event types
 while consuming only one pygame event ID.
 
+## Native window messages (SYSWMEVENT)
+
+`SYSWMEVENT` carries the window system's raw messages: on x11 every X event the window gets
+(focus, exposure, property and configure notifications), on Windows each window message
+(`hwnd`, `msg`, `wparam`, `lparam`). SDL leaves the type disabled, and so does the engine:
+`GameEngine` allows every event type through `allow_every_event_type()`
+(`glitchygames/events/base.py`), which keeps `SYSWMEVENT` blocked. Before, a plain
+`pygame.event.set_allowed(None)` turned it on, so on a real X server the queue, every
+`--record-trace` recording and every instant-replay journal filled with messages no game read.
+
+A game that wants them opts in on its scene class (the one given to `GameEngine`), like
+`TARGET_FPS`:
+
+```py
+class MyGame(Scene):
+    NATIVE_WINDOW_MESSAGES = True  # anything but a bool is refused with TypeError
+
+    def on_sys_wm_event(self, event: HashableEvent) -> None:
+        # A plain HashableEvent (SYSWMEVENT has no class in EVENT_CLASSES) holding
+        # pygame's platform fields: event.event (the raw XEvent bytes) on x11
+        ...
+```
+
+The route is `GameEngine.process_game_event` → `GameEventManager.on_sys_wm_event` →
+`SceneManager` → the active scene's `on_sys_wm_event`. A game that opts in records them like any
+other event (an x11 message's bytes are stored as `{"__bytes__": "<hex>"}`), and a replay serves
+the recorded ones; a replay's input blocking (`glitchygames/replay/input_blocking.py`) restores
+the type to blocked when it ends. pygame-ce 2.5.8 reports `SYSWMEVENT` as allowed until
+something blocks it through pygame, although SDL ignores it, which is why the engine blocks it
+explicitly: a snapshot-and-restore of the blocked types would otherwise turn it on.
+
 ## Event Manager Class Hierarchy
 
 Every event manager follows the same structural pattern: a `ResourceManager` singleton

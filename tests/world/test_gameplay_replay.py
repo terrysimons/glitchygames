@@ -33,7 +33,7 @@ from glitchygames import recording_history
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.events import FPSEVENT
+from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
@@ -2323,9 +2323,16 @@ class TestRealInput:
         pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
         real_events = [
             _key(pygame.KEYDOWN, pygame.K_b, unicode='b'),
-            pygame.event.Event(pygame.MOUSEMOTION, pos=(5, 5), rel=(1, 1), buttons=(0, 0, 0)),
             # Marked: on a real windowing driver (x11) the recording holds the window's own
-            # focus changes too, which the replay serves; only the injected one must not arrive
+            # pointer motion and focus changes too, which the replay serves; only the injected
+            # ones must not arrive
+            pygame.event.Event(
+                pygame.MOUSEMOTION,
+                pos=(5, 5),
+                rel=(1, 1),
+                buttons=(0, 0, 0),
+                injected_during_replay=True,
+            ),
             pygame.event.Event(pygame.WINDOWFOCUSLOST, window=None, injected_during_replay=True),
         ]
         engine = replay_session(
@@ -2341,7 +2348,6 @@ class TestRealInput:
         assert not any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_b for event in delivered
         )
-        assert not any(event.type == pygame.MOUSEMOTION for event in delivered)
         assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
     def test_closing_the_window_ends_the_replay(self, mocker, tmp_path):
@@ -2404,9 +2410,15 @@ class TestRealInputBlocking:
             }
             observed['posted'] = [
                 pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q)),
+                # Marked: a recording made on a real windowing driver (x11) holds the window's
+                # own pointer motion, which the replay serves
                 pygame.event.post(
                     pygame.event.Event(
-                        pygame.MOUSEMOTION, pos=(1, 1), rel=(1, 1), buttons=(0, 0, 0)
+                        pygame.MOUSEMOTION,
+                        pos=(1, 1),
+                        rel=(1, 1),
+                        buttons=(0, 0, 0),
+                        injected_during_replay=True,
                     )
                 ),
                 pygame.event.post(
@@ -2439,9 +2451,8 @@ class TestRealInputBlocking:
         assert not any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_q for event in delivered
         )
-        assert not any(
-            event.type in {pygame.MOUSEMOTION, pygame.JOYAXISMOTION} for event in delivered
-        )
+        assert not any(event.type == pygame.JOYAXISMOTION for event in delivered)
+        assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
     def test_the_blocked_state_comes_back_after_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2528,6 +2539,18 @@ class TestRealInputBlocking:
             assert blocked_states() == states_before
         finally:
             pygame.event.set_allowed(pygame.MOUSEWHEEL)
+
+    def test_native_window_messages_stay_blocked_after_the_replay(self):
+        """The engine keeps SYSWMEVENT blocked; the replay's block and restore keep it so."""
+        allow_every_event_type(native_window_messages=False)
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        install_sources(sources=sources)
+        sources.pump_events()
+        assert pygame.event.get_blocked(pygame.SYSWMEVENT)
+        sources.finish_run()
+
+        assert pygame.event.get_blocked(pygame.SYSWMEVENT)
+        assert not pygame.event.get_blocked(pygame.KEYDOWN)
 
     def test_uninstalling_the_replay_restores_the_blocked_state(self):
         states_before = blocked_states()

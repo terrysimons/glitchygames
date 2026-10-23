@@ -17,6 +17,7 @@ from glitchygames.animation.state_machine import AnimationStateMachine
 from glitchygames.audio import VoiceAssistant
 from glitchygames.camera import FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples import brave_adventurer as brave_adventurer_package
 from glitchygames.examples import brave_adventurer_papyrus as papyrus_package
@@ -98,7 +99,7 @@ def adventurer_scene(request, mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 480))
+        set_display_mode(size=(800, 480))
     scene = request.param(options={'input_mode': 'joystick'})
     mocker.patch.object(scene.scene_manager.rumble, 'pulse')
     mocker.patch.object(scene, 'sounds')
@@ -418,7 +419,7 @@ class TestPapyrusFacingLeftHitbox:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
         scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
@@ -589,7 +590,7 @@ class TestPapyrusFeetAnchoring:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
         scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]
@@ -744,7 +745,7 @@ class TestPapyrusFallingTransitions:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         state_machine = scene.player.state_machine
         assert state_machine is not None
@@ -788,7 +789,7 @@ def brave_scene(mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 480))
+        set_display_mode(size=(800, 480))
     scene = BraveAdventurerScene(options={'input_mode': 'joystick'})
     mocker.patch.object(scene.scene_manager.rumble, 'pulse')
     mocker.patch.object(scene, 'sounds')
@@ -952,7 +953,7 @@ class TestPapyrusEngineWorldSpace:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
         scene.ground_sprites[:] = [
@@ -974,7 +975,7 @@ class TestPapyrusEngineWorldSpace:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         player = scene.player
         player.set_animation('running')
@@ -1002,7 +1003,7 @@ class TestPapyrusEngineWorldSpace:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         scarab = PapyrusScarab(world_x=1000.0, groups=scene.all_sprites)
 
@@ -1438,7 +1439,7 @@ def _start_display():
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode(SCREEN_SIZE)
+        set_display_mode(size=SCREEN_SIZE)
 
 
 @pytest.fixture(params=GAME_SCENE_CLASSES)

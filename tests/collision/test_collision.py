@@ -15,6 +15,7 @@ from glitchygames.collision import (
 from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 
 
@@ -628,7 +629,7 @@ class TestRedrawnGameSprites:
         """Brave Adventurer's sprites convert against a real display."""
         pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
     def test_cobra_hitbox_follows_first_draw_and_strike(self):
         """Brave Adventurer's Cobra: blank before update(), then idle, then striking pose."""
@@ -662,7 +663,7 @@ class TestPapyrusHitboxScale:
         """Papyrus sprites load TOML art and convert against a real display."""
         pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
     def test_scaled_papyrus_player_collides_at_twice_the_toml_hitbox(self):
         """After its first tick the player's collision rect is the TOML hitbox times 2."""

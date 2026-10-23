@@ -8,6 +8,7 @@ import pytest
 
 from glitchygames.debug import DebugFrameInfo
 from glitchygames.debug.overlay import DebugOverlay, DebugPanel
+from glitchygames.display_mode import set_display_mode
 from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
 from glitchygames.scenes import Scene, SceneManager
@@ -81,7 +82,7 @@ def scene(mocker):
 
     """
     SceneManager._reset()
-    pygame.display.set_mode(SCREEN_SIZE)
+    set_display_mode(size=SCREEN_SIZE)
     real_scene = InspectableScene()
     mocker.patch.object(real_scene, 'on_key_down_event')
     return real_scene

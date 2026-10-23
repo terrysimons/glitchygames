@@ -14,6 +14,7 @@ import pytest
 from glitchygames.bitmappy.film_strip_coordinator import FilmStripCoordinator
 from glitchygames.bitmappy.history.operations import FilmStripOperationTracker
 from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
+from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 FRAME_WIDTH = 4
@@ -28,7 +29,7 @@ def _display_surface():
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ import pygame
 import pytest
 
 from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
+from glitchygames.display_mode import set_display_mode
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
@@ -210,7 +211,7 @@ class TestAnimationHardware:
 
         """
         pygame.init()
-        yield pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        yield set_display_mode(size=(SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.quit()
 
     def test_hardware_display_buffer_access(self, real_display):

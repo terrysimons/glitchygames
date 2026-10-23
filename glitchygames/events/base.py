@@ -145,6 +145,32 @@ GAME_EVENTS = list(
 GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
 
 
+def allow_every_event_type(*, native_window_messages: bool) -> None:
+    """Allow every event type at SDL, SYSWMEVENT only when the game asked for it.
+
+    SYSWMEVENT carries the window system's raw messages (on x11 every X event: focus, exposure,
+    property changes; on Windows each window message), which SDL itself leaves disabled. A plain
+    ``pygame.event.set_allowed(None)`` would enable them too, flooding the queue (and every
+    recording and instant-replay journal) with messages almost no game reads. A game opts in
+    with ``NATIVE_WINDOW_MESSAGES = True`` on its scene class; they then reach
+    ``on_sys_wm_event`` as plain ``HashableEvent``s holding pygame's platform fields.
+
+    Blocked through ``pygame.event.set_blocked``, so ``pygame.event.get_blocked`` reports it
+    truthfully afterwards: before any pygame call blocks it, pygame-ce 2.5.8 reports SYSWMEVENT
+    as allowed while SDL ignores it, and a snapshot-and-restore of the blocked types (the
+    replay's input blocking) would then enable it.
+
+    Args:
+        native_window_messages: Whether SYSWMEVENT is allowed too.
+
+    """
+    pygame.event.set_allowed(None)
+    if native_window_messages:
+        pygame.event.set_allowed(pygame.SYSWMEVENT)
+    else:
+        pygame.event.set_blocked(pygame.SYSWMEVENT)
+
+
 class GameOptionsProvider(Protocol):
     """Protocol for objects that provide game options to the event system.
 

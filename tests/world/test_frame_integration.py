@@ -110,6 +110,12 @@ class WorldSprite(pygame.sprite.DirtySprite):
     def update_nested_sprites(self) -> None:
         """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
 
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it.
+
+        On a real display the pointer can move over the test's window (x11 sends the motion).
+        """
+
 
 class ScreenSprite(pygame.sprite.DirtySprite):
     """A HUD-style sprite: no coordinate space declared, so the engine never moves it."""
@@ -124,6 +130,12 @@ class ScreenSprite(pygame.sprite.DirtySprite):
 
     def update_nested_sprites(self) -> None:
         """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it.
+
+        On a real display the pointer can move over the test's window (x11 sends the motion).
+        """
 
 
 class FollowingScene(Scene):
@@ -306,6 +318,12 @@ class ScreenPlayerSprite(pygame.sprite.DirtySprite):
 
     def update_nested_sprites(self) -> None:
         """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it.
+
+        On a real display the pointer can move over the test's window (x11 sends the motion).
+        """
 
 
 class ScreenPlayerScene(Scene):

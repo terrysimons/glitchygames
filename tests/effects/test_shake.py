@@ -6,6 +6,7 @@ import random
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.effects import shake as shake_module
 from glitchygames.effects.shake import (
     RumbleSettings,
@@ -296,7 +297,7 @@ def scene_manager_with_screen(mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((64, 48))
+        set_display_mode(size=(96, 64))
     manager = SceneManager()
     manager.screen = pygame.Surface((64, 48))
     manager.active_scene = mocker.Mock(rects=[])

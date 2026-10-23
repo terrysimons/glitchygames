@@ -18,6 +18,7 @@ from glitchygames.debug.panels import (
     draw_physics_panel,
     screen_rect_for,
 )
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.frame import SpriteFrame
@@ -102,7 +103,7 @@ def ball():
     """
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode(SURFACE_SIZE)
+        set_display_mode(size=SURFACE_SIZE)
     return BallSprite()
 
 

@@ -671,6 +671,7 @@ display before every present. The test guard judges what the window shows
   `to_json()`/`from_json()` encode values as recordings do, windows as None (recordings still
   store raw pygame events)
 - Unhandled events: `GameEngine.unhandled_events` keeps per-type count, first-seen time and attribute names; logged as a table at teardown (`_shutdown`)
+- `SYSWMEVENT` (the window system's raw messages) stays blocked, as SDL leaves it (`events.allow_every_event_type`); a game opts in with `NATIVE_WINDOW_MESSAGES = True` on its scene class and gets them in `on_sys_wm_event` as plain `HashableEvent`s (docs/architecture/event_system.md)
 
 ### Sprite and Animation System
 

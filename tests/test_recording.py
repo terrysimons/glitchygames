@@ -378,6 +378,9 @@ class TestEventRecords:
             pygame.event.Event(pygame.JOYAXISMOTION, instance_id=2, axis=1, value=-0.25),
             pygame.event.Event(pygame.USEREVENT + 3, payload={'nested': [1, (2,)]}),
             pygame.event.Event(pygame.QUIT),
+            # A game that opts in to the window system's messages records them: on x11 pygame
+            # gives the raw XEvent as bytes
+            pygame.event.Event(pygame.SYSWMEVENT, event=b'\x1c\x00\x00\x00\xf6\x30'),
         ],
     )
     def test_event_round_trips_through_json(self, event):
@@ -1199,8 +1202,14 @@ class TestRecordingSources:
 
 # Calls that read (or drain) SDL's event queue. Only the doors' event pumps may use them, each
 # named by (file relative to the package, qualified function name); GameEngine._pump_events
-# reads through the active sources. A new pump (e.g. a replay's) is added here on purpose
-_PUMP_SEAMS = frozenset({('live_sources.py', 'LiveSources.pump_events')})
+# reads through the active sources. A new pump (e.g. a replay's) is added here on purpose.
+# set_display_mode only pumps (pygame.event.pump), before the first frame, so the window system's
+# answer to a resize is processed: it reads and drops nothing, and the events it moves into SDL's
+# queue are read by the doors' pump on the first frame (glitchygames/display_mode.py)
+_PUMP_SEAMS = frozenset({
+    ('live_sources.py', 'LiveSources.pump_events'),
+    ('display_mode.py', 'set_display_mode'),
+})
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
 _EVENT_MODULE_NAMES = frozenset({'event', 'fastevent'})
 _GETATTR_MINIMUM_ARGUMENTS = 2

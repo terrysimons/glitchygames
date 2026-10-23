@@ -65,6 +65,7 @@ from glitchygames.events.base import (
     WindowDisplayChangedEvent,
     WindowEvent,
     WindowGeometryEvent,
+    allow_every_event_type,
     supported_events,
     unhandled_event,
 )
@@ -187,6 +188,7 @@ __all__ = [
     'WindowEventStubs',
     'WindowEvents',
     'WindowGeometryEvent',
+    'allow_every_event_type',
     'supported_events',
     'unhandled_event',
 ]

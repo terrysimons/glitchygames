@@ -9,7 +9,7 @@ receives. Only the joystick hardware is stood in for (no test machine has one at
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
@@ -20,10 +20,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import events
+from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene, SceneManager
 from tests.input.stand_in_devices import install_stand_in_devices
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -127,13 +131,23 @@ STAND_IN_JOYSTICK = DeviceDescriptor(
 )
 
 
-@pytest.fixture
-def engine(mocker):
-    """Construct a real engine for RecordingScene, leaving pygame as the test found it.
+class NativeWindowMessagesScene(RecordingScene):
+    """A game that asks for the window system's own messages (SYSWMEVENT)."""
+
+    NAME = 'NativeWindowMessagesScene'
+    NATIVE_WINDOW_MESSAGES = True
+
+
+def constructed_engine(*, mocker, game: type[Scene]) -> Iterator[GoldenTraceEngine]:
+    """Construct a real engine for a game; afterwards put pygame's blocked types back.
 
     The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
     plain window, because SDL's dummy video driver warns "no fast renderer available" for
     GameEngine's SCALED window, an error under pytest's filterwarnings.
+
+    Args:
+        mocker: pytest-mock's fixture.
+        game: The game scene class.
 
     Yields:
         GoldenTraceEngine: The engine, constructed (not started).
@@ -145,14 +159,38 @@ def engine(mocker):
     blocked_before = [
         pygame.event.get_blocked(event_type) for event_type in range(pygame.NUMEVENTS)
     ]
-    yield GoldenTraceEngine(game=RecordingScene)
-    pygame.event.clear()
-    # The event managers and the scene block and allow event types: put them back
-    for event_type, was_blocked in enumerate(blocked_before):
-        if was_blocked:
-            pygame.event.set_blocked(event_type)
-        else:
-            pygame.event.set_allowed(event_type)
+    try:
+        yield GoldenTraceEngine(game=game)
+    finally:
+        pygame.event.clear()
+        # The event managers and the scene block and allow event types: put them back
+        for event_type, was_blocked in enumerate(blocked_before):
+            if was_blocked:
+                pygame.event.set_blocked(event_type)
+            else:
+                pygame.event.set_allowed(event_type)
+
+
+@pytest.fixture
+def engine(mocker):
+    """Construct a real engine for RecordingScene, leaving pygame as the test found it.
+
+    Yields:
+        GoldenTraceEngine: The engine, constructed (not started).
+
+    """
+    yield from constructed_engine(mocker=mocker, game=RecordingScene)
+
+
+@pytest.fixture
+def native_window_messages_engine(mocker):
+    """Construct a real engine for a game that opts in to SYSWMEVENT.
+
+    Yields:
+        GoldenTraceEngine: The engine, constructed (not started).
+
+    """
+    yield from constructed_engine(mocker=mocker, game=NativeWindowMessagesScene)
 
 
 @pytest.fixture
@@ -338,12 +376,71 @@ class TestEngineEventSystem:
         assert scene.received[1][1].menu == 'File'
         assert [event.subtype for event in game_events_received] == [TEST_GAME_EVENT_SUBTYPE]
 
-    def test_game_engine_sys_wm_event_handling(self, engine, scene):
-        """SYSWMEVENT reaches the scene with its message."""
-        process_posted(engine, [pygame.event.Event(pygame.SYSWMEVENT, msg='test_message')])
+    def test_game_engine_sys_wm_event_handling(self, native_window_messages_engine):
+        """A game that opts in gets SYSWMEVENT in on_sys_wm_event, a plain HashableEvent."""
+        native_window_messages_engine.install_game(scene_class=NativeWindowMessagesScene)
+        pygame.event.clear()
+        scene = native_window_messages_engine.scene_manager.active_scene
+
+        process_posted(
+            native_window_messages_engine,
+            [pygame.event.Event(pygame.SYSWMEVENT, msg='test_message')],
+        )
 
         assert scene.received_handler_names() == ['on_sys_wm_event']
         assert scene.received[0][1].msg == 'test_message'
+        assert type(scene.received[0][1]) is HashableEvent
+
+
+class TestNativeWindowMessages:
+    """SYSWMEVENT (the window system's raw messages) stays blocked unless the game opts in."""
+
+    def test_blocked_by_default_even_after_something_allowed_it(self, mocker):
+        """The engine's allow-all keeps SDL's default: no SYSWMEVENT for a game not asking."""
+        pygame.event.set_allowed(pygame.SYSWMEVENT)
+        engine_construction = constructed_engine(mocker=mocker, game=RecordingScene)
+        engine = next(engine_construction)
+        try:
+            engine.install_game(scene_class=RecordingScene)
+            pygame.event.clear()
+
+            assert pygame.event.get_blocked(pygame.SYSWMEVENT) is True
+            process_posted(engine, [pygame.event.Event(pygame.SYSWMEVENT, msg='dropped')])
+
+            assert engine.scene_manager.active_scene.received == []
+            # Every other type stays allowed
+            assert pygame.event.get_blocked(pygame.ACTIVEEVENT) is False
+        finally:
+            engine_construction.close()
+            pygame.event.set_blocked(pygame.SYSWMEVENT)
+
+    def test_a_game_that_opts_in_is_allowed_them(self, native_window_messages_engine):
+        """NATIVE_WINDOW_MESSAGES = True on the game unblocks SYSWMEVENT."""
+        assert pygame.event.get_blocked(pygame.SYSWMEVENT) is False
+
+    def test_the_opt_in_must_be_a_bool(self, mocker):
+        """Anything but True or False is refused, naming the game."""
+        # Made with type(): the class attribute is declared bool, and the engine must still
+        # refuse a game that sets something else
+        truthy_scene = type('TruthyScene', (RecordingScene,), {'NATIVE_WINDOW_MESSAGES': 'yes'})
+
+        engine_construction = constructed_engine(mocker=mocker, game=truthy_scene)
+        with pytest.raises(TypeError, match=r'TruthyScene\.NATIVE_WINDOW_MESSAGES must be a bool'):
+            next(engine_construction)
+        assert GameEngine.native_window_messages(game=NativeWindowMessagesScene()) is True
+
+    def test_allowing_every_type_keeps_them_blocked_unless_asked(self):
+        """allow_every_event_type unblocks every type, SYSWMEVENT only when asked."""
+        pygame.event.set_blocked([pygame.KEYDOWN, pygame.SYSWMEVENT])
+        try:
+            events.allow_every_event_type(native_window_messages=False)
+            assert pygame.event.get_blocked(pygame.KEYDOWN) is False
+            assert pygame.event.get_blocked(pygame.SYSWMEVENT) is True
+
+            events.allow_every_event_type(native_window_messages=True)
+            assert pygame.event.get_blocked(pygame.SYSWMEVENT) is False
+        finally:
+            pygame.event.set_blocked(pygame.SYSWMEVENT)
 
     def test_game_engine_event_manager_integration(self, engine, scene):
         """The engine's managers route to the scene manager, whose active scene is the game."""

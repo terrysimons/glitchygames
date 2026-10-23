@@ -8,6 +8,7 @@ import pytest
 
 from glitchygames.bitmappy.canvas_interfaces import AnimatedCanvasRenderer
 from glitchygames.bitmappy.onion_skinning import OnionSkinningManager
+from glitchygames.display_mode import set_display_mode
 
 
 class TestOnionSkinningRendering:
@@ -18,7 +19,7 @@ class TestOnionSkinningRendering:
         """Set up test fixtures before each test method."""
         # Initialize pygame for testing
         pygame.init()
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
         # Store mocker for use in test methods
         self._mocker = mocker
@@ -197,7 +198,7 @@ class TestOnionSkinningIntegration:
     def setup_method(self):
         """Set up test fixtures before each test method."""
         pygame.init()
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
     def teardown_method(self):
         """Clean up after each test method."""

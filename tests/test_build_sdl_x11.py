@@ -173,6 +173,8 @@ class TestPathsAndCommands:
         assert '--enable-video-x11' in command
         assert '--x-includes=/opt/X11/include' in command
         assert '--disable-video-cocoa' in command
+        # No OpenGL: XQuartz's libGL (and Apple's Xplugin with it) never loads in-process
+        assert '--disable-video-opengl' in command
 
     def test_the_make_commands(self, build):
         assert make_command(build=build, jobs=3) == [

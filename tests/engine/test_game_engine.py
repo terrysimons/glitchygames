@@ -74,6 +74,7 @@ from tests.input.stand_in_devices import (
     install_stand_in_devices,
 )
 from tests.replay.replay_helpers import tamper_first_sprite_rect
+from tests.slow_window_manager import SlowWindowManager, install_window_manager
 from tests.world.test_gameplay_replay import (
     press_keys_while_held,
     record_session,
@@ -412,6 +413,18 @@ class TestGameEngineDisplayMethods:
         # Windowed: the engine asks for a scaled, resizable window, never fullscreen
         assert engine.mode_flags & pygame.SCALED
         assert not engine.mode_flags & pygame.FULLSCREEN
+
+    def test_initialize_display_waits_for_a_late_resize(self, mocker):
+        """A window manager answering after set_mode returns: the game sees the new size."""
+        window_manager = SlowWindowManager(pumps_until_resized=4, final_size=(640, 480))
+        install_window_manager(mocker, window_manager=window_manager)
+
+        engine = _make_engine(mocker, '--resolution', '640x480')
+
+        assert engine.screen.get_size() == (640, 480)
+        assert engine.screen_width == 640
+        assert engine.screen_height == 480
+        assert window_manager.pumps == 4
 
     def test_initialize_display_flip_mode(self, mocker):
         """Test GameEngine initialize_display with flip update type."""

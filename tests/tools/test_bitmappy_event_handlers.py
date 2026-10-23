@@ -14,6 +14,7 @@ from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.controllers.visual_indicators import VisualIndicators
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.slider_manager import SliderManager
+from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 
@@ -65,7 +66,7 @@ def _ensure_pygame_init():
     # get_surface() returns None before set_mode() despite stubs saying Surface
     surface: pygame.Surface | None = pygame.display.get_surface()
     if surface is None:  # pragma: no branch
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 @pytest.fixture

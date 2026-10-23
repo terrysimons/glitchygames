@@ -559,6 +559,9 @@ def _run_in_linux_x11_container(
             'docker',
             'run',
             '--rm',
+            # An init process as PID 1 reaps orphaned processes, as on any real system: without
+            # it a grandchild a test stops stays a zombie (tests/test_process.py)
+            '--init',
             '--name',
             container_name,
             '--env',

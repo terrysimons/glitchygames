@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from glitchygames.display_mode import set_display_mode
+
 LOG = logging.getLogger(__name__)
 
 # Add the project root to the path
@@ -33,7 +35,7 @@ class TestBallCollisionEnergyTransfer:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
     def _create_ball(self, x, y, speed_x, speed_y, radius=10):
         """Create a ball sprite for testing.

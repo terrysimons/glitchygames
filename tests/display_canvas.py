@@ -24,6 +24,7 @@ from glitchygames.backgrounds import (
     BackgroundPattern,
     background_pattern_surface,
 )
+from glitchygames.display_mode import set_display_mode
 from glitchygames.opacity import every_pixel_has_alpha, has_per_pixel_alpha
 
 TEST_CANVAS_VARIABLE = 'GLITCHYGAMES_TEST_CANVAS'
@@ -180,6 +181,7 @@ def show_canvas_on_new_display(*, size: tuple[int, int] = TEST_DISPLAY_SIZE) -> 
         pygame.Surface: The new display surface.
 
     """
-    display_surface = pygame.display.set_mode(size)
+    # Waits for a resize an X server's window manager answers late (glitchygames/display_mode.py)
+    display_surface = set_display_mode(size=size)
     show_canvas()
     return display_surface

@@ -47,6 +47,9 @@ INNER_CONFTEST = textwrap.dedent(
     pytest_plugins = ['tests.driver_comparison', 'glitchygames.testing.frame_fingerprints']
     """
 )
+# The inner tests' window: at least 72 wide, which every window manager (XQuartz's) allows
+INNER_WINDOW_SIZE = (96, 64)
+INNER_WINDOW_PIXELS = INNER_WINDOW_SIZE[0] * INNER_WINDOW_SIZE[1]
 # Inner tests: one draws the same in both runs; one draws red in the first run and its re-run
 # (recording into dummy/ and dummy-images/) and green in the second run and its re-run
 INNER_TESTS = textwrap.dedent(
@@ -59,7 +62,7 @@ INNER_TESTS = textwrap.dedent(
 
     def present(color):
         pygame.init()
-        display = pygame.display.set_mode((64, 48))
+        display = pygame.display.set_mode({INNER_WINDOW_SIZE})
         display.fill(color)
         pygame.display.flip()
 
@@ -312,7 +315,7 @@ class TestEndToEnd:
             '*Driver differences: 1*',
             f'*{DIFFERING_TEST}: present 0 differs (pixels)*',
             '*Re-run of 1 tests*',
-            '*present 0: 3072 of 3072 pixels differ*difference-frame-0.png*',
+            f'*present 0: {INNER_WINDOW_PIXELS} of {INNER_WINDOW_PIXELS} pixels*difference-frame*',
         ])
         differences = inner_project.path.joinpath(*OUTPUT_PARTS, 'differences')
         assert len(list(differences.glob('*/difference-frame-0.png'))) == 1

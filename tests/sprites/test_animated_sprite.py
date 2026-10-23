@@ -19,6 +19,7 @@ from scripts.sprite_stack import (
 
 import glitchygames.sprites
 import glitchygames.sprites.frame as frame_module
+from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import (
     AnimatedSpriteInterface,
     BitmappySprite,
@@ -449,7 +450,7 @@ class TestSpriteFactorySave:
         # Initialize pygame display for BitmappySprite tests
         if not pygame.display.get_init():
             pygame.init()
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
         self.temp_dir = tempfile.mkdtemp()
 

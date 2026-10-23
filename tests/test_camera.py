@@ -4,6 +4,7 @@ import pygame
 import pytest
 
 from glitchygames.camera import Camera2D
+from glitchygames.display_mode import set_display_mode
 from glitchygames.effects.shake import Shake, ShakeAxis, ShakeStyle
 
 
@@ -228,7 +229,7 @@ def _add_layer(*, camera, scroll_factor, animated=False):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((200, 100))
+        set_display_mode(size=(200, 100))
     draw_function = RecordingDrawFunction()
     group = pygame.sprite.LayeredDirty()
     layer = camera.add_background_layer(

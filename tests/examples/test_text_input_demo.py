@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, cast
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples import text_input_demo
 from glitchygames.fonts import FontManager
@@ -98,7 +99,7 @@ def scene() -> text_input_demo.Game:
         The scene.
 
     """
-    pygame.display.set_mode(DEMO_DISPLAY_SIZE)
+    set_display_mode(size=DEMO_DISPLAY_SIZE)
     game = text_input_demo.Game(options={})
     game.setup()
     return game

@@ -30,6 +30,7 @@ from glitchygames.backgrounds import (
 )
 from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.controller import ControllerEventManager
@@ -1125,9 +1126,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The Pygame documentation recommends against using hardware accelerated blitting.
         #
         # Note that you can also get the screen with pygame.display.get_surface()
-        self.screen: pygame.Surface = pygame.display.set_mode(
-            self.desired_resolution,
-            self.mode_flags,
+        #
+        # An existing window (a test's, or one a game opened first) may take its new size
+        # only after set_mode returns (x11): the game is set up on the size it really has
+        self.screen: pygame.Surface = set_display_mode(
+            size=self.desired_resolution,
+            flags=self.mode_flags,
         )
         # A new display is black, which cannot be told from "nothing rendered": until the
         # first scene draws, it shows the default background (glitchygames/backgrounds.py)
@@ -1170,10 +1174,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self.initialize_input_event_handlers()
 
-        # Enable all events.
+        # Enable all events, except the window system's raw messages (SYSWMEVENT) unless the
+        # game declares NATIVE_WINDOW_MESSAGES = True.
         # Note that glitchygames will auto-suppress events not handled
         # by the game once they are encountered, so it is recommended to enable all.
-        pygame.event.set_allowed(None)
+        events.allow_every_event_type(
+            native_window_messages=self.native_window_messages(game=self.game)
+        )
+
+    @staticmethod
+    def native_window_messages(*, game: type[Scene] | Scene) -> bool:
+        """Read whether the game asks for the window system's raw messages (SYSWMEVENT).
+
+        Args:
+            game: The game scene class or instance, which may declare NATIVE_WINDOW_MESSAGES.
+
+        Returns:
+            bool: The game's NATIVE_WINDOW_MESSAGES (False when it declares none).
+
+        Raises:
+            TypeError: If the game's NATIVE_WINDOW_MESSAGES is not a bool.
+
+        """
+        # Looked up by name: a game need not be a Scene subclass
+        native_window_messages = getattr(game, 'NATIVE_WINDOW_MESSAGES', False)
+        if not isinstance(native_window_messages, bool):
+            scene_class = game if isinstance(game, type) else type(game)
+            message = (
+                f'{scene_class.__name__}.NATIVE_WINDOW_MESSAGES must be a bool, '
+                f'got {native_window_messages!r}'
+            )
+            raise TypeError(message)
+        return native_window_messages
 
     def initialize_input_event_handlers(self: Self) -> None:
         """Initialize input event handlers.

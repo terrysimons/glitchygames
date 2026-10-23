@@ -443,7 +443,70 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Replays compare sprite rects, not pixels, so they are unaffected; the clock read is inside pygame, so `tests/test_engine_doors.py` cannot see it. A fix would pin the mode (`LayeredDirty.set_timing_threshold` with a huge threshold keeps dirty-rect mode; `_use_update = False` keeps full-screen mode) wherever the engine makes its groups, after checking which mode each game relies on
 - **Files**: pygame-ce `sprite.py` (`LayeredDirty.draw`); the groups made in `glitchygames/scenes/scene.py` and the games
 
+### 191. A Replay Never Checks the Recorded Display Size
+- **Description**: Games read the real display size: scenes and sprites take `screen.get_width()`/`get_height()` when built (`Scene` and `Sprite.__init__`), and PaddleSlap places its paddles at half the screen height and bounces its balls off the screen's edges. A recording's header holds the size the window had (`screen_size`), but a replay opens its window at the recorded `--resolution` and never compares. When the window a recording was made on had another size than requested (a window manager that widened it, a tiling window manager, an x11 resize that landed late, #193), the replay diverges
+- **Status**: Active
+- **Priority**: Medium (a recording that cannot replay; not seen in a golden fixture, all recorded on dummy)
+- **Reporter**: Found investigating the x11 driver comparison (`test_scripted_session_records_and_replays` diverged at frame 105 on x11-linux)
+- **Date Reported**: 2026-10-23
+- **Details**: Shown on dummy: PaddleSlap recorded on a window the "window manager" made 800x600 (requested `--resolution 800x480`; `set_mode` wrapped to force the size) has header `screen_size [800, 600]`, and its `--replay-trace --headless` reports `Replay diverged at frame 0: sprite VerticalPaddle#0 rect expected [0, 250, 20, 100], got [0, 190, 20, 100]`. No format change is needed: proposed fix, a replay opens its window at the header's `screen_size` (a headless replay always can) and refuses (`UNUSABLE_INPUT`) or warns when its window still ends at another size. A size that changes during a recording (a window resized mid-game) is not recorded as anything a replay applies, so a game that reads the live size per frame would need the size served through the doors (a format addition, for the user to decide)
+- **Files**: `glitchygames/engine/game_engine.py` (`trace_recording_header`, `initialize_display`), `glitchygames/replay/driver.py`
+
+### 192. compare-drivers Reports Agreement When No Test Ran
+- **Description**: `nox -s compare-drivers -- --help` hands `--help` to every pytest run, which prints its help and exits 0 recording no test; the session then reports "Every configuration agrees on every compared test" and overwrites the previous report with zero-test runs
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by accident investigating the x11 failures (the previous report was overwritten)
+- **Date Reported**: 2026-10-23
+- **Details**: A run that records no test (or exits without running the suite) should fail the session, before the report is written
+- **Files**: `noxfile.py` (`compare_drivers`), `scripts/driver_frame_matrix.py`
+
+### 196. A PaddleSlap Session Recorded on x11 Under Load Can Diverge on Replay
+- **Description**: `tests/replay/test_record_scripted_session.py::test_scripted_session_records_and_replays` records 120 PaddleSlap frames live (in the test process, on the run's display) and replays them headless. On x11-linux (the Docker container drawing on XQuartz), with other tests running beside it, the replay switched to `PaddleSlapGameOverScene` where the recording stayed in `Game` (frame 100, 105 and 115 in three failures); every sprite rect matched until then. It passes alone and under CPU load alone, and never failed on dummy, cocoa or x11-macos
+- **Status**: Active
+- **Priority**: Medium (if it is a determinism bug in the engine or PaddleSlap, any live recording can fail to replay)
+- **Reporter**: Found by the driver comparison (x11-linux), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Not the window-size race (#193): it still failed after that fix, with no warning, and the recording's frames were all 800x480. Ruled out by reading: dt is recorded exactly (JSON floats round-trip). Suspects: game state that depends on something a recording does not hold (pygame's key repeat, which PaddleSlap turns on with `set_repeat(1)` and pygame generates by wall-clock time inside the pump; window events from the X server and how the game reacts to them; the sub-pixel ball position, which rects do not show). Next step: keep the failing recording (pytest truncates tmp dir names: find `rally.jsonl.gz` under the basetemp), replay it headless on the host, and compare its per-frame events and the ball's world position with the replay's, frame by frame up to the divergence. Reproduces about one run in two with `tests/world/test_gameplay_replay.py tests/replay/test_record_scripted_session.py tests/world/test_gameplay_recording.py -n 4` in the container
+- **Files**: `glitchygames/examples/paddleslap.py`, `glitchygames/recording.py`, `glitchygames/replay/driver.py`
+
 ## Resolved Bugs
+
+### 193. Resizing an Existing Window Left the Game on the Old Size (x11)
+- **Description**: On SDL's x11 driver a window's new size arrives after `set_mode` returns when the window manager takes longer than SDL's 100 ms wait (`X11_SetWindowSize`): pygame warns "Requested window was forcibly resized by the OS" and returns a display surface of the old size, which changes to the requested size on a later pump. A game set up then (an engine started on an existing window, a test's display) built its scenes and sprites on the old size. In the driver comparison, 86 x11-linux tests failed with the warning (800x600 and 800x480 swapped)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the driver comparison (`nox -s compare-drivers`, x11-linux)
+- **Date Reported**: 2026-10-23
+- **Date Resolved**: 2026-10-23
+- **Root Cause**: SDL's x11 resize gives up after 100 ms; over TCP from the Linux container to XQuartz under load, every resize took 0.8-3.4 s (8 processes resizing at once)
+- **Solution**: `glitchygames.display_mode.set_display_mode` sets the mode and, when pygame warns and the display still has its old size, pumps until the size changes (at most about 10 s), warning only if the window ends at another size than the requested one. `GameEngine.initialize_display` and the tests (the conftest's display reset, every `set_mode` call) use it
+- **Tests**: `tests/test_display_mode.py`, `tests/engine/test_game_engine.py::TestGameEngineDisplayMethods::test_initialize_display_waits_for_a_late_resize` (a stand-in window manager answers late: `tests/slow_window_manager.py`)
+- **Files**: `glitchygames/display_mode.py`, `glitchygames/engine/game_engine.py`, `tests/display_canvas.py`
+
+### 194. The Engine Enabled SYSWMEVENT, Which SDL Leaves Disabled
+- **Description**: `GameEngine.initialize_event_handlers` called `pygame.event.set_allowed(None)`, which enables every SDL event type, `SYSWMEVENT` (the window system's raw messages) included. On a real X server every X event the window got then reached the queue: tests that assumed a quiet queue failed on x11, and `tests/replay/test_instant_replay.py::TestTheJournal::test_journal_memory_per_minute_stays_bounded` exceeded its bound (518,753 and 585,910 bytes against 500,000) because the journal kept them
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the driver comparison (x11-macos and x11-linux)
+- **Date Reported**: 2026-10-23
+- **Date Resolved**: 2026-10-23
+- **Root Cause**: The allow-all, since commit 869c8ade (2025-11-02, "Stale code cleanups"). Test fixtures that snapshot and restore the blocked types made it worse: pygame-ce 2.5.8 reports `SYSWMEVENT` as allowed while SDL ignores it (until it is blocked through pygame), so restoring the snapshot enabled it
+- **Solution**: `events.allow_every_event_type(native_window_messages=...)` allows every type and blocks `SYSWMEVENT` through pygame unless the game's scene class sets `NATIVE_WINDOW_MESSAGES = True` (then they reach `on_sys_wm_event`); the conftest blocks it before each test
+- **Tests**: `tests/engine/test_engine_event_system.py::TestNativeWindowMessages`, `tests/world/test_gameplay_replay.py::TestRealInputBlocking::test_native_window_messages_stay_blocked_after_the_replay`, the SYSWMEVENT case of `tests/test_recording.py`'s round trip
+- **Files**: `glitchygames/events/base.py`, `glitchygames/engine/game_engine.py`, `glitchygames/scenes/scene.py`, `tests/conftest.py`
+
+### 195. x11-macos Workers Died in XQuartz's OpenGL
+- **Description**: Pytest workers on x11-macos (SDL built with x11, drawing on XQuartz) ended with no Python traceback (`worker 'gw2' crashed`). Reproduced twice: `X Error of failed request: GLXBadContext` (`X_GLXMakeCurrent`), and a segmentation fault in SkyLight (`CGSWindowFinalize`) on a thread of Apple's Xplugin (faulthandler's C stack)
+- **Status**: Resolved
+- **Priority**: Low (test configuration only)
+- **Reporter**: Found by the driver comparison (x11-macos)
+- **Date Reported**: 2026-10-23
+- **Date Resolved**: 2026-10-23
+- **Root Cause**: The build had OpenGL (GLX). SDL on macOS marks every window OpenGL by default (`SDL_DefaultGraphicsBackends`), so creating any window loaded XQuartz's libGL and Apple's Xplugin into the process, and SDL drew window surfaces through an OpenGL texture (the window had an `opengl` renderer). XQuartz's GLX failed under load (its log is full of `DRISurfaceNotify: xp_destroy_surface failed`); an X error exits through Xlib's default error handler. The Linux container has no libGL, so it always drew in software
+- **Solution**: `scripts/build_sdl_x11.py` configures SDL with `--disable-video-opengl`: no libGL or Xplugin in the process, window surfaces drawn in software (XShm)
+- **Tests**: `tests/test_build_sdl_x11.py` (the configure options)
+- **Files**: `scripts/build_sdl_x11.py`
 
 ### 189. The Elevator Ride Drew a Black Box Around the Player on macOS
 - **Description**: During Clockwork Keep's elevator ride (`ElevatorTransition`), the player, pinned on the platform, was drawn inside a black rectangle on cocoa: its transparent pixels showed black instead of the floor behind it. The dummy and x11 drivers drew it correctly

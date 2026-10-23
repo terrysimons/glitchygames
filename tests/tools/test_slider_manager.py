@@ -12,6 +12,7 @@ import pytest
 
 from glitchygames import events
 from glitchygames.bitmappy.slider_manager import SliderManager
+from glitchygames.display_mode import set_display_mode
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -44,7 +45,7 @@ def screen():
     """
     if not pygame.get_init():
         pygame.init()
-    return pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    return set_display_mode(size=(SCREEN_WIDTH, SCREEN_HEIGHT))
 
 
 @pytest.fixture

@@ -463,6 +463,11 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     """
     # Ensure pygame is initialized before the test runs
     _start_pygame_and_the_test_display()
+    # SDL's own default (and the engine's, unless a game opts in): no window-system messages.
+    # Blocked through pygame so get_blocked tells the truth: pygame-ce reports SYSWMEVENT as
+    # allowed while SDL ignores it, so a test that snapshots and restores the blocked types
+    # would otherwise enable it, and real X servers then fill later tests' queues with it
+    pygame.event.set_blocked(pygame.SYSWMEVENT)
     # The canvas: a test that draws nothing shows the pattern, and no test sees an earlier
     # test's drawing (the guard in pytest_runtest_call fails a test that ends on all black)
     show_canvas()

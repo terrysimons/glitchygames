@@ -2739,6 +2739,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # The most scene time an instant replay re-simulates from the scene's start before the
     # seconds it shows (plans/2026-10-19-gameplay-replay.md, section 5.4)
     MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS: ClassVar[float] = 60.0
+    # True on a game's scene class (the one given to GameEngine) to receive the window system's
+    # raw messages (SYSWMEVENT) in on_sys_wm_event; blocked by default, as SDL leaves them.
+    # See allow_every_event_type in glitchygames/events/base.py
+    NATIVE_WINDOW_MESSAGES: ClassVar[bool] = False
 
     def __init__(
         self: Self,

@@ -15,6 +15,7 @@ from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
 from glitchygames.camera import FollowAxes, ParallaxLayer
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples.clockwork_keep import game as clockwork_game
@@ -67,7 +68,7 @@ def clockwork_scene(mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 480))
+        set_display_mode(size=(800, 480))
     scene = ClockworkKeepScene(options={'input_mode': 'joystick'})
     mocker.patch.object(scene, 'transition_to')
     return scene
@@ -365,7 +366,7 @@ class TestFloorThreeClock:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
         scene.dt_tick(FRAME_TIME)
         surface = pygame.Surface((800, 480))
@@ -378,7 +379,7 @@ class TestFloorThreeClock:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = ClockworkKeepScene(floor_index=floor_index, options={'input_mode': 'joystick'})
 
         background_layers = [
@@ -392,7 +393,7 @@ class TestFloorThreeClock:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
         (clock_layer,) = [
             sprite for sprite in scene.all_sprites if isinstance(sprite, ParallaxLayer)
@@ -410,7 +411,7 @@ class TestFloorThreeClock:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = ClockworkKeepScene(
             floor_index=2, player_score=1450, player_lives=2, options={'input_mode': 'joystick'}
         )
@@ -433,7 +434,7 @@ class TestStartingFloor:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
 
     def test_floor_option_picks_the_first_floor(self):
         """The engine builds the first scene from options alone, so --floor must reach it."""
@@ -822,7 +823,7 @@ class TestMovingGear:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
 
     def test_gear_is_drawn_with_teeth_along_its_top_edge(self):
         gear = MovingGear(world_x=100.0, world_y=200.0, groups=pygame.sprite.LayeredDirty())
@@ -890,7 +891,7 @@ class TestClockFaceMovingGear:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'transition_to')
         return scene

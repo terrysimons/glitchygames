@@ -12,6 +12,7 @@ import pygame
 import pytest
 
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite, SpeedUpSettings, SpeedUpTrigger
 from glitchygames.game_objects.paddle import VerticalPaddle
 
@@ -28,7 +29,7 @@ def real_display():
     """Give BallSprite and VerticalPaddle a real display to convert their images against."""
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 @pytest.fixture

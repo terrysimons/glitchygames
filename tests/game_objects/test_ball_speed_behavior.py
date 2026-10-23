@@ -7,6 +7,7 @@ import math
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import (
     BallSprite,
     SpeedUpAxes,
@@ -79,7 +80,7 @@ class TestBallSpeedBehavior:
     def setup_method(self):
         """Set up test fixtures."""
         pygame.init()
-        self.screen = pygame.display.set_mode((800, 600))
+        self.screen = set_display_mode(size=(800, 600))
 
     def teardown_method(self):
         """Clean up after tests."""

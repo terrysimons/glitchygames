@@ -82,6 +82,13 @@ CONFIGURE_OPTIONS = (
     '--disable-video-vulkan',
     '--disable-joystick-mfi',
     '--disable-video-opengles',
+    # No OpenGL (GLX) either, as in the Linux container, which has no libGL. With it, SDL on
+    # macOS marks every window OpenGL (SDL_DefaultGraphicsBackends), loading XQuartz's libGL and
+    # Apple's Xplugin into the process, and draws window surfaces through an OpenGL texture.
+    # Under load that ended pytest workers with no traceback: an X error (GLXBadContext in
+    # X_GLXMakeCurrent) through Xlib's default error handler, and a crash in SkyLight on
+    # Xplugin's event thread. Without it, window surfaces are drawn in software (XShm)
+    '--disable-video-opengl',
 )
 # The library SDL_DYNAMIC_API names (SDL 2's macOS install name)
 LIBRARY_NAME = 'libSDL2-2.0.0.dylib'
