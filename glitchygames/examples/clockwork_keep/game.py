@@ -253,9 +253,10 @@ class ClockworkKeepScene(Scene):
         )
 
         # Background parallax
+        shows_clock = _FLOOR_BACKGROUNDS[self.floor_index] is draw_clock_background
         bg_func = (
             self._draw_timed_clock_background
-            if _FLOOR_BACKGROUNDS[self.floor_index] is draw_clock_background
+            if shows_clock
             else _FLOOR_BACKGROUNDS[self.floor_index]
         )
         self.camera.add_background_layer(
@@ -263,6 +264,9 @@ class ClockworkKeepScene(Scene):
             draw_function=bg_func,
             layer_depth=LAYER_FAR_BACKGROUND,
             groups=self.all_sprites,
+            # The clock's hands show the floor's elapsed game time, not just the camera offset,
+            # so that layer redraws every frame; the other floors' walls depend on camera_y only
+            animated=shows_clock,
         )
 
         # Build terrain

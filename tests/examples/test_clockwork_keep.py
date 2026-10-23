@@ -10,7 +10,7 @@ import pytest
 
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
-from glitchygames.camera import FollowAxes
+from glitchygames.camera import FollowAxes, ParallaxLayer
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
@@ -349,6 +349,39 @@ class TestFloorThreeClock:
         surface = pygame.Surface((800, 480))
         scene.all_sprites.draw(surface)
         assert scene.floor_elapsed_time == pytest.approx(FRAME_TIME)
+
+    @pytest.mark.parametrize(('floor_index', 'shows_clock'), [(0, False), (1, False), (2, True)])
+    def test_only_the_clock_background_is_animated(self, floor_index, shows_clock):
+        """The clock layer draws game time, so it redraws every frame; the walls do not."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+        scene = ClockworkKeepScene(floor_index=floor_index, options={'input_mode': 'joystick'})
+
+        background_layers = [
+            sprite for sprite in scene.all_sprites if isinstance(sprite, ParallaxLayer)
+        ]
+
+        assert [layer.animated for layer in background_layers] == [shows_clock]
+
+    def test_clock_hands_move_on_a_still_camera(self):
+        """The clock redraws with the floor's new elapsed time though the camera stood still."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+        scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
+        (clock_layer,) = [
+            sprite for sprite in scene.all_sprites if isinstance(sprite, ParallaxLayer)
+        ]
+        scene.camera.snap_to(target_x=0.0, target_y=200.0)
+        pixels_before = pygame.image.tobytes(clock_layer.image, 'RGBA')
+
+        scene.floor_elapsed_time += 15.0  # the second hand turns a quarter
+        scene.camera.snap_to(target_x=0.0, target_y=200.0)
+
+        assert pygame.image.tobytes(clock_layer.image, 'RGBA') != pixels_before
 
     def test_floor_replay_arguments_rebuild_the_floor(self):
         """replay_arguments() are the floor's constructor arguments as it began."""

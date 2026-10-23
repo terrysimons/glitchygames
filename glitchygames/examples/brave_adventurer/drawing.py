@@ -6,6 +6,7 @@ Each function takes a Surface and draws onto it.
 
 from __future__ import annotations
 
+import itertools
 import math
 
 import pygame
@@ -345,12 +346,65 @@ def draw_scorpion(surface: pygame.Surface, *, facing_right: bool) -> None:
 # Background / parallax drawing
 # ---------------------------------------------------------------------------
 
+# Vertical gradients already drawn, keyed by (top color, bottom color, width, rows, pixel
+# format). A layer redraws its gradient by blitting the cached surface instead of drawing one
+# line per row; the few surface sizes a game uses keep this small.
+type _GradientKey = tuple[
+    tuple[int, int, int], tuple[int, int, int], int, int, int, tuple[int, int, int, int]
+]
+_vertical_gradient_cache: dict[_GradientKey, pygame.Surface] = {}
+
+
+def _vertical_gradient(
+    *,
+    top_color: tuple[int, int, int],
+    bottom_color: tuple[int, int, int],
+    rows: int,
+    like: pygame.Surface,
+) -> pygame.Surface:
+    """Return an opaque surface blending top_color (first row) into bottom_color (last row).
+
+    Row r gets top + (bottom - top) * r / max(rows - 1, 1) per channel, rounded: the colors
+    the sky and the far-sand ground plane used to draw one line per row. Built once per
+    colors, size and pixel format and cached. The gradient has like's width and pixel format
+    but no per-pixel alpha blending, so blitting it onto like copies its pixels at full alpha,
+    exactly as drawing the lines did, without converting each pixel.
+
+    Args:
+        top_color: The first row's color.
+        bottom_color: The last row's color.
+        rows: Number of rows.
+        like: The surface the gradient will be blitted onto (its width and pixel format).
+
+    Returns:
+        The cached gradient surface. Callers must not draw on it.
+
+    """
+    width = like.get_width()
+    cache_key = (top_color, bottom_color, width, rows, like.get_bitsize(), like.get_masks())
+    gradient = _vertical_gradient_cache.get(cache_key)
+    if gradient is not None:
+        return gradient
+
+    gradient = pygame.Surface((width, rows), 0, like)
+    top_red, top_green, top_blue = top_color
+    bottom_red, bottom_green, bottom_blue = bottom_color
+    for row in range(rows):
+        interpolation = row / max(rows - 1, 1)
+        red = round(top_red + (bottom_red - top_red) * interpolation)
+        green = round(top_green + (bottom_green - top_green) * interpolation)
+        blue = round(top_blue + (bottom_blue - top_blue) * interpolation)
+        gradient.fill((red, green, blue), (0, row, width, 1))
+    _vertical_gradient_cache[cache_key] = gradient
+    return gradient
+
 
 def draw_sky(surface: pygame.Surface, _camera_x: float, _camera_y: float) -> None:
     """Draw a gradient sky from blue at top to pale yellow at horizon.
 
     This is static (scroll_factor=0) so camera position is ignored.
-    Intended to be called once and cached.
+    Intended to be called once and cached. The gradient itself is built once per surface
+    size (_vertical_gradient) and blitted.
 
     Args:
         surface: The surface to draw onto.
@@ -359,16 +413,10 @@ def draw_sky(surface: pygame.Surface, _camera_x: float, _camera_y: float) -> Non
 
     """
     height = surface.get_height()
-    width = surface.get_width()
-    sky_r, sky_g, sky_b = SKY_COLOR
-    horizon_r, horizon_g, horizon_b = HORIZON_COLOR
-
-    for y_position in range(height):
-        interpolation = y_position / max(height - 1, 1)
-        red = round(sky_r + (horizon_r - sky_r) * interpolation)
-        green = round(sky_g + (horizon_g - sky_g) * interpolation)
-        blue = round(sky_b + (horizon_b - sky_b) * interpolation)
-        pygame.draw.line(surface, (red, green, blue), (0, y_position), (width, y_position))
+    sky_gradient = _vertical_gradient(
+        top_color=SKY_COLOR, bottom_color=HORIZON_COLOR, rows=height, like=surface
+    )
+    surface.blit(sky_gradient, (0, 0))
 
 
 def draw_pyramids(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
@@ -386,20 +434,22 @@ def draw_pyramids(surface: pygame.Surface, camera_x: float, _camera_y: float) ->
         _camera_y: Vertical camera position (unused — horizontal game).
 
     """
-    width = surface.get_width()
     height = surface.get_height()
 
     # Draw far-sand ground plane from horizon line down.
     # This covers the area below where pyramids sit, blending from
     # horizon haze to warm sand so pyramids don't float on blue sky.
+    # Blend from HORIZON_COLOR (pale haze) to DARK_SAND (warm ground); the gradient does not
+    # scroll, so it is built once per surface size and blitted.
     horizon_line = 300
-    for y_position in range(horizon_line, height):
-        interpolation = (y_position - horizon_line) / max(height - horizon_line - 1, 1)
-        # Blend from HORIZON_COLOR (pale haze) to DARK_SAND (warm ground)
-        red = round(HORIZON_COLOR[0] + (DARK_SAND[0] - HORIZON_COLOR[0]) * interpolation)
-        green = round(HORIZON_COLOR[1] + (DARK_SAND[1] - HORIZON_COLOR[1]) * interpolation)
-        blue = round(HORIZON_COLOR[2] + (DARK_SAND[2] - HORIZON_COLOR[2]) * interpolation)
-        pygame.draw.line(surface, (red, green, blue), (0, y_position), (width, y_position))
+    if height > horizon_line:
+        ground_gradient = _vertical_gradient(
+            top_color=HORIZON_COLOR,
+            bottom_color=DARK_SAND,
+            rows=height - horizon_line,
+            like=surface,
+        )
+        surface.blit(ground_gradient, (0, horizon_line))
 
     repeat_width = 2400
 
@@ -430,6 +480,23 @@ def draw_pyramids(surface: pygame.Surface, camera_x: float, _camera_y: float) ->
         pygame.draw.polygon(surface, PYRAMID_SHADOW, shadow_points)
 
 
+def _dune_top_y(world_x: float) -> int:
+    """Return the screen row where the dune sand starts at a world column.
+
+    Args:
+        world_x: The column's parallax-adjusted world X.
+
+    Returns:
+        The first sand row (360 plus three layered sine waves, rounded).
+
+    """
+    return 360 + round(
+        math.sin(world_x * 0.005) * 20
+        + math.sin(world_x * 0.013) * 10
+        + math.sin(world_x * 0.002) * 15
+    )
+
+
 def draw_dunes_and_oasis(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
     """Draw rolling sand dunes and occasional oases.
 
@@ -442,17 +509,16 @@ def draw_dunes_and_oasis(surface: pygame.Surface, camera_x: float, _camera_y: fl
     width = surface.get_width()
     height = surface.get_height()
 
-    # Draw dune shapes using layered sine waves
-    for x_pixel in range(width):
-        world_x = x_pixel + camera_x
-        dune_y = 360 + round(
-            math.sin(world_x * 0.005) * 20
-            + math.sin(world_x * 0.013) * 10
-            + math.sin(world_x * 0.002) * 15
-        )
-        dune_y = min(dune_y, height)
-        if dune_y < height:
-            pygame.draw.line(surface, SAND_COLOR, (x_pixel, dune_y), (x_pixel, height))
+    # Draw dune shapes using layered sine waves: each column is sand from its dune top down.
+    # Neighbouring columns mostly share a top, so each run of equal tops is one filled rect
+    # (the same pixels as one vertical line per column, at a fraction of the calls).
+    dune_tops = [min(_dune_top_y(x_pixel + camera_x), height) for x_pixel in range(width)]
+    run_start_x = 0
+    for dune_top, run_columns in itertools.groupby(dune_tops):
+        run_width = sum(1 for _ in run_columns)
+        if dune_top < height:
+            surface.fill(SAND_COLOR, (run_start_x, dune_top, run_width, height - dune_top))
+        run_start_x += run_width
 
     # Draw oases at fixed world positions (repeating every 3000 px)
     oasis_repeat = 3000

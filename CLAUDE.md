@@ -241,6 +241,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `camera.update()` while the engine aims gets a one-time warning. `Camera2D.apply()` stays as a
   helper for one-off conversions; to draw against world sprites in the render phase, use their
   positioned rects (Brave Adventurer's pit gaps do)
+- Parallax layers (`camera.add_background_layer`): the draw function is called again only when
+  the layer's offset (snapped camera position × `scroll_factor`) changes, so it must depend only
+  on its arguments; a layer drawing time, randomness or game state passes `animated=True` and
+  redraws every frame (Clockwork Keep's clock)
 - The pose rule: draw a sprite's pose (image, so its hitbox) in `dt_tick`, after its state is
   decided and before collision; `update()` runs in the render phase, after collision, and may do
   only visual work (fades). Drawing the pose in `update()` makes collision use last frame's pose
