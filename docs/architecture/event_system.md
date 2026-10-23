@@ -2536,6 +2536,9 @@ calls `switch_to_scene(next_scene)`, which:
 3. Updates `active_scene` to point to the next scene
 4. All subsequent events flow to the new scene
 
+A `next_scene` of `None` (or the scene itself) means no switch is pending; it never ends
+the game. A scene ends the run with `self.scene_manager.quit()`, which posts a QUIT event.
+
 The following diagram shows what user actions trigger each scene transition
 in the Bitmappy pixel art editor:
 

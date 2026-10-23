@@ -10,7 +10,13 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, command_line
+from scripts.record_golden_traces import (
+    GoldenTraceEngine,
+    _golden_game,
+    command_line,
+    press,
+    release,
+)
 from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY
 
 from glitchygames.animation.state_machine import AnimationStateMachine
@@ -1716,12 +1722,18 @@ class TestJumpInput:
 
 
 class TestQuitKey:
-    """Q (by position) ends the game: no next scene."""
+    """Q (by position) ends the run."""
 
-    def test_quit_position_ends_the_game(self, real_scene):
-        real_scene.on_key_down_event(key_at(key=pygame.K_q, scancode=pygame.KSCAN_Q))
-
-        assert real_scene.next_scene is None
+    @pytest.mark.parametrize('game_key', ['brave_adventurer', 'brave_adventurer_papyrus'])
+    def test_quit_position_ends_the_run(self, game_key):
+        """Through the engine's frame loop (next_scene = None never ended it)."""
+        with _golden_game(game_key, random_seed=1) as manager:
+            pygame.event.post(press(pygame.K_q))
+            pygame.event.post(release(pygame.K_q))
+            for _ in range(3):
+                manager.dt = FRAME_SECONDS
+                manager.run_frame()
+            assert manager.quit_requested
 
 
 class TestButtonsAndAxesHoldMovement:

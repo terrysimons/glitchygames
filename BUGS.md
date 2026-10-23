@@ -470,6 +470,16 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 202. Q Did Not Quit Clockwork Keep, Brave Adventurer, the Papyrus Edition or Mr. Muncher
+- **Description**: Each game's quit action set `self.next_scene = None`, but `SceneManager._switch_to_requested_scene` reads a `None` next scene as "no switch pending", so pressing Q did nothing; a comment in `SceneManager.__init__` ("Scene manager terminates on self.next_scene = None") stated the old, wrong rule. The tests only checked that `next_scene` became `None`
+- **Status**: Resolved
+- **Priority**: Medium (a documented control did nothing in four example games)
+- **Reporter**: The user (Mr. Muncher's Q), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Date Resolved**: 2026-10-23
+- **Solution**: Quit calls `self.scene_manager.quit()` (posts QUIT, as the game-over screen's ESC does) in all four games; the wrong comment is gone and `docs/architecture/event_system.md` states the rule. Tests press and release Q through the engine's frame loop and assert the run ends: `tests/examples/test_mr_muncher.py::test_q_quits`, `tests/examples/test_clockwork_keep.py::...::test_the_quit_key_ends_the_run`, `tests/examples/test_brave_adventurer_game.py::TestQuitKey` (both editions)
+- **Files**: `glitchygames/examples/{clockwork_keep,brave_adventurer,brave_adventurer_papyrus,mr_muncher}/game.py`, `glitchygames/scenes/scene.py`, `docs/architecture/event_system.md`
+
 ### 188. GameEngine.__del__ Logs, Which Can Fail When Garbage Collection Runs Mid-Write
 - **Description**: `GameEngine.__del__` logs the sprite counts (`self.log.info(...)`). When the garbage collector finalises an engine while the process is inside a write to the same stream (pytest's live logging, `--log-cli-level=DEBUG`, writes log records to stdout), the nested write raises `RuntimeError: reentrant call inside <_io.BufferedWriter name=1>`; Python reports it as an unraisable exception and pytest turns that into a failure of whichever test is running (seen once in a cocoa run on a loaded machine: `tests/world/test_gameplay_replay.py::TestProcessingComparison::test_without_a_replay_the_options_are_ignored_with_a_warning[arguments1]`, nine such exceptions; it passed on rerun)
 - **Status**: Resolved

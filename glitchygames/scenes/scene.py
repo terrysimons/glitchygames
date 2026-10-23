@@ -208,7 +208,6 @@ class SceneManager(SceneInterface, events.EventManager):
 
         super().__init__()
 
-        # Scene manager terminates on self.next_scene = None
         # None until the display is initialized (set later); get_surface() never raises
         self.screen = pygame.display.get_surface()
         self.update_type: str = 'update'

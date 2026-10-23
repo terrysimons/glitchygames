@@ -9,7 +9,14 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
+from scripts.record_golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    _golden_game,
+    command_line,
+    press,
+    release,
+)
 
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
@@ -1229,9 +1236,15 @@ class TestFloorInput:
         _press_key(clockwork_scene, pygame.K_ESCAPE)
         assert isinstance(clockwork_scene.next_scene, PauseScene)
 
-    def test_the_quit_key_quits(self, clockwork_scene):
-        _press_key(clockwork_scene, pygame.K_q)
-        assert clockwork_scene.next_scene is None
+    def test_the_quit_key_ends_the_run(self):
+        """Through the engine's frame loop (next_scene = None never ended it)."""
+        with _golden_game('clockwork_keep', random_seed=1) as manager:
+            pygame.event.post(press(pygame.K_q))
+            pygame.event.post(release(pygame.K_q))
+            for _ in range(3):
+                manager.dt = 1 / 60
+                manager.run_frame()
+            assert manager.quit_requested
 
     def test_an_unbound_key_goes_to_the_scene_and_changes_nothing(self, clockwork_scene):
         _press_key(clockwork_scene, pygame.K_F13)

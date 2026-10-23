@@ -938,7 +938,9 @@ class ClockworkKeepScene(Scene):
         elif action == 'pause':
             self.next_scene = PauseScene(options=self.options)
         elif action == 'quit':
-            self.next_scene = None
+            # A QUIT event ends the run (next_scene = None does not: the scene manager reads it
+            # as no switch pending)
+            self.scene_manager.quit()
         elif action is None:
             super().on_key_down_event(event)
 
