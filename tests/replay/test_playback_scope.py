@@ -9,7 +9,7 @@ import contextlib
 import dataclasses
 import logging
 import random
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, Protocol, Self, override
 
 import pygame
 import pytest
@@ -1076,7 +1076,12 @@ class TestScopePostsNeverReachTheLiveGame:
     def test_a_session_with_a_live_supervisors_scope_post_replays_exactly(
         self, tmp_path, ends_the_scope, poster
     ):
-        """The replay runs the supervisor again; an input post is re-posted as input after."""
+        """The replay runs the supervisor again; an input post is re-posted as input after.
+
+        The post is a user event, a type SDL never generates: never the player's, so even as an
+        input post it stays the live game's. An input post of an SDL type is the player's
+        input instead (``TestALiveSupervisorsInputIsThePlayers``, BUGS.md #196).
+        """
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
         )
@@ -1242,6 +1247,181 @@ class TestScopePostsNeverReachTheLiveGame:
             post_event(pygame.event.Event(pygame.USEREVENT, {'from_update': SHORT_RECORDED_FRAMES}))
             step(manager)
             assert live_scene.user_events == [{'from_update': SHORT_RECORDED_FRAMES}]
+
+
+# The scope frame (1 = its first) in whose supervisor slot a ScopeInputPostingSupervisor posts
+SUPERVISOR_SCOPE_FRAME = 2
+
+
+class ScopeInputPostingSupervisor:
+    """A live supervisor standing in for the player: posts input once while a scope plays.
+
+    Like scripts/record_scripted_session.py's ``ScriptedInputSupervisor``, it posts with
+    ``post_input_event``, so a recording holds its events as the player's (external) and a
+    replay of the session, run without it, serves them (BUGS.md #196).
+    """
+
+    def __init__(self: Self, *, events: list[pygame.event.Event]) -> None:
+        """Post nothing yet.
+
+        Args:
+            events: What to post, in order, in the scope's ``SUPERVISOR_SCOPE_FRAME``th frame.
+
+        """
+        self.events = events
+        self.scope_frames_seen = 0
+
+    def on_frame(self: Self, *, frame_number: int, scene: Any) -> None:
+        """Post in the chosen scope frame (implements glitchygames.supervision.Supervisor)."""
+        del frame_number, scene
+        if SceneManager().playback_session is None:
+            return
+        self.scope_frames_seen += 1
+        if self.scope_frames_seen == SUPERVISOR_SCOPE_FRAME:
+            for event in self.events:
+                post_input_event(event)
+
+
+class SessionPlayer(Protocol):
+    """Plays a session: live (with its supervisor) or in the replay (without it)."""
+
+    def __call__(self, manager: Any, *, is_live: bool) -> None:
+        """Play the session on ``manager``; ``is_live`` is False in the replay."""
+
+
+def record_a_session_then_replay_it(*, tmp_path: Path, play_in_the_session: SessionPlayer) -> None:
+    """Record ``play_in_the_session`` with its supervisor, then replay it headless without it.
+
+    The replay is the one ``--replay-trace`` makes of a live session: the supervisor that
+    drove it is not run again, so its input posts are served from the recording as the
+    player's (BUGS.md #196).
+
+    Args:
+        tmp_path: Where the session is recorded.
+        play_in_the_session: Plays the session; its ``is_live`` is True in the live session
+            (with the supervisor), False in the replay (without it).
+
+    """
+    session_path = tmp_path / 'session.jsonl.gz'
+    with running_scene(KeyReleaseCountingScene) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        engine.start_trace_recording(path=session_path)
+        play_in_the_session(manager, is_live=True)
+        engine.stop_trace_recording()
+    _header, session_frames = recorded_trace(path=session_path)
+    with running_scene(
+        KeyReleaseCountingScene,
+        extra_arguments=['--replay-trace', str(session_path), '--headless'],
+    ) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        replay_sources = engine.replay_sources
+        assert replay_sources is not None
+        play_in_the_session(manager, is_live=False)
+        replay_sources.finish_run()
+        assert replay_sources.result.divergence is None, replay_sources.result.report()
+        assert replay_sources.result.frames_replayed == len(session_frames)
+
+
+class TestALiveSupervisorsInputIsThePlayers:
+    """A live supervisor's input posts pumped by a scope are the player's input (BUGS.md #196).
+
+    A press reaches the scope's exit check (it ends a demo); releases, device and window
+    events are held for the live game and delivered after the scope. Live play and a replay
+    of the session without the supervisor agree.
+    """
+
+    def test_a_supervisors_press_ends_a_demo(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            title_scene = manager.active_scene
+            supervisor = ScopeInputPostingSupervisor(events=[press(pygame.K_SPACE)])
+            manager.add_supervisor(supervisor=supervisor)
+            manager.play_recording(path=recording_path, then=title_scene)
+            # The press is posted in the scope's second frame, pumped in its third
+            step(manager, frames=SUPERVISOR_SCOPE_FRAME + 1)
+            manager.remove_supervisor(supervisor=supervisor)
+            assert manager.playback_session is None
+            assert manager.active_scene is title_scene
+            assert outcome_reason(manager) == 'exit_input'
+
+    def test_a_supervisors_press_does_not_end_an_instant_style_scope(self, tmp_path):
+        """Without exit on input, the press reaches nothing, as the player's would."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(KeyReleaseCountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            supervisor = ScopeInputPostingSupervisor(events=[press(pygame.K_SPACE)])
+            manager.add_supervisor(supervisor=supervisor)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES + LIVE_FRAMES_AFTER)
+            manager.remove_supervisor(supervisor=supervisor)
+            assert outcome_reason(manager) == 'end_of_recording'
+
+    def test_a_session_whose_supervisor_pressed_during_a_demo_replays_without_it(self, tmp_path):
+        """BUGS.md #196, second cause: live, the press ended the demo; the replay agrees."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any, *, is_live: bool) -> None:
+            title_scene = manager.active_scene
+            supervisor = ScopeInputPostingSupervisor(events=[press(pygame.K_SPACE)])
+            if is_live:
+                manager.add_supervisor(supervisor=supervisor)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            manager.play_recording(path=recording_path, then=title_scene)
+            step(manager, frames=RECORDED_FRAMES + LIVE_FRAMES_AFTER)
+            assert manager.playback_session is None
+            assert manager.active_scene is title_scene
+            assert outcome_reason(manager) == 'exit_input'
+            playback_result = manager.last_playback_result
+            assert playback_result is not None
+            assert playback_result.frames_replayed == SUPERVISOR_SCOPE_FRAME + 1
+            if is_live:
+                manager.remove_supervisor(supervisor=supervisor)
+
+        record_a_session_then_replay_it(tmp_path=tmp_path, play_in_the_session=play_in_the_session)
+
+    def test_a_session_whose_supervisor_released_during_a_scope_replays_without_it(self, tmp_path):
+        """The release is held for the live game, delivered after the scope, live and replayed."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any, *, is_live: bool) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, KeyReleaseCountingScene)
+            supervisor = ScopeInputPostingSupervisor(events=[release(pygame.K_SPACE)])
+            if is_live:
+                manager.add_supervisor(supervisor=supervisor)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            marker_before = live_scene.marker.rect.y
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert live_scene.marker.rect.y == marker_before
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            # Delivered once, to the live scene, after the scope
+            assert live_scene.marker.rect.y == marker_before + 1
+            if is_live:
+                manager.remove_supervisor(supervisor=supervisor)
+
+        record_a_session_then_replay_it(tmp_path=tmp_path, play_in_the_session=play_in_the_session)
+
+    def test_an_input_press_pending_as_a_demo_begins_ends_it(self, tmp_path):
+        """Posted before the scope, pumped by its first frame: the player's, as in the replay."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any, *, is_live: bool) -> None:
+            title_scene = manager.active_scene
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            manager.play_recording(path=recording_path, then=title_scene)
+            if is_live:
+                post_input_event(press(pygame.K_SPACE))
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            assert manager.playback_session is None
+            assert manager.active_scene is title_scene
+            assert outcome_reason(manager) == 'exit_input'
+
+        record_a_session_then_replay_it(tmp_path=tmp_path, play_in_the_session=play_in_the_session)
 
 
 class TestLiveVoicesThroughAPlayback:

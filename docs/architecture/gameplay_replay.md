@@ -174,7 +174,10 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
   recorded as external input, whatever its type, so `--replay-trace`, instant replays and demos
   serve it whether or not they run the poster again (a copy the replayed code posts is
   dropped). A supervisor that posts with `post_event` is taken for the game itself, and a
-  replay that does not run it diverges.
+  replay that does not run it diverges. While a demo or instant replay plays, its input posts
+  of SDL types (keys, buttons, device and window events) are the player's input: a press ends
+  a demo, a release is held for the live game, exactly as a replay of the session without the
+  supervisor serves them.
 - Draw random numbers from the seeded named streams in `glitchygames/randomness.py`
   (`random_stream('name')`, `numpy_stream('name')`), never from the global `random` functions,
   `secrets` or an unseeded numpy generator.
@@ -674,7 +677,9 @@ playback scene's own events still queued when it ends (posted in `update()` or a
 after its last pump: the live game never receives them, so a goal posted there cannot start a
 second instant replay). What the live game's own supervisors and handlers post while it plays
 stays the live game's: a supervisor that calls `end_playback()` and then posts an event has it
-delivered to the live game after the scope. A playback never rumbles the player's controllers,
+delivered to the live game after the scope. Their `post_input_event` posts of SDL types are the
+exception: those stand in for the player, so they reach the scope's exit check as the player's
+presses do (a scripted key ends a demo) and their releases are held with the player's. A playback never rumbles the player's controllers,
 and the live scene's synth voices (and those of the game behind a pause screen the instant
 replay began from) pause behind it and play on after. Inside a scope, a replay of the session still
 applies the session's breakpoints (a bookmark on a frame a demo played pauses there); the

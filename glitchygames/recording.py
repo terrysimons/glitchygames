@@ -139,7 +139,10 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
 - ``event_batches``: the batches the installed doors' pump returned, which the scope pumps once
   per pump of the frame: the player's real input (only the scope's exit check sees it), the
   window's QUIT, and the playback scene's own posts (internal). Replaying the session therefore
-  replays the exit press and the scene's posts as they happened.
+  replays the exit press and the scene's posts as they happened. The live game's input posts
+  (``post_input_event``) of SDL types are recorded external and are the player's input in the
+  scope too (glitchygames/replay/playback.py, rule 5), so a replay of the session, run without
+  the supervisor that posted them, serves them to the same exit check (BUGS.md #196).
 - ``input_changes``: the player's polled input (the scope reads the installed doors' snapshot
   every frame, then serves the recording's to the scene).
 - ``dt``: the installed doors' frame times (the live measurements), not the played
@@ -170,8 +173,9 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
   (``sources.discard_scope_posts``), so the recording never holds them, and a replay of the
   session drops them the same way. The posts the live game's own supervisors and handlers made
   during the scope (``live_game_posts``) are posted again as it ends, so the next frame's
-  ``event_batches`` hold them as internal events, once each; a replay of the session posts
-  them again the same way.
+  ``event_batches`` hold them, once each; a replay of the session posts them again the same
+  way. Their input posts of SDL types are not among them: those were the player's input
+  (above), held, if at all, with the player's events.
 
 Polled input
 ------------
@@ -554,6 +558,8 @@ def post_input_event(event: pygame.event.Event) -> bool:
     serves the recorded event whether or not it runs the poster again; a copy the replayed
     code posts (a supervisor the game's own setup() added) is dropped, so the game gets it
     once. Use ``post_event`` for the game's own posts, which a replay expects it to make again.
+    While a playback scope plays, an input post of an SDL type is the player's input: a press
+    ends a demo (glitchygames/replay/playback.py, rule 5; BUGS.md #196).
 
     Args:
         event: The event to post.

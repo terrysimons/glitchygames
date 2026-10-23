@@ -99,8 +99,14 @@ Demos and instant replays run inside a playback scope, not a new engine run
      event handlers make while the scope plays (``recording.live_game_posts``: ``post_event``
      marks them while ``SceneManager`` runs live code in a scope, rule 4; the played
      recording never held them) are held apart (``held_live_game_posts``) and posted again as
-     the scope ends (rule 4), input posts (``recording.post_input_event``) as input again;
-     the live game's input posts made before the scope are held with the external origin.
+     the scope ends (rule 4). The live game's input posts (``recording.post_input_event``: a
+     supervisor or tool standing in for the player) of an SDL type (below ``USEREVENT``),
+     made during the scope or before it, are the player's input (BUGS.md #196): a press
+     reaches the exit check (it ends a demo), releases, device and window events are held
+     with the player's (``held_live_events``, external), and the rest reach nothing. A replay
+     of the session runs without the poster and serves those events from the recording as
+     the player's, so the two agree. Its input posts of a type SDL never generates (no player
+     makes one) are held as its other posts are, and posted (or redelivered) as input again.
      The scope's code's own input posts (a supervisor the played scene added again) are
      dropped: the recording holds them as external and the replay serves them, so each
      arrives once. External events reach only the exit check, never the
@@ -176,8 +182,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    scene switches change ``previous_scene``; the playback scene's own voices end with it.
 
 Limits: a ``--replay-trace`` replay of a session whose live supervisor posted during a scope
-(``post_event`` or ``post_input_event``) diverges unless the replay adds that supervisor too:
-the served event reaches the scope's pump, which can no longer tell it from a scope post.
+with ``post_event``, or with ``post_input_event`` an event of a type SDL never generates,
+diverges unless the replay adds that supervisor too: the served event reaches the scope's
+pump, which can no longer tell it from a scope post. Its input posts of SDL types replay
+without it (rule 5).
 A scope that fast-forwards inside a restarted replay's rebuild silences on top of the
 rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
 pauses it again after the next frame). A scene must be rebuildable from its start
@@ -339,6 +347,16 @@ def _is_one_of(
     return post is not None and any(post is candidate for candidate in posts)
 
 
+def _is_sdl_event_type(*, event_type: int) -> bool:
+    """Report whether SDL can generate events of ``event_type`` (below ``pygame.USEREVENT``).
+
+    Returns:
+        True for a type the player's devices, the window or the OS can send.
+
+    """
+    return event_type < pygame.USEREVENT
+
+
 def _add_scope_post(
     *, event: pygame.event.Event, is_input: bool, internal_events: list[pygame.event.Event]
 ) -> None:
@@ -385,14 +403,16 @@ class PlaybackSources:
         held_live_events: The live game's events the scope's pumps drained and held, each
             with its origin, in pump order: its own posts made before the scope (internal) and
             the player's releases, device and window events (external,
-            ``PLAYBACK_HELD_EVENT_TYPES``). Delivered before the first pump after the scope.
+            ``PLAYBACK_HELD_EVENT_TYPES``; the live game's input posts of those types among
+            them). Delivered before the first pump after the scope.
         input_posts_at_pump: The pending posts that were input posts
             (``recording.post_input_event``) as the current pump began, noted before the
             installed doors pump: a replay's pump (a session replayed) forgets the tracker's
             posts, their input marks included, once it has sorted its batch.
         held_live_game_posts: The posts the live game's own supervisors and handlers made
             during the scope (``recording.live_game_posts``) that the scope's pumps drained, in
-            pump order, each with whether it was an input post (``recording.post_input_event``).
+            pump order, each with whether it was an input post (``recording.post_input_event``;
+            only of a type SDL never generates: an SDL type's is the player's input, rule 5).
             Posted again as the scope ends, as they were posted (``SceneManager._exit_playback``).
         live_posts_before_scope: The live game's posts no pump had returned yet as the scope
             began (its first pump holds them; rule 5).
@@ -582,7 +602,7 @@ class PlaybackSources:
                     is_input=_is_one_of(post=scope_post, posts=self.input_posts_at_pump),
                     internal_events=internal_events,
                 )
-            elif self._hold_live_post(
+            elif self._sort_live_post(
                 event=event,
                 live_posts=live_posts,
                 live_game_posts=live_game_posts,
@@ -600,12 +620,27 @@ class PlaybackSources:
                     self.held_live_events.append((event, INTERNAL_ORIGIN))
                 else:
                     internal_events.append(event)
-            elif event.type in PLAYBACK_HELD_EVENT_TYPES:
-                self.held_live_events.append((event, EXTERNAL_ORIGIN))
-            elif self.exit_on_input and event.type in PLAYBACK_EXIT_EVENT_TYPES:
-                self.exit_requested = True
-                self._note_end(reason='exit_input')
+            else:
+                self._sort_player_event(event=event)
         return internal_events, quit_events
+
+    def _sort_player_event(self: Self, *, event: pygame.event.Event) -> None:
+        """Sort the player's input (``_sort_base_events``): held, an exit press, or dropped.
+
+        Releases, device and window events are held for the live game
+        (``PLAYBACK_HELD_EVENT_TYPES``); a press ends a scope that exits on input
+        (``PLAYBACK_EXIT_EVENT_TYPES``); anything else (a press without exit on input, motion)
+        reaches nothing. A live input post of an SDL type is sorted here too (rule 5).
+
+        Args:
+            event: The external event.
+
+        """
+        if event.type in PLAYBACK_HELD_EVENT_TYPES:
+            self.held_live_events.append((event, EXTERNAL_ORIGIN))
+        elif self.exit_on_input and event.type in PLAYBACK_EXIT_EVENT_TYPES:
+            self.exit_requested = True
+            self._note_end(reason='exit_input')
 
     @staticmethod
     def _take_live_post(
@@ -624,37 +659,44 @@ class PlaybackSources:
             event=event, pending=live_game_posts
         )
 
-    def _hold_live_post(
+    def _sort_live_post(
         self: Self,
         *,
         event: pygame.event.Event,
         live_posts: list[tuple[int, dict[str, Any]]],
         live_game_posts: list[tuple[int, dict[str, Any]]],
     ) -> bool:
-        """Hold ``event`` for the live game if it is one of its posts (``_sort_base_events``).
+        """Sort ``event`` if it is one of the live game's posts (``_sort_base_events``, rule 5).
 
-        One made before the scope joins ``held_live_events`` (redelivered as the scope ends);
-        one its supervisors and handlers made during it joins ``held_live_game_posts`` (posted
-        again as the scope ends).
+        An input post (``recording.post_input_event``) of an SDL type stands in for the player
+        (BUGS.md #196): it is sorted as the player's input (``_sort_player_event``), so a press
+        ends a demo, as it does in a replay of the session, which serves it from the recording
+        without the poster. Any other post is held: one made before the scope joins
+        ``held_live_events`` (redelivered as the scope ends; an input post of a type SDL never
+        generates as external, as recorded); one the live game's supervisors and handlers made
+        during it joins ``held_live_game_posts`` (posted again as the scope ends).
 
         Returns:
-            True when it was held.
+            True when it was one of the live game's posts (sorted or held).
 
         """
         live_post = take_matching_post(event=event, pending=live_posts)
-        if live_post is not None:
-            # An input post is input to the live game: redelivered as external, as recorded
-            is_input = _is_one_of(post=live_post, posts=self.input_posts_at_pump)
+        live_game_post = (
+            None
+            if live_post is not None
+            else take_matching_post(event=event, pending=live_game_posts)
+        )
+        if live_post is None and live_game_post is None:
+            return False
+        matched_post = live_post if live_post is not None else live_game_post
+        is_input = _is_one_of(post=matched_post, posts=self.input_posts_at_pump)
+        if is_input and _is_sdl_event_type(event_type=event.type):
+            self._sort_player_event(event=event)
+        elif live_post is not None:
             self.held_live_events.append((event, EXTERNAL_ORIGIN if is_input else INTERNAL_ORIGIN))
-            return True
-        live_game_post = take_matching_post(event=event, pending=live_game_posts)
-        if live_game_post is not None:
-            self.held_live_game_posts.append((
-                event,
-                _is_one_of(post=live_game_post, posts=self.input_posts_at_pump),
-            ))
-            return True
-        return False
+        else:
+            self.held_live_game_posts.append((event, is_input))
+        return True
 
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Return the recording's dt, after asking the installed doors as always.
