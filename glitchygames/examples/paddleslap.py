@@ -18,14 +18,11 @@ if TYPE_CHECKING:
     from glitchygames.events.base import HashableEvent
 
 import pygame
-import pygame.freetype
 
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
-from glitchygames.color import BLACKLUCENT, WHITE
+from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
-from glitchygames.events.joystick import JoystickEventManager
-from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import (
     BallSpawnMode,
@@ -42,7 +39,6 @@ from glitchygames.movement import Speed
 from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.sprites import Sprite
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 log = logging.getLogger('game')
@@ -93,155 +89,6 @@ PADDLESLAP_SPEED_UP = SpeedUpSettings(
     multiplier=1.15,
     max_speed=500.0,
 )
-
-
-class TextSprite(Sprite):
-    """A sprite class for displaying text."""
-
-    def __init__(
-        self: Self,
-        background_color: tuple[int, int, int] | tuple[int, int, int, int] = BLACKLUCENT,
-        alpha: int = 0,
-        x: int = 0,
-        y: int = 0,
-        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
-    ) -> None:
-        """Initialize the text sprite.
-
-        Args:
-            background_color (tuple): The background color of the text.
-            alpha (int): The alpha value of the text.
-            x (int): The x position of the text.
-            y (int): The y position of the text.
-            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        """
-        if groups is None:
-            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
-
-        super().__init__(x, y, 0, 0, groups=groups)  # type: ignore[arg-type]
-        self.background_color = background_color
-        self.alpha = alpha
-        self.x = x
-        self.y = y
-
-        # Quick and dirty, for now.
-        self.image = pygame.Surface((400, 400))
-        self.screen = pygame.display.get_surface()
-
-        if not alpha:
-            self.image.set_colorkey(self.background_color)
-            self.image.convert()
-        else:
-            # Enabling set_alpha() and also setting a color
-            # key will let you hide the background
-            # but things that are blited otherwise will
-            # be translucent.  This can be an easy
-            # way to get a translucent image which
-            # does not have a border, but it causes issues
-            # with edge-bleed.
-            #
-            # What if we blitted the translucent background
-            # to the screen, then copied it and used the copy
-            # to write the text on top of when translucency
-            # is set?  That would allow us to also control
-            # whether the text is opaque or translucent, and
-            # it would also allow a different translucency level
-            # on the text than the window.
-            self.image.convert_alpha()
-            self.image.set_alpha(self.alpha)
-
-        self.rect = self.image.get_rect()
-        self.rect.x += x
-        self.rect.y += y
-        self.font_manager = FontManager()
-        self.joystick_manager = JoystickEventManager()
-        self.joystick_count = len(self.joystick_manager.joysticks)
-
-        # Inheriting from object is default in Python 3.
-        # Linters complain if you do it.
-        class TextBox(Sprite):
-            """A sprite class for displaying text."""
-
-            def __init__(
-                self: Self,
-                font_controller: FontManager,
-                pos: tuple[int, int],
-                line_height: int = 15,
-                groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
-            ) -> None:
-                """Initialize the text sprite.
-
-                Args:
-                    font_controller (FontManager): The font controller to use.
-                    pos (tuple): The position of the text.
-                    line_height (int): The line height of the text.
-                    groups (pygame.sprite.LayeredDirty | None): The sprite
-                        groups to add the sprite to.
-
-                """
-                if groups is None:
-                    groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
-
-                super().__init__(pos[0], pos[1], 0, 0, groups=groups)  # type: ignore[arg-type]
-                self.image = pygame.Surface((0, 0))  # Replaced by font.render() in print_text()
-                self.start_pos = pos
-                self.rect = pygame.Rect(pos, (640, 480))
-                self.line_height = line_height
-
-                pygame.freetype.set_default_resolution(font_controller.font_dpi)  # type: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # FontManager proxy resolves at runtime
-                self.font = pygame.freetype.SysFont(
-                    name=font_controller.font,  # type: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # FontManager proxy resolves at runtime
-                    size=font_controller.font_size,  # type: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # FontManager proxy resolves at runtime
-                )
-
-            def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
-                """Print text to the screen.
-
-                Args:
-                    surface (pygame.surface.Surface): The surface to print to.
-                    string (str): The string to print.
-
-                """
-                (self.image, self.rect) = self.font.render(string, WHITE)
-                # self.image
-                surface.blit(self.image, self.rect.center)
-                self.rect.center = surface.get_rect().center
-                self.rect.y += self.line_height
-
-            def reset(self: Self) -> None:
-                """Reset the text box.
-
-                Args:
-                    None
-
-                """
-                self.rect.center = self.start_pos
-
-            def indent(self: Self) -> None:
-                self.rect.x += 10
-
-            def unindent(self: Self) -> None:
-                self.rect.x -= 10
-
-        self.text_box = TextBox(
-            font_controller=self.font_manager,
-            pos=(int(self.rect.centerx), int(self.rect.centery)),
-        )
-        self.dirty = 2
-
-    @override
-    def update(self: Self) -> None:
-        """Update the text sprite.
-
-        Args:
-            None
-
-        """
-        self.image.fill(self.background_color)
-
-        self.text_box.reset()
-        self.text_box.print_text(self.image, f'{Game.NAME} version {Game.VERSION}')
 
 
 def _random_ball_color() -> tuple[int, int, int]:
@@ -348,8 +195,7 @@ class Game(Scene):
             )
             # Add collision cooldown tracking
             ball.collision_cooldowns = {}
-            # Set up paddle collision callback for ball spawn (with speed limit check)
-            ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
+            self._connect_spawn_triggers(ball=ball)
             self.balls.append(ball)
 
         for ball in self.balls:
@@ -416,10 +262,7 @@ class Game(Scene):
             ball: The ball sprite to track.
 
         """
-        # Track trajectory over time to detect curving
-        if not hasattr(ball, '_debug_positions'):
-            ball._debug_positions = []  # type: ignore[attr-defined]
-
+        # Track trajectory over time to detect curving (BallSprite starts the history empty)
         drawn_x, drawn_y = snapped_world_position(ball, ball.world_x, ball.world_y)
         ball._debug_positions.append((drawn_x, drawn_y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
 
@@ -556,13 +399,18 @@ class Game(Scene):
         # collided moving like a serve (a game rule, separate from the physics)
         self._handle_ball_collisions()
         self._keep_collided_balls_playable()
+        self._spawn_new_balls_for_ball_collisions()
 
-        # Remove dead balls from our list
+        # Remove dead balls from our list: a ball dies only by leaving past a paddle (a score)
         balls_to_remove = [ball for ball in self.balls if not ball.alive()]
 
         for ball in balls_to_remove:
             self.balls.remove(ball)
             self.collisions.get_layer('balls').remove(ball)
+
+        # Spawn for scores before the Game Over check, so a spawn can keep the game going
+        for ball in balls_to_remove:
+            self._spawn_new_ball_on_trigger(trigger=BallSpawnMode.ON_SCORE, ball=ball)
 
         # Check for Game Over condition
         if len(self.balls) == 0:
@@ -672,24 +520,59 @@ class Game(Scene):
             new_ball.color = WHITE
         # Add collision cooldown tracking
         new_ball.collision_cooldowns = {}
-        # Set up paddle collision callback for ball spawn (with speed limit check)
-        new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
+        self._connect_spawn_triggers(ball=new_ball)
 
         # Add to balls list, sprite group, and collision layer
         self.balls.append(new_ball)
         self.all_sprites.add(new_ball)
         self.collisions.get_layer('balls').add(new_ball)
 
-    def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
-        """Count the rally hit and conditionally spawn a new ball.
+    def _connect_spawn_triggers(self: Self, *, ball: BallSprite) -> None:
+        """Connect a ball's paddle-hit and wall-bounce callbacks to the ball spawner.
+
+        Ball-ball collisions and scores are seen by _resolve_collisions instead, which
+        handles every ball's.
 
         Args:
-            ball: The ball that triggered the collision
+            ball: An opening or spawned ball.
+
+        """
+        # The paddle callback also counts the rally, whatever the spawn mode
+        ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
+        ball.on_wall_bounce = self._spawn_new_ball_on_wall_bounce
+
+    def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
+        """Count the rally hit and spawn a new ball if paddle hits are a spawn trigger.
+
+        Args:
+            ball: The ball that hit a paddle
 
         """
         self.rally_count += 1
-        # Check if spawning is enabled
-        if self.ball_spawn_mode == BallSpawnMode.NO_SPAWNING:
+        self._spawn_new_ball_on_trigger(trigger=BallSpawnMode.ON_PADDLE_COLLISION, ball=ball)
+
+    def _spawn_new_ball_on_wall_bounce(self: Self, ball: BallSprite) -> None:
+        """Spawn a new ball if wall bounces are a spawn trigger.
+
+        Args:
+            ball: The ball that bounced off a wall
+
+        """
+        self._spawn_new_ball_on_trigger(trigger=BallSpawnMode.ON_WALL_BOUNCE, ball=ball)
+
+    def _spawn_new_ball_on_trigger(self: Self, *, trigger: int, ball: BallSprite) -> None:
+        """Spawn a new ball for a trigger event, if the spawn mode allows it now.
+
+        All triggers share one cooldown and one speed check (the triggering ball's speed).
+
+        Args:
+            trigger: The BallSpawnMode trigger flag of the event (ON_PADDLE_COLLISION,
+                ON_WALL_BOUNCE, ON_BALL_COLLISION or ON_SCORE).
+            ball: The ball that triggered the event.
+
+        """
+        # Only the triggers the spawn mode names spawn (NO_SPAWNING names none)
+        if not self.ball_spawn_mode & trigger:
             return
 
         # Check cooldown if enabled
@@ -821,6 +704,20 @@ class Game(Scene):
         for ball1, ball2 in self._ball_collision_pairs:
             self._keep_ball_playable(ball1, partner=ball2)
             self._keep_ball_playable(ball2, partner=ball1)
+
+    def _spawn_new_balls_for_ball_collisions(self: Self) -> None:
+        """Spawn a new ball for each ball-ball collision this frame, if they are a trigger.
+
+        Runs after _keep_collided_balls_playable (and outside the collision manager's pass,
+        so spawned balls never join it). The speed check uses the pair's faster ball.
+        """
+        for ball1, ball2 in self._ball_collision_pairs:
+            faster_ball = max(
+                (ball1, ball2), key=lambda ball: math.hypot(ball.speed.x, ball.speed.y)
+            )
+            self._spawn_new_ball_on_trigger(
+                trigger=BallSpawnMode.ON_BALL_COLLISION, ball=faster_ball
+            )
 
     @staticmethod
     def _keep_ball_playable(ball: BallSprite, *, partner: BallSprite) -> None:

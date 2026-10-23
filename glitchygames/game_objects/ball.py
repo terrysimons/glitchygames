@@ -433,6 +433,8 @@ class BallSprite(Sprite):
         # Collision tracking (set by callers like PaddleSlap)
         self.collision_cooldowns: dict[str, float] = {}
         self.on_paddle_collision: Callable[[BallSprite], None] | None = None
+        # Called with the ball after each wall bounce (one call per bounce, corners included)
+        self.on_wall_bounce: Callable[[BallSprite], None] | None = None
 
         # Debug trajectory tracking (PaddleSlap fills it only while DEBUG logging is on)
         self._debug_positions: list[tuple[float, float, float, float]] = []
@@ -751,8 +753,9 @@ class BallSprite(Sprite):
         """Bounce off any wall the ball is touching while moving toward it.
 
         A frame that hits one wall, or two at a corner, is a single bounce: one sound
-        and at most one WALL_BOUNCE speed-up. A ball touching a wall while already
-        moving away from it (e.g. the frame after a bounce) does not bounce again.
+        and at most one WALL_BOUNCE speed-up, then one on_wall_bounce call. A ball
+        touching a wall while already moving away from it (e.g. the frame after a bounce)
+        does not bounce again.
 
         Args:
             log (logging.Logger): Logger instance for debug output
@@ -784,11 +787,17 @@ class BallSprite(Sprite):
             self._handle_corner_collision(log)
 
         if hit_horizontal_wall or hit_vertical_wall:
-            if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
-                self.snd.play()
-            self._apply_triggered_speed_up(SpeedUpTrigger.WALL_BOUNCE)
+            self._finish_wall_bounce()
 
         self._keep_inside_playfield()
+
+    def _finish_wall_bounce(self: Self) -> None:
+        """Play the bounce sound, apply any WALL_BOUNCE speed-up, then call on_wall_bounce."""
+        if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
+            self.snd.play()
+        self._apply_triggered_speed_up(SpeedUpTrigger.WALL_BOUNCE)
+        if self.on_wall_bounce is not None:
+            self.on_wall_bounce(self)
 
     def _keep_inside_playfield(self: Self) -> None:
         """Mirror any overshoot past a bouncing wall back inside the playfield.

@@ -2,6 +2,7 @@
 
 import hashlib
 import math
+import os
 import re
 import tomllib
 import types
@@ -9,13 +10,17 @@ from pathlib import Path
 
 import pygame
 import pytest
+from scripts.record_golden_traces import GoldenTraceEngine, command_line
+from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY
 
 from glitchygames.animation.state_machine import AnimationStateMachine
+from glitchygames.audio import VoiceAssistant
 from glitchygames.camera import FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples import brave_adventurer as brave_adventurer_package
 from glitchygames.examples import brave_adventurer_papyrus as papyrus_package
+from glitchygames.examples.brave_adventurer import game as brave_adventurer_game
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -24,6 +29,7 @@ from glitchygames.examples.brave_adventurer.constants import (
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
     GROUND_Y,
+    SCREEN_WIDTH,
     STONE_WALL_WIDTH,
 )
 from glitchygames.examples.brave_adventurer.drawing import (
@@ -34,9 +40,15 @@ from glitchygames.examples.brave_adventurer.drawing import (
     draw_sky,
 )
 from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
-from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
+from glitchygames.examples.brave_adventurer.game import (
+    MIC_BUTTON_CONTROLLER,
+    MIC_BUTTON_JOYSTICK,
+    BraveAdventurerScene,
+)
+from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager, ScreenData
 from glitchygames.examples.brave_adventurer.player import Player
 from glitchygames.examples.brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
+from glitchygames.examples.brave_adventurer_papyrus import game as papyrus_game
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     FALLING_VELOCITY_THRESHOLD as PAPYRUS_FALLING_VELOCITY_THRESHOLD,
 )
@@ -50,11 +62,19 @@ from glitchygames.examples.brave_adventurer_papyrus.enemies import (
     PapyrusScorpion,
 )
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from glitchygames.examples.brave_adventurer_papyrus.levels import PapyrusLevelManager
 from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_transparency_and_scale
+from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+    apply_transparency_and_scale,
+    prepare_papyrus_sprite,
+)
 from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
+from glitchygames.scenes import SceneManager
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
+from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
 
@@ -1406,3 +1426,551 @@ class TestParallaxDrawingGoldens:
         draw_dunes_and_oasis(surface, 1700.0, 0.0)
 
         assert draw_line_spy.call_count == 0
+
+
+# --- Scene behaviour the golden replays never reach (both editions unless noted) ---
+
+GAME_SCENE_CLASSES = [BraveAdventurerScene, PapyrusBraveAdventurerScene]
+BACKGROUND_COLOR = (1, 2, 3)
+
+
+def _start_display():
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode(SCREEN_SIZE)
+
+
+@pytest.fixture(params=GAME_SCENE_CLASSES)
+def real_scene(request):
+    """Each game's scene with nothing replaced: real sounds, saves, rumble and respawn.
+
+    Returns:
+        The scene.
+
+    """
+    _start_display()
+    return request.param(options={'input_mode': 'joystick'})
+
+
+def _surface_bytes(surface):
+    return pygame.image.tobytes(surface, 'RGBA')
+
+
+def _filled_surface():
+    surface = pygame.Surface(SCREEN_SIZE)
+    surface.fill(BACKGROUND_COLOR)
+    return surface
+
+
+def _joystick_button_event(event_type, button):
+    return HashableEvent(event_type, joy=0, instance_id=0, button=button)
+
+
+def _controller_button_event(event_type, button):
+    return HashableEvent(event_type, instance_id=0, button=button)
+
+
+def _player_in_the_air(scene):
+    player = _drawn_player(scene)
+    player.on_ground = False
+    player.velocity_y = 120.0
+    return player
+
+
+class TestSceneConstruction:
+    """The scene uses a sprite group it is given, or makes its own."""
+
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_a_given_group_holds_every_sprite(self, scene_class):
+        _start_display()
+        group = pygame.sprite.LayeredDirty()
+
+        scene = scene_class(options={'input_mode': 'joystick'}, groups=group)
+
+        assert scene.all_sprites is group
+        assert scene.player in group
+        assert all(enemy in group for enemy in scene.enemy_sprites)
+
+
+class TestGameOverFreezesTheWorld:
+    """After the last life, dt_tick moves nothing and a second death costs nothing."""
+
+    def test_dt_tick_after_game_over_moves_nothing(self, real_scene):
+        player = real_scene.player
+        real_scene.game_over_triggered = True
+        player.velocity_x = 200.0
+        player.velocity_y = 300.0
+        position = (player.world_x, player.world_y)
+
+        real_scene.dt_tick(FRAME_SECONDS)
+
+        assert (player.world_x, player.world_y) == position
+
+    def test_dying_again_after_game_over_costs_no_life(self, real_scene):
+        real_scene.game_over_triggered = True
+        real_scene.player.lives = 0
+
+        real_scene._player_die()
+
+        assert real_scene.player.lives == 0
+
+
+class TestFlatGroundWithoutSegments:
+    """A level without ground segments stands the player on an endless flat floor."""
+
+    def test_falling_player_lands_on_the_ground_line(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_y = float(GROUND_Y - 20)  # sunk into the floor, falling
+        player.velocity_y = 50.0
+
+        scene._resolve_player_ground_collision()
+
+        assert player.on_ground
+        assert player.velocity_y == 0.0
+        if isinstance(scene, PapyrusBraveAdventurerScene):
+            assert player.world_y == GROUND_Y - PAPYRUS_PLAYER_HEIGHT
+        else:
+            assert _player_hitbox(scene).bottom == GROUND_Y
+
+    def test_rising_player_is_not_caught_by_the_ground_line(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_y = float(GROUND_Y - 20)
+        player.velocity_y = -50.0
+
+        scene._resolve_player_ground_collision()
+
+        assert not player.on_ground
+
+    def test_no_pits_are_drawn(self, real_scene):
+        real_scene.ground_sprites[:] = []
+        surface = _filled_surface()
+        before = _surface_bytes(surface)
+
+        real_scene._draw_pits(surface)
+
+        assert _surface_bytes(surface) == before
+
+    def test_a_scarab_with_no_ground_rolls_on_the_pit_floor(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = []
+        scene.wall_sprites[:] = []
+        scarab = _make_scarab(scene)
+        scarab.world_y = float(scene.screen_height)  # fallen past the pit floor
+        scarab.velocity_y = 100.0
+        scene.enemy_sprites[:] = [scarab]
+
+        scene._resolve_enemy_terrain_collisions()
+
+        assert scarab.on_ground
+        assert scarab.velocity_y == 0.0
+        assert get_sprite_collision_rect(scarab).bottom == scene.screen_height
+
+
+class TestPitWalls:
+    """In a pit, the next segment's edge is a wall the player cannot walk through."""
+
+    PIT_RIGHT = 400
+
+    def test_walking_right_in_a_pit_stops_flush_with_the_far_edge(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = [
+            types.SimpleNamespace(world_x=0.0, segment_width=300),
+            types.SimpleNamespace(world_x=float(self.PIT_RIGHT), segment_width=400),
+        ]
+        scene.wall_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_y = float(GROUND_Y + 10)  # down in the pit
+        player.velocity_y = 0.0
+        player.velocity_x = 200.0
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = _player_hitbox(scene).width
+        player.world_x = float(self.PIT_RIGHT - hitbox_width - offset_x + 3)  # 3 px into it
+
+        scene._resolve_player_ground_collision()
+
+        assert not player.on_ground
+        assert _player_hitbox(scene).right == self.PIT_RIGHT
+
+
+class TestHighScores:
+    """The last death saves the score to the game's real save files and shows the table."""
+
+    @pytest.fixture
+    def saving_scene(self, real_scene, tmp_path):
+        """The scene saving to a DiskSaveManager in tmp_path.
+
+        Returns:
+            The scene.
+
+        """
+        real_scene.saves = DiskSaveManager('brave-adventurer-test', save_dir=tmp_path)
+        return real_scene
+
+    def test_first_score_starts_the_table(self, saving_scene, tmp_path):
+        saving_scene.player.score = 120
+        saving_scene.player.lives = 1
+
+        saving_scene._player_die()
+
+        game_over_scene = saving_scene.next_scene
+        assert isinstance(game_over_scene, GameOverScene)
+        assert game_over_scene.final_score == 120
+        assert game_over_scene.high_scores == [{'score': 120}]
+        reread = DiskSaveManager('brave-adventurer-test', save_dir=tmp_path)
+        assert reread.load('high_scores') == {'scores': [{'score': 120}]}
+
+    def test_table_keeps_the_ten_best_in_descending_order(self, saving_scene, tmp_path):
+        saving_scene.saves.save(
+            'high_scores', {'scores': [{'score': score} for score in range(100, 1100, 100)]}
+        )
+        saving_scene.player.score = 550
+
+        high_scores = saving_scene._save_high_score()
+
+        expected = [{'score': score} for score in (1000, 900, 800, 700, 600, 550, 500, 400)]
+        expected += [{'score': 300}, {'score': 200}]
+        assert high_scores == expected
+        reread = DiskSaveManager('brave-adventurer-test', save_dir=tmp_path)
+        assert reread.load('high_scores') == {'scores': expected}
+
+
+class TestJumpInput:
+    """Jump from the keyboard, a controller or a joystick: only from the ground, with a sound."""
+
+    @staticmethod
+    def _press_jump(scene, source):
+        if source == 'keyboard':
+            _press_key(scene, pygame.K_SPACE)
+        elif source == 'controller':
+            scene.on_controller_button_down_event(
+                _controller_button_event(pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLER_BUTTON_A)
+            )
+        else:
+            scene.on_joy_button_down_event(
+                _joystick_button_event(pygame.JOYBUTTONDOWN, pygame.CONTROLLER_BUTTON_A)
+            )
+
+    @pytest.fixture(params=['keyboard', 'controller', 'joystick'])
+    def jump_source(self, request):
+        return request.param
+
+    @pytest.fixture
+    def jump_scene(self, adventurer_scene, jump_source):
+        """The scene bound for the jump source (the controller binds CONTROLLERBUTTON events).
+
+        Returns:
+            The scene.
+
+        """
+        if jump_source != 'controller':
+            return adventurer_scene
+        scene = type(adventurer_scene)(options={'input_mode': 'controller'})
+        scene.sounds = adventurer_scene.sounds  # the fixture's stand-in for the speakers
+        return scene
+
+    def test_jump_from_the_ground_plays_the_jump_sound(self, jump_scene, jump_source):
+        player = _drawn_player(jump_scene)
+        player.on_ground = True
+        player.velocity_y = 0.0
+
+        self._press_jump(jump_scene, jump_source)
+
+        assert player.velocity_y < 0
+        assert not player.on_ground
+        jump_scene.sounds.play_jump.assert_called_once_with()
+
+    def test_jump_in_the_air_does_nothing(self, jump_scene, jump_source):
+        player = _player_in_the_air(jump_scene)
+
+        self._press_jump(jump_scene, jump_source)
+
+        assert player.velocity_y == 120.0
+        jump_scene.sounds.play_jump.assert_not_called()
+
+    def test_an_unbound_button_does_nothing(self, jump_scene, jump_source):
+        player = _drawn_player(jump_scene)
+        player.on_ground = True
+        player.velocity_y = 0.0
+        unbound_button = pygame.CONTROLLER_BUTTON_X
+        if jump_source == 'keyboard':
+            jump_scene.on_key_down_event(key_at(key=pygame.K_F13, scancode=pygame.KSCAN_F13))
+        elif jump_source == 'controller':
+            jump_scene.on_controller_button_down_event(
+                _controller_button_event(pygame.CONTROLLERBUTTONDOWN, unbound_button)
+            )
+        else:
+            jump_scene.on_joy_button_down_event(
+                _joystick_button_event(pygame.JOYBUTTONDOWN, unbound_button)
+            )
+
+        assert player.on_ground
+        assert player.velocity_y == 0.0
+        assert jump_scene.next_scene is jump_scene
+        assert not jump_scene.quit_requested
+
+
+class TestQuitKey:
+    """Q (by position) ends the game: no next scene."""
+
+    def test_quit_position_ends_the_game(self, real_scene):
+        real_scene.on_key_down_event(key_at(key=pygame.K_q, scancode=pygame.KSCAN_Q))
+
+        assert real_scene.next_scene is None
+
+
+class TestButtonsAndAxesHoldMovement:
+    """A D-pad button held moves the player until released; joystick axes move nothing."""
+
+    def test_holding_the_dpad_walks_right_until_released(self, real_scene):
+        scene = real_scene
+        player = scene.player
+        start_x = player.world_x
+        scene.on_joy_button_down_event(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+        )
+        for _ in range(10):
+            scene.dt_tick(FRAME_SECONDS)
+        assert scene.actions.is_held('move_right')
+        assert player.world_x > start_x
+
+        scene.on_joy_button_up_event(
+            _joystick_button_event(pygame.JOYBUTTONUP, pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+        )
+
+        assert not scene.actions.is_held('move_right')
+
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_releasing_a_controller_dpad_button_stops_holding(self, scene_class):
+        _start_display()
+        scene = scene_class(options={'input_mode': 'controller'})
+        dpad_right = pygame.CONTROLLER_BUTTON_DPAD_RIGHT
+        scene.on_controller_button_down_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONDOWN, dpad_right)
+        )
+        assert scene.actions.is_held('move_right')
+
+        scene.on_controller_button_up_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONUP, dpad_right)
+        )
+
+        assert not scene.actions.is_held('move_right')
+
+    def test_a_joystick_axis_moves_nothing(self, real_scene):
+        """No action is bound to an axis: tilting the stick holds no action."""
+        real_scene.on_joy_axis_motion_event(
+            HashableEvent(pygame.JOYAXISMOTION, joy=0, instance_id=0, axis=0, value=1.0)
+        )
+
+        for action in ('move_right', 'move_left', 'jump'):
+            assert not real_scene.actions.is_held(action)
+
+
+@pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
+class TestVoiceAssistantMicButton:
+    """Brave Adventurer: holding the mic button records a question, releasing it answers.
+
+    The voice assistant drives a controller's microphone and speaker (hardware), so it is a
+    stand-in here.
+    """
+
+    @pytest.fixture
+    def voice_assistant(self, mocker):
+        return mocker.create_autospec(VoiceAssistant, instance=True)
+
+    @staticmethod
+    def _controller_scene():
+        _start_display()
+        return BraveAdventurerScene(options={'input_mode': 'controller'})
+
+    def test_each_frame_collects_finished_responses(self, adventurer_scene, voice_assistant):
+        adventurer_scene.voice_assistant = voice_assistant
+
+        adventurer_scene.dt_tick(FRAME_SECONDS)
+
+        voice_assistant.update.assert_called_once_with()
+
+    def test_controller_mic_button_listens_and_answers(self, adventurer_scene, voice_assistant):
+        scene = self._controller_scene()
+        scene.voice_assistant = voice_assistant
+
+        scene.on_controller_button_down_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+        )
+        voice_assistant.start_listening.assert_called_once_with()
+        scene.on_controller_button_up_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONUP, MIC_BUTTON_CONTROLLER)
+        )
+
+        voice_assistant.stop_listening_and_respond.assert_called_once_with()
+
+    def test_joystick_mic_button_listens_and_answers(self, adventurer_scene, voice_assistant):
+        adventurer_scene.voice_assistant = voice_assistant
+
+        adventurer_scene.on_joy_button_down_event(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_JOYSTICK)
+        )
+        voice_assistant.start_listening.assert_called_once_with()
+        adventurer_scene.on_joy_button_up_event(
+            _joystick_button_event(pygame.JOYBUTTONUP, MIC_BUTTON_JOYSTICK)
+        )
+
+        voice_assistant.stop_listening_and_respond.assert_called_once_with()
+
+    def test_mic_button_without_an_assistant_does_nothing(self, adventurer_scene):
+        """No controller with a microphone was found: the mic button is ignored."""
+        controller_scene = self._controller_scene()
+        for scene in (adventurer_scene, controller_scene):
+            scene.voice_assistant = None
+            scene.dt_tick(FRAME_SECONDS)
+        controller_scene.on_controller_button_down_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+        )
+        controller_scene.on_controller_button_up_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONUP, MIC_BUTTON_CONTROLLER)
+        )
+        adventurer_scene.on_joy_button_down_event(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_JOYSTICK)
+        )
+        adventurer_scene.on_joy_button_up_event(
+            _joystick_button_event(pygame.JOYBUTTONUP, MIC_BUTTON_JOYSTICK)
+        )
+
+        assert adventurer_scene.voice_assistant is None
+        assert controller_scene.voice_assistant is None
+
+
+class TestHud:
+    """The HUD draws only once setup() has loaded its font."""
+
+    def test_before_setup_nothing_is_drawn(self, real_scene):
+        surface = _filled_surface()
+        before = _surface_bytes(surface)
+
+        real_scene._draw_hud(surface)
+
+        assert _surface_bytes(surface) == before
+
+    def test_after_setup_score_and_lives_are_drawn(self, real_scene):
+        real_scene.setup()
+        surface = _filled_surface()
+        before = _surface_bytes(surface)
+
+        real_scene._draw_hud(surface)
+
+        assert _surface_bytes(surface) != before
+
+
+class TestMain:
+    """Each game's console script entry point runs the real engine (here a headless replay).
+
+    main() runs with its module's GameEngine replaced by GoldenTraceEngine: the real engine
+    opening a plain window, since SDL's dummy video driver warns "no fast renderer available"
+    for GameEngine's SCALED window, an error under pytest's filterwarnings.
+    """
+
+    @pytest.mark.parametrize(
+        ('console_script', 'game_module'),
+        [('brave-adventurer', brave_adventurer_game), ('brave-adventurer-papyrus', papyrus_game)],
+    )
+    def test_main_replays_the_golden_recording(self, mocker, console_script, game_module):
+        mocker.patch.object(game_module, 'GameEngine', GoldenTraceEngine)
+        # GameEngine._shutdown quits pygame; later tests on this worker still need it
+        mocker.patch('pygame.quit')
+        mocker.patch('pygame.display.quit')
+        # --headless sets the SDL driver variables; the test's own values come back afterwards
+        mocker.patch.dict(os.environ)
+        recording = REPLAY_FIXTURE_DIRECTORY / console_script / 'golden.jsonl.gz'
+        SceneManager._reset()  # the engine starts from a fresh scene manager, as a process does
+        try:
+            with (
+                command_line([
+                    '--log-level',
+                    'warning',
+                    '--replay-trace',
+                    str(recording),
+                    '--headless',
+                ]),
+                pytest.raises(SystemExit) as exit_info,
+            ):
+                game_module.main()
+        finally:
+            pygame.event.clear()
+            SceneManager._reset()
+
+        assert exit_info.value.code == ExitCode.SUCCESS
+
+
+class TestLevelManagers:
+    """Both editions build the same level data; an enemy type neither knows is left out."""
+
+    @pytest.mark.parametrize(
+        ('manager_class', 'scarab_class'),
+        [(LevelManager, Scarab), (PapyrusLevelManager, PapyrusScarab)],
+        ids=['LevelManager', 'PapyrusLevelManager'],
+    )
+    def test_unknown_enemy_type_is_skipped(self, manager_class, scarab_class):
+        _start_display()
+        screen = ScreenData(
+            ground_segments=[(0, 800)],
+            enemies=[('sphinx', 100, {}), ('scarab', 300, {})],
+        )
+
+        manager = manager_class(level_data=[screen], groups=pygame.sprite.LayeredDirty())
+
+        assert [type(enemy) for enemy in manager.enemy_sprites] == [scarab_class]
+
+    def test_level_width_spans_every_screen(self):
+        _start_display()
+        manager = LevelManager(level_data=LEVEL_1, groups=pygame.sprite.LayeredDirty())
+
+        last_segment = max(manager.ground_sprites, key=lambda segment: segment.world_x)
+
+        assert manager.level_width == len(LEVEL_1) * SCREEN_WIDTH
+        assert last_segment.world_x + last_segment.segment_width == manager.level_width
+
+
+class TestPlayerJump:
+    """A player in the air cannot jump again (both editions)."""
+
+    def test_jump_in_the_air_keeps_the_fall(self, real_scene):
+        player = _player_in_the_air(real_scene)
+
+        player.jump()
+
+        assert player.velocity_y == 120.0
+        assert not player.on_ground
+
+
+class TestPapyrusSpriteUtilities:
+    """The Papyrus conversions handle a sprite with no frames and a scale of 1."""
+
+    def test_a_sprite_without_frames_keeps_its_image(self):
+        _start_display()
+        sprite = AnimatedSprite(groups=pygame.sprite.LayeredDirty())
+        image = sprite.image
+
+        prepare_papyrus_sprite(sprite)
+        apply_transparency_and_scale(sprite)
+
+        assert sprite.image is image
+        assert sprite.hitbox_scale == 2
+
+    def test_scale_one_draws_a_copy_of_the_frame(self):
+        _start_display()
+        sprite = AnimatedSprite(
+            filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
+        )
+        prepare_papyrus_sprite(sprite, scale_factor=1)
+
+        apply_transparency_and_scale(sprite, scale_factor=1)
+
+        frame_image = sprite.get_current_frame().image
+        assert sprite.image is not frame_image
+        assert sprite.image.get_size() == frame_image.get_size()
+        assert _surface_bytes(sprite.image) == _surface_bytes(frame_image)
+        assert sprite.hitbox_scale == 1

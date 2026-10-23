@@ -51,6 +51,7 @@ from glitchygames.examples.clockwork_keep.constants import (
     GEAR_LED,
     GEAR_PLATFORM,
     GEAR_PLATFORM_TOP,
+    GROUND_SNAP_TOLERANCE,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
     LAYER_COLLECTIBLES,
@@ -67,7 +68,7 @@ from glitchygames.examples.clockwork_keep.drawing import (
 from glitchygames.examples.clockwork_keep.levels import ALL_FLOORS, FloorData
 from glitchygames.examples.clockwork_keep.player import Tinker
 from glitchygames.examples.clockwork_keep.sounds import ALL_RECIPES
-from glitchygames.examples.clockwork_keep.terrain import Elevator, Platform
+from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
@@ -269,38 +270,13 @@ class ClockworkKeepScene(Scene):
             animated=shows_clock,
         )
 
-        # Build terrain
-        self.platform_sprites: list[Platform] = []
-        self.elevator_sprites: list[Elevator] = []
-        self.collectible_sprites: list[CogCollectible] = []
-
-        for platform_x, platform_y, platform_width in self.floor_data.platforms:
-            platform = Platform(
-                world_x=float(platform_x),
-                world_y=float(platform_y),
-                width=platform_width,
-                platform_color=platform_color,
-                top_color=top_color,
-                groups=self.all_sprites,
-            )
-            self.platform_sprites.append(platform)
-
-        for elevator_x, elevator_y in self.floor_data.elevators:
-            elevator = Elevator(
-                world_x=float(elevator_x),
-                world_y=float(elevator_y),
-                groups=self.all_sprites,
-            )
-            self.elevator_sprites.append(elevator)
-
-        for cog_x, cog_y, cog_type in self.floor_data.collectibles:
-            cog = CogCollectible(
-                world_x=float(cog_x),
-                world_y=float(cog_y),
-                cog_type=cog_type,
-                groups=self.all_sprites,
-            )
-            self.collectible_sprites.append(cog)
+        # Build terrain (in this order: sprites of one layer draw in the order they are added)
+        self.platform_sprites: list[Platform] = self._build_platforms(
+            platform_color=platform_color, top_color=top_color
+        )
+        self.elevator_sprites: list[Elevator] = self._build_elevators()
+        self.moving_gear_sprites: list[MovingGear] = self._build_moving_gears()
+        self.collectible_sprites: list[CogCollectible] = self._build_collectibles()
 
         # Player
         self.player = Tinker(
@@ -320,6 +296,8 @@ class ClockworkKeepScene(Scene):
 
         # Game state
         self.game_over_triggered: bool = False
+        # The moving gear the player stood on after the last ground collision, if any
+        self.riding_gear: MovingGear | None = None
 
         # Sound
         self.sounds = SoundBank(ALL_RECIPES)
@@ -366,6 +344,80 @@ class ClockworkKeepScene(Scene):
 
         # HUD
         self.hud_font: pygame.font.Font | None = None
+
+    def _build_platforms(
+        self: Self, *, platform_color: tuple[int, int, int], top_color: tuple[int, int, int]
+    ) -> list[Platform]:
+        """Build the floor's platforms from its level data.
+
+        Args:
+            platform_color: The floor theme's platform body color.
+            top_color: The floor theme's platform top edge color.
+
+        Returns:
+            The platforms, in level-data order.
+
+        """
+        return [
+            Platform(
+                world_x=float(platform_x),
+                world_y=float(platform_y),
+                width=platform_width,
+                platform_color=platform_color,
+                top_color=top_color,
+                groups=self.all_sprites,
+            )
+            for platform_x, platform_y, platform_width in self.floor_data.platforms
+        ]
+
+    def _build_elevators(self: Self) -> list[Elevator]:
+        """Build the floor's elevators from its level data.
+
+        Returns:
+            The elevators, in level-data order.
+
+        """
+        return [
+            Elevator(world_x=float(elevator_x), world_y=float(elevator_y), groups=self.all_sprites)
+            for elevator_x, elevator_y in self.floor_data.elevators
+        ]
+
+    def _build_moving_gears(self: Self) -> list[MovingGear]:
+        """Build the floor's moving gear platforms from its level data.
+
+        Returns:
+            The moving gears, in level-data order.
+
+        """
+        return [
+            MovingGear(
+                world_x=float(gear_data.world_x),
+                world_y=float(gear_data.world_y),
+                groups=self.all_sprites,
+                move_range_x=gear_data.move_range_x,
+                move_range_y=gear_data.move_range_y,
+                speed=gear_data.speed,
+                size=gear_data.size,
+            )
+            for gear_data in self.floor_data.moving_gears
+        ]
+
+    def _build_collectibles(self: Self) -> list[CogCollectible]:
+        """Build the floor's cogs from its level data.
+
+        Returns:
+            The cogs, in level-data order.
+
+        """
+        return [
+            CogCollectible(
+                world_x=float(cog_x),
+                world_y=float(cog_y),
+                cog_type=cog_type,
+                groups=self.all_sprites,
+            )
+            for cog_x, cog_y, cog_type in self.floor_data.collectibles
+        ]
 
     @staticmethod
     def _starting_floor_index(*, floor_index: int | None, options: dict[str, Any] | None) -> int:
@@ -456,6 +508,9 @@ class ClockworkKeepScene(Scene):
         for sprite in self.all_sprites:
             sprite.dt_tick(dt)
 
+        # A gear carries its rider before collision, so the rider is still on it to land
+        self._ride_moving_gear()
+
         # Ground collision
         self._resolve_ground_collision()
         self._play_land_on_touchdown()
@@ -533,6 +588,50 @@ class ClockworkKeepScene(Scene):
                 self.player.velocity_y = 0.0
                 self.player.on_ground = True
                 break
+
+        self.riding_gear = None
+        if not self.player.on_ground:
+            self._land_on_moving_gear(player_rect=player_rect, player_bottom=player_bottom)
+
+    def _land_on_moving_gear(self: Self, *, player_rect: pygame.Rect, player_bottom: float) -> None:
+        """Stand the player on the moving gear its hitbox lands on, if any.
+
+        A gear supports like a platform, by the gear's collision rect (its visible pixels):
+        the player's feet go on its drawn top, so they never float or sink while it moves.
+
+        Args:
+            player_rect: The player's collision rect (world coordinates).
+            player_bottom: The world y of the player's feet (its hitbox bottom).
+
+        """
+        _, player_offset_y = collision_rect_offset(self.player)
+        feet_below_world_y = player_offset_y + player_rect.height
+        for moving_gear in self.moving_gear_sprites:
+            gear_rect = get_sprite_collision_rect(moving_gear)
+            if (
+                self.player.velocity_y >= 0
+                and player_bottom >= gear_rect.top
+                and player_bottom <= gear_rect.top + GROUND_SNAP_TOLERANCE
+                and player_rect.right > gear_rect.left
+                and player_rect.left < gear_rect.right
+            ):
+                self.player.world_y = gear_rect.top - feet_below_world_y
+                self.player.velocity_y = 0.0
+                self.player.on_ground = True
+                self.riding_gear = moving_gear
+                return
+
+    def _ride_moving_gear(self: Self) -> None:
+        """Carry the player by the gear it stands on: as far as the gear moved this tick.
+
+        Runs after every sprite's dt_tick (so the gear has moved) and before ground
+        collision, which then finds the player on the gear again. A jump clears on_ground,
+        so a player leaving the gear is not carried.
+        """
+        if self.riding_gear is None or not self.player.on_ground:
+            return
+        self.player.world_x += self.riding_gear.moved_x
+        self.player.world_y += self.riding_gear.moved_y
 
     def _play_land_on_touchdown(self: Self) -> None:
         """Play land on the frame the player touches down.
@@ -752,6 +851,8 @@ class ClockworkKeepScene(Scene):
             self.player.world_x = spawn_x
             self.player.world_y = spawn_y
             self.player.on_ground = True
+            # The spawn point stands on no gear: the gear faded out on carries no one
+            self.riding_gear = None
             self.player.is_respawning = False
             self.tweens.tween(
                 target=self.player,
@@ -911,8 +1012,9 @@ class ClockworkKeepScene(Scene):
             screen: Display surface.
 
         """
-        if self.background_color is not None:
-            screen.fill(self.background_color)
+        # Set in __init__ (the setter takes no None); the getter is typed for before Scene.__init__
+        assert self.background_color is not None
+        screen.fill(self.background_color)
         self.all_sprites.clear(screen, self.background)
         self.all_sprites.draw(screen)
         self._draw_hud(screen)

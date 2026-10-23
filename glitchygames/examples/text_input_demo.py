@@ -126,9 +126,13 @@ class Game(Scene):
 
         """
         if self.input_box.is_active:
+            # Return submits the text (the box itself has no parent to tell)
+            if event.key == pygame.K_RETURN:
+                self.on_input_box_submit_event(control=self.input_box)
             self.input_box.on_key_down_event(event)
         else:
-            super().on_key_up_event(event)
+            # Key down, not key up: a quit key quits on its release, not its press
+            super().on_key_down_event(event)
 
 
 def main() -> None:

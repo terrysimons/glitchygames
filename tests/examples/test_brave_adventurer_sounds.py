@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import numpy as np
+import pygame
 import pytest
 
 from glitchygames.audio import synth
@@ -78,3 +79,47 @@ def test_game_sounds_set_none_when_audio_fails_part_way(mocker):
     assert game_sounds.jump is None
     assert game_sounds.land is None
     assert game_sounds.collect is None
+
+
+PLAY_METHODS = ['play_jump', 'play_land', 'play_collect', 'play_death', 'play_game_over']
+
+
+@pytest.mark.parametrize('play_method', PLAY_METHODS)
+def test_play_before_initialize_is_silent(play_method):
+    """Before initialize() (or without audio) every sound is None and playing it does nothing."""
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    pygame.mixer.stop()
+    game_sounds = sounds.GameSounds()
+
+    getattr(game_sounds, play_method)()
+
+    assert not pygame.mixer.get_busy()
+
+
+@pytest.mark.parametrize('play_method', PLAY_METHODS)
+def test_play_after_initialize_starts_the_sound(play_method):
+    """Each sound plays on a mixer channel once initialize() has made it."""
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    pygame.mixer.stop()
+    game_sounds = sounds.GameSounds()
+    game_sounds.initialize()
+
+    getattr(game_sounds, play_method)()
+
+    assert pygame.mixer.get_busy()
+    pygame.mixer.stop()
+
+
+def test_initialize_twice_keeps_the_first_sounds():
+    """A second initialize() (a scene set up again) keeps the sounds already made."""
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    game_sounds = sounds.GameSounds()
+    game_sounds.initialize()
+    first_jump = game_sounds.jump
+
+    game_sounds.initialize()
+
+    assert game_sounds.jump is first_jump

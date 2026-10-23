@@ -130,7 +130,6 @@ branch = true
 parallel = true
 omit = [
   "*/tests/*",
-  "*/examples/*",
   "*/build/*",
   "*/dist/*",
   "*/__pycache__/*",
@@ -139,6 +138,9 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
+# fail_under compares the total rounded to this many digits: at 0 (the default) a 98.71% total
+# passed the 99% gate (2026-10-22)
+precision = 2
 
 exclude_lines = [
   "pragma: no cover",
@@ -340,8 +342,10 @@ package_module_name_map = { "pygame-ce" = "pygame" }
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
 # Dev/build/lint/docs tools are invoked via CLI, not imported in Python code
+# bokeh is kept deliberately for future plotting tools (the user, 2026-10-22); nothing imports it yet
 DEP002 = [
   "numpy",
+  "bokeh",
   "deptry",
   "mkdocs",
   "mkdocstrings",

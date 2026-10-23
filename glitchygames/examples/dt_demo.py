@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, Self, cast, override
 
 if TYPE_CHECKING:
     import argparse
@@ -14,6 +14,8 @@ import pygame
 
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import current_input
 from glitchygames.scenes import Scene
 
@@ -44,7 +46,13 @@ class Game(Scene):
             groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
-        self.font = pygame.font.SysFont('Calibri', 40)
+        # The bundled default font, loaded from its file through FontManager (cached): never a
+        # system font scan (BUGS.md #156, #173 item 3: this asked for Calibri). It is a
+        # pygame.font font: render() below takes (text, antialias, color).
+        self.font = cast(
+            'pygame.font.Font',
+            FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': 40}),
+        )
         self.rect_pos = 0
         # Pixels per second; use a visible speed
         self.velocity = 300

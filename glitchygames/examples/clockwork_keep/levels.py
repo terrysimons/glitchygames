@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
+
 from glitchygames.examples.clockwork_keep.constants import (
     PLAYFIELD_LEFT,
     PLAYFIELD_RIGHT,
@@ -28,6 +30,29 @@ _M = _L + PLAYFIELD_WIDTH // 2  # Center of playfield (400)
 _W = PLAYFIELD_WIDTH  # Full playfield width (600)
 
 
+class MovingGearData(BaseModel):
+    """Where a moving gear platform rides and how (terrain.MovingGear's arguments).
+
+    Attributes:
+        world_x: Left edge of the gear at the centre of its movement range.
+        world_y: Top of the gear at the centre of its movement range.
+        move_range_x: Horizontal movement amplitude in pixels.
+        move_range_y: Vertical movement amplitude in pixels.
+        speed: Movement speed (radians/sec).
+        size: Gear width in pixels (its height is a quarter of it).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    world_x: int
+    world_y: int
+    move_range_x: float = 0.0
+    move_range_y: float = 0.0
+    speed: float = 1.5
+    size: int = 40
+
+
 @dataclass
 class FloorData:
     """Definition for one floor of the clockwork tower.
@@ -39,6 +64,7 @@ class FloorData:
         elevators: List of (x, y) tuples.
         collectibles: List of (x, y, type) tuples.
         enemies: List of (type, x, y, kwargs) tuples.
+        moving_gears: Moving gear platforms.
         spawn_x: Player spawn X.
         spawn_y: Player spawn Y.
 
@@ -50,6 +76,7 @@ class FloorData:
     elevators: list[tuple[int, int]] = field(default_factory=list)
     collectibles: list[tuple[int, int, str]] = field(default_factory=list)
     enemies: list[tuple[str, int, int, dict[str, Any]]] = field(default_factory=list)
+    moving_gears: list[MovingGearData] = field(default_factory=list)
     spawn_x: int = SCREEN_WIDTH // 2
     spawn_y: int = 0
 
@@ -169,6 +196,7 @@ FLOOR_GEAR_WORKS = FloorData(
 # ---------------------------------------------------------------------------
 # Floor 2: Clock Face (4 screens tall = 1920px)
 # Hard — tight platforms, running jumps required, precision climbing.
+# The final approach rides a moving gear across the clock face.
 # No elevator — reaching the top is victory.
 # ---------------------------------------------------------------------------
 _ch = SCREEN_HEIGHT * 4  # 1920
@@ -202,12 +230,27 @@ FLOOR_CLOCK_FACE = FloorData(
         (_R - 160, _ch - 1160, 130),
         (_L + 40, _ch - 1260, 120),
         (_R - 150, _ch - 1360, 120),
-        # Section 5: final approach
+        # Section 5: final approach — the centre step, then the moving gear (moving_gears)
+        # carries the climber right to the last step
         (_M - 80, _ch - 1450, 160),
-        (_L + 30, _ch - 1540, 150),
         (_R - 180, _ch - 1630, 150),
         # Victory platform — wide and welcoming
         (_L + 80, _ch - 1740, 440),
+    ],
+    # The final approach's ferry: the gear sweeps along the step the centre step jumps to
+    # (90 px up, inside a walking jump's ~96 px), from the left wall's side (x 140) to just
+    # short of the last step (its right edge at 504, 16 px before the step at 520, which is
+    # 90 px higher). It pauses at each end of its sweep, so the hops on and off are timed
+    # there; a missed hop falls back onto the steps below. The only way up: the centre step
+    # is 180 px below the last step, beyond a running jump's ~140 px.
+    moving_gears=[
+        MovingGearData(
+            world_x=_L + 190,
+            world_y=_ch - 1540,
+            move_range_x=150.0,
+            speed=1.2,  # A 5.2 s round trip, 180 px/s at most
+            size=64,
+        ),
     ],
     elevators=[],  # No elevator — top is victory
     collectibles=[
@@ -223,6 +266,7 @@ FLOOR_CLOCK_FACE = FloorData(
         (_L + 80, _ch - 1290, 'silver'),
         (_R - 80, _ch - 1390, 'silver'),
         (_M, _ch - 1480, 'gold'),
+        (_L + 56, _ch - 1576, 'silver'),  # Reward for riding the gear to the far end
         (_M, _ch - 1770, 'gold'),  # Victory cog
     ],
 )
