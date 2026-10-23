@@ -782,3 +782,55 @@ class TestQwertyScancodes:
             type=pygame.KEYDOWN, key=pygame.K_a, scancode=qwerty_scancode(key=pygame.K_a), mod=0
         )
         assert actions.get_action(press) == 'move_left'
+
+
+class TestAutoMode:
+    """'auto' (the default, the engine's --input-mode default) binds both event families.
+
+    The engine dispatches each device's events from one layer only (a mapped pad's controller
+    events, any other device's joystick events), so each press reaches the map once.
+    """
+
+    def test_default_mode_is_auto(self) -> None:
+        """A map made without an input mode answers both families."""
+        actions = ActionMap()
+        actions.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+
+        assert actions.get_action(_button_down(pygame.CONTROLLER_BUTTON_A)) == 'jump'
+        assert actions.get_action(_joy_button_down(pygame.CONTROLLER_BUTTON_A)) == 'jump'
+
+    def test_auto_mode_tracks_buttons_from_either_family(self) -> None:
+        """A controller press and a joystick release of the same button pair up."""
+        actions = ActionMap(input_mode='auto')
+        actions.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+
+        actions.handle_event(_button_down(pygame.CONTROLLER_BUTTON_A))
+        assert actions.is_held('jump') is True
+        actions.handle_event(_joy_button_up(pygame.CONTROLLER_BUTTON_A))
+        assert actions.is_held('jump') is False
+
+    def test_auto_mode_reads_both_axis_families(self) -> None:
+        """Controller axes (int scale) and joystick axes (float scale) both drive the action."""
+        actions = ActionMap(input_mode='auto')
+        actions.bind('move_right', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.3))
+
+        actions.handle_event(_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 20000))
+        assert actions.is_held('move_right') is True
+        actions.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.0))
+        assert actions.is_held('move_right') is False
+
+    def test_an_auto_mode_map_survives_a_round_trip_without_doubling(self) -> None:
+        """Saving writes both families; loading binds each event once."""
+        original = ActionMap()
+        original.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+
+        restored = ActionMap.from_dict(original.to_dict())
+
+        assert restored.get_actions(_joy_button_down(pygame.CONTROLLER_BUTTON_A)) == ['jump']
+        assert restored.get_actions(_button_down(pygame.CONTROLLER_BUTTON_A)) == ['jump']
+        assert restored.to_dict() == original.to_dict()
+
+    def test_an_unknown_input_mode_is_refused(self) -> None:
+        """Only InputMode's modes are accepted."""
+        with pytest.raises(ValueError, match='gamepad'):
+            ActionMap(input_mode='gamepad')

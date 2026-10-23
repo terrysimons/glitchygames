@@ -15,14 +15,13 @@ Nothing waits on the wall clock.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
-import pygame
 import pytest
 
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import RecordingSources
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     SourcesAlreadyRunningError,
     active_sources,
@@ -273,8 +272,8 @@ class FrameDriver:
         self.manager._game_engine = mocker.Mock(
             timer=self.timer if use_timer else None, controller_manager=None
         )
-        # A scene stand-in without a camera, so the engine's camera steps are skipped
-        self.manager.active_scene = mocker.Mock(camera=None)
+        # A plain scene: its identity camera follows nothing, so the camera steps move nothing
+        self.manager.active_scene = Scene(options={})
         self.manager.clock = mocker.Mock()
         # terminate() switches to no scene, which resets dt after the loop; only the loop counts
         mocker.patch.object(self.manager, 'terminate')
@@ -411,16 +410,13 @@ class TestOneFrameTime:
         # Each frame body starts after exactly one more write than the frame before it
         assert driver.dt_writes_at_frame_start == list(range(1, FRAMES_TO_RUN + 1))
 
-    def test_dt_is_written_once_in_a_frame_that_switches_scenes(self, driver_factory, mocker):
+    def test_dt_is_written_once_in_a_frame_that_switches_scenes(self, driver_factory):
         """A scene switch seeds the new scene's dt without writing the manager's dt."""
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
         manager = driver.manager
         switch_frame_index = 3
-        # A scene stand-in without a camera, so the engine's camera steps are skipped
-        next_scene = mocker.Mock(camera=None)
+        next_scene = Scene(options={})
         next_scene.dt = 0.5
-        # The switch redraws the new scene's background onto the display
-        next_scene.background = pygame.Surface((1, 1))
 
         def switch_in_one_frame() -> None:
             if len(driver.logic_dts) == switch_frame_index + 1:
@@ -742,38 +738,35 @@ class TestFrameServicesSeeTheSameFrameTime:
 SCENE_FRAME_CAP_SECONDS = 0.05
 
 
-class CappedSceneStandIn:
-    """A scene stand-in with MAX_FRAME_SECONDS, a following camera and recorded logic dts."""
+class CappedScene(Scene):
+    """A scene with MAX_FRAME_SECONDS, a camera following a still target and recorded dts."""
 
-    MAX_FRAME_SECONDS = SCENE_FRAME_CAP_SECONDS
+    MAX_FRAME_SECONDS: ClassVar[float | None] = SCENE_FRAME_CAP_SECONDS
 
-    def __init__(self) -> None:
-        """Create the camera (following a still target) and an empty sprite group."""
-        from glitchygames.camera import Camera2D
-
-        self.camera = Camera2D(screen_width=800, screen_height=480)
+    def __init__(self: Self) -> None:
+        """Make the scene, its camera following a still target (the default camera_target)."""
+        super().__init__(options={})
         self.target = SimpleNamespace(world_x=500.0, world_y=300.0)
         self.camera.follow(target=self.target)
-        self.all_sprites: list[object] = []
         self.logic_dts: list[float] = []
         self.game_time_advances: list[float] = []
 
-    def advance_game_time(self, *, seconds: float) -> None:
-        """Record the game time the manager added (Scene.advance_game_time's signature)."""
+    @override
+    def advance_game_time(self: Self, *, seconds: float) -> None:
+        """Record the game time the manager added, then add it."""
         self.game_time_advances.append(seconds)
+        super().advance_game_time(seconds=seconds)
 
-    def dt_tick(self, dt: float) -> None:
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
         """Record the dt logic received."""
         self.logic_dts.append(dt)
 
-    def camera_target(self) -> tuple[float, float]:
-        """Aim at the target, as Scene.camera_target does for a follow target.
 
-        Returns:
-            The target's world position.
+class UncappedScene(CappedScene):
+    """The same scene without a frame cap."""
 
-        """
-        return (self.target.world_x, self.target.world_y)
+    MAX_FRAME_SECONDS: ClassVar[float | None] = None
 
 
 class TestSceneFrameCap:
@@ -782,7 +775,7 @@ class TestSceneFrameCap:
     def test_hitch_caps_logic_and_camera_but_records_one_long_frame(self, driver_factory, mocker):
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
         manager = driver.manager
-        scene = CappedSceneStandIn()
+        scene = CappedScene()
         manager.active_scene = scene
         aim_spy = mocker.spy(scene.camera, 'aim_at')
         for frame_step in ('update_screen', '_render_scene', '_present_frame'):
@@ -819,8 +812,7 @@ class TestSceneFrameCap:
     def test_scene_without_a_cap_receives_the_raw_dt(self, driver_factory, mocker):
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
         manager = driver.manager
-        scene = CappedSceneStandIn()
-        scene.MAX_FRAME_SECONDS = None
+        scene = UncappedScene()
         manager.active_scene = scene
         for frame_step in ('update_screen', '_render_scene', '_present_frame'):
             mocker.patch.object(manager, frame_step)
@@ -835,6 +827,4 @@ class TestSceneFrameCap:
         assert scene.logic_dts == driver.logic_dts
 
     def test_scene_default_has_no_cap(self):
-        from glitchygames.scenes import Scene
-
         assert Scene.MAX_FRAME_SECONDS is None

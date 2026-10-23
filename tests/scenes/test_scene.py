@@ -11,6 +11,7 @@ import pytest
 from glitchygames.color import BLUE, RED
 from glitchygames.events import ALL_EVENTS, FPSEVENT
 from glitchygames.input.state import InputSnapshot, set_current_input
+from glitchygames.interfaces import SceneInterface
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
@@ -861,7 +862,7 @@ class TestSceneKeyUpEvent:
         scene = Scene()
         pygame.event.clear()  # the real queue: only this test's posts
 
-        scene._record_key_press(key=pygame.K_q)
+        scene.record_key_press(key=pygame.K_q)
         event = mocker.Mock()
         event.key = pygame.K_q
 
@@ -874,7 +875,7 @@ class TestSceneKeyUpEvent:
         scene = Scene()
         pygame.event.clear()  # the real queue: only this test's posts
 
-        scene._record_key_press(key=pygame.K_ESCAPE)
+        scene.record_key_press(key=pygame.K_ESCAPE)
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
 
@@ -901,7 +902,7 @@ class TestSceneKeyUpEvent:
         """A recorded press is consumed by its release."""
         scene = Scene()
         pygame.event.clear()  # the real queue: only this test's posts
-        scene._record_key_press(key=pygame.K_ESCAPE)
+        scene.record_key_press(key=pygame.K_ESCAPE)
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
 
@@ -917,7 +918,7 @@ class TestSceneKeyUpEvent:
 
         # Add a focused sprite
         scene.all_sprites.add(RecordingSprite(is_active=True))
-        scene._record_key_press(key=pygame.K_q)
+        scene.record_key_press(key=pygame.K_q)
 
         event = mocker.Mock()
         event.key = pygame.K_q
@@ -1388,6 +1389,20 @@ class TestSceneManagerHelpers:
 
         assert manager.active_scene is None
 
+    def test_without_an_active_scene_the_scene_reads_answer_none(self):
+        """No active scene (the run ended): no scene start, no presented scene, the raw dt."""
+        manager = SceneManager()
+        manager.switch_to_scene(None)
+        manager.dt = 0.25
+
+        assert manager.active_scene_start is None
+        assert manager._presented_scene() is None
+        assert manager._active_camera() is None
+        assert manager._scene_frame_seconds() == manager.dt
+        manager._begin_scene_logic_frame()  # nothing to begin
+
+        assert manager.active_scene is None
+
     def test_a_scene_switched_to_without_an_engine_gets_none(self):
         """A bare SceneManager (no GameEngine) sets a scene up without handing it an engine."""
         manager = SceneManager()
@@ -1399,18 +1414,22 @@ class TestSceneManagerHelpers:
         assert manager.active_scene is scene
         assert getattr(scene, 'game_engine', None) is None
 
-    def test_a_scene_interface_stand_in_without_key_press_records_is_switched_to(self, mocker):
-        """A scene stand-in that keeps no key-press records is still set up and made active."""
+    def test_a_scene_interface_stand_in_is_refused_and_the_active_scene_kept(self, mocker):
+        """A SceneInterface that is not a Scene is refused before anything is torn down or set up.
+
+        The scene manager reads the attributes Scene declares (its key-press records, camera,
+        scene start), so a stand-in without them never becomes the active scene.
+        """
         manager = SceneManager()
-        stand_in = mocker.Mock()
-        del stand_in._forget_key_presses
-        # The manager blits the scene's background onto the real display
-        stand_in.background = pygame.Surface((800, 600))
+        active_scene = Scene()
+        manager.switch_to_scene(active_scene)
+        cleanup = mocker.spy(active_scene, 'cleanup')
 
-        manager.switch_to_scene(stand_in)
+        with pytest.raises(TypeError, match='must be a Scene or None, not SceneInterface'):
+            manager.switch_to_scene(SceneInterface())
 
-        assert manager.active_scene is stand_in
-        stand_in.setup.assert_called_once_with()
+        assert manager.active_scene is active_scene
+        cleanup.assert_not_called()
 
     def test_a_transition_frame_without_an_engine_has_no_events_to_process(self, mocker):
         """With no GameEngine (a bare SceneManager), a transition frame still plays."""

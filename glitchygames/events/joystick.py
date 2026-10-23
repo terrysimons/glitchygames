@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, override
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames.input.devices import OpenedJoystick
+
 import pygame
 
 from glitchygames.events import JOYSTICK_EVENTS, HashableEvent, JoystickEvents, ResourceManager
@@ -80,7 +82,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 if instance_id is None
                 else devices.joystick_for_instance(instance_id=instance_id)
             )
-            self.joystick: Any = (
+            self.joystick: OpenedJoystick = (
                 opened if opened is not None else devices.open_joystick(device_index=joystick_id)
             )
             # The snapshot (glitchygames/input/state.py) keys positions by the opened device's
@@ -132,6 +134,16 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             self.game: Any = game
             self.proxies: list[Any] = [self.game, self.joystick]
+
+        @property
+        def instance_id(self: Self) -> int:
+            """The SDL instance id every event of this joystick carries."""
+            return self._instance_id
+
+        @property
+        def device_index(self: Self) -> int:
+            """The SDL device index the joystick was opened at."""
+            return self._device_id
 
         # Define some high level APIs
         @override
@@ -327,7 +339,9 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             pygame.event.set_allowed(JOYSTICK_EVENTS)
         except pygame.error:
             LOG.debug('Failed to set allowed joystick events: pygame not fully initialized')
-        self.joysticks: dict[int, Any] = {}
+        # By instance id (the id every joystick event carries); a device that could not be
+        # opened on hot-plug is keyed by its device index instead (on_joy_device_added_event)
+        self.joysticks: dict[int, JoystickEventManager.JoystickEventProxy] = {}
         self.game: Any = game
 
         # This must be called before other joystick methods,
@@ -614,7 +628,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             'Created JoystickProxy with device_index=%s, instance_id=%s, _device_id=%s',
             added_device_index,
             instance_id,
-            joystick_proxy._device_id,  # pyright: ignore[reportPrivateUsage]
+            joystick_proxy.device_index,
         )
         self.joysticks[tracking_key] = joystick_proxy
 

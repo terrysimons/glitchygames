@@ -1,8 +1,9 @@
 # Typed Events — Plan
 
 - **Date:** 2026-10-22
-- **Status:** Proposed, for the user's review (the user's choice, 2026-10-22: fix the
-  `HashableEvent` bugs now — done, BUGS.md #179/#180 — and plan the types). No code yet.
+- **Status:** Approved 2026-10-22 ("Do both now", with the unified devices plan); to be implemented
+  on `cleanup/post-replay` after the devices work. Decision (the user, 2026-10-22): events become
+  immutable (step 5: mutators replaced by `with_fields(**changes) -> Self`).
 - **Why:** `HashableEvent` exists because pygame events are not hashable and the engine needs to
   hash and serialize events (API mechanics, recordings, replays). Its fields are reached through
   `__getattr__ -> Any` (the attribute bag; pygame's own `Event.__getattr__` is `Any` too), so every
@@ -56,7 +57,12 @@
    (expect real errors to surface in handlers that misuse fields: fix each, report any that are
    bugs).
 3. `to_json`/`from_json`; use them wherever events are serialized by hand today (find them first).
-4. Decide on immutability with the user.
+4. Immutability (decided: yes): replace the mutators with `with_fields`; update the tests that
+   mutate events. Then cache the hash (the user, 2026-10-22: "cache it once it's safe"): computed
+   on first `__hash__`, stored outside the event's fields (a slot or a name `__iter__`/`__eq__`/
+   pickling never see; BUGS.md #179 was a stored hash leaking into the fields), never carried
+   through pickling or `with_fields`. Test: an event's fields never include it; a pickled and a
+   `with_fields` copy hash by their own content; measure `hash(event)` before/after.
 5. Docs: CLAUDE.md Event System, `docs/`.
 
 ## Cost

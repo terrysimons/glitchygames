@@ -1,8 +1,10 @@
 # Unified Input Devices — Plan
 
 - **Date:** 2026-10-22
-- **Status:** Proposed, for the user's review (the user's choice, 2026-10-22: "Plan it first"). No
-  code yet.
+- **Status:** Approved 2026-10-22 ("Do both now", with the typed events plan); implemented
+  2026-10-22 on `cleanup/post-replay` (steps 0-5 done; see Done below). Decisions (the user, 2026-10-22): a mapped gamepad dispatches its
+  controller-layer events only, an unmapped device its joystick events ("Controller if mapped");
+  `--input-mode` stays, as a filter restricting which devices a game sees (default: both).
 - **Why:** joysticks and controllers are meant to run together (the user, 2026-10-22: "in theory
   if joysticks and controllers both worked together ... we could run both and not need to select
   one"), but the engine models them as two separate managers, one of which is switched off. Game
@@ -70,8 +72,45 @@
    recording with a device.
 5. Docs: CLAUDE.md Devices paragraph, `docs/`, the demo's docstring.
 
-## Open questions for the user
+## Decided (2026-10-22)
 
-- Is "controller layer when mapped, else joystick layer" the right default for event dispatch, or
-  should a game choose per device?
-- Keep `input_mode` as a compatibility option, or remove it once both layers work together?
+- Event dispatch: controller layer when SDL maps the device, else the joystick layer; each press
+  reaches `on_*_event` handlers once. Polling either layer always works.
+- `--input-mode`: kept as a filter (`joystick` = only the joystick layer's devices and events,
+  `controller` = only mapped devices, `auto`/default = both).
+
+## Done (2026-10-22)
+
+0. The manager dicts are `dict[int, JoystickEventProxy]` / `dict[int, ControllerEventProxy]`,
+   the proxies' devices `OpenedJoystick` / `OpenedController`, both proxies with public
+   `instance_id` and `device_index`. BUGS.md #181 (and its duplicate #68) resolved: controllers
+   keyed by instance id; a remap looked up by the instance id its event carries (it read a
+   `device_index` the event does not have); a controller gone before it opened is skipped.
+1. `glitchygames/input/input_devices.py` (its docstring holds the rules): `InputDevice`
+   (Protocol: `descriptor`, `instance_id`, `name`, `joystick: JoystickLayer`,
+   `controller: ControllerLayer | None`, `event_layer`, `rumble(...)`, `stop_rumble()`), the one
+   concrete `ConnectedInputDevice`, the layers (`axis(axis=...)`, `button(button=...)`,
+   `hat(hat=...)`, counts, and `axes` / `buttons` / `hats` tuples, all from the snapshot), and the
+   registry `InputDevices` (`synchronize(joysticks=..., controllers=...) -> InputDeviceChanges`,
+   `dispatches(event_type=..., instance_id=...)`, `get(instance_id=...)`, iteration). The devices
+   door gained `descriptor_for_instance` (a game controller keeps its controller descriptor).
+   The registry follows the managers and opens nothing; in `auto` mode it asks the door
+   `is_controller` for a joystick the controller manager does not hold yet, so a mapped pad is
+   added once, with both layers.
+2. `GameEngine.input_devices`, `Scene.input_devices`, and `Scene.on_input_device_added` /
+   `on_input_device_removed(device=...)` (through the scene manager, after each device event).
+   `--input-mode` is the filter (`auto` no longer means joystick mode on pygame-ce);
+   `ActionMap` gained `auto` (its default: both families bound).
+3. The demo rewritten (1,422 to 318 lines; BUGS.md #185): one column per device, no mode
+   branches, no `Any`; the shapes, tiles, tabs and unused arguments dropped.
+4. `GameEngine.process_joystick_event` / `process_controller_event` drop an input event whose
+   layer is not its device's `event_layer` (handled, not unhandled). Golden replays unchanged
+   (recorded in joystick mode); `tests/world/test_gameplay_replay.py::TestDeviceDispatchReplays`
+   records a session with a fake stick and pad through the real doors and replays it with the
+   same dispatch, and no hardware.
+5. Docs: CLAUDE.md (Devices, Input devices), `docs/architecture/event_system.md` (One device, one
+   event layer), `docs/architecture/argument_system.md`, the demo's docstring, BUGS.md.
+
+Follow-ups (BUGS.md #184): rumble through `InputDevice.rumble` for every device (today it still
+picks the controller manager's controllers, else the joysticks), a playback scope's device events
+and rumble, and a hardware check of `auto` with real pads.

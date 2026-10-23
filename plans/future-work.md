@@ -260,7 +260,8 @@ Follow-ups (not in any plan yet):
   wraps the installed doors.
 - Bugs found during the replay core and not fixed (BUGS.md, Active): #67 (Bitmappy's
   joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
-  (`ControllerEventManager` keys controllers by device index but routes events by instance id),
+  (`ControllerEventManager` keys controllers by device index but routes events by instance id;
+  resolved 2026-10-22 with #181),
   #72 (`MultiControllerEnhancements` stores a duration where a timestamp is expected), #73
   (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False),
   #75 (`pygame_needs_fastevents` compares major and minor separately).
@@ -401,14 +402,15 @@ only replays; Part 2 Task 1).
   BitmappySprite's `pixels`, `pixels_across` and `pixels_tall`), which also fixed BUGS.md #167.
   Kept, with comments: lookups on game-optional attributes (`player`, `TARGET_FPS`, `args`,
   `icon`, `hidden`, `draw_offset`, `pixel_snap_mode`, `TRIM_TRANSPARENT_HITBOX`), on any sprite
-  in a group, and on scenes where the scene manager tolerates a SceneInterface stand-in (its
-  `switch_to_scene` accepts one; tests pin it: `scene_start_capture`, `debug_subject`, `camera`,
-  `MAX_FRAME_SECONDS`, `PIXEL_SNAP_MODE`, `INSTANT_REPLAY_SECONDS`, `_forget_key_presses`,
-  `_record_key_press`). The gain is a few tens of nanoseconds per frame (a `getattr` with a
+  in a group. The scene lookups went too (the user's choice, 2026-10-22, "Require Scene"): the
+  active scene must be a `Scene` (`switch_to_scene` and `request_transition` refuse anything else
+  with a TypeError, `scenes.scene.required_scene`), so `scene_start_capture`, `debug_subject`,
+  `camera`, `MAX_FRAME_SECONDS`, `PIXEL_SNAP_MODE`, `INSTANT_REPLAY_SECONDS` and the key-press
+  journal (`record_key_press`/`forget_key_presses`, now public for the scene manager) are read
+  directly, as are the recorder's scene start and `world.aim_camera`'s scene. The gain is a few tens of nanoseconds per frame (a `getattr` with a
   default costs ~16-25 ns, a direct read ~5-17 ns); the per-sprite helpers (`resolve_snap_mode`,
   `is_world_positioned`, `screen_position_for`, collision) make about 1,200 lookups per Brave
-  Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites. Dropping the
-  SceneInterface stand-in tolerance would let about ten more scene lookups go (a design call).
+  Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites.
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
@@ -510,13 +512,14 @@ only replays; Part 2 Task 1).
   blocks outside Bitmappy narrowed. Left, carried forward by the user's choice (2026-10-21):
   Bitmappy's 62 `PLW0717` sites (`glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py`,
   `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
-  Phase 3 done 2026-10-22 (ignore removed); phase 4: 128 of 152 typed, the rest waiting on the
-  device and event plans and two Bitmappy decisions (see the plan); phase 5 done (all logging lazy,
+  Phase 3 done 2026-10-22 (ignore removed); phase 4: 151 of 152 typed, the last (`events/base.py`'s
+  `__getattr__`) waiting on the typed events plan (see the plan); phase 5 done (all logging lazy,
   ignore removed).
-- **Unified input devices** (proposed 2026-10-22, for review):
+- ~~**Unified input devices**~~ **Done 2026-10-22:**
   [`plans/2026-10-22-unified-input-devices.md`](2026-10-22-unified-input-devices.md): one
-  `InputDevice` per physical device so joysticks and controllers run together; includes BUGS.md
-  #181.
+  `InputDevice` per physical device so joysticks and controllers run together (BUGS.md #181
+  resolved). Follow-ups in BUGS.md #184 (rumble through `InputDevice`, a playback scope's device
+  events, a hardware check).
 - **Typed events** (proposed 2026-10-22, for review):
   [`plans/2026-10-22-typed-events.md`](2026-10-22-typed-events.md): per-family `HashableEvent`
   subclasses so handlers get real field types.

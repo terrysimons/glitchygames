@@ -664,8 +664,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         """
         # QUIT             none
         self.log.debug('%s: %s', type(self), event)
-        # terminate() is provided by Scene subclasses via SceneInterface,
-        # not directly on Sprite. Cast to Any to allow dynamic dispatch.
+        # terminate() exists on scenes (SceneInterface), not on Sprite: a sprite that also
+        # mixes in a scene's interface ends it here. Cast to Any to allow dynamic dispatch.
         game: Any = self
         game.terminate()
 

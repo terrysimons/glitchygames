@@ -200,15 +200,6 @@ class TestEventIntegration:
         controller_proxy = engine.controller_manager.controllers[STAND_IN_CONTROLLER.instance_id]
         assert controller_proxy._axes[0] == 16384
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=KeyError,
-        reason=(
-            'BUGS.md #68: ControllerEventManager stores a plugged-in controller under its device '
-            'index but looks it up by instance id, so a reconnected controller (instance id 7 '
-            'in slot 0) raises KeyError on its first axis event'
-        ),
-    )
     def test_reconnected_controller_event_through_engine(self):
         """A controller whose instance id differs from its device index still reaches the scene."""
         _engine, scene, result = self._plug_in_and_move_axis(

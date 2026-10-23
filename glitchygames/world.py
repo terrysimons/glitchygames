@@ -15,11 +15,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from glitchygames.camera import Camera2D
+    from glitchygames.scenes import Scene
 
 log: logging.Logger = logging.getLogger('game.world')
 
 # Scenes already warned that the game and the engine both moved the camera (warn once each)
-_scenes_warned_about_double_update: weakref.WeakSet[object] = weakref.WeakSet()
+_scenes_warned_about_double_update: weakref.WeakSet[Scene] = weakref.WeakSet()
 
 # Sprites this far outside the screen still count as visible, so they never pop in at the edge
 CULL_MARGIN_PIXELS = 32
@@ -64,14 +65,6 @@ class WorldPositioned(Protocol):
     @property
     def world_y(self) -> float:
         """World Y of the sprite's top-left."""
-        ...
-
-
-class _CameraTargetScene(Protocol):
-    """The scene attribute the camera aim reads (it writes nothing on the scene)."""
-
-    def camera_target(self) -> tuple[float, float] | None:
-        """Return the world point to aim the camera at, or None for a manual camera."""
         ...
 
 
@@ -196,7 +189,7 @@ def position_world_sprites(
             positioned_sprite.visible = int(is_visible)
 
 
-def aim_camera(*, scene: object, camera: Camera2D, dt: float) -> None:
+def aim_camera(*, scene: Scene, camera: Camera2D, dt: float) -> None:
     """Move the camera toward the scene's camera target (the engine's camera aim step).
 
     The target comes from scene.camera_target() (an override, else the camera's follow target).
@@ -212,19 +205,19 @@ def aim_camera(*, scene: object, camera: Camera2D, dt: float) -> None:
     from an earlier frame.
 
     Args:
-        scene: The active scene (a glitchygames Scene).
+        scene: The active scene.
         camera: The scene's camera.
         dt: Delta time in seconds since the last frame.
 
     """
-    target = cast('_CameraTargetScene', scene).camera_target()
+    target = scene.camera_target()
     if target is None:
         return
     if camera.updated_by_game_this_frame and scene not in _scenes_warned_about_double_update:
         log.warning(
             'camera.update() called by the game while the engine is also aiming the camera; '
             'remove the manual call or stop following (scene %s)',
-            getattr(scene, 'NAME', type(scene).__name__),
+            scene.NAME,
         )
         _scenes_warned_about_double_update.add(scene)
     target_x, target_y = target

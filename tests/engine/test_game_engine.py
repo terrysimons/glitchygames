@@ -57,9 +57,15 @@ from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import non_negative_int, non_negative_percent, unit_interval
 from glitchygames.exit_codes import ExitCode
+from glitchygames.input.input_devices import InputMode
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import advance_frame_clock, install_sources
+from tests.input.stand_in_devices import (
+    STAND_IN_PAD,
+    STAND_IN_STICK,
+    install_stand_in_devices,
+)
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.world.test_gameplay_replay import (
     press_keys_while_held,
@@ -1491,11 +1497,12 @@ class TestSetCursorWithCustomCursor:
 class TestInitializeEventManagers:
     """Test GameEngine._initialize_event_managers method."""
 
+    @pytest.mark.usefixtures('event_blocking_restored')
     def test_initialize_event_managers_sets_up_all_managers(self, mocker):
         """_initialize_event_managers builds every manager on the real scene manager and devices.
 
-        Input mode auto picks joystick on pygame-ce, which blocks controller events at SDL; their
-        blocked state is put back afterwards, so later tests on this worker are unaffected.
+        Input mode auto (the default) builds both gamepad managers and leaves controller events
+        allowed at SDL; the devices are stand-ins (no test machine is assumed to have any).
         """
         from glitchygames.events.audio import AudioEventManager
         from glitchygames.events.keyboard import KeyboardEventManager
@@ -1505,42 +1512,48 @@ class TestInitializeEventManagers:
         engine = _make_engine(mocker)
         # As GameEngine.start() does before it builds the managers (put back after the test)
         mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
-        blocked_before = {
-            event_type: pygame.event.get_blocked(event_type)
-            for event_type in events.CONTROLLER_EVENTS
-        }
-        try:
-            engine._initialize_event_managers()
+        install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
 
-            assert isinstance(engine.audio_manager, AudioEventManager)
-            assert isinstance(engine.keyboard_manager, KeyboardEventManager)
-            assert isinstance(engine.mouse_manager, MouseEventManager)
-            assert isinstance(engine.window_manager, WindowEventManager)
-            for manager in (
-                engine.app_manager,
-                engine.drop_manager,
-                engine.touch_manager,
-                engine.font_manager,
-                engine.game_manager,
-                engine.joystick_manager,
-                engine.midi_manager,
-            ):
-                assert manager is not None
-            # --input-mode auto picks joystick on pygame-ce: no controller manager, and SDL
-            # drops controller events
-            assert GameEngine.OPTIONS['input_mode'] == 'joystick'
-            assert engine.controller_manager is None
-            assert all(
-                pygame.event.get_blocked(event_type) for event_type in events.CONTROLLER_EVENTS
-            )
-            # The joysticks are whatever real devices are attached (none on the dummy driver)
-            assert engine.joystick_count == len(engine.joysticks)
-        finally:
-            for event_type, was_blocked in blocked_before.items():
-                if was_blocked:
-                    pygame.event.set_blocked(event_type)
-                else:
-                    pygame.event.set_allowed(event_type)
+        engine._initialize_event_managers()
+
+        assert isinstance(engine.audio_manager, AudioEventManager)
+        assert isinstance(engine.keyboard_manager, KeyboardEventManager)
+        assert isinstance(engine.mouse_manager, MouseEventManager)
+        assert isinstance(engine.window_manager, WindowEventManager)
+        for manager in (
+            engine.app_manager,
+            engine.drop_manager,
+            engine.touch_manager,
+            engine.font_manager,
+            engine.game_manager,
+            engine.joystick_manager,
+            engine.midi_manager,
+        ):
+            assert manager is not None
+        assert GameEngine.OPTIONS['input_mode'] == 'auto'
+        assert engine.controller_manager is not None
+        assert not any(
+            pygame.event.get_blocked(event_type) for event_type in events.CONTROLLER_EVENTS
+        )
+        # Both devices, the mapped pad with its controller layer (glitchygames/input/
+        # input_devices.py)
+        assert engine.input_devices.input_mode is InputMode.AUTO
+        assert {
+            device.instance_id: device.controller is not None for device in engine.input_devices
+        } == {STAND_IN_STICK.instance_id: False, STAND_IN_PAD.instance_id: True}
+
+    @pytest.mark.usefixtures('event_blocking_restored')
+    def test_joystick_mode_blocks_controller_events_and_builds_no_controller_manager(self, mocker):
+        """--input-mode joystick: no controller manager, and SDL drops controller events."""
+        engine = _make_engine(mocker, '--input-mode', 'joystick')
+        mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+        install_stand_in_devices(descriptors=[STAND_IN_PAD])
+
+        engine._initialize_event_managers()
+
+        assert engine.controller_manager is None
+        assert all(pygame.event.get_blocked(event_type) for event_type in events.CONTROLLER_EVENTS)
+        assert [device.controller for device in engine.input_devices] == [None]
 
 
 class TestStartMethod:
@@ -1899,89 +1912,354 @@ class TestProcessKeyboardEvent:
         assert result is False
 
 
+class DeviceRecordingGame(EngineTestGame):
+    """A game scene recording the gamepad events and device notices the engine sends it."""
+
+    def __init__(self, options=None, groups=None):
+        """Start with nothing received."""
+        super().__init__(options=options, groups=groups)
+        self.received: list[tuple[str, events.HashableEvent]] = []
+        self.devices_added: list[int] = []
+        self.devices_removed: list[int] = []
+
+    def on_input_device_added(self, *, device):
+        self.devices_added.append(device.instance_id)
+
+    def on_input_device_removed(self, *, device):
+        self.devices_removed.append(device.instance_id)
+
+    def on_joy_axis_motion_event(self, event):
+        self.received.append(('on_joy_axis_motion_event', event))
+
+    def on_joy_ball_motion_event(self, event):
+        self.received.append(('on_joy_ball_motion_event', event))
+
+    def on_joy_hat_motion_event(self, event):
+        self.received.append(('on_joy_hat_motion_event', event))
+
+    def on_joy_button_down_event(self, event):
+        self.received.append(('on_joy_button_down_event', event))
+
+    def on_joy_button_up_event(self, event):
+        self.received.append(('on_joy_button_up_event', event))
+
+    def on_joy_device_added_event(self, event):
+        self.received.append(('on_joy_device_added_event', event))
+
+    def on_joy_device_removed_event(self, event):
+        self.received.append(('on_joy_device_removed_event', event))
+
+    def on_controller_axis_motion_event(self, event):
+        self.received.append(('on_controller_axis_motion_event', event))
+
+    def on_controller_button_down_event(self, event):
+        self.received.append(('on_controller_button_down_event', event))
+
+    def on_controller_button_up_event(self, event):
+        self.received.append(('on_controller_button_up_event', event))
+
+    def on_controller_touchpad_down_event(self, event):
+        self.received.append(('on_controller_touchpad_down_event', event))
+
+    def on_controller_touchpad_motion_event(self, event):
+        self.received.append(('on_controller_touchpad_motion_event', event))
+
+    def on_controller_touchpad_up_event(self, event):
+        self.received.append(('on_controller_touchpad_up_event', event))
+
+    def on_controller_sensor_update_event(self, event):
+        self.received.append(('on_controller_sensor_update_event', event))
+
+    def on_controller_device_added_event(self, event):
+        self.received.append(('on_controller_device_added_event', event))
+
+    def on_controller_device_removed_event(self, event):
+        self.received.append(('on_controller_device_removed_event', event))
+
+    def on_controller_device_remapped_event(self, event):
+        self.received.append(('on_controller_device_remapped_event', event))
+
+
+def received_handler_names(scene: DeviceRecordingGame) -> list[str]:
+    """Return the handlers a DeviceRecordingGame had called so far, in order.
+
+    Returns:
+        The handler names.
+
+    """
+    return [handler_name for handler_name, _event in scene.received]
+
+
+@pytest.fixture
+def event_blocking_restored():
+    """Put back the event types the managers block and allow (controller events, mostly).
+
+    Yields:
+        None, while the test runs.
+
+    """
+    blocked_before = [
+        pygame.event.get_blocked(event_type) for event_type in range(pygame.NUMEVENTS)
+    ]
+    yield
+    for event_type, was_blocked in enumerate(blocked_before):
+        if was_blocked:
+            pygame.event.set_blocked(event_type)
+        else:
+            pygame.event.set_allowed(event_type)
+
+
+def _engine_with_devices(mocker, *, input_mode='auto', plugged_in_at_start=True):
+    """Build the engine's real managers on stand-in devices, with DeviceRecordingGame active.
+
+    The devices are STAND_IN_STICK (unmapped) and STAND_IN_PAD (a mapped game pad), through
+    the devices door (tests/input/stand_in_devices.py).
+
+    Returns:
+        The engine and its active scene.
+
+    """
+    engine = _make_engine(mocker, '--input-mode', input_mode)
+    # As GameEngine.start() does before it builds the managers (put back after the test)
+    mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+    engine.scene_manager.game_engine = engine
+    install_stand_in_devices(
+        descriptors=[STAND_IN_STICK, STAND_IN_PAD], plugged_in_at_start=plugged_in_at_start
+    )
+    engine._initialize_event_managers()
+    scene = DeviceRecordingGame(options=GameEngine.OPTIONS)
+    engine.scene_manager.switch_to_scene(scene)
+    return engine, scene
+
+
+# One input event of each joystick-layer type, as pygame delivers them, by instance id
+def _joystick_input_events(instance_id):
+    return [
+        events.HashableEvent(pygame.JOYAXISMOTION, instance_id=instance_id, axis=0, value=0.5),
+        events.HashableEvent(pygame.JOYBALLMOTION, instance_id=instance_id, ball=0, rel=(1, 2)),
+        events.HashableEvent(pygame.JOYHATMOTION, instance_id=instance_id, hat=0, value=(0, 1)),
+        events.HashableEvent(pygame.JOYBUTTONDOWN, instance_id=instance_id, button=1),
+        events.HashableEvent(pygame.JOYBUTTONUP, instance_id=instance_id, button=1),
+    ]
+
+
+# One input event of each controller-layer type, as pygame delivers them, by instance id
+def _controller_input_events(instance_id):
+    touch = {'touch_id': 0, 'finger_id': 0, 'x': 0.5, 'y': 0.5, 'pressure': 1.0}
+    return [
+        events.HashableEvent(
+            pygame.CONTROLLERAXISMOTION, instance_id=instance_id, axis=0, value=1000
+        ),
+        events.HashableEvent(pygame.CONTROLLERBUTTONDOWN, instance_id=instance_id, button=0),
+        events.HashableEvent(pygame.CONTROLLERBUTTONUP, instance_id=instance_id, button=0),
+        events.HashableEvent(pygame.CONTROLLERTOUCHPADDOWN, instance_id=instance_id, **touch),
+        events.HashableEvent(pygame.CONTROLLERTOUCHPADMOTION, instance_id=instance_id, **touch),
+        events.HashableEvent(pygame.CONTROLLERTOUCHPADUP, instance_id=instance_id, **touch),
+        events.HashableEvent(
+            pygame.CONTROLLERSENSORUPDATE, instance_id=instance_id, sensor=1, data=(0.0, 0.0, 0.0)
+        ),
+    ]
+
+
+JOYSTICK_HANDLER_NAMES = [
+    'on_joy_axis_motion_event',
+    'on_joy_ball_motion_event',
+    'on_joy_hat_motion_event',
+    'on_joy_button_down_event',
+    'on_joy_button_up_event',
+]
+CONTROLLER_HANDLER_NAMES = [
+    'on_controller_axis_motion_event',
+    'on_controller_button_down_event',
+    'on_controller_button_up_event',
+    'on_controller_touchpad_down_event',
+    'on_controller_touchpad_motion_event',
+    'on_controller_touchpad_up_event',
+    'on_controller_sensor_update_event',
+]
+
+
+@pytest.mark.usefixtures('event_blocking_restored')
 class TestProcessJoystickEvent:
-    """Test GameEngine.process_joystick_event dispatcher."""
+    """GameEngine.process_joystick_event: the joystick layer of every device the game sees."""
 
-    def test_joy_axis_motion(self, mocker):
-        """Test process_joystick_event dispatches JOYAXISMOTION."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+    def test_an_unmapped_joysticks_events_reach_the_scene(self, mocker):
+        """Every joystick input event of an unmapped joystick is dispatched, in order."""
+        engine, scene = _engine_with_devices(mocker)
 
-        event = events.HashableEvent(pygame.JOYAXISMOTION)
+        results = [
+            engine.process_joystick_event(event)
+            for event in _joystick_input_events(STAND_IN_STICK.instance_id)
+        ]
 
-        result = engine.process_joystick_event(event)
-        assert result is True
-        engine.joystick_manager.on_joy_axis_motion_event.assert_called_once_with(event)
+        assert results == [True] * len(JOYSTICK_HANDLER_NAMES)
+        assert received_handler_names(scene) == JOYSTICK_HANDLER_NAMES
 
-    def test_joy_ball_motion(self, mocker):
-        """Test process_joystick_event dispatches JOYBALLMOTION."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+    def test_a_mapped_pads_joystick_events_are_dropped(self, mocker):
+        """A mapped pad dispatches its controller events only: its joystick events are dropped.
 
-        event = events.HashableEvent(pygame.JOYBALLMOTION)
+        Dropped events count as handled (deliberately not dispatched, never unhandled).
+        """
+        engine, scene = _engine_with_devices(mocker)
 
-        result = engine.process_joystick_event(event)
-        assert result is True
+        results = [
+            engine.process_joystick_event(event)
+            for event in _joystick_input_events(STAND_IN_PAD.instance_id)
+        ]
 
-    def test_joy_hat_motion(self, mocker):
-        """Test process_joystick_event dispatches JOYHATMOTION."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+        assert results == [True] * len(JOYSTICK_HANDLER_NAMES)
+        assert scene.received == []
 
-        event = events.HashableEvent(pygame.JOYHATMOTION)
+    def test_events_of_a_device_the_game_does_not_see_are_dropped(self, mocker):
+        """An instance id the registry does not hold reaches nothing (and raises nothing)."""
+        engine, scene = _engine_with_devices(mocker)
 
-        result = engine.process_joystick_event(event)
-        assert result is True
+        assert engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYBUTTONDOWN, instance_id=77, button=0)
+        )
+        assert scene.received == []
 
-    def test_joy_button_down(self, mocker):
-        """Test process_joystick_event dispatches JOYBUTTONDOWN."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+    def test_joystick_mode_dispatches_every_devices_joystick_events(self, mocker):
+        """--input-mode joystick: a mapped pad is read on its joystick layer only."""
+        engine, scene = _engine_with_devices(mocker, input_mode='joystick')
+        # The pad has no trackball, so SDL never sends it a ball motion
+        pad_events = [
+            event
+            for event in _joystick_input_events(STAND_IN_PAD.instance_id)
+            if event.type != pygame.JOYBALLMOTION
+        ]
 
-        event = events.HashableEvent(pygame.JOYBUTTONDOWN)
+        for event in pad_events:
+            engine.process_joystick_event(event)
 
-        result = engine.process_joystick_event(event)
-        assert result is True
+        assert received_handler_names(scene) == [
+            name for name in JOYSTICK_HANDLER_NAMES if name != 'on_joy_ball_motion_event'
+        ]
+        assert [device.controller for device in engine.input_devices] == [None, None]
 
-    def test_joy_button_up(self, mocker):
-        """Test process_joystick_event dispatches JOYBUTTONUP."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+    def test_controller_mode_hides_an_unmapped_joystick(self, mocker):
+        """--input-mode controller: an unmapped joystick is not seen; its events are dropped."""
+        engine, scene = _engine_with_devices(mocker, input_mode='controller')
 
-        event = events.HashableEvent(pygame.JOYBUTTONUP)
+        for event in _joystick_input_events(STAND_IN_STICK.instance_id):
+            engine.process_joystick_event(event)
 
-        result = engine.process_joystick_event(event)
-        assert result is True
+        assert scene.received == []
+        assert [device.instance_id for device in engine.input_devices] == [STAND_IN_PAD.instance_id]
 
-    def test_joy_device_added(self, mocker):
-        """Test process_joystick_event dispatches JOYDEVICEADDED."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+    def test_a_hot_plugged_joystick_is_announced_then_removed(self, mocker):
+        """Device added and removed: the managers' events, then the scene's device notices."""
+        engine, scene = _engine_with_devices(mocker, plugged_in_at_start=False)
+        assert list(engine.input_devices) == []
 
-        event = events.HashableEvent(pygame.JOYDEVICEADDED)
+        engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='g')
+        )
+        added = engine.input_devices.get(instance_id=STAND_IN_STICK.instance_id)
+        engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=STAND_IN_STICK.instance_id)
+        )
 
-        result = engine.process_joystick_event(event)
-        assert result is True
-
-    def test_joy_device_removed(self, mocker):
-        """Test process_joystick_event dispatches JOYDEVICEREMOVED."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.JOYDEVICEREMOVED)
-
-        result = engine.process_joystick_event(event)
-        assert result is True
+        assert added is not None
+        assert added.name == STAND_IN_STICK.name
+        assert received_handler_names(scene) == [
+            'on_joy_device_added_event',
+            'on_joy_device_removed_event',
+        ]
+        assert scene.devices_added == [STAND_IN_STICK.instance_id]
+        assert scene.devices_removed == [STAND_IN_STICK.instance_id]
+        assert list(engine.input_devices) == []
 
     def test_joystick_unhandled_returns_false(self, mocker):
-        """Test process_joystick_event returns False for unknown joystick events."""
-        engine = _make_engine(mocker)
-        engine.joystick_manager = mocker.Mock()
+        """An event type the joystick dispatcher does not know is not handled."""
+        engine, _scene = _engine_with_devices(mocker)
 
-        event = events.HashableEvent(99999)
+        assert engine.process_joystick_event(events.HashableEvent(99999)) is False
 
-        result = engine.process_joystick_event(event)
-        assert result is False
+
+@pytest.mark.usefixtures('event_blocking_restored')
+class TestProcessControllerEvent:
+    """GameEngine.process_controller_event: the controller layer of every mapped pad."""
+
+    def test_a_mapped_pads_controller_events_reach_the_scene(self, mocker):
+        """Every controller input event of a mapped pad is dispatched, in order."""
+        engine, scene = _engine_with_devices(mocker)
+
+        results = [
+            engine.process_controller_event(event)
+            for event in _controller_input_events(STAND_IN_PAD.instance_id)
+        ]
+
+        assert results == [True] * len(CONTROLLER_HANDLER_NAMES)
+        assert received_handler_names(scene) == CONTROLLER_HANDLER_NAMES
+
+    def test_controller_events_of_a_device_without_a_controller_layer_are_dropped(self, mocker):
+        """An unmapped joystick has no controller layer: such events reach nothing."""
+        engine, scene = _engine_with_devices(mocker)
+
+        for event in _controller_input_events(STAND_IN_STICK.instance_id):
+            assert engine.process_controller_event(event) is True
+
+        assert scene.received == []
+
+    def test_a_hot_plugged_pad_is_announced_once_with_both_layers(self, mocker):
+        """A mapped pad arrives twice (joystick, then controller) and leaves twice: one notice each.
+
+        Its remapping reaches the scene's handler by instance id (BUGS.md #181).
+        """
+        engine, scene = _engine_with_devices(mocker, plugged_in_at_start=False)
+        pad_id = STAND_IN_PAD.instance_id
+
+        engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=1, guid='g')
+        )
+        announced_after_joystick = list(scene.devices_added)
+        engine.process_controller_event(
+            events.HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=1, guid='g')
+        )
+        pad = engine.input_devices.get(instance_id=pad_id)
+        engine.process_controller_event(
+            events.HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, instance_id=pad_id)
+        )
+        engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=pad_id)
+        )
+        removed_after_joystick = list(scene.devices_removed)
+        engine.process_controller_event(
+            events.HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=pad_id)
+        )
+
+        assert announced_after_joystick == []
+        assert scene.devices_added == [pad_id]
+        assert pad is not None
+        assert pad.controller is not None
+        assert removed_after_joystick == []
+        assert scene.devices_removed == [pad_id]
+        assert received_handler_names(scene) == [
+            'on_joy_device_added_event',
+            'on_controller_device_added_event',
+            'on_controller_device_remapped_event',
+            'on_joy_device_removed_event',
+            'on_controller_device_removed_event',
+        ]
+
+    def test_controller_event_in_joystick_mode_is_not_handled(self, mocker):
+        """Joystick input mode has no controller manager: controller events are not handled."""
+        engine, _scene = _engine_with_devices(mocker, input_mode='joystick')
+
+        assert engine.controller_manager is None
+        assert (
+            engine.process_controller_event(
+                events.HashableEvent(pygame.CONTROLLERBUTTONDOWN, instance_id=9, button=0)
+            )
+            is False
+        )
+
+    def test_controller_unhandled_returns_false(self, mocker):
+        """An event type the controller dispatcher does not know is not handled."""
+        engine, _scene = _engine_with_devices(mocker)
+
+        assert engine.process_controller_event(events.HashableEvent(99999)) is False
 
 
 class TestProcessMidiEvent:
@@ -2041,130 +2319,6 @@ class TestProcessTextEvent:
 
         result = engine.process_text_event(event)
         assert result is True
-
-
-class TestProcessControllerEvent:
-    """Test GameEngine.process_controller_event dispatcher."""
-
-    def test_controller_axis_motion(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERAXISMOTION."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERAXISMOTION)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_button_down(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERBUTTONDOWN."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERBUTTONDOWN)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_button_up(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERBUTTONUP."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERBUTTONUP)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_touchpad_down(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERTOUCHPADDOWN."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERTOUCHPADDOWN)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_touchpad_up(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERTOUCHPADUP."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERTOUCHPADUP)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_touchpad_motion(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERTOUCHPADMOTION."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERTOUCHPADMOTION)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_device_removed(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERDEVICEREMOVED."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERDEVICEREMOVED)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_device_added(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERDEVICEADDED."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERDEVICEADDED)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_device_remapped(self, mocker):
-        """Test process_controller_event dispatches CONTROLLERDEVICEREMAPPED."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERDEVICEREMAPPED)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-
-    def test_controller_sensor_update(self, mocker):
-        """CONTROLLERSENSORUPDATE goes to the controller manager's sensor handler."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.CONTROLLERSENSORUPDATE)
-
-        result = engine.process_controller_event(event)
-        assert result is True
-        engine.controller_manager.on_controller_sensor_update_event.assert_called_once_with(event)
-
-    def test_controller_event_in_joystick_mode_is_not_handled(self, mocker):
-        """Joystick input mode has no controller manager: controller events are not handled."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = None
-
-        event = events.HashableEvent(pygame.CONTROLLERBUTTONDOWN)
-
-        assert engine.process_controller_event(event) is False
-
-    def test_controller_unhandled_returns_false(self, mocker):
-        """Test process_controller_event returns False for unknown controller events."""
-        engine = _make_engine(mocker)
-        engine.controller_manager = mocker.Mock()
-
-        event = events.HashableEvent(99999)
-
-        result = engine.process_controller_event(event)
-        assert result is False
 
 
 class TestGameEngineHandleEventDeeper:

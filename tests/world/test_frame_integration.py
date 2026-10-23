@@ -342,7 +342,7 @@ class InvisibleScreenPlayerScene(ScreenPlayerScene):
 
 
 class CameraFreeScene(Scene):
-    """A plain scene holding one world sprite; the test removes its camera."""
+    """A plain scene holding one world sprite; it never sets its camera up."""
 
     NAME = 'Camera Free'
     VERSION = '1.0'
@@ -740,19 +740,27 @@ class TestSceneRedraw:
             assert scene.world_sprite.dirty == 1
 
 
-class TestSceneWithoutCamera:
-    """A scene stand-in without a camera runs its frames; the camera steps are skipped."""
+class TestSceneWithAnIdentityCamera:
+    """A scene that never sets its camera up runs its frames on Scene's identity camera.
 
-    def test_frame_runs_without_a_camera(self):
-        """No begin_frame, aim or positioning without a camera, and no crash."""
+    Every Scene has a camera (the scene manager no longer accepts stand-ins without one); a
+    scene that never follows or moves it keeps the identity camera, so the camera steps run
+    but move nothing.
+    """
+
+    def test_frame_runs_on_the_identity_camera(self):
+        """begin_frame, aim and positioning run, and the world sprite stays where it is drawn."""
         with running_scene(CameraFreeScene) as manager:
             scene = manager.active_scene
             assert isinstance(scene, CameraFreeScene)
-            del scene.camera
+            step(manager)
             sprite_rect_before = scene.world_sprite.rect.copy()
 
             step(manager, frames=2)
 
+            assert scene.camera.follow_target is None
+            # The identity camera: world positions are screen positions
+            assert scene.camera.world_to_screen(0.0, 0.0) == (0, 0)
             assert scene.world_sprite.rect == sprite_rect_before
 
 

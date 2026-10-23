@@ -145,6 +145,11 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   9. **Present**: debug overlay, `pygame.display.update()` or `flip()`
   10. **Finish**: `_finish_frame` (see Frame Pacing)
 - Handles scene transitions and lifecycle (`setup()`, `cleanup()`, `load_resources()`)
+- The active scene is always a `Scene` (or subclass), or None: `switch_to_scene` and
+  `request_transition`/`transition_to` raise `TypeError` for anything else
+  (`scenes.scene.required_scene`), so the manager reads the attributes `Scene` declares
+  (`camera`, `scene_start_capture`, `PIXEL_SNAP_MODE`, ...) directly. `SceneInterface`
+  (`glitchygames/interfaces`) stays as the base both `SceneManager` and `Scene` implement
 
 **Exit Codes** (`glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
 `glitchygames.engine`; never write the number in code or tests)
@@ -312,11 +317,21 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replay answers `key_pressed(K_*)` as the recording machine's keyboard layout did
 - Devices: `active_sources().devices()` (`glitchygames/input/devices.py`) is the only way to
   enumerate (`joystick_count`, `controller_count`, `is_controller`, `name_for_index`) and open
-  (`open_joystick`, `open_controller`, `joystick_for_instance`) devices. Live answers, failures
-  included, and each opened device's descriptor are recorded. A replay answers with the recorded
-  answers (a recorded failure is raised again as `pygame.error`) and with `ReplayJoystick` /
-  `ReplayController` stand-ins: their positions come from the snapshot, rumble is dropped, and the
-  replay never sees real hardware
+  (`open_joystick`, `open_controller`, `joystick_for_instance`, `descriptor_for_instance`)
+  devices. Live answers, failures included, and each opened device's descriptor are recorded. A
+  replay answers with the recorded answers (a recorded failure is raised again as `pygame.error`)
+  and with `ReplayJoystick` / `ReplayController` stand-ins: their positions come from the
+  snapshot, rumble is dropped, and the replay never sees real hardware
+- Input devices (`glitchygames/input/input_devices.py`, its docstring the rules): games read
+  `GameEngine.input_devices` / `Scene.input_devices`, one `InputDevice` per physical device by
+  instance id (the door's `descriptor`, a `joystick` layer, a `controller` layer for a mapped
+  pad, both read from the snapshot; `on_input_device_added/removed(device=...)` on the active
+  scene). The registry follows the joystick and controller managers (both keyed by instance id)
+  and opens nothing. Each device's input events reach handlers from its `event_layer` only (the
+  controller layer if mapped, else the joystick layer): the other layer's are dropped, so each
+  press arrives once. `--input-mode` filters: `auto` (default) all, `joystick` joystick layers
+  only (controller events blocked), `controller` mapped pads only. Tests use stand-in devices
+  through the door (`tests/input/stand_in_devices.py`)
 - Saves: `glitchygames.state.open_saves(app_name=...)` returns a `SaveManager` (the base class
   holds every rule of the save format): `DiskSaveManager` live, `MemorySaveManager`
   (`glitchygames/state/sandbox.py`) in a replay, seeded from the recorded snapshot

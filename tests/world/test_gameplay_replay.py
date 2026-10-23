@@ -15,7 +15,7 @@ import sys
 import zlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 import pygame
 import pytest
@@ -102,7 +102,7 @@ from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventType
 from glitchygames.replay.processing import machine_description
 from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebuild, ViewerState
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
     frame_clock_seconds,
@@ -120,6 +120,7 @@ from tests.world.test_gameplay_recording import (
     RANDOM_SEED,
     RUN_ENGINE_ARGUMENTS,
     DepartureRecordedScene,
+    Marker,
     Script,
     _key,
     _schedule_quit_in_arrival,
@@ -773,6 +774,192 @@ class TestInputPosts:
         divergence = engine.replay_sources.result.divergence
         assert divergence is not None
         assert divergence.kind == EVENT_DIVERGENCE
+
+
+# The frame the device dispatch scene's scripted presses are posted in, and the frame it quits
+DEVICE_PRESS_FRAME = 1
+DEVICE_QUIT_FRAME = 4
+# The fake hardware of the device dispatch recording: an unmapped stick and a mapped pad
+FAKE_STICK_INSTANCE_ID = 5
+FAKE_PAD_INSTANCE_ID = 9
+
+
+class DeviceDispatchScene(Scene):
+    """A game whose marker moves by the handler each gamepad press reaches, and by polling.
+
+    A joystick-layer press moves the marker right, a controller-layer press down; a frame in
+    which the pad's controller layer holds button A moves it right one pixel. So a replay that
+    dispatched a press from another layer, or read another position, moves the marker elsewhere
+    and diverges.
+    """
+
+    NAME = 'DeviceDispatch'
+    VERSION = '1.0'
+    # (layer, instance id) of every press handled, in order (reset by each run)
+    presses_handled: ClassVar[list[tuple[str, int]]] = []
+
+    def __init__(self, options=None, groups=None):
+        """Add the marker."""
+        super().__init__(options=options, groups=groups)
+        self.marker = Marker(x=0)
+        self.all_sprites.add(self.marker)
+
+    def dt_tick(self, dt):
+        """Post the scripted presses, poll the pad, and quit after DEVICE_QUIT_FRAME."""
+        frame_number = Script.start_logic_frame(dt)
+        pad = self.input_devices.get(instance_id=FAKE_PAD_INSTANCE_ID)
+        assert pad is not None
+        assert pad.controller is not None
+        if pad.controller.button(button=pygame.CONTROLLER_BUTTON_A):
+            self.marker.rect.x += 1
+        if frame_number == DEVICE_QUIT_FRAME:
+            GameEngine.quit_game()
+
+    def on_joy_button_down_event(self, event):
+        """Move right for a joystick-layer press."""
+        DeviceDispatchScene.presses_handled.append(('joystick', event.instance_id))
+        self.marker.rect.x += 10
+
+    def on_controller_button_down_event(self, event):
+        """Move down for a controller-layer press."""
+        DeviceDispatchScene.presses_handled.append(('controller', event.instance_id))
+        self.marker.rect.y += 10
+
+
+def fake_device_hardware(mocker):
+    """Fake SDL's devices under the real live devices door: an unmapped stick, a mapped pad.
+
+    The stick (device index 0) and the pad's joystick view (index 1) answer pygame's Joystick
+    surface; the pad's controller holds button A on its controller layer.
+    """
+
+    def joystick_view(*, instance_id, name):
+        return mocker.Mock(**{
+            'get_instance_id.return_value': instance_id,
+            'get_name.return_value': name,
+            'get_guid.return_value': f'guid-{instance_id}',
+            'get_numaxes.return_value': 2,
+            'get_numbuttons.return_value': 2,
+            'get_numhats.return_value': 0,
+            'get_numballs.return_value': 0,
+            'get_axis.return_value': 0.0,
+            'get_button.return_value': False,
+            'get_init.return_value': True,
+            'get_power_level.return_value': 'full',
+        })
+
+    stick = joystick_view(instance_id=FAKE_STICK_INSTANCE_ID, name='Fake Stick')
+    pad_view = joystick_view(instance_id=FAKE_PAD_INSTANCE_ID, name='Fake Pad')
+    pad_controller = mocker.Mock(**{
+        'name': 'Fake Pad',
+        'as_joystick.return_value': pad_view,
+        'attached.return_value': True,
+        'get_init.return_value': True,
+        'get_mapping.return_value': {},
+        'get_axis.return_value': 0,
+        'get_button.side_effect': lambda button: button == pygame.CONTROLLER_BUTTON_A,
+    })
+    mocker.patch('pygame.joystick.get_count', return_value=2)
+    mocker.patch('pygame.joystick.Joystick', side_effect=[stick, pad_view].__getitem__)
+    mocker.patch('pygame._sdl2.controller.get_count', return_value=2)
+    mocker.patch('pygame._sdl2.controller.is_controller', side_effect=lambda index: index == 1)
+    mocker.patch('pygame._sdl2.controller.Controller', return_value=pad_controller)
+
+
+class TestDeviceDispatchReplays:
+    """Which layer dispatches each device's events is recorded and replayed identically."""
+
+    def test_a_session_with_a_stick_and_a_pad_replays_with_the_same_dispatch(
+        self, mocker, tmp_path
+    ):
+        """Auto mode: the pad's presses arrive once (controller layer), the stick's on its own.
+
+        The recording holds the devices, the door's answers (which say the pad is mapped), both
+        layers' events and the polled positions; the replay rebuilds the registry from them,
+        drops the pad's joystick-layer copy again and polls the same positions, without
+        touching hardware.
+        """
+        recording_path = tmp_path / 'devices.jsonl.gz'
+        DeviceDispatchScene.presses_handled = []
+        with engine_run_environment(mocker):
+            fake_device_hardware(mocker)
+            Script.events_by_frame = {
+                DEVICE_PRESS_FRAME: [
+                    # SDL sends a mapped pad's press on both layers
+                    pygame.event.Event(
+                        pygame.JOYBUTTONDOWN, instance_id=FAKE_PAD_INSTANCE_ID, button=0
+                    ),
+                    pygame.event.Event(
+                        pygame.CONTROLLERBUTTONDOWN, instance_id=FAKE_PAD_INSTANCE_ID, button=0
+                    ),
+                    pygame.event.Event(
+                        pygame.JOYBUTTONDOWN, instance_id=FAKE_STICK_INSTANCE_ID, button=1
+                    ),
+                ]
+            }
+            recording_engine = build_engine(
+                scene_class=DeviceDispatchScene,
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--input-mode',
+                    'auto',
+                    '--record-trace',
+                    str(recording_path),
+                    '--random-seed',
+                    str(RANDOM_SEED),
+                ),
+            )
+            recording_engine.start()
+        recorded_presses = list(DeviceDispatchScene.presses_handled)
+        # The recording holds both layers' events (the dispatch choice is made again on replay)
+        recorded_press_types = [
+            (record['type'], record['attributes']['instance_id'])
+            for frame in read_trace_result(path=recording_path).trace['frames']
+            for batch in frame['event_batches']
+            for record in batch
+            if record['type'] in {pygame.JOYBUTTONDOWN, pygame.CONTROLLERBUTTONDOWN}
+        ]
+        assert recorded_press_types == [
+            (pygame.JOYBUTTONDOWN, FAKE_PAD_INSTANCE_ID),
+            (pygame.CONTROLLERBUTTONDOWN, FAKE_PAD_INSTANCE_ID),
+            (pygame.JOYBUTTONDOWN, FAKE_STICK_INSTANCE_ID),
+        ]
+
+        # Tripwires: a replay never opens or enumerates real hardware
+        for hardware_entry_point in (
+            'pygame.joystick.get_count',
+            'pygame.joystick.Joystick',
+            'pygame._sdl2.controller.get_count',
+            'pygame._sdl2.controller.is_controller',
+            'pygame._sdl2.controller.Controller',
+        ):
+            mocker.patch(hardware_entry_point, side_effect=AssertionError('hardware reached'))
+        DeviceDispatchScene.presses_handled = []
+        with engine_run_environment(mocker):
+            replay_engine = build_engine(
+                scene_class=DeviceDispatchScene,
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--replay-trace',
+                    str(recording_path),
+                    '--headless',
+                ),
+            )
+            with pytest.raises(SystemExit) as exit_info:
+                replay_engine.start()
+
+        assert recorded_presses == [
+            ('controller', FAKE_PAD_INSTANCE_ID),
+            ('joystick', FAKE_STICK_INSTANCE_ID),
+        ]
+        assert DeviceDispatchScene.presses_handled == recorded_presses
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert replay_engine.replay_sources is not None
+        result = replay_engine.replay_sources.result
+        assert result.divergence is None
+        assert result.end_reason == 'end_of_recording'
+        # The recorded options hold the input mode, so the replay ran in auto mode too
+        assert replay_engine.input_devices.input_mode == 'auto'
 
 
 class TestRoundTrip:

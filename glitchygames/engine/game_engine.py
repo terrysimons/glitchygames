@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import cProfile
-import importlib.metadata
 import logging
 import math
 import multiprocessing
@@ -38,6 +37,7 @@ from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import ExitCode
 from glitchygames.fonts import FontManager
+from glitchygames.input.input_devices import InputDevices, InputMode
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.output_files import output_refusal, partial_path
@@ -1066,8 +1066,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.midi_manager: MidiEventManager
         self.mouse_manager: MouseEventManager
         self.window_manager: WindowEventManager
-        self.joysticks: list[Any] = []
-        self.joystick_count: int = 0
+        # Every joystick and game controller the game sees (glitchygames/input/input_devices.py),
+        # following the joystick and controller managers; built with them
+        self.input_devices: InputDevices = InputDevices()
 
     def initialize_display(self: Self) -> None:
         """Initialize the display."""
@@ -1413,33 +1414,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
-        # Determine input mode for gamepads
-        input_mode = GameEngine.OPTIONS.get('input_mode', 'auto')
+        # Which devices and events the game sees (glitchygames/input/input_devices.py, rule 2):
+        # auto (the default) both layers, a mapped pad dispatching its controller events and
+        # any other device its joystick events; joystick the joystick layer only; controller
+        # mapped pads only. Joystick events are never blocked at SDL: blocking them interferes
+        # with CONTROLLERDEVICEADDED/REMOVED on macOS (they are dropped at dispatch instead)
+        input_mode = InputMode(GameEngine.OPTIONS.get('input_mode', InputMode.AUTO))
 
-        if input_mode == 'auto':
-            # Detect pygame-ce and default to joystick API (controller API
-            # has compatibility issues with pygame-ce 2.5+)
-            using_pygame_ce: bool = False
-            try:
-                using_pygame_ce = (
-                    importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
-                )
-            except NameError, importlib.metadata.PackageNotFoundError:
-                with contextlib.suppress(importlib.metadata.PackageNotFoundError):
-                    using_pygame_ce = (
-                        importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
-                    )
-            input_mode = 'joystick' if using_pygame_ce else 'controller'
-            GameEngine.OPTIONS['input_mode'] = input_mode
-            LOG.info('Auto-detected input mode: %s', input_mode)
-
-        if input_mode == 'joystick':
+        if input_mode is InputMode.JOYSTICK:
             self.controller_manager = None
             pygame.event.set_blocked(events.CONTROLLER_EVENTS)
             LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            LOG.info('Input mode: controller (SDL Game Controller API)')
+            LOG.info('Input mode: %s (SDL Game Controller API)', input_mode)
 
         self.touch_manager = TouchEventManager(game=self.scene_manager)
         # https://glitchy-games.atlassian.net/browse/GG-23
@@ -1451,14 +1439,35 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.mouse_manager = MouseEventManager(game=self.scene_manager)
         self.window_manager = WindowEventManager(game=self.scene_manager)
 
-        # Get count of joysticks (the joystick manager was just made above)
-        # JoystickEventManager.joysticks is a dictionary, convert to list of values
-        manager_joysticks: dict[Any, Any] = cast(
-            'dict[Any, Any]',
-            self.joystick_manager.joysticks,
+        # The devices the managers just opened (no scene is running yet to be told)
+        self.input_devices = InputDevices(input_mode=input_mode)
+        self._synchronize_input_devices()
+
+    def _synchronize_input_devices(self: Self) -> None:
+        """Follow the managers' devices, telling the active scene which came and went.
+
+        Called once the managers are made and after every device event they handle
+        (glitchygames/input/input_devices.py, rule 3).
+        """
+        controller_manager = self.controller_manager
+        changes = self.input_devices.synchronize(
+            joysticks={
+                proxy.instance_id: proxy.joystick
+                for proxy in self.joystick_manager.joysticks.values()
+            },
+            controllers=(
+                {}
+                if controller_manager is None
+                else {
+                    proxy.instance_id: proxy.controller
+                    for proxy in controller_manager.controllers.values()
+                }
+            ),
         )
-        self.joysticks = list(manager_joysticks.values())
-        self.joystick_count = len(self.joysticks)
+        for device in changes.removed:
+            self.scene_manager.on_input_device_removed(device=device)
+        for device in changes.added:
+            self.scene_manager.on_input_device_added(device=device)
 
     def _resolve_scene_name_for_error(self: Self) -> str:
         """Resolve the current or previous scene name for error reporting.
@@ -1474,12 +1483,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             scene = self.scene_manager.previous_scene
         if scene is None:
             return 'None'
-        # Looked up by name: this runs after a crash, and a SceneInterface stand-in (which the
-        # scene manager accepts) has no NAME; then, as for a NAME of None, the class name
-        scene_name = getattr(scene, 'NAME', None)
-        if scene_name is None:
-            scene_name = scene.__class__.__name__
-        return scene_name
+        # A scene without a name (an empty NAME) is named by its class
+        return scene.NAME or scene.__class__.__name__
 
     def measurement_run(
         self: Self, *, processing_paced: bool, rebaselined_from: str | None
@@ -2665,6 +2670,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if self.controller_manager is None:
             return False
 
+        # Each device's input events come from one layer only: a controller event of a device
+        # the game does not see on its controller layer is dropped (handled: deliberately not
+        # dispatched; glitchygames/input/input_devices.py, rules 1 and 2)
+        if not self.input_devices.dispatches(
+            event_type=event.type, instance_id=self._device_event_instance_id(event=event)
+        ):
+            return True
+
         if event.type == pygame.CONTROLLERAXISMOTION:
             self.controller_manager.on_controller_axis_motion_event(event)
             return True
@@ -2695,10 +2708,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         if event.type == pygame.CONTROLLERDEVICEREMOVED:
             self.controller_manager.on_controller_device_removed_event(event)
+            self._synchronize_input_devices()
             return True
 
         if event.type == pygame.CONTROLLERDEVICEADDED:
             self.controller_manager.on_controller_device_added_event(event)
+            self._synchronize_input_devices()
             return True
 
         if event.type == pygame.CONTROLLERDEVICEREMAPPED:
@@ -2850,6 +2865,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             bool: True if the event was handled, False otherwise.
 
         """
+        # Each device's input events come from one layer only: a mapped pad's joystick-layer
+        # events are dropped (handled: deliberately not dispatched), as are the events of a
+        # device the game does not see (glitchygames/input/input_devices.py, rules 1 and 2)
+        if not self.input_devices.dispatches(
+            event_type=event.type, instance_id=self._device_event_instance_id(event=event)
+        ):
+            return True
+
         if event.type == pygame.JOYAXISMOTION:
             # JOYAXISMOTION    joy, axis, value
             self.joystick_manager.on_joy_axis_motion_event(event)
@@ -2877,13 +2900,29 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         if event.type == pygame.JOYDEVICEADDED:
             self.joystick_manager.on_joy_device_added_event(event)
+            self._synchronize_input_devices()
             return True
 
         if event.type == pygame.JOYDEVICEREMOVED:
             self.joystick_manager.on_joy_device_removed_event(event)
+            self._synchronize_input_devices()
             return True
 
         return False
+
+    @staticmethod
+    def _device_event_instance_id(*, event: events.HashableEvent) -> int | None:
+        """Return the instance id of a joystick or controller event, None when it has none.
+
+        An added event names a device index instead (``device_index``): it is a device
+        event, which always passes (``InputDevices.dispatches``).
+
+        Returns:
+            The instance id, or None.
+
+        """
+        instance_id = event.dict.get('instance_id')
+        return None if instance_id is None else int(instance_id)
 
     def process_text_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a text event.

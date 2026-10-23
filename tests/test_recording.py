@@ -16,7 +16,6 @@ import gzip
 import json
 import logging
 import math
-import types
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -70,6 +69,7 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
 )
+from glitchygames.scenes import Scene
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
 from glitchygames.tracing import TraceFormatError, TraceWriter, read_trace_result
@@ -112,7 +112,10 @@ class FakeGroup:
 
 
 def _scene(*sprites: FakeSprite) -> Any:
-    return types.SimpleNamespace(all_sprites=FakeGroup(*sprites))
+    """A real scene (capturing no scene start) whose sprite group holds these sprites."""
+    scene = Scene(options={})
+    scene.all_sprites = FakeGroup(*sprites)
+    return scene
 
 
 def _lines(path: Path) -> list[dict[str, Any]]:
@@ -1167,8 +1170,8 @@ class TestRecordingSources:
         recorder.close()
         assert sources.captures_scene_starts is False
 
-    def test_a_scene_stand_in_has_no_scene_start(self, tmp_path):
-        """A SceneInterface stand-in without a start capture is recorded without scene_start."""
+    def test_a_scene_without_a_start_capture_has_no_scene_start(self, tmp_path):
+        """A scene made while starts were not captured is recorded without scene_start."""
         path = tmp_path / 'unit.jsonl.gz'
         sources, recorder, _inner = _recording_sources(path=path)
         sources.end_frame(

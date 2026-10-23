@@ -1,6 +1,6 @@
 """Tests for GameEngine properties.
 
-This module tests GameEngine properties like joysticks, scene_manager, game, etc., on a real
+This module tests GameEngine properties like input_devices, scene_manager, game, etc., on a real
 engine: real pygame, the real display and real event managers. Only the joystick hardware is
 stood in for (no test machine has joysticks attached).
 """
@@ -18,16 +18,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames.events.joystick import JoystickEventManager
-from glitchygames.input.devices import (
-    JOYSTICK_KIND,
-    DeviceDescriptor,
-    LiveDeviceRegistry,
-    ReplayJoystick,
-)
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene, SceneManager
-
-# Constants for magic values
-TEST_JOYSTICK_COUNT_2 = 2
+from tests.input.stand_in_devices import install_stand_in_devices
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -41,25 +34,23 @@ class PropertiesTestGame(Scene):
     VERSION = '1.0'
 
 
-def stand_in_joystick(*, device_index: int) -> ReplayJoystick:
-    """Return a joystick stand-in (the replay's, which needs no hardware) for a device index.
+def stand_in_joystick(*, device_index: int) -> DeviceDescriptor:
+    """Describe a stand-in joystick (the replay's, which needs no hardware) at a device index.
 
     Returns:
-        ReplayJoystick: A joystick whose instance id is its device index.
+        DeviceDescriptor: A joystick whose instance id is its device index.
 
     """
-    return ReplayJoystick(
-        descriptor=DeviceDescriptor(
-            kind=JOYSTICK_KIND,
-            device_index=device_index,
-            instance_id=device_index,
-            name=f'Stand-in joystick {device_index}',
-            guid=None,
-            axis_count=2,
-            button_count=4,
-            hat_count=1,
-            ball_count=0,
-        )
+    return DeviceDescriptor(
+        kind=JOYSTICK_KIND,
+        device_index=device_index,
+        instance_id=device_index,
+        name=f'Stand-in joystick {device_index}',
+        guid=None,
+        axis_count=2,
+        button_count=4,
+        hat_count=1,
+        ball_count=0,
     )
 
 
@@ -105,37 +96,27 @@ class TestEngineProperties:
         assert real_engine.scene_manager.screen is pygame.display.get_surface()
         assert real_engine.scene_manager.screen.get_size() == real_engine.screen.get_size()
 
-    def test_game_engine_joysticks_before_start(self, real_engine):
-        """Before the event managers start, the engine knows no joysticks."""
-        assert real_engine.joysticks == []
-        assert real_engine.joystick_count == 0
+    def test_game_engine_input_devices_before_start(self, real_engine):
+        """Before the event managers start, the engine sees no devices."""
+        assert list(real_engine.input_devices) == []
 
-    def test_game_engine_joystick_count_property(self, real_engine, mocker):
-        """Starting the event managers counts the attached joysticks."""
-        # Hardware: two joysticks attached
-        mocker.patch.object(
-            LiveDeviceRegistry, 'joystick_count', return_value=TEST_JOYSTICK_COUNT_2
+    def test_game_engine_input_devices_property(self, real_engine):
+        """Starting the event managers finds the attached joysticks, one device each."""
+        # Hardware: two joysticks attached (stand-ins, through the devices door)
+        install_stand_in_devices(
+            descriptors=[stand_in_joystick(device_index=index) for index in range(2)]
         )
-        mocker.patch.object(LiveDeviceRegistry, 'open_joystick', side_effect=stand_in_joystick)
 
         real_engine.install_game(scene_class=PropertiesTestGame)
 
-        assert real_engine.joystick_count == TEST_JOYSTICK_COUNT_2
-
-    def test_game_engine_joysticks_property(self, real_engine, mocker):
-        """The engine's joysticks are the joystick manager's proxies, one per joystick."""
-        # Hardware: two joysticks attached
-        mocker.patch.object(
-            LiveDeviceRegistry, 'joystick_count', return_value=TEST_JOYSTICK_COUNT_2
-        )
-        mocker.patch.object(LiveDeviceRegistry, 'open_joystick', side_effect=stand_in_joystick)
-
-        real_engine.install_game(scene_class=PropertiesTestGame)
-
-        assert len(real_engine.joysticks) == TEST_JOYSTICK_COUNT_2
-        assert real_engine.joysticks == list(real_engine.joystick_manager.joysticks.values())
+        assert [device.name for device in real_engine.input_devices] == [
+            'Stand-in joystick 0',
+            'Stand-in joystick 1',
+        ]
         assert all(
-            isinstance(joystick, JoystickEventManager.JoystickEventProxy)
-            for joystick in real_engine.joysticks
+            isinstance(proxy, JoystickEventManager.JoystickEventProxy)
+            for proxy in real_engine.joystick_manager.joysticks.values()
         )
         assert sorted(real_engine.joystick_manager.joysticks) == [0, 1]
+        # Scenes read the same registry
+        assert real_engine.scene_manager.input_devices is real_engine.input_devices

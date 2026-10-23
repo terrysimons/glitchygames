@@ -21,13 +21,9 @@ from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import events
 from glitchygames.events import HashableEvent
-from glitchygames.input.devices import (
-    JOYSTICK_KIND,
-    DeviceDescriptor,
-    LiveDeviceRegistry,
-    ReplayJoystick,
-)
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene, SceneManager
+from tests.input.stand_in_devices import install_stand_in_devices
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -117,26 +113,18 @@ class RecordingScene(Scene):
         return [handler_name for handler_name, _ in self.received]
 
 
-def stand_in_joystick(*, device_index: int) -> ReplayJoystick:
-    """Return a joystick stand-in (the replay's, which needs no hardware).
-
-    Returns:
-        ReplayJoystick: A joystick with instance id JOYSTICK_INSTANCE_ID.
-
-    """
-    return ReplayJoystick(
-        descriptor=DeviceDescriptor(
-            kind=JOYSTICK_KIND,
-            device_index=device_index,
-            instance_id=JOYSTICK_INSTANCE_ID,
-            name='Stand-in joystick',
-            guid=None,
-            axis_count=2,
-            button_count=4,
-            hat_count=1,
-            ball_count=1,
-        )
-    )
+# The stand-in joystick (an unmapped one: its joystick events reach the scene)
+STAND_IN_JOYSTICK = DeviceDescriptor(
+    kind=JOYSTICK_KIND,
+    device_index=0,
+    instance_id=JOYSTICK_INSTANCE_ID,
+    name='Stand-in joystick',
+    guid=None,
+    axis_count=2,
+    button_count=4,
+    hat_count=1,
+    ball_count=1,
+)
 
 
 @pytest.fixture
@@ -168,16 +156,15 @@ def engine(mocker):
 
 
 @pytest.fixture
-def scene(engine, mocker):
+def scene(engine):
     """Start the engine's event managers with RecordingScene active, as start() does.
 
     Returns:
         RecordingScene: The active game scene.
 
     """
-    # Hardware: one joystick attached
-    mocker.patch.object(LiveDeviceRegistry, 'joystick_count', return_value=1)
-    mocker.patch.object(LiveDeviceRegistry, 'open_joystick', side_effect=stand_in_joystick)
+    # Hardware: one joystick attached (a stand-in, through the devices door)
+    install_stand_in_devices(descriptors=[STAND_IN_JOYSTICK])
     engine.install_game(scene_class=RecordingScene)
     pygame.event.clear()
     return engine.scene_manager.active_scene

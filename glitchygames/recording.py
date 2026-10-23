@@ -239,7 +239,6 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     add_frame_histories,
 )
-from glitchygames.scene_start import SceneStart, SceneStartCapture
 from glitchygames.sources import (
     frame_clock_seconds,
     has_scoped_sources,
@@ -255,6 +254,7 @@ if TYPE_CHECKING:
 
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
+    from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
     from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
@@ -1586,11 +1586,10 @@ class RecordingSources:
         # Scoped doors serve this frame (a playback scope): its scene is not the session's
         if has_scoped_sources():
             return None
-        # Looked up by name, as SceneManager._setup_new_scene does: a SceneInterface stand-in
-        # has no capture
-        start_capture = getattr(scene, 'scene_start_capture', None)
+        # None while scene starts are not captured (live play)
+        start_capture = scene.scene_start_capture
         if (
-            not isinstance(start_capture, SceneStartCapture)
+            start_capture is None
             or start_capture.start is None
             or start_capture.start.first_logic_frame is None
         ):

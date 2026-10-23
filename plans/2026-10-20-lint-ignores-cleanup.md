@@ -86,21 +86,25 @@
 3. Do it area by area; remove the global ignore when the remaining sites are covered by per-file
    ignores with reasons.
 
-Progress (2026-10-22): 128 of 152 typed. New shared types: `tracing.JsonValue` (recursive JSON
+Progress (2026-10-22): 128 of 152 typed; 151 of 152 after the Bitmappy and joystick demo sites
+(below), the last one `events/base.py`'s `__getattr__`. New shared types: `tracing.JsonValue` (recursive JSON
 alias, reused by `recording.py`), `supervision.FrozenJsonValue`/`JsonShapedValue`,
 `input.devices.OpenedJoystick`/`OpenedController` (live or replay device), the collision
 `RectSprite`/`WorldRectSprite` Protocols, `debug.protocols.InspectedScene`, a generic
 `Tween[TargetT]`, minimal Protocols for the untyped aisuite client (`services/` and
 `bitmappy/ai_worker.py`). Left, each waiting on a decision:
-- `examples/joystick_demo.py` (12): the demo picks joystick or controller with an `input_mode`
-  string. The user chose (2026-10-22) to plan one `InputDevice` per physical device first (an
-  instance id with a joystick layer and, when SDL maps it, a controller layer), since joysticks
-  and controllers are meant to run together; the demo then lists every device with no mode.
+- ~~`examples/joystick_demo.py` (12)~~ done 2026-10-22: rewritten on one `InputDevice` per
+  physical device (`plans/2026-10-22-unified-input-devices.md`); it lists every device with no
+  mode and no `Any`. The package's last ANN401 site is `events/base.py`'s `__getattr__` (below).
 - `events/base.py` `HashableEvent.__getattr__` (1): the event attribute bag (pygame's own is
   `Any`; `object` gave 292 caller errors). Keeps `Any` with a per-file ignore and its reason
   until typed per-family event subclasses exist (to be planned; basedpyright does not let
   `__getattr__` satisfy a Protocol, so typed views must be classes).
-- Bitmappy (11): 4 in `history/commands.py` and 3 in `ai_worker.py` reach protected members
+- Bitmappy (11), done 2026-10-22 (the user's choices: public APIs; the editor required):
+  `AnimatedSprite.animation_data`/`pause()`, `FilmStripWidget.refresh(recalculate_layout=...)`,
+  `EditorContext.applying_undo_redo`; the trackers require `editor`; the dead aisuite
+  `_providers` timeout setup removed (timeouts go in the client config; BUGS.md #183). Before:
+  4 in `history/commands.py` and 3 in `ai_worker.py` reach protected members
   (`AnimatedSprite._animations`, `FilmStripWidget._calculate_layout`, aisuite's
   `client._providers`); typed, every access is a `reportPrivateUsage` error, so they need public
   APIs (and test stand-ins that set them). 4 in `history/operations.py`: the trackers' `editor`

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames import events
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
+from glitchygames.transitions import FadeTransition
 
 # Constants for magic values
 FPS_REFRESH_RATE = 1000
@@ -114,21 +115,34 @@ class TestSceneManager:
         scene_manager.active_scene = mock_scene
         assert scene_manager.all_sprites == mock_scene.all_sprites
 
-    def test_scene_manager_switch_to_scene(self, mocker):
+    def test_scene_manager_switch_to_scene(self):
         """Test SceneManager switch_to_scene method."""
-        # Reset singleton state for clean test
-        SceneManager._reset()
-
         scene_manager = self.scene_manager
-        mock_scene = mocker.Mock()
-
-        # Mock the scene's required attributes
-        mock_scene.all_sprites = mocker.Mock()
-        mock_scene.background = pygame.Surface((800, 600))
+        scene = Scene(options={})
 
         # Test switching to a scene
-        scene_manager.switch_to_scene(mock_scene)
-        assert scene_manager.active_scene == mock_scene
+        scene_manager.switch_to_scene(scene)
+        assert scene_manager.active_scene is scene
+
+    def test_switch_to_scene_refuses_an_object_that_is_not_a_scene(self, mocker):
+        """The active scene must be a Scene: anything else is refused, naming its type."""
+        scene_manager = self.scene_manager
+        scene_manager.active_scene = None
+
+        with pytest.raises(TypeError, match='must be a Scene or None, not Mock'):
+            scene_manager.switch_to_scene(mocker.Mock())
+
+        assert scene_manager.active_scene is None
+
+    def test_request_transition_refuses_an_object_that_is_not_a_scene(self, mocker):
+        """A transition's next scene must be a Scene too: refused when requested."""
+        scene_manager = self.scene_manager
+        scene_manager.active_scene = None
+
+        with pytest.raises(TypeError, match='must be a Scene or None, not Mock'):
+            scene_manager.request_transition(mocker.Mock(), FadeTransition(duration=0.5))
+
+        assert scene_manager._pending_transition is None
 
     def test_scene_manager_play(self):
         """Test SceneManager play method."""
@@ -653,3 +667,67 @@ class TestSceneShake:
         scene.shake(self._shake(), targets=ShakeTarget.SCREEN)
         assert scene.scene_manager.screen_shake.is_active
         scene.scene_manager.screen_shake.clear()
+
+
+class InputDeviceNoticeScene(Scene):
+    """A scene that keeps the device notices the scene manager passes on."""
+
+    def __init__(self):
+        """Start with no notices."""
+        super().__init__()
+        self.notices = []
+
+    def on_input_device_added(self, *, device):
+        self.notices.append(('added', device.instance_id))
+
+    def on_input_device_removed(self, *, device):
+        self.notices.append(('removed', device.instance_id))
+
+
+class TestInputDeviceNotices:
+    """The scene manager passes device notices on to the active scene, if there is one."""
+
+    @staticmethod
+    def _device():
+        """Return a connected stand-in joystick (a replay's, which needs no hardware).
+
+        Returns:
+            The device.
+
+        """
+        from glitchygames.input.devices import ReplayJoystick
+        from glitchygames.input.input_devices import ConnectedInputDevice
+        from tests.input.stand_in_devices import STAND_IN_STICK
+
+        return ConnectedInputDevice(
+            descriptor=STAND_IN_STICK,
+            joystick=ReplayJoystick(descriptor=STAND_IN_STICK),
+            controller=None,
+        )
+
+    def test_the_active_scene_hears_of_devices_added_and_removed(self):
+        scene = InputDeviceNoticeScene()
+        scene.scene_manager.active_scene = scene
+
+        scene.scene_manager.on_input_device_added(device=self._device())
+        scene.scene_manager.on_input_device_removed(device=self._device())
+
+        assert scene.notices == [('added', 5), ('removed', 5)]
+
+    def test_without_an_active_scene_nobody_hears_of_them(self):
+        scene = InputDeviceNoticeScene()
+        scene.scene_manager.active_scene = None
+
+        scene.scene_manager.on_input_device_added(device=self._device())
+        scene.scene_manager.on_input_device_removed(device=self._device())
+
+        assert scene.notices == []
+
+    def test_without_an_engine_a_scene_sees_no_devices(self):
+        scene = Scene()
+        scene.scene_manager.game_engine = None
+
+        assert list(scene.input_devices) == []
+        # The default notices do nothing
+        scene.on_input_device_added(device=self._device())
+        scene.on_input_device_removed(device=self._device())

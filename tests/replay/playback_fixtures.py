@@ -25,6 +25,7 @@ from tests.world.test_frame_integration import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
     from glitchygames.scenes import Scene
@@ -228,7 +229,11 @@ def step_finishing(manager: Any, *events: pygame.event.Event, frames: int = 1) -
 
 
 def record_counting_scene(
-    *, tmp_path: Path, frames: int, scene_class: type[CountingScene] = CountingScene
+    *,
+    tmp_path: Path,
+    frames: int,
+    scene_class: type[CountingScene] = CountingScene,
+    extra_arguments: Sequence[str] = (),
 ) -> Path:
     """Record ``frames`` frames of a counting scene through the harness; return the file.
 
@@ -239,13 +244,14 @@ def record_counting_scene(
         tmp_path: Where the recording goes.
         frames: How many frames to record.
         scene_class: The counting scene to record.
+        extra_arguments: More command-line arguments for the recorded run.
 
     Returns:
         The recording's path.
 
     """
     recording_path = tmp_path / f'{scene_class.__name__}.jsonl.gz'
-    with running_scene(CameraFreeScene) as manager:
+    with running_scene(CameraFreeScene, extra_arguments=extra_arguments) as manager:
         engine = manager.game_engine
         assert engine is not None
         engine.start_trace_recording(path=recording_path)

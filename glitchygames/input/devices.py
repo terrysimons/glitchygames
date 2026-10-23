@@ -228,6 +228,17 @@ class DeviceRegistry(Protocol):
         """
         ...
 
+    def descriptor_for_instance(self, *, instance_id: int) -> DeviceDescriptor | None:
+        """Return the descriptor of an opened device by instance id, or None.
+
+        A game controller opened on both layers keeps its controller descriptor.
+
+        Args:
+            instance_id: The SDL instance id.
+
+        """
+        ...
+
     def forget_device(self, *, instance_id: int) -> None:
         """Forget a removed device (its removal event's instance id); unknown ids are ignored.
 
@@ -268,6 +279,20 @@ def _describe(*, kind: str, device_index: int, device: OpenedJoystick) -> Device
         hat_count=int(device.get_numhats()),
         ball_count=int(device.get_numballs()),
     )
+
+
+def _remember_descriptor(
+    *, descriptors_by_instance: dict[int, DeviceDescriptor], descriptor: DeviceDescriptor
+) -> None:
+    """Remember an opened device's descriptor by instance id.
+
+    A game controller is opened on both layers (the controller manager opens it as a
+    controller, the joystick manager as a joystick, in either order): its controller descriptor
+    is kept, so the descriptor says the device is a game controller.
+    """
+    known = descriptors_by_instance.get(descriptor.instance_id)
+    if known is None or known.kind != CONTROLLER_KIND:
+        descriptors_by_instance[descriptor.instance_id] = descriptor
 
 
 def _poll_joystick_layer(
@@ -312,6 +337,7 @@ class LiveDeviceRegistry:
         # Joystick views by instance id (a controller's is its as_joystick())
         self._devices_by_instance: dict[int, pygame.joystick.JoystickType] = {}
         self._controllers_by_instance: dict[int, pygame._sdl2.controller.Controller] = {}
+        self._descriptors_by_instance: dict[int, DeviceDescriptor] = {}
         self._new_descriptors: list[DeviceDescriptor] = []
         self._new_answers: list[EnumerationAnswer] = []
 
@@ -484,6 +510,18 @@ class LiveDeviceRegistry:
         """
         return self._devices_by_instance.get(instance_id)
 
+    def descriptor_for_instance(self: Self, *, instance_id: int) -> DeviceDescriptor | None:
+        """Return the descriptor of an opened device by instance id, or None.
+
+        Args:
+            instance_id: The SDL instance id.
+
+        Returns:
+            The descriptor recorded when it was opened (a game controller's controller one).
+
+        """
+        return self._descriptors_by_instance.get(instance_id)
+
     def forget_device(self: Self, *, instance_id: int) -> None:
         """Stop polling and handing out a removed (or vanished) device.
 
@@ -497,6 +535,7 @@ class LiveDeviceRegistry:
         """
         self._devices_by_instance.pop(instance_id, None)
         self._controllers_by_instance.pop(instance_id, None)
+        self._descriptors_by_instance.pop(instance_id, None)
 
     def discard_untaken(self: Self) -> None:
         """Drop the answers and descriptors nobody took this frame (``LiveSources.end_frame``).
@@ -610,6 +649,9 @@ class LiveDeviceRegistry:
         self._devices_by_instance[descriptor.instance_id] = joystick_view
         if controller is not None:
             self._controllers_by_instance[descriptor.instance_id] = controller
+        _remember_descriptor(
+            descriptors_by_instance=self._descriptors_by_instance, descriptor=descriptor
+        )
         self._new_descriptors.append(descriptor)
         self._remember_answer(
             call=call,
@@ -974,6 +1016,7 @@ class ReplayDeviceRegistry:
         self._descriptors_by_instance: dict[int, DeviceDescriptor] = {}
         self._opened_instances: set[int] = set()
         self._opened_by_instance: dict[int, ReplayJoystick] = {}
+        self._opened_descriptors_by_instance: dict[int, DeviceDescriptor] = {}
         self._answers: dict[tuple[str, int | None], collections.deque[EnumerationAnswer]] = {}
         self._last_answers: dict[tuple[str, int | None], EnumerationAnswer] = {}
         self._learned_descriptors: list[DeviceDescriptor] = []
@@ -1077,6 +1120,9 @@ class ReplayDeviceRegistry:
         )
         joystick = ReplayJoystick(descriptor=descriptor)
         self._opened_by_instance[descriptor.instance_id] = joystick
+        _remember_descriptor(
+            descriptors_by_instance=self._opened_descriptors_by_instance, descriptor=descriptor
+        )
         return joystick
 
     def open_controller(self: Self, *, device_index: int) -> ReplayController:
@@ -1095,6 +1141,9 @@ class ReplayDeviceRegistry:
         controller = ReplayController(descriptor=descriptor)
         # Live play hands back a controller's joystick view by instance id; so does a replay
         self._opened_by_instance[descriptor.instance_id] = controller.as_joystick()
+        _remember_descriptor(
+            descriptors_by_instance=self._opened_descriptors_by_instance, descriptor=descriptor
+        )
         return controller
 
     def joystick_for_instance(self: Self, *, instance_id: int) -> ReplayJoystick | None:
@@ -1109,6 +1158,18 @@ class ReplayDeviceRegistry:
         """
         return self._opened_by_instance.get(instance_id)
 
+    def descriptor_for_instance(self: Self, *, instance_id: int) -> DeviceDescriptor | None:
+        """Return the recorded descriptor of an opened stand-in by instance id, or None.
+
+        Args:
+            instance_id: The recorded SDL instance id.
+
+        Returns:
+            The descriptor it was opened with (a game controller's controller one).
+
+        """
+        return self._opened_descriptors_by_instance.get(instance_id)
+
     def forget_device(self: Self, *, instance_id: int) -> None:
         """Forget a removed stand-in, as live play forgets the device (replayed removal events).
 
@@ -1117,6 +1178,7 @@ class ReplayDeviceRegistry:
 
         """
         self._opened_by_instance.pop(instance_id, None)
+        self._opened_descriptors_by_instance.pop(instance_id, None)
 
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
         """Return the descriptors learned from the recording since the last call, once each.

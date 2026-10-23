@@ -19,6 +19,7 @@ from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
+from glitchygames.input.input_devices import InputDevices
 from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
 from glitchygames.input.state import (
     IDLE_INPUT,
@@ -70,6 +71,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.input.input_devices import InputDevice
     from glitchygames.input.rumble import RumbleDevice
     from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplayResult
@@ -150,6 +152,29 @@ def is_discarded_during_transition(event: pygame.event.Event) -> bool:
     return True
 
 
+def required_scene(*, next_scene: object) -> Scene | None:
+    """Return the scene to switch or transition to, refusing anything that is not a Scene.
+
+    The active scene must be a Scene (or a subclass): the scene manager reads the attributes
+    Scene declares (its camera, scene start, snap mode, frame cap, key presses) directly. None
+    stays None (a switch to None ends the run).
+
+    Args:
+        next_scene: The scene asked for.
+
+    Returns:
+        The scene, typed as a Scene, or None.
+
+    Raises:
+        TypeError: If next_scene is neither None nor a Scene.
+
+    """
+    if next_scene is None or isinstance(next_scene, Scene):
+        return next_scene
+    message = f'The next scene must be a Scene or None, not {type(next_scene).__name__}'
+    raise TypeError(message)
+
+
 class SceneManager(SceneInterface, events.EventManager):
     """Glitchy Games Scene Manager.
 
@@ -200,7 +225,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # Scene transition support
         self._active_transition: Transition | None = None  # Transition object during effect
         # The requested switch, as its next scene and its transition
-        self._pending_transition: tuple[SceneInterface | None, Transition] | None = None
+        self._pending_transition: tuple[Scene | None, Transition] | None = None
 
         self.clock: pygame.time.Clock = pygame.time.Clock()
 
@@ -318,6 +343,35 @@ class SceneManager(SceneInterface, events.EventManager):
         performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
         performance_manager.set_target_fps(self.target_fps)
 
+    @property
+    def input_devices(self: Self) -> InputDevices:
+        """Every joystick and game controller the game sees (glitchygames/input/input_devices.py).
+
+        The engine's; without an engine (a bare scene manager), an empty registry.
+        """
+        game_engine = self._game_engine
+        return InputDevices() if game_engine is None else game_engine.input_devices
+
+    def on_input_device_added(self: Self, *, device: InputDevice) -> None:
+        """Tell the active scene a device was connected (GameEngine, after a device event).
+
+        Args:
+            device: The device the game sees from now on.
+
+        """
+        if self.active_scene is not None:
+            self.active_scene.on_input_device_added(device=device)
+
+    def on_input_device_removed(self: Self, *, device: InputDevice) -> None:
+        """Tell the active scene a device was disconnected (GameEngine, after a device event).
+
+        Args:
+            device: The device the game no longer sees.
+
+        """
+        if self.active_scene is not None:
+            self.active_scene.on_input_device_removed(device=device)
+
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
     @property
@@ -337,13 +391,11 @@ class SceneManager(SceneInterface, events.EventManager):
     def active_scene_start(self: Self) -> SceneStart | None:
         """How the active scene began (glitchygames/scene_start.py), if captured.
 
-        None without an active scene, when its start was not captured, or for a scene stand-in
-        (a SceneInterface that is not a Scene).
+        None without an active scene, or when its start was not captured.
         """
-        start_capture = getattr(self.active_scene, 'scene_start_capture', None)
-        if isinstance(start_capture, SceneStartCapture):
-            return start_capture.start
-        return None
+        if self.active_scene is None:
+            return None
+        return self.active_scene.scene_start
 
     @property
     def instant_replay_journal(self: Self) -> InstantReplayJournal | None:
@@ -503,17 +555,16 @@ class SceneManager(SceneInterface, events.EventManager):
         """Make the journal of a scene that offers instant replay, as it is first set up.
 
         Called before its ``setup()`` (glitchygames/instant_replay.py, rule 2). A later setup
-        (resuming it from the pause screen) keeps its journal; a scene stand-in, a scene whose
-        start is not captured and a scene a playback scope builds keep none.
+        (resuming it from the pause screen) keeps its journal; a scene whose start is not
+        captured and a scene a playback scope builds keep none.
 
         Args:
             scene: The scene being set up.
 
         """
-        # Looked up by name: a SceneInterface stand-in has neither
-        if getattr(scene, 'INSTANT_REPLAY_SECONDS', None) is None:
+        if scene.INSTANT_REPLAY_SECONDS is None:
             return
-        start = getattr(scene, 'scene_start', None)
+        start = scene.scene_start
         if start is None or start.first_logic_frame is not None or has_scoped_sources():
             return
         journal = self._instant_replay_journal
@@ -559,17 +610,18 @@ class SceneManager(SceneInterface, events.EventManager):
             )
             self._end_instant_replay_journal()
 
-    def _presented_scene(self: Self) -> object:
+    def _presented_scene(self: Self) -> Scene | None:
         """Return the scene the player sees: the active scene, or the scene it presents.
 
-        A pause screen presents the paused game (``Scene.debug_subject``); looked up by name,
-        as a SceneInterface stand-in has no ``debug_subject``.
+        A pause screen presents the paused game (``Scene.debug_subject``).
 
         Returns:
             The scene (None without an active scene).
 
         """
-        return getattr(self.active_scene, 'debug_subject', self.active_scene)
+        if self.active_scene is None:
+            return None
+        return self.active_scene.debug_subject
 
     def _end_instant_replay_journal(self: Self) -> None:
         """Close and drop the instant-replay journal, if one is kept (instant_replay.py, rule 9)."""
@@ -726,7 +778,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def request_transition(
         self: Self,
-        next_scene: SceneInterface | None,
+        next_scene: Scene | None,
         transition: Transition,
     ) -> None:
         """Request a scene switch with a visual transition effect.
@@ -739,11 +791,9 @@ class SceneManager(SceneInterface, events.EventManager):
             transition: A Transition object (FadeTransition, SlideTransition, etc.).
 
         """
-        self._pending_transition = (next_scene, transition)
+        self._pending_transition = (required_scene(next_scene=next_scene), transition)
 
-    def _start_transition(
-        self: Self, next_scene: SceneInterface | None, transition: Transition
-    ) -> None:
+    def _start_transition(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Capture screenshots and begin a transition effect.
 
         Args:
@@ -757,14 +807,13 @@ class SceneManager(SceneInterface, events.EventManager):
         self.previous_scene = self.active_scene
         self._clear_outgoing_scene_pending_switch()
         self._cleanup_current_scene()
-        scene = cast('Scene | None', next_scene)
+        scene = next_scene
         self._setup_new_scene(scene)
         # Its first logic frame comes after the ride, which its playback repeats the arrival of
-        # (glitchygames/scene_start.py, rule 7). Looked up by name: the scene may be None or a
-        # SceneInterface stand-in without a capture
-        start_capture = getattr(scene, 'scene_start_capture', None)
+        # (glitchygames/scene_start.py, rule 7)
+        start_capture = scene.scene_start_capture if scene is not None else None
         if (
-            isinstance(start_capture, SceneStartCapture)
+            start_capture is not None
             and start_capture.start is not None
             and start_capture.start.first_logic_frame is None
         ):
@@ -1225,27 +1274,22 @@ class SceneManager(SceneInterface, events.EventManager):
 
         F3 toggles the overlay and F4 cycles its panels, unless a sprite in the active scene has
         keyboard focus (is_active), so typing into text fields is never intercepted. Every other
-        key is routed exactly as `__getattr__` routes on_*_event calls: to the active scene, or
-        to the game engine when the scene is missing or lacks the handler.
+        key goes to the active scene (every Scene has the handler, and records the press first),
+        or to the game engine when there is no active scene.
 
         Args:
             event (events.HashableEvent): The key-down event.
 
         Raises:
-            AttributeError: If neither the active scene nor the game engine has a handler.
+            AttributeError: If there is no active scene and the game engine has no handler.
 
         """
         if event.key in OVERLAY_KEYS and not self._active_scene_has_focused_sprite():
             self.debug_overlay.handle_key(key=event.key)
             return
-        if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
-            # Recorded before dispatch, so a quit-key release knows this scene saw the press.
-            # Looked up by name: at runtime an active scene may be any SceneInterface stand-in
-            # without _record_key_press, but active_scene is annotated Scene, so an isinstance
-            # check would be flagged as unnecessary by the type checker
-            record_key_press = getattr(self.active_scene, '_record_key_press', None)
-            if record_key_press is not None:
-                record_key_press(key=event.key)
+        if self.active_scene is not None:
+            # Recorded before dispatch, so a quit-key release knows this scene saw the press
+            self.active_scene.record_key_press(key=event.key)
             self.active_scene.on_key_down_event(event)
         elif self.game_engine is not None and hasattr(self.game_engine, 'on_key_down_event'):
             self.game_engine.on_key_down_event(event)
@@ -1349,13 +1393,14 @@ class SceneManager(SceneInterface, events.EventManager):
     def switch_to_scene(self: Self, next_scene: SceneInterface | None) -> None:
         """Switch to the next scene.
 
+        The parameter keeps SceneInterface's signature, but the active scene must be a Scene
+        (or None, which ends the run): the engine reads the attributes Scene declares.
+
         Args:
-            next_scene (SceneInterface | None): The next scene to switch to.
+            next_scene (SceneInterface | None): The next scene to switch to: a Scene, or None.
 
         """
-        # Cast to Scene | None for internal use. At runtime, all scenes
-        # are Scene instances or mocks that satisfy the Scene interface.
-        scene = cast('Scene | None', next_scene)
+        scene = required_scene(next_scene=next_scene)
         if scene != self.active_scene:
             self.screen_shake.clear()  # Pause, game over and direct switches never inherit a shake
             self.rumble.clear_sustained()  # ...nor leave a controller buzzing
@@ -1812,9 +1857,10 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if self._active_transition is not None:
             return
-        # Looked up by name: a SceneInterface stand-in has no capture
-        start_capture = getattr(self.active_scene, 'scene_start_capture', None)
-        if isinstance(start_capture, SceneStartCapture):
+        if self.active_scene is None:
+            return
+        start_capture = self.active_scene.scene_start_capture
+        if start_capture is not None:
             start_capture.begin_first_logic_frame(
                 fps_event_seconds=self._previous_fps_event_seconds,
                 earlier_internal_event_count=pending_code_post_count(),
@@ -2157,13 +2203,13 @@ class SceneManager(SceneInterface, events.EventManager):
         # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
         # dt_tick are placed before their first render. Scene.update() runs inside
         # _render_scene, after positioning.
-        active_camera = self._active_camera()
-        if active_camera is not None:
-            active_camera.begin_frame()
+        logic_scene = self.active_scene
+        # A scene frame runs the active scene's logic (_update_scene): there is always one
+        assert logic_scene is not None
+        logic_scene.camera.begin_frame()
         # Logic and the camera aim share one (possibly capped) dt; self.dt stays the raw frame
         # time for the frame services, pacing and FPS statistics
         scene_dt = self._scene_frame_seconds()
-        logic_scene = self.active_scene
         self._update_scene(scene_dt=scene_dt)
         self._process_events()
         self._run_supervisor_slot()
@@ -2194,30 +2240,31 @@ class SceneManager(SceneInterface, events.EventManager):
             self._switch_to_requested_scene()
 
     def _active_camera(self: Self) -> Camera2D | None:
-        """Return the active scene's camera, or None.
+        """Return the active scene's camera, or None without an active scene.
 
-        Every Scene has a camera; a scene stand-in (a SceneInterface that is not a Scene) may
-        not, and then the engine's camera steps are skipped, as _activate_scene_snap_mode
-        tolerates a stand-in without a snap mode.
+        Every Scene has a camera; without an active scene the engine's camera steps are
+        skipped.
 
         Returns:
-            The active scene's Camera2D, or None when there is none.
+            The active scene's Camera2D, or None when there is no active scene.
 
         """
-        return cast('Camera2D | None', getattr(self.active_scene, 'camera', None))
+        if self.active_scene is None:
+            return None
+        return self.active_scene.camera
 
     def _scene_frame_seconds(self: Self) -> float:
         """The dt the active scene's logic and camera aim receive this frame.
 
-        self.dt, capped at the scene's MAX_FRAME_SECONDS when it sets one (a scene stand-in
-        without the attribute is not capped). After a hitch the scene advances at most the
-        cap, while self.dt keeps the whole frame for pacing, FPS statistics and services.
+        self.dt, capped at the scene's MAX_FRAME_SECONDS when it sets one. After a hitch the
+        scene advances at most the cap, while self.dt keeps the whole frame for pacing, FPS
+        statistics and services.
 
         Returns:
             The scene's dt in seconds.
 
         """
-        cap = getattr(self.active_scene, 'MAX_FRAME_SECONDS', None)
+        cap = self.active_scene.MAX_FRAME_SECONDS if self.active_scene is not None else None
         if cap is None:
             return self.dt
         return min(self.dt, cap)
@@ -2225,14 +2272,15 @@ class SceneManager(SceneInterface, events.EventManager):
     def _aim_active_camera(self: Self, *, scene_dt: float) -> None:
         """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera).
 
+        Called only while the scene whose logic ran this frame is still active.
+
         Args:
             scene_dt: The scene's dt this frame (_scene_frame_seconds).
 
         """
-        camera = self._active_camera()
-        if camera is None:
-            return
-        aim_camera(scene=self.active_scene, camera=camera, dt=scene_dt)
+        scene = self.active_scene
+        assert scene is not None
+        aim_camera(scene=scene, camera=scene.camera, dt=scene_dt)
 
     def _advance_still_camera_shake(self: Self, *, scene_dt: float) -> None:
         """Advance the active camera's WORLD shake if nothing advanced it this frame.
@@ -2525,16 +2573,12 @@ class SceneManager(SceneInterface, events.EventManager):
             if self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             # A press recorded before the scene was left (an ESC that paused it, released in
-            # the pause scene) must not let a later release quit. Looked up by name, like
-            # _record_key_press: the scene may be a SceneInterface stand-in without it
-            forget_key_presses = getattr(next_scene, '_forget_key_presses', None)
-            if forget_key_presses is not None:
-                forget_key_presses()
+            # the pause scene) must not let a later release quit
+            next_scene.forget_key_presses()
             # Complete the scene's start before its first setup() (a later setup, resuming it
-            # from the pause screen, keeps the first); glitchygames/scene_start.py.
-            # Looked up by name: a SceneInterface stand-in has no capture
-            start_capture = getattr(next_scene, 'scene_start_capture', None)
-            if isinstance(start_capture, SceneStartCapture):
+            # from the pause screen, keeps the first); glitchygames/scene_start.py
+            start_capture = next_scene.scene_start_capture
+            if start_capture is not None:
                 start_capture.complete(scene=next_scene)
             # Before setup(), so posts and the save stores setup() opens are seen
             self._prepare_instant_replay_journal(scene=next_scene)
@@ -2550,17 +2594,14 @@ class SceneManager(SceneInterface, events.EventManager):
     def _activate_scene_snap_mode(self, scene: Scene) -> None:
         """Make the scene's PIXEL_SNAP_MODE the default for sprites without their own mode.
 
-        A scene stand-in (a SceneInterface that is not a Scene) without a PixelSnapMode gets
-        the engine default, NEAREST_HALF_UP, so the previous scene's mode never leaks into it.
+        Every scene sets one (Scene's default is NEAREST_HALF_UP), so the previous scene's
+        mode never leaks into it.
 
         Args:
             scene: The scene being activated.
 
         """
-        scene_mode = getattr(scene, 'PIXEL_SNAP_MODE', None)
-        if not isinstance(scene_mode, PixelSnapMode):
-            scene_mode = PixelSnapMode.NEAREST_HALF_UP
-        set_active_default_snap_mode(scene_mode)
+        set_active_default_snap_mode(scene.PIXEL_SNAP_MODE)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
         """Log the event types blocked when switching to the scene, on one line.
@@ -2740,7 +2781,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
-        # Keys whose key-down reached this scene and are not yet released (_record_key_press)
+        # Keys whose key-down reached this scene and are not yet released (record_key_press)
         self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
         # Logic seconds since this scene started (game_time); the scene manager adds each
@@ -2812,6 +2853,32 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         return {}
 
     @property
+    def input_devices(self: Self) -> InputDevices:
+        """Every joystick and game controller the game sees, by instance id.
+
+        Each ``InputDevice`` reads the frame's input snapshot on its joystick layer and, for a
+        mapped pad, its controller layer; its events reach ``on_*_event`` from one layer only
+        (glitchygames/input/input_devices.py). Empty without an engine.
+        """
+        return self.scene_manager.input_devices
+
+    def on_input_device_added(self: Self, *, device: InputDevice) -> None:
+        """Called while this scene is active when a device is connected; nothing by default.
+
+        Args:
+            device: The device (``input_devices`` holds it already).
+
+        """
+
+    def on_input_device_removed(self: Self, *, device: InputDevice) -> None:
+        """Called while this scene is active when a device is disconnected; nothing by default.
+
+        Args:
+            device: The device (``input_devices`` no longer holds it).
+
+        """
+
+    @property
     def game_time(self: Self) -> float:
         """Logic seconds since this scene started: the sum of the dt its dt_tick received.
 
@@ -2876,9 +2943,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
 
-    def transition_to(
-        self: Self, next_scene: SceneInterface | None, transition: Transition
-    ) -> None:
+    def transition_to(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Switch to another scene with a visual transition effect.
 
         Args:
@@ -3102,12 +3167,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             self.log.debug('Click outside focusable sprites - unfocusing')
             self._unfocus_sprites(focused_sprites)
 
-    def _record_key_press(self: Self, *, key: int) -> None:
+    def record_key_press(self: Self, *, key: int) -> None:
         """Note that a key-down reached this scene.
 
         SceneManager calls this for every key-down it routes to the active scene, before the
         scene's own on_key_down_event, so subclasses that override that handler are covered.
-        on_key_up_event quits only on the release of a key recorded here.
+        on_key_up_event quits only on the release of a key recorded here. Games never call it;
+        it is public only because the scene manager, another class, calls it.
 
         Args:
             key: The pygame key code.
@@ -3115,13 +3181,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self._keys_pressed_in_scene.add(key)
 
-    def _forget_key_presses(self: Self) -> None:
-        """Forget every key press recorded by _record_key_press.
+    def forget_key_presses(self: Self) -> None:
+        """Forget every key press recorded by record_key_press.
 
         SceneManager calls this whenever the scene becomes active (switched to, resumed, or
         the target of a transition), before setup(). A press whose release went to another
         scene would otherwise stay recorded, and a later release of that key (whose press was
         discarded during a transition) would quit.
+        Games never call it; it is public only because the scene manager calls it.
         """
         self._keys_pressed_in_scene.clear()
 
@@ -3210,7 +3277,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Check for focused sprites first
         focused_sprites = self._get_focused_sprites()
 
-        # Only a release whose press this scene received can quit (_record_key_press): a key
+        # Only a release whose press this scene received can quit (record_key_press): a key
         # pressed during a transition (the press is discarded) or in a scene that has since
         # been left must not quit from here. Each release consumes its press.
         event_key: int | None = getattr(event, 'key', None)

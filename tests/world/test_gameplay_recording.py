@@ -1142,7 +1142,7 @@ class TestRecordingEdgeCases:
     def test_header_without_installed_package_metadata(self, mocker):
         """Running from a source tree without package metadata records engine_version null."""
         mocker.patch.object(
-            game_engine_module.importlib.metadata,
+            importlib.metadata,
             'version',
             side_effect=importlib.metadata.PackageNotFoundError('glitchygames'),
         )

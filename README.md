@@ -204,7 +204,7 @@ The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid 
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--input-mode` | Input event family: `joystick` or `controller` | `controller` |
+| `--input-mode` | Which gamepads the game sees: `auto` (every device; a mapped pad sends controller events, any other device joystick events, each press once), `joystick` (every device sends joystick events) or `controller` (mapped pads only) | `auto` |
 
 ## AI Sprite Generation
 

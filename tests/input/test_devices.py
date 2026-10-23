@@ -66,6 +66,7 @@ def test_replay_joystick_answers_from_the_descriptor_and_the_snapshot():
     joystick.init()
     assert joystick.get_name() == 'Test Pad'
     assert joystick.get_instance_id() == 7
+    assert joystick.get_id() == 0  # the recorded device index
     assert joystick.get_numaxes() == 2
     assert joystick.get_axis(1) == -0.25
     assert joystick.get_button(1) is True
@@ -600,3 +601,57 @@ def test_answers_taken_before_the_end_of_a_live_frame_are_intact(mocker):
     sources.end_frame(frame_number=0, dt=0.016, scene=None, control_events=[])
 
     assert taken == [EnumerationAnswer(call='joystick_count', device_index=None, value=2)]
+
+
+def test_live_registry_describes_each_opened_device_by_instance_id(mocker):
+    """descriptor_for_instance answers with the descriptor the door recorded for the device.
+
+    A game controller is opened on both layers (the controller manager, then the joystick
+    manager): its controller descriptor is kept, not replaced by its joystick one.
+    """
+    fake_controller = make_fake_controller(mocker=mocker, instance_id=12)
+    mocker.patch('pygame._sdl2.controller.Controller', return_value=fake_controller)
+    mocker.patch('pygame.joystick.Joystick', return_value=fake_controller.as_joystick())
+    registry = LiveDeviceRegistry()
+    assert registry.descriptor_for_instance(instance_id=12) is None
+
+    registry.open_controller(device_index=0)
+    registry.open_joystick(device_index=0)
+
+    descriptor = registry.descriptor_for_instance(instance_id=12)
+    assert descriptor is not None
+    assert descriptor.kind == 'controller'
+    assert descriptor.instance_id == 12
+    registry.forget_device(instance_id=12)
+    assert registry.descriptor_for_instance(instance_id=12) is None
+
+
+def test_live_registry_describes_a_plain_joystick_as_a_joystick(mocker):
+    """A plain joystick's descriptor is the joystick one (kind 'joystick')."""
+    fake_controller = make_fake_controller(mocker=mocker, instance_id=3)
+    mocker.patch('pygame.joystick.Joystick', return_value=fake_controller.as_joystick())
+    registry = LiveDeviceRegistry()
+
+    registry.open_joystick(device_index=0)
+
+    descriptor = registry.descriptor_for_instance(instance_id=3)
+    assert descriptor is not None
+    assert descriptor.kind == 'joystick'
+
+
+def test_replay_registry_describes_each_opened_stand_in_by_instance_id():
+    """A replay answers with the recorded descriptor of each stand-in it opened, until removed.
+
+    Only opened devices are described (a recorded device not opened yet is not connected to
+    the replayed game), and a controller's descriptor is kept over its joystick one.
+    """
+    controller_pad = DeviceDescriptor(**{**PAD.to_json(), 'kind': 'controller'})
+    registry = ReplayDeviceRegistry(descriptors=[controller_pad], enumeration_answers=[])
+    assert registry.descriptor_for_instance(instance_id=7) is None
+
+    registry.open_controller(device_index=0)
+    registry.open_joystick(device_index=0)
+
+    assert registry.descriptor_for_instance(instance_id=7) == controller_pad
+    registry.forget_device(instance_id=7)
+    assert registry.descriptor_for_instance(instance_id=7) is None

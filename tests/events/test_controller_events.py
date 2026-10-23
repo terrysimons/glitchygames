@@ -37,6 +37,7 @@ from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
     IS_CONTROLLER_CALL,
+    OPEN_CONTROLLER_CALL,
     DeviceDescriptor,
     EnumerationAnswer,
     ReplayDeviceRegistry,
@@ -264,8 +265,8 @@ class TestControllerEventProxyMethods:
         """Device remapped event should be routed to the correct controller proxy."""
         manager, scene = _manager_with_controller()
 
-        # The manager uses event.device_index for remapped events
-        event = HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, device_index=0)
+        # A remapped event carries the instance id (pygame's event docs)
+        event = HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, instance_id=0)
         manager.on_controller_device_remapped_event(event)
 
         assert _received(scene) == [('device_remapped', event)]
@@ -671,11 +672,11 @@ class TestControllerEvents:
         """Test controller device remapped event handling."""
         manager, scene = _manager_with_controller()
 
-        event = HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, device_index=0)
+        event = HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, instance_id=0)
         manager.on_controller_device_remapped_event(event)
 
         assert len(_received(scene)) == 1
-        assert _received(scene)[0][1].device_index == 0
+        assert _received(scene)[0][1].instance_id == 0
 
     def test_controller_touchpad_down_event(self):
         """Test controller touchpad down event handling."""
@@ -1008,7 +1009,8 @@ class TestControllerDevicesDoor:
         real_count.assert_not_called()
         real_is_controller.assert_not_called()
         real_controller.assert_not_called()
-        assert list(manager.controllers) == [0]
+        # Keyed by instance id, as the events carry it (BUGS.md #181)
+        assert list(manager.controllers) == [7]
 
     def test_controller_removal_makes_the_registry_forget_the_device(self):
         """A removed controller is forgotten by the devices door, tracked or not."""
@@ -1052,3 +1054,123 @@ class TestControllerDevicesDoor:
 
         assert manager.controllers == {}
         assert 'Failed to set allowed controller events' in caplog.text
+
+
+class TestControllersKeyedByInstanceId:
+    """Controllers are tracked by the instance id their events carry (BUGS.md #181).
+
+    A device's instance id differs from its device index after a replug (SDL gives the device
+    a new instance id) or when devices open out of order, so each stand-in here has an
+    instance id other than its device index.
+    """
+
+    def test_startup_controller_is_found_by_its_events_instance_id(self):
+        """A controller at device index 0 with instance id 7 gets its axis and button events."""
+        _install_controllers(instance_ids_by_device_index={0: 7})
+        scene = ControllerRecordingScene()
+        manager = ControllerEventManager(game=scene)
+
+        axis_event = HashableEvent(pygame.CONTROLLERAXISMOTION, axis=0, value=10, instance_id=7)
+        button_event = HashableEvent(pygame.CONTROLLERBUTTONDOWN, button=1, instance_id=7)
+        manager.on_controller_axis_motion_event(axis_event)
+        manager.on_controller_button_down_event(button_event)
+
+        assert list(manager.controllers) == [7]
+        assert _received(scene) == [('axis_motion', axis_event), ('button_down', button_event)]
+
+    def test_hot_plugged_controller_is_found_by_its_events_instance_id(self):
+        """CONTROLLERDEVICEADDED (by device index) tracks the controller by its instance id."""
+        _install_controllers(instance_ids_by_device_index={0: 9}, counted_controllers=0)
+        scene = ControllerRecordingScene()
+        manager = ControllerEventManager(game=scene)
+
+        added_event = HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=0, guid='g')
+        manager.on_controller_device_added_event(added_event)
+        button_event = HashableEvent(pygame.CONTROLLERBUTTONUP, button=2, instance_id=9)
+        manager.on_controller_button_up_event(button_event)
+        touch_event = HashableEvent(
+            pygame.CONTROLLERTOUCHPADDOWN, touchpad=0, finger=0, x=0.5, y=0.5, instance_id=9
+        )
+        manager.on_controller_touchpad_down_event(touch_event)
+
+        assert list(manager.controllers) == [9]
+        assert manager.controllers[9].instance_id == 9
+        assert manager.controllers[9].device_index == 0
+        assert _received(scene) == [
+            ('device_added', added_event),
+            ('button_up', button_event),
+            ('touchpad_down', touch_event),
+        ]
+
+    def test_remapped_controller_is_found_by_its_events_instance_id(self):
+        """CONTROLLERDEVICEREMAPPED carries the instance id (pygame's event docs)."""
+        _install_controllers(instance_ids_by_device_index={0: 7})
+        scene = ControllerRecordingScene()
+        manager = ControllerEventManager(game=scene)
+
+        remapped_event = HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, instance_id=7)
+        manager.on_controller_device_remapped_event(remapped_event)
+
+        assert _received(scene) == [('device_remapped', remapped_event)]
+
+    def test_remapped_event_for_an_untracked_controller_is_ignored(self):
+        """A remap of a controller the manager does not track reaches nobody (no KeyError)."""
+        manager, scene = _manager_without_controllers()
+
+        manager.on_controller_device_remapped_event(
+            HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, instance_id=3)
+        )
+
+        assert _received(scene) == []
+
+    def test_replugged_controller_replaces_nothing_and_is_removed_by_instance_id(self):
+        """A replug (new instance id at the same device index) is tracked apart, then removed."""
+        registry = _install_controllers(instance_ids_by_device_index={0: 7})
+        scene = ControllerRecordingScene()
+        manager = ControllerEventManager(game=scene)
+        manager.on_controller_device_removed_event(
+            HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=7)
+        )
+        # Plugged in again: SDL gives it instance id 8 at device index 0
+        registry.add_descriptors(
+            descriptors=[_controller_descriptor(device_index=0, instance_id=8)]
+        )
+        registry.add_enumeration_answers(
+            answers=[EnumerationAnswer(call=OPEN_CONTROLLER_CALL, device_index=0, value=8)]
+        )
+
+        manager.on_controller_device_added_event(
+            HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=0, guid='g')
+        )
+        manager.on_controller_axis_motion_event(
+            HashableEvent(pygame.CONTROLLERAXISMOTION, axis=1, value=5, instance_id=8)
+        )
+
+        assert list(manager.controllers) == [8]
+        assert [name for name, _event in _received(scene)] == [
+            'device_removed',
+            'device_added',
+            'axis_motion',
+        ]
+
+    def test_hot_plugged_controller_that_vanished_before_it_opened_is_skipped(self, caplog):
+        """A controller unplugged again before it could be opened is logged, not tracked."""
+        registry = _install_controllers(instance_ids_by_device_index={}, counted_controllers=0)
+        registry.add_enumeration_answers(
+            answers=[
+                EnumerationAnswer(
+                    call=OPEN_CONTROLLER_CALL, device_index=0, value=None, error='gone'
+                )
+            ]
+        )
+        scene = ControllerRecordingScene()
+        manager = ControllerEventManager(game=scene)
+
+        with caplog.at_level('WARNING', logger='game.controllers'):
+            manager.on_controller_device_added_event(
+                HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=0, guid='g')
+            )
+
+        assert manager.controllers == {}
+        assert _received(scene) == []
+        assert 'Controller at device index 0 vanished before it could be opened' in caplog.text

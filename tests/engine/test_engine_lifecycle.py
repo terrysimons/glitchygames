@@ -239,9 +239,9 @@ class TestEngineLifecycle:
         ):
             assert isinstance(manager, manager_class)
             assert manager.game is engine.scene_manager
-        # The dummy and real test machines have no joystick attached
-        assert engine.joysticks == list(engine.joystick_manager.joysticks.values())
-        assert engine.joystick_count == len(engine.joysticks)
+        # The devices the game sees follow the managers' (whatever hardware is attached)
+        assert engine.scene_manager.input_devices is engine.input_devices
+        assert len(engine.input_devices) <= len(engine.joystick_manager.joysticks)
 
     def test_start_prints_the_profile_of_a_run_that_failed_at_once(self, mocker, caplog, capsys):
         """A --profile run that fails at its first step still prints the profile it took."""

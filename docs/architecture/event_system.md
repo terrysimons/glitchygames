@@ -2028,12 +2028,42 @@ they serve different needs, and some devices only work with one or the other.
 | **Device support** | Everything SDL recognizes as a joystick | Only devices with an SDL GameController mapping |
 | **Button/axis identity** | Button 0, Axis 2 (meaning varies by device) | `CONTROLLER_BUTTON_A`, `CONTROLLER_AXIS_LEFTX` (consistent) |
 | **Mapping** | None — raw hardware indices | SDL's built-in GameController DB maps hardware to semantic names |
-| **Hotplug ID** | `device_index` (unstable) + `instance_id` (stable) | `device_index` (see pygame bug note below) |
+| **Hotplug ID** | `device_index` (unstable) + `instance_id` (stable) | the same: added by `device_index`, everything after by `instance_id` |
 | **Touchpad support** | No | Yes (CONTROLLERTOUCHPAD* events) |
 | **Remapping events** | No | Yes (CONTROLLERDEVICEREMAPPED) |
 
-Games can choose one or both via `--input-mode joystick|controller`. The
-joystick demo supports both modes and displays different information for each.
+A mapped gamepad is one SDL device read on both: the joystick layer and the controller layer,
+with one instance id, and SDL sends every press on both (`JOYBUTTONDOWN` and
+`CONTROLLERBUTTONDOWN`). The engine runs both managers and hands each press to the game once
+(below).
+
+### One device, one event layer
+
+`InputDevices` (`glitchygames/input/input_devices.py`, whose docstring holds the rules) is the
+engine's list of the devices a game sees, by instance id: `GameEngine.input_devices`, or
+`self.input_devices` in a scene. Each `InputDevice` has the devices door's `descriptor` (name,
+GUID, device index, instance id, counts), a `joystick` layer (always) and a `controller` layer
+(a mapped pad only); both read the frame's input snapshot, so polling either always works and
+replays exactly. `event_layer` is the layer whose events reach `on_*_event` handlers: the
+controller layer when the device has one, else the joystick layer. The engine drops the other
+layer's input events (handled, never unhandled), so a mapped pad's press arrives once, as
+`on_controller_button_down_event`, and any other device's as `on_joy_button_down_event`.
+Device events (added, removed, remapped) always pass; a scene is also told of each device with
+`on_input_device_added(device=...)` / `on_input_device_removed(device=...)` once the registry
+has it (a mapped pad, which arrives and leaves on both layers, once each way).
+
+`--input-mode` filters what the game sees: `auto` (the default) every device as above,
+`joystick` every device on its joystick layer only (SDL blocks controller events), `controller`
+mapped pads only (other devices are hidden and their events dropped). `ActionMap` binds the
+same families: `auto` binds a `controller_button` to both. The joystick demo
+(`glitchygames/examples/joystick_demo.py`) lists every device with its event layer's live
+inputs.
+
+```py
+for device in self.input_devices:
+    layer = device.controller if device.controller is not None else device.joystick
+    print(device.name, layer.axes, layer.buttons)
+```
 
 !!! warning "Disabling joystick events disables controller events"
     SDL's GameController API is built on top of the joystick subsystem. If you
@@ -2101,8 +2131,8 @@ flowchart TD
 ### ControllerEventManager architecture
 
 `ControllerEventManager` follows the same multi-proxy pattern as Joystick — one
-`ControllerEventProxy` per connected controller, keyed by ID in
-`self.controllers`. The key differences:
+`ControllerEventProxy` per connected controller, keyed by instance id in
+`self.controllers` (the id every controller event carries). The key differences:
 
 1. **SDL GameController API**: Uses `pygame._sdl2.controller` instead of
    `pygame.joystick`. This provides semantic button/axis names (A, B, X, Y,
@@ -2118,10 +2148,11 @@ flowchart TD
 5. **No caching needed**: The SDL GameController API doesn't suffer from the
    slow flash-read problem that raw joysticks have, so controller names and
    metadata are queried directly.
-6. **Pygame bug**: Hotplugged controllers can end up with incorrect
-   `device_index` values due to a pygame-ce bug. The manager works around this
-   by creating new proxies on `CONTROLLERDEVICEADDED` using the event's
-   `device_index`.
+6. **Hotplug**: `CONTROLLERDEVICEADDED` names a device index; the manager opens
+   the controller there and keys it by the instance id it opens with, so a
+   replugged controller (a new instance id at the same index) is found by its
+   events. `CONTROLLERDEVICEREMAPPED` and `CONTROLLERDEVICEREMOVED` carry the
+   instance id.
 
 #### Event routing
 
@@ -2137,7 +2168,7 @@ flowchart TD
     MGR2 --> CHECK{"is_controller(device_index)?"}
     CHECK -->|"Yes"| CREATE["Create ControllerEventProxy\n(init SDL GameController)"]
     CHECK -->|"No"| SKIP["Log warning, skip"]
-    CREATE --> DICT["self.controllers[device_index] = proxy"]
+    CREATE --> DICT["self.controllers[proxy.instance_id] = proxy"]
 
     REM["CONTROLLERDEVICEREMOVED"] --> MGR3["ControllerEventManager"]
     MGR3 --> CLEANUP["Notify proxy, then\ndel self.controllers[instance_id]"]

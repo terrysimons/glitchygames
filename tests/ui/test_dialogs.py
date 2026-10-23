@@ -974,7 +974,7 @@ class TestDeleteAnimationDialogSetup:
             groups=pygame.sprite.LayeredDirty(),
         )
         dialog.dialog.input_box.is_active = False
-        dialog._record_key_press(key=pygame.K_a)
+        dialog.record_key_press(key=pygame.K_a)
 
         dialog.on_key_up_event(_key_up(pygame.K_a))
 
@@ -1023,7 +1023,7 @@ class TestDeleteFrameDialogSetup:
         """A non-Tab key-up with the input box inactive reaches the base handler."""
         dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = False
-        dialog._record_key_press(key=pygame.K_a)
+        dialog.record_key_press(key=pygame.K_a)
 
         dialog.on_key_up_event(_key_up(pygame.K_a))
 
@@ -1085,7 +1085,7 @@ class TestDialogKeyUpElseBranch:
             previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
         )
         dialog.dialog.input_box.is_active = False
-        dialog._record_key_press(key=pygame.K_a)
+        dialog.record_key_press(key=pygame.K_a)
 
         dialog.on_key_up_event(_key_up(pygame.K_a))
 

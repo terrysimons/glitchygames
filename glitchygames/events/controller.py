@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames.input.devices import OpenedController
+
 import pygame
 import pygame._sdl2.controller
 
@@ -76,11 +78,14 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             self._id = controller_id
             # Devices are opened only through the devices door (glitchygames/input/devices.py)
-            self.controller: Any = active_sources().devices().open_controller(device_index=self._id)
-            # The snapshot (glitchygames/input/state.py) keys positions by instance id
+            self.controller: OpenedController = (
+                active_sources().devices().open_controller(device_index=self._id)
+            )
+            # The snapshot (glitchygames/input/state.py) keys positions by instance id, and the
+            # manager keys its controllers by it (the id every controller event carries)
             self._instance_id: int = int(self.controller.as_joystick().get_instance_id())
             self.controller.init()
-            self._name: Any = self.controller.name
+            self._name: str = self.controller.name
             self._init = self.controller.get_init()
             self._attached = self.controller.attached()
 
@@ -108,6 +113,16 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             self.game: Any = game
             self.proxies = [self.game, self.controller]
+
+        @property
+        def instance_id(self: Self) -> int:
+            """The SDL instance id every event of this controller carries."""
+            return self._instance_id
+
+        @property
+        def device_index(self: Self) -> int:
+            """The SDL device index the controller was opened at."""
+            return self._id
 
         @override
         def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
@@ -310,7 +325,9 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             pygame.event.set_allowed(CONTROLLER_EVENTS)
         except pygame.error:
             LOG.debug('Failed to set allowed controller events: pygame not fully initialized')
-        self.controllers: dict[int, Any] = {}
+        # By instance id: the id every controller event carries (a device index is only valid
+        # until a device is plugged in or out; BUGS.md #181)
+        self.controllers: dict[int, ControllerEventManager.ControllerEventProxy] = {}
         self.proxies: list[Any] = []
         self.game: Any = game
 
@@ -334,11 +351,12 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 controller_id=controller_id,
                 game=game,
             )
-            self.controllers[controller_id] = controller_proxy
+            self.controllers[controller_proxy.instance_id] = controller_proxy
 
             self.log.info(
-                'Controller #%d: %s',
+                'Controller #%d (instance %d): %s',
                 controller_id,
+                controller_proxy.instance_id,
                 controller_proxy,
             )
 
@@ -361,7 +379,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             '--input-mode',
             choices=['auto', 'joystick', 'controller'],
             default='auto',
-            help='Gamepad input API (default: auto)',
+            help=(
+                'Which gamepads the game sees (default: auto, every device; a mapped pad sends'
+                ' controller events, any other device joystick events; joystick: every device'
+                ' sends joystick events; controller: mapped pads only)'
+            ),
         )
 
         return parser
@@ -418,21 +440,37 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         # Note: There is a bug in pygame where a reinitialized
         # controller object due to hotplug ends up with an incorrect
         # device_index.
-        controller_proxy = ControllerEventManager.ControllerEventProxy(
-            controller_id=event.device_index,
-            game=self.game,
-        )
-        self.controllers[event.device_index] = controller_proxy
+        # The event names the device index; every later event names the instance id, so the
+        # controller is tracked by the instance id it opens with (BUGS.md #181)
+        try:
+            controller_proxy = ControllerEventManager.ControllerEventProxy(
+                controller_id=event.device_index,
+                game=self.game,
+            )
+        except pygame.error:
+            # Unplugged again before it could be opened: there is nothing to track
+            self.log.warning(
+                'Controller at device index %s vanished before it could be opened',
+                event.device_index,
+                exc_info=True,
+            )
+            return
+        self.controllers[controller_proxy.instance_id] = controller_proxy
 
         # The controller proxy overrides the controller object
-        self.log.debug('Added Controller #%s: %s', event.device_index, controller_proxy)
+        self.log.debug(
+            'Added Controller #%s (instance %s): %s',
+            event.device_index,
+            controller_proxy.instance_id,
+            controller_proxy,
+        )
         self.log.debug(
             'CONTROLLERDEVICEADDED triggered: on_controller_device_added_event(%s)',
             event,
         )
 
         # Need to notify the game after the controller exists
-        self.controllers[event.device_index].on_controller_device_added_event(event)
+        controller_proxy.on_controller_device_added_event(event)
 
     @override
     def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
@@ -443,10 +481,12 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         """
         self.log.debug(
-            'CONTROLLERDEVICEREMAPPED triggered: on_controller_device_remapped_event(%s',
+            'CONTROLLERDEVICEREMAPPED triggered: on_controller_device_remapped_event(%s)',
             event,
         )
-        self.controllers[event.device_index].on_controller_device_remapped_event(event)
+        # A remapped event carries the instance id (pygame's event docs), not a device index
+        if event.instance_id in self.controllers:
+            self.controllers[event.instance_id].on_controller_device_remapped_event(event)
 
     @override
     def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
