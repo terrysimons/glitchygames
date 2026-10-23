@@ -50,7 +50,7 @@ task's own failure cases.
 | 1 | Rebuilding a scene from its start | `replay_arguments`, stream-state capture/restore, `scene_start` field |
 | 2 | The playback scope | `PlaybackSources`, `SceneManager._enter_playback` / `_exit_playback` |
 | 3 | Demos | `SceneManager.play_recording` |
-| 4 | A bundled PaddleSlap demo and its replay test | `paddleslap_demos/rally.jsonl.gz`, `tests/replays/test_bundled_demos.py` |
+| 4 | A bundled PaddleSlap demo and its replay test | `paddleslap_demos/rally.jsonl.gz`, `tests/replays/test_bundled_demos.py` (as built: `tests/replay/`) |
 | 5 | Instant-replay journal | `INSTANT_REPLAY_SECONDS`, in-memory inputs since scene start, budget |
 | 6 | Instant replay | `SceneManager.instant_replay`, fast-forward without presenting |
 | 7 | Ghosts | `GhostRecorder`, `GhostTrack`, `GhostSprite` |

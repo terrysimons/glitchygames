@@ -6,11 +6,12 @@ if/elif chains, you can bring it into GlitchyGames and immediately benefit from
 named event handlers, automatic state tracking, and synthesized higher-level events
 — without rewriting your existing event logic.
 
-Both event systems work together inside GlitchyGames. You can keep calling
-`pygame.event.get()`, `pygame.key.get_pressed()`, or any other raw pygame API
-alongside the GlitchyGames `on_*_event()` handlers. This makes porting
-incremental: start with your existing code, then adopt GlitchyGames handlers one
-event at a time as you need their benefits.
+Porting can be incremental: a scene that defines `process_event(event)` receives
+every raw `pygame.event.Event` from the engine, in order, instead of the `on_*_event()`
+callbacks (`GameEngine.process_events`), so an existing if/elif loop body moves in
+as it is. Adopt the GlitchyGames handlers one event at a time as you need their
+benefits. Don't call `pygame.event.get()` yourself: the engine reads SDL's queue once
+per frame, and whatever another reader takes never reaches the engine.
 
 !!! note "Replay"
     Code that polls pygame directly cannot be replayed exactly. For sessions that
@@ -25,18 +26,18 @@ event at a time as you need their benefits.
 - **Automatic state tracking** — event managers cache button states, axis
   values, hat positions, and mouse focus so you can poll current state anytime.
 - **Synthesized events** — GlitchyGames generates events that pygame doesn't
-  provide: mouse drag and drop (`on_left_mouse_drag_event`,
-  `on_left_mouse_drop_event`), keyboard chords (`on_key_chord_down_event`),
+  provide: mouse drag and drop (`on_mouse_drag_event`, `on_left_mouse_drag_event`,
+  `on_mouse_drop_event`), keyboard chords (`on_key_chord_down_event`), and
   per-button mouse events (`on_left_mouse_button_down_event` vs raw
-  `MOUSEBUTTONDOWN` with a button field), and sprite focus tracking
-  (`on_mouse_focus_event`, `on_mouse_unfocus_event`).
+  `MOUSEBUTTONDOWN` with a button field).
 - **Custom event types** — three engine-level event types (`FPSEVENT`,
   `GAMEEVENT`, `MENUEVENT`) built on `pygame.USEREVENT` offsets, plus an
   extensible `GAMEEVENT` bus for posting arbitrary game-specific events with
   per-subtype callbacks.
-- **Performance caching** — unhandled event stubs use `@functools.cache` so
-  events your scene doesn't handle cost O(1) after their first occurrence,
-  even when firing hundreds of times per second.
+- **An unhandled event safety net** — every `on_*_event()` has a default stub
+  that reports the event as unhandled (a warning once per type, or an
+  `UnhandledEventError` under `--no-unhandled-events`), and the engine counts
+  every unhandled event type and logs the table at teardown.
 
 Events flow from SDL through pygame, into specialized event managers that track
 state and synthesize higher-level events, through the scene manager, and finally
@@ -49,10 +50,11 @@ dict provides O(1) lookup from pygame event type to the correct processing metho
 
 ```mermaid
 flowchart TD
-    SDL["SDL2 Event Queue"] --> PG["pygame.event.get()"]
-    PG --> WRAP["Wrap as HashableEvent"]
-    WRAP --> PE["GameEngine.process_events()"]
-    PE --> LOOKUP{"EVENT_HANDLERS\n[event.type]"}
+    SDL["SDL2 Event Queue"] --> PG["active_sources().pump_events()\n(live: pygame.event.get())"]
+    PG --> PE["GameEngine.process_events()"]
+    PE -->|"scene defines process_event()"| RAW["scene.process_event(raw event)"]
+    PE --> WRAP["HashableEvent.from_pygame()"]
+    WRAP --> LOOKUP{"EVENT_HANDLERS\n[event.type]"}
 
     LOOKUP -->|"AUDIODEVICEADDED\nAUDIODEVICEREMOVED"| AUDIO["process_audio_event()"]
     LOOKUP -->|"CONTROLLERAXISMOTION\nCONTROLLERBUTTON*\nCONTROLLERDEVICE*\nCONTROLLERTOUCHPAD*"| CTRL["process_controller_event()"]
@@ -62,9 +64,10 @@ flowchart TD
     LOOKUP -->|"MOUSEMOTION\nMOUSEBUTTON*\nMOUSEWHEEL"| MOUSE["process_mouse_event()"]
     LOOKUP -->|"FINGERDOWN\nFINGERMOTION\nFINGERUP\nMULTIGESTURE"| TOUCH["process_touch_event()"]
     LOOKUP -->|"WINDOWEVENT\nWINDOW*"| WIN["process_window_event()"]
-    LOOKUP -->|"FPSEVENT\nGAMEEVENT\nMENUEVENT\nQUIT\nUSEREVENT"| GAME["process_game_event()"]
+    LOOKUP -->|"FPSEVENT\nGAMEEVENT\nMENUEVENT\nQUIT\nUSEREVENT\nACTIVEEVENT\nVIDEO*\nSYSWMEVENT"| GAME["process_game_event()"]
     LOOKUP -->|"MIDIIN\nMIDIOUT"| MIDI["process_midi_event()"]
     LOOKUP -->|"TEXTEDITING\nTEXTINPUT"| TEXT["process_text_event()"]
+    LOOKUP -->|"no entry, or not handled"| UNIMPL["process_unimplemented_event()\ncounted in unhandled_events"]
     LOOKUP -->|"APP_*"| APP["process_app_event()"]
 
     AUDIO --> AM["AudioEventManager"]
@@ -77,11 +80,10 @@ flowchart TD
     WIN --> WM["WindowEventManager"]
     GAME --> GM["GameEventManager"]
     MIDI --> MIM["MidiEventManager"]
-    TEXT --> SM_T["SceneManager directly"]
+    TEXT --> UNIMPL
     APP --> APM["AppEventManager"]
 
     AM & CM & DM & KM & JM & MM & TM & WM & GM & MIM & APM --> SM["SceneManager\non_*_event()"]
-    SM_T --> SM
     SM --> SCENE["Active Scene\non_*_event()"]
     SCENE --> SPRITE["Focused/Collided Sprites\non_*_event()"]
 ```
@@ -97,37 +99,34 @@ flowchart TD
     BLOCKED -->|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
     BLOCKED -->|"No"| WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
     WRAP --> STUB{"Scene overrides\nthe handler?"}
-    STUB -->|"No — hits stub"| CACHED{"@functools.cache\nSeen this event type?"}
-    CACHED -->|"First time"| FULL["Run unhandled_event#40;#41;\nLog warning or raise error\nCost: full"]
-    CACHED -->|"Already seen"| HIT["Cache hit\nStub body skipped\nCost: dispatch only"]
+    STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;\nwarns once per type#40;debug_events#41;\nor raises #40;no_unhandled_events#41;"]
     STUB -->|"Yes — real handler"| HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]
 ```
 
 | Tier | When | Cost per occurrence | Example |
 |---|---|---|---|
-| **Blocked** | `pygame.event.set_blocked(type)` | Zero — SDL filters it before `pygame.event.get()` | Disabling `MOUSEMOTION` in a menu-only scene |
-| **Unhandled (first)** | Stub catches event, first occurrence | Full dispatch path + `unhandled_event()` log | First `JOYAXISMOTION` when no joystick handler exists |
-| **Unhandled (cached)** | Same stub, subsequent occurrences | Dispatch path + O(1) cache hit, stub body skipped | 2nd through Nth `JOYAXISMOTION` — no log, no work |
+| **Blocked** | `pygame.event.set_blocked(type)` | Zero — SDL filters it before the engine's pump | Disabling `MOUSEMOTION` in a menu-only scene |
+| **Unhandled** | The scene keeps the default stub | Dispatch path + `unhandled_event()`: an options lookup, and a warning only for the type's first occurrence | `JOYAXISMOTION` when no joystick handler exists |
 | **Handled** | Scene overrides `on_*_event()` | Full dispatch path + your handler executes | `on_key_down_event()` processing a key press |
 
-The `EVENT_HANDLERS` dict lookup is O(1) for all events that reach the pipeline.
-The `@functools.cache` on stubs makes the stub *execution* O(1) after first
-occurrence — but the event still travels through the dispatch path (wrap in
-HashableEvent, dict lookup, proxy forwarding) before reaching the cached stub.
-To eliminate that dispatch cost entirely, block the event at the pygame level
-with `pygame.event.set_blocked()`.
+The `EVENT_HANDLERS` dict lookup is O(1) for all events that reach the pipeline,
+but every unblocked event still travels the dispatch path (wrap in
+`HashableEvent`, dict lookup, proxy forwarding). To eliminate that cost entirely,
+block the event at the pygame level with `pygame.event.set_blocked()`.
 
 ## Custom Event Types
 
-GlitchyGames defines three custom event types beyond the standard pygame events.
-These are registered as `USEREVENT` offsets rather than using `pygame.event.custom_type()`
-to avoid consuming IDs from pygame's limited custom event ID pool. Pygame allocates
-custom types by incrementing from `USEREVENT`, so once an ID is taken it's gone for
-the lifetime of the process. By using fixed offsets (`USEREVENT + 1`, `+ 2`, `+ 3`),
-the engine's internal events occupy a known, predictable range and leave the rest of
-the pool free for game-specific events registered via `custom_type()`.
+GlitchyGames defines three custom event types beyond the standard pygame events,
+as fixed `USEREVENT` offsets (`USEREVENT + 1`, `+ 2`, `+ 3`) rather than through
+`pygame.event.custom_type()`, so the engine's events have known, predictable numbers.
 
-These constants are defined in `glitchygames/events/core.py`:
+!!! warning "Don't use `pygame.event.custom_type()` in a GlitchyGames game"
+    `custom_type()` hands out `USEREVENT + 1`, `+ 2`, `+ 3`, ... in order, and nothing
+    reserves the engine's offsets: in pygame-ce 2.5.8 the first three calls return the
+    numbers of `FPSEVENT`, `GAMEEVENT` and `MENUEVENT`, so such an event would be
+    dispatched as one of them. Use `GAMEEVENT` subtypes (below) instead.
+
+These constants are defined in `glitchygames/events/base.py` (exported by `glitchygames.events`):
 
 ```py
 FPSEVENT  = pygame.USEREVENT + 1  # FPS counter updates
@@ -137,7 +136,8 @@ MENUEVENT = pygame.USEREVENT + 3  # Menu item selections
 
 `GAMEEVENT` is intentionally generic — game code posts events with arbitrary
 payloads via `GameEngine.post_game_event()`, and can register per-subtype
-callbacks via `GameEngine.register_game_event()`. This gives games an extensible
+callbacks via `GameEngine.register_game_event()` (a scene reaches both through
+`self.scene_manager`: `register_game_event()` and `game_engine`). This gives games an extensible
 event bus without consuming additional pygame event IDs.
 
 ```mermaid
@@ -184,9 +184,9 @@ LEVEL_COMPLETE = 3
 class MyGame(Scene):
     def setup(self):
         # Register callbacks for each subtype
-        self.register_game_event(SCORE_CHANGED, self.on_score_changed)
-        self.register_game_event(POWER_UP_COLLECTED, self.on_power_up)
-        self.register_game_event(LEVEL_COMPLETE, self.on_level_complete)
+        self.scene_manager.register_game_event(SCORE_CHANGED, self.on_score_changed)
+        self.scene_manager.register_game_event(POWER_UP_COLLECTED, self.on_power_up)
+        self.scene_manager.register_game_event(LEVEL_COMPLETE, self.on_level_complete)
 
     def on_score_changed(self, event: HashableEvent):
         new_score = event.score
@@ -198,30 +198,32 @@ class MyGame(Scene):
         self.player.apply_power_up(power_type, duration)
 
     def on_level_complete(self, event: HashableEvent):
-        self.switch_to_scene(LevelTransitionScene(event.next_level))
+        # The SceneManager switches to it after this frame
+        self.next_scene = LevelTransitionScene(event.next_level)
 ```
 
 Any code in the game can fire these events:
 
 ```py
 # From a collision handler, enemy class, pickup sprite, etc.
-self.game_engine.post_game_event(
+# (SceneManager is a singleton: SceneManager().game_engine works anywhere)
+self.scene_manager.game_engine.post_game_event(
     event_subtype=SCORE_CHANGED,
     event_data={'score': self.score},
 )
 
-self.game_engine.post_game_event(
+self.scene_manager.game_engine.post_game_event(
     event_subtype=POWER_UP_COLLECTED,
     event_data={'power_type': 'speed_boost', 'duration': 5.0},
 )
 ```
 
 Under the hood, `post_game_event` creates a `pygame.event.Event` with type
-`GAMEEVENT` and a `subtype` field, then posts it to pygame's event queue.
-When the `SceneManager` processes it via `on_game_event()`, it looks up
-`registered_events[event.subtype]` and calls the matching callback. If no
-callback is registered for that subtype, it logs an error telling you to
-call `register_game_event()`.
+`GAMEEVENT` and a `subtype` field, then posts it with
+`glitchygames.recording.post_event` (so recordings mark it internal).
+`SceneManager.on_game_event()` looks up `game_engine.registered_events[event.subtype]`
+and calls the matching callback. If no callback is registered for that subtype,
+it logs an error telling you to call `register_game_event()`.
 
 This pattern gives you an unlimited number of game-specific event types
 while consuming only one pygame event ID.
@@ -349,6 +351,7 @@ classDiagram
         +on_window_leave_event()
         +on_window_size_changed_event()
         +on_window_take_focus_event()
+        +on_window_hit_test_event()
     }
 
     class GameEventManager {
@@ -357,6 +360,8 @@ classDiagram
         +on_menu_item_event()
         +on_quit_event()
         +on_active_event()
+        +on_user_event()
+        +on_sys_wm_event()
         +on_video_resize_event()
         +on_video_expose_event()
         +on_clipboard_update_event()
@@ -418,21 +423,23 @@ objects. The proxy chain provides two capabilities:
    which updates internal state (tracking pressed keys, button states, drag
    sequences, etc.) and then forwards the event to `self.game` — the active scene.
 
-2. **Transparent pygame API access**: When game code accesses a pygame subsystem
-   method through the manager (e.g., `mouse_manager.get_pos()`), the
-   `__getattr__` proxy chain resolves it. The manager doesn't find `get_pos()` on
-   itself, so it walks `self.proxies` — first the inner proxy (which also doesn't
-   have it), then the pygame module (`pygame.mouse`), where it's found. This means
-   game code can call pygame APIs through the manager without knowing which object
-   actually implements them.
+2. **Attribute fallthrough**: An attribute the manager doesn't have is looked up
+   on its proxies by `ResourceManager.__getattr__` (`glitchygames/events/base.py`).
+   The design is that `mouse_manager.get_pos()` falls through the inner proxy and
+   the scene to `pygame.mouse`.
 
-**Why this matters**: Scenes and sprites never need a direct reference to
-`pygame.mouse`, `pygame.key`, or `pygame.joystick`. They talk to the event
-manager, which is a singleton accessible from anywhere. The manager handles state
-tracking (what buttons are held, what sprite has mouse focus, what keys form a
-chord) while transparently exposing the underlying pygame API. If a pygame
-subsystem changes its interface, only the proxy needs to adapt — game code is
-insulated.
+!!! warning "Only the first proxy is consulted"
+    `ResourceManager.__getattr__` returns (or raises) on the first proxy in
+    `self.proxies`, so the lookup stops at `self.game`: `MouseEventManager().get_pos()`
+    raises `AttributeError` unless the scene has `get_pos`. The pygame modules in
+    the proxy lists below are never reached. Polled input should come from
+    `glitchygames.input.state.current_input()` anyway: it is the frame's snapshot,
+    which a replay serves exactly.
+
+**Why this matters**: Scenes and sprites never need a direct reference to the
+event plumbing. They talk to the event manager, which is a singleton accessible
+from anywhere, and the manager handles state tracking (what buttons are held,
+what sprite has mouse focus, what keys form a chord).
 
 ### Architecture
 
@@ -472,53 +479,60 @@ sequenceDiagram
     PROXY-->>GAME: on_left_mouse_drag_event(event, trigger)
     Note over GAME: Scene handles event<br/>or falls through to stubs
 
-    Note over CODE,PG: Attribute proxy path
+    Note over CODE,PG: Attribute proxy path (as designed; see the warning above)
     CODE->>MGR: get_pos()
     Note over MGR: __getattr__: not on self<br/>try proxies[0]...
     MGR->>PROXY: get_pos()
-    Note over PROXY: __getattr__: not on self<br/>try proxies[0]=game... no<br/>try proxies[1]=pygame.mouse
-    PROXY->>PG: get_pos()
-    PG-->>CODE: (x, y)
+    Note over PROXY: __getattr__: not on self<br/>try proxies[0]=game... AttributeError<br/>(proxies[1]=pygame.mouse is never tried)
+    PROXY--xPG: get_pos()
 ```
 
 ### Proxy lists by manager
 
-Each manager configures its proxy list to expose the relevant pygame subsystem:
+Each inner proxy's list (the outer manager's list holds the inner proxy, or for
+the joystick and controller managers, the game):
 
 | Manager | Proxy list | pygame API exposed |
 |---|---|---|
 | `MouseEventManager` | `[self.game, pygame.mouse]` | `get_pos()`, `set_visible()`, etc. |
 | `KeyboardEventManager` | `[self.game, pygame.key]` | `get_pressed()`, `get_mods()`, etc. |
 | `AudioEventManager` | `[self.game, pygame.mixer]` | `get_busy()`, `set_num_channels()`, etc. |
-| `JoystickEventManager` | `[self.game, self.joystick]` | Per-joystick: `get_axis()`, `get_button()`, etc. |
-| `TouchEventManager` | `[self.game, pygame._sdl2.touch]` | `get_num_devices()`, etc. |
+| `JoystickEventManager` | `[self.game, self.joystick]` per `JoystickEventProxy` | Per-joystick: `get_axis()`, `get_button()`, etc. |
+| `ControllerEventManager` | `[self.game, self.controller]` per `ControllerEventProxy` | Per-controller: `get_axis()`, `get_button()`, etc. |
+| `WindowEventManager` | `[self.game]` | No pygame subsystem (events only) |
+| `TouchEventManager` | `[self.game, pygame._sdl2.touch]` (`[self.game]` when it is unavailable) | `get_num_devices()`, etc. |
 | `DropEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `GameEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `AppEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `MidiEventManager` | `[self.game, pygame.midi]` | `get_count()`, `get_device_info()`, etc. |
 
 Managers without a pygame subsystem in their proxy list (like `DropEventManager`)
-only forward events — `__getattr__` falls through to the game object.
+only forward events — `__getattr__` falls through to the game object (as every
+manager's does today).
 
 ### Singleton guarantee
 
 `ResourceManager.__new__` maintains a class-level `__instances__` dict keyed by
 concrete class type. Constructing `MouseEventManager(game)` a second time returns
-the original instance. This means any scene, sprite, or helper can do
-`MouseEventManager()` to get the existing manager without needing the game
-reference passed around — the singleton already has it from first initialization.
+the original instance.
+
+!!! warning "A second construction re-runs `__init__`"
+    Python calls `__init__` on whatever `__new__` returns, so `MouseEventManager()`
+    re-initializes the existing manager: its proxies are rebuilt for `game=None`, and
+    its state is lost. Keep the reference the engine made (`GameEngine.mouse_manager`
+    and so on) instead of constructing a manager again.
 
 ## HashableEvent Wrapper
 
-Raw pygame events are wrapped in `HashableEvent` to enable caching, hashing
-and serialization. This is the universal event type throughout the system: every
-event of a type with a class of its own is an instance of that class (below).
+Raw pygame events are converted to `HashableEvent` (`HashableEvent.from_pygame`) to
+enable hashing, immutability and serialization. This is the universal event type
+throughout the system: every event of a type with a class of its own is an instance
+of that class (below).
 
 !!! warning "pygame.event.Event is not hashable"
-    Raw `pygame.event.Event` objects cannot be hashed, cached, or used as
-    dictionary keys. `HashableEvent` wraps them in a `UserDict` that provides
-    `__hash__()`, making them compatible with `functools.cache` and the
-    event stub deduplication system.
+    Raw `pygame.event.Event` objects cannot be hashed or used as dictionary keys.
+    `HashableEvent` is a `UserDict` subclass holding the event's type and a copy of
+    its fields (the pygame event itself is not kept), and it provides `__hash__()`.
 
 ### The problem with raw pygame event handling
 
@@ -561,39 +575,32 @@ GlitchyGames solves all of these: events are dispatched through named
 (buttons, axes, focus), and synthesized events (drag, drop, chord) are
 generated automatically.
 
-!!! tip "You can use both systems together"
-    The GlitchyGames event system doesn't replace raw pygame — it wraps it.
-    The original `pygame.event.Event` is always available inside the
-    `HashableEvent`, and you can still call `pygame.event.get()`,
-    `pygame.event.peek()`, `pygame.event.post()`, or any other pygame event
-    API directly. The event managers proxy through to the pygame subsystems
-    (e.g., `MouseEventManager` proxies to `pygame.mouse`), so you can mix
-    high-level `on_*_event()` handlers with direct pygame calls in the same
-    scene. This is useful when you need low-level control — for example,
-    polling `pygame.key.get_pressed()` for smooth movement while still
-    receiving `on_key_down_event()` for discrete key actions.
+!!! tip "Raw events and polling"
+    A scene that defines `process_event(event)` gets every raw `pygame.event.Event`
+    instead of the `on_*_event()` handlers. For smooth movement, poll the frame's
+    input snapshot (`current_input().key_pressed(...)`, see
+    [Gameplay Recording and Replay](gameplay_replay.md)) while still receiving
+    `on_key_down_event()` for discrete key actions; polling pygame directly
+    (`pygame.key.get_pressed()`) works live but cannot be replayed. Never call
+    `pygame.event.get()` yourself: the engine is the queue's only reader.
 
 But this architecture creates a new problem:
 **what happens to events that nobody handles?**
 
 ### The unhandled event problem
 
-GlitchyGames generates `on_*_event()` stub methods for every possible event
-type. If your scene doesn't override `on_joy_axis_motion_event`, the stub
-catches it instead of silently dropping it. This is powerful for debugging —
-you can see exactly which events your game isn't handling.
+GlitchyGames gives every `on_*_event()` a default stub (the `*EventStubs` classes
+in `glitchygames/events/input_event_interfaces.py` and
+`system_event_interfaces.py`; `Scene` inherits `AllEventStubs`). If your scene
+doesn't override `on_joy_axis_motion_event`, the stub catches the event instead
+of silently dropping it and calls `unhandled_event()` (`glitchygames/events/base.py`).
+This is powerful for debugging — you can see exactly which events your game
+isn't handling.
 
 But stubs run on *every* occurrence of their event. A joystick thumbstick
 drifting slightly generates `JOYAXISMOTION` events continuously, even when
-nothing is listening. Without optimization, each one triggers the full
-unhandled-event logic: check config flags, format a log message, write to
-the logger. At 60 FPS with multiple input devices, that's hundreds of wasted
-calls per second in your game loop.
-
-### How caching solves it
-
-Every event handler stub in the system is decorated with `@functools.cache`.
-To understand why, consider what happens during a typical frame of gameplay.
+nothing is listening, so `unhandled_event()` must be cheap and quiet after the
+first one.
 
 ### Example: one frame at 60 FPS
 
@@ -606,76 +613,47 @@ frame (~16ms), pygame might deliver these events:
 | `JOYAXISMOTION` | Joystick thumbstick drift | No — scene doesn't handle joystick |
 | `JOYAXISMOTION` | Same thumbstick, new value | No — still unhandled |
 | `JOYAXISMOTION` | Same thumbstick, new value | No — still unhandled |
-| `CONTROLLERAXISMOTION` | Same device, controller API | No — scene uses joystick API |
 
 The handled `MOUSEMOTION` flows through the proxy chain and reaches the scene's
-real handler — no caching involved, the scene does its work.
+real handler.
 
-But the three `JOYAXISMOTION` events and the `CONTROLLERAXISMOTION` all hit
-**stubs** — default no-op handlers that call `unhandled_event()`.
+But the three `JOYAXISMOTION` events hit the **stub**, which calls
+`unhandled_event()`.
 
-### Without caching: log spam every frame
+### One warning per type, then silence
+
+`unhandled_event()` reads the game's options and:
+
+- with `no_unhandled_events` (`--no-unhandled-events`, and every test) raises
+  `UnhandledEventError`;
+- with `debug_events`, logs `Unhandled Event: <name> <event>` at WARNING the first
+  time it sees each event type (a module-level set of seen types), and nothing
+  after;
+- otherwise does nothing.
 
 ```
-Frame 1:  WARNING: Unhandled event: JOYAXISMOTION
-Frame 1:  WARNING: Unhandled event: JOYAXISMOTION
-Frame 1:  WARNING: Unhandled event: JOYAXISMOTION
-Frame 1:  WARNING: Unhandled event: CONTROLLERAXISMOTION
-Frame 2:  WARNING: Unhandled event: JOYAXISMOTION
-Frame 2:  WARNING: Unhandled event: JOYAXISMOTION
+Frame 1:  WARNING: Unhandled Event: JoyAxisMotion ...   ← first occurrence, logged
+Frame 1:  (type already seen, nothing logged)
+Frame 1:  (type already seen, nothing logged)
+Frame 2:  (nothing logged)
 ...
-(4+ log calls per frame × 60 FPS = 240+ log calls per second)
+(1 log call total, then 0 per frame)
 ```
 
-Each `unhandled_event()` call checks configuration flags, formats a log message,
-and writes to the logger. At 240+ calls per second, this is measurable overhead
-in a game loop that has ~16ms per frame.
+Separately, `GameEngine.process_unimplemented_event` handles events that no
+`process_*_event` method dispatched (types with no `EVENT_HANDLERS` entry, or a
+handler that returned False): it counts each type in `GameEngine.unhandled_events`
+(count, first-seen time, attribute names) and the engine logs that table at
+teardown.
 
-### With caching: one log, then silence
+### Why HashableEvent
 
-The stubs are decorated with `@functools.cache`:
-
-```py
-@functools.cache
-def on_joy_axis_motion_event(self, event: HashableEvent):
-    unhandled_event(self.game, event)
-```
-
-Now the same frame plays out differently:
-
-```
-Frame 1:  WARNING: Unhandled event: JOYAXISMOTION     ← first occurrence, runs fully
-Frame 1:  (cache hit — JOYAXISMOTION seen before, skip)
-Frame 1:  (cache hit — skip)
-Frame 1:  WARNING: Unhandled event: CONTROLLERAXISMOTION  ← first occurrence of this type
-Frame 2:  (cache hit — skip all 4 events)
-Frame 3:  (cache hit — skip all 4 events)
-...
-(2 log calls total, then 0 per frame forever)
-```
-
-`functools.cache` stores the result keyed by the function's arguments. When the
-same event type arrives again, it's a hash table lookup — **O(1), no function
-body execution, no log formatting, no I/O**.
-
-### Why this requires HashableEvent
-
-`functools.cache` needs its arguments to be **hashable** (usable as dict keys).
-Raw `pygame.event.Event` objects are not hashable — they're mutable dicts with
-no `__hash__` method. Attempting to cache a function that takes a raw pygame
-event raises `TypeError: unhashable type`.
-
-`HashableEvent` solves this by wrapping the event in a `UserDict` subclass that
-implements `__hash__()`. The original pygame event fields (`pos`, `button`,
-`key`, etc.) are preserved as attributes — but now the event can be used as a
-cache key.
-
-This is the primary reason `HashableEvent` exists: **to make pygame events
-cacheable, so unhandled event stubs can be O(1) after their first occurrence**.
-
-But caching isn't the only benefit. Events are also serializable: `to_json()` /
-`from_json()` (below), pickling, structured logging. Raw `pygame.event.Event`
-objects support none of these.
+Raw `pygame.event.Event` objects are not hashable, so they cannot be dictionary
+keys, set members or `functools.cache` arguments, and they are mutable.
+`HashableEvent` is hashable by its content and immutable, and its fields (`pos`,
+`button`, `key`, etc.) read as attributes. Events are also serializable:
+`to_json()` / `from_json()` (below), pickling, structured logging. Raw
+`pygame.event.Event` objects support none of these.
 
 The synthesized events — drag, drop, chord, focus — carry their extra context as
 extra handler arguments, never by changing the event: the mouse drag handler
@@ -748,59 +726,60 @@ flowchart LR
     end
 
     subgraph HE["HashableEvent #40;UserDict#41;"]
-        subgraph wrapped["pygame.event.Event"]
-            H_TYPE["type: int"]:::wrapped
-            H_DICT["dict: standard pygame fields"]:::wrapped
-        end
-        H_HASH["__hash__#40;#41; — hashable"]
+        H_TYPE["type: int"]
+        H_DICT["a copy of the fields"]
+        H_HASH["__hash__#40;#41; — by content, cached"]
         H_ATTR["immutable; typed per-type class"]
-        H_CACHE["cacheable by functools.cache"]
     end
 
-    PygameEvent -->|"wrap"| HE
-
-    classDef wrapped stroke-dasharray: 5 5
+    PygameEvent -->|"HashableEvent.from_pygame#40;#41;"| HE
 ```
 
 ## Mouse Event Synthesis
 
-The `MouseEventManager` synthesizes high-level drag, drop, and focus events
-from primitive pygame mouse events. Button-specific variants are generated
-for left, middle, and right buttons.
+The `MouseEventManager`'s proxy (`glitchygames/events/mouse.py`) synthesizes
+button-specific and drag/drop events from primitive pygame mouse events.
+Button-specific variants are generated for the left, middle and right buttons
+(and scroll down/up for the old wheel buttons 4 and 5 on button down).
 
 ```mermaid
 sequenceDiagram
     participant PG as pygame
-    participant MM as MouseEventManager
+    participant MM as MouseEventProxy
     participant SCENE as Scene
 
-    Note over MM: mouse_state tracks<br/>which buttons are held
+    Note over MM: mouse_state holds the latest event<br/>per button (and per MOUSEMOTION)
 
     PG->>MM: MOUSEBUTTONDOWN (button=1)
-    MM->>MM: mouse_state[1] = True
+    MM->>MM: mouse_state[1] = event
+    MM->>SCENE: on_mouse_button_down_event()
     MM->>SCENE: on_left_mouse_button_down_event()
 
     PG->>MM: MOUSEMOTION (while button 1 held)
-    MM->>MM: Detect drag: button held + motion
     MM->>SCENE: on_mouse_motion_event()
+    MM->>MM: mouse_state[1] is a MOUSEBUTTONDOWN:<br/>drag, mouse_dragging = True
+    MM->>SCENE: on_mouse_drag_event(event, trigger)
     MM->>SCENE: on_left_mouse_drag_event(event, trigger)
-    Note over SCENE: trigger = original<br/>MOUSEBUTTONDOWN event
+    Note over SCENE: trigger = the<br/>MOUSEBUTTONDOWN event
 
     PG->>MM: MOUSEBUTTONUP (button=1)
-    MM->>MM: Was dragging? Yes
-    MM->>SCENE: on_left_mouse_drop_event(event, trigger)
+    MM->>MM: mouse_state[1] = event
     MM->>SCENE: on_left_mouse_button_up_event()
-    MM->>MM: mouse_state[1] = False
-
-    Note over MM: Focus tracking via<br/>sprite collision detection
-
-    PG->>MM: MOUSEMOTION (over sprite A)
-    MM->>MM: collided_sprites() check
-    MM->>SCENE: on_mouse_focus_event(event, sprite_A)
-
-    PG->>MM: MOUSEMOTION (leaves sprite A)
-    MM->>SCENE: on_mouse_unfocus_event(event, sprite_A)
+    MM->>SCENE: on_mouse_button_up_event()
+    MM->>MM: Was dragging? Yes: mouse_dragging = False
+    MM->>SCENE: on_mouse_drop_event(event, trigger=event)
+    Note over SCENE: the drop's trigger is the<br/>MOUSEBUTTONUP itself
 ```
+
+The proxy also passes `MOUSEMOTION` to the topmost sprite under the cursor
+(`collided_sprites()`), and `Scene` passes mouse events on to the sprites at the
+event's position.
+
+!!! warning "Not synthesized today"
+    The proxy defines `on_left/middle/right_mouse_drop_event` and
+    `on_mouse_focus_event` / `on_mouse_unfocus_event` (with `current_focus`), but
+    nothing calls them: a release after a drag reaches the scene only as
+    `on_mouse_drop_event`, and no focus or unfocus event is sent.
 
 ## Keyboard Chord Detection
 
@@ -849,15 +828,15 @@ flowchart TD
     end
 
     subgraph Proxy0["ControllerEventProxy 0"]
-        AXES0["_axes: list of 6 floats\nleft_x, left_y, right_x,\nright_y, left_trigger, right_trigger"]
+        AXES0["_axes: list of 6 ints\nleft_x, left_y, right_x,\nright_y, left_trigger, right_trigger"]
         BUTTONS0["_buttons: list of 15+ bools\nA, B, X, Y, DPAD,\nshoulders, sticks, guide"]
-        META0["_name, _id, _device_id\n_mapping, _attached"]
+        META0["_name, _id, _instance_id\n_mapping, _attached"]
     end
 
     subgraph Proxy1["ControllerEventProxy 1"]
-        AXES1["_axes: list of 6 floats"]
+        AXES1["_axes: list of 6 ints"]
         BUTTONS1["_buttons: list of 15+ bools"]
-        META1["_name, _id, _device_id"]
+        META1["_name, _id, _instance_id"]
     end
 
     CONTROLLERS -->|"instance_id=0"| Proxy0
@@ -997,7 +976,7 @@ flowchart LR
 ```py
 def on_controller_device_remapped_event(
     event: HashableEvent(CONTROLLERDEVICEREMAPPED {
-        'device_index': ...,
+        'instance_id': ...,
     })
 ):
     ...
@@ -1028,8 +1007,8 @@ flowchart LR
 def on_controller_touchpad_down_event(
     event: HashableEvent(CONTROLLERTOUCHPADDOWN {
         'instance_id': ...,
-        'touchpad': ...,
-        'finger': ...,
+        'touch_id': ...,
+        'finger_id': ...,
         'x': ...,
         'y': ...,
         'pressure': ...,
@@ -1048,8 +1027,8 @@ flowchart LR
 def on_controller_touchpad_motion_event(
     event: HashableEvent(CONTROLLERTOUCHPADMOTION {
         'instance_id': ...,
-        'touchpad': ...,
-        'finger': ...,
+        'touch_id': ...,
+        'finger_id': ...,
         'x': ...,
         'y': ...,
         'pressure': ...,
@@ -1068,11 +1047,28 @@ flowchart LR
 def on_controller_touchpad_up_event(
     event: HashableEvent(CONTROLLERTOUCHPADUP {
         'instance_id': ...,
-        'touchpad': ...,
-        'finger': ...,
+        'touch_id': ...,
+        'finger_id': ...,
         'x': ...,
         'y': ...,
         'pressure': ...,
+    })
+):
+    ...
+```
+
+```mermaid
+flowchart LR
+    C10["CONTROLLERSENSORUPDATE"] --> CH10["on_controller_sensor_update_event"]
+    click C10 "https://pyga.me/docs/ref/sdl2_controller.html" _blank
+```
+
+```py
+def on_controller_sensor_update_event(
+    event: HashableEvent(CONTROLLERSENSORUPDATE {
+        'instance_id': ...,
+        'sensor': ...,
+        'data': ...,
     })
 ):
     ...
@@ -1348,6 +1344,10 @@ def on_right_mouse_drag_event(
     ...
 ```
 
+The button-specific drop handlers and the focus handlers below are defined but not
+synthesized today (see Mouse Event Synthesis); a release after a drag arrives as
+`on_mouse_drop_event(event, trigger)`, both arguments the `MOUSEBUTTONUP`.
+
 ```mermaid
 flowchart LR
     M3["MOUSEBUTTONUP"] -.->|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
@@ -1540,8 +1540,11 @@ def on_joy_device_removed_event(
 
 ### WindowEvents → WindowEventStubs
 
-All window events carry `{'window': ...}` (the window ID).
-WINDOWRESIZED, WINDOWMOVED, and WINDOWSIZECHANGED also carry `{'x': ..., 'y': ...}`.
+All window events carry `{'window': ...}` (the `pygame.Window`, or `None`; a replay serves
+`None`). WINDOWRESIZED, WINDOWMOVED, and WINDOWSIZECHANGED also carry `{'x': ..., 'y': ...}`.
+`GameEngine.process_window_event` routes the types below except WINDOWTAKEFOCUS;
+WINDOWTAKEFOCUS, WINDOWDISPLAYCHANGED and WINDOWICCPROFCHANGED reach no handler (they are
+counted as unhandled).
 
 ```mermaid
 flowchart LR
@@ -1704,7 +1707,19 @@ flowchart LR
 ```
 
 ```py
+# Not routed by the engine today (see above)
 def on_window_take_focus_event(event: HashableEvent(WINDOWTAKEFOCUS {'window': ...})):
+    ...
+```
+
+```mermaid
+flowchart LR
+    W16["WINDOWHITTEST"] --> WH16["on_window_hit_test_event"]
+    click W16 "https://pyga.me/docs/ref/window.html" _blank
+```
+
+```py
+def on_window_hit_test_event(event: HashableEvent(WINDOWHITTEST {'window': ...})):
     ...
 ```
 
@@ -1831,9 +1846,14 @@ def on_touch_up_event(
     ...
 ```
 
+`TouchEventManager` and the stubs define `on_multi_touch_down_event`,
+`on_multi_touch_motion_event` and `on_multi_touch_up_event`, but
+`GameEngine.process_touch_event` does not route `MULTIGESTURE` today: it is counted
+as unhandled.
+
 ```mermaid
 flowchart LR
-    T4["MULTIGESTURE"] --> TH4["on_multi_touch_*_event"]
+    T4["MULTIGESTURE"] -.->|"not routed"| TH4["on_multi_touch_*_event"]
     click T4 "https://pyga.me/docs/ref/touch.html" _blank
 ```
 
@@ -1860,9 +1880,11 @@ flowchart LR
 ```
 
 ```py
-# Custom USEREVENT+1 — payload is game-defined
+# Custom USEREVENT+1 — posted by the engine with the measured frame rate
 def on_fps_event(
-    event: HashableEvent(FPSEVENT {...})
+    event: FpsEvent(FPSEVENT {
+        'fps': ...,
+    })
 ):
     ...
 ```
@@ -1874,9 +1896,12 @@ flowchart LR
 ```
 
 ```py
-# Custom USEREVENT+2 — payload is game-defined
+# Custom USEREVENT+2 — a subtype plus the game-defined payload
 def on_game_event(
-    event: HashableEvent(GAMEEVENT {...})
+    event: GameEvent(GAMEEVENT {
+        'subtype': ...,
+        ...
+    })
 ):
     ...
 ```
@@ -1888,9 +1913,12 @@ flowchart LR
 ```
 
 ```py
-# Custom USEREVENT+3 — payload is game-defined
+# Custom USEREVENT+3 — posted by a clicked MenuItem (glitchygames/ui/menus.py)
 def on_menu_item_event(
-    event: HashableEvent(MENUEVENT {...})
+    event: HashableEvent(MENUEVENT {
+        'menu': ...,
+        'menu_item': ...,
+    })
 ):
     ...
 ```
@@ -1943,16 +1971,38 @@ def on_video_resize_event(
 
 ```mermaid
 flowchart LR
-    G7["CLIPBOARDUPDATE"] --> GH7["on_clipboard_update_event"]
+    G7["VIDEOEXPOSE"] --> GH7["on_video_expose_event"]
     click G7 "https://pyga.me/docs/ref/event.html" _blank
 ```
 
 ```py
-def on_clipboard_update_event(
-    event: HashableEvent(CLIPBOARDUPDATE)
+def on_video_expose_event(
+    event: HashableEvent(VIDEOEXPOSE)
 ):
     ...
 ```
+
+```mermaid
+flowchart LR
+    G8["USEREVENT"] --> GH8["on_user_event"]
+    click G8 "https://pyga.me/docs/ref/event.html" _blank
+```
+
+```py
+def on_user_event(
+    event: HashableEvent(USEREVENT {
+        'code': ...,
+    })
+):
+    ...
+```
+
+`SYSWMEVENT` reaches `on_sys_wm_event` only when the game opts in (see Native window
+messages). `GameEventManager` and the stubs also define `on_clipboard_update_event`,
+`on_locale_changed_event`, `on_render_device_reset_event`,
+`on_render_targets_reset_event` and `on_font_changed_event`, but
+`GameEngine.process_game_event` does not route `CLIPBOARDUPDATE`, `LOCALECHANGED` or the
+`RENDER_*` types today: they are counted as unhandled.
 
 ### AppEvents → AppEventStubs
 
@@ -2024,7 +2074,11 @@ def on_app_did_enter_foreground_event(event: HashableEvent(APP_DIDENTERFOREGROUN
     ...
 ```
 
-### Text Events (no dedicated stubs)
+### Text Events
+
+`GameEngine.process_text_event` passes `TEXTEDITING` and `TEXTINPUT` straight to
+`process_unimplemented_event` (counted as unhandled), so these handlers are not called
+by the engine today; text widgets read `KEYDOWN`'s `unicode` instead.
 
 ```mermaid
 flowchart LR
@@ -2068,11 +2122,13 @@ flowchart LR
 
 ```py
 def on_midi_in_event(
-    event: HashableEvent(MIDIIN {
-        'device_id': ...,
+    event: MidiEvent(MIDIIN {
         'status': ...,
         'data1': ...,
         'data2': ...,
+        'data3': ...,
+        'timestamp': ...,
+        'vice_id': ...,
     })
 ):
     ...
@@ -2086,11 +2142,13 @@ flowchart LR
 
 ```py
 def on_midi_out_event(
-    event: HashableEvent(MIDIOUT {
-        'device_id': ...,
+    event: MidiEvent(MIDIOUT {
         'status': ...,
         'data1': ...,
         'data2': ...,
+        'data3': ...,
+        'timestamp': ...,
+        'vice_id': ...,
     })
 ):
     ...
@@ -2153,8 +2211,8 @@ for device in self.input_devices:
     `JOYBUTTONDOWN`, etc.), SDL will also stop delivering the corresponding
     controller events (`CONTROLLERAXISMOTION`, `CONTROLLERBUTTONDOWN`, etc.).
     If you need controllers but not raw joysticks, leave the joystick events
-    unblocked and simply don't implement joystick handlers — the cached stubs
-    will handle them at near-zero cost.
+    unblocked: the engine already drops a mapped pad's joystick-layer input events
+    (One device, one event layer, above).
 
 ### JoystickEventManager architecture
 
@@ -2175,20 +2233,18 @@ This is necessary because:
 
 #### Cached properties
 
-The proxy caches several joystick properties at init time because some hardware
-has **extremely slow flash reads** for metadata queries. Calling `get_name()` on
-certain joysticks can take hundreds of milliseconds — unacceptable in a game
-loop. The cached values are:
+The proxy reads several joystick properties once, at init (some hardware answers
+metadata queries slowly):
 
-- `_name` — joystick name string (primary motivation for caching)
+- `_name` — joystick name string
 - `_guid` — hardware GUID
 - `_init` — initialization status
 - `_power_level` — battery level (if supported)
 - `_numaxes`, `_numballs`, `_numbuttons`, `_numhats` — capability counts
 
-The proxy exposes `get_name()`, `get_numaxes()`, etc. methods that return the
-cached values, matching the `pygame.joystick.Joystick` API so the proxy is a
-drop-in substitute.
+The proxy exposes `get_name()`, `get_numaxes()`, etc., matching the
+`pygame.joystick.Joystick` API. `get_name()` asks the joystick first and returns
+the cached `_name` only when that fails; the others return the cached values.
 
 #### Event routing
 
@@ -2259,8 +2315,10 @@ flowchart TD
 ### Joystick state tracking
 
 Each `JoystickEventProxy` maintains cached arrays for every input on its device.
-Events update these arrays so game code can poll current state without querying
-the hardware or reaching into pygame internals.
+They start from the frame's input snapshot (`current_input()`, so live play and a
+replay start alike; a device hot-plugged this frame starts zeroed), never from the
+hardware, and events update them. To poll a device, prefer `InputDevices` (above),
+which reads the snapshot.
 
 #### Button state
 
@@ -2269,7 +2327,7 @@ reports a button index beyond the initially detected count.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Released : init#58; get_button#40;i#41;
+    [*] --> Released : init#58; snapshot.button#40;i#41;
     Released --> Pressed : JOYBUTTONDOWN
     Pressed --> Released : JOYBUTTONUP
 
@@ -2297,7 +2355,7 @@ Axes are tracked as a `list[float]`. Each axis value ranges from -1.0 to 1.0.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle : init#58; get_axis#40;i#41;
+    [*] --> Idle : init#58; snapshot.axis#40;i#41;
     Idle --> Updated : JOYAXISMOTION
     Updated --> Updated : JOYAXISMOTION
 
@@ -2321,7 +2379,7 @@ Hats (D-pads) are tracked as a `list[tuple[int, int]]`. Each value is an
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Centered : init#58; get_hat#40;i#41;
+    [*] --> Centered : init#58; snapshot.hat#40;i#41;
     Centered --> Pressed : JOYHATMOTION
     Pressed --> Pressed : JOYHATMOTION
     Pressed --> Centered : JOYHATMOTION value 0,0
@@ -2341,8 +2399,8 @@ self._hats[event.hat] = event.value  # (x, y) tuple
 
 #### Trackball state
 
-Trackballs are tracked as a `list[tuple[float, float]]` storing relative motion
-deltas since the last event.
+Trackballs are tracked as a `list[tuple[int, int]]` (starting at `(0, 0)`: they
+are not in the snapshot) storing the relative motion of the last event.
 
 ```py
 # Proxy state update on JOYBALLMOTION
@@ -2363,7 +2421,7 @@ dynamically for non-standard buttons.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Released : init#58; get_button#40;i#41;
+    [*] --> Released : init#58; snapshot.controller_button#40;i#41;
     Released --> Pressed : CONTROLLERBUTTONDOWN
     Pressed --> Released : CONTROLLERBUTTONUP
 
@@ -2395,7 +2453,7 @@ sticks, 0 to 32767 for triggers.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle : init#58; get_axis#40;i#41;
+    [*] --> Idle : init#58; snapshot.controller_axis#40;i#41;
     Idle --> Updated : CONTROLLERAXISMOTION
     Updated --> Updated : CONTROLLERAXISMOTION
 
@@ -2423,15 +2481,19 @@ configurable: silent, logged, or error-raising (used in tests).
 
 ```mermaid
 flowchart TD
-    EVENT["Event arrives at\non_*_event() stub"] --> CACHED{"@functools.cache\nalready seen?"}
-    CACHED -->|"Yes"| SKIP["Return cached result\nno duplicate warnings"]
-    CACHED -->|"No"| UH["unhandled_event()"]
-    UH --> CHECK_DEBUG{"options.debug_events?"}
-    CHECK_DEBUG -->|"Yes"| LOG_D["Log event details\nat DEBUG level"]
-    CHECK_DEBUG -->|"No"| CHECK_STRICT{"options.no_unhandled_events?"}
+    EVENT["Event arrives at\non_*_event() stub"] --> UH["unhandled_event()"]
+    UH --> CHECK_STRICT{"options.no_unhandled_events?"}
     CHECK_STRICT -->|"Yes"| RAISE["Raise UnhandledEventError\n(used in test suite)"]
-    CHECK_STRICT -->|"No"| LOG_W["Log warning\nfirst occurrence only"]
+    CHECK_STRICT -->|"No"| CHECK_DEBUG{"options.debug_events?"}
+    CHECK_DEBUG -->|"Yes"| LOG_W["Log WARNING\nfirst occurrence of the type only"]
+    CHECK_DEBUG -->|"No"| SILENT["Nothing"]
 ```
+
+Events no `process_*_event` method handled go to
+`GameEngine.process_unimplemented_event`, which counts them by type in
+`GameEngine.unhandled_events`; `_shutdown` logs the table at teardown
+(`unhandled_event_report()`: e.g. `JOYDEVICEADDED (1541) x1, first at 0.3 s,
+attributes: device_index, guid`).
 
 ## Scene Manager Event Forwarding
 
@@ -2465,8 +2527,9 @@ flowchart LR
 
 ### Scene transitions in Bitmappy
 
-The `active_scene` pointer determines which scene receives all events. When a
-scene calls `switch_to_scene(next_scene)`, the SceneManager:
+The `active_scene` pointer determines which scene receives all events. A scene
+asks for a switch by setting `self.next_scene`; after the frame, the SceneManager
+calls `switch_to_scene(next_scene)`, which:
 
 1. Calls `cleanup()` on the current scene
 2. Calls `setup()` on the next scene
@@ -2483,31 +2546,27 @@ stateDiagram-v2
     BitmapEditorScene --> LoadDialogScene : User opens File > Load
     BitmapEditorScene --> SaveDialogScene : User opens File > Save
     BitmapEditorScene --> NewCanvasDialogScene : User opens File > New
-    BitmapEditorScene --> DeleteFrameDialog : User clicks delete frame
-    BitmapEditorScene --> DeleteAnimationDialog : User clicks delete animation
-    BitmapEditorScene --> PauseScene : User presses Escape
-    BitmapEditorScene --> GameOverScene : Game calls game_over()
+    BitmapEditorScene --> DeleteFrameDialogScene : User clicks delete frame
+    BitmapEditorScene --> DeleteAnimationDialogScene : User clicks delete animation
 
     LoadDialogScene --> BitmapEditorScene : User confirms or cancels
     SaveDialogScene --> BitmapEditorScene : User confirms or cancels
     NewCanvasDialogScene --> BitmapEditorScene : User confirms or cancels
-    DeleteFrameDialog --> BitmapEditorScene : User confirms or cancels
-    DeleteAnimationDialog --> BitmapEditorScene : User confirms or cancels
-    PauseScene --> BitmapEditorScene : User presses Escape again
-    GameOverScene --> BitmapEditorScene : User starts new game
+    DeleteFrameDialogScene --> BitmapEditorScene : User confirms or cancels
+    DeleteAnimationDialogScene --> BitmapEditorScene : User confirms or cancels
 
-    BitmapEditorScene --> [*] : User closes window (QUIT)
+    BitmapEditorScene --> [*] : User closes window (QUIT), or releases Q/Escape with nothing focused
 ```
 
 Every transition goes through `SceneManager.switch_to_scene()`. Dialog scenes
-store a reference to `previous_scene` so they can return to the editor when the
-user confirms or cancels. The SceneManager itself is a singleton — there is only
+(`glitchygames/ui/dialogs.py`) store a reference to `previous_scene` so they can
+return to the editor when the user confirms or cancels. The SceneManager itself is a singleton — there is only
 one `active_scene` at a time, and only that scene receives events.
 
 ## EVENT_HANDLERS Dict Construction
 
-The `EVENT_HANDLERS` dict is built once during `GameEngine.__init__()` by
-`initialize_event_handlers()`. This pre-computation avoids per-event
+The `EVENT_HANDLERS` dict (a class attribute of `GameEngine`) is built once during
+`GameEngine.__init__()` by `initialize_event_handlers()`. This pre-computation avoids per-event
 if/elif chains, giving O(1) dispatch.
 
 ### How it's built
@@ -2523,16 +2582,17 @@ list of pygame event type constants and maps every one to the corresponding
 | `KEYBOARD_EVENTS` | `KEYDOWN`, `KEYUP` | `process_keyboard_event` |
 | `MOUSE_EVENTS` | `MOUSEMOTION`, `MOUSEBUTTONDOWN`, `MOUSEBUTTONUP`, `MOUSEWHEEL` | `process_mouse_event` |
 | `JOYSTICK_EVENTS` | `JOYAXISMOTION`, `JOYBUTTONDOWN`, `JOYBUTTONUP`, ... | `process_joystick_event` |
-| `WINDOW_EVENTS` | `WINDOWCLOSE`, `WINDOWRESIZED`, `WINDOWMOVED`, ... | `process_window_event` |
+| `WINDOW_EVENTS` | `WINDOWCLOSE`, `WINDOWRESIZED`, `WINDOWMOVED`, ... | `process_window_event` (`WINDOWTAKEFOCUS`, `WINDOWDISPLAYCHANGED`, `WINDOWICCPROFCHANGED` unhandled) |
 | `DROP_EVENTS` | `DROPBEGIN`, `DROPFILE`, `DROPTEXT`, `DROPCOMPLETE` | `process_drop_event` |
-| `TOUCH_EVENTS` | `FINGERDOWN`, `FINGERMOTION`, `FINGERUP`, `MULTIGESTURE` | `process_touch_event` |
-| `GAME_EVENTS` | `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`, `QUIT`, `ACTIVEEVENT`, ... | `process_game_event` |
+| `TOUCH_EVENTS` | `FINGERDOWN`, `FINGERMOTION`, `FINGERUP`, `MULTIGESTURE` | `process_touch_event` (`MULTIGESTURE` unhandled) |
+| `GAME_EVENTS` | every other supported type, plus `FPSEVENT`, `GAMEEVENT`, `MENUEVENT` (`QUIT`, `ACTIVEEVENT`, `USEREVENT`, ...) | `process_game_event` |
 | `APP_EVENTS` | `APP_TERMINATING`, `APP_LOWMEMORY`, ... | `process_app_event` |
 | `MIDI_EVENTS` | `MIDIIN`, `MIDIOUT` | `process_midi_event` |
-| `TEXT_EVENTS` | `TEXTEDITING`, `TEXTINPUT` | `process_text_event` |
+| `TEXT_EVENTS` | `TEXTEDITING`, `TEXTINPUT` | `process_text_event` (both passed to `process_unimplemented_event`) |
 
-The result is a flat dict mapping every pygame event type integer to a single
-handler method — no if/elif logic needed at runtime.
+The result is a flat dict mapping every pygame event type integer to its
+category's handler method; each `process_*_event` then picks the manager method for
+the type and returns whether it handled it.
 
 ### How it dispatches at runtime
 
@@ -2553,7 +2613,10 @@ EVENT_HANDLERS = {
     # ... one entry per pygame event type
 }
 
-# Runtime dispatch — O(1), no if/elif:
-handler = EVENT_HANDLERS[event.type]
-handler(event)
+# Runtime dispatch in GameEngine.process_events — O(1) lookup:
+event_was_handled = False
+if event.type in GameEngine.EVENT_HANDLERS:
+    event_was_handled = bool(GameEngine.EVENT_HANDLERS[event.type](event))
+if not event_was_handled:
+    self.process_unimplemented_event(event)
 ```

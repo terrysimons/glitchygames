@@ -24,7 +24,7 @@ sequenceDiagram
     IA->>AP: ArgumentParser("GameName version X.Y")
     IA->>ENGINE: GameEngine.args(parser)
 
-    Note over ENGINE: Adds "Graphics Options" group<br/>15 arguments,<br/>and "Diagnostics Options"<br/>16 arguments
+    Note over ENGINE: Adds "Graphics Options" group<br/>15 arguments,<br/>and "Diagnostics Options"<br/>16 arguments (2 hidden:<br/>replay restart internals)
 
     ENGINE->>MGR: AppEventManager.args(parser)
     Note over MGR: Adds "App Options" group<br/>(empty, reserved)
@@ -105,6 +105,7 @@ flowchart TD
             D2["--debug-overlay"]
             D3["--record-trace, --replay-trace, --replay-fps"]
             D4["--audit, --replay-digest, --replay-pause-at-frame"]
+            D6["--compare-processing, --max-processing-slowdown, --rebaseline"]
             D5["--headless"]
         end
 
@@ -203,8 +204,8 @@ class MyGame(Scene):
 ### Pattern: Game with Custom Options
 
 ```python
-class JoystickDemo(Scene):
-    NAME = 'Joystick Demo'
+class TimedDemo(Scene):
+    NAME = 'Timed Demo'
     VERSION = '1.0'
 
     @classmethod
@@ -275,6 +276,7 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 | `--screen-shake-intensity` | `float` | `1.0` | Screen shake strength, 0.0 (off) to 1.0 |
 | `--rumble-intensity` | `float` | `1.0` | Controller rumble strength, 0.0 (off) to 1.0 |
 | `--live-voice-pool` | `int` | `4` | Mixer channels reserved for real-time synth voices |
+| `--default-background` | `choice` | `test-pattern` | Background of a scene that sets none: `test-pattern` (the TV test pattern) or `channel-3` (the channel 3 blue screen) |
 
 **`--video-driver` choices by platform:**
 
@@ -300,6 +302,9 @@ recorded, replayed or diagnosed, whatever the game. They change no game settings
 | `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
 | `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
 | `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
+| `--compare-processing` | `store_true` | `False` | With `--replay-trace --headless`: report how each frame's processing time compares with the recording's |
+| `--max-processing-slowdown` | `PERCENT` | `None` | With `--replay-trace --headless` (implies `--compare-processing`): exit 8 when a matched replay took more than PERCENT longer |
+| `--rebaseline` | `NEW` | `None` | With `--replay-trace OLD --headless`: replay OLD on the current code without stopping at divergences and write the run's recording to NEW |
 | `--replay-pause-at-frame` | `N` (non-negative int) | `None` | With `--replay-trace`, watched: skip the start screen, rebuild frames 0 to N - 1 unpresented, then pause with frame N next (what step back restarts with; ignored with `--headless`; [step back](gameplay_replay.md#step-back-home-and-d)) |
 | `--headless` | `store_true` | `False` | Run on SDL's dummy video and audio drivers (no window, no sound); a replay also runs unpaced and prints its report to stdout ([headless runs](gameplay_replay.md#headless-runs-headless)) |
 
@@ -327,7 +332,7 @@ Added by `FontManager.args()` in `glitchygames/fonts/font_manager.py`.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--font-name` | `str` | `arial` | Font name |
+| `--font-name` | `str` | `Vera` | Font name: the bundled `Vera`, `VeraBd`, `VeraIt` or `VeraBI`; any other name is looked up among the system's fonts |
 | `--font-size` | `int` | `14` | Font size in points |
 | `--font-bold` | `store_true` | `False` | Bold font |
 | `--font-italic` | `store_true` | `False` | Italic font |
@@ -387,7 +392,8 @@ Other games in the project demonstrate the pattern:
 ## What `--help` Looks Like
 
 When a user runs `uv run bitmappy --help`, argparse produces output structured
-like this (argument groups appear in registration order):
+like this (argument groups appear in registration order; argparse leaves out groups with no
+arguments, such as App Options):
 
 ```
 usage: Bitmappy version X.Y [-h] [-f TARGET_FPS] [...]
@@ -410,6 +416,7 @@ Graphics Options:
   --windows-timer-1ms   on Windows, request 1ms system timer resolution
   --random-seed         master seed for every engine random stream (...)
   --screen-shake-intensity, --rumble-intensity, --live-voice-pool
+  --default-background  the background of a scene that sets none (...)
   --video-driver
 
 Diagnostics Options:
@@ -420,21 +427,16 @@ Diagnostics Options:
                         show the debug overlay at startup (F3 toggles, F4 cycles panels)
   --record-trace PATH   record the session (...)
   --replay-trace PATH   replay a --record-trace recording exactly (...)
-  --replay-fps, --audit, --no-audit, --replay-digest PATH, --replay-pause-at-frame N
+  --replay-fps, --audit, --no-audit, --compare-processing, --max-processing-slowdown PERCENT,
+  --replay-pause-at-frame N, --rebaseline NEW, --replay-digest PATH
                         (replay options)
   --headless            run on SDL's dummy video and audio drivers: no window, no sound (...)
-
-App Options:
-
-Sound Mixer Options:
 
 Controller Options:
   --input-mode          Which gamepads the game sees (default: auto, ...)
 
-Drop Options:
-
 Font Options:
-  --font-name
+  --font-name           Font to use (default: the bundled Vera; ...)
   --font-size
   --font-bold
   --font-italic
@@ -446,18 +448,6 @@ Game Options:
   -l, --log-level       set the logging level
   --no-unhandled-events fail on unhandled events
   -p, --profile         enable profiling
-
-Joystick Options:
-
-Keyboard Options:
-
-Midi Options:
-
-Mouse Options:
-
-Touch Options:
-
-Window Options:
 
 Bitmappy vX.Y Options:
   -v, --version         print the game version and exit

@@ -3,6 +3,16 @@
 > Moved from the repository root (`FUTURE_FEATURES.md`, previously untracked) into `plans/` on
 > 2026-10-18. Newer plans: `plans/engine-audit.md` (engine roadmap), `plans/future-work.md`
 > (backlog) and `plans/2026-10-18-level-tools.md` (Glitchy Studio).
+>
+> Paths: `glitchygames/tools/bitmappy.py` and the other editor modules named below were moved into
+> the `glitchygames/bitmappy/` package by the Bitmappy refactor (#87, `4bdc966c`): the editor scene
+> is `bitmappy/editor.py`, the film strip `bitmappy/film_strip*.py`, `canvas_interfaces.py` and
+> `onion_skinning.py` keep their names, the undo/redo manager and operation trackers are
+> `bitmappy/history/undo_redo.py` and `history/operations.py`, the multi-controller manager and
+> controller selection `bitmappy/controllers/manager.py` and `controllers/selection.py`, and the
+> visual collision manager `bitmappy/indicators/collision.py`. `glitchygames/tools/` now holds only
+> the ASCII renderer (`ascii_renderer.py`, `charmap.py`, `terminal_utils.py`). Other
+> `glitchygames/tools/...` files listed under planned features were never created.
 
 This document tracks planned future features for the GlitchyGames project. Features are listed in priority order and will be implemented as time and priorities allow.
 
@@ -29,6 +39,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Implement performance warnings (FPS drops, memory usage)
   - Track sprite count and memory usage
   - Estimate CPU usage from frame times
+- **Progress**: the FPS overlay is done: the debug overlay's performance panel
+  (`glitchygames/debug/`, `--debug-overlay` / F3) shows FPS, frame time, the 1% low and a
+  frame-time graph. Warnings, sprite count and memory usage are still open.
 
 ### 3. Enhanced Metrics Collection
 - **Description**: Comprehensive performance metrics beyond basic FPS tracking
@@ -86,7 +99,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Low
 - **Implementation**:
   - Performance bottleneck visualization
-  - Frame time graph overlay
+  - Frame time graph overlay (done: the debug overlay's performance panel, `glitchygames/debug/panels.py`)
   - Performance hotspot identification
   - Memory leak detection
 
@@ -129,7 +142,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 11. Event Manager Naming Convention Refactor
 - **Description**: Refactor all event managers to use consistent `FooEventManager` naming convention instead of `FooManager`
 - **Use Case**: Improves code clarity and consistency by making it explicit that these classes manage events
-- **Status**: Planned
+- **Status**: Planned. The rename is done: every manager in `glitchygames/events/` is a
+  `*EventManager` (voice: `VoiceEventManager`; no `VoiceRecognitionManager` remains). The Vosk
+  backend item below is still open
 - **Priority**: Medium
 - **Implementation**:
   - Renamed to EventManagers:
@@ -226,7 +241,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   nondeterminism; watching and stepping through recordings; attract-mode demos, instant replays
   and ghosts in games
 - **Status**: ✅ COMPLETED (branch `feature/gameplay-replay`: Part 1 2026-10-19, Parts 2 and 3
-  2026-10-20; final whole-branch review clean 2026-10-20; not yet pushed)
+  2026-10-20; final whole-branch review clean 2026-10-20; merged 2026-10-22 as PR #95, `bb51239d`)
 - **Priority**: High
 - **Implementation**:
   - The doors: `glitchygames/sources.py` (leaf registry), `LiveSources`, `RecordingSources`,
@@ -254,7 +269,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   #6 and #15)
 - **Use Case**: Games no longer write per-sprite camera loops or culling; shake, snapping,
   culling and follow have one place in the engine; frame statistics match what the loop did
-- **Status**: ✅ COMPLETED (branch `feature/engine-world-space`, 2026-10-18)
+- **Status**: ✅ COMPLETED (branch `feature/engine-world-space`, 2026-10-18; merged 2026-10-22 as PR #94, `cd5e5f97`)
 - **Priority**: High
 - **Implementation**:
   - `glitchygames/world.py`: `CoordinateSpace`, `WorldPositioned`, `hidden`,

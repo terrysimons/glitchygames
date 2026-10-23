@@ -403,7 +403,7 @@ Note on the 1% low test: with 500 frames of 0.01 s the window total is exactly 5
 
 **Files:**
 - Modify: `glitchygames/scenes/scene.py` (`SceneManager.__init__` guard, `game_engine` setter, `_update_frame_services`, `_present_frame`, new `on_key_down_event`), `glitchygames/engine/game_engine.py` (Graphics Options: `--debug-overlay`), `CLAUDE.md`, `plans/engine-audit.md`
-- Test: `tests/debug/test_scene_manager_overlay.py` (real surfaces), the engine argument test file
+- Test: `tests/debug/test_scene_manager_overlay.py` (real surfaces; as built: `tests/debug/test_manager_overlay.py`), the engine argument test file
 
 **Interfaces:**
 - Consumes: `DebugOverlay`, `DebugOverlay.draw(...)`.

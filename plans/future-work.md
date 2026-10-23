@@ -67,7 +67,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `glitchygames/sprites/animated.py` (loader), `glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
-| `FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels | `glitchygames/bitmappy/history/commands.py:~512` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). |
+| ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
 | Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
 | The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
 | PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `glitchygames/examples/paddleslap.py` | Pre-existing, self-correcting next frame. |
@@ -86,8 +86,9 @@ local branches are deleted. The decisions made on the way, for the record:
 - **Level tools / Glitchy Studio (#11):** `plans/2026-10-18-level-tools.md` and sub-plans A–E
   (tilemap format with object layers, Mapsmith, Tilesmith, Bitmappy updates, Galimore import). Each
   needs a brainstormed spec before implementation.
-- BUGS.md #19 (ruff PLW0717, overly broad `try` blocks; rule temporarily disabled) is still active:
-  62 sites left, all in Bitmappy (see Lint ignores cleanup below).
+- ~~BUGS.md #19 (ruff PLW0717, overly broad `try` blocks; rule temporarily disabled) is still active:
+  62 sites left, all in Bitmappy (see Lint ignores cleanup below).~~ **Done** 2026-10-22
+  (`8dc652f2`): every site narrowed, the ignore removed, BUGS.md #19 resolved.
 
 ## World space follow-ups (feature/engine-world-space final review)
 
@@ -262,7 +263,7 @@ Follow-ups (not in any plan yet):
   joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
   (`ControllerEventManager` keys controllers by device index but routes events by instance id;
   resolved 2026-10-22 with #181),
-  #72 (`MultiControllerEnhancements` stores a duration where a timestamp is expected), #73
+  #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected), #73
   (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False),
   #75 (`pygame_needs_fastevents` compares major and minor separately).
 
@@ -514,16 +515,22 @@ only replays; Part 2 Task 1).
   `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
   Phase 3 done 2026-10-22 (ignore removed); phase 4: 151 of 152 typed, the last (`events/base.py`'s
   `__getattr__`) waiting on the typed events plan (see the plan); phase 5 done (all logging lazy,
-  ignore removed).
+  ignore removed). Phase 4 done 2026-10-22 too (`a8cbd953`): the global `ANN401` ignore is gone,
+  and `HashableEvent.__getattr__` keeps a per-file ignore with its reason.
 - ~~**Unified input devices**~~ **Done 2026-10-22:**
   [`plans/2026-10-22-unified-input-devices.md`](2026-10-22-unified-input-devices.md): one
   `InputDevice` per physical device so joysticks and controllers run together (BUGS.md #181
   resolved). Follow-ups in BUGS.md #184 (rumble through `InputDevice`, a playback scope's device
   events, a hardware check).
-- **Typed events** (proposed 2026-10-22, for review):
+- ~~**Typed events** (proposed 2026-10-22, for review)~~ **Done 2026-10-22** (`a8cbd953`):
   [`plans/2026-10-22-typed-events.md`](2026-10-22-typed-events.md): per-family `HashableEvent`
-  subclasses so handlers get real field types.
-- **Tests that never run in CI** (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
+  subclasses so handlers get real field types (`glitchygames/events/base.py`; events immutable).
+- ~~**Tests that never run in CI**~~ **Done** by 2026-10-22 (`d1afcb9b`, `6861d0c5`, `80b1900f`,
+  `1411160d`; no `pytest.skip` is left in those files): the placeholders were rewritten or removed, the voice and mixed-content tests run,
+  `test_transparency_fix.py` is deleted, and the indicator update test runs on one thread (the
+  collision manager's callers never call it off the main thread, so no BUGS.md entry); only the
+  OS-specific skips in the last item remain, as intended. The audit as written
+  (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
   only, nothing changed). Every collected test runs in CI, but these skip on every CI OS or are
   never collected:
   - 18 Bitmappy placeholders that skip as not implemented: frame insertion and spacing

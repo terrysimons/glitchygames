@@ -31,7 +31,7 @@ uv sync --upgrade --all-extras --all-groups
 
 ### Testing
 ```bash
-# Run all tests with coverage (99% minimum required). Outside CI this also runs the suite on
+# Run all tests with coverage (100% minimum required). Outside CI this also runs the suite on
 # the native SDL driver (macOS cocoa) and fails on any frame that differs (see Testing Guidelines)
 pytest
 
@@ -62,8 +62,8 @@ ruff check --select I --fix glitchygames tests scripts noxfile.py
 # Run full ruff linting
 ruff check glitchygames tests scripts noxfile.py
 
-# Type checking with pyright
-pyright
+# Type checking with basedpyright (configured in pyrightconfig.json)
+basedpyright
 ```
 
 ### Nox Sessions (Automated Testing Pipeline)
@@ -101,6 +101,9 @@ nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, s
 nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
+# --- Code quality ---
+nox -s code-complexity     # wily complexity diff; `-- --graphs` regenerates docs/quality/, `-- --rank` ranks files
+
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)
 nox -s bandit-scan         # Run bandit only
@@ -120,7 +123,8 @@ nox -s docs-deploy         # Publish the docs to https://terrysimons.github.io/g
 # Run with default settings
 uv run bitmappy
 
-# Legacy pygame timing backend (the fast backend is the default)
+# Legacy pygame timing backend (the default is auto: the fast backend with this machine's
+# measured sleep delay; see Frame Pacing)
 uv run bitmappy --timer-backend=pygame
 
 # Custom target FPS
@@ -194,8 +198,9 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `tests/signal_handlers.py` (autouse fixture) restores signal handlers after every test
 
 **Frame Pacing** (`glitchygames/timing.py`)
-- Two timer backends:
-  - `FastTimer` (default): High-resolution `time.perf_counter_ns()` with sleep+spin hybrid: it
+- Two timer backends (`--timer-backend auto`, the default, is `FastTimer` with a measured sleep
+  model, below):
+  - `FastTimer`: High-resolution `time.perf_counter_ns()` with sleep+spin hybrid: it
     sleeps so it wakes `sleep_granularity_ns` (1 ms) before the deadline, then spins the rest
   - `PygameTimer`: Legacy pygame-based timing (whole milliseconds); select with `--timer-backend=pygame`
 - A sleep's delay is modelled as a constant plus a fraction of its length (`SleepModel`): macOS
@@ -688,7 +693,7 @@ display before every present. The test guard judges what the window shows
 - `FocusableSingletonBitmappySprite`: UI widgets with keyboard focus
 
 **Animation** (`glitchygames/sprites/animated.py`):
-- `FrameManager`: Centralized frame state with observer pattern
+- `FrameManager` (`glitchygames/sprites/frame.py`): Centralized frame state with observer pattern
 - Multiple named animation sequences per sprite
 - Per-frame timing overrides
 - TOML format with RGBA/RGB support (magenta key: 255,0,255)
@@ -700,9 +705,12 @@ trimmed, `collision/bounds.py`, measured every query so redrawn images are fine)
 left). `AnimatedSprite.common_hitbox_x_range()` is the x-span every frame shares (use it for
 standing support so a wider frame cannot catch a ledge), and
 `collision.layers.collision_rect_offset(sprite)` places a sprite so its collision rect is flush
-against a wall. Caveat: TOML `AnimatedSprite`s that are not converted to alpha keep magenta as
-opaque pixels, so the visible-pixel default trims nothing for them; give them a `[sprite.hitbox]`
-(e.g. the union of their frames' non-magenta bounds, as `ghosty.toml` does).
+against a wall. Caveat: a TOML `AnimatedSprite`'s visible-pixel default is measured on its
+loaded frame images (`SpriteFrame.opaque_bounds()`), which keep magenta as opaque pixels
+(`pixel_utils.create_alpha_surface` stores it at alpha 255), so it trims nothing for them, though
+the drawn `image` is keyed correctly (#133: SRCALPHA for frames with translucent pixels, a magenta
+colorkey otherwise); give them a `[sprite.hitbox]` (e.g. the union of their frames' non-magenta
+bounds, as `ghosty.toml` does).
 Frames of different shapes: draw walkers bottom-aligned, or set `AnimatedSprite.frame_anchor`
 (`FrameAnchor`: edge names align one axis, CENTER/corners both; `[sprite] frame_anchor =
 "bottom"`). The engine adds `draw_offset` to `rect` for world-space sprites; a screen-space sprite
@@ -769,7 +777,7 @@ Features:
   child run, the usual workers split between them (native two thirds), then compares every frame
   each test presented and fails on a difference, re-running the differing tests on both drivers
   to save PNGs and a difference image under `test-results/driver-comparison/pytest/` (the summary
-  names the files and the native run's log). Coverage and the 99% gate come from the dummy run.
+  names the files and the native run's log). Coverage and the 100% gate come from the dummy run.
   Off (dummy only, said in the summary) in CI (`CI=true`), with `--dummy-only`, when you set
   `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` (that driver alone), and on Linux without a display. A test
   whose frames legitimately differ between runs or drivers (measured frame times, the live
@@ -789,7 +797,7 @@ Features:
   body, and a test whose last frame is entirely black fails as a rendering bug (opt-out:
   `@pytest.mark.black_frame_expected(reason=...)`, only for a frame black by definition). Assert
   untouched pixels with `canvas_color_at(x=..., y=...)`, never as black
-- Coverage minimum: 99% (each remaining miss is audited: dead code is removed, deliberate defensive lines carry a `# pragma: no cover` with the reason)
+- Coverage minimum: 100% (each remaining miss is audited: dead code is removed, deliberate defensive lines carry a `# pragma: no cover` with the reason)
 - Run linting after modifying files
 - Check for real bugs before assuming test failures are test issues
 
@@ -798,7 +806,7 @@ Features:
 - Python 3.14 target
 - Ruff for linting/formatting (100 char line length)
 - Google-style docstrings
-- Pyright for type checking (lenient configuration)
+- basedpyright (and ty) for type checking (`pyrightconfig.json`)
 - Import ordering enforced by ruff
 
 ## Known Bugs
@@ -809,9 +817,10 @@ Features:
 
 **Supported Format**: TOML only (YAML and INI support removed)
 
-**Sprite Loading** (`glitchygames/sprites/__init__.py`):
-- `SpriteFactory.load_sprite(filename)` - Automatic type detection
-- Supports static sprites (single frame) and animated sprites (multi-frame)
+**Sprite Loading** (`glitchygames/sprites/factory.py`, re-exported by `glitchygames.sprites`):
+- `SpriteFactory.load_sprite(filename=...)` - Automatic type detection
+- Supports static sprites (single frame) and animated sprites (multi-frame); both load as an
+  `AnimatedSprite` (a static one as a single frame)
 - TOML format with character-to-color mapping
 - Special magenta (255, 0, 255) used as transparency key
 
@@ -847,8 +856,10 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 
 **Multi-Controller System** (up to 4 simultaneous controllers):
 - Colors: Red (0), Green (1), Blue (2), Yellow (3)
-- Three modes: Film Strip, Canvas, Slider
-- Mode switching: L2 (Canvas), R2 (Film Strip), L2+R2 (Slider)
+- Modes: Film Strip, Canvas, and the R, G and B sliders (`ControllerMode`)
+- Mode switching (`ModeSwitcher.handle_trigger_input`): L2 steps forward (film strip -> canvas ->
+  R -> G -> B -> film strip), R2 steps back (B -> G -> R -> canvas -> film strip; nothing on the
+  film strip); L2 wins when both trigger together
 - Independent navigation and editing per controller
 - Visual collision avoidance for overlapping indicators
 - Comprehensive undo/redo including controller positions
@@ -889,8 +900,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 
 ## Important Notes
 
-- **Test Suite**: Migrating to TOML-only (see TEST_UPDATE_PLAN.md)
 - **Sprite Loading**: Use `SpriteFactory` not direct `BitmappySprite` for new code
-- **Event Managers**: May be renamed to `*EventManager` convention in future
-- **Coverage**: 99% minimum required (`--cov-fail-under` in pyproject.toml); no exclusions in configuration
-- **Documentation**: Architecture details in root .md files (ANIMATION_README.md, LOADER_README.md, etc.)
+- **Coverage**: 100% minimum required (`--cov-fail-under` in pyproject.toml); no exclusions in configuration
+- **Documentation**: Architecture details in `docs/architecture/` (the mkdocs site) and root .md files
+  (ANIMATION_README.md, LOADER_README.md, etc.)

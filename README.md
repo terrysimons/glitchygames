@@ -1,12 +1,12 @@
 # GlitchyGames Engine
 
-A Python 3.13 game engine built on Pygame with an event-driven architecture. Includes Bitmappy, a full-featured pixel art editor with animation support, AI sprite generation, and voice recognition.
+A Python 3.14 game engine built on Pygame with an event-driven architecture. Includes Bitmappy, a full-featured pixel art editor with animation support, AI sprite generation, and voice recognition.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.13+
+- Python 3.14+
 - [uv](https://docs.astral.sh/uv/) (recommended package manager)
 
 ### Installation
@@ -22,9 +22,6 @@ uv sync
 # Install with dev extras (testing, linting, type checking, security scanning)
 uv sync --extra dev
 
-# Install with API extras (FastAPI sprite server)
-uv sync --extra api
-
 # Install with documentation extras (MkDocs)
 uv sync --extra docs
 
@@ -36,9 +33,10 @@ uv sync --all-extras
 
 | Extra | Purpose |
 |-------|---------|
-| `dev` | pytest, ruff, pyright, bandit, safety, coverage, benchmarks |
-| `api` | FastAPI sprite server and client (uvicorn, httpx, apng, pillow) |
+| `dev` | nox, pytest (cov, xdist, mock, benchmark), hypothesis, ruff, basedpyright, ty, bandit, safety, pip-audit, deptry, vulture, wily, pyinstaller |
 | `docs` | MkDocs documentation generation |
+
+The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are core dependencies; the `api` extra is empty.
 
 ## Script Entrypoints
 
@@ -53,7 +51,7 @@ uv run bitmappy
 # Custom canvas size
 uv run bitmappy -s 64x64
 
-# High-precision timing backend
+# Timer backend without the measured sleep model (the default is auto)
 uv run bitmappy --timer-backend=fast
 
 # Custom target FPS
@@ -64,7 +62,7 @@ uv run bitmappy --target-fps=120
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-v`, `--version` | Print the version and exit | -- |
+| `-v`, `--version` | Print the version and exit (parsed but not implemented yet: BUGS.md #178, item 25) | -- |
 | `-s`, `--size` | Canvas size (e.g. `32x32`, `64x64`) | `32x32` |
 
 #### Keyboard Controls
@@ -80,11 +78,13 @@ uv run bitmappy --target-fps=120
 
 #### Controller Modes (L2/R2 switching)
 
-| Mode | Trigger | D-pad | A button | L1/R1 |
-|------|---------|-------|----------|-------|
-| Film Strip | R2 | Navigate frames | Select frame | Switch animations |
-| Canvas | L2 | Move cursor | Paint pixel | 8-pixel jumps |
-| Slider | L2+R2 | Adjust value | -- | Adjust by 8 |
+L2 steps forward through the modes (Film Strip -> Canvas -> R, G, B sliders -> Film Strip); R2 steps back (B -> G -> R -> Canvas -> Film Strip; R2 does nothing on the Film Strip).
+
+| Mode | D-pad | A button | L1/R1 |
+|------|-------|----------|-------|
+| Film Strip | Navigate frames | Select frame | Switch animations |
+| Canvas | Move cursor | Paint pixel | 8-pixel jumps |
+| R/G/B Slider | Adjust value | -- | Adjust by 8 |
 
 ### `glitchygames-server` -- Sprite API Server
 
@@ -101,7 +101,8 @@ uv run glitchygames-server
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Health check |
+| GET | `/` | API information (name, version, docs and health links) |
+| GET | `/health` | Health check (status, version, AI provider and model) |
 | POST | `/sprites/generate` | Generate a sprite from a text prompt |
 | POST | `/sprites/refine` | Refine an existing sprite with a new prompt |
 | POST | `/sprites/extract-frames` | Extract individual frames from an APNG |
@@ -135,7 +136,7 @@ uv run glitchygames-client --extract-frames animation.apng
 uv run glitchygames-client "red mushroom" -f toml
 
 # Use a specific AI model
-uv run glitchygames-client "blue dragon" --model anthropic:claude-sonnet-4-5
+uv run glitchygames-client "blue dragon" --animation-language-model anthropic:claude-sonnet-4-5
 ```
 
 #### Client Options
@@ -143,19 +144,24 @@ uv run glitchygames-client "blue dragon" --model anthropic:claude-sonnet-4-5
 | Flag | Description | Default |
 |------|-------------|---------|
 | `prompt` | Text description of the sprite to generate | -- |
-| `--server` | Server URL | `http://localhost:8000` |
-| `-f`, `--output-format` | Output format: `toml`, `png`, or both | both |
+| `--server-url` | Server URL | `http://localhost:8000` |
+| `-f`, `--output-format` | Output format: `toml` or `png` (repeat for both) | both |
 | `-o`, `--output-path` | Directory to save output files | -- |
-| `--width` | Sprite width in pixels | 16 |
-| `--height` | Sprite height in pixels | 16 |
+| `--width` | Sprite width in pixels (1-64) | the AI chooses |
+| `--height` | Sprite height in pixels (1-64) | the AI chooses |
 | `--frame-count` | Number of animation frames (1-32) | 1 |
 | `--film-strip-count` | Number of film strips (1-8) | 1 |
 | `--animation-duration` | Animation duration in seconds (0-60) | -- |
 | `--png-scale` | PNG output scale factor (1-10) | 1 |
-| `--model` | AI model override (aisuite format) | -- |
+| `--extract-scale` | Nearest-neighbor scale factor for extracted PNG frames | 8 |
+| `--animation-language-model` | AI model override (aisuite format) | -- |
 | `--extract-frames` | Extract frames from an APNG file | -- |
-| `-v` | Verbose output | -- |
-| `-q` | Quiet output | -- |
+| `-v`, `--verbose` | Verbose output | -- |
+| `-q`, `--quiet` | Quiet output | -- |
+
+### Example Games
+
+`uv run paddleslap`, `uv run brave-adventurer`, `uv run brave-adventurer-papyrus` and `uv run clockwork-keep` start the example games in `glitchygames/examples/`.
 
 ## Engine Options
 
@@ -165,13 +171,18 @@ All games built on GlitchyGames inherit these command-line options from the engi
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-f`, `--target-fps` | Cap the framerate (0 = unlimited) | `0.0` |
+| `-f`, `--target-fps` | Cap the framerate (0 = uncapped) | the game's `TARGET_FPS`, else `60.01` |
 | `--fps-log-interval-ms` | How often to log the FPS counter in milliseconds | `1000` |
 | `-w`, `--windowed` | Run in windowed mode | `True` |
 | `-r`, `--resolution` | Display resolution (e.g. `1024x768`) | `800x480` |
 | `--use-gfxdraw` | Use pygame.gfxdraw for rendering | `False` |
 | `--update-type` | Display update method: `update` (dirty rects) or `flip` (full screen) | `update` |
 | `--video-driver` | SDL video driver override (platform-specific) | auto |
+| `--random-seed` | Master seed for every engine random stream | a random 64-bit seed |
+| `--screen-shake-intensity` | Screen shake strength, 0.0 (off) to 1.0 | `1.0` |
+| `--rumble-intensity` | Controller rumble strength, 0.0 (off) to 1.0 | `1.0` |
+| `--live-voice-pool` | Mixer channels reserved for real-time synth voices | `4` |
+| `--default-background` | Background of a scene that sets none: `test-pattern` or `channel-3` | `test-pattern` |
 
 #### Platform-Specific Video Drivers
 
@@ -179,6 +190,7 @@ All games built on GlitchyGames inherit these command-line options from the engi
 |----------|-------------------|
 | Linux | `wayland`, `x11`, `dga`, `fbcon`, `directfb`, `ggi`, `vgl`, `svgalib`, `aalib` |
 | Windows | `windib`, `directx` |
+| macOS | none (the option offers no choices) |
 
 ### Timer / Frame Pacing Options
 
@@ -187,10 +199,22 @@ All games built on GlitchyGames inherit these command-line options from the engi
 | `--timer-backend` | Timer backend: `auto` (fast, with this machine's sleep delay measured so each sleep wakes in time), `fast` (assumes sleeps wake on time) or `pygame` | `auto` |
 | `--sleep-granularity-ns` | How long before each frame deadline the fast backend is to wake from its sleep and spin, in nanoseconds (0 = spin-only) | `1000000` (1 ms) |
 | `--windows-timer-1ms` | Request 1 ms system timer resolution via WinMM (Windows only) | `False` |
-| `--log-timer-jitter` | Log frame pacing jitter statistics (p50/p95/p99/max) | `False` |
-| `--perf-trim-percent` | Percent of frames to trim from FPS reporting (top and bottom) | `5.0` |
 
-The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid for tighter frame pacing than pygame's built-in `pygame.time.delay`.
+The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid for tighter frame pacing than pygame's built-in timing; `auto` also sizes each sleep with this machine's measured sleep delay.
+
+### Diagnostics Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--log-timer-jitter` | Log frame pacing jitter statistics periodically | `False` |
+| `--perf-trim-percent` | Percent of frames to trim from FPS reporting (top and bottom) | `5.0` |
+| `--fps-histogram` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` | `equal-range` |
+| `--debug-overlay` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) | `False` |
+| `--headless` | Run on SDL's dummy video and audio drivers (no window, no sound) | `False` |
+| `--record-trace PATH` | Record the session to a gzip JSON Lines trace for later replay | off |
+| `--replay-trace PATH` | Replay a recording through the engine, comparing every frame | off |
+
+The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`, `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`) are described in [Gameplay Recording and Replay](docs/architecture/gameplay_replay.md).
 
 ### Game Options
 
@@ -199,6 +223,14 @@ The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid 
 | `-l`, `--log-level` | Logging level: `debug`, `info`, `warning`, `error`, `critical` | `info` |
 | `--no-unhandled-events` | Fail on unhandled events (used in testing) | `False` |
 | `-p`, `--profile` | Enable cProfile profiling | `False` |
+
+### Font Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--font-name` | Font to use: the bundled `Vera`, `VeraBd`, `VeraIt`, `VeraBI`, or a system font | `Vera` |
+| `--font-size`, `--font-bold`, `--font-italic`, `--font-antialias`, `--font-dpi` | Font settings | -- |
+| `--font-system` | `freetype` or `pygame` | `freetype` |
 
 ### Controller Options
 
@@ -242,7 +274,7 @@ The model string is formatted as `{provider}:{model}` for aisuite (e.g. `anthrop
 
 ### Audio Backend
 
-The engine uses pygame's mixer for audio playback, pre-initialized at 22050 Hz, 16-bit stereo with a 1024-byte buffer. Audio device hotplug events (`AUDIO_DEVICE_ADDED`, `AUDIO_DEVICE_REMOVED`) are routed through the event system.
+The engine uses pygame's mixer for audio playback, started by `pygame.init()` at 44100 Hz, signed 16-bit stereo with a 512-sample buffer. Live synth voices (`glitchygames/audio/`) stream on a channel pool reserved at startup (`--live-voice-pool`). Audio device hotplug events (`AUDIO_DEVICE_ADDED`, `AUDIO_DEVICE_REMOVED`) are routed through the event system.
 
 ### Voice Recognition
 
@@ -250,10 +282,10 @@ Voice recognition provides hands-free command input in Bitmappy. It uses the `sp
 
 #### Microphone Backends (auto-detected, priority order)
 
-1. **Miniaudio** -- preferred backend using the `miniaudio` library. Captures at 16000 Hz mono, SIGNED16 format.
+1. **Miniaudio** -- preferred backend using the `miniaudio` library (`glitchygames/events/voice_miniaudio.py`). Captures at 16000 Hz mono, SIGNED16 format.
 2. **PortAudio** -- fallback, wraps `speech_recognition.Microphone` (requires PyAudio).
 
-The backend registry (`voice_backends/registry.py`) automatically probes available backends and selects the best one. If neither is available, voice recognition is disabled gracefully.
+The backend registry (`glitchygames/events/voice_backends/registry.py`) automatically probes available backends and selects the best one. If neither is available, voice recognition is disabled gracefully.
 
 #### Voice Commands in Bitmappy
 
@@ -267,8 +299,12 @@ Commands are registered dynamically. The voice manager runs a listening loop in 
 ### Testing
 
 ```bash
-# Run all tests with coverage (80% minimum required)
+# Run all tests with coverage (the minimum is --cov-fail-under in pyproject.toml). Outside CI this
+# also runs the suite on the native SDL driver and fails on any frame that differs
 uv run pytest
+
+# Fast iteration: the dummy driver only
+uv run pytest --dummy-only
 
 # Run specific test file
 uv run pytest tests/test_specific.py
@@ -296,7 +332,7 @@ uv run ruff check --select I --fix glitchygames tests scripts noxfile.py
 uv run ruff check glitchygames tests scripts noxfile.py
 
 # Type check
-uv run pyright
+uv run basedpyright
 ```
 
 ### Nox Sessions
@@ -311,9 +347,12 @@ nox -s format
 # Run tests with coverage reports (HTML, XML, JSON, LCOV)
 nox -s test
 
+# Type checkers (basedpyright + ty)
+nox -s static-analysis
+
 # Security scanning (bandit + safety)
-nox -s security_scan
+nox -s security-scan
 
 # Performance benchmarks
-nox -s performance_test
+nox -s performance-test
 ```

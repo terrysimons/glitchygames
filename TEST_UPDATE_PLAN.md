@@ -1,5 +1,10 @@
 # Test Suite Update Plan for TOML-Only Support
 
+> **Status: complete (historical).** The test suite is TOML-only: the only YAML/INI references left
+> are rejection tests (`tests/sprites/test_sprite_file_formats.py`). The test files named below
+> were since renamed or moved into `tests/<area>/` directories, and `test_toml_only_support.py`
+> no longer exists under that name.
+
 ## Overview
 After removing YAML and INI support from the sprite loading system, the test suite needs to be updated to reflect the new TOML-only functionality.
 

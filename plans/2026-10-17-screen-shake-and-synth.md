@@ -235,7 +235,7 @@ happens once, in `to_sound`.
 
 - Before deleting the old code, generate golden samples: run the current private generators with
   `SAMPLE_RATE` patched to 44100 and save each sound's mono samples as `.npy` files under
-  `tests/examples/brave_adventurer/golden/`.
+  `tests/examples/brave_adventurer/golden/` (as built: `tests/examples/brave_adventurer_golden/`).
 - Port the five sounds to toolkit calls with the same frequencies, durations, envelopes and peak
   (24000 / 32767), generated at the mixer rate. Audible result: an octave lower and twice as long
   as what plays today, which is what the code always described.
@@ -548,7 +548,7 @@ Kept here because the review ledger was a temporary workspace.
 - Task 12: loader does not coerce/validate optional numeric fields, malformed shapes, empty tones, volume/peak ranges; play docstring omits render ValueError
 - Task 13: stop() fade starts after the already-queued chunk (up to ~200 ms late); document
 - Task 13: continuity tests are heuristics; could compare to an uninterrupted render (atol 1e-9)
-- Task 13: `random_source or default_rng()` truthiness; integration test cleanup not exception-safe; underrun test assertion loose
+- Task 13: `random_source or default_rng()` truthiness (since fixed: `LiveVoice` tests `is not None` and falls back to `numpy_stream`); integration test cleanup not exception-safe; underrun test assertion loose
 - Task 13: never-started IDLE voices hold their channel until the owner is abandoned; abandoned owner cuts off a FADING voice
 - Task 14: respawn land test asserts <= 1, would not catch a spurious tween-triggered play
 - Task 14: jump allowed (now with sound) while respawning if the tween set on_ground

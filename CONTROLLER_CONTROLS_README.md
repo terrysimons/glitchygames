@@ -4,31 +4,32 @@ This document provides a comprehensive guide to all controller controls and feat
 
 ## 🎮 **Multi-Controller System Overview**
 
-The Bitmappy tool supports up to **4 simultaneous controllers** with independent navigation, editing, and visual distinction. Each controller is automatically assigned a unique color:
+The Bitmappy tool supports up to **4 simultaneous controllers** with independent navigation, editing, and visual distinction. Each controller is assigned a color in activation order (`MultiControllerManager.CONTROLLER_COLORS` in `glitchygames/bitmappy/controllers/manager.py`):
 
-- **Controller 0**: Red (255, 0, 0)
-- **Controller 1**: Green (0, 255, 0)
-- **Controller 2**: Blue (0, 0, 255)
-- **Controller 3**: Yellow (255, 255, 0)
+- **1st activation**: Red (255, 0, 0)
+- **2nd activation**: Green (0, 255, 0)
+- **3rd activation**: Blue (0, 0, 255)
+- **4th activation**: Yellow (255, 255, 0)
 
 ### **Controller Assignment Strategy**
-- **Color "Stealing"**: Users can "steal" a color by quickly re-initializing multiple times before someone else can get their preferred color
-- **Start Button Activation**: Press the Start button to activate your controller
+- **Assignment**: A connected controller is assigned a controller ID on its first button press
+- **Start Button Activation**: Press the Start button (in Film Strip Mode) to activate your controller and take the next color
+- **Color "Stealing"**: Colors follow activation order, and every activation takes the next color (wrapping after Yellow), so pressing Start again re-colors your controller
 - **Initial Position**: Controller indicators start on the first frame of the first filmstrip after activation
 
 ## 🔄 **Mode Switching System**
 
-Controllers can switch between different editing modes using analog triggers:
+Controllers step through the editing modes with the analog triggers (`ModeSwitcher.handle_trigger_input` in `glitchygames/bitmappy/controllers/modes.py`). A press is the trigger crossing 40% of its travel, with a 100 ms debounce:
 
 ### **Mode Switching Controls**
-- **L2 Trigger (Full Press)**: Switch to **Canvas Mode** for pixel editing
-- **R2 Trigger (Full Press)**: Switch to **Film Strip Mode** for frame navigation
-- **L2 + R2 (Both Full Press)**: Switch to **Slider Mode** for color adjustment
+- **L2 Trigger**: Step forward: Film Strip -> Canvas -> R Slider -> G Slider -> B Slider -> Film Strip
+- **R2 Trigger**: Step back: B Slider -> G Slider -> R Slider -> Canvas -> Film Strip (R2 does nothing in Film Strip Mode)
+- **L2 + R2 together**: L2 wins (there is no chord)
 
 ### **Available Modes**
 1. **Film Strip Mode** (Default) - Frame and animation navigation
 2. **Canvas Mode** - Pixel editing and painting
-3. **Slider Mode** - Color adjustment (R, G, B sliders)
+3. **Slider Mode** - Color adjustment (R, G and B slider modes)
 
 ## 📱 **Film Strip Mode Controls**
 
@@ -53,7 +54,7 @@ Controllers can switch between different editing modes using analog triggers:
 
 ### **Visual Indicators**
 - Colored triangle indicators show controller positions on film strips
-- **Collision Avoidance**: Film strips use the collision avoidance system to merge indicators together when multiple controllers are active on the same frame
+- **Shared Frames**: Indicators on the same frame are drawn side by side, 8 pixels apart and centered above it (the keyboard's white triangle first, then Red, Green, Blue, Yellow)
 - Independent scrolling and navigation per controller
 
 ## 🎨 **Canvas Mode Controls**
@@ -67,7 +68,7 @@ Controllers can switch between different editing modes using analog triggers:
 - **D-Pad Down**: Start continuous movement down (hold for acceleration)
 
 ### **Painting Controls**
-- **A Button (Cross)**: Start/continue painting (drag to paint continuously)
+- **A Button (Cross)**: Start/continue painting (drag to paint continuously; disabled while the selected frame is hidden)
 - **B Button (Circle)**: Undo operation
 - **X Button (Square)**: Redo operation (only when frame is visible)
 - **Y Button (Triangle)**: Toggle selected frame visibility on canvas
@@ -76,16 +77,14 @@ Controllers can switch between different editing modes using analog triggers:
 - **Left Shoulder (L1)**:
   - **Without A**: Jump 8 pixels left (horizontal fill direction)
   - **With A**: Paint 8 pixels left (horizontal fill direction)
-  - **Vertical Mode**: Jump 8 pixels up (vertical fill direction)
+  - **Vertical fill direction**: Jump (or, with A, paint) 8 pixels up
 - **Right Shoulder (R1)**:
   - **Without A**: Jump 8 pixels right (horizontal fill direction)
   - **With A**: Paint 8 pixels right (horizontal fill direction)
-  - **Vertical Mode**: Jump 8 pixels down (vertical fill direction)
+  - **Vertical fill direction**: Jump (or, with A, paint) 8 pixels down
 
-### **Fill Direction Controls**
-- **Y Button (Triangle)**: Toggle fill direction between HORIZONTAL and VERTICAL
-- **Left Stick Button**: Toggle fill direction (alternative)
-- **Right Stick Button**: Toggle fill direction (alternative)
+### **Fill Direction**
+- Each controller's fill direction is HORIZONTAL by default (`ControllerSelection.set_fill_direction`); no button toggles it yet
 
 ### **Visual Indicators**
 - 50% transparent colored squares show controller positions on canvas
@@ -94,9 +93,8 @@ Controllers can switch between different editing modes using analog triggers:
 
 ### **Canvas Rendering System**
 - **Selected Frame**: Always draws at full opacity on top of the canvas
-- **Onion Skinning**: May be enabled for easy back-and-forth comparison with other frames
-- **Triangle Button**: Use Y button (Triangle) to toggle onion skinning layers visibility
-- **Layer Management**: Switch to canvas mode to see active onion skinning layers
+- **Onion Skinning**: May be enabled for easy back-and-forth comparison with other frames (Y in Film Strip Mode toggles it for the selected frame)
+- **Triangle Button**: In Canvas Mode, Y hides or shows the selected frame so the onion skinning layers can be compared
 
 ## 🎨 **Slider Mode Controls**
 
@@ -112,10 +110,8 @@ Controllers can switch between different editing modes using analog triggers:
 - **Left Shoulder (L1)**: Start continuous decrease by 8 (hold for acceleration)
 - **Right Shoulder (R1)**: Start continuous increase by 8 (hold for acceleration)
 
-### **Editing Controls**
-- **B Button (Circle)**: Undo operation
-- **X Button (Square)**: Redo operation (only when frame is visible)
-- **A Button (Cross)**: No action in slider mode
+### **Other Buttons**
+- **A, B, X, Y**: No action in slider mode (switch modes to undo or redo)
 
 ### **Available Sliders**
 - **R Slider**: Red color component (0-255)
@@ -133,14 +129,16 @@ Controllers can switch between different editing modes using analog triggers:
 
 ### **General Controls**
 - **Ctrl+Z**: Undo operation
-- **Ctrl+Shift+Z**: Redo operation
+- **Ctrl+Shift+Z** or **Ctrl+Y**: Redo operation
+- **Ctrl+C / Ctrl+V**: Copy / paste the selected frame
+- **Ctrl+Shift+Arrow Keys**: Pan the canvas
 - **O**: Toggle global onion skinning on/off
 - **Space**: Toggle animation play/pause
 
 ### **Navigation Controls**
-- **Arrow Keys**: Navigate frames and animations
+- **Left / Right Arrows**: Previous / next frame
+- **Up / Down Arrows**: Previous / next animation (previous / next slider while a controller is in Slider Mode)
 - **0-9**: Select specific frame (0-9)
-- **Tab**: Switch between controllers (if implemented)
 
 ## 🔄 **Undo/Redo System**
 
@@ -148,7 +146,7 @@ Controllers can switch between different editing modes using analog triggers:
 - **Position Changes**: Undo/redo controller position movements
 - **Mode Changes**: Undo/redo controller mode switches
 - **Smart Tracking**: Continuous movements tracked as single operations
-- **Controller-Specific**: Each controller maintains independent undo history
+- **Shared History**: All controllers and the keyboard share one undo/redo history
 
 ### **Operation Types**
 - **Pixel Changes**: Undo/redo pixel-level edits
@@ -204,30 +202,29 @@ Controllers can switch between different editing modes using analog triggers:
 ## 📋 **Quick Reference**
 
 ### **Mode Switching**
-- **L2**: Canvas Mode
-- **R2**: Film Strip Mode
-- **L2+R2**: Slider Mode
+- **L2**: Next mode (Film Strip -> Canvas -> R -> G -> B -> Film Strip)
+- **R2**: Previous mode (B -> G -> R -> Canvas -> Film Strip)
 
 ### **Common Controls**
 - **A**: Select/Paint (mode dependent)
-- **B**: Undo
-- **X**: Redo
+- **B**: Undo (Film Strip and Canvas modes)
+- **X**: Redo (Film Strip and Canvas modes, while the selected frame is visible)
 - **Y**: Toggle features (mode dependent)
 - **D-Pad**: Navigation/Movement
 - **Shoulders**: Advanced navigation/Painting
 
-### **Controller Colors**
-- **Controller 0**: Red
-- **Controller 1**: Green
-- **Controller 2**: Blue
-- **Controller 3**: Yellow
+### **Controller Colors** (in activation order)
+- **1st**: Red
+- **2nd**: Green
+- **3rd**: Blue
+- **4th**: Yellow
 
 ## 🔧 **Technical Details**
 
 ### **System Requirements**
 - **Controllers**: Up to 4 simultaneous controllers
 - **Input Support**: D-pad, analog sticks, triggers, face buttons, shoulder buttons
-- **Visual System**: 50% transparent indicators with collision avoidance
+- **Visual System**: Triangles (film strip), 50% transparent squares (canvas) and circles (sliders), with collision avoidance
 - **Undo/Redo**: Comprehensive operation tracking and history management
 
 ### **Performance Considerations**
