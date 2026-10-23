@@ -55,6 +55,18 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Network performance (for multiplayer)
   - GPU utilization (if available)
 
+### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO
+- **Description**: Historical metrics from what recordings store (frame performance by run and
+  commit, a behaviour-change map from the content hashes, pacing steadiness, machine
+  comparison, gameplay analytics with game-defined stat events), richer per-frame measurements
+  (step timings, GC pauses and memory, drawing cost, audio health), run provenance (git commit,
+  machine state, a per-run summary in the header), a run ledger beyond 10 runs with graphs on
+  the docs site, and frame headroom: measured, then spent on AI and GPU work through a
+  spare-time queue whose results reach the game through the doors (recorded, served in replays)
+- **Status**: TODO: design in `plans/2026-10-23-recording-metrics.md` (Parts 0-7, all chosen by
+  the user 2026-10-23; open decisions listed there)
+- **Priority**: High (requested 2026-10-23)
+
 ## Medium Priority Features
 
 ### 4. Performance Profiling Integration
@@ -232,17 +244,6 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
-### 42. Mr. Muncher Remade: A Maze Chase at the Movies ✅ COMPLETED
-- **Description**: The converted toy was not fun (12 px/s movement, an open field with two
-  wall pieces, munchers wandering at random, discs overlapping walls, a catch resetting only the
-  player, no end to a won game; a perfect bot cleared 87 of 211 dots in 10 minutes). It is now a
-  complete, original maze-chase game with a cinema theme (2026-10-23)
-- **Status**: ✅ COMPLETED (2026-10-23)
-- **Implementation** (`glitchygames/examples/mr_muncher/`):
-  - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
-    connected; tests check all four), tunnels at the top and bottom, a house with a door
-  - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is
-    taken at the first open junction; reversing is immediate); four munchers with their own
 ### 44. Golden Replays Exercise Every Control, Pause and Quit ✅ COMPLETED
 - **Description**: Q did nothing in four games and no golden replay noticed (BUGS.md #202): every
   session ended with the recorder's own `quit_requested`, and Clockwork Keep's never paused.
@@ -278,6 +279,17 @@ This document tracks planned future features for the GlitchyGames project. Featu
   (buttons, axes past their thresholds, Mr. Muncher's hat), and gamepad matching in the test
   (then shrink `UNEXERCISED_CONTROLS`)
 
+### 42. Mr. Muncher Remade: A Maze Chase at the Movies ✅ COMPLETED
+- **Description**: The converted toy was not fun (12 px/s movement, an open field with two
+  wall pieces, munchers wandering at random, discs overlapping walls, a catch resetting only the
+  player, no end to a won game; a perfect bot cleared 87 of 211 dots in 10 minutes). It is now a
+  complete, original maze-chase game with a cinema theme (2026-10-23)
+- **Status**: ✅ COMPLETED (2026-10-23)
+- **Implementation** (`glitchygames/examples/mr_muncher/`):
+  - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
+    connected; tests check all four), tunnels at the top and bottom, a house with a door
+  - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is
+    taken at the first open junction; reversing is immediate); four munchers with their own
     targets (chaser, ambusher, flanker, shy), scatter/chase phases, a frightened random walk on
     the seeded stream, eyes going home and back out
   - `levels.py`: speeds, fright length, mode schedule and bonus per reel, ramping to reel 8
@@ -1135,7 +1147,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Bitmappy film strip / animation menu (new command)
   - `tests/tools/` - Alignment tests: every mode, hitbox shift, off-canvas refusal, undo
 
-### 42. Sound Effects From a Description
+### 45. Sound Effects From a Description
 - **Description**: Describe a sound effect in words ("a short wet pop, like a bubble bursting
   underwater", "a heavy mechanical clunk, then a slow hiss") and the engine works out how to make it:
   an LLM (or a rule-based process) plans one or more source sounds, and a chain of audio
