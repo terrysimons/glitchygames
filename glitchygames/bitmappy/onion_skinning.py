@@ -101,7 +101,7 @@ class OnionSkinningManager:
 
         """
         self.global_onion_skinning_enabled = not self.global_onion_skinning_enabled
-        LOG.debug(f'Global onion skinning toggled: {self.global_onion_skinning_enabled}')
+        LOG.debug('Global onion skinning toggled: %s', self.global_onion_skinning_enabled)
         return self.global_onion_skinning_enabled
 
     def is_global_onion_skinning_enabled(self) -> bool:
@@ -121,7 +121,7 @@ class OnionSkinningManager:
 
         """
         self.onion_transparency = max(0.0, min(1.0, transparency))
-        LOG.debug(f'Onion transparency set to: {self.onion_transparency}')
+        LOG.debug('Onion transparency set to: %s', self.onion_transparency)
 
     def clear_animation_onion_skinning(self, animation: str) -> None:
         """Clear all onion skinning for a specific animation.

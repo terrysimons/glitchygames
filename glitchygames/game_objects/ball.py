@@ -727,11 +727,19 @@ class BallSprite(Sprite):
 
         """
         log.debug(
-            f'BALL BOUNCE CHECK: pos=({self.world_x:.1f},{self.world_y:.1f}) '
-            f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
-            f'screen=({self.screen_width},{self.screen_height}) '
-            f'bounce_top_bottom={self.bounce_top_bottom} '
-            f'bounce_left_right={self.bounce_left_right}',
+            'BALL BOUNCE CHECK: pos=(%.1f,%.1f) '
+            'speed=(%.3f,%.3f) '
+            'screen=(%s,%s) '
+            'bounce_top_bottom=%s '
+            'bounce_left_right=%s',
+            self.world_x,
+            self.world_y,
+            self.speed.x,
+            self.speed.y,
+            self.screen_width,
+            self.screen_height,
+            self.bounce_top_bottom,
+            self.bounce_left_right,
         )
 
         # Enhanced boundary checking with proper physics
@@ -921,8 +929,10 @@ class BallSprite(Sprite):
 
         # For now, we'll add debug logging and prepare for future visual effects
         log.debug(
-            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at '
-            f'({self.world_x:.1f}, {self.world_y:.1f})',
+            'BALL COLLISION VISUAL FEEDBACK: %s at (%.1f, %.1f)',
+            collision_type,
+            self.world_x,
+            self.world_y,
         )
 
         # Future implementation could include:

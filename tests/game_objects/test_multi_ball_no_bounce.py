@@ -54,7 +54,7 @@ def _run_no_bounce_simulation(balls, max_frames, dt):
                 # Check if ball died
                 if not ball.alive():
                     balls_died += 1
-                    LOG.debug(f'  Ball {ball_index + 1} died at position ({new_x}, {new_y})')
+                    LOG.debug('  Ball %s died at position (%s, %s)', ball_index + 1, new_x, new_y)
 
         frame_count += 1
 
@@ -85,14 +85,18 @@ def test_multi_ball_no_bounce():
     LOG.debug('Initial ball states:')
     for ball_index, ball in enumerate(balls):
         LOG.debug(
-            f'  Ball {ball_index + 1}: pos=({ball.rect.x},{ball.rect.y})'
-            f' speed=({ball.speed.x:.1f},{ball.speed.y:.1f})',
+            '  Ball %s: pos=(%s,%s) speed=(%.1f,%.1f)',
+            ball_index + 1,
+            ball.rect.x,
+            ball.rect.y,
+            ball.speed.x,
+            ball.speed.y,
         )
 
     dt = 1.0 / 60.0  # 60 FPS
     max_frames = 3600  # 60 seconds at 60 FPS
 
-    LOG.debug(f'\nRunning simulation for {max_frames} frames ({max_frames / 60:.1f} seconds)...')
+    LOG.debug('\nRunning simulation for %s frames (%.1f seconds)...', max_frames, max_frames / 60)
 
     results = _run_no_bounce_simulation(balls, max_frames, dt)
 
@@ -101,8 +105,8 @@ def test_multi_ball_no_bounce():
     balls_died = results['balls_died']
 
     LOG.debug('\n=== FINAL RESULTS ===')
-    LOG.debug(f'Total time: {total_time:.2f} seconds')
-    LOG.debug(f'Frames processed: {results["frame_count"]:,}')
+    LOG.debug('Total time: %.2f seconds', total_time)
+    LOG.debug('Frames processed: %s', format(results['frame_count'], ','))
     LOG.debug('Balls that died: %s', balls_died)
     LOG.debug('Balls still alive: %s', final_alive)
 
@@ -110,13 +114,16 @@ def test_multi_ball_no_bounce():
     for ball_index, ball in enumerate(balls):
         if ball.alive():
             LOG.debug(
-                f'  Ball {ball_index + 1} still alive at position ({ball.rect.x}, {ball.rect.y})',
+                '  Ball %s still alive at position (%s, %s)',
+                ball_index + 1,
+                ball.rect.x,
+                ball.rect.y,
             )
-            LOG.debug(f'    Speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})')
+            LOG.debug('    Speed: (%.3f, %.3f)', ball.speed.x, ball.speed.y)
             LOG.debug(
-                f'    Bounce settings:'
-                f' top/bottom={ball.bounce_top_bottom},'
-                f' left/right={ball.bounce_left_right}',
+                '    Bounce settings: top/bottom=%s, left/right=%s',
+                ball.bounce_top_bottom,
+                ball.bounce_left_right,
             )
 
     # Analyze results

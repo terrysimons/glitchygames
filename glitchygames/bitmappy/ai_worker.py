@@ -263,8 +263,9 @@ def _configure_provider_client_timeout(
     if not hasattr(provider, 'client'):
         return
 
-    log.debug(f'Provider client: {type(provider.client)}')
-    log.debug(f'Provider client attributes: {dir(provider.client)}')
+    provider_client: object = provider.client
+    log.debug('Provider client: %s', type(provider_client))
+    log.debug('Provider client attributes: %s', dir(provider_client))
 
     if hasattr(provider.client, 'timeout'):
         old_timeout = getattr(provider.client, 'timeout', 'unknown')
@@ -320,8 +321,9 @@ def _apply_client_timeouts(log: logging.Logger, client: Any) -> None:
         client: The AI client.
 
     """
-    log.debug(f'Client type: {type(client)}')
-    log.debug(f'Client attributes: {dir(client)}')
+    client_object: object = client
+    log.debug('Client type: %s', type(client_object))
+    log.debug('Client attributes: %s', dir(client_object))
 
     if not hasattr(client, '_providers'):
         log.warning('Client does not have _providers attribute')
@@ -329,11 +331,12 @@ def _apply_client_timeouts(log: logging.Logger, client: Any) -> None:
         return
 
     timeout_value = _get_provider_timeout_value(log)
-    log.debug(f'Found {len(client._providers)} providers')
+    log.debug('Found %s providers', len(client._providers))
 
     for provider_name, provider in client._providers.items():
-        log.debug(f'Provider {provider_name}: {type(provider)}')
-        log.debug(f'Provider attributes: {dir(provider)}')
+        provider_object: object = provider
+        log.debug('Provider %s: %s', provider_name, type(provider_object))
+        log.debug('Provider attributes: %s', dir(provider))
         _configure_provider_client_timeout(log, provider_name, provider, timeout_value)
 
     log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
@@ -351,7 +354,7 @@ def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
         return None
 
     log.info('aisuite is available')
-    log.debug(f'aisuite version: {getattr(ai, "__version__", "unknown")}')
+    log.debug('aisuite version: %s', getattr(ai, '__version__', 'unknown'))
 
     _set_ollama_env_timeout(log)
 
@@ -373,7 +376,7 @@ def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
     _configure_ollama_provider(log, client)
     _configure_client_timeouts(log, client)
 
-    log.debug(f'Client type: {type(client)}')
+    log.debug('Client type: %s', type(client))
     return client
 
 
@@ -414,7 +417,7 @@ def _query_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
     # URL is constructed from hardcoded http://localhost for local ollama API only
     with urllib.request.urlopen(request, timeout=10) as response:  # ruff: ignore[suspicious-url-open-usage] # nosec B310 -- hardcoded http://localhost URL
         if response.status != HTTPStatus.OK:
-            log.warning(f'Could not check model status: HTTP {response.status}')
+            log.warning('Could not check model status: HTTP %s', response.status)
             return {'downloaded': False, 'reason': 'api_error'}
         data = json.loads(response.read().decode())
 
@@ -436,13 +439,13 @@ def _log_capabilities_dump(log: logging.Logger, **fields: object) -> None:
         **fields: Key-value pairs to include in the dump.
 
     """
-    log.debug(f'\n{"=" * 60}')
+    log.debug('\n%s', '=' * 60)
     log.debug('MODEL CAPABILITIES DUMP')
     log.debug('=' * 60)
     log.debug('Model: %s', AI_MODEL)
     for key, value in fields.items():
         log.debug('%s: %s', key, value)
-    log.debug(f'{"=" * 60}\n')
+    log.debug('%s\n', '=' * 60)
 
 
 def _parse_capabilities_response(log: logging.Logger, content: str) -> dict[str, Any]:
@@ -529,7 +532,7 @@ def _query_model_capabilities(log: logging.Logger, client: AIClient) -> dict[str
     )
     duration = measured_seconds() - start_time
 
-    log.info(f'Model capability query completed in {duration:.2f} seconds')
+    log.info('Model capability query completed in %.2f seconds', duration)
     if duration > MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS:
         log.info('Model was likely downloaded during this request')
 
@@ -556,14 +559,14 @@ def _get_model_capabilities(log: logging.Logger) -> dict[str, Any]:  # type: ign
     model_status = _check_ollama_model_status(log)
 
     if not model_status['downloaded']:
-        log.info(f'Model needs to be downloaded: {model_status["reason"]}')
-        log.info(f'\n{"=" * 60}')
+        log.info('Model needs to be downloaded: %s', model_status['reason'])
+        log.info('\n%s', '=' * 60)
         log.info('MODEL DOWNLOAD DETECTED')
         log.info('=' * 60)
         log.info('Model: %s', AI_MODEL)
         log.info('Status: Model needs to be downloaded')
         log.info('This may take several minutes depending on model size...')
-        log.info(f'{"=" * 60}\n')
+        log.info('%s\n', '=' * 60)
 
     try:
         client = _initialize_ai_client(log)
@@ -630,7 +633,7 @@ def _create_ai_retry_decorator(
 
     def should_retry(error: BaseException) -> bool:
         if _is_non_retryable_ai_error(error):
-            log.error(f'AI request failed permanently (not retryable): {error}')
+            log.error('AI request failed permanently (not retryable): %s', error)
             return False
         return True
 
@@ -638,14 +641,16 @@ def _create_ai_retry_decorator(
         wait = retry_state.next_action.sleep if retry_state.next_action else 0.0
         error = retry_state.outcome.exception() if retry_state.outcome else None
         log.warning(
-            f'AI request failed (attempt {retry_state.attempt_number}), retrying in {wait:.1f}s:'
-            f' {error}',
+            'AI request failed (attempt %s), retrying in %.1fs: %s',
+            retry_state.attempt_number,
+            wait,
+            error,
         )
 
     def give_up(retry_state: tenacity.RetryCallState) -> object:
         error = retry_state.outcome.exception() if retry_state.outcome else None
         log.error(
-            f'AI request failed permanently after {retry_state.attempt_number} attempts: {error}'
+            'AI request failed permanently after %s attempts: %s', retry_state.attempt_number, error
         )
         # Raise the last attempt's own error, as before (not tenacity's RetryError)
         assert retry_state.outcome is not None
@@ -673,7 +678,7 @@ def _make_ai_api_call(
     """
     log.info('Making API call to AI service...')
     log.debug('Using model: %s', AI_MODEL)
-    log.debug(f'Request messages count: {len(request.messages)}')
+    log.debug('Request messages count: %s', len(request.messages))
     log.debug('Max input tokens: %s', AI_MAX_INPUT_TOKENS)
     log.debug('Max context tokens: %s', AI_MAX_CONTEXT_SIZE)
 
@@ -687,13 +692,13 @@ def _make_ai_api_call(
     except Exception:
         end_time = measured_seconds()
         duration = end_time - start_time
-        log.exception(f'API call failed after {duration:.2f} seconds')
+        log.exception('API call failed after %.2f seconds', duration)
         log.exception('API call failed with exception')
         raise
 
     end_time = measured_seconds()
     duration = end_time - start_time
-    log.info(f'AI response received from API in {duration:.2f} seconds')
+    log.info('AI response received from API in %.2f seconds', duration)
 
     return response
 
@@ -744,7 +749,7 @@ def _build_ai_api_arguments(
 
         if not timeout_added:
             log.warning('No timeout parameter found in API call signature')
-            log.debug(f'Available parameters: {list(signature.parameters.keys())}')
+            log.debug('Available parameters: %s', list(signature.parameters.keys()))
 
     # Diagnostics (the whole request, prompt included), not an event of any severity
     log.debug('API call kwargs: %s', api_kwargs)
@@ -1040,7 +1045,7 @@ def _extract_response_content(response: object, log: logging.Logger) -> AIRespon
         return AIResponse(content=None, error='No content in response message')
 
     content = message.content  # type: ignore[reportUnknownMemberType]
-    log.info(f'Response content length: {len(content) if content else 0}')  # type: ignore[arg-type]
+    log.info('Response content length: %s', len(content) if content else 0)  # type: ignore[arg-type]
     return AIResponse(content=content)  # type: ignore[arg-type]
 
 

@@ -742,8 +742,8 @@ def quantize_colors_if_needed(
     # Create representative colors for each group
     representative_colors = [group_color for group_color, colors in color_groups.items() if colors]
     result = set(representative_colors)
-    log.info(f'Quantized to {len(result)} representative colors')
-    log.info(f'Available colors: {available_colors}, Color groups created: {len(color_groups)}')
+    log.info('Quantized to %s representative colors', len(result))
+    log.info('Available colors: %s, Color groups created: %s', available_colors, len(color_groups))
     return result
 
 
@@ -775,8 +775,9 @@ def build_color_to_glyph_mapping(
     available_color_count = len(available_glyphs) - reserved_for_transparency
 
     log.info(
-        f'Mapping colors: {len(unique_colors)} unique colors to {available_color_count}'
-        f' available glyphs',
+        'Mapping colors: %s unique colors to %s available glyphs',
+        len(unique_colors),
+        available_color_count,
     )
     if has_transparency:
         log.info('Reserved 1 glyph for transparency')
@@ -805,7 +806,7 @@ def build_color_to_glyph_mapping(
             )
             color_mapping[color] = color_mapping[closest_color]
 
-    log.info(f'Final color mapping: {len(color_mapping)} colors mapped to glyphs')
+    log.info('Final color mapping: %s colors mapped to glyphs', len(color_mapping))
     return color_mapping
 
 
@@ -908,7 +909,7 @@ def generate_toml_content(
 
     # Add color definitions - collect unique glyphs first
     unique_glyphs = set(color_mapping.values())
-    log.info(f'Unique glyphs to define: {sorted(unique_glyphs)}')
+    log.info('Unique glyphs to define: %s', sorted(unique_glyphs))
 
     for glyph in sorted(unique_glyphs):
         # Find the first color that maps to this glyph (there is one: the glyph is a mapped value)
@@ -924,7 +925,7 @@ def generate_toml_content(
         msg = 'No colors found in the converted sprite'
         raise ValueError(msg)
 
-    log.info(f'Generated {len(unique_glyphs)} color definitions')
+    log.info('Generated %s color definitions', len(unique_glyphs))
     return toml_content
 
 

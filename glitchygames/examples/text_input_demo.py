@@ -90,7 +90,7 @@ class Game(Scene):
             control: The control that submitted the event.
 
         """
-        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, control.name, control.text)
 
     @override
     def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:

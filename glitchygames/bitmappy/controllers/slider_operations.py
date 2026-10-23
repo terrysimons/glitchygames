@@ -101,63 +101,70 @@ class SliderOperations:
         )
 
         self.handler.log.debug(
-            f'DEBUG: Slider mode navigation - switched controller {target_controller_id} from'
-            f' {current_mode.value} to {new_mode.value}',
+            'DEBUG: Slider mode navigation - switched controller %s from %s to %s',
+            target_controller_id,
+            current_mode.value,
+            new_mode.value,
         )
         self.handler.log.debug(
-            f'Slider mode navigation - switched controller {target_controller_id} from'
-            f' {current_mode.value} to {new_mode.value}',
+            'Slider mode navigation - switched controller %s from %s to %s',
+            target_controller_id,
+            current_mode.value,
+            new_mode.value,
         )
 
     def _slider_adjust_value(self, controller_id: int, delta: int) -> None:
         """Adjust the current slider's value."""
         self.handler.log.debug(
-            f'DEBUG: _slider_adjust_value called for controller {controller_id}, delta {delta}',
+            'DEBUG: _slider_adjust_value called for controller %s, delta %s',
+            controller_id,
+            delta,
         )
 
         # Get the controller's current mode to determine which slider
         if hasattr(self.handler.editor, 'mode_switcher'):
             controller_mode = self.handler.editor.mode_switcher.get_controller_mode(controller_id)
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} mode:'
-                f' {controller_mode.value if controller_mode else "None"}',
+                'DEBUG: Controller %s mode: %s',
+                controller_id,
+                controller_mode.value if controller_mode else 'None',
             )
 
             # Adjust the appropriate slider based on mode
             if controller_mode and controller_mode.value == 'r_slider':
                 old_value = self.handler.editor.red_slider.value
                 new_value = max(0, min(255, old_value + delta))
-                self.handler.log.debug(f'DEBUG: R slider: {old_value} -> {new_value}')
+                self.handler.log.debug('DEBUG: R slider: %s -> %s', old_value, new_value)
                 # Update the slider value
                 self.handler.editor.red_slider.value = new_value
                 # Create a trigger event to properly update the color well
                 trigger = events.HashableEvent(0, name='R', value=new_value)
                 self.handler.editor.on_slider_event(events.HashableEvent(0), trigger)
-                self.handler.log.debug(f'DEBUG: Adjusted R slider to {new_value}')
+                self.handler.log.debug('DEBUG: Adjusted R slider to %s', new_value)
             elif controller_mode and controller_mode.value == 'g_slider':
                 old_value = self.handler.editor.green_slider.value
                 new_value = max(0, min(255, old_value + delta))
-                self.handler.log.debug(f'DEBUG: G slider: {old_value} -> {new_value}')
+                self.handler.log.debug('DEBUG: G slider: %s -> %s', old_value, new_value)
                 # Update the slider value
                 self.handler.editor.green_slider.value = new_value
                 # Create a trigger event to properly update the color well
                 trigger = events.HashableEvent(0, name='G', value=new_value)
                 self.handler.editor.on_slider_event(events.HashableEvent(0), trigger)
-                self.handler.log.debug(f'DEBUG: Adjusted G slider to {new_value}')
+                self.handler.log.debug('DEBUG: Adjusted G slider to %s', new_value)
             elif controller_mode and controller_mode.value == 'b_slider':
                 old_value = self.handler.editor.blue_slider.value
                 new_value = max(0, min(255, old_value + delta))
-                self.handler.log.debug(f'DEBUG: B slider: {old_value} -> {new_value}')
+                self.handler.log.debug('DEBUG: B slider: %s -> %s', old_value, new_value)
                 # Update the slider value
                 self.handler.editor.blue_slider.value = new_value
                 # Create a trigger event to properly update the color well
                 trigger = events.HashableEvent(0, name='B', value=new_value)
                 self.handler.editor.on_slider_event(events.HashableEvent(0), trigger)
-                self.handler.log.debug(f'DEBUG: Adjusted B slider to {new_value}')
+                self.handler.log.debug('DEBUG: Adjusted B slider to %s', new_value)
             else:
                 self.handler.log.debug(
-                    'DEBUG: No matching slider mode for'
-                    f' {controller_mode.value if controller_mode else "None"}',
+                    'DEBUG: No matching slider mode for %s',
+                    controller_mode.value if controller_mode else 'None',
                 )
         else:
             self.handler.log.debug('DEBUG: No mode_switcher found')
@@ -181,8 +188,10 @@ class SliderOperations:
             'acceleration_level': 0,
         }
         self.handler.log.debug(
-            f'DEBUG: Started continuous slider adjustment for controller {controller_id}, direction'
-            f' {direction} (immediate first tick)',
+            'DEBUG: Started continuous slider adjustment for controller %s, direction'
+            ' %s (immediate first tick)',
+            controller_id,
+            direction,
         )
 
     def stop_slider_continuous_adjustment(
@@ -196,7 +205,8 @@ class SliderOperations:
         ):
             del self.handler.slider_continuous_adjustments[controller_id]
             self.handler.log.debug(
-                f'DEBUG: Stopped continuous slider adjustment for controller {controller_id}',
+                'DEBUG: Stopped continuous slider adjustment for controller %s',
+                controller_id,
             )
 
     def update_slider_continuous_adjustments(self) -> None:
@@ -235,8 +245,9 @@ class SliderOperations:
             if acceleration_level != adjustment_data['acceleration_level']:
                 adjustment_data['acceleration_level'] = acceleration_level
                 self.handler.log.debug(
-                    f'DEBUG: Controller {controller_id} slider acceleration level'
-                    f' {acceleration_level}',
+                    'DEBUG: Controller %s slider acceleration level %s',
+                    controller_id,
+                    acceleration_level,
                 )
 
             # Check if enough time has passed for next adjustment
@@ -253,10 +264,10 @@ class SliderOperations:
 
     def _slider_previous(self, controller_id: int) -> None:
         """Move to the previous slider (now handled by L2/R2 mode switching)."""
-        self.handler.log.debug(f'DEBUG: Controller {controller_id} moved to previous slider')
+        self.handler.log.debug('DEBUG: Controller %s moved to previous slider', controller_id)
         # This is now handled by L2/R2 mode switching, so this is just for D-pad compatibility
 
     def _slider_next(self, controller_id: int) -> None:
         """Move to the next slider (now handled by L2/R2 mode switching)."""
-        self.handler.log.debug(f'DEBUG: Controller {controller_id} moved to next slider')
+        self.handler.log.debug('DEBUG: Controller %s moved to next slider', controller_id)
         # This is now handled by L2/R2 mode switching, so this is just for D-pad compatibility

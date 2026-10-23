@@ -248,7 +248,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         # Debug: Check if film strip sprite was added to groups
         self.log.debug(
-            f'Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}',
+            'Created film strip sprite for %s, groups: %s',
+            anim_name,
+            film_strip_sprite.groups(),
         )
         LOG.debug(
             f'DEBUG: Film strip sprite {anim_name} added to {len(film_strip_sprite.groups())}'
@@ -1104,7 +1106,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         for anim_name, film_strip_sprite in self.editor.film_strip_sprites.items():
             if film_strip_sprite.rect.collidepoint(mouse_pos):
                 self.log.debug(
-                    f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}",
+                    "Mouse %s is in film strip '%s' at %s",
+                    mouse_pos,
+                    anim_name,
+                    film_strip_sprite.rect,
                 )
                 return True
 
@@ -1222,7 +1227,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Clear existing film strips
         LOG.debug(f'DEBUG: Checking film_strips - hasattr: {hasattr(self, "film_strips")}')
         if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-            self.log.debug(f'Clearing {len(self.editor.film_strips)} existing film strips')
+            self.log.debug('Clearing %s existing film strips', len(self.editor.film_strips))
             LOG.debug(f'DEBUG: Clearing {len(self.editor.film_strips)} existing film strips')
             for film_strip_sprite in self.editor.film_strip_sprites.values():
                 film_strip_sprite.kill()
@@ -1232,8 +1237,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Create new film strips for the loaded sprite
         if loaded_sprite and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
             self.log.debug(
-                f'Creating new film strips for loaded sprite with {len(loaded_sprite._animations)}'  # type: ignore[reportPrivateUsage]
-                f' animations',
+                'Creating new film strips for loaded sprite with %s animations',
+                len(loaded_sprite.animation_data),
             )
             LOG.debug(
                 f'DEBUG: _on_sprite_loaded recreating {len(loaded_sprite._animations)} film strips',  # type: ignore[reportPrivateUsage]
@@ -1266,8 +1271,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
                 # Initialize pixels if needed (for mock sprites)
                 self.log.debug(
-                    f'Checking canvas pixels: has_pixels={hasattr(self.editor.canvas, "pixels")},'
-                    f' is_list={isinstance(getattr(self.editor.canvas, "pixels", None), list)}',
+                    'Checking canvas pixels: has_pixels=%s, is_list=%s',
+                    hasattr(self.editor.canvas, 'pixels'),
+                    isinstance(getattr(self.editor.canvas, 'pixels', None), list),
                 )
                 if not hasattr(self.editor.canvas, 'pixels') or not isinstance(
                     self.editor.canvas.pixels,
@@ -1281,7 +1287,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                     ] * pixel_count  # Magenta background
                     self.editor.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(
-                        f'Canvas pixels initialized: len={len(self.editor.canvas.pixels)}',
+                        'Canvas pixels initialized: len=%s',
+                        len(self.editor.canvas.pixels),
                     )
 
             LOG.debug('DEBUG: About to call _create_film_strips (second call)')
@@ -2147,7 +2154,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         )
         if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
             strip_keys = list(self.editor.film_strips.keys())
-            self.log.debug(f'Found {len(self.editor.film_strips)} film strips: {strip_keys}')
+            self.log.debug('Found %s film strips: %s', len(self.editor.film_strips), strip_keys)
             # Update the film strip for the current animation
             if animation in self.editor.film_strips:
                 film_strip = self.editor.film_strips[animation]
@@ -2159,8 +2166,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                 film_strip.update_layout()
                 film_strip.mark_dirty()
                 self.log.debug(
-                    f'Film strip updated: current_animation={film_strip.current_animation},'
-                    f' current_frame={film_strip.current_frame}',
+                    'Film strip updated: current_animation=%s, current_frame=%s',
+                    film_strip.current_animation,
+                    film_strip.current_frame,
                 )
             else:
                 self.log.debug('Animation %s not found in film strips', animation)

@@ -11,7 +11,8 @@
   Bitmappy on 2026-10-22, and the `PLW0717` ignore removed (BUGS.md #19 resolved; the bugs it
   found are #175, fixed, and #176-#178). Phase 4 in progress (the user's go-ahead 2026-10-22, as
   part of the post-replay cleanup): 128 of 152 sites typed; the 24 left are listed under Phase 4.
-  Phase 5: the user chose to convert all of them (2026-10-22); measurements under Phase 5.
+  Phase 5 done 2026-10-22 (the user's choice: convert all): every logging f-string is lazy
+  `%`-style and the `G004` ignore is removed; measurements under Phase 5.
 - **Why:** several global ignores in `pyproject.toml` are dead, mislabelled or broader than needed,
   and some suppression comments no longer suppress anything. Tightening them makes the linters catch
   real problems again (broad try blocks hide bugs; a stray `random` call would break replay
@@ -121,6 +122,14 @@ Papyrus 9.3 (~0.5 us), Brave Adventurer and Clockwork Keep ~0. Enabled calls (0.
 save nothing. Lazy formatting still evaluates the arguments; only removing a per-frame debug line
 or guarding it with `isEnabledFor` saves that. Decision (the user, 2026-10-22): convert all of
 them, then remove the ignore.
+
+Done 2026-10-22: 1,096 sites converted by a script (each string piece converted on its own, so
+implicit concatenation keeps its line breaks; `%`-specs where `%` formats identically, otherwise
+`format(value, spec)` as the argument: 11 sites, the `,` thousands separator), one by hand (a
+computed width, `%*s`). Typing the arguments exposed 22 basedpyright errors that f-strings had
+hidden (untyped values, suppressions left on the wrong line); fixed at the source, which also
+removed 7 `# type: ignore` comments. Tests that read a mocked logger's raw format string now
+format it as logging does (`tests/logged_messages.py`) or read `caplog` records.
 
 ## Order and dependencies
 

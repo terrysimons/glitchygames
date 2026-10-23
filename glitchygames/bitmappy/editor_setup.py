@@ -307,12 +307,13 @@ class EditorSetup:
 
         # Debug: Log canvas position and size
         self.editor.log.info(
-            'AnimatedCanvasSprite created at position '
-            f'({self.editor.canvas.rect.x}, {self.editor.canvas.rect.y}) '
-            f'with size {self.editor.canvas.rect.size}',
+            'AnimatedCanvasSprite created at position (%s, %s) with size %s',
+            self.editor.canvas.rect.x,
+            self.editor.canvas.rect.y,
+            self.editor.canvas.rect.size,
         )
-        self.editor.log.info(f'AnimatedCanvasSprite groups: {self.editor.canvas.groups}')
-        self.editor.log.info(f'AnimatedCanvasSprite dirty: {self.editor.canvas.dirty}')
+        self.editor.log.info('AnimatedCanvasSprite groups: %s', self.editor.canvas.groups)
+        self.editor.log.info('AnimatedCanvasSprite dirty: %s', self.editor.canvas.dirty)
 
     @staticmethod
     def _finalize_canvas_setup(animated_sprite: AnimatedSprite) -> None:
@@ -548,10 +549,10 @@ class EditorSetup:
 
         # These are set up in the GameEngine class.
         if not hasattr(self.editor, '_initialized'):
-            self.editor.log.info(f'Game Options: {self.editor.options}')
+            self.editor.log.info('Game Options: %s', self.editor.options)
 
             # The bundled Vera: the same on every machine, with no system font scan (which
             # warns without fontconfig or when it times out: BUGS.md #156)
             self.editor.options['font_name'] = DEFAULT_FONT_NAME
-            self.editor.log.info(f'Font overridden to: {self.editor.options["font_name"]}')
+            self.editor.log.info('Font overridden to: %s', self.editor.options['font_name'])
             self.editor._initialized = True  # pyright: ignore[reportPrivateUsage]

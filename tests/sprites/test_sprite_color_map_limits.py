@@ -14,6 +14,7 @@ from scripts.raw_sprite_loader import BitmappyLegacySprite
 
 from glitchygames.sprites import SPRITE_GLYPHS, BitmappySprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from tests.logged_messages import logged_messages
 
 # Constants for test values
 CHARACTER_LIMIT = 64
@@ -94,12 +95,12 @@ class TestCharacterLimitEnforcement:
             sprite.save(str(toml_file), 'toml')
 
         # Verify the ERROR log message was called for non-exception errors
-        error_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        error_args_list = logged_messages(mock_log.error.call_args_list)
         assert any(
             'Pixels list length mismatch: 65 vs expected 81' in msg for msg in error_args_list
         )
         # Verify the EXCEPTION log messages were called (inside except blocks)
-        exception_args_list = [call[0][0] for call in mock_log.exception.call_args_list]
+        exception_args_list = logged_messages(mock_log.exception.call_args_list)
         assert any('Error in deflate' in msg for msg in exception_args_list)
         assert any('Error in save' in msg for msg in exception_args_list)
 

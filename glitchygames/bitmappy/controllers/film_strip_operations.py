@@ -152,7 +152,7 @@ class FilmStripOperations:
 
         """
         if controller_id not in self.handler.editor.controller_selections:
-            self.handler.log.debug(f'DEBUG: Controller {controller_id} not found for activation')
+            self.handler.log.debug('DEBUG: Controller %s not found for activation', controller_id)
             return
 
         controller_selection = self.handler.editor.controller_selections[controller_id]
@@ -162,14 +162,17 @@ class FilmStripOperations:
         from .manager import MultiControllerManager
 
         manager = MultiControllerManager.get_instance()
-        self.handler.log.debug(f'DEBUG: About to assign color to controller {controller_id}')
+        self.handler.log.debug('DEBUG: About to assign color to controller %s', controller_id)
         self.handler.log.debug(
-            f'DEBUG: Available controllers in manager: {list(manager.controllers.keys())}',
+            'DEBUG: Available controllers in manager: %s',
+            list(manager.controllers.keys()),
         )
         for instance_id, info in manager.controllers.items():
             self.handler.log.debug(
-                f'DEBUG: Controller instance_id={instance_id}, controller_id={info.controller_id},'
-                f' color={info.color}',
+                'DEBUG: Controller instance_id=%s, controller_id=%s, color=%s',
+                instance_id,
+                info.controller_id,
+                info.color,
             )
         manager.assign_color_to_controller(controller_id)
 
@@ -182,7 +185,9 @@ class FilmStripOperations:
             first_animation = next(iter(self.handler.editor.film_strips.keys()))
             controller_selection.set_selection(first_animation, 0)
             self.handler.log.debug(
-                f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0",
+                "DEBUG: Controller %s initialized to '%s', frame 0",
+                controller_id,
+                first_animation,
             )
 
         # Update visual collision manager
@@ -199,7 +204,7 @@ class FilmStripOperations:
             for film_strip_sprite in self.handler.editor.film_strip_sprites.values():
                 film_strip_sprite.dirty = 1
 
-        self.handler.log.debug(f'DEBUG: Controller {controller_id} activated')
+        self.handler.log.debug('DEBUG: Controller %s activated', controller_id)
 
     def multi_controller_previous_frame(
         self,
@@ -213,7 +218,8 @@ class FilmStripOperations:
         """
         if controller_id not in self.handler.editor.controller_selections:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} not found for previous frame',
+                'DEBUG: Controller %s not found for previous frame',
+                controller_id,
             )
             return
 
@@ -222,7 +228,8 @@ class FilmStripOperations:
 
         if not animation or animation not in self.handler.editor.film_strips:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid animation for previous frame',
+                'DEBUG: Controller %s has no valid animation for previous frame',
+                controller_id,
             )
             return
 
@@ -236,15 +243,19 @@ class FilmStripOperations:
             if hasattr(strip_widget, 'update_scroll_for_frame'):
                 strip_widget.update_scroll_for_frame(new_frame)
                 self.handler.log.debug(
-                    f'DEBUG: Controller {controller_id} previous frame: Scrolled film strip to show'
-                    f' frame {new_frame}',
+                    'DEBUG: Controller %s previous frame: Scrolled film strip to show frame %s',
+                    controller_id,
+                    new_frame,
                 )
 
             # Update visual indicator
             self._update_controller_visual_indicator(controller_id)
 
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} previous frame: {frame} -> {new_frame}',
+                'DEBUG: Controller %s previous frame: %s -> %s',
+                controller_id,
+                frame,
+                new_frame,
             )
 
     def multi_controller_next_frame(
@@ -259,7 +270,8 @@ class FilmStripOperations:
         """
         if controller_id not in self.handler.editor.controller_selections:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} not found for next frame',
+                'DEBUG: Controller %s not found for next frame',
+                controller_id,
             )
             return
 
@@ -268,7 +280,8 @@ class FilmStripOperations:
 
         if not animation or animation not in self.handler.editor.film_strips:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid animation for next frame',
+                'DEBUG: Controller %s has no valid animation for next frame',
+                controller_id,
             )
             return
 
@@ -282,15 +295,19 @@ class FilmStripOperations:
             if hasattr(strip_widget, 'update_scroll_for_frame'):
                 strip_widget.update_scroll_for_frame(new_frame)
                 self.handler.log.debug(
-                    f'DEBUG: Controller {controller_id} next frame: Scrolled film strip to show'
-                    f' frame {new_frame}',
+                    'DEBUG: Controller %s next frame: Scrolled film strip to show frame %s',
+                    controller_id,
+                    new_frame,
                 )
 
             # Update visual indicator
             self._update_controller_visual_indicator(controller_id)
 
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} next frame: {frame} -> {new_frame}',
+                'DEBUG: Controller %s next frame: %s -> %s',
+                controller_id,
+                frame,
+                new_frame,
             )
 
     def multi_controller_previous_animation(
@@ -305,7 +322,8 @@ class FilmStripOperations:
         """
         if controller_id not in self.handler.editor.controller_selections:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} not found for previous animation',
+                'DEBUG: Controller %s not found for previous animation',
+                controller_id,
             )
             return
 
@@ -341,8 +359,10 @@ class FilmStripOperations:
         )
 
         self.handler.log.debug(
-            f"DEBUG: Controller {controller_id} previous animation: Moving to '{new_animation}',"
-            f' frame {target_frame}',
+            "DEBUG: Controller %s previous animation: Moving to '%s', frame %s",
+            controller_id,
+            new_animation,
+            target_frame,
         )
         controller_selection.set_selection(new_animation, target_frame)
 
@@ -364,7 +384,8 @@ class FilmStripOperations:
         """
         if controller_id not in self.handler.editor.controller_selections:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} not found for next animation',
+                'DEBUG: Controller %s not found for next animation',
+                controller_id,
             )
             return
 
@@ -373,7 +394,8 @@ class FilmStripOperations:
 
         if not hasattr(self.handler.editor, 'film_strips') or not self.handler.editor.film_strips:
             self.handler.log.debug(
-                f'DEBUG: No film strips available for controller {controller_id} next animation',
+                'DEBUG: No film strips available for controller %s next animation',
+                controller_id,
             )
             return
 
@@ -399,8 +421,10 @@ class FilmStripOperations:
         )
 
         self.handler.log.debug(
-            f"DEBUG: Controller {controller_id} next animation: Moving to '{new_animation}', frame"
-            f' {target_frame}',
+            "DEBUG: Controller %s next animation: Moving to '%s', frame %s",
+            controller_id,
+            new_animation,
+            target_frame,
         )
         controller_selection.set_selection(new_animation, target_frame)
 
@@ -477,7 +501,8 @@ class FilmStripOperations:
         """
         if controller_id not in self.handler.editor.controller_selections:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} not found for onion skinning toggle',
+                'DEBUG: Controller %s not found for onion skinning toggle',
+                controller_id,
             )
             return
 
@@ -486,8 +511,8 @@ class FilmStripOperations:
 
         if not animation or frame is None:  # type: ignore[reportUnnecessaryComparison]
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid selection for onion skinning'
-                f' toggle',
+                'DEBUG: Controller %s has no valid selection for onion skinning toggle',
+                controller_id,
             )
             return
 
@@ -501,10 +526,18 @@ class FilmStripOperations:
         status = 'enabled' if is_enabled else 'disabled'
 
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]',
+            'DEBUG: Controller %s: Onion skinning %s for %s[%s]',
+            controller_id,
+            status,
+            animation,
+            frame,
         )
         self.handler.log.debug(
-            f'Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]',
+            'Controller %s: Onion skinning %s for %s[%s]',
+            controller_id,
+            status,
+            animation,
+            frame,
         )
 
         # Force redraw of the canvas to show the change
@@ -526,10 +559,14 @@ class FilmStripOperations:
         status = 'visible' if self.handler.editor.selected_frame_visible else 'hidden'
 
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id}: Selected frame {status} on canvas',
+            'DEBUG: Controller %s: Selected frame %s on canvas',
+            controller_id,
+            status,
         )
         self.handler.log.debug(
-            f'Controller {controller_id}: Selected frame {status} on canvas',
+            'Controller %s: Selected frame %s on canvas',
+            controller_id,
+            status,
         )
 
         # Force redraw of the canvas to show the change
@@ -551,28 +588,33 @@ class FilmStripOperations:
 
         """
         self.handler.log.debug(
-            f'DEBUG: multi_controller_select_current_frame called for controller {controller_id}',
+            'DEBUG: multi_controller_select_current_frame called for controller %s',
+            controller_id,
         )
 
         if controller_id not in self.handler.editor.controller_selections:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} not found in selections',
+                'DEBUG: Controller %s not found in selections',
+                controller_id,
             )
             return
 
         controller_selection = self.handler.editor.controller_selections[controller_id]
         if not controller_selection.is_active():
-            self.handler.log.debug(f'DEBUG: Controller {controller_id} is not active')
+            self.handler.log.debug('DEBUG: Controller %s is not active', controller_id)
             return
 
         animation, frame = controller_selection.get_selection()
         self.handler.log.debug(
-            f"DEBUG: Controller {controller_id} selecting frame {frame} in animation '{animation}'",
+            "DEBUG: Controller %s selecting frame %s in animation '%s'",
+            controller_id,
+            frame,
+            animation,
         )
         self.handler.log.debug(
-            'DEBUG: Current global selection before update:'
-            f" animation='{getattr(self.handler, 'selected_animation', 'None')}',"
-            f' frame={getattr(self.handler, "selected_frame", "None")}',
+            "DEBUG: Current global selection before update: animation='%s', frame=%s",
+            getattr(self.handler, 'selected_animation', 'None'),
+            getattr(self.handler, 'selected_frame', 'None'),
         )
 
         # Update the canvas to show this frame
@@ -592,8 +634,9 @@ class FilmStripOperations:
 
                         # Store global selection state (same as keyboard selection)
                         self.handler.log.debug(
-                            f"DEBUG: Setting global selection state to animation '{animation}',"
-                            f' frame {frame}',
+                            "DEBUG: Setting global selection state to animation '%s', frame %s",
+                            animation,
+                            frame,
                         )
                         self.handler.editor.selected_animation = animation
                         self.handler.editor.selected_frame = frame
@@ -606,31 +649,36 @@ class FilmStripOperations:
 
                         self.handler.log.debug(
                             'DEBUG: Controller selection updated keyboard selection to animation'
-                            f" '{animation}', frame {frame}",
+                            " '%s', frame %s",
+                            animation,
+                            frame,
                         )
                         selected_anim = self.handler.editor.selected_animation
                         selected_frm = self.handler.editor.selected_frame
                         self.handler.log.debug(
-                            f"DEBUG: Final global selection: animation='{selected_anim}',"
-                            f' frame={selected_frm}',
+                            "DEBUG: Final global selection: animation='%s', frame=%s",
+                            selected_anim,
+                            selected_frm,
                         )
                     else:
                         self.handler.log.debug(
-                            f"DEBUG: Frame {frame} is out of bounds for animation '{animation}'"
-                            f' (max:'
-                            f' {len(strip_widget.animated_sprite._animations[animation]) - 1})',  # type: ignore[reportPrivateUsage]
+                            "DEBUG: Frame %s is out of bounds for animation '%s' (max: %s)",
+                            frame,
+                            animation,
+                            len(strip_widget.animated_sprite._animations[animation]) - 1,  # type: ignore[reportPrivateUsage]
                         )
                 else:
                     self.handler.log.debug(
-                        f"DEBUG: Animation '{animation}' not found in"
-                        f' strip_widget.animated_sprite._animations',
+                        "DEBUG: Animation '%s' not found in"
+                        ' strip_widget.animated_sprite._animations',
+                        animation,
                     )
             else:
                 self.handler.log.debug(
                     'DEBUG: strip_widget has no animated_sprite or animated_sprite is None',
                 )
         else:
-            self.handler.log.debug(f"DEBUG: Animation '{animation}' not found in film_strips")
+            self.handler.log.debug("DEBUG: Animation '%s' not found in film_strips", animation)
 
     def _multi_controller_cancel(
         self,
@@ -647,7 +695,7 @@ class FilmStripOperations:
 
         controller_selection = self.handler.editor.controller_selections[controller_id]
         controller_selection.deactivate()
-        self.handler.log.debug(f'DEBUG: Controller {controller_id} cancelled')
+        self.handler.log.debug('DEBUG: Controller %s cancelled', controller_id)
 
     # ------------------------------------------------------------------
     # Scroll to animation
@@ -688,8 +736,10 @@ class FilmStripOperations:
         self.handler.editor.update_scroll_arrows()
 
         self.handler.log.debug(
-            f"DEBUG: Scrolled to show animation '{animation_name}' at index {target_index}, scroll"
-            f' offset: {self.handler.editor.film_strip_scroll_offset}',
+            "DEBUG: Scrolled to show animation '%s' at index %s, scroll offset: %s",
+            animation_name,
+            target_index,
+            self.handler.editor.film_strip_scroll_offset,
         )
 
     # ------------------------------------------------------------------
@@ -713,14 +763,15 @@ class FilmStripOperations:
         if 'pytest' not in sys.modules:
             self.handler.log.debug('DEBUG: Reinitializing multi-controller system')
             selection_keys = list(self.handler.editor.controller_selections.keys())
-            self.handler.log.debug(f'DEBUG: Current controller_selections: {selection_keys}')
+            self.handler.log.debug('DEBUG: Current controller_selections: %s', selection_keys)
             self.handler.log.debug(
-                f'DEBUG: Current film_strips: {
+                'DEBUG: Current film_strips: %s',
+                (
                     list(self.handler.editor.film_strips.keys())
-                    if hasattr(self.handler.editor, "film_strips")
+                    if hasattr(self.handler.editor, 'film_strips')
                     and self.handler.editor.film_strips
-                    else "None"
-                }',
+                    else 'None'
+                ),
             )
 
         if not self.handler.editor.controller_selections:
@@ -732,19 +783,20 @@ class FilmStripOperations:
 
         active_controllers = self._get_active_controllers(preserved_controller_selections)
         self.handler.log.debug(
-            f'DEBUG: Found {len(active_controllers)} active controllers to preserve',
+            'DEBUG: Found %s active controllers to preserve',
+            len(active_controllers),
         )
 
         self.handler.editor.multi_controller_manager.scan_for_controllers()
         controller_count = len(self.handler.editor.multi_controller_manager.controllers)
-        self.handler.log.debug(f'DEBUG: Found {controller_count} controllers in manager')
+        self.handler.log.debug('DEBUG: Found %s controllers in manager', controller_count)
 
         self._reinitialize_controller_selections(active_controllers)
 
         selection_count = len(self.handler.editor.controller_selections)
         self.handler.log.debug(
-            f'DEBUG: Multi-controller system reinitialized with'
-            f' {selection_count} controller selections',
+            'DEBUG: Multi-controller system reinitialized with %s controller selections',
+            selection_count,
         )
 
     def _get_active_controllers(
@@ -762,27 +814,31 @@ class FilmStripOperations:
         """
         if preserved_controller_selections is not None:
             self.handler.log.debug(
-                f'DEBUG: Using preserved controller selections: {preserved_controller_selections}',
+                'DEBUG: Using preserved controller selections: %s',
+                preserved_controller_selections,
             )
             return preserved_controller_selections
 
         active_controllers: dict[int, tuple[str, int]] = {}
         num_selections = len(self.handler.editor.controller_selections)
         self.handler.log.debug(
-            f'DEBUG: Checking {num_selections} existing controller selections',
+            'DEBUG: Checking %s existing controller selections',
+            num_selections,
         )
         for (
             controller_id,
             controller_selection,
         ) in self.handler.editor.controller_selections.items():
             is_active = controller_selection.is_active()
-            self.handler.log.debug(f'DEBUG: Controller {controller_id} is_active: {is_active}')
+            self.handler.log.debug('DEBUG: Controller %s is_active: %s', controller_id, is_active)
             if is_active:
                 animation, frame = controller_selection.get_selection()
                 active_controllers[controller_id] = (animation, frame)
                 self.handler.log.debug(
-                    f'DEBUG: Storing active controller {controller_id} with animation'
-                    f" '{animation}', frame {frame}",
+                    "DEBUG: Storing active controller %s with animation '%s', frame %s",
+                    controller_id,
+                    animation,
+                    frame,
                 )
         return active_controllers
 
@@ -801,8 +857,9 @@ class FilmStripOperations:
             controller_info,
         ) in self.handler.editor.multi_controller_manager.controllers.items():
             self.handler.log.debug(
-                f'DEBUG: Processing controller {instance_id}, status:'
-                f' {controller_info.status.value}',
+                'DEBUG: Processing controller %s, status: %s',
+                instance_id,
+                controller_info.status.value,
             )
             if controller_info.status.value not in {'connected', 'assigned', 'active'}:
                 continue
@@ -836,7 +893,8 @@ class FilmStripOperations:
             controller_selection = self.handler.editor.controller_selections[controller_id]
             controller_selection.update_activity()
             self.handler.log.debug(
-                f'DEBUG: Updated existing controller selection for controller {controller_id}',
+                'DEBUG: Updated existing controller selection for controller %s',
+                controller_id,
             )
 
     def _restore_controller_active_state(
@@ -855,14 +913,15 @@ class FilmStripOperations:
 
         if controller_id not in active_controllers:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} was not active before reconstruction,'
-                f' keeping it inactive',
+                'DEBUG: Controller %s was not active before reconstruction, keeping it inactive',
+                controller_id,
             )
             return
 
         if not self.handler.editor.film_strips:
             self.handler.log.debug(
-                f'DEBUG: No film strips available for active controller {controller_id}',
+                'DEBUG: No film strips available for active controller %s',
+                controller_id,
             )
             return
 
@@ -872,15 +931,22 @@ class FilmStripOperations:
         controller_selection.set_selection(first_animation, 0)
         controller_selection.activate()
         self.handler.log.debug(
-            f'DEBUG: Reset active controller {controller_id} to first animation'
-            f" '{first_animation}', frame 0 (ignoring previous selection)",
+            'DEBUG: Reset active controller %s to first animation'
+            " '%s', frame 0 (ignoring previous selection)",
+            controller_id,
+            first_animation,
         )
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id} is now active: {controller_selection.is_active()}',
+            'DEBUG: Controller %s is now active: %s',
+            controller_id,
+            controller_selection.is_active(),
         )
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id} selection: {controller_selection.get_selection()}',
+            'DEBUG: Controller %s selection: %s',
+            controller_id,
+            controller_selection.get_selection(),
         )
         self.handler.log.debug(
-            f'DEBUG: Available film strips: {list(self.handler.editor.film_strips.keys())}',
+            'DEBUG: Available film strips: %s',
+            list(self.handler.editor.film_strips.keys()),
         )

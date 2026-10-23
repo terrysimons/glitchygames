@@ -303,7 +303,7 @@ class ResourceManager:
             for proxy in self.proxies:
                 return getattr(proxy, attr)
         except AttributeError:
-            self.log.error(f'No proxies for {type(self)}.{attr}')  # ruff: ignore[error-instead-of-exception]
+            self.log.error('No proxies for %s.%s', type(self), attr)  # ruff: ignore[error-instead-of-exception]
             raise
 
         raise AttributeError(NO_PROXIES_MSG.format(cls=type(self), attr=attr))
@@ -671,12 +671,12 @@ class EventInterface(abc.ABC):
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.debug(f'{subclass.__name__}.{attribute} -> implemented (callable)')
+                    cls.log.debug('%s.%s -> implemented (callable)', subclass.__name__, attribute)
                 else:
-                    cls.log.debug(f'{subclass.__name__}.{attribute} -> implemented (attribute)')
+                    cls.log.debug('%s.%s -> implemented (attribute)', subclass.__name__, attribute)
                 methods.append(True)
             else:
-                cls.log.debug(f'{subclass.__name__}.{attribute} -> unimplemented')
+                cls.log.debug('%s.%s -> unimplemented', subclass.__name__, attribute)
                 methods.append(False)
 
         # all([]) returns True, so mask it

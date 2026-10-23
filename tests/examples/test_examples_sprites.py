@@ -37,7 +37,7 @@ def _load_example_sprite(sprite_file):
     try:
         sprite = SpriteFactory.load_sprite(filename=str(sprite_file))
     except (ValueError, FileNotFoundError, AttributeError) as e:
-        LOG.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')
+        LOG.warning('Skipping sprite %s due to expected error: %s', sprite_file.name, e)
         return None
     except (TypeError, KeyError, OSError) as e:
         pytest.fail(f'Unexpected error loading sprite {sprite_file.name}: {e}')

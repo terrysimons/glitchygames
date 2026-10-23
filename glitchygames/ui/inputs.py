@@ -145,7 +145,9 @@ class InputBox(Sprite):
             if callback:
                 callback(event=self)
             else:
-                self.log.info(f'{self.name}: Submitted "{self.text}" but no parent is configured.')
+                self.log.info(
+                    '%s: Submitted "%s" but no parent is configured.', self.name, self.text
+                )
 
     @override
     def update(self: Self) -> None:
@@ -393,7 +395,7 @@ class InputDialog(BitmappySprite):
         """
         if self.parent:
             self.parent.on_confirm_event(event=event, trigger=trigger)
-        self.log.info(f'{self.name}: Got confirm event!')
+        self.log.info('%s: Got confirm event!', self.name)
 
     def on_cancel_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle cancel events.
@@ -405,7 +407,7 @@ class InputDialog(BitmappySprite):
         """
         if self.parent:
             self.parent.on_cancel_event(event=event, trigger=trigger)
-        self.log.info(f'{self.name}: Got cancel event!')
+        self.log.info('%s: Got cancel event!', self.name)
 
     def on_input_box_cancel_event(self: Self, control: object) -> None:
         """Handle input box cancel events.
@@ -416,7 +418,7 @@ class InputDialog(BitmappySprite):
         """
         control_name = getattr(control, 'name', '')
         control_text = getattr(control, 'text', '')
-        self.log.info(f'{self.name} Got text input from: {control_name}: {control_text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, control_name, control_text)
         self.on_cancel_event(event=control, trigger=control)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     def on_input_box_submit_event(self: Self, event: HashableEvent) -> None:
@@ -426,7 +428,7 @@ class InputDialog(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.info(f'{self.name} Got text input from: {event.name}: {event.text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, event.name, event.text)
         self.on_confirm_event(event=event, trigger=event)
 
     @override
@@ -437,7 +439,7 @@ class InputDialog(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{self.name} Got mouse button up event: {event}')
+        self.log.debug('%s Got mouse button up event: %s', self.name, event)
         # Only activate if click was within input box bounds
         if self.input_box.rect.collidepoint(event.pos):
             self.input_box.activate()
@@ -452,7 +454,7 @@ class InputDialog(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.info(f'Got Event: {event} from {self.parent}')
+        self.log.info('Got Event: %s from %s', event, self.parent)
 
         if self.input_box.is_active:
             self.input_box.on_key_up_event(event)

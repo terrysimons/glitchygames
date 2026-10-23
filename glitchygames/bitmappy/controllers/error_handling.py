@@ -214,7 +214,7 @@ class MultiControllerErrorHandler:
 
         """
         # This would need to be implemented based on specific error context
-        self.logger.info(f'Attempting to recover from missing key: {error_info.message}')
+        self.logger.info('Attempting to recover from missing key: %s', error_info.message)
         return True
 
     def _recover_missing_attribute(self, error_info: ErrorInfo) -> bool:
@@ -227,7 +227,7 @@ class MultiControllerErrorHandler:
             True if recovery was successful
 
         """
-        self.logger.info(f'Attempting to recover from missing attribute: {error_info.message}')
+        self.logger.info('Attempting to recover from missing attribute: %s', error_info.message)
         return True
 
     def _recover_invalid_value(self, error_info: ErrorInfo) -> bool:
@@ -240,7 +240,7 @@ class MultiControllerErrorHandler:
             True if recovery was successful
 
         """
-        self.logger.info(f'Attempting to recover from invalid value: {error_info.message}')
+        self.logger.info('Attempting to recover from invalid value: %s', error_info.message)
         return True
 
     def register_error_handler(self, error_type: str, handler: Callable[..., Any]) -> None:
@@ -435,7 +435,7 @@ class MultiControllerLogger:
             duration: Operation duration
 
         """
-        self.logger.debug(f'Performance: {operation} took {duration:.4f}s')
+        self.logger.debug('Performance: %s took %.4fs', operation, duration)
 
     def log_system_status(self, status: dict[str, Any]) -> None:
         """Log system status.

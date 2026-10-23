@@ -194,7 +194,7 @@ class RendererService:
             )
 
         width, height = current_frame.get_size()
-        LOG.info(f'Loaded sprite: {width}x{height}')
+        LOG.info('Loaded sprite: %sx%s', width, height)
 
         # Render first frame (or current frame)
         png_bytes, png_base64 = self._render_frame_to_png(current_frame.image, scale)
@@ -204,29 +204,30 @@ class RendererService:
         all_frames_base64 = []
 
         # Log sprite type for debugging
-        LOG.info(f'Loaded sprite type: {type(sprite).__name__}')
+        LOG.info('Loaded sprite type: %s', type(sprite).__name__)
 
         if hasattr(sprite, 'get_total_frame_count'):
             frame_count = sprite.get_total_frame_count()
-            LOG.info(f'Sprite has {frame_count} total frames (via get_total_frame_count)')
+            LOG.info('Sprite has %s total frames (via get_total_frame_count)', frame_count)
         elif hasattr(sprite, 'frames'):
             # Fallback: count frames from the frames property
             total = sum(len(frames) for frames in sprite.frames.values())
             frame_count = total if total > 0 else 1
-            LOG.info(f'Sprite has {frame_count} total frames (via frames property)')
+            LOG.info('Sprite has %s total frames (via frames property)', frame_count)
         else:
-            LOG.info(f'Sprite has no frame count method, type={type(sprite).__name__}')
+            LOG.info('Sprite has no frame count method, type=%s', type(sprite).__name__)
 
         # Render all frames if requested and sprite is animated
         rendered_frames = []
-        LOG.info(f'render_all_frames={render_all_frames}, frame_count={frame_count}')
+        LOG.info('render_all_frames=%s, frame_count=%s', render_all_frames, frame_count)
         if render_all_frames and frame_count > 1:
             all_frames_base64, rendered_frames = self._render_all_frames(sprite, scale)
-            LOG.info(f'Rendered {len(all_frames_base64)} frames')
+            LOG.info('Rendered %s frames', len(all_frames_base64))
         else:
             LOG.info(
-                f'Skipping frame rendering: render_all_frames={render_all_frames}, '
-                f'frame_count={frame_count}',
+                'Skipping frame rendering: render_all_frames=%s, frame_count=%s',
+                render_all_frames,
+                frame_count,
             )
 
         return RenderResult(
@@ -333,7 +334,7 @@ class RendererService:
         rendered_frames: list[RenderedFrame] = []
 
         for animation_index, (animation_name, frames) in enumerate(all_animations.items()):
-            LOG.debug(f"Animation '{animation_name}' has {len(frames)} frames")
+            LOG.debug("Animation '%s' has %s frames", animation_name, len(frames))
 
             if has_frame_manager:
                 # Set current animation via frame_manager
@@ -362,8 +363,9 @@ class RendererService:
                     )
                 else:
                     LOG.warning(
-                        f'Could not get surface for frame {frame_index} '
-                        f"of animation '{animation_name}'",
+                        "Could not get surface for frame %s of animation '%s'",
+                        frame_index,
+                        animation_name,
                     )
 
         return frames_base64, rendered_frames
@@ -396,7 +398,7 @@ class RendererService:
             LOG.debug('Sprite has empty animations dict')
             return [], []
 
-        LOG.debug(f'Rendering {len(all_animations)} animations')
+        LOG.debug('Rendering %s animations', len(all_animations))
 
         # Check if sprite has frame_manager for state restoration
         has_frame_manager = hasattr(sprite, 'frame_manager')
@@ -425,7 +427,7 @@ class RendererService:
                 has_frame_manager=has_frame_manager,
             )
 
-        LOG.debug(f'Rendered {len(frames_base64)} total frames')
+        LOG.debug('Rendered %s total frames', len(frames_base64))
         return frames_base64, rendered_frames
 
     def render_from_file(

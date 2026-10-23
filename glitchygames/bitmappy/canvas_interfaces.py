@@ -538,7 +538,7 @@ class AnimatedCanvasInterface:
 
         # Only log debug info occasionally to reduce overhead
         if len(pixel_changes_dict) % 100 == 0:
-            LOG.debug(f'Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels')
+            LOG.debug('Canvas interface pixel changes: %s unique pixels', len(pixel_changes_dict))
 
         # Start a timer for single clicks (if this is the first pixel)
         if len(pixel_changes_dict) == 1:
@@ -678,10 +678,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         frames: dict[str, list[SpriteFrame]] = animated.frames
 
         LOG.debug('DEBUG: current_animation=%s, current_frame=%s', current_animation, current_frame)
-        LOG.debug(f'DEBUG: frames keys={list(frames.keys()) if frames else "None"}')
+        LOG.debug('DEBUG: frames keys=%s', list(frames.keys()) if frames else 'None')
         LOG.debug(
-            'DEBUG: frames[current_animation] length='
-            f'{len(frames[current_animation]) if current_animation in frames else "N/A"}',
+            'DEBUG: frames[current_animation] length=%s',
+            len(frames[current_animation]) if current_animation in frames else 'N/A',
         )
 
         if current_animation not in frames or current_frame >= len(frames[current_animation]):
@@ -852,9 +852,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         if hasattr(frame, 'get_pixel_data'):
             frame_pixels = frame.get_pixel_data()
             LOG.debug(
-                'DEBUG: Using frame.get_pixel_data(): '
-                f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}',
+                'DEBUG: Using frame.get_pixel_data(): %s pixels, first few: %s',
+                len(frame_pixels),
+                frame_pixels[:3],
             )
         else:
             frame_pixels = getattr(
@@ -864,9 +864,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
             )
             LOG.debug(
-                'DEBUG: Using fallback frame pixels: '
-                f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}',
+                'DEBUG: Using fallback frame pixels: %s pixels, first few: %s',
+                len(frame_pixels),
+                frame_pixels[:3],
             )
         return frame_pixels
 

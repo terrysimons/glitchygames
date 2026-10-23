@@ -320,7 +320,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self.log.info('User quit from menu item.')
             self.scene_manager.quit()
         else:
-            self.log.info(f'Unhandled Menu Item: {event.menu.name}')
+            self.log.info('Unhandled Menu Item: %s', event.menu.name)
         self.dirty = 1
 
     # NB: Keepings this around causes GG-7 not to manifest... curious.
@@ -636,8 +636,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self.film_strip_drag_start_y = event.pos[1]
             self.film_strip_drag_start_offset = self.film_strip_scroll_offset
             self.log.debug(
-                f'Started film strip drag at Y={event.pos[1]},'
-                f' offset={self.film_strip_scroll_offset}',
+                'Started film strip drag at Y=%s, offset=%s',
+                event.pos[1],
+                self.film_strip_scroll_offset,
             )
 
     def _handle_scroll_arrow_click(self, sprites: list[Any]) -> bool:
@@ -705,7 +706,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         """
         # Handle film strip drag scrolling
         if self.is_dragging_film_strips:
-            self.log.debug(f'Handling film strip drag at Y={event.pos[1]}')
+            self.log.debug('Handling film strip drag at Y=%s', event.pos[1])
             self.film_strip_coordinator.handle_film_strip_drag_scroll(event.pos[1])
             return  # Don't process other drag events when dragging film strips
 
@@ -1028,7 +1029,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             if event.key in panning_map:
                 delta_x, delta_y, direction = panning_map[event.key]
                 self.log.debug(
-                    f'Ctrl+Shift+{direction} arrow pressed - panning {direction.lower()}',
+                    'Ctrl+Shift+%s arrow pressed - panning %s',
+                    direction,
+                    direction.lower(),
                 )
                 self._frame_operations.handle_canvas_panning(delta_x=delta_x, delta_y=delta_y)
                 return True
@@ -1084,7 +1087,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     @override
     def on_key_down_event(self, event: events.HashableEvent) -> None:
         """Handle keyboard events for frame navigation and text input."""
-        self.log.debug(f'Key down event received: key={event.key}')
+        self.log.debug('Key down event received: key=%s', event.key)
 
         # Check if debug text box is active and handle text input
         if hasattr(self, 'debug_text') and self.debug_text.is_active:
@@ -1119,7 +1122,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
             onion_manager = get_onion_skinning_manager()
             new_state = onion_manager.toggle_global_onion_skinning()
-            self.log.debug(f'Onion skinning {"enabled" if new_state else "disabled"}')
+            self.log.debug('Onion skinning %s', 'enabled' if new_state else 'disabled')
             # Force canvas redraw to show/hide onion skinning
             if hasattr(self, 'canvas') and self.canvas:
                 self.canvas.force_redraw()
@@ -1225,7 +1228,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             current_animation,
             current_frame,
         )
-        self.log.debug(f'Available animations: {list(animations.keys())}')
+        self.log.debug('Available animations: %s', list(animations.keys()))
 
         # Check if current animation still exists
         if current_animation not in animations:
@@ -1246,8 +1249,10 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         frames = animations[current_animation]
         if current_frame is None or current_frame < 0 or current_frame >= len(frames):
             self.log.warning(
-                f"Current frame {current_frame} is invalid for animation '{current_animation}' with"
-                f' {len(frames)} frames',
+                "Current frame %s is invalid for animation '%s' with %s frames",
+                current_frame,
+                current_animation,
+                len(frames),
             )
             # Switch to the last valid frame
             valid_frame = max(0, len(frames) - 1)
@@ -1346,7 +1351,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     @override
     def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
         """Handle scene-level key events."""
-        self.log.debug(f'Scene-level key event: {event.key}')
+        self.log.debug('Scene-level key event: %s', event.key)
 
         # Call our custom keyboard handler
         self.on_key_down_event(event)
@@ -1360,7 +1365,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         """Handle pygame events."""
         # Debug logging for keyboard events
         if event.type == pygame.KEYDOWN:
-            self.log.debug(f'KEYDOWN event received in handle_event: key={event.key}')
+            self.log.debug('KEYDOWN event received in handle_event: key=%s', event.key)
 
         # Handle confirmation dialog clicks first (highest priority)
         if (

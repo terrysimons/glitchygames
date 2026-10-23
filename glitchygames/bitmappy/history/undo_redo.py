@@ -268,7 +268,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
         # Clear redo stack on new operation (standard branching)
         if self.redo_stack:
-            LOG.debug(f'Clearing {len(self.redo_stack)} redo commands')
+            LOG.debug('Clearing %s redo commands', len(self.redo_stack))
             self.redo_stack.clear()
 
         self.undo_stack.append(command)
@@ -279,11 +279,13 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         # Maintain history limit
         if len(self.undo_stack) > self.max_history:
             removed = self.undo_stack.pop(0)
-            LOG.debug(f'Removed oldest command: {removed.description}')
+            LOG.debug('Removed oldest command: %s', removed.description)
 
         self.at_head_of_history = True
         LOG.debug(
-            f'Pushed command: {command.description} (undo stack size: {len(self.undo_stack)})',
+            'Pushed command: %s (undo stack size: %s)',
+            command.description,
+            len(self.undo_stack),
         )
 
     def push_frame_command(self, animation: str, frame: int, command: UndoRedoCommand) -> None:
@@ -310,7 +312,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         if len(self.frame_undo_stacks[frame_key]) > self.max_history:
             self.frame_undo_stacks[frame_key].pop(0)
 
-        LOG.debug(f'Pushed frame command for {animation}[{frame}]: {command.description}')
+        LOG.debug('Pushed frame command for %s[%s]: %s', animation, frame, command.description)
 
     # -- Legacy push (backward-compatible with Operation dataclass) ----------
 
@@ -402,16 +404,16 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self.is_undoing = True
         try:
             command = self.undo_stack.pop()
-            LOG.debug(f'Undoing: {command.description}')
+            LOG.debug('Undoing: %s', command.description)
 
             success = command.undo()
 
             if success:
                 self.redo_stack.append(command)
                 self.at_head_of_history = False
-                LOG.debug(f'Successfully undone: {command.description}')
+                LOG.debug('Successfully undone: %s', command.description)
             else:
-                LOG.warning(f'Failed to undo: {command.description}')
+                LOG.warning('Failed to undo: %s', command.description)
                 # Put it back if it failed
                 self.undo_stack.append(command)
 
@@ -433,7 +435,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self.is_redoing = True
         try:
             command = self.redo_stack.pop()
-            LOG.debug(f'Redoing: {command.description}')
+            LOG.debug('Redoing: %s', command.description)
 
             success = command.execute()
 
@@ -441,9 +443,9 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
                 self.undo_stack.append(command)
                 if not self.redo_stack:
                     self.at_head_of_history = True
-                LOG.debug(f'Successfully redone: {command.description}')
+                LOG.debug('Successfully redone: %s', command.description)
             else:
-                LOG.warning(f'Failed to redo: {command.description}')
+                LOG.warning('Failed to redo: %s', command.description)
                 self.redo_stack.append(command)
 
             return success
@@ -483,7 +485,9 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         else:
             if success:
                 self.frame_redo_stacks[frame_key].append(command)
-                LOG.debug(f'Undid frame command for {animation}[{frame}]: {command.description}')
+                LOG.debug(
+                    'Undid frame command for %s[%s]: %s', animation, frame, command.description
+                )
             else:
                 LOG.warning('Failed to undo frame command for %s[%s]', animation, frame)
                 self.frame_undo_stacks[frame_key].append(command)
@@ -524,7 +528,9 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         else:
             if success:
                 self.frame_undo_stacks[frame_key].append(command)
-                LOG.debug(f'Redid frame command for {animation}[{frame}]: {command.description}')
+                LOG.debug(
+                    'Redid frame command for %s[%s]: %s', animation, frame, command.description
+                )
             else:
                 LOG.warning('Failed to redo frame command for %s[%s]', animation, frame)
                 self.frame_redo_stacks[frame_key].append(command)
@@ -749,7 +755,7 @@ class _OperationAdapter:
             )
         except Exception:
             label = 'undo' if is_undo else 'redo'
-            LOG.exception(f'Error executing {label} for {operation.description}')
+            LOG.exception('Error executing %s for %s', label, operation.description)
             return False
         return dispatched
 

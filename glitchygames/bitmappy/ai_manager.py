@@ -168,7 +168,7 @@ class AIManager:
                 self.ai_response_queue = None
                 self.ai_process = None
             else:
-                self.log.info(f'AI worker process started with PID: {self.ai_process.pid}')
+                self.log.info('AI worker process started with PID: %s', self.ai_process.pid)
                 _RUNNING_AI_MANAGERS.add(self)
         else:
             self.log.warning('Not in main process, AI processing not available')
@@ -181,7 +181,7 @@ class AIManager:
         try:
             while True:
                 request_id, response = self.ai_response_queue.get_nowait()
-                self.log.info(f'Received AI response for request {request_id}')
+                self.log.info('Received AI response for request %s', request_id)
                 self._process_ai_response(request_id, response)
         except Empty:
             pass
@@ -245,7 +245,7 @@ class AIManager:
 
         if not current_frame_has_content:
             relevant_examples = select_relevant_training_examples(text)
-            self.log.info(f'Frame is empty, using {len(relevant_examples)} regular examples')
+            self.log.info('Frame is empty, using %s regular examples', len(relevant_examples))
             return relevant_examples
 
         frame_toml_path = self._save_current_frame_to_temp_toml()
@@ -270,7 +270,8 @@ class AIManager:
         if not examples:
             relevant_examples = select_relevant_training_examples(text)
             self.log.info(
-                f'Failed to load context examples, using {len(relevant_examples)} regular examples',
+                'Failed to load context examples, using %s regular examples',
+                len(relevant_examples),
             )
             return relevant_examples
 
@@ -286,7 +287,7 @@ class AIManager:
                 self.log.info('Optimization: Single frame in single strip - using only frame data')
                 return [examples[0]]
 
-        self.log.info(f'Using {len(examples)} context examples (frame + strip)')
+        self.log.info('Using %s context examples (frame + strip)', len(examples))
         return examples
 
     def _serialize_current_sprite_for_refinement(
@@ -318,10 +319,12 @@ class AIManager:
         animation_count = last_sprite_content.count('[[animation]]')
         frame_count = last_sprite_content.count('[[animation.frame]]')
         self.log.info(
-            f'Sprite loaded - serialized for AI context ({len(last_sprite_content)} chars,'
-            f' {animation_count} animations, {frame_count} frames)',
+            'Sprite loaded - serialized for AI context (%s chars, %s animations, %s frames)',
+            len(last_sprite_content),
+            animation_count,
+            frame_count,
         )
-        self.log.debug(f'Serialized sprite preview:\n{last_sprite_content[:500]}')
+        self.log.debug('Serialized sprite preview:\n%s', last_sprite_content[:500])
         return (True, last_sprite_content, conversation_history)
 
     def _read_canvas_sprite_as_toml(self) -> str:
@@ -365,7 +368,7 @@ class AIManager:
         request_id = f'{wall_clock_epoch_seconds()}-{next(_AI_REQUEST_COUNTER)}'
 
         request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
-        self.log.info(f'Submitting AI request: {request}')
+        self.log.info('Submitting AI request: %s', request)
 
         assert self.ai_request_queue is not None
         try:
@@ -389,9 +392,9 @@ class AIManager:
 
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
-        self.log.info(f"AI Sprite Generation Request: '{text}'")
-        self.log.debug(f'Text length: {len(text)}')
-        self.log.debug(f'Text type: {type(text)}')
+        self.log.info("AI Sprite Generation Request: '%s'", text)
+        self.log.debug('Text length: %s', len(text))
+        self.log.debug('Text type: %s', type(text))
 
         if not self.ai_request_queue:
             self.log.error('AI request queue is not available')
@@ -445,7 +448,7 @@ class AIManager:
         """
         self.log.error('AI response content is None, cannot save sprite')
         if error:
-            self.log.error(f'AI worker reported error: {error}')
+            self.log.error('AI worker reported error: %s', error)
         if hasattr(self.editor, 'debug_text'):
             self.editor.debug_text.text = (
                 f'AI request failed: {error}' if error else 'AI response was empty'
@@ -456,7 +459,7 @@ class AIManager:
 
     def _process_ai_response(self, request_id: str, response: AIResponse) -> None:
         """Process an AI response with automatic validation-driven retry."""
-        self.log.info(f'Got AI response for request {request_id}')
+        self.log.info('Got AI response for request %s', request_id)
 
         # Handle empty response
         if response.content is None:
@@ -465,7 +468,7 @@ class AIManager:
 
         # Get request state
         if request_id not in self.pending_ai_requests:
-            self.log.warning(f'Request {request_id} not found in pending requests')
+            self.log.warning('Request %s not found in pending requests', request_id)
             self._load_ai_sprite(request_id, response.content)
             return
 
@@ -475,7 +478,7 @@ class AIManager:
         is_valid, validation_error = self._validate_ai_content(response.content)
 
         if not is_valid:
-            self.log.warning(f'AI response validation failed: {validation_error}')
+            self.log.warning('AI response validation failed: %s', validation_error)
 
             # Check if we can retry
             if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
@@ -484,8 +487,9 @@ class AIManager:
                 request_state.last_error = validation_error
 
                 self.log.info(
-                    'Retrying request (attempt'
-                    f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})',
+                    'Retrying request (attempt %s/%s)',
+                    request_state.retry_count + 1,
+                    AI_VALIDATION_MAX_RETRIES + 1,
                 )
 
                 # Build retry prompt with specific corrections
@@ -525,8 +529,9 @@ class AIManager:
             # anyway", but _load_ai_sprite validates the same content and rejects it, so nothing
             # was ever loaded
             self.log.error(
-                f'Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, the sprite was not loaded:'
-                f' {validation_error}',
+                'Max retries (%s) reached, the sprite was not loaded: %s',
+                AI_VALIDATION_MAX_RETRIES,
+                validation_error,
             )
             if hasattr(self.editor, 'debug_text'):
                 self.editor.debug_text.text = (
@@ -550,13 +555,15 @@ class AIManager:
         anim_count = content.count('[[animation]]')
         frame_count = content.count('[[animation.frame]]')
         self.log.info(
-            f'AI response received, content length: {len(content)}, {anim_count} animations,'
-            f' {frame_count} frames',
+            'AI response received, content length: %s, %s animations, %s frames',
+            len(content),
+            anim_count,
+            frame_count,
         )
 
         # Debug: Dump the sprite content
         self.log.info('=== AI GENERATED SPRITE CONTENT ===')
-        self.log.info(f'AI Generated Content:\n{content}')
+        self.log.info('AI Generated Content:\n%s', content)
         self.log.info('=== END SPRITE CONTENT ===')
 
     def _prepare_ai_content(self, request_id: str, content: str) -> str:
@@ -576,7 +583,7 @@ class AIManager:
         if request_id in self.pending_ai_requests:
             request_state = self.pending_ai_requests[request_id]
             original_prompt = request_state.original_prompt
-            self.log.debug(f"Using original prompt: '{original_prompt}'")
+            self.log.debug("Using original prompt: '%s'", original_prompt)
 
         # Clean up any markdown formatting from AI response (an error message never gets
         # here: _is_ai_error_message above rejects content that is not valid even once cleaned)
@@ -594,9 +601,9 @@ class AIManager:
                 # Manually construct TOML to preserve formatting instead of using toml.dumps()
                 cleaned_content = self._construct_toml_with_preserved_formatting(data)
             except (KeyError, ValueError) as e:
-                self.log.warning(f'Failed to add description to TOML content: {e}')
+                self.log.warning('Failed to add description to TOML content: %s', e)
             else:
-                self.log.debug(f"Added description to TOML content: '{original_prompt}'")
+                self.log.debug("Added description to TOML content: '%s'", original_prompt)
 
         return cleaned_content
 
@@ -703,7 +710,7 @@ class AIManager:
         ) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
-            self.log.info(f'Saved AI response to temp file: {tmp_path}')
+            self.log.info('Saved AI response to temp file: %s', tmp_path)
             return tmp_path
 
     def _load_animated_ai_sprite(self, tmp_path: str) -> None:
@@ -728,16 +735,16 @@ class AIManager:
         # Just verify the state after loading
         if hasattr(self.editor.canvas, 'animated_sprite') and self.editor.canvas.animated_sprite:
             self.log.debug(
-                'AI sprite loaded - animated_sprite state: '
-                f"current_animation='{self.editor.canvas.animated_sprite.current_animation}', "
-                f'is_playing={self.editor.canvas.animated_sprite.is_playing}',
+                "AI sprite loaded - animated_sprite state: current_animation='%s', is_playing=%s",
+                self.editor.canvas.animated_sprite.current_animation,
+                self.editor.canvas.animated_sprite.is_playing,
             )
             animations = (
                 list(self.editor.canvas.animated_sprite._animations.keys())  # type: ignore[reportPrivateUsage]
                 if hasattr(self.editor.canvas.animated_sprite, '_animations')
                 else 'No _animations'
             )
-            self.log.debug(f'AI sprite animations: {animations}')
+            self.log.debug('AI sprite animations: %s', animations)
 
             # Note: Live preview functionality is now integrated into the film strip
 
@@ -784,7 +791,7 @@ class AIManager:
 
         pixels = self.editor.canvas.pixels
         try:
-            self.log.debug(f'Checking frame content: {len(pixels)} pixels')
+            self.log.debug('Checking frame content: %s pixels', len(pixels))
             if not pixels:
                 self.log.debug('No pixels found, returning False')
                 return False
@@ -816,10 +823,12 @@ class AIManager:
             if color != (255, 0, 255):
                 non_magenta_count += 1
                 if non_magenta_count <= DEBUG_LOG_FIRST_N_PIXELS:
-                    self.log.debug(f'Found non-magenta pixel {pixel_index}: {color}')
+                    self.log.debug('Found non-magenta pixel %s: %s', pixel_index, color)
 
         self.log.debug(
-            f'Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total',
+            'Found %s non-magenta pixels out of %s total',
+            non_magenta_count,
+            len(pixels),
         )
         return non_magenta_count
 
@@ -852,7 +861,7 @@ class AIManager:
             self.log.exception('Error saving frame to temp TOML')
             return None
 
-        self.log.info(f'Saved current frame to temporary TOML: {temp_path}')
+        self.log.info('Saved current frame to temporary TOML: %s', temp_path)
         return temp_path
 
     def _save_current_strip_to_temp_toml(self) -> str | None:
@@ -875,7 +884,7 @@ class AIManager:
             self.log.exception('Error saving strip to temp TOML')
             return None
 
-        self.log.info(f'Saved current strip to temporary TOML: {temp_path}')
+        self.log.info('Saved current strip to temporary TOML: %s', temp_path)
         return temp_path
 
     def _build_current_strip_sprite(self) -> AnimatedSprite | None:
@@ -967,7 +976,7 @@ class AIManager:
         unique_colors = collect_unique_colors_from_pixels(pixels)
 
         if force_single_char_glyphs and len(unique_colors) > MAX_COLORS_FOR_AI_TRAINING:
-            self.log.info(f'Quantizing {len(unique_colors)} colors down to 64 for AI training')
+            self.log.info('Quantizing %s colors down to 64 for AI training', len(unique_colors))
             unique_colors = quantize_colors_if_needed(
                 unique_colors,
                 has_transparency=False,
@@ -1062,7 +1071,7 @@ pixels = \"\"\"
             # Clean up temporary file, also when it could not be read (it used to be left)
             self._remove_temporary_file(temp_toml_path)
 
-        self.log.info(f'Loaded current frame as training example: {sprite_data["name"]}')
+        self.log.info('Loaded current frame as training example: %s', sprite_data['name'])
         return sprite_data
 
     def _remove_temporary_file(self, temporary_path: str) -> None:
@@ -1074,9 +1083,9 @@ pixels = \"\"\"
         """
         try:
             Path(temporary_path).unlink(missing_ok=True)
-            self.log.debug(f'Cleaned up temporary file: {temporary_path}')
+            self.log.debug('Cleaned up temporary file: %s', temporary_path)
         except OSError as cleanup_error:
-            self.log.warning(f'Failed to clean up temp file {temporary_path}: {cleanup_error}')
+            self.log.warning('Failed to clean up temp file %s: %s', temporary_path, cleanup_error)
 
     @staticmethod
     def _training_example_from_toml(
@@ -1165,7 +1174,7 @@ pixels = \"\"\"
         is_valid, error_msg = self._validate_ai_content(content)
 
         if not is_valid:
-            self.log.warning(f'AI response validation failed: {error_msg}')
+            self.log.warning('AI response validation failed: %s', error_msg)
             return True
 
         return False
@@ -1207,7 +1216,7 @@ pixels = \"\"\"
 
         """
         self.log.warning('AI returned error/apology message instead of sprite code')
-        self.log.debug(f'Detected error message, content preview: {content[:100]}...')
+        self.log.debug('Detected error message, content preview: %s...', content[:100])
 
         original_prompt = self._get_original_prompt_for_request(request_id)
 
@@ -1237,12 +1246,12 @@ pixels = \"\"\"
         # Use SpriteFactory to detect the sprite type
         sprite = SpriteFactory.load_sprite(filename=tmp_path)
         is_animated = hasattr(sprite, '_animations') and sprite._animations  # type: ignore[reportPrivateUsage]
-        self.log.info(f'AI sprite type: {"Animated" if is_animated else "Static"}')
-        self.log.debug(f'AI sprite has _animations: {hasattr(sprite, "_animations")}')
+        self.log.info('AI sprite type: %s', 'Animated' if is_animated else 'Static')
+        self.log.debug('AI sprite has _animations: %s', hasattr(sprite, '_animations'))
         # SpriteFactory.load_sprite always returns an AnimatedSprite, which has _animations
-        self.log.debug(f'AI sprite _animations: {list(sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
-        self.log.debug(f'AI sprite current_animation: {sprite.current_animation}')
-        self.log.debug(f'AI sprite is_playing: {sprite.is_playing}')
+        self.log.debug('AI sprite _animations: %s', list(sprite._animations.keys()))  # type: ignore[reportPrivateUsage]
+        self.log.debug('AI sprite current_animation: %s', sprite.current_animation)
+        self.log.debug('AI sprite is_playing: %s', sprite.is_playing)
 
         if is_animated:
             self._load_animated_ai_sprite(tmp_path)
@@ -1266,7 +1275,7 @@ pixels = \"\"\"
             return
 
         self.editor.canvas.animated_sprite.description = original_prompt
-        self.log.info(f"Updated sprite description with generation prompt: '{original_prompt}'")
+        self.log.info("Updated sprite description with generation prompt: '%s'", original_prompt)
 
     def _update_conversation_history(
         self,
@@ -1300,7 +1309,7 @@ pixels = \"\"\"
 
         # Save for next request
         self.last_conversation_history = new_history
-        self.log.info(f'Updated conversation history (now {len(new_history)} messages)')
+        self.log.info('Updated conversation history (now %s messages)', len(new_history))
 
     def _handle_ai_sprite_load_error(
         self,

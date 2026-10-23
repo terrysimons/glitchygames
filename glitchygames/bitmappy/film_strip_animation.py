@@ -43,13 +43,15 @@ class FilmStripAnimation:
             return
 
         LOG.debug(
-            'FilmStripWidget: Initializing preview animations for '
-            f'{len(self.widget.animated_sprite.animations)} animations',
+            'FilmStripWidget: Initializing preview animations for %s animations',
+            len(self.widget.animated_sprite.animations),
         )
 
         for anim_name, frames in self.widget.animated_sprite.animations.items():
             LOG.debug(
-                f"FilmStripWidget: Initializing animation '{anim_name}' with {len(frames)} frames",
+                "FilmStripWidget: Initializing animation '%s' with %s frames",
+                anim_name,
+                len(frames),
             )
             # Initialize timing for this animation
             # For single-frame animations, start with a small time
@@ -69,7 +71,8 @@ class FilmStripAnimation:
             # Normal speed
             self.widget.preview_animation_speeds[anim_name] = 1.0
             LOG.debug(
-                f"FilmStripWidget: Set animation '{anim_name}' speed to 1.0",
+                "FilmStripWidget: Set animation '%s' speed to 1.0",
+                anim_name,
             )
 
             # Extract frame durations
@@ -78,31 +81,36 @@ class FilmStripAnimation:
                 if hasattr(frame, 'duration'):
                     frame_durations.append(frame.duration)
                     LOG.debug(
-                        f'FilmStripWidget: Frame {i} duration: {frame.duration}',
+                        'FilmStripWidget: Frame %s duration: %s',
+                        i,
+                        frame.duration,
                     )
                 else:
                     # Default 1 second
                     frame_durations.append(1.0)
                     LOG.debug(
-                        f'FilmStripWidget: Frame {i} using default duration: 1.0',
+                        'FilmStripWidget: Frame %s using default duration: 1.0',
+                        i,
                     )
             self.widget.preview_frame_durations[anim_name] = frame_durations
             LOG.debug(
-                f"FilmStripWidget: Animation '{anim_name}' frame durations: {frame_durations}",
+                "FilmStripWidget: Animation '%s' frame durations: %s",
+                anim_name,
+                frame_durations,
             )
 
         LOG.debug('FilmStripWidget: Preview animation initialization complete')
         LOG.debug(
-            'FilmStripWidget: Final preview_animation_times: '
-            f'{self.widget.preview_animation_times}',
+            'FilmStripWidget: Final preview_animation_times: %s',
+            self.widget.preview_animation_times,
         )
         LOG.debug(
-            'FilmStripWidget: Final preview_animation_speeds: '
-            f'{self.widget.preview_animation_speeds}',
+            'FilmStripWidget: Final preview_animation_speeds: %s',
+            self.widget.preview_animation_speeds,
         )
         LOG.debug(
-            'FilmStripWidget: Final preview_frame_durations: '
-            f'{self.widget.preview_frame_durations}',
+            'FilmStripWidget: Final preview_frame_durations: %s',
+            self.widget.preview_frame_durations,
         )
 
     def update_animations(self, dt: float) -> None:
@@ -199,7 +207,8 @@ class FilmStripAnimation:
         # CRITICAL: Add bounds checking to prevent invalid frame indices
         if not frame_durations or len(frame_durations) == 0:
             LOG.error(
-                f"FilmStripWidget: CRITICAL - No frame durations for animation '{anim_name}'",
+                "FilmStripWidget: CRITICAL - No frame durations for animation '%s'",
+                anim_name,
             )
             return 0
 
@@ -295,27 +304,32 @@ class FilmStripAnimation:
         """Dump animation state for debugging (called periodically)."""
         LOG.debug('=' * 80)
         LOG.debug(
-            f'FILM STRIP ANIMATION STATE DUMP AT {self.widget.debug_start_time:.1f} SECONDS',
+            'FILM STRIP ANIMATION STATE DUMP AT %.1f SECONDS',
+            self.widget.debug_start_time,
         )
         LOG.debug('=' * 80)
         LOG.debug('FilmStripWidget debug info:')
-        LOG.debug(f'  _debug_start_time: {self.widget.debug_start_time}')
-        LOG.debug(f'  dt: {dt}')
-        LOG.debug(f'  animated_sprite: {self.widget.animated_sprite}')
-        LOG.debug(f'  current_animation: {self.widget.current_animation}')
-        LOG.debug(f'  current_frame: {self.widget.current_frame}')
-        LOG.debug(f'  scroll_offset: {self.widget.scroll_offset}')
+        LOG.debug('  _debug_start_time: %s', self.widget.debug_start_time)
+        LOG.debug('  dt: %s', dt)
+        LOG.debug('  animated_sprite: %s', self.widget.animated_sprite)
+        LOG.debug('  current_animation: %s', self.widget.current_animation)
+        LOG.debug('  current_frame: %s', self.widget.current_frame)
+        LOG.debug('  scroll_offset: %s', self.widget.scroll_offset)
         LOG.debug(
-            f'  _force_redraw: {getattr(self.widget, "_force_redraw", False)}',
+            '  _force_redraw: %s',
+            getattr(self.widget, '_force_redraw', False),
         )
         LOG.debug(
-            f'  preview_animation_times: {getattr(self.widget, "preview_animation_times", {})}',
+            '  preview_animation_times: %s',
+            getattr(self.widget, 'preview_animation_times', {}),
         )
         LOG.debug(
-            f'  preview_animation_speeds: {getattr(self.widget, "preview_animation_speeds", {})}',
+            '  preview_animation_speeds: %s',
+            getattr(self.widget, 'preview_animation_speeds', {}),
         )
         LOG.debug(
-            f'  preview_frame_durations: {getattr(self.widget, "preview_frame_durations", {})}',
+            '  preview_frame_durations: %s',
+            getattr(self.widget, 'preview_frame_durations', {}),
         )
 
         if self.widget.animated_sprite:
@@ -330,46 +344,51 @@ class FilmStripAnimation:
         sprite = self.widget.animated_sprite
         LOG.debug('AnimatedSprite debug info:')
         LOG.debug(
-            f'  current_animation: {getattr(sprite, "current_animation", "None")}',
+            '  current_animation: %s',
+            getattr(sprite, 'current_animation', 'None'),
         )
-        LOG.debug(f'  current_frame: {getattr(sprite, "current_frame", "None")}')
-        LOG.debug(f'  is_playing: {getattr(sprite, "is_playing", "None")}')
-        LOG.debug(f'  is_looping: {getattr(sprite, "is_looping", "None")}')
-        LOG.debug(f'  _is_playing: {getattr(sprite, "_is_playing", "None")}')
-        LOG.debug(f'  _is_looping: {getattr(sprite, "_is_looping", "None")}')
-        LOG.debug(f'  _frame_timer: {getattr(sprite, "_frame_timer", "None")}')
-        LOG.debug(f'  _animations: {getattr(sprite, "_animations", {})}')
+        LOG.debug('  current_frame: %s', getattr(sprite, 'current_frame', 'None'))
+        LOG.debug('  is_playing: %s', getattr(sprite, 'is_playing', 'None'))
+        LOG.debug('  is_looping: %s', getattr(sprite, 'is_looping', 'None'))
+        LOG.debug('  _is_playing: %s', getattr(sprite, '_is_playing', 'None'))
+        LOG.debug('  _is_looping: %s', getattr(sprite, '_is_looping', 'None'))
+        LOG.debug('  _frame_timer: %s', getattr(sprite, '_frame_timer', 'None'))
+        LOG.debug('  _animations: %s', getattr(sprite, '_animations', {}))
         LOG.debug(
-            f'  _animation_order: {getattr(sprite, "_animation_order", [])}',
-        )
-        LOG.debug(
-            '  frame_manager.current_animation: '
-            f'{getattr(sprite.frame_manager, "current_animation", "None")}',
+            '  _animation_order: %s',
+            getattr(sprite, '_animation_order', []),
         )
         LOG.debug(
-            '  frame_manager.current_frame: '
-            f'{getattr(sprite.frame_manager, "current_frame", "None")}',
+            '  frame_manager.current_animation: %s',
+            getattr(sprite.frame_manager, 'current_animation', 'None'),
+        )
+        LOG.debug(
+            '  frame_manager.current_frame: %s',
+            getattr(sprite.frame_manager, 'current_frame', 'None'),
         )
 
         # Dump animation details
         if hasattr(sprite, 'animations') and sprite.animations:
             for anim_name, frames in sprite.animations.items():
-                LOG.debug(f"  Animation '{anim_name}':")
-                LOG.debug(f'    frame count: {len(frames)}')
+                LOG.debug("  Animation '%s':", anim_name)
+                LOG.debug('    frame count: %s', len(frames))
                 for i, frame in enumerate(frames):
                     LOG.debug(
-                        f'    frame {i}: '
-                        f'duration={getattr(frame, "duration", "None")}, '
-                        f'image={getattr(frame, "image", "None")}',
+                        '    frame %s: duration=%s, image=%s',
+                        i,
+                        getattr(frame, 'duration', 'None'),
+                        getattr(frame, 'image', 'None'),
                     )
 
         # Dump frame manager state (every AnimatedSprite has one, read above)
         frame_mgr = sprite.frame_manager
         LOG.debug('  FrameManager debug info:')
         LOG.debug(
-            f'    _current_animation: {getattr(frame_mgr, "_current_animation", "None")}',
+            '    _current_animation: %s',
+            getattr(frame_mgr, '_current_animation', 'None'),
         )
         LOG.debug(
-            f'    _current_frame: {getattr(frame_mgr, "_current_frame", "None")}',
+            '    _current_frame: %s',
+            getattr(frame_mgr, '_current_frame', 'None'),
         )
-        LOG.debug(f'    _observers: {getattr(frame_mgr, "_observers", [])}')
+        LOG.debug('    _observers: %s', getattr(frame_mgr, '_observers', []))

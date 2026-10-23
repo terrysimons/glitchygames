@@ -86,7 +86,10 @@ class MenuBar(FocusableSingletonBitmappySprite):
         """Add a menu to the menu bar."""
         self.menu_items[menu.name] = menu  # ty: ignore[invalid-assignment]
         self.log.info(
-            f'Before offset: menu {menu.name} at x={menu.rect.x}, offset={self.menu_offset_x}',
+            'Before offset: menu %s at x=%s, offset=%s',
+            menu.name,
+            menu.rect.x,
+            self.menu_offset_x,
         )
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())
@@ -103,9 +106,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
         if hasattr(menu, 'text'):
             menu.text.rect.y += self.menu_offset_y
 
-        self.log.info(f'After offset: menu {menu.name} at x={menu.rect.x}')
+        self.log.info('After offset: menu %s at x=%s', menu.name, menu.rect.x)
         self.menu_offset_x = menu.rect.x + menu.rect.width + self.border_width
-        self.log.debug(f'Menu Items: {self.menu_items}')
+        self.log.debug('Menu Items: %s', self.menu_items)
 
     def add_menu_item(self: Self, menu_item: MenuItem, menu: MenuBar | None = None) -> None:
         """Add a menu item to the menu bar.
@@ -117,9 +120,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
         """
         if menu is None:
             self.add_menu(menu=menu_item)
-            self.log.debug(f'{type(self)} Adding new menu {menu_item}.')
+            self.log.debug('%s Adding new menu %s.', type(self), menu_item)
         else:
-            self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
+            self.log.debug('%s Adding menu item %s to menu %s.', type(self), menu_item, menu)
 
     @override
     def update(self: Self) -> None:
@@ -146,7 +149,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (object): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {event} @ {self} for {trigger}')
+        self.log.debug('%s Mouse Drag %s @ %s for %s', type(self), event, self, trigger)
 
     @override
     def on_left_mouse_drop_event(
@@ -161,7 +164,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_middle_mouse_drag_event(
@@ -176,7 +179,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_middle_mouse_drop_event(
@@ -191,7 +194,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -202,7 +205,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (object): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -213,7 +216,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (object): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
@@ -223,7 +226,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)} MOUSE MOVE {self.name}')
+        self.log.debug('%s MOUSE MOVE %s', type(self), self.name)
 
     @override
     def on_mouse_enter_event(self: Self, event: HashableEvent) -> None:
@@ -233,7 +236,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)} ENTER MENU {self.name}')
+        self.log.debug('%s ENTER MENU %s', type(self), self.name)
         # Figure out which item was entered.
         mouse = MousePointer(pos=event.pos)
 
@@ -248,7 +251,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.debug(f'{type(self)} {self.name} Mouse enter on {self.name} at {mouse}')
+                self.log.debug(
+                    '%s %s Mouse enter on %s at %s', type(self), self.name, self.name, mouse
+                )
                 collided_sprite.on_mouse_enter_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -278,7 +283,9 @@ class MenuBar(FocusableSingletonBitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
-                self.log.debug(f'{type(self)} {self.name} Mouse exit on {self.name} at {mouse}')
+                self.log.debug(
+                    '%s %s Mouse exit on %s at %s', type(self), self.name, self.name, mouse
+                )
                 collided_sprite.on_mouse_exit_event(event)
 
                 for menu_item in collided_sprite.menu_items:
@@ -305,7 +312,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             # Don't click sub menus.
             # if sprite.name in self.menu_items:
             if isinstance(sprite, MenuItem):
-                self.log.debug(f'{type(self)} Mouse button down on {self.name} at {mouse}')
+                self.log.debug('%s Mouse button down on %s at %s', type(self), self.name, mouse)
                 sprite.on_left_mouse_button_down_event(event)
 
                 for menu_item in sprite.menu_items:
@@ -330,7 +337,11 @@ class MenuBar(FocusableSingletonBitmappySprite):
             # if sprite.name in self.menu_items:
             if isinstance(sprite, MenuItem):
                 self.log.debug(
-                    f'{type(self)} {self.name} Mouse button up on {self.name} at {mouse}',
+                    '%s %s Mouse button up on %s at %s',
+                    type(self),
+                    self.name,
+                    self.name,
+                    mouse,
                 )
                 sprite.on_left_mouse_button_down_event(event)
 
@@ -350,7 +361,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_right_mouse_drop_event(
@@ -365,7 +376,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_mouse_wheel_event(
@@ -380,7 +391,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
+        self.log.debug('%s Mouse Wheel %s', type(self), self.name)
 
 
 class MenuItem(BitmappySprite):
@@ -575,9 +586,9 @@ class MenuItem(BitmappySprite):
         """
         if menu is None:
             self.add_menu(menu=menu_item)
-            self.log.debug(f'{type(self)} Adding new menu {menu_item}.')
+            self.log.debug('%s Adding new menu %s.', type(self), menu_item)
         else:
-            self.log.debug(f'{type(self)} Adding menu item {menu_item} to menu {menu}.')
+            self.log.debug('%s Adding menu item %s to menu %s.', type(self), menu_item, menu)
 
     @override
     def update(self: Self) -> None:
@@ -596,7 +607,7 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -607,7 +618,7 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_middle_mouse_drag_event(
@@ -622,7 +633,7 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_middle_mouse_drop_event(
@@ -637,7 +648,7 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -648,7 +659,7 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -659,7 +670,7 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
@@ -680,7 +691,10 @@ class MenuItem(BitmappySprite):
         for collided_sprite in collided_sprites:
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}',
+                    'Mouse enter on %s %s at %s',
+                    collided_sprite.name,
+                    collided_sprite.rect,
+                    mouse.rect,
                 )
                 collided_sprite.on_mouse_motion_event(event)
 
@@ -699,7 +713,7 @@ class MenuItem(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)} ENTER MENU {self.name}')
+        self.log.debug('%s ENTER MENU %s', type(self), self.name)
         # Figure out which item was entered.
         mouse = MousePointer(pos=event.pos)
 
@@ -715,7 +729,10 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'Mouse enter on {collided_sprite.name} {collided_sprite.rect} at {mouse.rect}',
+                    'Mouse enter on %s %s at %s',
+                    collided_sprite.name,
+                    collided_sprite.rect,
+                    mouse.rect,
                 )
                 collided_sprite.on_mouse_enter_event(event)
 
@@ -747,7 +764,10 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'Mouse exit on {collided_sprite.name} {collided_sprite.rect} at {mouse}',
+                    'Mouse exit on %s %s at %s',
+                    collided_sprite.name,
+                    collided_sprite.rect,
+                    mouse,
                 )
                 collided_sprite.on_mouse_exit_event(event)
 
@@ -766,7 +786,7 @@ class MenuItem(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)} Mouse Up {self.name}')
+        self.log.debug('%s Mouse Up %s', type(self), self.name)
         self.image = self.menu_up_image
         self.rect = self.menu_up_rect
         self.is_active = False
@@ -786,15 +806,23 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             # if sprite.name in self.menu_items:
             if isinstance(sprite, MenuItem):
-                self.log.debug(f'Mouse button up on {sprite.name} at {mouse.rect}')
+                self.log.debug('Mouse button up on %s at %s', sprite.name, mouse.rect)
 
                 self.log.debug(
-                    f'{type(self)} Clicked Menu Item: Name: {sprite.name}, '
-                    f'Width: {sprite.rect.width},'
-                    f'Height: {sprite.rect.height}, '
-                    f'Clicked X: {mouse.rect.x}, Clicked Y: {mouse.rect.y},'
-                    f'my X: {sprite.rect.x}, '
-                    f'my Y: {sprite.rect.y}',
+                    '%s Clicked Menu Item: Name: %s, '
+                    'Width: %s,'
+                    'Height: %s, '
+                    'Clicked X: %s, Clicked Y: %s,'
+                    'my X: %s, '
+                    'my Y: %s',
+                    type(self),
+                    sprite.name,
+                    sprite.rect.width,
+                    sprite.rect.height,
+                    mouse.rect.x,
+                    mouse.rect.y,
+                    sprite.rect.x,
+                    sprite.rect.y,
                 )
                 menu_item_callback = sprite.callbacks.get('on_menu_item_event', None)
 
@@ -814,7 +842,7 @@ class MenuItem(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)} Mouse Down {self.name}')
+        self.log.debug('%s Mouse Down %s', type(self), self.name)
         self.image = self.menu_down_image
         self.rect = self.menu_down_rect
         self.is_active = True
@@ -836,9 +864,12 @@ class MenuItem(BitmappySprite):
             #
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
+                clicked_sprite: object = collided_sprite
                 self.log.debug(
-                    f'{type(collided_sprite)} Mouse button down on '
-                    f'{collided_sprite.name} at {mouse.rect}',
+                    '%s Mouse button down on %s at %s',
+                    type(clicked_sprite),
+                    collided_sprite.name,
+                    mouse.rect,
                 )
                 collided_sprite.on_left_mouse_button_down_event(event)
 
@@ -855,7 +886,7 @@ class MenuItem(BitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drag {self.name}')
+        self.log.debug('%s Mouse Drag %s', type(self), self.name)
 
     @override
     def on_right_mouse_drop_event(
@@ -870,7 +901,7 @@ class MenuItem(BitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Drop {self.name}')
+        self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
     def on_mouse_wheel_event(
@@ -885,4 +916,4 @@ class MenuItem(BitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
+        self.log.debug('%s Mouse Wheel %s', type(self), self.name)

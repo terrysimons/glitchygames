@@ -334,13 +334,13 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # and is safe to call more than once.
         pygame.joystick.init()
 
-        self.log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
-        self.log.debug(f'JoystickEventManager init id(self)={id(self)}')
+        self.log.info('Joystick Module Inited: %s', pygame.joystick.get_init())
+        self.log.debug('JoystickEventManager init id(self)=%s', id(self))
 
         # Joystick Setup, through the devices door (glitchygames/input/devices.py)
         devices = active_sources().devices()
         joystick_count = devices.joystick_count()
-        self.log.info(f'Joystick Count: {joystick_count}')
+        self.log.info('Joystick Count: %s', joystick_count)
 
         for pygame_joystick_index in range(joystick_count):
             try:
@@ -570,7 +570,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # Deep debug: inspect the joystick reported at this device_index
         added_device_index: int | None = getattr(event, 'device_index', None)
         self.log.debug(
-            f'on_joy_device_added_event id(self)={id(self)} device_index={added_device_index}'
+            'on_joy_device_added_event id(self)=%s device_index=%s', id(self), added_device_index
         )
         if added_device_index is None:
             self.log.debug('DEVICEADDED event has no device_index attribute')
@@ -611,15 +611,15 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             )
             return
         self.log.debug(
-            'Created JoystickProxy with'
-            f' device_index={added_device_index},'
-            f' instance_id={instance_id},'
-            f' _device_id={joystick_proxy._device_id}',  # pyright: ignore[reportPrivateUsage]
+            'Created JoystickProxy with device_index=%s, instance_id=%s, _device_id=%s',
+            added_device_index,
+            instance_id,
+            joystick_proxy._device_id,  # pyright: ignore[reportPrivateUsage]
         )
         self.joysticks[tracking_key] = joystick_proxy
 
         # The joystick proxy overrides the joystick object
-        self.log.debug(f'Added Joystick #{added_device_index}: {joystick_proxy}')
+        self.log.debug('Added Joystick #%s: %s', added_device_index, joystick_proxy)
         self.log.debug('JOYDEVICEADDED triggered: on_joy_device_added(%s)', event)
 
         # Need to notify the game after the joystick exists
@@ -634,7 +634,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         """
         # JOYDEVICEREMOVED instance_id
-        self.log.debug(f'Removed Joystick #{event.instance_id}')
+        self.log.debug('Removed Joystick #%s', event.instance_id)
         self.log.debug('JOYDEVICEREMOVED triggered: on_joy_device_removed(%s)', event)
 
         # The devices door stops polling it (tracked here or not)

@@ -488,12 +488,12 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
 
         animations = _animation_frames(self.editor.canvas.animated_sprite)
         if self.animation not in animations:
-            LOG.warning(f"Animation '{self.animation}' not found for frame paste")
+            LOG.warning("Animation '%s' not found for frame paste", self.animation)
             return False
 
         frames = animations[self.animation]
         if self.frame >= len(frames):
-            LOG.warning(f"Frame {self.frame} not found in animation '{self.animation}'")
+            LOG.warning("Frame %s not found in animation '%s'", self.frame, self.animation)
             return False
 
         target_frame = frames[self.frame]
@@ -514,7 +514,7 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
             if hasattr(self.editor.canvas, 'dirty'):
                 self.editor.canvas.dirty = 1
 
-        LOG.debug(f'Applied frame paste to {self.animation}[{self.frame}]')
+        LOG.debug('Applied frame paste to %s[%s]', self.animation, self.frame)
         return True
 
 
@@ -660,7 +660,7 @@ class FrameAddCommand:
             self.frame_index,
         )
 
-        LOG.debug(f"Added frame {self.frame_index} to '{self.animation_name}'")
+        LOG.debug("Added frame %s to '%s'", self.frame_index, self.animation_name)
         return True
 
     def _delete_frame(self) -> bool:
@@ -691,13 +691,15 @@ class FrameAddCommand:
 
         animations = _animation_frames(self.editor.canvas.animated_sprite)
         if self.animation_name not in animations:
-            LOG.warning(f"Animation '{self.animation_name}' not found")
+            LOG.warning("Animation '%s' not found", self.animation_name)
             return False
 
         frames = animations[self.animation_name]
         if not (0 <= self.frame_index < len(frames)):
             LOG.warning(
-                f"Frame index {self.frame_index} out of range for '{self.animation_name}'",
+                "Frame index %s out of range for '%s'",
+                self.frame_index,
+                self.animation_name,
             )
             return False
 
@@ -717,7 +719,7 @@ class FrameAddCommand:
             self.frame_index,
         )
 
-        LOG.debug(f"Deleted frame {self.frame_index} from '{self.animation_name}'")
+        LOG.debug("Deleted frame %s from '%s'", self.frame_index, self.animation_name)
         return True
 
 
@@ -866,12 +868,12 @@ class FrameReorderCommand:
 
         animations = _animation_frames(self.editor.canvas.animated_sprite)
         if self.animation_name not in animations:
-            LOG.warning(f"Animation '{self.animation_name}' not found")
+            LOG.warning("Animation '%s' not found", self.animation_name)
             return False
 
         frames = animations[self.animation_name]
         if not (0 <= source < len(frames) and 0 <= destination < len(frames)):
-            LOG.warning(f"Frame indices out of range for '{self.animation_name}'")
+            LOG.warning("Frame indices out of range for '%s'", self.animation_name)
             return False
 
         frame = frames.pop(source)
@@ -881,7 +883,7 @@ class FrameReorderCommand:
         if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
             _refresh_film_strip_widget(self.editor.film_strip_widget, recalculate_layout=False)
 
-        LOG.debug(f"Reordered frame {source} -> {destination} in '{self.animation_name}'")
+        LOG.debug("Reordered frame %s -> %s in '%s'", source, destination, self.animation_name)
         return True
 
 
@@ -1013,7 +1015,7 @@ class AnimationAddCommand:
 
         _refresh_film_strip_widgets(self.editor)
 
-        LOG.debug(f"Added animation '{self.animation_name}'")
+        LOG.debug("Added animation '%s'", self.animation_name)
         return True
 
     def _delete_animation(self) -> bool:
@@ -1044,7 +1046,7 @@ class AnimationAddCommand:
 
         animations = _animation_frames(self.editor.canvas.animated_sprite)
         if self.animation_name not in animations:
-            LOG.warning(f"Animation '{self.animation_name}' not found")
+            LOG.warning("Animation '%s' not found", self.animation_name)
             return False
 
         del animations[self.animation_name]
@@ -1054,7 +1056,7 @@ class AnimationAddCommand:
         # Recreate film strips to reflect the deleted animation
         self.editor.film_strip_coordinator.on_sprite_loaded(self.editor.canvas.animated_sprite)
 
-        LOG.debug(f"Deleted animation '{self.animation_name}'")
+        LOG.debug("Deleted animation '%s'", self.animation_name)
         return True
 
 
@@ -1181,7 +1183,7 @@ class AnimationRenameCommand:
             return False
         animations = animated_sprite._animations
         if from_name not in animations or to_name in animations:
-            LOG.warning(f"Cannot rename animation '{from_name}' to '{to_name}'")
+            LOG.warning("Cannot rename animation '%s' to '%s'", from_name, to_name)
             return False
         self.editor.film_strip_coordinator.on_animation_rename(from_name, to_name)
         return to_name in animated_sprite._animations
@@ -1284,7 +1286,7 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
                 self.controller_id,
             )
 
-        LOG.debug(f'Applied controller position: {self.controller_id} -> {position}')
+        LOG.debug('Applied controller position: %s -> %s', self.controller_id, position)
         return True
 
 
@@ -1387,7 +1389,7 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
                 controller_mode,
             )
 
-        LOG.debug(f'Applied controller mode: {self.controller_id} -> {mode}')
+        LOG.debug('Applied controller mode: %s -> %s', self.controller_id, mode)
         return True
 
 
@@ -1500,7 +1502,7 @@ def _adjust_canvas_frame_after_deletion(
     if frame_manager.current_animation != animation_name:
         return
 
-    LOG.debug(f'Showing frame {frame_manager.current_frame} after deleting frame {frame_index}')
+    LOG.debug('Showing frame %s after deleting frame %s', frame_manager.current_frame, frame_index)
 
     max_frame = len(_animation_frames(editor.canvas.animated_sprite)[animation_name]) - 1
     if frame_manager.current_frame > max_frame:

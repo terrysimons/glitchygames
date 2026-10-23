@@ -171,7 +171,7 @@ def _render_png_to_response(
         render_all_frames=render_all_frames,
     )
     if not render_result.success:
-        LOG.warning(f'PNG rendering failed: {render_result.error}')
+        LOG.warning('PNG rendering failed: %s', render_result.error)
         return None
 
     response.png_base64 = render_result.png_base64
@@ -214,7 +214,7 @@ def _response_for_result(
 
     """
     if not result.success:
-        LOG.warning(f'{failure_label} failed: {result.error}')
+        LOG.warning('%s failed: %s', failure_label, result.error)
         return SpriteGenerationResponse(
             success=False,
             error=result.error,
@@ -284,9 +284,9 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
 
     try:
         # Generate the sprite
-        LOG.info(f'Generating sprite from prompt: {request.prompt[:50]}...')
+        LOG.info('Generating sprite from prompt: %s...', request.prompt[:50])
         if request.model:
-            LOG.info(f'Using model override: {request.model}')
+            LOG.info('Using model override: %s', request.model)
         result = generation_service.generate_sprite(
             prompt=request.prompt,
             width=request.width,
@@ -339,7 +339,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
 
     try:
         # Refine the sprite
-        LOG.info(f'Refining sprite with prompt: {request.prompt[:50]}...')
+        LOG.info('Refining sprite with prompt: %s...', request.prompt[:50])
         result = generation_service.refine_sprite(
             prompt=request.prompt,
             current_toml=request.current_toml,
@@ -539,8 +539,11 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
     loop_count = apng.num_plays if hasattr(apng, 'num_plays') else 0
 
     LOG.info(
-        f'Extracted {len(frames_info)} frames from APNG '
-        f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)',
+        'Extracted %s frames from APNG (%sx%s, %sms total)',
+        len(frames_info),
+        canvas_width,
+        canvas_height,
+        total_duration_ms,
     )
 
     return ApngExtractResponse(

@@ -14,6 +14,7 @@ from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
+from tests.logged_messages import logged_message
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -2818,7 +2819,10 @@ class TestSceneManagerLogBlockedEvents:
             if event_type in blocked_types
         ]
         assert len(expected_names) == len(blocked_types)
-        info.assert_called_once_with(f'Scene TestScene blocked events: {", ".join(expected_names)}')
+        (blocked_events_call,) = info.call_args_list
+        assert logged_message(blocked_events_call) == (
+            f'Scene TestScene blocked events: {", ".join(expected_names)}'
+        )
 
     def test_no_blocked_events_are_logged_as_none(self, mocker):
         manager = SceneManager()
@@ -2827,7 +2831,8 @@ class TestSceneManagerLogBlockedEvents:
         info = mocker.patch.object(manager.log, 'info')
         with _only_these_event_types_blocked(set()):
             manager._log_blocked_events(scene)
-        info.assert_called_once_with('Scene TestScene blocked events: None')
+        (blocked_events_call,) = info.call_args_list
+        assert logged_message(blocked_events_call) == 'Scene TestScene blocked events: None'
 
     def test_log_blocked_events_none(self):
         """Test _log_blocked_events with None scene does nothing."""

@@ -437,15 +437,24 @@ class Game(Scene):
                 y_trend: int = y_positions[-1] - y_positions[0]
                 if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
                     log.debug(
-                        f'BALL {ball_index + 1} UPWARD CURVE DETECTED: '
-                        f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
-                        f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})',
+                        'BALL %s UPWARD CURVE DETECTED: '
+                        'y_trend=%.1f positions=%s '
+                        'speed=(%.1f,%.1f)',
+                        ball_index + 1,
+                        y_trend,
+                        y_positions[-3:],
+                        ball.speed.x,
+                        ball.speed.y,
                     )
 
         log.debug(
-            f'BALL {ball_index + 1} BEFORE: pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
-            f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-            f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
+            'BALL %s BEFORE: pos=(%.1f,%.1f) speed=(%.1f,%.1f) magnitude=%.1f',
+            ball_index + 1,
+            ball.world_x,
+            ball.world_y,
+            ball.speed.x,
+            ball.speed.y,
+            math.sqrt(ball.speed.x**2 + ball.speed.y**2),
         )
 
     @override
@@ -474,9 +483,13 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 log.debug(
-                    f'BALL {i + 1} AFTER:  pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
-                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
+                    'BALL %s AFTER:  pos=(%.1f,%.1f) speed=(%.1f,%.1f) magnitude=%.1f',
+                    i + 1,
+                    ball.world_x,
+                    ball.world_y,
+                    ball.speed.x,
+                    ball.speed.y,
+                    math.sqrt(ball.speed.x**2 + ball.speed.y**2),
                 )
 
         # Collisions are game logic, so they run here, after every sprite moved. The engine
@@ -495,16 +508,29 @@ class Game(Scene):
 
             # Debug log ball state before collision checks
             log.debug(
-                f'BALL {i + 1} COLLISION CHECK: pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
-                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                f'paddle1_rect=({self.player1.rect.x},'
-                f'{self.player1.rect.y},'
-                f'{self.player1.rect.width},'
-                f'{self.player1.rect.height}) '
-                f'paddle2_rect=({self.player2.rect.x},'
-                f'{self.player2.rect.y},'
-                f'{self.player2.rect.width},'
-                f'{self.player2.rect.height})',
+                'BALL %s COLLISION CHECK: pos=(%.1f,%.1f) '
+                'speed=(%.1f,%.1f) '
+                'paddle1_rect=(%s,'
+                '%s,'
+                '%s,'
+                '%s) '
+                'paddle2_rect=(%s,'
+                '%s,'
+                '%s,'
+                '%s)',
+                i + 1,
+                ball.world_x,
+                ball.world_y,
+                ball.speed.x,
+                ball.speed.y,
+                self.player1.rect.x,
+                self.player1.rect.y,
+                self.player1.rect.width,
+                self.player1.rect.height,
+                self.player2.rect.x,
+                self.player2.rect.y,
+                self.player2.rect.width,
+                self.player2.rect.height,
             )
 
         # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
@@ -663,9 +689,9 @@ class Game(Scene):
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
-                    'Ball spawn cooldown active '
-                    f'({current_time - self.last_ball_spawn_time:.1f}s'
-                    f' < {cooldown}s), not spawning',
+                    'Ball spawn cooldown active (%.1fs < %ss), not spawning',
+                    current_time - self.last_ball_spawn_time,
+                    cooldown,
                 )
                 return
 
@@ -674,7 +700,7 @@ class Game(Scene):
             speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
             max_reasonable_speed = 1000.0  # 1000 pixels per second
             if speed_magnitude > max_reasonable_speed:
-                log.debug(f'Ball speed too high ({speed_magnitude:.1f}), not spawning new ball')
+                log.debug('Ball speed too high (%.1f), not spawning new ball', speed_magnitude)
                 return
 
         # Spawn conditions met, spawn a new ball
@@ -899,8 +925,9 @@ class Game(Scene):
         ball2_speed_before = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
 
         log.debug(
-            f'BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, '
-            f'ball2 speed before={ball2_speed_before:.2f}',
+            'BALL-TO-BALL: ball1 speed before=%.2f, ball2 speed before=%.2f',
+            ball1_speed_before,
+            ball2_speed_before,
         )
 
         # Decompose velocities into normal and tangential components
@@ -928,10 +955,14 @@ class Game(Scene):
         ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
 
         log.debug(
-            f'BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, '
-            f'ball2 speed after={ball2_speed_after:.2f}, '
-            f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
-            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}',
+            'BALL-TO-BALL: ball1 speed after=%.2f, '
+            'ball2 speed after=%.2f, '
+            'energy before=%.2f, '
+            'energy after=%.2f',
+            ball1_speed_after,
+            ball2_speed_after,
+            ball1_speed_before**2 + ball2_speed_before**2,
+            ball1_speed_after**2 + ball2_speed_after**2,
         )
 
     @staticmethod

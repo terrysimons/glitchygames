@@ -306,9 +306,9 @@ class SceneManager(SceneInterface, events.EventManager):
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
             self.debug_overlay.is_visible = bool(self.OPTIONS.get('debug_overlay', False))
-        self.log.info(f'Screen update type: {self.update_type}')
-        self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
-        self.log.info(f'Target FPS: {self.target_fps}')
+        self.log.info('Screen update type: %s', self.update_type)
+        self.log.info('FPS Log Interval: %sms', self.fps_log_interval_ms)
+        self.log.info('Target FPS: %s', self.target_fps)
 
         # Configure performance manager with the same log interval and target FPS
         from glitchygames.performance import performance_manager
@@ -1465,11 +1465,14 @@ class SceneManager(SceneInterface, events.EventManager):
             late = getattr(self, '_jitter_late_frames', 0)
             late_pct = (late / count) * 100.0
             self.log.info(
-                f'Timer jitter ns: p50={p50}'
-                f' p95={p95} p99={p99}'
-                f' max={p100} frames={count}'
-                f' avg_fps={avg_fps:.1f}'
-                f' late={late_pct:.1f}%',
+                'Timer jitter ns: p50=%s p95=%s p99=%s max=%s frames=%s avg_fps=%.1f late=%.1f%%',
+                p50,
+                p95,
+                p99,
+                p100,
+                count,
+                avg_fps,
+                late_pct,
             )
         self._jitter_last_log_ns = now_ns
         self._jitter_interval_start_ns = now_ns
@@ -2472,8 +2475,9 @@ class SceneManager(SceneInterface, events.EventManager):
     def _log_quit_info(self) -> None:
         """Log quit information."""
         self.log.info(
-            f'Game Quitting: Active Scene: {self.active_scene}, '
-            f'Quit Requested: {self.quit_requested}',
+            'Game Quitting: Active Scene: %s, Quit Requested: %s',
+            self.active_scene,
+            self.quit_requested,
         )
 
     def _reset_scene_timers(self) -> None:
@@ -2486,13 +2490,13 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _log_scene_switch(self, next_scene: Scene | None) -> None:
         """Log scene switch information."""
-        self.log.info(f'Switching to scene "{next_scene}" from scene "{self.active_scene}"')
+        self.log.info('Switching to scene "%s" from scene "%s"', next_scene, self.active_scene)
 
     def _cleanup_current_scene(self) -> None:
         """Cleanup the current active scene."""
         if self.active_scene:
             self.active_scene._screenshot = self.active_scene.screenshot  # pyright: ignore[reportPrivateUsage]
-            self.log.info(f'Cleaning up active scene {self.active_scene}.')
+            self.log.info('Cleaning up active scene %s.', self.active_scene)
             self.active_scene.cleanup()
 
     def _setup_new_scene(self, next_scene: Scene | None) -> None:
@@ -2556,8 +2560,9 @@ class SceneManager(SceneInterface, events.EventManager):
                 if pygame.event.get_blocked(event_type)
             ]
             self.log.info(
-                f'Scene {next_scene.name} blocked events: '
-                f'{", ".join(blocked_event_names) if blocked_event_names else "None"}'
+                'Scene %s blocked events: %s',
+                next_scene.name,
+                ', '.join(blocked_event_names) if blocked_event_names else 'None',
             )
 
     def _configure_active_scene(self) -> None:
@@ -2605,8 +2610,10 @@ class SceneManager(SceneInterface, events.EventManager):
             'unlimited' if self.active_scene.target_fps == 0 else f'{self.active_scene.target_fps}'
         )
         self.log.info(
-            f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-            f' at {fps_display} FPS',
+            'Rendering Scene "%s(%s)" at %s FPS',
+            self.active_scene.NAME,
+            type(self.active_scene),
+            fps_display,
         )
 
     def _setup_event_proxies(self) -> None:
@@ -3062,7 +3069,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         # Every focused sprite has is_active (_get_focused_sprites)
         for sprite in focused_sprites:
-            self.log.debug(f'Unfocusing {type(sprite).__name__}')
+            self.log.debug('Unfocusing %s', type(sprite).__name__)
             sprite.is_active = False
             if hasattr(sprite, 'on_focus_lost'):
                 sprite.on_focus_lost()
@@ -3119,7 +3126,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # AUDIODEVICEADDED which, iscapture
-        self.log.debug(f'{type(self)}: On Audio Device Added Event {event}')
+        self.log.debug('%s: On Audio Device Added Event %s', type(self), event)
 
     @override
     def on_audio_device_removed_event(self: Self, event: events.HashableEvent) -> None:
@@ -3130,7 +3137,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # AUDIODEVICEREMOVED which, iscapture
-        self.log.debug(f'{type(self)}: On Audio Device Removed Event {event}')
+        self.log.debug('%s: On Audio Device Removed Event %s', type(self), event)
 
     @override
     def on_controller_button_down_event(self: Self, event: events.HashableEvent) -> None:
@@ -3141,7 +3148,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # CONTROLLERBUTTONDOWN which, button
-        self.log.debug(f'{type(self)}: On Controller Button Down Event {event}')
+        self.log.debug('%s: On Controller Button Down Event %s', type(self), event)
 
     @override
     def on_controller_button_up_event(self: Self, event: events.HashableEvent) -> None:
@@ -3152,7 +3159,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # CONTROLLERBUTTONUP which, button
-        self.log.debug(f'{type(self)}: On Controller Button Up Event {event}')
+        self.log.debug('%s: On Controller Button Up Event %s', type(self), event)
 
     @override
     def on_joy_button_down_event(self: Self, event: events.HashableEvent) -> None:
@@ -3163,7 +3170,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # JOYBUTTONDOWN    joy, button
-        self.log.debug(f'{type(self)}: On Joy Button Down Event {event}')
+        self.log.debug('%s: On Joy Button Down Event %s', type(self), event)
 
     @override
     def on_joy_button_up_event(self: Self, event: events.HashableEvent) -> None:
@@ -3174,7 +3181,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # JOYBUTTONUP      joy, button
-        self.log.debug(f'{type(self)}: On Joy Button Up Event {event}')
+        self.log.debug('%s: On Joy Button Up Event %s', type(self), event)
 
     @override
     def on_key_up_event(self, event: events.HashableEvent) -> None:
@@ -3184,7 +3191,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: On Key Up Event {event}')
+        self.log.debug('%s: On Key Up Event %s', type(self), event)
 
         # Check for focused sprites first
         focused_sprites = self._get_focused_sprites()
@@ -3214,7 +3221,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MENUITEM         menu, item
-        self.log.debug(f'{type(self)}: On Menu Item Event {event}')
+        self.log.debug('%s: On Menu Item Event %s', type(self), event)
 
     @override
     def on_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
@@ -3230,7 +3237,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Get sprites at click position
         collided_sprites = self._get_collided_sprites(event_pos)
-        self.log.debug(f'Collided sprites: {[type(s).__name__ for s in collided_sprites]}')
+        self.log.debug('Collided sprites: %s', [type(s).__name__ for s in collided_sprites])
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug('Focusable sprites: %s', focusable_sprites)
 
@@ -3238,13 +3245,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
-                f'Top sprite @ DOWN: {type(top_sprite).__name__}, '
-                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}',
+                'Top sprite @ DOWN: %s, active=%s, pos=%s',
+                type(top_sprite).__name__,
+                getattr(top_sprite, 'active', None),
+                event_pos,
             )
 
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
-        self.log.debug(f'Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}')
+        self.log.debug('Currently focused sprites: %s', [type(s).__name__ for s in focused_sprites])
 
         # Handle focus management
         self._handle_focus_management(collided_sprites)
@@ -3263,7 +3272,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
+        self.log.debug('%s: Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         # Optimized: Skip expensive collision detection for drag events
         # Most drag handling is done by specific sprite drag handlers
@@ -3275,8 +3284,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
-                f'Top sprite @ DRAG: {type(top_sprite).__name__}, '
-                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}',
+                'Top sprite @ DRAG: %s, active=%s, pos=%s',
+                type(top_sprite).__name__,
+                getattr(top_sprite, 'active', None),
+                event_pos,
             )
 
         for sprite in collided_sprites:
@@ -3291,7 +3302,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} {trigger}')
+        self.log.debug('%s: Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3307,7 +3318,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
+        self.log.debug('%s: Left Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites: list[Any] | None = self.sprites_at_position(pos=event_pos)
 
@@ -3323,7 +3334,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
+        self.log.debug('%s: Left Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3343,7 +3354,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Middle Mouse Drag Event: {event} {trigger}')
+        self.log.info('%s: Middle Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3363,7 +3374,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Middle Mouse Drop Event: {event} {trigger}')
+        self.log.info('%s: Middle Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3379,7 +3390,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Right Mouse Drag Event: {event} {trigger}')
+        self.log.info('%s: Right Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3395,7 +3406,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Right Mouse Drop Event: {event} {trigger}')
+        self.log.info('%s: Right Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3411,7 +3422,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event}')
+        self.log.debug('%s: Left Mouse Button Up Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3428,7 +3439,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
+        self.log.debug('%s: Middle Mouse Button Up Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3445,7 +3456,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
+        self.log.info('%s: Right Mouse Button Up Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3467,13 +3478,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Get sprites at click position
         collided_sprites = self._get_collided_sprites(event_pos)
-        self.log.debug(f'Collided sprites: {[type(s).__name__ for s in collided_sprites]}')
+        self.log.debug('Collided sprites: %s', [type(s).__name__ for s in collided_sprites])
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug('Focusable sprites: %s', focusable_sprites)
 
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
-        self.log.debug(f'Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}')
+        self.log.debug('Currently focused sprites: %s', [type(s).__name__ for s in focused_sprites])
 
         # Handle focus management
         self._handle_focus_management(collided_sprites)
@@ -3492,7 +3503,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MOUSEBUTTONDOWN    pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
+        self.log.debug('%s: Middle Mouse Button Down Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3509,7 +3520,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MOUSEBUTTONDOWN  pos, button
-        self.log.info(f'{type(self)}: Right Mouse Button Down Event: {event}')
+        self.log.info('%s: Right Mouse Button Down Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self._get_collided_sprites(event_pos)
@@ -3525,7 +3536,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Sys WM Event: {event}')
+        self.log.debug('%s: Sys WM Event: %s', type(self), event)
 
     @override
     def on_text_editing_event(self: Self, event: events.HashableEvent) -> None:
@@ -3535,7 +3546,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Text Editing Event: {event}')
+        self.log.debug('%s: Text Editing Event: %s', type(self), event)
 
     @override
     def on_text_input_event(self: Self, event: events.HashableEvent) -> None:
@@ -3545,7 +3556,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Text Input Event: {event}')
+        self.log.debug('%s: Text Input Event: %s', type(self), event)
 
     @override
     def on_touch_down_event(self: Self, event: events.HashableEvent) -> None:
@@ -3556,7 +3567,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # TOUCHBUTTONDOWN  touch, pos, button
-        self.log.debug(f'{type(self)}: Touch Down Event: {event}')
+        self.log.debug('%s: Touch Down Event: %s', type(self), event)
 
     @override
     def on_touch_motion_event(self: Self, event: events.HashableEvent) -> None:
@@ -3567,7 +3578,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # TOUCHMOTION      touch, pos
-        self.log.debug(f'{type(self)}: Touch Motion Event: {event}')
+        self.log.debug('%s: Touch Motion Event: %s', type(self), event)
 
     @override
     def on_touch_up_event(self: Self, event: events.HashableEvent) -> None:
@@ -3578,7 +3589,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # TOUCHBUTTONUP    touch, pos
-        self.log.debug(f'{type(self)}: Touch Up Event: {event}')
+        self.log.debug('%s: Touch Up Event: %s', type(self), event)
 
     @override
     def on_user_event(self: Self, event: events.HashableEvent) -> None:
@@ -3589,7 +3600,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # USEREVENT        code
-        self.log.debug(f'{type(self)}: User Event: {event}')
+        self.log.debug('%s: User Event: %s', type(self), event)
 
     @override
     def on_video_expose_event(self: Self, event: events.HashableEvent) -> None:
@@ -3600,7 +3611,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # VIDEOEXPOSE      none
-        self.log.debug(f'{type(self)}: Video Expose Event: {event}')
+        self.log.debug('%s: Video Expose Event: %s', type(self), event)
 
     @override
     def on_video_resize_event(self: Self, event: events.HashableEvent) -> None:
@@ -3611,7 +3622,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # VIDEORESIZE      size, w, h
-        self.log.debug(f'{type(self)}: Video Resize Event: {event}')
+        self.log.debug('%s: Video Resize Event: %s', type(self), event)
 
     @override
     def on_window_close_event(self: Self, event: events.HashableEvent) -> None:
@@ -3622,7 +3633,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWCLOSE      none
-        self.log.debug(f'{type(self)}: Window Close Event: {event}')
+        self.log.debug('%s: Window Close Event: %s', type(self), event)
 
     @override
     def on_window_enter_event(self: Self, event: events.HashableEvent) -> None:
@@ -3633,7 +3644,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWENTER      none
-        self.log.debug(f'{type(self)}: Window Enter Event: {event}')
+        self.log.debug('%s: Window Enter Event: %s', type(self), event)
 
     @override
     def on_window_exposed_event(self: Self, event: events.HashableEvent) -> None:
@@ -3644,7 +3655,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWEXPOSED    none
-        self.log.debug(f'{type(self)}: Window Exposed Event: {event}')
+        self.log.debug('%s: Window Exposed Event: %s', type(self), event)
 
     @override
     def on_window_focus_gained_event(self: Self, event: events.HashableEvent) -> None:
@@ -3655,7 +3666,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWFOCUSGAINED none
-        self.log.debug(f'{type(self)}: Window Focus Gained Event: {event}')
+        self.log.debug('%s: Window Focus Gained Event: %s', type(self), event)
 
     @override
     def on_window_focus_lost_event(self: Self, event: events.HashableEvent) -> None:
@@ -3666,7 +3677,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWFOCUSLOST  none
-        self.log.debug(f'{type(self)}: Window Focus Lost Event: {event}')
+        self.log.debug('%s: Window Focus Lost Event: %s', type(self), event)
 
     @override
     def on_window_hidden_event(self: Self, event: events.HashableEvent) -> None:
@@ -3677,7 +3688,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWHIDDEN     none
-        self.log.debug(f'{type(self)}: Window Hidden Event: {event}')
+        self.log.debug('%s: Window Hidden Event: %s', type(self), event)
 
     @override
     def on_window_hit_test_event(self: Self, event: events.HashableEvent) -> None:
@@ -3688,7 +3699,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWHITTEST    pos
-        self.log.debug(f'{type(self)}: Window Hit Test Event: {event}')
+        self.log.debug('%s: Window Hit Test Event: %s', type(self), event)
 
     @override
     def on_window_leave_event(self: Self, event: events.HashableEvent) -> None:
@@ -3699,7 +3710,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWLEAVE      none
-        self.log.debug(f'{type(self)}: Window Leave Event: {event}')
+        self.log.debug('%s: Window Leave Event: %s', type(self), event)
 
     @override
     def on_window_maximized_event(self: Self, event: events.HashableEvent) -> None:
@@ -3710,7 +3721,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWMAXIMIZED  none
-        self.log.debug(f'{type(self)}: Window Maximized Event: {event}')
+        self.log.debug('%s: Window Maximized Event: %s', type(self), event)
 
     @override
     def on_window_minimized_event(self: Self, event: events.HashableEvent) -> None:
@@ -3721,7 +3732,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWMINIMIZED  none
-        self.log.debug(f'{type(self)}: Window Minimized Event: {event}')
+        self.log.debug('%s: Window Minimized Event: %s', type(self), event)
 
     @override
     def on_window_moved_event(self: Self, event: events.HashableEvent) -> None:
@@ -3732,7 +3743,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWMOVED      pos
-        self.log.debug(f'{type(self)}: Window Moved Event: {event}')
+        self.log.debug('%s: Window Moved Event: %s', type(self), event)
 
     @override
     def on_window_resized_event(self: Self, event: events.HashableEvent) -> None:
@@ -3743,7 +3754,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWRESIZED    size, w, h
-        self.log.debug(f'{type(self)}: Window Resized Event: {event}')
+        self.log.debug('%s: Window Resized Event: %s', type(self), event)
 
     @override
     def on_window_restored_event(self: Self, event: events.HashableEvent) -> None:
@@ -3754,7 +3765,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWRESTORED   none
-        self.log.debug(f'{type(self)}: Window Restored Event: {event}')
+        self.log.debug('%s: Window Restored Event: %s', type(self), event)
 
     @override
     def on_window_shown_event(self: Self, event: events.HashableEvent) -> None:
@@ -3765,7 +3776,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWSHOWN      none
-        self.log.debug(f'{type(self)}: Window Shown Event: {event}')
+        self.log.debug('%s: Window Shown Event: %s', type(self), event)
 
     @override
     def on_window_size_changed_event(self: Self, event: events.HashableEvent) -> None:
@@ -3776,7 +3787,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWSIZECHANGED size, w, h
-        self.log.debug(f'{type(self)}: Window Size Changed Event: {event}')
+        self.log.debug('%s: Window Size Changed Event: %s', type(self), event)
 
     @override
     def on_window_take_focus_event(self: Self, event: events.HashableEvent) -> None:
@@ -3787,7 +3798,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # WINDOWTAKEFOCUS  none
-        self.log.debug(f'{type(self)}: Window Take Focus Event: {event}')
+        self.log.debug('%s: Window Take Focus Event: %s', type(self), event)
 
     @override
     def on_quit_event(self: Self, event: events.HashableEvent) -> None:
@@ -3798,7 +3809,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # QUIT             none
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     @override
     def on_fps_event(self: Self, event: events.HashableEvent) -> None:
@@ -3817,19 +3828,19 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         log_interval_seconds = float(self.scene_manager.fps_log_interval_ms) / 1000.0
         if current_time - self._last_fps_log_time >= log_interval_seconds:
             event_fps: float = getattr(event, 'fps', 0.0)
-            self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event_fps}')
+            self.log.info('Scene "%s" (%s) FPS: %s', self.NAME, type(self), event_fps)
             self._last_fps_log_time = current_time
 
         self.fps = getattr(event, 'fps', 0.0)
 
     def load_resources(self: Self) -> None:
         """Load the scene's resources."""
-        self.log.debug(f'Implement load_resource() in {type(self)}.')
+        self.log.debug('Implement load_resource() in %s.', type(self))
 
     @override
     def on_key_down_event(self, event: events.HashableEvent) -> None:
         """Handle key down events."""
-        self.log.debug(f'{type(self)}: On Key Down Event {event}')
+        self.log.debug('%s: On Key Down Event %s', type(self), event)
 
         # Check if focused sprites handle the event
         if self._handle_focused_sprite_events(event):

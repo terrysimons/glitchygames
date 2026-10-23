@@ -94,15 +94,17 @@ class VisualIndicators:
 
         """
         self.handler.log.debug(
-            f'DEBUG: Updating visual indicator for controller {controller_id} to mode'
-            f' {new_mode.value} (selected controller)',
+            'DEBUG: Updating visual indicator for controller %s to mode %s (selected controller)',
+            controller_id,
+            new_mode.value,
         )
 
         # Get controller info, by controller id (see update_controller_canvas_visual_indicator)
         controller_info = self.handler.find_controller_info(controller_id)
         if not controller_info:
             self.handler.log.debug(
-                f'DEBUG: No controller info found for controller {controller_id}',
+                'DEBUG: No controller info found for controller %s',
+                controller_id,
             )
             return
 
@@ -112,12 +114,15 @@ class VisualIndicators:
         )
         if not location_type:
             self.handler.log.debug(
-                f'DEBUG: No location type found for controller {controller_id}',
+                'DEBUG: No location type found for controller %s',
+                controller_id,
             )
             return
 
         self.handler.log.debug(
-            f'DEBUG: Location type for controller {controller_id}: {location_type}',
+            'DEBUG: Location type for controller %s: %s',
+            controller_id,
+            location_type,
         )
 
         position = self._get_controller_mode_position(controller_id, new_mode)
@@ -148,8 +153,9 @@ class VisualIndicators:
         position_data = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if position_data and position_data.is_valid:
             self.handler.log.debug(
-                f'DEBUG: Using saved position for controller {controller_id}:'
-                f' {position_data.position}',
+                'DEBUG: Using saved position for controller %s: %s',
+                controller_id,
+                position_data.position,
             )
             return position_data.position
 
@@ -161,7 +167,9 @@ class VisualIndicators:
         else:  # film_strip
             position = (100, 100)  # Default position
         self.handler.log.debug(
-            f'DEBUG: Using default position for controller {controller_id}: {position}',
+            'DEBUG: Using default position for controller %s: %s',
+            controller_id,
+            position,
         )
         return position
 
@@ -186,8 +194,10 @@ class VisualIndicators:
             return
 
         self.handler.log.debug(
-            f'DEBUG: Adding new indicator for controller {controller_id} at {position} with'
-            f' location type {location_type}',
+            'DEBUG: Adding new indicator for controller %s at %s with location type %s',
+            controller_id,
+            position,
+            location_type,
         )
         # Remove any existing indicator for this controller first
         self.handler.editor.visual_collision_manager.remove_controller_indicator(controller_id)
@@ -200,7 +210,9 @@ class VisualIndicators:
             location_type,
         )
         self.handler.log.debug(
-            f'DEBUG: Updated visual indicator for controller {controller_id} at {position}',
+            'DEBUG: Updated visual indicator for controller %s at %s',
+            controller_id,
+            position,
         )
 
     # ------------------------------------------------------------------
@@ -253,7 +265,8 @@ class VisualIndicators:
             if hasattr(self.handler.editor, 'canvas'):
                 self.handler.editor.canvas.force_redraw()
                 self.handler.log.debug(
-                    f'DEBUG: Forced canvas redraw for controller {controller_id}',
+                    'DEBUG: Forced canvas redraw for controller %s',
+                    controller_id,
                 )
         elif location_type == LocationType.SLIDER:
             if hasattr(self.handler.editor, 'red_slider'):
@@ -264,14 +277,16 @@ class VisualIndicators:
                 self.handler.editor.blue_slider.text_sprite.dirty = 2
             self.handler.editor.dirty = 1
             self.handler.log.debug(
-                f'DEBUG: Marked sliders and scene as dirty for controller {controller_id}',
+                'DEBUG: Marked sliders and scene as dirty for controller %s',
+                controller_id,
             )
         elif location_type == LocationType.FILM_STRIP:
             if hasattr(self.handler.editor, 'film_strips'):
                 for strip_widget in self.handler.editor.film_strips.values():
                     strip_widget.mark_dirty()
             self.handler.log.debug(
-                f'DEBUG: Marked film strips as dirty for controller {controller_id}',
+                'DEBUG: Marked film strips as dirty for controller %s',
+                controller_id,
             )
 
     # ------------------------------------------------------------------
@@ -704,8 +719,9 @@ class VisualIndicators:
                     )
 
                 self.handler.log.debug(
-                    f'BitmapEditorScene: Registered and activated new controller {controller_id}'
-                    f' (instance {instance_id})',
+                    'BitmapEditorScene: Registered and activated new controller %s (instance %s)',
+                    controller_id,
+                    instance_id,
                 )
 
     def _remove_slider_indicator(self, controller_id: int) -> None:
@@ -729,7 +745,8 @@ class VisualIndicators:
         """Draw a single visual indicator on the screen."""
         if not indicator.is_visible:
             self.handler.log.debug(
-                f'DEBUG: Indicator for controller {indicator.controller_id} is not visible',
+                'DEBUG: Indicator for controller %s is not visible',
+                indicator.controller_id,
             )
             return
 
@@ -738,8 +755,11 @@ class VisualIndicators:
         final_y = indicator.position[1] + indicator.offset[1]
 
         self.handler.log.debug(
-            f'DEBUG: Drawing indicator for controller {indicator.controller_id} at ({final_x},'
-            f' {final_y}) with shape {indicator.shape.value}',
+            'DEBUG: Drawing indicator for controller %s at (%s, %s) with shape %s',
+            indicator.controller_id,
+            final_x,
+            final_y,
+            indicator.shape.value,
         )
 
         # Draw based on shape

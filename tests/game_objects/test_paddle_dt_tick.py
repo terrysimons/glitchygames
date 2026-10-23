@@ -32,7 +32,7 @@ def test_paddle_movement():
     directions = ['up', 'down', 'stop']
     dt = 1.0 / 60.0  # 60 FPS
 
-    LOG.debug(f'Testing with dt={dt:.4f} (60 FPS)')
+    LOG.debug('Testing with dt=%.4f (60 FPS)', dt)
     LOG.debug('Direction | Initial Pos | Final Pos | Distance | Speed')
     LOG.debug('----------|-------------|-----------|----------|-------')
 
@@ -62,9 +62,12 @@ def test_paddle_movement():
         actual_speed = distance / 1.0  # distance per second
 
         LOG.debug(
-            f'{direction:8s} | {initial_y:10d}'
-            f' | {final_y:9d} | {distance:6.1f}'
-            f' | {actual_speed:6.1f}',
+            '%s | %10d | %9d | %6.1f | %6.1f',
+            format(direction, '8s'),
+            initial_y,
+            final_y,
+            distance,
+            actual_speed,
         )
 
 

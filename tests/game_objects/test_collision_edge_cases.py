@@ -47,7 +47,7 @@ def _test_same_direction():
 
     LOG.debug('  Relative velocity: (%s, %s)', dvx, dvy)
     LOG.debug('  Relative velocity along normal: %s', dvn)
-    LOG.debug(f'  Should collide: {dvn < 0}')
+    LOG.debug('  Should collide: %s', dvn < 0)
 
 
 def _test_moving_away():
@@ -67,7 +67,7 @@ def _test_moving_away():
 
     LOG.debug('  Relative velocity: (%s, %s)', dvx, dvy)
     LOG.debug('  Relative velocity along normal: %s', dvn)
-    LOG.debug(f'  Should collide: {dvn < 0}')
+    LOG.debug('  Should collide: %s', dvn < 0)
 
 
 def _test_small_velocity():
@@ -90,12 +90,18 @@ def _test_small_velocity():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny
 
     LOG.debug(
-        f'  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),'
-        f' ball2=({ball2_speed[0]}, {ball2_speed[1]})',
+        '  Before: ball1=(%s, %s), ball2=(%s, %s)',
+        ball1_speed[0],
+        ball1_speed[1],
+        ball2_speed[0],
+        ball2_speed[1],
     )
     LOG.debug(
-        f'  After:  ball1=({new_ball1_x:.3f}, {new_ball1_y:.3f}),'
-        f' ball2=({new_ball2_x:.3f}, {new_ball2_y:.3f})',
+        '  After:  ball1=(%.3f, %.3f), ball2=(%.3f, %.3f)',
+        new_ball1_x,
+        new_ball1_y,
+        new_ball2_x,
+        new_ball2_y,
     )
 
 

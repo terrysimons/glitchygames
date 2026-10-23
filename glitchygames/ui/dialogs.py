@@ -263,7 +263,7 @@ class InputConfirmationDialogScene(Scene):
         """
         input_box_name = getattr(control, 'name', '')
         input_box_text = getattr(control, 'text', '')
-        self.log.info(f'{self.name} Got text input from: {input_box_name}: {input_box_text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, input_box_name, input_box_text)
 
     @override
     def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -538,15 +538,16 @@ class DeleteAnimationDialogScene(Scene):
 
         # Validate that the typed text matches the animation name
         if typed_text == self.animation_name:
-            LOG.info(f"DeleteAnimationDialog: User confirmed deletion of '{self.animation_name}'")
+            LOG.info("DeleteAnimationDialog: User confirmed deletion of '%s'", self.animation_name)
             # Call the callback if provided
             self.on_confirm_callback()
             # Return to previous scene
             self.scene_manager.switch_to_scene(self.previous_scene)
         else:
             LOG.warning(
-                f"DeleteAnimationDialog: Typed name '{typed_text}'"
-                f" does not match '{self.animation_name}'",
+                "DeleteAnimationDialog: Typed name '%s' does not match '%s'",
+                typed_text,
+                self.animation_name,
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
@@ -679,9 +680,9 @@ class DeleteFrameDialogScene(Scene):
         # Validate that the typed text is "YES"
         if typed_text == 'YES':
             LOG.info(
-                'DeleteFrameDialog: User confirmed deletion of'
-                f' frame {self.frame_index}'
-                f" from '{self.animation_name}'",
+                "DeleteFrameDialog: User confirmed deletion of frame %s from '%s'",
+                self.frame_index,
+                self.animation_name,
             )
             # Call the callback if provided
             self.on_confirm_callback()

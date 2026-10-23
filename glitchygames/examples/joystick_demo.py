@@ -226,9 +226,11 @@ class _InlineTextBox:
         text_width = rendered.get_width()
         if self.x + text_width > surface.get_width():
             LOG.debug(
-                f"Text '{string}' width {text_width} "
-                f'at x={self.x} exceeds surface '
-                f'width {surface.get_width()}',
+                "Text '%s' width %s at x=%s exceeds surface width %s",
+                string,
+                text_width,
+                self.x,
+                surface.get_width(),
             )
         surface.blit(rendered, (self.x, self.y))
         self.y += self.line_height

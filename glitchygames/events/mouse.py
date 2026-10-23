@@ -76,7 +76,7 @@ class MouseEventManager(ResourceManager):
             sprite = collided_sprites(self.game, event=event, index=-1)
 
             if sprite:
-                self.log.debug(f'{type(self)}: Mouse Motion: {event}')
+                self.log.debug('%s: Mouse Motion: %s', type(self), event)
                 sprite[0].on_mouse_motion_event(event)
 
             # Caller can check the buttons.
@@ -122,7 +122,7 @@ class MouseEventManager(ResourceManager):
                 trigger (pygame.event.Event): The triggering event.
 
             """
-            self.log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
+            self.log.debug('%s: Mouse Drop: %s %s', type(self), event, trigger)
             self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
 
@@ -249,7 +249,7 @@ class MouseEventManager(ResourceManager):
             # Send an enter event for the new focus.
             entering_focus.on_mouse_focus_event(event, self.current_focus)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
 
-            self.log.info(f'Entered Focus: {self.current_focus}')
+            self.log.info('Entered Focus: %s', self.current_focus)
 
         @override
         def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object) -> None:
@@ -266,7 +266,7 @@ class MouseEventManager(ResourceManager):
                 leaving_focus.on_mouse_unfocus_event(event)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
                 self.current_focus = None
 
-                self.log.info(f'Left Focus: {self.previous_focus}')
+                self.log.info('Left Focus: %s', self.previous_focus)
 
         @override
         def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:

@@ -53,8 +53,9 @@ class TestBallCollisionPhysics:
         collision_distance = 20.0  # 10px radius each ball
         if distance > collision_distance or distance < 0.001:
             LOG.debug(
-                f'DEBUG: No collision - distance={distance:.2f},'
-                f' collision_distance={collision_distance}',
+                'DEBUG: No collision - distance=%.2f, collision_distance=%s',
+                distance,
+                collision_distance,
             )
             return None
 

@@ -69,12 +69,12 @@ def _run_wall_bounce_simulation(balls, max_frames, dt, screen_width=800, screen_
             if new_x <= 1 or new_x >= screen_width - ball.width - 1:
                 x_bounces += 1
                 total_bounces += 1
-                LOG.debug(f'  Ball {ball_index + 1} X wall bounce at x={new_x}')
+                LOG.debug('  Ball %s X wall bounce at x=%s', ball_index + 1, new_x)
 
             if new_y <= 1 or new_y >= screen_height - ball.height - 1:
                 y_bounces += 1
                 total_bounces += 1
-                LOG.debug(f'  Ball {ball_index + 1} Y wall bounce at y={new_y}')
+                LOG.debug('  Ball %s Y wall bounce at y=%s', ball_index + 1, new_y)
 
             # Sample speed magnitude every 60 frames (1 second)
             if frame_count % 60 == 0:
@@ -111,11 +111,11 @@ def _analyze_ball_trajectory(ball, ball_index, trajectory_positions, magnitude_s
     min_x, max_x = min(x_positions), max(x_positions)
     min_y, max_y = min(y_positions), max(y_positions)
 
-    LOG.debug(f'Ball {ball_index + 1} trajectory:')
-    LOG.debug(f'  Position bounds: X[{min_x:.1f}-{max_x:.1f}] Y[{min_y:.1f}-{max_y:.1f}]')
-    LOG.debug(f'  Final position: ({ball.rect.x}, {ball.rect.y})')
-    LOG.debug(f'  Final speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})')
-    LOG.debug(f'  Final magnitude: {math.sqrt(ball.speed.x**2 + ball.speed.y**2):.3f}')
+    LOG.debug('Ball %s trajectory:', ball_index + 1)
+    LOG.debug('  Position bounds: X[%.1f-%.1f] Y[%.1f-%.1f]', min_x, max_x, min_y, max_y)
+    LOG.debug('  Final position: (%s, %s)', ball.rect.x, ball.rect.y)
+    LOG.debug('  Final speed: (%.3f, %.3f)', ball.speed.x, ball.speed.y)
+    LOG.debug('  Final magnitude: %.3f', math.sqrt(ball.speed.x**2 + ball.speed.y**2))
 
     x_drift = max_x - min_x
     y_drift = max_y - min_y
@@ -130,7 +130,7 @@ def _analyze_ball_trajectory(ball, ball_index, trajectory_positions, magnitude_s
         max_mag = max(magnitude_samples)
         drift = max_mag - min_mag
 
-        LOG.debug(f'  Speed magnitude: min={min_mag:.3f}, max={max_mag:.3f}, drift={drift:.6f}')
+        LOG.debug('  Speed magnitude: min=%.3f, max=%.3f, drift=%.6f', min_mag, max_mag, drift)
 
         if drift < 0.01:
             LOG.info('  Speed magnitude is stable')
@@ -149,12 +149,12 @@ def _analyze_wall_bounce_results(balls, results):
     final_alive = sum(1 for ball in balls if ball.alive())
 
     LOG.debug('\n=== FINAL RESULTS ===')
-    LOG.debug(f'Total time: {total_time:.2f} seconds')
-    LOG.debug(f'Frames processed: {results["frame_count"]:,}')
+    LOG.debug('Total time: %.2f seconds', total_time)
+    LOG.debug('Frames processed: %s', format(results['frame_count'], ','))
     LOG.debug('Balls still alive: %s', final_alive)
-    LOG.debug(f'Total wall bounces: {results["total_bounces"]}')
-    LOG.debug(f'X wall bounces: {results["x_bounces"]}')
-    LOG.debug(f'Y wall bounces: {results["y_bounces"]}')
+    LOG.debug('Total wall bounces: %s', results['total_bounces'])
+    LOG.debug('X wall bounces: %s', results['x_bounces'])
+    LOG.debug('Y wall bounces: %s', results['y_bounces'])
 
     # Analyze individual ball trajectories
     LOG.debug('\n=== TRAJECTORY ANALYSIS ===')
@@ -187,15 +187,19 @@ def test_multi_ball_wall_bounce():
     for ball_index, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         LOG.debug(
-            f'  Ball {ball_index + 1}: pos=({ball.rect.x},{ball.rect.y})'
-            f' speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
-            f' mag={magnitude:.1f}',
+            '  Ball %s: pos=(%s,%s) speed=(%.1f,%.1f) mag=%.1f',
+            ball_index + 1,
+            ball.rect.x,
+            ball.rect.y,
+            ball.speed.x,
+            ball.speed.y,
+            magnitude,
         )
 
     dt = 1.0 / 60.0  # 60 FPS
     max_frames = 1800  # 30 seconds at 60 FPS
 
-    LOG.debug(f'\nRunning simulation for {max_frames} frames ({max_frames / 60:.1f} seconds)...')
+    LOG.debug('\nRunning simulation for %s frames (%.1f seconds)...', max_frames, max_frames / 60)
 
     results = _run_wall_bounce_simulation(balls, max_frames, dt)
     final_alive = _analyze_wall_bounce_results(balls, results)

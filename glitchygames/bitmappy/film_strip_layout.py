@@ -254,9 +254,10 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
         )
 
         LOG.debug(
-            'FilmStripWidget: Scrolling to show frame '
-            f'{frame_index}, new window: '
-            f'{new_start_frame}-{new_start_frame + frames_per_view - 1}',
+            'FilmStripWidget: Scrolling to show frame %s, new window: %s-%s',
+            frame_index,
+            new_start_frame,
+            new_start_frame + frames_per_view - 1,
         )
 
         # Recalculate layout with new scroll offset
@@ -370,16 +371,19 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
             removal_button_height,
         )
         LOG.debug(
-            'FilmStripWidget: Created removal button '
-            f'rect for {anim_name}[{actual_frame_idx}] '
-            f'at {removal_button_rect}',
+            'FilmStripWidget: Created removal button rect for %s[%s] at %s',
+            anim_name,
+            actual_frame_idx,
+            removal_button_rect,
         )
         if not hasattr(self.widget, 'removal_button_layouts'):
             self.widget.removal_button_layouts = {}
             LOG.debug('FilmStripWidget: Initialized removal_button_layouts dictionary')
         self.widget.removal_button_layouts[anim_name, actual_frame_idx] = removal_button_rect
         LOG.debug(
-            f'FilmStripWidget: Added removal button to layouts: {anim_name}[{actual_frame_idx}]',
+            'FilmStripWidget: Added removal button to layouts: %s[%s]',
+            anim_name,
+            actual_frame_idx,
         )
 
     def calculate_frame_layouts(self) -> None:
@@ -391,8 +395,8 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
             return
 
         LOG.debug(
-            'FilmStripWidget: Calculating frame layouts for '
-            f'{len(self.widget.animated_sprite.animations)} animations',
+            'FilmStripWidget: Calculating frame layouts for %s animations',
+            len(self.widget.animated_sprite.animations),
         )
 
         # CRITICAL: Clear old removal button layouts to prevent stale data
@@ -413,9 +417,11 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
             end_frame = min(start_frame + frames_per_view, len(frames))
             frames_to_show = frames[start_frame:end_frame]
             LOG.debug(
-                'FilmStripWidget: Processing '
-                f'{len(frames_to_show)} frames for animation '
-                f'{anim_name} (frames {start_frame}-{end_frame - 1})',
+                'FilmStripWidget: Processing %s frames for animation %s (frames %s-%s)',
+                len(frames_to_show),
+                anim_name,
+                start_frame,
+                end_frame - 1,
             )
             for frame_idx, _frame in enumerate(frames_to_show):
                 actual_frame_idx = start_frame + frame_idx
@@ -433,8 +439,10 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
                     frame_x, frame_y, self.widget.frame_width, self.widget.frame_height
                 )
                 LOG.debug(
-                    'FilmStripWidget: Created frame rect for '
-                    f'{anim_name}[{actual_frame_idx}] at {frame_rect}',
+                    'FilmStripWidget: Created frame rect for %s[%s] at %s',
+                    anim_name,
+                    actual_frame_idx,
+                    frame_rect,
                 )
                 self.widget.frame_layouts[anim_name, actual_frame_idx] = frame_rect
 
@@ -443,9 +451,10 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
                     self.add_removal_button(anim_name, actual_frame_idx, frame_x, frame_y)
                 else:
                     LOG.debug(
-                        'FilmStripWidget: Skipping removal button '
-                        f'for {anim_name}[{actual_frame_idx}] '
-                        f'- only {len(frames)} frame(s)',
+                        'FilmStripWidget: Skipping removal button for %s[%s] - only %s frame(s)',
+                        anim_name,
+                        actual_frame_idx,
+                        len(frames),
                     )
 
             # Only increment Y offset if there are multiple animations
@@ -535,16 +544,22 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
 
         """
         LOG.debug(
-            'FilmStripWidget: Checking position '
-            f'{pos} against {len(self.widget.frame_layouts)} frame layouts',
+            'FilmStripWidget: Checking position %s against %s frame layouts',
+            pos,
+            len(self.widget.frame_layouts),
         )
         for (anim_name, frame_idx), frame_rect in self.widget.frame_layouts.items():
             LOG.debug(
-                f'FilmStripWidget: Checking {anim_name}[{frame_idx}] at {frame_rect}',
+                'FilmStripWidget: Checking %s[%s] at %s',
+                anim_name,
+                frame_idx,
+                frame_rect,
             )
             if frame_rect.collidepoint(pos):
                 LOG.debug(
-                    f'FilmStripWidget: Found collision with {anim_name}[{frame_idx}]',
+                    'FilmStripWidget: Found collision with %s[%s]',
+                    anim_name,
+                    frame_idx,
                 )
                 return (anim_name, frame_idx)
         LOG.debug('FilmStripWidget: No collision found')

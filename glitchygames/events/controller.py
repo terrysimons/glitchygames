@@ -318,12 +318,12 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         # and is safe to call more than once.
         pygame._sdl2.controller.init()
 
-        self.log.debug(f'Controller Module Inited: {pygame._sdl2.controller.get_init()}')
+        self.log.debug('Controller Module Inited: %s', pygame._sdl2.controller.get_init())
 
         # Enumerated through the devices door (glitchygames/input/devices.py)
         devices = active_sources().devices()
         controller_count = devices.controller_count()
-        self.log.info(f'Enumerating {controller_count} controllers.')
+        self.log.info('Enumerating %s controllers.', controller_count)
 
         for controller_id in range(controller_count):
             if not devices.is_controller(device_index=controller_id):
@@ -425,7 +425,7 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         self.controllers[event.device_index] = controller_proxy
 
         # The controller proxy overrides the controller object
-        self.log.debug(f'Added Controller #{event.device_index}: {controller_proxy}')
+        self.log.debug('Added Controller #%s: %s', event.device_index, controller_proxy)
         self.log.debug(
             'CONTROLLERDEVICEADDED triggered: on_controller_device_added_event(%s)',
             event,
@@ -462,7 +462,7 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         if event.instance_id in self.controllers:
             self.controllers[event.instance_id].on_controller_device_removed_event(event)
             del self.controllers[event.instance_id]
-            self.log.debug(f'Removed Controller #{event.instance_id}')
+            self.log.debug('Removed Controller #%s', event.instance_id)
             self.log.debug(
                 'CONTROLLERDEVICEREMOVED triggered: on_controller_device_removed(%s)',
                 event,

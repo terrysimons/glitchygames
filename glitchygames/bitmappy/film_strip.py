@@ -176,10 +176,11 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
 
     def set_animated_sprite(self, animated_sprite: AnimatedSprite) -> None:
         """Set the animated sprite to display."""
-        LOG.debug(f'FilmStripWidget: set_animated_sprite called with sprite: {animated_sprite}')
+        LOG.debug('FilmStripWidget: set_animated_sprite called with sprite: %s', animated_sprite)
         LOG.debug(
-            f'FilmStripWidget: Sprite has {len(animated_sprite.animations)} animations: '
-            f'{list(animated_sprite.animations.keys())}',
+            'FilmStripWidget: Sprite has %s animations: %s',
+            len(animated_sprite.animations),
+            list(animated_sprite.animations.keys()),
         )
 
         self.animated_sprite = animated_sprite
@@ -195,41 +196,41 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
                 # Use the first animation in the file order
                 self.current_animation = animated_sprite.animation_order[0]
                 LOG.debug(
-                    'FilmStripWidget: Using first animation from _animation_order: '
-                    f'{self.current_animation}',
+                    'FilmStripWidget: Using first animation from _animation_order: %s',
+                    self.current_animation,
                 )
             else:
                 # Fall back to the first key in _animations
                 self.current_animation = next(iter(animated_sprite.animations.keys()))
                 LOG.debug(
-                    'FilmStripWidget: Using first animation from _animations: '
-                    f'{self.current_animation}',
+                    'FilmStripWidget: Using first animation from _animations: %s',
+                    self.current_animation,
                 )
 
             # Configure the animated sprite to loop and start playing for preview
-            LOG.debug(f"FilmStripWidget: Setting animation to '{self.current_animation}'")
+            LOG.debug("FilmStripWidget: Setting animation to '%s'", self.current_animation)
             animated_sprite.set_animation(self.current_animation)
             LOG.debug(
-                'FilmStripWidget: After set_animation - current_animation: '
-                f'{getattr(animated_sprite, "current_animation", "None")}',
+                'FilmStripWidget: After set_animation - current_animation: %s',
+                getattr(animated_sprite, 'current_animation', 'None'),
             )
 
             LOG.debug('FilmStripWidget: Setting is_looping to True')
             animated_sprite.is_looping = True  # Enable looping for continuous preview
             LOG.debug(
-                'FilmStripWidget: After setting is_looping - is_looping: '
-                f'{getattr(animated_sprite, "is_looping", "None")}',
+                'FilmStripWidget: After setting is_looping - is_looping: %s',
+                getattr(animated_sprite, 'is_looping', 'None'),
             )
 
             LOG.debug('FilmStripWidget: Calling play()')
             animated_sprite.play()  # Start playing the animation
             LOG.debug(
-                'FilmStripWidget: After play() - is_playing: '
-                f'{getattr(animated_sprite, "is_playing", "None")}',
+                'FilmStripWidget: After play() - is_playing: %s',
+                getattr(animated_sprite, 'is_playing', 'None'),
             )
             LOG.debug(
-                'FilmStripWidget: After play() - current_frame: '
-                f'{getattr(animated_sprite, "current_frame", "None")}',
+                'FilmStripWidget: After play() - current_frame: %s',
+                getattr(animated_sprite, 'current_frame', 'None'),
             )
         else:
             self.current_animation = ''
@@ -239,8 +240,9 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         self.current_frame = 0
         self.scroll_offset = 0  # Horizontal scroll offset for rolling effect
         LOG.debug(
-            f'FilmStripWidget: Final state - current_animation: {self.current_animation}, '
-            f'current_frame: {self.current_frame}',
+            'FilmStripWidget: Final state - current_animation: %s, current_frame: %s',
+            self.current_animation,
+            self.current_frame,
         )
 
         # Initialize animation timing for previews
@@ -250,8 +252,8 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         self.mark_dirty()
         LOG.debug('FilmStripWidget: Marked as dirty after setting up animations')
         LOG.debug(
-            'FilmStripWidget: _force_redraw after mark_dirty: '
-            f'{getattr(self, "force_redraw", False)}',
+            'FilmStripWidget: _force_redraw after mark_dirty: %s',
+            getattr(self, 'force_redraw', False),
         )
 
         self.layout.calculate_layout()

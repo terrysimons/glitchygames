@@ -696,73 +696,60 @@ class TestMainCli:
 
 
 class TestLogExtractionMetadata:
-    """Tests for _log_extraction_metadata function."""
+    """Tests for _log_extraction_metadata function (on the messages as logged)."""
 
-    def test_logs_frame_count(self, mocker):
+    @staticmethod
+    def _logged_info(caplog, response):
+        """Return the INFO messages _log_extraction_metadata logs for response, as formatted.
+
+        Returns:
+            list[str]: The messages.
+
+        """
+        with caplog.at_level(logging.INFO, logger='glitchygames.api.client'):
+            _log_extraction_metadata(response)
+        return [record.getMessage() for record in caplog.records if record.levelno == logging.INFO]
+
+    def test_logs_frame_count(self, caplog):
         """Test that frame count is logged."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 5}
+        assert 'Extracted 5 frames' in self._logged_info(caplog, {'frame_count': 5})
 
-        _log_extraction_metadata(response)
-
-        mock_log.info.assert_any_call('Extracted 5 frames')
-
-    def test_logs_canvas_size(self, mocker):
+    def test_logs_canvas_size(self, caplog):
         """Test that canvas size is logged when width and height present."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 3, 'width': 32, 'height': 32}
+        messages = self._logged_info(caplog, {'frame_count': 3, 'width': 32, 'height': 32})
 
-        _log_extraction_metadata(response)
+        assert '  Canvas size: 32x32 pixels' in messages
 
-        mock_log.info.assert_any_call('  Canvas size: 32x32 pixels')
-
-    def test_skips_canvas_size_when_missing(self, mocker):
+    def test_skips_canvas_size_when_missing(self, caplog):
         """Test that canvas size is not logged when width or height missing."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 3, 'width': 32}
-
-        _log_extraction_metadata(response)
+        messages = self._logged_info(caplog, {'frame_count': 3, 'width': 32})
 
         # Should only have frame count log, not canvas size
-        calls = [str(call) for call in mock_log.info.call_args_list]
-        assert not any('Canvas size' in call for call in calls)
+        assert not any('Canvas size' in message for message in messages)
 
-    def test_logs_total_duration(self, mocker):
+    def test_logs_total_duration(self, caplog):
         """Test that total duration is logged when present."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 3, 'total_duration_ms': 500}
+        messages = self._logged_info(caplog, {'frame_count': 3, 'total_duration_ms': 500})
 
-        _log_extraction_metadata(response)
+        assert '  Total duration: 500ms' in messages
 
-        mock_log.info.assert_any_call('  Total duration: 500ms')
-
-    def test_logs_infinite_loop_count(self, mocker):
+    def test_logs_infinite_loop_count(self, caplog):
         """Test that loop_count of 0 is logged as infinite."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 3, 'loop_count': 0}
+        messages = self._logged_info(caplog, {'frame_count': 3, 'loop_count': 0})
 
-        _log_extraction_metadata(response)
+        assert '  Loop count: infinite' in messages
 
-        mock_log.info.assert_any_call('  Loop count: infinite')
-
-    def test_logs_finite_loop_count(self, mocker):
+    def test_logs_finite_loop_count(self, caplog):
         """Test that non-zero loop_count is logged as a number."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 3, 'loop_count': 5}
+        messages = self._logged_info(caplog, {'frame_count': 3, 'loop_count': 5})
 
-        _log_extraction_metadata(response)
+        assert '  Loop count: 5' in messages
 
-        mock_log.info.assert_any_call('  Loop count: 5')
-
-    def test_skips_loop_count_when_none(self, mocker):
+    def test_skips_loop_count_when_none(self, caplog):
         """Test that loop_count is not logged when not present."""
-        mock_log = mocker.patch('glitchygames.api.client.LOG')
-        response = {'frame_count': 3}
+        messages = self._logged_info(caplog, {'frame_count': 3})
 
-        _log_extraction_metadata(response)
-
-        calls = [str(call) for call in mock_log.info.call_args_list]
-        assert not any('Loop count' in call for call in calls)
+        assert not any('Loop count' in message for message in messages)
 
 
 class TestSaveApngExtractedFrames:

@@ -180,7 +180,7 @@ class FileIOManager:
         """
         image, width, height = self._load_and_resize_png(file_path)
         pixel_array: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
-        self.log.info(f'Pixel array shape: {pixel_array.shape}')
+        self.log.info('Pixel array shape: %s', pixel_array.shape)
 
         has_transparency, original_image = self._detect_png_transparency(image, file_path)
         unique_colors, sample_count, transparent_pixels = self._sample_png_colors(
@@ -197,7 +197,9 @@ class FileIOManager:
                 transparent_pixels,
             )
         self.log.info(
-            f'Sampled {sample_count} pixels, found {len(unique_colors)} unique colors',
+            'Sampled %s pixels, found %s unique colors',
+            sample_count,
+            len(unique_colors),
         )
 
         unique_colors = quantize_colors_if_needed(
@@ -470,15 +472,17 @@ class FileIOManager:
             The canvas sprite if found, or None.
 
         """
-        all_sprites: list[Any] = list(self.editor.all_sprites)
-        self.log.info(f'Searching for canvas sprite in {len(all_sprites)} sprites...')
+        all_sprites: list[pygame.sprite.Sprite] = list(self.editor.all_sprites)
+        self.log.info('Searching for canvas sprite in %s sprites...', len(all_sprites))
         for i, sprite in enumerate(all_sprites):
             self.log.info(
-                f'Sprite {i}: {type(sprite)} - has on_load_file_event:'
-                f' {hasattr(sprite, "on_load_file_event")}',
+                'Sprite %s: %s - has on_load_file_event: %s',
+                i,
+                type(sprite),
+                hasattr(sprite, 'on_load_file_event'),
             )
             if hasattr(sprite, 'on_load_file_event'):
-                self.log.info(f'Found canvas sprite: {type(sprite)}')
+                self.log.info('Found canvas sprite: %s', type(sprite))
                 return sprite
         return None
 
@@ -491,7 +495,7 @@ class FileIOManager:
 
         """
         self.log.info('Loading converted sprite: %s', toml_path)
-        self.log.info(f'Found canvas sprite: {type(canvas_sprite)}')
+        self.log.info('Found canvas sprite: %s', type(canvas_sprite))
 
         # Create a mock event for loading
         mock_event = MockEvent(text=toml_path)
@@ -514,16 +518,17 @@ class FileIOManager:
             canvas_sprite: The canvas sprite containing the loaded animation.
 
         """
-        self.log.info(f'Canvas sprite type: {type(canvas_sprite)}')
+        self.log.info('Canvas sprite type: %s', type(canvas_sprite))
         self.log.info(
-            f'Canvas sprite has animated_sprite: {hasattr(canvas_sprite, "animated_sprite")}',
+            'Canvas sprite has animated_sprite: %s',
+            hasattr(canvas_sprite, 'animated_sprite'),
         )
         if hasattr(canvas_sprite, 'animated_sprite'):
-            self.log.info(f'animated_sprite value: {canvas_sprite.animated_sprite}')
+            self.log.info('animated_sprite value: %s', canvas_sprite.animated_sprite)
         if not (hasattr(canvas_sprite, 'animated_sprite') and canvas_sprite.animated_sprite):
             return
 
-        self.log.info(f'Animated sprite loaded: {canvas_sprite.animated_sprite}')
+        self.log.info('Animated sprite loaded: %s', canvas_sprite.animated_sprite)
         if not hasattr(canvas_sprite.animated_sprite, '_animations'):
             return
 
@@ -534,12 +539,12 @@ class FileIOManager:
 
         first_anim = animations[0]
         frames = canvas_sprite.animated_sprite._animations[first_anim]  # type: ignore[reportPrivateUsage]
-        self.log.info(f"First animation '{first_anim}' has {len(frames)} frames")
+        self.log.info("First animation '%s' has %s frames", first_anim, len(frames))
         if not frames:
             return
 
         first_frame = frames[0]
-        self.log.info(f'First frame size: {first_frame.get_size()}')
+        self.log.info('First frame size: %s', first_frame.get_size())
         self._apply_frame_pixels_to_canvas(canvas_sprite, first_frame)
 
     def _apply_frame_pixels_to_canvas(
@@ -581,7 +586,7 @@ class FileIOManager:
         # Update canvas pixels
         canvas_sprite.pixels = pixel_data
         canvas_sprite.dirty_pixels = [True] * len(pixel_data)
-        self.log.info(f'Transferred {len(pixel_data)} pixels to canvas')
+        self.log.info('Transferred %s pixels to canvas', len(pixel_data))
 
         # Update mini view pixels too
         if hasattr(canvas_sprite, 'mini_view') and canvas_sprite.mini_view is not None:
@@ -660,8 +665,9 @@ class FileIOManager:
 
                 onion_manager.set_animation_onion_state(animation_name, frame_states)  # type: ignore[arg-type]
                 self.log.debug(
-                    f"Initialized onion skinning for animation '{animation_name}' with"
-                    f' {len(frames)} frames',
+                    "Initialized onion skinning for animation '%s' with %s frames",
+                    animation_name,
+                    len(frames),
                 )
 
         # Ensure global onion skinning is enabled

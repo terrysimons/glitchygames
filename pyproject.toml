@@ -186,7 +186,6 @@ ignore = [
   "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
   "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
   "PLR6301", # Method could be a function/staticmethod
-  "G004",    # Logging statement uses f-string
   # --- Added with ruff 0.17 ---
   # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
   # e.g. conftest's singleton reset and pygame mocks must apply to every test.

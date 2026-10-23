@@ -174,9 +174,10 @@ class FontManager(ResourceManager):
 
         # Register pygame.freetype (imported at module top, so always available)
         pygame.freetype.init()
-        log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')
+        log.info('Freetype Font Cache Size: %s', pygame.freetype.get_cache_size())
         log.info(
-            f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}',
+            'Freetype Font Default Resolution: %s',
+            pygame.freetype.get_default_resolution(),
         )
 
         # Set up the default options.
@@ -295,8 +296,8 @@ class FontManager(ResourceManager):
         if cache_key in FontManager._font_cache:
             return FontManager._font_cache[cache_key]
 
-        log.info(f'Loading Font: {font_config["font_name"]}')
-        log.info(f'Font Size: {font_config["font_size"]}')
+        log.info('Loading Font: %s', font_config['font_name'])
+        log.info('Font Size: %s', font_config['font_size'])
 
         # A bundled font loads from its file: no system font scan (BUGS.md #156).
         font_path = bundled_font_path(font_name=font_config['font_name'])

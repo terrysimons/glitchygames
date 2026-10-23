@@ -1103,10 +1103,10 @@ class MultiLineTextBox(BitmappySprite):
         time_since_last_update = current_time - self._last_update_time
         line_height = self._get_line_height()
 
-        self.log.debug(f'\n--- Frame {self._frame_count} ---')
+        self.log.debug('\n--- Frame %s ---', self._frame_count)
         self.log.debug('Update called after %sms', time_since_last_update)
-        self.log.debug(f'State: active={self.is_active}, cursor_visible={self.cursor_visible}')
-        self.log.debug(f'Dirty flag: {self.dirty}')
+        self.log.debug('State: active=%s, cursor_visible=%s', self.is_active, self.cursor_visible)
+        self.log.debug('Dirty flag: %s', self.dirty)
 
         self._last_update_time = current_time
 
@@ -1139,10 +1139,10 @@ class MultiLineTextBox(BitmappySprite):
     def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
         """Handle left mouse button down events."""
         self.log.debug('\n--- Mouse Event ---')
-        self.log.debug(f'Mouse down at {event.pos}')
-        self.log.debug(f'Current rect: {self.rect}')
+        self.log.debug('Mouse down at %s', event.pos)
+        self.log.debug('Current rect: %s', self.rect)
         self.log.debug(
-            f'Current state: active={self.is_active}, cursor_visible={self.cursor_visible}'
+            'Current state: active=%s, cursor_visible=%s', self.is_active, self.cursor_visible
         )
 
         # Convert absolute mouse position to widget-relative coordinates
@@ -1199,7 +1199,7 @@ class MultiLineTextBox(BitmappySprite):
             # Map the wrapped position back to original text position
             self.cursor_pos = self._map_wrapped_position_to_original(clicked_line, char_pos_in_line)
 
-            self.log.debug(f'Activated: cursor_pos={self.cursor_pos}')
+            self.log.debug('Activated: cursor_pos=%s', self.cursor_pos)
             self.log.debug('Text input started')
             self.dirty = 2
         else:

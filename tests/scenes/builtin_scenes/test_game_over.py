@@ -35,7 +35,7 @@ def test_game_over_condition():
 
     # Check that balls are marked as dead
     dead_balls = [ball for ball in game.balls if not ball.alive()]
-    LOG.debug(f'Dead balls: {len(dead_balls)}')
+    LOG.debug('Dead balls: %s', len(dead_balls))
 
     # Run a frame's logic, which removes dead balls and should trigger Game Over
     game.dt_tick(0.0)

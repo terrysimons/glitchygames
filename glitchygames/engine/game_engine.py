@@ -298,7 +298,7 @@ def exit_with(*, exit_code: ExitCode, cause: BaseException | None = None) -> NoR
         SystemExit: Always, with ``exit_code``.
 
     """
-    LOG.info(f'Exiting with {exit_code.describe()}')
+    LOG.info('Exiting with %s', exit_code.describe())
     raise SystemExit(exit_code) from cause
 
 
@@ -946,7 +946,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
         # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
         sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
-        self.log.debug(f'GIL switch interval set to {GIL_SWITCH_INTERVAL_SECONDS} seconds')
+        self.log.debug('GIL switch interval set to %s seconds', GIL_SWITCH_INTERVAL_SECONDS)
 
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
@@ -956,13 +956,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # versions of pygame, or use the new event loop for newer
         # versions of pygame >= 2.2
         if self.USE_FASTEVENTS and hasattr(pygame, 'fastevent'):
-            self.log.info(f'Using pygame.fastevents for pygame version {pygame.version.ver}')
+            self.log.info('Using pygame.fastevents for pygame version %s', pygame.version.ver)
             pygame.fastevent.init()  # type: ignore[attr-defined]
         else:
             # This is the default mode when USE_FASTEVENTS is disabled.
             #
             # pygame.event doesn't have an init() method, so nothing to do.
-            self.log.info(f'Using pygame.events for pygame version {pygame.version.ver}')
+            self.log.info('Using pygame.events for pygame version %s', pygame.version.ver)
 
         # Fresh doors for this run (glitchygames/sources.py): the replay's when --replay-trace
         # is given, else live ones
@@ -1176,7 +1176,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def __del__(self: Self) -> None:
         """Delete the game engine."""
         # This is the total # of sprites.
-        self.log.info(f'Sprite Count: {Sprite.SPRITE_COUNT}')
+        self.log.info('Sprite Count: %s', Sprite.SPRITE_COUNT)
 
         # This is a count of each type of sprite.
         sprite_counters: OrderedDict[str, OrderedDict[str, int]] = cast(
@@ -1223,14 +1223,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def print_system_info(self: Self) -> None:
         """Print system information."""
         # General Info
-        self.log.info(f'Pygame Version: {pygame.version.ver}')
-        self.log.info(f'CPU Count: {multiprocessing.cpu_count()}')
-        self.log.info(f'System: {platform.system()}')
-        self.log.info(f'Machine: {platform.machine()}')
-        self.log.info(f'Platform: {platform.platform()}')
-        self.log.info(f'Platform (Terse): {platform.platform(aliased=False, terse=True)}')
-        self.log.info(f'Processor: {platform.processor()}')
-        self.log.info(f'Release: {platform.release()}')
+        self.log.info('Pygame Version: %s', pygame.version.ver)
+        self.log.info('CPU Count: %s', multiprocessing.cpu_count())
+        self.log.info('System: %s', platform.system())
+        self.log.info('Machine: %s', platform.machine())
+        self.log.info('Platform: %s', platform.platform())
+        self.log.info('Platform (Terse): %s', platform.platform(aliased=False, terse=True))
+        self.log.info('Processor: %s', platform.processor())
+        self.log.info('Release: %s', platform.release())
 
         # Set up a display mode.
         # Note: pygame.display.init() isn't necessary here
@@ -1238,37 +1238,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # initializes all available modules.
         #
         # Let's do a sanity check and make sure we're initialized.
-        self.log.info(f'Display inited: {pygame.display.get_init()}')
+        self.log.info('Display inited: %s', pygame.display.get_init())
 
         # Display some configuration information.
-        self.log.info(f'SDL Version: {pygame.get_sdl_version()}')
-        self.log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
+        self.log.info('SDL Version: %s', pygame.get_sdl_version())
+        self.log.info('SDL Byte Order: %s', pygame.get_sdl_byteorder())
 
         # Dump a bit more info about the configured mode.
-        self.log.info(f'Display Driver: {pygame.display.get_driver()}')
-        self.log.info(f'Display Info: {self.display_info}')
-        self.log.info(f'Initial Resolution: {self.initial_resolution}')
-        self.log.info(f'8-bit Modes: {pygame.display.list_modes(8)}')
-        self.log.info(f'16-bit Modes: {pygame.display.list_modes(16)}')
-        self.log.info(f'24-bit Modes: {pygame.display.list_modes(24)}')
-        self.log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
+        self.log.info('Display Driver: %s', pygame.display.get_driver())
+        self.log.info('Display Info: %s', self.display_info)
+        self.log.info('Initial Resolution: %s', self.initial_resolution)
+        self.log.info('8-bit Modes: %s', pygame.display.list_modes(8))
+        self.log.info('16-bit Modes: %s', pygame.display.list_modes(16))
+        self.log.info('24-bit Modes: %s', pygame.display.list_modes(24))
+        self.log.info('32-bit Modes: %s', pygame.display.list_modes(32))
         self.log.info(
-            'Best Color Depth: '
-            f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
-            f' ({self.mode_flags})',
+            'Best Color Depth: %s (%s)',
+            (pygame.display.mode_ok(self.initial_resolution), self.mode_flags),
+            self.mode_flags,
         )
-        self.log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
-        self.log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
+        self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
+        self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
     def print_game_info(self: Self) -> None:
         """Print game information."""
         self.log.debug(
-            f'Successfully loaded {self.init_pass} modules '
-            f'and failed loading {self.init_fail} modules.',
+            'Successfully loaded %s modules and failed loading %s modules.',
+            self.init_pass,
+            self.init_fail,
         )
 
-        self.log.info(f'Game Title: {type(self).NAME}')
-        self.log.info(f'Game Version: {type(self).VERSION}')
+        self.log.info('Game Title: %s', type(self).NAME)
+        self.log.info('Game Version: %s', type(self).VERSION)
 
     def suggested_resolution(
         self: Self,
@@ -1616,7 +1617,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         recorder = GameplayRecorder(path=path, header=header)
         install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
-        self.log.info(f'Recording gameplay to {path} (random seed {self.random_seed})')
+        self.log.info('Recording gameplay to %s (random seed %s)', path, self.random_seed)
         return recorder
 
     def _start_requested_trace_recording(self: Self) -> None:
@@ -1755,7 +1756,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             announce_replay(path=Path(replay_trace_path), sources=sources)
             return sources
         # Logged without a traceback: the message says what is wrong with the recording
-        self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
+        self.log.error('Cannot replay %s: %s', replay_trace_path, refusal)
         # Only a file that does not exist is missing input; one that cannot be read (no
         # permission, a directory, not gzip: gzip.BadGzipFile is an OSError) is unusable
         exit_with(
@@ -1791,7 +1792,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ('max_processing_slowdown', '--max-processing-slowdown'),
         ):
             if options.get(option_name) is not None:
-                self.log.warning(f'{flag} is ignored without --replay-trace')
+                self.log.warning('%s is ignored without --replay-trace', flag)
 
     def _refuse_unwritable_outputs(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.CANNOT_WRITE_OUTPUT if an output file of the run cannot be written.
@@ -1819,7 +1820,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         for flag, path in outputs:
             refusal_reason = output_refusal(path=path)
             if refusal_reason is not None:
-                self.log.error(f'Cannot write {flag}: {refusal_reason}')
+                self.log.error('Cannot write %s: %s', flag, refusal_reason)
                 exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
 
     def _refuse_an_unsound_recording_over_the_replay(
@@ -1839,12 +1840,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if options.get('rebaseline') is not None:
             refusal_reason = rebaseline_refusal(options=options)
             if refusal_reason is not None:
-                self.log.error(f'Cannot rebaseline {replay_trace_path}: {refusal_reason}')
+                self.log.error('Cannot rebaseline %s: %s', replay_trace_path, refusal_reason)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
         elif options.get('record_trace') is not None:
             self.log.error(
-                f'Cannot replay {replay_trace_path} with --record-trace: record over a replay '
-                'with --rebaseline NEW --headless'
+                'Cannot replay %s with --record-trace: record over a replay '
+                'with --rebaseline NEW --headless',
+                replay_trace_path,
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
@@ -1877,7 +1879,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             reason = 'not with --rebaseline'
         else:
             return
-        self.log.error(f'Cannot compare the processing times of {replay_trace_path}: {reason}')
+        self.log.error('Cannot compare the processing times of %s: %s', replay_trace_path, reason)
         exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_an_unsound_audit(
@@ -1896,14 +1898,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if options.get('replay_fps') == REAL_REPLAY_FPS:
             self.log.error(
-                f'Cannot audit {replay_trace_path} with --replay-fps {REAL_REPLAY_FPS}: --audit '
-                'compares recorded FPS events'
+                'Cannot audit %s with --replay-fps %s: --audit compares recorded FPS events',
+                replay_trace_path,
+                REAL_REPLAY_FPS,
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
         if not environment_reaches_children():
             self.log.error(
-                f'Cannot audit {replay_trace_path}: Python was started with -E or -I, so the '
-                'audit replays would ignore their PYTHONHASHSEED; run without those options'
+                'Cannot audit %s: Python was started with -E or -I, so the '
+                'audit replays would ignore their PYTHONHASHSEED; run without those options',
+                replay_trace_path,
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
@@ -1923,9 +1927,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if sources.recording.is_truncated:
             self.log.error(
-                f'Cannot audit {replay_trace_path}: the recording is truncated after '
-                f'{sources.recording.frame_count} complete frames, and an audit needs the whole '
-                'recording'
+                'Cannot audit %s: the recording is truncated after '
+                '%s complete frames, and an audit needs the whole '
+                'recording',
+                replay_trace_path,
+                sources.recording.frame_count,
             )
             exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
 
@@ -1941,7 +1947,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             path: The recording.
 
         """
-        self.log.info(f'Auditing {path}: two replays in fresh processes')
+        self.log.info('Auditing %s: two replays in fresh processes', path)
         try:
             with self._waiting_for_child_processes():
                 result = audit_recording(
@@ -1956,7 +1962,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.log.error(result.summary())
             exit_with(exit_code=ExitCode.AUDIT_NONDETERMINISTIC)
         # Logged without a traceback: the message says which run failed and how
-        self.log.error(f'Audit could not run: {run_error}')
+        self.log.error('Audit could not run: %s', run_error)
         exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=run_error)
 
     def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
@@ -2057,16 +2063,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             except pygame.error as error:
                 # The run goes on without a mixer: sounds and live voices are silent no-ops
                 self.log.warning(
-                    f'--headless: the mixer could not start on the dummy audio driver ({error}); '
-                    'running without audio'
+                    '--headless: the mixer could not start on the dummy audio driver (%s); '
+                    'running without audio',
+                    error,
                 )
             else:
                 pygame.mixer.set_num_channels(mixing_channel_count)
         if restarted:
             self.log.warning(
-                f'--headless: pygame was started before the engine; restarting '
-                f'{" and ".join(restarted)} on the dummy driver, so there is no window and '
-                'audio is muted'
+                '--headless: pygame was started before the engine; restarting '
+                '%s on the dummy driver, so there is no window and '
+                'audio is muted',
+                ' and '.join(restarted),
             )
 
     def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
@@ -2123,7 +2131,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 GameEngine.OPTIONS.get('timer_backend'),
                 GameEngine.OPTIONS,
             )
-            self.log.info(f'Timer backend: {GameEngine.OPTIONS.get("timer_backend")}')
+            self.log.info('Timer backend: %s', GameEngine.OPTIONS.get('timer_backend'))
             # auto measures this machine's sleep model now for a paced live game, so no frame
             # pays for it (and logs what it chose); a replay never paces with the timer, and an
             # uncapped run calibrates only if it starts pacing (at its first paced frame)
@@ -2207,7 +2215,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger('game')
 
-        self.log.info(f'Starting game engine for game: {type(self).NAME}')
+        self.log.info('Starting game engine for game: %s', type(self).NAME)
         if self.game is None:
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
@@ -2284,7 +2292,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if isinstance(exit_status, int):
             description = ExitCode.describe_status(exit_status)
-            self.log.info(f'Exiting with {description}')
+            self.log.info('Exiting with %s', description)
             return description
         return f'SystemExit({exit_status!r})'
 
@@ -2410,7 +2418,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             SystemExit: Always, with the status ``relaunch_replay`` returns.
 
         """
-        self.log.info(f'Restarting the replay at frame {restart_frame}')
+        self.log.info('Restarting the replay at frame %s', restart_frame)
         debug_overlay = self.scene_manager.debug_overlay
         controls = replay_sources.controls
         recording_path = Path(GameEngine.OPTIONS['replay_trace'])
@@ -2418,8 +2426,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             bookmarked_copy = replay_sources.bookmarks.save()
             if bookmarked_copy is None:
                 self.log.warning(
-                    f'Restarting without the bookmarks {controls.bookmarks}: the bookmarked copy '
-                    f'of {recording_path} could not be saved'
+                    'Restarting without the bookmarks %s: the bookmarked copy '
+                    'of %s could not be saved',
+                    controls.bookmarks,
+                    recording_path,
                 )
             else:
                 recording_path = bookmarked_copy
@@ -2448,7 +2458,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             exit_code = ExitCode(status)
         except ValueError:
             # A status no member names (a game's own exit status, a signal without a member)
-            self.log.info(f'Exiting with {ExitCode.describe_status(status)}')
+            self.log.info('Exiting with %s', ExitCode.describe_status(status))
             raise SystemExit(status) from None
         exit_with(exit_code=exit_code)
 
@@ -2798,9 +2808,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
             self.log.debug(
-                'ENGINE: MOUSEBUTTONDOWN received:'
-                f' button={getattr(event, "button", None)},'
-                f' pos={getattr(event, "pos", None)}',
+                'ENGINE: MOUSEBUTTONDOWN received: button=%s, pos=%s',
+                getattr(event, 'button', None),
+                getattr(event, 'pos', None),
             )
             self.mouse_manager.on_mouse_button_down_event(event)
             return True
@@ -3094,7 +3104,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         if event.type not in self.UNIMPLEMENTED_EVENTS:
             self.log.debug(
-                f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}',
+                '(UNIMPLEMENTED) %s: %s',
+                pygame.event.event_name(event.type).upper(),
+                event,
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 
@@ -3154,10 +3166,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if not report_lines:
             return
         # Framed like the performance shutdown reports logged just before it
-        self.log.info(f'\n{"=" * 80}')
+        self.log.info('\n%s', '=' * 80)
         self.log.info('Unhandled events:')
         for report_line in report_lines:
-            self.log.info(f'  {report_line}')
+            self.log.info('  %s', report_line)
         self.log.info('=' * 80)
 
     def post_game_event(self: Self, event_subtype: int, event_data: dict[str, Any]) -> None:
@@ -3211,7 +3223,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if self.LAST_EVENT_MISS not in self.MISSING_EVENTS:
             self.MISSING_EVENTS.append(self.LAST_EVENT_MISS)
 
-            self.log.info(f'Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}')
+            self.log.info(
+                'Unimplemented method called: %s%s, %s', self.LAST_EVENT_MISS, args, kwargs
+            )
             self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.

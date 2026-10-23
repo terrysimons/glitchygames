@@ -14,6 +14,7 @@ from glitchygames.performance.adaptive_clamping import (
     AdaptiveClamping,
     FpsHistogramMode,
 )
+from tests.logged_messages import logged_messages
 
 
 class TestAdaptiveClampingSingleton:
@@ -1048,7 +1049,7 @@ class TestHistogramModes:
         """Print the global shutdown histogram with a mocked logger and return its lines."""
         mock_log = mocker.patch('glitchygames.performance.adaptive_clamping.LOG')
         self.instance._log_fps_histogram(self.instance.get_shutdown_stats())
-        return [call.args[0] for call in mock_log.info.call_args_list]
+        return logged_messages(mock_log.info.call_args_list)
 
     def test_equal_range_header_and_rows_ascend(self, mocker):
         """The header states the width; rows run from the lowest FPS to the highest."""

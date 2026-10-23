@@ -43,23 +43,23 @@ def _run_basic_bounce_scenarios(ball):
     """Run basic paddle bounce scenarios (tests 1-7)."""
     LOG.debug('1. Both X and Y speeds are 0:')
     ball.speed = Speed(0.0, 0.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
     ball.on_paddle_bounce()
-    LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
     LOG.debug('   Result: Ball remains stationary (no movement)\n')
 
     LOG.debug('2. Only X speed is 0, Y speed is non-zero:')
     ball.speed = Speed(0.0, 100.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
     ball.on_paddle_bounce()
-    LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
     LOG.debug("   Result: X remains 0, Y unchanged (X-only speedup doesn't affect Y)\n")
 
     LOG.debug('3. Only Y speed is 0, X speed is non-zero:')
     ball.speed = Speed(100.0, 0.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
     ball.on_paddle_bounce()
-    LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
     LOG.debug('   Result: X speed increases, Y remains 0\n')
 
     LOG.debug('4. Test with Y-only speedup mode:')
@@ -67,16 +67,16 @@ def _run_basic_bounce_scenarios(ball):
         triggers=SpeedUpTrigger.PADDLE_BOUNCE, axes=SpeedUpAxes.Y_ONLY
     )
     ball.speed = Speed(100.0, 0.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
     ball.on_paddle_bounce()
-    LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
     LOG.debug("   Result: X unchanged, Y remains 0 (Y-only speedup doesn't affect X)\n")
 
     LOG.debug('5. Test with both X and Y speeds 0 and Y-only speedup:')
     ball.speed = Speed(0.0, 0.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
     ball.on_paddle_bounce()
-    LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
     LOG.debug('   Result: Ball remains stationary\n')
 
     LOG.debug('6. Test movement calculation with zero speed:')
@@ -84,14 +84,14 @@ def _run_basic_bounce_scenarios(ball):
     dt = 0.016  # 60 FPS
     move_x = ball.speed.x * dt
     move_y = ball.speed.y * dt
-    LOG.debug(f'   Movement calculation: move_x={move_x}, move_y={move_y}')
+    LOG.debug('   Movement calculation: move_x=%s, move_y=%s', move_x, move_y)
     LOG.debug('   Result: No movement occurs (0 * dt = 0)\n')
 
     LOG.debug('7. Test with very small speeds (near zero):')
     ball.speed = Speed(0.001, 0.001)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
     ball.on_paddle_bounce()
-    LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
     LOG.debug('   Result: X speed increases slightly, Y unchanged\n')
 
 
@@ -102,7 +102,7 @@ def _run_continuous_speedup_scenarios(ball):
         triggers=SpeedUpTrigger.CONTINUOUS, axes=SpeedUpAxes.X_ONLY
     )
     ball.speed = Speed(0.0, 0.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
 
     # Simulate many game ticks, each one speed-up interval of game time long, so every
     # tick is due a speed-up (the timer counts game time, so no real waiting is needed)
@@ -111,7 +111,7 @@ def _run_continuous_speedup_scenarios(ball):
 
     for iteration in range(10):
         ball.dt_tick(interval)
-        LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
+        LOG.debug('   Iteration %s: speed=(%.6f, %.6f)', iteration + 1, ball.speed.x, ball.speed.y)
 
     assert ball.speed_up_count == speed_up_count_before + 10
     assert (ball.speed.x, ball.speed.y) == (0.0, 0.0)
@@ -123,11 +123,11 @@ def _run_continuous_speedup_scenarios(ball):
     ball.world_x = float(ball.screen_width - ball.width) / 2
     ball.world_y = float(ball.screen_height - ball.height) / 2
     ball.speed = Speed(10.0, 5.0)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
 
     for iteration in range(10):
         ball.dt_tick(interval)
-        LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
+        LOG.debug('   Iteration %s: speed=(%.6f, %.6f)', iteration + 1, ball.speed.x, ball.speed.y)
 
     assert ball.speed.x > 10.0
     assert ball.speed.y == 5.0
@@ -139,14 +139,17 @@ def _run_continuous_speedup_scenarios(ball):
     # setting rect alone would be overwritten
     ball.world_x = 100.0
     ball.world_y = 100.0
-    LOG.debug(f'   Initial position: ({ball.world_x}, {ball.world_y})')
+    LOG.debug('   Initial position: (%s, %s)', ball.world_x, ball.world_y)
 
     for iteration in range(20):
         ball.dt_tick(interval)
         LOG.debug(
-            f'   Iteration {iteration + 1}:'
-            f' position=({ball.world_x}, {ball.world_y}),'
-            f' speed=({ball.speed.x}, {ball.speed.y})',
+            '   Iteration %s: position=(%s, %s), speed=(%s, %s)',
+            iteration + 1,
+            ball.world_x,
+            ball.world_y,
+            ball.speed.x,
+            ball.speed.y,
         )
 
     assert drawn_position(ball) == (100, 100)
@@ -159,12 +162,12 @@ def _run_bounce_tests_for_mode(ball, speed_up_settings, test_speeds, label):
     ball.speed_up_settings = speed_up_settings
 
     for index, (x_speed, y_speed, description) in enumerate(test_speeds, start=1):
-        LOG.debug(f'{label}.{index} Testing {description}:')
+        LOG.debug('%s.%s Testing %s:', label, index, description)
         ball.speed = Speed(x_speed, y_speed)
-        LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+        LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
 
         ball.on_paddle_bounce()
-        LOG.debug(f'   After paddle bounce: ({ball.speed.x}, {ball.speed.y})')
+        LOG.debug('   After paddle bounce: (%s, %s)', ball.speed.x, ball.speed.y)
 
         x_is_zero = math.isclose(x_speed, 0.0, abs_tol=1e-9)
         y_is_zero = math.isclose(y_speed, 0.0, abs_tol=1e-9)
@@ -187,14 +190,14 @@ def _run_bounce_tests_for_mode(ball, speed_up_settings, test_speeds, label):
 
 def _run_continuous_speedup_test(ball, x_speed, y_speed, description, label_index):
     """Run a continuous speed-up test for a single speed combination."""
-    LOG.debug(f'14.{label_index} Testing continuous speedup with {description}:')
+    LOG.debug('14.%s Testing continuous speedup with %s:', label_index, description)
     ball.speed = Speed(x_speed, y_speed)
-    LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
+    LOG.debug('   Initial speed: (%s, %s)', ball.speed.x, ball.speed.y)
 
     # Each tick is one speed-up interval of game time, so every tick is due a speed-up
     for iteration in range(5):
         ball.dt_tick(ball.speed_up_settings.interval)
-        LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
+        LOG.debug('   Iteration %s: speed=(%.6f, %.6f)', iteration + 1, ball.speed.x, ball.speed.y)
 
     # A speed-up only scales components: zero stays zero, non-zero grows in magnitude
     for initial_component, final_component in ((x_speed, ball.speed.x), (y_speed, ball.speed.y)):
@@ -209,7 +212,7 @@ def _run_continuous_speedup_test(ball, x_speed, y_speed, description, label_inde
         abs_tol=1e-9,
     )
     result_msg = 'X and Y speeds increase' if both_nonzero else 'Only non-zero components increase'
-    LOG.debug(f'   Result: {result_msg}\n')
+    LOG.debug('   Result: %s\n', result_msg)
 
 
 def test_zero_speed_scenarios():

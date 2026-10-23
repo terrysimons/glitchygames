@@ -150,7 +150,7 @@ class SpriteGenerationService:
                 original_error=e,
             ) from e
 
-        LOG.info(f'Initializing AI client for provider: {self.config.ai_provider}')
+        LOG.info('Initializing AI client for provider: %s', self.config.ai_provider)
 
         try:
             self._client = ai.Client()
@@ -328,7 +328,7 @@ class SpriteGenerationService:
             )
 
             raw_content: str | None = response.choices[0].message.content
-            LOG.debug(f'Raw AI response length: {len(raw_content or "")} chars')
+            LOG.debug('Raw AI response length: %s chars', len(raw_content or ''))
 
         except Exception as e:
             LOG.exception('AI API call failed')
@@ -372,7 +372,7 @@ class SpriteGenerationService:
 
         # Make the API call
         try:
-            LOG.info(f'Refining sprite with model: {self.config.get_ai_model_string()}')
+            LOG.info('Refining sprite with model: %s', self.config.get_ai_model_string())
             response = client.chat.completions.create(
                 model=self.config.get_ai_model_string(),
                 messages=messages,
@@ -380,7 +380,7 @@ class SpriteGenerationService:
             )
 
             raw_content: str | None = response.choices[0].message.content
-            LOG.debug(f'Raw AI response length: {len(raw_content or "")} chars')
+            LOG.debug('Raw AI response length: %s chars', len(raw_content or ''))
 
         except Exception as e:
             LOG.exception('AI API call failed')

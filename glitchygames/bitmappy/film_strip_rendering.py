@@ -415,8 +415,11 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 if current_frame_idx >= len(frames) or current_frame_idx < 0:
                     LOG.error(
                         'FilmStripWidget: CRITICAL - Invalid preview '
-                        f'frame index {current_frame_idx} for animation '
-                        f"'{anim_name}' with {len(frames)} frames",
+                        'frame index %s for animation '
+                        "'%s' with %s frames",
+                        current_frame_idx,
+                        anim_name,
+                        len(frames),
                     )
                     # Reset to frame 0 if invalid
                     current_frame_idx = 0
@@ -1103,14 +1106,18 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             or not self.widget.removal_button_layouts
         ):
             LOG.debug(
-                f'FilmStripWidget: No removal button layouts for {anim_name}[{frame_idx}]',
+                'FilmStripWidget: No removal button layouts for %s[%s]',
+                anim_name,
+                frame_idx,
             )
             return
 
         button_key = (anim_name, frame_idx)
         if button_key not in self.widget.removal_button_layouts:
             LOG.debug(
-                f'FilmStripWidget: No removal button layout for {anim_name}[{frame_idx}]',
+                'FilmStripWidget: No removal button layout for %s[%s]',
+                anim_name,
+                frame_idx,
             )
             return
 
@@ -1123,14 +1130,17 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             and len(self.widget.animated_sprite.animations[anim_name]) <= 1
         ):
             LOG.debug(
-                'FilmStripWidget: Skipping removal button for '
-                f'{anim_name}[{frame_idx}] - only one frame',
+                'FilmStripWidget: Skipping removal button for %s[%s] - only one frame',
+                anim_name,
+                frame_idx,
             )
             return
 
         LOG.debug(
-            'FilmStripWidget: Rendering removal button for '
-            f'{anim_name}[{frame_idx}] at {button_rect}',
+            'FilmStripWidget: Rendering removal button for %s[%s] at %s',
+            anim_name,
+            frame_idx,
+            button_rect,
         )
 
         # Check if this removal button is being hovered

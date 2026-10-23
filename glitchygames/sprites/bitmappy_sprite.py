@@ -216,11 +216,11 @@ class BitmappySprite(Sprite):
         """
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding='utf-8')
-        self.log.debug(f'Raw file content ({len(raw_content)} bytes):\n{raw_content}')
+        self.log.debug('Raw file content (%s bytes):\n%s', len(raw_content), raw_content)
 
         # Parse TOML
         data = tomllib.loads(raw_content)
-        self.log.debug(f'TOML data keys: {list(data.keys())}')
+        self.log.debug('TOML data keys: %s', list(data.keys()))
 
         try:
             (image, rect, name) = self._static_sprite_from_toml_data(data=data)
@@ -253,7 +253,7 @@ class BitmappySprite(Sprite):
 
         # Get pixel data
         pixel_text = str(data['sprite']['pixels'])
-        self.log.debug(f'Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}')
+        self.log.debug('Raw pixel text (%s bytes):\n%s', len(pixel_text), pixel_text)
 
         # Split into rows and process each row
         rows: list[str] = []
@@ -261,9 +261,9 @@ class BitmappySprite(Sprite):
             row = raw_row.strip()
             if row:  # Only add non-empty rows
                 rows.append(row)
-                self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
+                self.log.debug("Row %s: '%s' (len=%s)", i, row, len(row))
 
-        self.log.debug(f'Total rows processed: {len(rows)}')
+        self.log.debug('Total rows processed: %s', len(rows))
 
         # Get color definitions
         color_map: dict[str, Any] = {}
@@ -281,7 +281,7 @@ class BitmappySprite(Sprite):
                     blue,
                 )
 
-        self.log.debug(f'Total colors in map: {len(color_map)}')
+        self.log.debug('Total colors in map: %s', len(color_map))
         return (str(name), rows, color_map)
 
     def _static_sprite_from_toml_data(
@@ -312,7 +312,7 @@ class BitmappySprite(Sprite):
             pixels=rows,
             color_map=color_map,
         )
-        self.log.debug(f'Created image size: {image.get_size()}')
+        self.log.debug('Created image size: %s', image.get_size())
         self.log.debug('Created rect: %s', rect)
         return (image, rect, name)
 
@@ -438,7 +438,9 @@ class BitmappySprite(Sprite):
         # Validate pixels list
         if len(self.pixels) != expected_pixels:
             self.log.error(
-                f'Pixels list length mismatch: {len(self.pixels)} vs expected {expected_pixels}',
+                'Pixels list length mismatch: %s vs expected %s',
+                len(self.pixels),
+                expected_pixels,
             )
             # Pad with default color if too short
             if len(self.pixels) < expected_pixels:
@@ -480,7 +482,7 @@ class BitmappySprite(Sprite):
             dict: The configuration.
 
         """
-        self.log.debug(f'Starting deflate for {self.name} in {file_format} format')
+        self.log.debug('Starting deflate for %s in %s format', self.name, file_format)
 
         # Handle empty surfaces
         pixels_across: int = int(getattr(self, 'pixels_across', self.width))
@@ -504,10 +506,10 @@ class BitmappySprite(Sprite):
 
         # Get unique colors from the pixels list
         unique_colors = set(self.pixels)
-        self.log.debug(f'Found {len(unique_colors)} unique colors')
-        self.log.debug(f'Pixels list length: {len(self.pixels)}')
-        self.log.debug(f'Expected pixels: {pixels_across * pixels_tall}')
-        self.log.debug(f'Sample pixels: {self.pixels[:10]}')
+        self.log.debug('Found %s unique colors', len(unique_colors))
+        self.log.debug('Pixels list length: %s', len(self.pixels))
+        self.log.debug('Expected pixels: %s', pixels_across * pixels_tall)
+        self.log.debug('Sample pixels: %s', self.pixels[:10])
 
         # Check if there are too many colors
         if len(unique_colors) > len(SPRITE_GLYPHS):
@@ -567,7 +569,7 @@ class BitmappySprite(Sprite):
                     self.log.error('Color %s not found in color_map', pixel_color)
                 row += char
             pixel_rows.append(row)
-            self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
+            self.log.debug("Row %s: '%s' (len=%s)", y, row, len(row))
         return pixel_rows
 
     def _generate_pixel_rows(
@@ -699,11 +701,11 @@ class BitmappySprite(Sprite):
         """
         # Read the raw file content first
         raw_content = Path(filename).read_text(encoding='utf-8')
-        self.log.debug(f'Raw file content ({len(raw_content)} bytes):\n{raw_content}')
+        self.log.debug('Raw file content (%s bytes):\n%s', len(raw_content), raw_content)
 
         # Parse TOML
         data = tomllib.loads(raw_content)
-        self.log.debug(f'TOML data keys: {list(data.keys())}')
+        self.log.debug('TOML data keys: %s', list(data.keys()))
 
         try:
             sprite_data = self._sprite_data_from_toml_data(data=data)
@@ -773,7 +775,9 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Left Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_middle_mouse_drag_event(
@@ -788,7 +792,9 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Middle Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -799,7 +805,9 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Right Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -810,7 +818,9 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Left Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_middle_mouse_drop_event(
@@ -825,7 +835,9 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Middle Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -836,7 +848,9 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Right Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -847,7 +861,7 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug('%s: Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger)
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -858,7 +872,7 @@ class BitmappySprite(Sprite):
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug('%s: Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger)
 
     @override
     def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
@@ -868,7 +882,7 @@ class BitmappySprite(Sprite):
             event (HashableEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self}')
+        self.log.debug('%s: Mouse Wheel Event: %s @ %s', type(self), event, self)
 
     @override
     def on_mouse_chord_down_event(
@@ -883,7 +897,7 @@ class BitmappySprite(Sprite):
             keys (list[int] | None): The keys that were pressed.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event} @ {self} for {keys}')
+        self.log.debug('%s: Mouse Chord Down Event: %s @ %s for %s', type(self), event, self, keys)
 
     @override
     def on_mouse_chord_up_event(
@@ -898,7 +912,7 @@ class BitmappySprite(Sprite):
             keys (list[int] | None): The keys that were pressed.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}')
+        self.log.debug('%s: Mouse Chord Up Event: %s @ %s for %s', type(self), event, self, keys)
 
     def _render_animated_str(self: Self, toml_data: dict[str, Any]) -> str:
         """Render an animated sprite's TOML data to a colorized ASCII string.

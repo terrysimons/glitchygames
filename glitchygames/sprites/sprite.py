@@ -109,10 +109,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             self.name = type(self)
 
         if not self.width:
-            self.log.error(f'{type(self)} has 0 Width')
+            self.log.error('%s has 0 Width', type(self))
 
         if not self.height:
-            self.log.error(f'{type(self)} has 0 Height')
+            self.log.error('%s has 0 Height', type(self))
 
         # Sprites can register callbacks for any event type.
         self.callbacks: dict[str, Any] = {}
@@ -145,13 +145,13 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         if self.SPRITE_BREAKPOINTS is not None:
             # Empty list means all.
             if len(self.SPRITE_BREAKPOINTS) == 0:
-                self.log.info(f'Break when sprite_type=={type(self)}')
+                self.log.info('Break when sprite_type==%s', type(self))
                 # This breakpoint is intentional
                 breakpoint()  # ruff: ignore[debugger]
             else:
                 for sprite_type in self.SPRITE_BREAKPOINTS:
                     if str(type(self)) == sprite_type:
-                        self.log.info(f'Break when sprite_type=={sprite_type}')
+                        self.log.info('Break when sprite_type==%s', sprite_type)
 
                         # This breakpoint is intentional
                         breakpoint()  # ruff: ignore[debugger]
@@ -220,7 +220,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYAXISMOTION    joy, axis, value
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick button down event.
@@ -230,7 +230,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYBUTTONDOWN    joy, button
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick button up event.
@@ -240,7 +240,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYBUTTONUP      joy, button
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick hat motion event.
@@ -250,7 +250,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYHATMOTION     joy, hat, value
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick ball motion event.
@@ -260,7 +260,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYBALLMOTION    joy, ball, rel
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     @override
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
@@ -271,7 +271,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEMOTION      pos, rel, buttons
-        self.log.debug(f'Mouse Motion Event: {type(self)}: {event}')
+        self.log.debug('Mouse Motion Event: %s: %s', type(self), event)
 
     @override
     def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
@@ -284,7 +284,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         """
         # Custom Event
         self.log.debug(
-            f'Mouse Focus Event: {type(self)}: {event}, Entering Focus: {entering_focus}',
+            'Mouse Focus Event: %s: %s, Entering Focus: %s',
+            type(self),
+            event,
+            entering_focus,
         )
 
     @override
@@ -301,7 +304,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # Custom Event
-        self.log.debug(f'Mouse Unfocus Event: {type(self)}: {event}')
+        self.log.debug('Mouse Unfocus Event: %s: %s', type(self), event)
 
     def on_mouse_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse enter event.
@@ -311,7 +314,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # Custom Event
-        self.log.debug(f'Mouse Enter Event: {type(self)}: {event}')
+        self.log.debug('Mouse Enter Event: %s: %s', type(self), event)
 
     def on_mouse_exit_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse exit event.
@@ -321,7 +324,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # Custom Event
-        self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
+        self.log.debug('Mouse Exit Event: %s: %s', type(self), event)
 
     def on_mouse_drag_down_event(self: Self, event: HashableEvent, trigger: object | None) -> None:
         """Handle a mouse drag down event.
@@ -331,7 +334,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (object | None): The object that triggered the event.
 
         """
-        self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
+        self.log.debug(
+            'Mouse Drag Down Event: %s: event: %s, trigger: %s', type(self), event, trigger
+        )
 
     def on_left_mouse_drag_down_event(
         self: Self,
@@ -346,7 +351,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug(
-            f'Left Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}',
+            'Left Mouse Drag Down Event: %s: event: %s, trigger: %s',
+            type(self),
+            event,
+            trigger,
         )
 
     def on_left_mouse_drag_up_event(
@@ -362,7 +370,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug(
-            f'Left Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}',
+            'Left Mouse Drag Up Event: %s: event: %s, trigger: %s',
+            type(self),
+            event,
+            trigger,
         )
 
     def on_middle_mouse_drag_down_event(
@@ -378,7 +389,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug(
-            f'Middle Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}',
+            'Middle Mouse Drag Down Event: %s: event: %s, trigger: %s',
+            type(self),
+            event,
+            trigger,
         )
 
     def on_middle_mouse_drag_up_event(
@@ -394,7 +408,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug(
-            f'Middle Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}',
+            'Middle Mouse Drag Up Event: %s: event: %s, trigger: %s',
+            type(self),
+            event,
+            trigger,
         )
 
     def on_right_mouse_drag_down_event(
@@ -410,7 +427,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug(
-            f'Right Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}',
+            'Right Mouse Drag Down Event: %s: event: %s, trigger: %s',
+            type(self),
+            event,
+            trigger,
         )
 
     def on_right_mouse_drag_up_event(
@@ -426,7 +446,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug(
-            f'Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}',
+            'Right Mouse Drag Up Event: %s: event: %s, trigger: %s',
+            type(self),
+            event,
+            trigger,
         )
 
     def on_mouse_drag_up_event(self: Self, event: HashableEvent) -> None:
@@ -436,7 +459,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
+        self.log.debug('Mouse Drag Up Event: %s: %s', type(self), event)
 
     @override
     def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -447,7 +470,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     @override
     def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -464,7 +487,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event} @ {self}')
+            self.log.debug('%s: Left Mouse Button Up Event: %s @ %s', type(self), event, self)
 
     @override
     def on_middle_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -475,7 +498,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
+        self.log.debug('%s: Middle Mouse Button Up Event: %s', type(self), event)
 
     @override
     def on_right_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -491,7 +514,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f'{type(self)}: Right Mouse Button Up Event: {event} @ {self}')
+            self.log.debug('%s: Right Mouse Button Up Event: %s @ %s', type(self), event, self)
 
     @override
     def on_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
@@ -502,7 +525,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: {event} @ {self}')
+        self.log.debug('%s: %s @ %s', type(self), event, self)
 
     @override
     def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
@@ -520,7 +543,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event} @ {self}')
+            self.log.debug('%s: Left Mouse Button Down Event: %s @ %s', type(self), event, self)
 
     @override
     def on_middle_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
@@ -531,7 +554,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
+        self.log.debug('%s: Middle Mouse Button Down Event: %s', type(self), event)
 
     @override
     def on_right_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
@@ -547,7 +570,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')
+            self.log.debug('%s: Right Mouse Button Down Event: %s @ self', type(self), event)
 
     @override
     def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
@@ -558,7 +581,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
+        self.log.debug('%s: Mouse Scroll Down Event: %s', type(self), event)
 
     @override
     def on_mouse_scroll_up_event(self: Self, event: HashableEvent) -> None:
@@ -569,7 +592,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEBUTTONDOWN  pos, button
-        self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
+        self.log.debug('%s: Mouse Scroll Up Event: %s', type(self), event)
 
     def on_mouse_chord_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse chord up event.
@@ -578,7 +601,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event}')
+        self.log.debug('%s: Mouse Chord Up Event: %s', type(self), event)
 
     def on_mouse_chord_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse chord down event.
@@ -587,7 +610,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event}')
+        self.log.debug('%s: Mouse Chord Down Event: %s', type(self), event)
 
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a key down event.
@@ -597,7 +620,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # KEYDOWN          unicode, key, mod
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a key up event.
@@ -607,7 +630,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # KEYUP            key, mod
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle a key chord down event.
@@ -617,7 +640,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             keys (list[int]): The keys that were pressed.
 
         """
-        self.log.debug(f'{type(self)}: {event}, {keys}')
+        self.log.debug('%s: %s, %s', type(self), event, keys)
 
     def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle a key chord up event.
@@ -627,7 +650,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             keys (list[int]): The keys that were pressed.
 
         """
-        self.log.debug(f'{type(self)} KEYCHORDUP: {event}, {keys}')
+        self.log.debug('%s KEYCHORDUP: %s, %s', type(self), event, keys)
 
     def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle a quit event.
@@ -637,7 +660,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # QUIT             none
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
         # terminate() is provided by Scene subclasses via SceneInterface,
         # not directly on Sprite. Cast to Any to allow dynamic dispatch.
         game: Any = self
@@ -651,7 +674,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # ACTIVEEVENT      gain, state
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_video_resize_event(self: Self, event: HashableEvent) -> None:
         """Handle a video resize event.
@@ -661,7 +684,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # VIDEORESIZE      size, w, h
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_video_expose_event(self: Self, event: HashableEvent) -> None:
         """Handle a video expose event.
@@ -671,7 +694,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # VIDEOEXPOSE      none
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
         """Handle a sys wm event.
@@ -681,7 +704,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # SYSWMEVENT
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     def on_user_event(self: Self, event: HashableEvent) -> None:
         """Handle a user event.
@@ -691,7 +714,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # USEREVENT        code
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     @override
     def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -702,7 +725,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Left Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_middle_mouse_drag_event(
@@ -717,7 +742,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Middle Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -728,7 +755,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Right Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -739,7 +768,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Left Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_middle_mouse_drop_event(
@@ -754,7 +785,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Middle Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -765,7 +798,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug(
+            '%s: Right Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
+        )
 
     @override
     def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -776,7 +811,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
+        self.log.debug('%s: Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger)
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -787,7 +822,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drop.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
+        self.log.debug('%s: Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger)
 
     @override
     def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
@@ -797,7 +832,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             event (HashableEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self}')
+        self.log.debug('%s: Mouse Wheel Event: %s @ %s', type(self), event, self)
 
     @override
     def __str__(self: Self) -> str:

@@ -49,15 +49,18 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             and 0 <= frame < len(self.widget.animated_sprite.animations[animation])
         ):
             LOG.debug(
-                f'FilmStripWidget: Setting selected frame to {animation}, {frame}',
+                'FilmStripWidget: Setting selected frame to %s, %s',
+                animation,
+                frame,
             )
             self.widget.current_animation = animation
             self.widget.selected_frame = frame  # Update the selected frame (static thumbnails)
             # Mark as dirty to trigger preview update
             self.widget.mark_dirty()
             LOG.debug(
-                'FilmStripWidget: Selected frame is now '
-                f'{self.widget.current_animation}, {self.widget.selected_frame}',
+                'FilmStripWidget: Selected frame is now %s, %s',
+                self.widget.current_animation,
+                self.widget.selected_frame,
             )
 
             # Notify parent scene about the selection change
@@ -78,12 +81,14 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
 
         """
         LOG.debug(
-            'FilmStripWidget: handle_click called with position '
-            f'{pos}, right_click={is_right_click}, '
-            f'shift_click={is_shift_click}',
+            'FilmStripWidget: handle_click called with position %s, right_click=%s, shift_click=%s',
+            pos,
+            is_right_click,
+            is_shift_click,
         )
         LOG.debug(
-            f'FilmStripWidget: frame_layouts has {len(self.widget.frame_layouts)} entries',
+            'FilmStripWidget: frame_layouts has %s entries',
+            len(self.widget.frame_layouts),
         )
 
         # First check if a removal button was clicked
@@ -114,13 +119,16 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             if is_right_click or is_shift_click:
                 self.toggle_onion_skinning(strip_animation, frame_idx)
                 LOG.debug(
-                    f'FilmStripWidget: Toggled onion skinning for {strip_animation}[{frame_idx}]',
+                    'FilmStripWidget: Toggled onion skinning for %s[%s]',
+                    strip_animation,
+                    frame_idx,
                 )
                 return None  # Don't change frame selection for onion skinning toggle
 
             LOG.debug(
-                'FilmStripWidget: Frame clicked, calling '
-                f'set_current_frame({strip_animation}, {frame_idx})',
+                'FilmStripWidget: Frame clicked, calling set_current_frame(%s, %s)',
+                strip_animation,
+                frame_idx,
             )
             self.set_current_frame(strip_animation, frame_idx)
             return (strip_animation, frame_idx)
@@ -140,7 +148,8 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             self.widget.cursor_blink_time = frame_clock_milliseconds()
             self.widget.cursor_visible = True
             LOG.debug(
-                f"FilmStripWidget: Entered edit mode for animation '{clicked_animation}'",
+                "FilmStripWidget: Entered edit mode for animation '%s'",
+                clicked_animation,
             )
             self.widget.mark_dirty()  # Force redraw to show edit state
             # Don't change frame selection when entering edit mode
@@ -167,7 +176,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             LOG.debug(
                 'FilmStripWidget: Parent strip clicked, selecting '
                 'strip and calling set_current_frame'
-                f'({strip_animation}, {global_selected_frame})',
+                '(%s, %s)',
+                strip_animation,
+                global_selected_frame,
             )
             self.set_current_frame(strip_animation, global_selected_frame)
             return (strip_animation, global_selected_frame)
@@ -206,7 +217,8 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
                     self.widget.background_color_index
                 ]
                 LOG.debug(
-                    f'Film strip background color changed to {self.widget.background_color}',
+                    'Film strip background color changed to %s',
+                    self.widget.background_color,
                 )
                 # When clicking on preview area, use the scene's global selected_frame
                 # instead of the strip's own selected_frame
@@ -235,8 +247,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             if self.widget.editing_text and self.widget.original_animation_name:
                 new_name = self.widget.editing_text.strip()
                 LOG.debug(
-                    'FilmStripWidget: Attempting to rename '
-                    f"'{self.widget.original_animation_name}' to '{new_name}'",
+                    "FilmStripWidget: Attempting to rename '%s' to '%s'",
+                    self.widget.original_animation_name,
+                    new_name,
                 )
                 if new_name and new_name != self.widget.original_animation_name:
                     # Notify parent scene to handle the rename
@@ -258,10 +271,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
                     )
             else:
                 LOG.debug(
-                    'FilmStripWidget: editing_text='
-                    f"'{self.widget.editing_text}', "
-                    'original_animation_name='
-                    f"'{self.widget.original_animation_name}'",
+                    "FilmStripWidget: editing_text='%s', original_animation_name='%s'",
+                    self.widget.editing_text,
+                    self.widget.original_animation_name,
                 )
 
             # Clear edit mode
@@ -381,7 +393,10 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         new_state = onion_manager.toggle_frame_onion_skinning(animation_name, frame_index)
 
         LOG.debug(
-            f'Onion skinning toggled for {animation_name}[{frame_index}]: {new_state}',
+            'Onion skinning toggled for %s[%s]: %s',
+            animation_name,
+            frame_index,
+            new_state,
         )
 
         # Mark the film strip as dirty to trigger a redraw
@@ -406,14 +421,16 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         """
         LOG.debug('FilmStripWidget: [FILM STRIP COPY] copy_current_frame called')
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP COPY] animated_sprite: {self.widget.animated_sprite}',
+            'FilmStripWidget: [FILM STRIP COPY] animated_sprite: %s',
+            self.widget.animated_sprite,
         )
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP COPY] current_animation: '
-            f'{self.widget.current_animation}',
+            'FilmStripWidget: [FILM STRIP COPY] current_animation: %s',
+            self.widget.current_animation,
         )
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP COPY] current_frame: {self.widget.current_frame}',
+            'FilmStripWidget: [FILM STRIP COPY] current_frame: %s',
+            self.widget.current_frame,
         )
 
         if not self.widget.animated_sprite or not self.widget.current_animation:
@@ -431,19 +448,22 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
 
         frames = self.widget.animated_sprite.animations[self.widget.current_animation]
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP COPY] Animation has {len(frames)} frames',
+            'FilmStripWidget: [FILM STRIP COPY] Animation has %s frames',
+            len(frames),
         )
         if self.widget.current_frame >= len(frames):
             LOG.debug(
-                f'FilmStripWidget: [FILM STRIP COPY] Frame {self.widget.current_frame} '
-                f'out of range (max: {len(frames) - 1})',
+                'FilmStripWidget: [FILM STRIP COPY] Frame %s out of range (max: %s)',
+                self.widget.current_frame,
+                len(frames) - 1,
             )
             return False
 
         # Get the current frame
         current_frame = frames[self.widget.current_frame]
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP COPY] Got frame object: {current_frame}',
+            'FilmStripWidget: [FILM STRIP COPY] Got frame object: %s',
+            current_frame,
         )
 
         # Create a deep copy of the frame data
@@ -453,8 +473,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         )
 
         LOG.debug(
-            'FilmStripWidget: [FILM STRIP COPY] Successfully copied frame '
-            f"{self.widget.current_frame} from animation '{self.widget.current_animation}'",
+            "FilmStripWidget: [FILM STRIP COPY] Successfully copied frame %s from animation '%s'",
+            self.widget.current_frame,
+            self.widget.current_animation,
         )
         return True
 
@@ -469,17 +490,20 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             'FilmStripWidget: [FILM STRIP PASTE] paste_to_current_frame called',
         )
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP PASTE] copied_frame: {self.widget.copied_frame}',
+            'FilmStripWidget: [FILM STRIP PASTE] copied_frame: %s',
+            self.widget.copied_frame,
         )
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP PASTE] animated_sprite: {self.widget.animated_sprite}',
+            'FilmStripWidget: [FILM STRIP PASTE] animated_sprite: %s',
+            self.widget.animated_sprite,
         )
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP PASTE] current_animation: '
-            f'{self.widget.current_animation}',
+            'FilmStripWidget: [FILM STRIP PASTE] current_animation: %s',
+            self.widget.current_animation,
         )
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP PASTE] current_frame: {self.widget.current_frame}',
+            'FilmStripWidget: [FILM STRIP PASTE] current_frame: %s',
+            self.widget.current_frame,
         )
 
         if not self.widget.copied_frame:
@@ -496,25 +520,27 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
 
         if self.widget.current_animation not in self.widget.animated_sprite.animations:
             LOG.debug(
-                'FilmStripWidget: [FILM STRIP PASTE] '
-                f"Animation '{self.widget.current_animation}' not found",
+                "FilmStripWidget: [FILM STRIP PASTE] Animation '%s' not found",
+                self.widget.current_animation,
             )
             return False
 
         frames = self.widget.animated_sprite.animations[self.widget.current_animation]
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP PASTE] Animation has {len(frames)} frames',
+            'FilmStripWidget: [FILM STRIP PASTE] Animation has %s frames',
+            len(frames),
         )
         if self.widget.current_frame >= len(frames):
             LOG.debug(
-                f'FilmStripWidget: [FILM STRIP PASTE] Frame {self.widget.current_frame} '
-                f'out of range (max: {len(frames) - 1})',
+                'FilmStripWidget: [FILM STRIP PASTE] Frame %s out of range (max: %s)',
+                self.widget.current_frame,
+                len(frames) - 1,
             )
             return False
 
         LOG.debug(
-            f'FilmStripWidget: [FILM STRIP PASTE] Replacing frame '
-            f'{self.widget.current_frame} with copied frame',
+            'FilmStripWidget: [FILM STRIP PASTE] Replacing frame %s with copied frame',
+            self.widget.current_frame,
         )
         # Replace the current frame with the copied frame
         frames[self.widget.current_frame] = deepcopy(self.widget.copied_frame)
@@ -524,8 +550,10 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
 
         LOG.debug(
             'FilmStripWidget: [FILM STRIP PASTE] Successfully pasted frame to '
-            f'frame {self.widget.current_frame} in animation '
-            f"'{self.widget.current_animation}'",
+            'frame %s in animation '
+            "'%s'",
+            self.widget.current_frame,
+            self.widget.current_animation,
         )
 
         # Mark as dirty to trigger redraw
@@ -752,8 +780,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
 
         # Select the newly created frame so the user can immediately start editing it
         LOG.debug(
-            'FilmStripWidget: Selecting newly created frame '
-            f"{insert_index} in animation '{current_animation}'",
+            "FilmStripWidget: Selecting newly created frame %s in animation '%s'",
+            insert_index,
+            current_animation,
         )
         self.set_current_frame(current_animation, insert_index)
 
@@ -764,7 +793,8 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         try:
             self.widget.parent_scene.canvas.show_frame(current_animation, insert_index)
             LOG.debug(
-                f'FilmStripWidget: Updated canvas to show new frame {insert_index}',
+                'FilmStripWidget: Updated canvas to show new frame %s',
+                insert_index,
             )
         finally:
             self.widget.parent_scene._creating_frame = False
@@ -792,7 +822,7 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             True if a removal button was clicked, False otherwise
 
         """
-        LOG.debug(f'FilmStripWidget: Checking removal button click at {pos}')
+        LOG.debug('FilmStripWidget: Checking removal button click at %s', pos)
 
         if (
             not hasattr(self.widget, 'removal_button_layouts')
@@ -802,16 +832,22 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             return False
 
         LOG.debug(
-            f'FilmStripWidget: Checking {len(self.widget.removal_button_layouts)} removal buttons',
+            'FilmStripWidget: Checking %s removal buttons',
+            len(self.widget.removal_button_layouts),
         )
 
         for (anim_name, frame_idx), button_rect in self.widget.removal_button_layouts.items():
             LOG.debug(
-                f'FilmStripWidget: Checking button {anim_name}[{frame_idx}] at {button_rect}',
+                'FilmStripWidget: Checking button %s[%s] at %s',
+                anim_name,
+                frame_idx,
+                button_rect,
             )
             if button_rect.collidepoint(pos):
                 LOG.debug(
-                    f'FilmStripWidget: Click hit removal button for {anim_name}[{frame_idx}]',
+                    'FilmStripWidget: Click hit removal button for %s[%s]',
+                    anim_name,
+                    frame_idx,
                 )
                 # CRITICAL: Add bounds checking to prevent invalid frame removal
                 if (
@@ -820,7 +856,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
                     and frame_idx < len(self.widget.animated_sprite.animations[anim_name])
                 ):
                     LOG.debug(
-                        f'FilmStripWidget: Removal button clicked for {anim_name}[{frame_idx}]',
+                        'FilmStripWidget: Removal button clicked for %s[%s]',
+                        anim_name,
+                        frame_idx,
                     )
                     # Show confirmation dialog instead of directly removing. The dialog
                     # belongs to the scene's film strip coordinator, not the scene (BUGS.md #90)
@@ -830,7 +868,8 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
                         )
                     return True
                 LOG.debug(
-                    f'FilmStripWidget: Cannot remove frame - index {frame_idx} out of range',
+                    'FilmStripWidget: Cannot remove frame - index %s out of range',
+                    frame_idx,
                 )
                 return False
         LOG.debug('FilmStripWidget: No removal button was clicked')
@@ -855,9 +894,8 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             )
 
         LOG.debug(
-            'FilmStripWidget: Stopped animation and adjusted '
-            'frame index to '
-            f'{self.widget.animated_sprite.frame_manager.current_frame}',
+            'FilmStripWidget: Stopped animation and adjusted frame index to %s',
+            self.widget.animated_sprite.frame_manager.current_frame,
         )
 
     def track_frame_deletion_for_undo(
@@ -903,8 +941,8 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         if self.widget.current_frame > 0:
             self.widget.current_frame -= 1
             LOG.debug(
-                'FilmStripWidget: Selected previous frame '
-                f'{self.widget.current_frame} after deletion',
+                'FilmStripWidget: Selected previous frame %s after deletion',
+                self.widget.current_frame,
             )
         else:
             self.widget.current_frame = 0
@@ -928,10 +966,9 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             self.widget.animated_sprite.frame_manager.current_frame = max(0, remaining_frames - 1)
 
         LOG.debug(
-            'FilmStripWidget: After removal - animated sprite '
-            'current_frame: '
-            f'{self.widget.animated_sprite.frame_manager.current_frame}'
-            f', frames count: {len(frames)}',
+            'FilmStripWidget: After removal - animated sprite current_frame: %s, frames count: %s',
+            self.widget.animated_sprite.frame_manager.current_frame,
+            len(frames),
         )
         self.widget.animated_sprite.dirty = 1
 
@@ -948,26 +985,31 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             or animation_name not in self.widget.animated_sprite.animations
         ):
             LOG.debug(
-                f"FilmStripWidget: Cannot remove frame - animation '{animation_name}' not found",
+                "FilmStripWidget: Cannot remove frame - animation '%s' not found",
+                animation_name,
             )
             return
 
         frames = self.widget.animated_sprite.animations[animation_name]
         if frame_index < 0 or frame_index >= len(frames):
             LOG.debug(
-                f'FilmStripWidget: Cannot remove frame - index {frame_index} out of range',
+                'FilmStripWidget: Cannot remove frame - index %s out of range',
+                frame_index,
             )
             return
 
         # Don't allow removing the last frame of an animation
         if len(frames) <= 1:
             LOG.debug(
-                f"FilmStripWidget: Cannot remove the last frame of animation '{animation_name}'",
+                "FilmStripWidget: Cannot remove the last frame of animation '%s'",
+                animation_name,
             )
             return
 
         LOG.debug(
-            f"FilmStripWidget: Removing frame {frame_index} from animation '{animation_name}'",
+            "FilmStripWidget: Removing frame %s from animation '%s'",
+            frame_index,
+            animation_name,
         )
 
         # CRITICAL: Stop animation and reset frame index before deletion
@@ -1016,6 +1058,7 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         self.widget.mark_dirty()
 
         LOG.debug(
-            'FilmStripWidget: Frame removed. Animation '
-            f"'{animation_name}' now has {len(frames)} frames",
+            "FilmStripWidget: Frame removed. Animation '%s' now has %s frames",
+            animation_name,
+            len(frames),
         )

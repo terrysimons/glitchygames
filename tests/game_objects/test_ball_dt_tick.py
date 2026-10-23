@@ -41,8 +41,12 @@ class TestBallDtTick:
         expected_x = CENTER_X + SPEED_MAGNITUDE * math.cos(radians)
         expected_y = CENTER_Y + SPEED_MAGNITUDE * math.sin(radians)
         LOG.debug(
-            f'{direction:3d} degrees: ({ball.world_x:.1f}, {ball.world_y:.1f}),'
-            f' expected ({expected_x:.1f}, {expected_y:.1f})'
+            '%3d degrees: (%.1f, %.1f), expected (%.1f, %.1f)',
+            direction,
+            ball.world_x,
+            ball.world_y,
+            expected_x,
+            expected_y,
         )
         assert ball.world_x == pytest.approx(expected_x)
         assert ball.world_y == pytest.approx(expected_y)

@@ -89,7 +89,7 @@ class CanvasOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked pixel changes: {command.description}')
+        LOG.debug('Tracked pixel changes: %s', command.description)
 
     def add_single_pixel_change(
         self,
@@ -140,7 +140,7 @@ class CanvasOperationTracker:
         """End brush stroke and commit to history (backward-compatible API)."""
         if self._current_brush_pixels:
             self.add_pixel_changes(self._current_brush_pixels)
-            LOG.debug(f'Ended brush stroke: {len(self._current_brush_pixels)} pixels')
+            LOG.debug('Ended brush stroke: %s pixels', len(self._current_brush_pixels))
             self._current_brush_pixels = []
         else:
             LOG.debug('Ended brush stroke with no pixels')
@@ -173,7 +173,7 @@ class CanvasOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked flood fill: {command.description}')
+        LOG.debug('Tracked flood fill: %s', command.description)
 
     def add_frame_pixel_changes(
         self,
@@ -207,7 +207,7 @@ class CanvasOperationTracker:
         )
 
         self.undo_redo_manager.push_frame_command(animation, frame, command)
-        LOG.debug(f'Tracked frame pixel changes: {command.description}')
+        LOG.debug('Tracked frame pixel changes: %s', command.description)
 
 
 class FilmStripOperationTracker:
@@ -247,7 +247,7 @@ class FilmStripOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked frame addition: {command.description}')
+        LOG.debug('Tracked frame addition: %s', command.description)
 
     def add_frame_deleted(
         self,
@@ -271,7 +271,7 @@ class FilmStripOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked frame deletion: {command.description}')
+        LOG.debug('Tracked frame deletion: %s', command.description)
 
     def add_frame_reordered(self, old_index: int, new_index: int, animation_name: str) -> None:
         """Track when a frame is reordered.
@@ -290,7 +290,7 @@ class FilmStripOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked frame reorder: {command.description}')
+        LOG.debug('Tracked frame reorder: %s', command.description)
 
     def add_animation_added(self, animation_name: str, animation_data: dict[str, Any]) -> None:
         """Track when an animation is added.
@@ -307,7 +307,7 @@ class FilmStripOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked animation addition: {command.description}')
+        LOG.debug('Tracked animation addition: %s', command.description)
 
     def add_animation_deleted(self, animation_name: str, animation_data: dict[str, Any]) -> None:
         """Track when an animation is deleted.
@@ -324,7 +324,7 @@ class FilmStripOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked animation deletion: {command.description}')
+        LOG.debug('Tracked animation deletion: %s', command.description)
 
     def add_animation_renamed(self, *, old_name: str, new_name: str) -> None:
         """Track when an animation is renamed.
@@ -341,7 +341,7 @@ class FilmStripOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked animation rename: {command.description}')
+        LOG.debug('Tracked animation rename: %s', command.description)
 
     def add_frame_selection(self, animation: str, frame: int) -> None:
         """Track when a frame is selected.
@@ -377,7 +377,7 @@ class FilmStripOperationTracker:
 
         # Update current frame tracking
         self.undo_redo_manager.current_frame = (animation, frame)
-        LOG.debug(f'Tracked frame selection: {command.description}')
+        LOG.debug('Tracked frame selection: %s', command.description)
 
 
 class CrossAreaOperationTracker:
@@ -417,7 +417,7 @@ class CrossAreaOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked frame copy: {command.description}')
+        LOG.debug('Tracked frame copy: %s', command.description)
 
     def add_frame_pasted(
         self,
@@ -503,7 +503,7 @@ class ControllerPositionOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked controller position change: {command.description}')
+        LOG.debug('Tracked controller position change: %s', command.description)
 
     def add_controller_mode_change(self, controller_id: int, old_mode: str, new_mode: str) -> None:
         """Track when a controller mode changes.
@@ -522,4 +522,4 @@ class ControllerPositionOperationTracker:
         )
 
         self.undo_redo_manager.push_command(command)
-        LOG.debug(f'Tracked controller mode change: {command.description}')
+        LOG.debug('Tracked controller mode change: %s', command.description)

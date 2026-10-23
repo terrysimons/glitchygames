@@ -358,25 +358,25 @@ class SliderSprite(BitmappySprite):
     @override
     def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
         """Handle left mouse button down event."""
-        self.log.info(f'Slider {self.name} mouse down event at {event.pos}, rect: {self.rect}')
+        self.log.info('Slider %s mouse down event at %s, rect: %s', self.name, event.pos, self.rect)
         if self.rect.collidepoint(event.pos):
-            self.log.info(f'Mouse down on slider {self.name}')
+            self.log.info('Mouse down on slider %s', self.name)
             self.dragging = True
             self._set_value_from_mouse(event)
         else:
-            self.log.info(f'Mouse click not on slider {self.name} rect')
+            self.log.info('Mouse click not on slider %s rect', self.name)
 
     @override
     def on_left_mouse_button_up_event(self, event: HashableEvent) -> None:
         """Handle left mouse button up event."""
-        self.log.info(f'Slider {self.name} mouse up event')
+        self.log.info('Slider %s mouse up event', self.name)
         self.dragging = False
 
     @override
     def on_mouse_motion_event(self, event: HashableEvent) -> None:
         """Handle mouse motion event."""
         if self.dragging:
-            self.log.info(f'Dragging slider {self.name}')
+            self.log.info('Dragging slider %s', self.name)
             self._set_value_from_mouse(event)
 
     @override
@@ -535,8 +535,8 @@ class TabControlSprite(BitmappySprite):
         )
 
         # Tab options
-        self.tabs = [DECIMAL_INPUT_FORMAT, HEX_INPUT_FORMAT]
-        self.active_tab = 0  # Start with %d (decimal)
+        self.tabs: list[str] = [DECIMAL_INPUT_FORMAT, HEX_INPUT_FORMAT]
+        self.active_tab: int = 0  # Start with %d (decimal)
 
         # Visual properties
         self.tab_height = height
@@ -562,7 +562,7 @@ class TabControlSprite(BitmappySprite):
             if 0 <= clicked_tab < len(self.tabs):
                 self.active_tab = clicked_tab
                 self.dirty = 2  # Force redraw
-                self.log.info(f'Tab control: Switched to tab {self.tabs[self.active_tab]}')
+                self.log.info('Tab control: Switched to tab %s', self.tabs[self.active_tab])
 
                 # Notify parent if it has a tab change handler
                 if hasattr(self.parent, 'on_tab_change_event'):
