@@ -162,17 +162,12 @@ class TestOnionSkinningRendering:
             self._create_mock_frame(transparent_pixels),
         ]
 
-        # Mock controller indicator methods
-        mock_has_controllers = self._mocker.patch.object(
+        # A red controller on pixel 0 (the renderer reads controllers once per redraw)
+        self._mocker.patch.object(
             self.renderer,
-            '_has_active_controllers_in_canvas_mode',
+            '_controller_indicator_colors_by_pixel',
+            return_value={0: (255, 0, 0)},
         )
-        mock_has_controllers.return_value = True
-        mock_get_indicator = self._mocker.patch.object(
-            self.renderer,
-            '_get_controller_indicator_for_pixel',
-        )
-        mock_get_indicator.return_value = (255, 0, 0)  # Red indicator
 
         # Mock the onion skinning manager
         mock_get_manager = self._mocker.patch(
@@ -190,8 +185,10 @@ class TestOnionSkinningRendering:
         # Check that surface was created
         assert surface is not None
 
-        # Verify that controller indicator was checked for transparent pixels
-        assert mock_get_indicator.called
+        # The controller's box is drawn on the transparent pixel: a red ring, then the inverse
+        # of the pixel's magenta inside it
+        assert tuple(surface.get_at((1, 1)))[:3] == (255, 0, 0)
+        assert tuple(surface.get_at((3, 3)))[:3] == (0, 255, 0)
 
 
 class TestOnionSkinningIntegration:

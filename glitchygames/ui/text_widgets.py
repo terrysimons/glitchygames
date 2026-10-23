@@ -1100,13 +1100,17 @@ class MultiLineTextBox(BitmappySprite):
         """Update the multi-line text box."""
         self._frame_count += 1
         current_time = frame_clock_milliseconds()
-        time_since_last_update = current_time - self._last_update_time
         line_height = self._get_line_height()
 
-        self.log.debug('\n--- Frame %s ---', self._frame_count)
-        self.log.debug('Update called after %sms', time_since_last_update)
-        self.log.debug('State: active=%s, cursor_visible=%s', self.is_active, self.cursor_visible)
-        self.log.debug('Dirty flag: %s', self.dirty)
+        # update() runs every frame (dirty = 2), so skip the whole frame dump unless it is logged
+        if self.log.isEnabledFor(logging.DEBUG):
+            time_since_last_update = current_time - self._last_update_time
+            self.log.debug('\n--- Frame %s ---', self._frame_count)
+            self.log.debug('Update called after %sms', time_since_last_update)
+            self.log.debug(
+                'State: active=%s, cursor_visible=%s', self.is_active, self.cursor_visible
+            )
+            self.log.debug('Dirty flag: %s', self.dirty)
 
         self._last_update_time = current_time
 

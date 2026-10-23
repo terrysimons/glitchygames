@@ -167,6 +167,13 @@ class SliderSprite(BitmappySprite):
         self.min_x = x
         self.max_x = x + width - 5
 
+        # The track's gradient as last drawn, kept to repaint the image with (see
+        # _current_gradient), and the image, size and name it was drawn for
+        self._gradient: pygame.Surface | None = None
+        self._gradient_drawn_on: pygame.Surface | None = None
+        # The name is compared only; Sprite falls back to the class as a name (sprite.py)
+        self._gradient_drawn_for: tuple[int | float, int | float, object] | None = None
+
         # Set up appearance
         self.update_slider_appearance()
 
@@ -342,7 +349,7 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.dirty = 2
 
     def update_slider_appearance(self) -> None:
-        """Update the slider's gradient appearance based on its color."""
+        """Draw the slider's gradient on its image, column by column, and keep a copy of it."""
         for x in range(int(self.width)):
             intensity = int((x / self.width) * 255)
             if self.name == 'R':
@@ -354,6 +361,29 @@ class SliderSprite(BitmappySprite):
             else:
                 color = (intensity, intensity, intensity)
             pygame.draw.line(self.image, color, (x, 0), (x, self.height))
+        self._gradient = self.image.copy()
+        self._gradient_drawn_on = self.image
+        self._gradient_drawn_for = (self.width, self.height, self.name)
+
+    def _current_gradient(self) -> pygame.Surface | None:
+        """The kept gradient, when it was drawn for the slider's image, size and name.
+
+        The slider is dirty every frame (dirty = 2), but its gradient depends only on these,
+        so it is drawn column by column only when one of them changed; otherwise the kept copy
+        repaints the image in one blit. The image holds only the gradient: the knob and the
+        text box are sprites of their own.
+
+        Returns:
+            pygame.Surface | None: The kept gradient, or None when it must be drawn again.
+
+        """
+        if self._gradient_drawn_on is not self.image or self._gradient_drawn_for != (
+            self.width,
+            self.height,
+            self.name,
+        ):
+            return None
+        return self._gradient
 
     @override
     def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
@@ -383,7 +413,11 @@ class SliderSprite(BitmappySprite):
     def update(self) -> None:
         """Update the slider."""
         if self.dirty:
-            self.update_slider_appearance()
+            gradient = self._current_gradient()
+            if gradient is None:
+                self.update_slider_appearance()
+            else:
+                self.image.blit(gradient, (0, 0))
         super().update()
         self.slider_knob.update()
         self.text_sprite.update()

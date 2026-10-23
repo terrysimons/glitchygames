@@ -2491,23 +2491,28 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._frame_timer = 0.0
         self.frame_manager.current_frame += 1
 
-        # Log only on frame transitions
-        self.log.debug('Frame advance: %s -> %s', old_frame, self.frame_manager.current_frame)
-        if old_frame == 0 and self.frame_manager.current_frame == 1:
-            self.log.debug('FIRST FRAME ADVANCE: 0 -> 1')
+        # Log only on frame transitions. Every playing sprite advances several times a second,
+        # so the arguments are read only when DEBUG is on.
+        debug_enabled = self.log.isEnabledFor(logging.DEBUG)
+        if debug_enabled:
+            self.log.debug('Frame advance: %s -> %s', old_frame, self.frame_manager.current_frame)
+            if old_frame == 0 and self.frame_manager.current_frame == 1:
+                self.log.debug('FIRST FRAME ADVANCE: 0 -> 1')
 
         # Check if we've reached the end
         if self.frame_manager.current_frame >= len(frames):
             if self._is_looping:
                 self.frame_manager.current_frame = 0
-                self.log.debug('Looping back to frame 0 (total frames: %s)', len(frames))
+                if debug_enabled:
+                    self.log.debug('Looping back to frame 0 (total frames: %s)', len(frames))
             else:
                 self.frame_manager.current_frame = len(frames) - 1
                 self._is_playing = False
-                self.log.debug(
-                    'Animation ended, stopped at frame %s',
-                    self.frame_manager.current_frame,
-                )
+                if debug_enabled:
+                    self.log.debug(
+                        'Animation ended, stopped at frame %s',
+                        self.frame_manager.current_frame,
+                    )
 
     def _debug_frame_info(self: Self, frames: list[SpriteFrame]) -> None:
         """Debug frame information for development."""
@@ -2605,11 +2610,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Mark as dirty for pygame's dirty sprite system
         self.dirty = 1
 
-        self.log.debug(
-            "Updated surface for frame %s of animation '%s'",
-            self.frame_manager.current_frame,
-            self.frame_manager.current_animation,
-        )
+        # Runs on every frame change of every playing sprite: read the arguments only for DEBUG
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug(
+                "Updated surface for frame %s of animation '%s'",
+                self.frame_manager.current_frame,
+                self.frame_manager.current_animation,
+            )
 
     @staticmethod
     def _create_surface_from_toml_pixels(

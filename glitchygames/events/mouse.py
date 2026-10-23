@@ -49,10 +49,6 @@ class MouseEventManager(ResourceManager):
             self.game: Any = game
             self.proxies = [self.game, pygame.mouse]
 
-            # Diagnostics: counters for motion/drag while a button is held
-            self._motion_seq = 0
-            self._drag_seq = 0
-
         @override
         def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
             """Handle the mouse motion event.
@@ -62,15 +58,6 @@ class MouseEventManager(ResourceManager):
 
             """
             self.mouse_state[event.type] = event
-            # Diagnostics: sample motion rate and whether a DOWN is currently tracked
-            self._motion_seq += 1
-            try:
-                _has_down = any(
-                    getattr(e, 'type', None) == pygame.MOUSEBUTTONDOWN
-                    for e in self.mouse_state.values()
-                )
-            except RuntimeError:
-                _has_down = False
             self.game.on_mouse_motion_event(event)
 
             sprite = collided_sprites(self.game, event=event, index=-1)
@@ -83,7 +70,8 @@ class MouseEventManager(ResourceManager):
             # Note: This probably doesn't work right because
             # we aren't keeping track of button states.
             # We should be looking at all mouse states and emitting appropriately.
-            for trigger in self.mouse_state.values():
+            # A snapshot: a drag handler may press or release a button (changing mouse_state)
+            for trigger in tuple(self.mouse_state.values()):
                 if trigger.type == pygame.MOUSEBUTTONDOWN:
                     self.on_mouse_drag_event(event, trigger)
                     self.mouse_dragging = True
@@ -97,7 +85,6 @@ class MouseEventManager(ResourceManager):
                 trigger (pygame.event.Event): The triggering event.
 
             """
-            self._drag_seq += 1
             self.game.on_mouse_drag_event(event, trigger)
 
             if trigger.button == MOUSE_BUTTON_LEFT:
@@ -341,9 +328,6 @@ class MouseEventManager(ResourceManager):
 
             """
             self.mouse_state[event.button] = event
-            # Reset diagnostics counters at the start of a hold
-            self._motion_seq = 0
-            self._drag_seq = 0
             # Scene-first: let scene clear focus/overlays before per-sprite handlers
             self.game.on_mouse_button_down_event(event)
 

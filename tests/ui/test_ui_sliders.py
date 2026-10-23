@@ -761,3 +761,102 @@ class TestSliderSpriteWithRealSurfaces:
         text_rect = slider.text_sprite.rect
         text_area = pygame.surfarray.array3d(screen.subsurface(text_rect))
         assert (text_area == (255, 255, 255)).all(axis=2).any()
+
+    @staticmethod
+    def _draw_slider_group(*, slider, group, screen):
+        """Update and draw a slider's group on a black screen, as one frame.
+
+        Returns:
+            numpy.ndarray: The RGB pixels the frame shows inside the slider's rect.
+
+        """
+        screen.fill((0, 0, 0))
+        group.update()
+        group.draw(screen)
+        return pygame.surfarray.array3d(screen.subsurface(slider.rect))
+
+    @staticmethod
+    def _expected_slider_pixels(*, slider, name, screen):
+        """Draw what the slider should show onto a copy of the screen, in its pixel format.
+
+        The track is one column per x, intensity int(x / width * 255) in the slider's channel
+        (all three for a slider that is not R, G or B), with the knob drawn over it.
+
+        Returns:
+            numpy.ndarray: The RGB pixels expected inside the slider's rect.
+
+        """
+        expected_screen = screen.copy()
+        expected_screen.fill((0, 0, 0))
+        for column in range(TEST_WIDTH):
+            intensity = int(column / TEST_WIDTH * 255)
+            channels = {
+                'R': (intensity, 0, 0),
+                'G': (0, intensity, 0),
+                'B': (0, 0, intensity),
+            }.get(name, (intensity, intensity, intensity))
+            expected_screen.fill(
+                channels, pygame.Rect(TEST_X_POS + column, TEST_Y_POS, 1, TEST_HEIGHT)
+            )
+        expected_screen.fill(KNOB_COLOR, slider.slider_knob.rect)
+        return pygame.surfarray.array3d(expected_screen.subsurface(slider.rect))
+
+    @pytest.mark.parametrize('name', ['R', 'G', 'B', 'A', None])
+    def test_the_drawn_slider_shows_its_gradient_and_knob_frame_after_frame(self, name):
+        """On the real display, every frame shows the track's gradient with the knob over it.
+
+        The knob moves between frames, so the track must show again where the knob was.
+        """
+        group = pygame.sprite.LayeredDirty()
+        slider = SliderSprite(
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name=name,
+            groups=group,
+        )
+        screen = pygame.display.get_surface()
+
+        for value in (TEST_MIN_VALUE, TEST_DEFAULT_VALUE, TEST_MAX_VALUE, TEST_VALUE_64):
+            slider.value = value
+            drawn_pixels = self._draw_slider_group(slider=slider, group=group, screen=screen)
+
+            expected_pixels = self._expected_slider_pixels(slider=slider, name=name, screen=screen)
+            assert (drawn_pixels == expected_pixels).all(), f'value {value}'
+
+    def test_the_gradient_is_drawn_once_across_many_dirty_updates(self, slider, mocker):
+        """A dirty slider whose size and name have not changed repaints its track in one blit."""
+        draw_line_spy = mocker.spy(pygame.draw, 'line')
+        slider.dirty = 2
+
+        for value in range(TEST_MAX_VALUE + 1):
+            slider.value = value
+            slider.update()
+
+        assert draw_line_spy.call_count == 0
+
+    def test_resizing_the_slider_redraws_its_gradient_for_the_new_width(self, slider):
+        new_width = TEST_WIDTH // 2
+        slider.width = new_width
+
+        slider.update()
+
+        middle = new_width // 2
+        assert _rgb_at(slider.image, (middle, 0)) == (int(middle / new_width * 255),) * 3
+
+    def test_renaming_the_slider_redraws_its_gradient_in_the_new_channel(self, slider):
+        slider.name = 'G'
+
+        slider.update()
+
+        middle = TEST_WIDTH // 2
+        assert _rgb_at(slider.image, (middle, 0)) == (0, int(middle / TEST_WIDTH * 255), 0)
+
+    def test_a_new_image_gets_the_gradient_drawn_on_it(self, slider):
+        slider.image = pygame.Surface((TEST_WIDTH, TEST_HEIGHT))
+
+        slider.update()
+
+        middle = TEST_WIDTH // 2
+        assert _rgb_at(slider.image, (middle, 0)) == (int(middle / TEST_WIDTH * 255),) * 3

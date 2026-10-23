@@ -149,7 +149,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (object): The object that triggered the event.
 
         """
-        self.log.debug('%s Mouse Drag %s @ %s for %s', type(self), event, self, trigger)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_left_mouse_drop_event(
@@ -179,7 +180,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_middle_mouse_drop_event(
@@ -205,7 +207,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (object): The object that triggered the event.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -226,7 +229,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug('%s MOUSE MOVE %s', type(self), self.name)
+        # Not logged: motion arrives every frame while the mouse moves over the menu bar, so a
+        # log line here would drown out useful debug output.
 
     @override
     def on_mouse_enter_event(self: Self, event: HashableEvent) -> None:
@@ -361,7 +365,8 @@ class MenuBar(FocusableSingletonBitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_right_mouse_drop_event(
@@ -607,7 +612,8 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -633,7 +639,8 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_middle_mouse_drop_event(
@@ -659,7 +666,8 @@ class MenuItem(BitmappySprite):
             trigger (object): The trigger object.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -886,7 +894,8 @@ class MenuItem(BitmappySprite):
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
-        self.log.debug('%s Mouse Drag %s', type(self), self.name)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_right_mouse_drop_event(

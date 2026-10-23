@@ -369,6 +369,17 @@ only replays; Part 2 Task 1).
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
 - Vsync-locked presentation to remove the remaining beat between 60.01 FPS and a 60 Hz display.
+- Bitmappy frame cost (measured 2026-10-22, headless, mouse sweeping with the button held half
+  the time, `time_bitmappy_drag`-style harness): median 0.88 -> 0.55 ms, mean 1.25 -> 0.70 ms per
+  frame after caching the slider gradients (a dirty slider update 120-160 -> 3.3 us), cheaper
+  canvas redraws (595 -> 124 us: per-pixel lookups hoisted, the grid as 1 px fills, no empty
+  onion layer) and dropping per-frame debug logging. Next steps for the canvas: cache the
+  background and grid and draw only pixels on top; then a changed-pixels-only redraw (needs real
+  dirty tracking: BUGS.md #178 item 15, hover cells, onion layers, controller boxes wider than
+  small cells). `_has_active_controllers_in_canvas_mode` in `canvas_interfaces.py` is now used only
+  by its own tests (dead code to remove after a look). `_redraw_animated_sprite` and
+  `_get_current_frame_pixels` still build debug-log arguments (`list(frames.keys())`,
+  `frame_pixels[:3]`) on every redraw.
 - Cache parsed sprite TOML by path: Brave Adventurer Papyrus parses `PapyrusGoldScarab`'s TOML
   once per collectible while building a level (46 times, 3 frames each; found counting log calls,
   2026-10-22). Load time only; every instance gets the same frames.
@@ -485,7 +496,15 @@ only replays; Part 2 Task 1).
   Bitmappy's 62 `PLW0717` sites (`glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py`,
   `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
   Phase 3 done 2026-10-22 (ignore removed); phase 4: 128 of 152 typed, the rest waiting on the
-  device and event plans and two Bitmappy decisions (see the plan); phase 5: converting all.
+  device and event plans and two Bitmappy decisions (see the plan); phase 5 done (all logging lazy,
+  ignore removed).
+- **Unified input devices** (proposed 2026-10-22, for review):
+  [`plans/2026-10-22-unified-input-devices.md`](2026-10-22-unified-input-devices.md): one
+  `InputDevice` per physical device so joysticks and controllers run together; includes BUGS.md
+  #181.
+- **Typed events** (proposed 2026-10-22, for review):
+  [`plans/2026-10-22-typed-events.md`](2026-10-22-typed-events.md): per-family `HashableEvent`
+  subclasses so handlers get real field types.
 - **Tests that never run in CI** (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
   only, nothing changed). Every collected test runs in CI, but these skip on every CI OS or are
   never collected:

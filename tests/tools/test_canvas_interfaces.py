@@ -1,5 +1,6 @@
 """Tests for canvas interface functionality, coverage, and edge cases."""
 
+import hashlib
 import sys
 from types import SimpleNamespace
 from typing import cast
@@ -7,6 +8,7 @@ from typing import cast
 import pygame
 import pytest
 
+from glitchygames.bitmappy import onion_skinning
 from glitchygames.bitmappy.canvas_interfaces import (
     AnimatedCanvasInterface,
     AnimatedCanvasRenderer,
@@ -1265,17 +1267,12 @@ class TestAnimatedCanvasRendererHelpers:
         result = renderer._get_pixel_color_at_position(100, 100)
         assert result == (0, 0, 0)
 
-    def test_draw_pixel_on_canvas_rgba(self, mocker):
-        """Test _draw_pixel_on_canvas draws RGBA pixel correctly."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixel_width = 10
-        canvas_sprite.pixel_height = 10
-        canvas_sprite.image = pygame.Surface((40, 40), pygame.SRCALPHA)
+    def test_draw_pixel_cell_rgba(self):
+        """Test _draw_pixel_cell draws an RGBA pixel correctly."""
+        image = pygame.Surface((40, 40), pygame.SRCALPHA)
 
-        renderer = AnimatedCanvasRenderer(canvas_sprite)
-        renderer._draw_pixel_on_canvas((255, 0, 0, 128), 10, 0)
+        AnimatedCanvasRenderer._draw_pixel_cell(image, (255, 0, 0, 128), (10, 0, 10, 10))
 
-        image = canvas_sprite.image
         # The RGBA colour is written as is (alpha included) over the pixel's 10x10 cell only
         assert tuple(image.get_at((10, 0))) == (255, 0, 0, 128)
         assert tuple(image.get_at((19, 9))) == (255, 0, 0, 128)
@@ -1283,17 +1280,12 @@ class TestAnimatedCanvasRendererHelpers:
         assert tuple(image.get_at((20, 0))) == (0, 0, 0, 0)
         assert tuple(image.get_at((10, 10))) == (0, 0, 0, 0)
 
-    def test_draw_pixel_on_canvas_rgb(self, mocker):
-        """Test _draw_pixel_on_canvas converts RGB to RGBA and draws."""
-        canvas_sprite = mocker.Mock()
-        canvas_sprite.pixel_width = 10
-        canvas_sprite.pixel_height = 10
-        canvas_sprite.image = pygame.Surface((40, 40), pygame.SRCALPHA)
+    def test_draw_pixel_cell_rgb(self):
+        """Test _draw_pixel_cell converts RGB to RGBA and draws."""
+        image = pygame.Surface((40, 40), pygame.SRCALPHA)
 
-        renderer = AnimatedCanvasRenderer(canvas_sprite)
-        renderer._draw_pixel_on_canvas((255, 0, 0), 0, 10)
+        AnimatedCanvasRenderer._draw_pixel_cell(image, (255, 0, 0), (0, 10, 10, 10))
 
-        image = canvas_sprite.image
         # An RGB colour is drawn fully opaque
         assert tuple(image.get_at((0, 10))) == (255, 0, 0, 255)
         assert tuple(image.get_at((9, 19))) == (255, 0, 0, 255)
@@ -1420,6 +1412,21 @@ class TestCanvasRendererDrawIndicatorsOnly:
         assert image.get_at((12, 4)).a == 0
         assert image.get_at((4, 12)).a == 0
         assert image.get_at((12, 12)).a == 0
+
+    def test_controller_past_a_short_frame_is_not_drawn(self):
+        """A controller on a pixel the (short) frame does not have draws no box."""
+        canvas_sprite = _two_by_two_canvas_stand_in(
+            pixels=TWO_BY_TWO_PIXELS,
+            parent_scene=_scene_with_canvas_controller(position=(0, 1), color=INDICATOR_RED_RGB),
+        )
+        renderer = AnimatedCanvasRenderer(canvas_sprite)
+
+        renderer._draw_controller_indicators_only(
+            cast('list[tuple[int, ...]]', TWO_BY_TWO_PIXELS[:2]),
+        )
+
+        assert _every_pixel_rgb(canvas_sprite.image) == {(0, 0, 0)}
+        assert canvas_sprite.image.get_at((1, 9)).a == 0
 
 
 class TestCanvasRendererVisibleFrameWithControllerIndicator:
@@ -2185,3 +2192,403 @@ class TestGetPixelColorWithoutCanvas:
         renderer = AnimatedCanvasRenderer(None)
 
         assert renderer._get_pixel_color_at_position(0, 0) == (0, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Rendered canvas goldens: a real AnimatedCanvasSprite redrawn in many states
+# ---------------------------------------------------------------------------
+
+
+def _golden_pattern_pixel(*, index, shift):
+    """Pick a pattern pixel covering every kind of pixel the canvas draws.
+
+    Magenta RGB and opaque magenta RGBA are skipped (the background shows); magenta with alpha
+    0 is not skipped (it is drawn, clearing the cell); the rest are RGB, opaque RGBA and
+    translucent RGBA.
+
+    Returns:
+        tuple[int, ...]: The pixel at ``index``.
+
+    """
+    kind = (index + shift) % 7
+    pattern_pixels = (
+        (255, 0, 255),
+        ((index * 37) % 256, (index * 91) % 256, (index * 13) % 256),
+        (255, 0, 255, 255),
+        (10, 200, 30, 128),
+        (200, 40, index % 256, 255),
+        (255, 0, 255, 0),
+        (0, 0, 0),
+    )
+    return pattern_pixels[kind]
+
+
+def _golden_canvas(*, pixels_across, pixels_tall, pixel_width, pixel_height, frame_count=1):
+    """Build a real animated canvas whose frames hold shifted copies of the golden pattern.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas, on frame 0 of animation 'golden'.
+
+    """
+    frames = []
+    for frame_index in range(frame_count):
+        frame = SpriteFrame(pygame.Surface((pixels_across, pixels_tall)))
+        frame.pixels = [
+            _golden_pattern_pixel(index=pixel_index, shift=frame_index * 3)
+            for pixel_index in range(pixels_across * pixels_tall)
+        ]
+        frames.append(frame)
+    animated_sprite = AnimatedSprite()
+    animated_sprite._animations = {'golden': frames}
+    animated_sprite.frame_manager.current_animation = 'golden'
+    return AnimatedCanvasSprite(
+        animated_sprite=animated_sprite,
+        pixels_across=pixels_across,
+        pixels_tall=pixels_tall,
+        pixel_width=pixel_width,
+        pixel_height=pixel_height,
+    )
+
+
+def _golden_controller_scene(*, controllers, selected_frame_visible=True):
+    """Build a scene stand-in holding controllers, each (mode, position, colour or None).
+
+    Returns:
+        SimpleNamespace: The scene stand-in AnimatedCanvasRenderer reads controllers from.
+
+    """
+    controller_ids = list(range(len(controllers)))
+    return SimpleNamespace(
+        controller_selections={
+            controller_id: SimpleNamespace() for controller_id in controller_ids
+        },
+        mode_switcher=SimpleNamespace(
+            get_controller_mode=lambda controller_id: SimpleNamespace(
+                value=controllers[controller_id][0],
+            ),
+            get_controller_position=lambda controller_id: SimpleNamespace(
+                is_valid=True,
+                position=controllers[controller_id][1],
+            ),
+        ),
+        controller_handler=SimpleNamespace(
+            find_controller_info=lambda controller_id: (
+                None
+                if controllers[controller_id][2] is None
+                else SimpleNamespace(
+                    controller_id=controller_id, color=controllers[controller_id][2]
+                )
+            ),
+        ),
+        selected_frame_visible=selected_frame_visible,
+    )
+
+
+def _golden_canvas_8_by_8():
+    """Build the 8x8 canvas of 16x16 cells most golden states start from.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    return _golden_canvas(pixels_across=8, pixels_tall=8, pixel_width=16, pixel_height=16)
+
+
+def _golden_state_empty():
+    """Build an 8x8 canvas whose frame is all magenta (nothing painted).
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas_8_by_8()
+    frame = canvas.animated_sprite._animations['golden'][0]
+    frame.pixels = [(255, 0, 255)] * 64
+    return canvas
+
+
+def _golden_state_painted():
+    """Build an 8x8 canvas painted with the golden pattern.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    return _golden_canvas_8_by_8()
+
+
+def _golden_state_hovered():
+    """Build the painted 8x8 canvas with a hovered pixel and the canvas hover border.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas_8_by_8()
+    canvas.hovered_pixel = (2, 3)
+    canvas.is_hovered = True
+    return canvas
+
+
+def _golden_state_non_square_cells():
+    """Build a 16x12 canvas of 6x10 cells (border on).
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    return _golden_canvas(pixels_across=16, pixels_tall=12, pixel_width=6, pixel_height=10)
+
+
+def _golden_state_narrow_cells():
+    """Build a 12x5 canvas of 2x8 cells: border on, each cell's outline covers its width.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    return _golden_canvas(pixels_across=12, pixels_tall=5, pixel_width=2, pixel_height=8)
+
+
+def _golden_state_single_column_cells():
+    """Build a 9x4 canvas of 1x7 cells: border on, outlines one pixel wide.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    return _golden_canvas(pixels_across=9, pixels_tall=4, pixel_width=1, pixel_height=7)
+
+
+def _golden_state_without_grid():
+    """Build a 20x20 canvas of 2x2 cells, where the grid is turned off.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas(pixels_across=20, pixels_tall=20, pixel_width=2, pixel_height=2)
+    assert canvas.border_thickness == 0
+    return canvas
+
+
+def _golden_state_onion_skinned():
+    """Build an 8x8 canvas on frame 0 of 3 with frames 1 and 2 onion skinned.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas(
+        pixels_across=8, pixels_tall=8, pixel_width=16, pixel_height=16, frame_count=3
+    )
+    onion_manager = onion_skinning.get_onion_skinning_manager()
+    onion_manager.onion_skinning_enabled = {'golden': {0: True, 1: True, 2: True}}
+    onion_manager.onion_transparency = 0.3
+    return canvas
+
+
+def _golden_state_onion_skinning_off():
+    """Build the onion skinned canvas with global onion skinning turned off.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_state_onion_skinned()
+    onion_skinning.get_onion_skinning_manager().global_onion_skinning_enabled = False
+    return canvas
+
+
+GOLDEN_CONTROLLERS = [
+    # No controller info: a later controller on the same pixel draws instead
+    ('canvas', (2, 2), None),
+    ('canvas', (2, 2), (255, 0, 0)),
+    # A later controller on a pixel that already shows one is not drawn
+    ('canvas', (2, 2), (255, 0, 128)),
+    # On a magenta (skipped) pixel
+    ('canvas', (0, 0), (0, 0, 255)),
+    # On a translucent pixel
+    ('canvas', (3, 0), (255, 255, 0)),
+    # Not in canvas mode, and out of bounds: not drawn
+    ('film_strip', (4, 4), (0, 255, 0)),
+    ('canvas', (9, 1), (0, 255, 255)),
+]
+
+
+def _golden_state_controllers():
+    """Build the painted 8x8 canvas with controllers on it.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas_8_by_8()
+    canvas.parent_scene = _golden_controller_scene(controllers=GOLDEN_CONTROLLERS)
+    return canvas
+
+
+def _golden_state_frame_hidden():
+    """Build the 8x8 canvas with the selected frame hidden: only controller boxes are drawn.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas_8_by_8()
+    canvas.parent_scene = _golden_controller_scene(
+        controllers=GOLDEN_CONTROLLERS,
+        selected_frame_visible=False,
+    )
+    return canvas
+
+
+def _golden_state_static_fallback():
+    """Build the 8x8 canvas showing an animation it does not have: the static pixels draw.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas_8_by_8()
+    canvas.parent_scene = _golden_controller_scene(controllers=GOLDEN_CONTROLLERS)
+    canvas.pixels = [
+        _golden_pattern_pixel(index=pixel_index, shift=0)[:3] for pixel_index in range(64)
+    ]
+    canvas.current_animation = 'missing'
+    return canvas
+
+
+def _golden_state_controllers_on_small_cells():
+    """Build a 6x6 canvas of 3x3 cells with controllers: their boxes reach past their cells.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_canvas(pixels_across=6, pixels_tall=6, pixel_width=3, pixel_height=3)
+    canvas.parent_scene = _golden_controller_scene(controllers=GOLDEN_CONTROLLERS)
+    return canvas
+
+
+def _golden_state_static_fallback_on_small_cells():
+    """Build the static fallback on a 6x6 canvas of 3x3 cells with controllers.
+
+    Returns:
+        AnimatedCanvasSprite: The canvas.
+
+    """
+    canvas = _golden_state_controllers_on_small_cells()
+    canvas.pixels = [
+        _golden_pattern_pixel(index=pixel_index, shift=0)[:3] for pixel_index in range(36)
+    ]
+    canvas.current_animation = 'missing'
+    return canvas
+
+
+# SHA-256 of each state's redrawn canvas image as RGBA bytes, recorded from the renderer before
+# its redraw was optimized: the optimized redraw must draw exactly the same pixels
+CANVAS_REDRAW_GOLDEN_DIGESTS = {
+    'empty': ('6dfc34df6951040e72fc07cd49fe459a88cf221b90ed3fd6f346867f4080727d'),
+    'painted': ('b0ea66872f1f2815d27aedaedcd095180bacb5c5c4b024fa41f58381e737274d'),
+    'hovered': ('9b4647c7812c10863d7d56735cfa2e4c66e0f65b8f77cbcb2c311ced8e955df6'),
+    'non_square_cells': ('e2fc4b54b93878d14c9b6f39270693ea6471739c7def69dce68e935eff08b1ca'),
+    'narrow_cells': ('4aaf7a89e2a4a3cf1f73f191aa38e115cacd7970e6fcaab6545f8d19f8ec4b68'),
+    'single_column_cells': ('5ad241ae8ec60f52ae011a795007f54da32ed408c6d2022e26e2a116df8fe8e2'),
+    'without_grid': ('8b771cd06d9df890febedb7a9e6379ba426f042889c0ec95faec642698ed123e'),
+    'onion_skinned': ('43b7e20e84d29da3affd1591d23706ee09004912efbf9de572e7d338abace532'),
+    'onion_skinning_off': ('b0ea66872f1f2815d27aedaedcd095180bacb5c5c4b024fa41f58381e737274d'),
+    'controllers': ('00e32736e8d35646b1f8a22ebb834338e7ea27ade88d3ac3ecad9eb0082c78d6'),
+    'frame_hidden': ('47d4ed25f4b5358aa1e6b4c4e345560b873dba96afbd25b6eca205de319d8cd2'),
+    'static_fallback': ('992943b379283d59b18526400f7c7206ece2675f83e2f44a072b59b7ad14d1be'),
+    'controllers_on_small_cells': (
+        '53108b99813659a869841083da777ed12dbde23b4fb92b4d22c9f82f1f2efc05'
+    ),
+    'static_fallback_on_small_cells': (
+        '82c2611ccc93ba73a8725ab372bf28cada9919022dae9da1ee62fcf2611a2ac1'
+    ),
+}
+
+CANVAS_REDRAW_GOLDEN_STATES = {
+    'empty': _golden_state_empty,
+    'painted': _golden_state_painted,
+    'hovered': _golden_state_hovered,
+    'non_square_cells': _golden_state_non_square_cells,
+    'narrow_cells': _golden_state_narrow_cells,
+    'single_column_cells': _golden_state_single_column_cells,
+    'without_grid': _golden_state_without_grid,
+    'onion_skinned': _golden_state_onion_skinned,
+    'onion_skinning_off': _golden_state_onion_skinning_off,
+    'controllers': _golden_state_controllers,
+    'frame_hidden': _golden_state_frame_hidden,
+    'static_fallback': _golden_state_static_fallback,
+    'controllers_on_small_cells': _golden_state_controllers_on_small_cells,
+    'static_fallback_on_small_cells': _golden_state_static_fallback_on_small_cells,
+}
+
+
+@pytest.fixture
+def isolated_onion_skinning(monkeypatch):
+    """Give the global onion skinning manager its startup state, restored after the test."""
+    onion_manager = onion_skinning.get_onion_skinning_manager()
+    monkeypatch.setattr(onion_manager, 'onion_skinning_enabled', {})
+    monkeypatch.setattr(onion_manager, 'global_onion_skinning_enabled', True)
+    monkeypatch.setattr(onion_manager, 'onion_transparency', 0.5)
+
+
+def _redrawn_canvas_digest(canvas):
+    """Redraw a canvas and digest its image's pixels, independent of the display's format.
+
+    Returns:
+        str: The SHA-256 hex digest of the image as RGBA bytes.
+
+    """
+    canvas.force_redraw()
+    return hashlib.sha256(pygame.image.tobytes(canvas.image, 'RGBA')).hexdigest()
+
+
+@pytest.mark.usefixtures('isolated_onion_skinning')
+class TestCanvasRedrawGoldens:
+    """A real canvas redraws exactly the recorded pixels in every state."""
+
+    @pytest.mark.parametrize('state_name', list(CANVAS_REDRAW_GOLDEN_STATES))
+    def test_redraw_matches_golden(self, state_name):
+        """The redrawn image matches the golden digest recorded for the state."""
+        canvas = CANVAS_REDRAW_GOLDEN_STATES[state_name]()
+
+        assert _redrawn_canvas_digest(canvas) == CANVAS_REDRAW_GOLDEN_DIGESTS[state_name]
+
+    def test_redraw_is_repeatable(self):
+        """Redrawing twice in a row draws the same pixels (nothing carries over wrongly)."""
+        canvas = _golden_state_controllers()
+
+        first_digest = _redrawn_canvas_digest(canvas)
+
+        assert _redrawn_canvas_digest(canvas) == first_digest
+
+    def test_redraw_draws_the_grid_as_lines_not_cell_outlines(self, mocker):
+        """A 32x32 canvas redraw draws one rect per painted pixel and fills each grid line once.
+
+        Before, every pixel's cell got its own outline (1,024 draw.rect calls per redraw).
+        """
+        canvas = _golden_canvas(pixels_across=32, pixels_tall=32, pixel_width=10, pixel_height=10)
+        assert canvas.border_thickness == 1
+        frame_pixels = canvas.animated_sprite._animations['golden'][0].pixels
+        painted_pixel_count = sum(
+            1 for pixel in frame_pixels if pixel not in {(255, 0, 255), (255, 0, 255, 255)}
+        )
+        draw_rect_spy = mocker.spy(pygame.draw, 'rect')
+
+        canvas.force_redraw()
+
+        assert draw_rect_spy.call_count == painted_pixel_count
+
+    def test_redraw_looks_controllers_up_once_not_per_pixel(self, mocker):
+        """The controller scene is looked up a fixed number of times per redraw, not per pixel."""
+        canvas = _golden_state_controllers()
+        controller_scene_spy = mocker.spy(canvas.canvas_renderer, '_get_controller_scene')
+
+        canvas.force_redraw()
+
+        # Once, to map the controllers' pixels (before, once per pixel and per controller)
+        assert controller_scene_spy.call_count == 1

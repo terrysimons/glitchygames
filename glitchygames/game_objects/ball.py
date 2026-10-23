@@ -434,7 +434,7 @@ class BallSprite(Sprite):
         self.collision_cooldowns: dict[str, float] = {}
         self.on_paddle_collision: Callable[[BallSprite], None] | None = None
 
-        # Debug trajectory tracking (used for trajectory analysis)
+        # Debug trajectory tracking (PaddleSlap fills it only while DEBUG logging is on)
         self._debug_positions: list[tuple[float, float, float, float]] = []
 
         self.reset()
@@ -726,21 +726,23 @@ class BallSprite(Sprite):
             None
 
         """
-        log.debug(
-            'BALL BOUNCE CHECK: pos=(%.1f,%.1f) '
-            'speed=(%.3f,%.3f) '
-            'screen=(%s,%s) '
-            'bounce_top_bottom=%s '
-            'bounce_left_right=%s',
-            self.world_x,
-            self.world_y,
-            self.speed.x,
-            self.speed.y,
-            self.screen_width,
-            self.screen_height,
-            self.bounce_top_bottom,
-            self.bounce_left_right,
-        )
+        # Every ball checks every frame: read the eight arguments only when DEBUG is on
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(
+                'BALL BOUNCE CHECK: pos=(%.1f,%.1f) '
+                'speed=(%.3f,%.3f) '
+                'screen=(%s,%s) '
+                'bounce_top_bottom=%s '
+                'bounce_left_right=%s',
+                self.world_x,
+                self.world_y,
+                self.speed.x,
+                self.speed.y,
+                self.screen_width,
+                self.screen_height,
+                self.bounce_top_bottom,
+                self.bounce_left_right,
+            )
 
         # Enhanced boundary checking with proper physics
         self._handle_boundary_collisions(log)

@@ -4073,3 +4073,63 @@ class TestFrameDumpOnlyWithDebugLogging:
 
         assert pixel_data_spy.call_count == 1
         assert 'Frame 1 pixel hash' in caplog.text
+
+    def test_looping_frame_advances_log_nothing_without_debug_logging(self, caplog):
+        """With DEBUG off, advancing past the last frame loops back and logs nothing."""
+        sprite = self._two_frame_sprite()
+        sprite.is_looping = True
+        caplog.clear()  # only this test's frame advances count
+
+        with caplog.at_level(logging.INFO, logger=sprite.log.name):
+            sprite.update(dt=0.1)
+            sprite.update(dt=0.1)
+
+        assert sprite.current_frame == 0
+        assert sprite.is_playing
+        assert 'Frame advance' not in caplog.text
+        assert 'Looping back to frame 0' not in caplog.text
+        assert 'Updated surface for frame' not in caplog.text
+
+    def test_looping_frame_advances_are_logged_with_debug_logging(self, caplog):
+        """With DEBUG on, each advance, the loop back and the surface change are logged."""
+        sprite = self._two_frame_sprite()
+        sprite.is_looping = True
+        caplog.clear()  # only this test's frame advances count
+
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite.update(dt=0.1)
+            sprite.update(dt=0.1)
+
+        assert sprite.current_frame == 0
+        assert 'Frame advance: 0 -> 1' in caplog.text
+        assert 'FIRST FRAME ADVANCE: 0 -> 1' in caplog.text
+        assert 'Frame advance: 1 -> 2' in caplog.text
+        assert 'Looping back to frame 0 (total frames: 2)' in caplog.text
+        assert "Updated surface for frame 1 of animation 'walk'" in caplog.text
+
+    def test_animation_end_logs_nothing_without_debug_logging(self, caplog):
+        """With DEBUG off, a non-looping animation stops at its last frame and logs nothing."""
+        sprite = self._two_frame_sprite()
+        sprite.is_looping = False
+        caplog.clear()  # only this test's frame advances count
+
+        with caplog.at_level(logging.INFO, logger=sprite.log.name):
+            sprite.update(dt=0.1)
+            sprite.update(dt=0.1)
+
+        assert sprite.current_frame == 1
+        assert not sprite.is_playing
+        assert 'Animation ended' not in caplog.text
+
+    def test_animation_end_is_logged_with_debug_logging(self, caplog):
+        """With DEBUG on, a non-looping animation logs where it stopped."""
+        sprite = self._two_frame_sprite()
+        sprite.is_looping = False
+        caplog.clear()  # only this test's frame advances count
+
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite.update(dt=0.1)
+            sprite.update(dt=0.1)
+
+        assert not sprite.is_playing
+        assert 'Animation ended, stopped at frame 1' in caplog.text

@@ -5,6 +5,7 @@ mouse wheel scrolling, and regular key input including backspace, delete,
 and navigation, on real surfaces with the real (FontManager) font and real events.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -520,6 +521,30 @@ class TestMultiLineTextBoxRealRendering:
         cursor_column = rgb_pixels[cursor_x, 6 : 5 + line_height]
         assert (cursor_column == BACKGROUND_RGB).all()
         del cursor_column, rgb_pixels
+
+    def test_the_frame_dump_is_not_logged_without_debug_logging(self, caplog):
+        """update() runs every frame: with DEBUG off it draws but logs no frame dump."""
+        textbox = _real_textbox(text='Hello')
+        caplog.clear()  # only this update counts
+
+        with caplog.at_level(logging.INFO, logger=textbox.log.name):
+            textbox.update()
+
+        assert _has_text_pixels(textbox.image, top=5, bottom=5 + textbox._get_line_height())
+        assert '--- Frame' not in caplog.text
+        assert 'Update called after' not in caplog.text
+
+    def test_the_frame_dump_is_logged_with_debug_logging(self, caplog):
+        """With DEBUG on, update() logs the frame number, time since the last update, state."""
+        textbox = _real_textbox(text='Hello')
+
+        with caplog.at_level(logging.DEBUG, logger=textbox.log.name):
+            textbox.update()
+
+        assert f'--- Frame {textbox._frame_count} ---' in caplog.text
+        assert 'Update called after' in caplog.text
+        assert 'State: active=False, cursor_visible=' in caplog.text
+        assert 'Dirty flag:' in caplog.text
 
 
 class TestMultiLineTextBoxRealEvents:

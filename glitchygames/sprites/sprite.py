@@ -220,7 +220,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYAXISMOTION    joy, axis, value
-        self.log.debug('%s: %s', type(self), event)
+        # Not logged: axis motion streams every frame while a stick moves.
 
     def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick button down event.
@@ -260,7 +260,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # JOYBALLMOTION    joy, ball, rel
-        self.log.debug('%s: %s', type(self), event)
+        # Not logged: ball motion streams every frame while the ball moves.
 
     @override
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
@@ -271,7 +271,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         # MOUSEMOTION      pos, rel, buttons
-        self.log.debug('Mouse Motion Event: %s: %s', type(self), event)
+        # Not logged: motion streams every frame while the mouse moves, to every
+        # sprite under it, so a log line here would drown out useful debug output.
 
     @override
     def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
@@ -570,7 +571,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Right Mouse Button Down Event: %s @ self', type(self), event)
+            self.log.debug(
+                '%s: Right Mouse Button Down Event: %s @ %s', type(self), event, self.name
+            )
 
     @override
     def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
@@ -725,9 +728,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(
-            '%s: Left Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
-        )
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_middle_mouse_drag_event(
@@ -742,9 +744,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(
-            '%s: Middle Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
-        )
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -755,9 +756,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug(
-            '%s: Right Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger
-        )
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -811,7 +811,8 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             trigger (HashableEvent): The event that triggered the drag.
 
         """
-        self.log.debug('%s: Mouse Drag Event: %s @ %s for %s', type(self), event, self, trigger)
+        # Not logged: a drag arrives with every mouse motion while a button is held, so a log
+        # line here would run every frame of a drag and drown out useful debug output.
 
     @override
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:

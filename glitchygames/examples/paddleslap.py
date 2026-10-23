@@ -409,6 +409,8 @@ class Game(Scene):
     def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:
         """Track and log ball trajectory for debugging curving patterns.
 
+        dt_tick calls it only with DEBUG logging on, so the history fills only while it is logged.
+
         Args:
             ball_index: The index of the ball in the balls list (0-based).
             ball: The ball sprite to track.
@@ -471,26 +473,32 @@ class Game(Scene):
         # Process held-state input actions (paddle movement)
         self._process_paddle_input()
 
+        # The ball trajectory logs run for every ball every frame, and the trajectory history
+        # exists only to feed them: skip both unless DEBUG is on
+        debug_enabled = log.isEnabledFor(logging.DEBUG)
+
         # Debug log ball positions and speeds before update
-        for i, ball in enumerate(self.balls):
-            if ball.alive():
-                self._debug_log_ball_trajectory(ball_index=i, ball=ball)
+        if debug_enabled:
+            for i, ball in enumerate(self.balls):
+                if ball.alive():
+                    self._debug_log_ball_trajectory(ball_index=i, ball=ball)
 
         for sprite in self.all_sprites:
             sprite.dt_tick(dt)
 
         # Debug log ball positions and speeds after update
-        for i, ball in enumerate(self.balls):
-            if ball.alive():
-                log.debug(
-                    'BALL %s AFTER:  pos=(%.1f,%.1f) speed=(%.1f,%.1f) magnitude=%.1f',
-                    i + 1,
-                    ball.world_x,
-                    ball.world_y,
-                    ball.speed.x,
-                    ball.speed.y,
-                    math.sqrt(ball.speed.x**2 + ball.speed.y**2),
-                )
+        if debug_enabled:
+            for i, ball in enumerate(self.balls):
+                if ball.alive():
+                    log.debug(
+                        'BALL %s AFTER:  pos=(%.1f,%.1f) speed=(%.1f,%.1f) magnitude=%.1f',
+                        i + 1,
+                        ball.world_x,
+                        ball.world_y,
+                        ball.speed.x,
+                        ball.speed.y,
+                        math.sqrt(ball.speed.x**2 + ball.speed.y**2),
+                    )
 
         # Collisions are game logic, so they run here, after every sprite moved. The engine
         # positions the world-space balls after dt_tick and before update() renders, so a
@@ -502,36 +510,37 @@ class Game(Scene):
 
         Runs at the end of dt_tick, after every sprite moved this frame.
         """
-        for i, ball in enumerate(self.balls):
-            if not ball.alive():
-                continue
+        # Debug log ball state before collision checks (every ball, every frame: DEBUG only)
+        if log.isEnabledFor(logging.DEBUG):
+            for i, ball in enumerate(self.balls):
+                if not ball.alive():
+                    continue
 
-            # Debug log ball state before collision checks
-            log.debug(
-                'BALL %s COLLISION CHECK: pos=(%.1f,%.1f) '
-                'speed=(%.1f,%.1f) '
-                'paddle1_rect=(%s,'
-                '%s,'
-                '%s,'
-                '%s) '
-                'paddle2_rect=(%s,'
-                '%s,'
-                '%s,'
-                '%s)',
-                i + 1,
-                ball.world_x,
-                ball.world_y,
-                ball.speed.x,
-                ball.speed.y,
-                self.player1.rect.x,
-                self.player1.rect.y,
-                self.player1.rect.width,
-                self.player1.rect.height,
-                self.player2.rect.x,
-                self.player2.rect.y,
-                self.player2.rect.width,
-                self.player2.rect.height,
-            )
+                log.debug(
+                    'BALL %s COLLISION CHECK: pos=(%.1f,%.1f) '
+                    'speed=(%.1f,%.1f) '
+                    'paddle1_rect=(%s,'
+                    '%s,'
+                    '%s,'
+                    '%s) '
+                    'paddle2_rect=(%s,'
+                    '%s,'
+                    '%s,'
+                    '%s)',
+                    i + 1,
+                    ball.world_x,
+                    ball.world_y,
+                    ball.speed.x,
+                    ball.speed.y,
+                    self.player1.rect.x,
+                    self.player1.rect.y,
+                    self.player1.rect.width,
+                    self.player1.rect.height,
+                    self.player2.rect.x,
+                    self.player2.rect.y,
+                    self.player2.rect.width,
+                    self.player2.rect.height,
+                )
 
         # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
         # phase) and BallSprite.handle_paddle_collision does the exact circle-vs-rect check and

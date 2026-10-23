@@ -27,6 +27,13 @@ if TYPE_CHECKING:
 LOG = logging.getLogger('game.tools.canvas_interfaces')
 LOG.addHandler(logging.NullHandler())
 
+# The colour of the grid drawn around every canvas pixel
+CANVAS_GRID_COLOR = (64, 64, 64)
+
+# Pixels the canvas skips (magenta is the transparency key), so the background shows through.
+# Magenta with any other alpha is drawn like any other pixel.
+SKIPPED_MAGENTA_PIXELS = frozenset({(255, 0, 255), (255, 0, 255, 255)})
+
 
 class MockPixelEvent(BaseModel):
     """Lightweight mock event for internal pixel update calls."""
@@ -639,6 +646,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Stays Any: typed, the sprite's pixels (tuple[int, ...]) do not match the RGB/RGBA
         # tuples the redraw helpers take.
         self.canvas_sprite: Any = canvas_sprite
+        # The last _pixel_cells answer and the (pixel count, pixels across, pixel width, pixel
+        # height) it was built for: the cells only change when the canvas geometry does
+        self._pixel_cells_geometry: tuple[int, int, int, int] | None = None
+        self._pixel_cells_cache: list[tuple[int, int, int, int]] = []
 
     @override
     def render(self, sprite: BitmappySprite) -> pygame.Surface:
@@ -747,6 +758,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             and onion_manager.is_frame_onion_skinned(current_animation, frame_idx)
         }
         LOG.debug('Rendering onion frames: %s', onion_frames)
+        if not onion_frames:
+            # Nothing to blend: blitting an all-transparent accumulator would change no pixel
+            return
 
         # Create a temporary surface to accumulate onion layers (hardware accelerated)
         onion_accumulator = pygame.Surface(
@@ -870,71 +884,75 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             )
         return frame_pixels
 
-    def _draw_pixel_on_canvas(
-        self,
+    @staticmethod
+    def _draw_pixel_cell(
+        image: pygame.Surface,
         pixel: tuple[int, ...],
-        x: int,
-        y: int,
+        cell: tuple[int, int, int, int],
     ) -> None:
-        """Draw a single pixel on the canvas, handling RGB/RGBA conversion."""
+        """Fill one pixel's cell with the pixel, an RGB pixel drawn opaque on the alpha surface."""
         if len(pixel) == RGBA_COMPONENT_COUNT:
-            pygame.draw.rect(
-                self.canvas_sprite.image,
-                pixel,
-                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-            )
+            pygame.draw.rect(image, pixel, cell)
         else:
             # RGB pixel - convert to RGBA for alpha surface
-            rgba_pixel = (pixel[0], pixel[1], pixel[2], 255)
-            pygame.draw.rect(
-                self.canvas_sprite.image,
-                rgba_pixel,
-                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-            )
+            pygame.draw.rect(image, (pixel[0], pixel[1], pixel[2], 255), cell)
+
+    def _pixel_cells(self, pixel_count: int) -> list[tuple[int, int, int, int]]:
+        """List the canvas cell (x, y, width, height) of each of the first pixels.
+
+        The cells do not move with panning: the grid stays fixed, and panning changes which
+        pixel data is drawn into it.
+
+        Returns:
+            list[tuple[int, int, int, int]]: The cell of pixel 0, 1, ... pixel_count - 1
+                (shared between calls: never modify it).
+
+        """
+        pixels_across: int = self.canvas_sprite.pixels_across
+        pixel_width: int = self.canvas_sprite.pixel_width
+        pixel_height: int = self.canvas_sprite.pixel_height
+        geometry = (pixel_count, pixels_across, pixel_width, pixel_height)
+        if geometry != self._pixel_cells_geometry:
+            self._pixel_cells_cache = [
+                (
+                    (pixel_index % pixels_across) * pixel_width,
+                    (pixel_index // pixels_across) * pixel_height,
+                    pixel_width,
+                    pixel_height,
+                )
+                for pixel_index in range(pixel_count)
+            ]
+            self._pixel_cells_geometry = geometry
+        return self._pixel_cells_cache
 
     def _draw_visible_frame_pixels(
         self,
         frame_pixels: list[tuple[int, ...]],
     ) -> None:
         """Draw all visible frame pixels with controller indicators."""
-        for i, pixel in enumerate(frame_pixels):
-            x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-            y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+        # Everything that does not change from pixel to pixel is read once per redraw
+        image: pygame.Surface = self.canvas_sprite.image
+        indicator_colors_by_pixel = self._controller_indicator_colors_by_pixel()
+        cells = self._pixel_cells(len(frame_pixels))
+        draw_pixel_cell = self._draw_pixel_cell
 
-            # Do NOT apply panning offset to drawing coordinates - grid stays fixed
-            # Panning is handled by extracting different pixel data, not moving the grid
-
-            # Check if any controller is active on this pixel (even for transparent pixels)
-            controller_indicator_color = None
-            if self._has_active_controllers_in_canvas_mode():
-                controller_indicator_color = self._get_controller_indicator_for_pixel(i)
-
+        for pixel_index, pixel in enumerate(frame_pixels):
+            cell = cells[pixel_index]
             # Skip transparent pixels (magenta) - they should show the background
-            if pixel in {(255, 0, 255), (255, 0, 255, 255)}:
-                # Still draw controller indicators even for transparent pixels
-                if controller_indicator_color:
-                    self._draw_plus_indicator(
-                        self.canvas_sprite.image,
-                        controller_indicator_color,
-                        x=x,
-                        y=y,
-                        width=self.canvas_sprite.pixel_width,
-                        height=self.canvas_sprite.pixel_height,
-                    )
-                continue
+            if pixel not in SKIPPED_MAGENTA_PIXELS:
+                draw_pixel_cell(image, pixel, cell)
 
-            # Draw the pixel
-            self._draw_pixel_on_canvas(pixel, x, y)
-
-            # Draw plus sign indicator on top if a controller is on this pixel
-            if controller_indicator_color:
+            # Draw plus sign indicator on top if a controller is on this pixel (even for
+            # transparent pixels). Drawn right after its pixel, as an indicator on cells under
+            # 4 pixels wide reaches past its cell and the next pixels then draw over that part.
+            if indicator_colors_by_pixel and pixel_index in indicator_colors_by_pixel:
                 self._draw_plus_indicator(
-                    self.canvas_sprite.image,
-                    controller_indicator_color,
-                    x=x,
-                    y=y,
-                    width=self.canvas_sprite.pixel_width,
-                    height=self.canvas_sprite.pixel_height,
+                    image,
+                    indicator_colors_by_pixel[pixel_index],
+                    x=cell[0],
+                    y=cell[1],
+                    width=cell[2],
+                    height=cell[3],
                 )
 
     def _draw_controller_indicators_only(
@@ -942,95 +960,94 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         frame_pixels: list[tuple[int, ...]],
     ) -> None:
         """Draw only controller indicators (selected frame is hidden)."""
-        for i in range(len(frame_pixels)):
-            x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-            y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
-
-            # Do NOT apply panning offset to drawing coordinates - grid stays fixed
-
-            controller_indicator_color = None
-            if self._has_active_controllers_in_canvas_mode():
-                controller_indicator_color = self._get_controller_indicator_for_pixel(i)
-
-            if controller_indicator_color:
-                self._draw_plus_indicator(
-                    self.canvas_sprite.image,
-                    controller_indicator_color,
-                    x=x,
-                    y=y,
-                    width=self.canvas_sprite.pixel_width,
-                    height=self.canvas_sprite.pixel_height,
-                )
+        image: pygame.Surface = self.canvas_sprite.image
+        indicator_colors_by_pixel = self._controller_indicator_colors_by_pixel()
+        cells = self._pixel_cells(len(frame_pixels))
+        # In pixel order, as each pixel's indicator was drawn when every pixel was visited
+        for pixel_index in sorted(indicator_colors_by_pixel):
+            if pixel_index >= len(cells):
+                continue
+            x, y, width, height = cells[pixel_index]
+            self._draw_plus_indicator(
+                image,
+                indicator_colors_by_pixel[pixel_index],
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+            )
 
     def _draw_pixel_grid_borders(
         self,
         frame_pixels: list[tuple[int, ...]],
         border_thickness: int,
     ) -> None:
-        """Draw grid borders on the canvas."""
-        for i in range(len(frame_pixels)):
-            x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-            y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+        """Draw grid borders on the canvas.
 
-            # Do NOT apply panning offset to drawing coordinates - grid stays fixed
+        Every pixel's cell gets its own outline, so the lines between two cells are two
+        pixels wide (each cell's edge) and the canvas edge lines one pixel wide. A 1 pixel
+        outline is drawn as full-length lines (two per row and per column: each cell's first
+        and last line) instead of one outline per cell. Any other thickness, a pixel count that
+        does not fill the canvas's rows, or an empty cell size draws the outlines cell by cell.
+        """
+        # Do NOT apply panning offset to drawing coordinates - grid stays fixed
+        image: pygame.Surface = self.canvas_sprite.image
+        pixels_across: int = self.canvas_sprite.pixels_across
+        pixels_tall: int = self.canvas_sprite.pixels_tall
+        pixel_width: int = self.canvas_sprite.pixel_width
+        pixel_height: int = self.canvas_sprite.pixel_height
+        if (
+            border_thickness != 1
+            or len(frame_pixels) != pixels_across * pixels_tall
+            or pixel_width < 1
+            or pixel_height < 1
+        ):
+            for cell in self._pixel_cells(len(frame_pixels)):
+                pygame.draw.rect(image, CANVAS_GRID_COLOR, cell, border_thickness)
+            return
 
-            pygame.draw.rect(
-                self.canvas_sprite.image,
-                (64, 64, 64),
-                (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                border_thickness,
-            )
+        grid_width = pixels_across * pixel_width
+        grid_height = pixels_tall * pixel_height
+        # A filled one-pixel-wide rectangle is the same line pygame.draw.rect's outline draws
+        for column in range(pixels_across):
+            cell_left = column * pixel_width
+            image.fill(CANVAS_GRID_COLOR, (cell_left, 0, 1, grid_height))
+            image.fill(CANVAS_GRID_COLOR, (cell_left + pixel_width - 1, 0, 1, grid_height))
+        for row in range(pixels_tall):
+            cell_top = row * pixel_height
+            image.fill(CANVAS_GRID_COLOR, (0, cell_top, grid_width, 1))
+            image.fill(CANVAS_GRID_COLOR, (0, cell_top + pixel_height - 1, grid_width, 1))
 
     def _redraw_static_pixels(
         self,
         pixels: list[tuple[int, int, int] | tuple[int, int, int, int]],
     ) -> None:
         """Redraw the canvas with static pixel data."""
-        self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
+        image: pygame.Surface = self.canvas_sprite.image
+        image.fill(self.canvas_sprite.background_color)
         border_thickness = self.canvas_sprite.border_thickness
+        cells = self._pixel_cells(len(pixels))
 
-        for i, pixel in enumerate(pixels):
-            x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
-            y = (i // self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_height
+        indicator_colors_by_pixel = self._controller_indicator_colors_by_pixel()
 
-            # Do NOT apply panning offset to drawing coordinates - grid stays fixed
-
-            # Check if any controller is active on this pixel
-            controller_indicator_color = None
-            if self._has_active_controllers_in_canvas_mode():
-                controller_indicator_color = self._get_controller_indicator_for_pixel(i)
-            if controller_indicator_color:
-                # Draw normal pixel first
-                pygame.draw.rect(
-                    self.canvas_sprite.image,
-                    pixel,
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                )
-                # Draw plus sign indicator on top
+        # Pixel, indicator and border are drawn cell by cell, in this order: an indicator on
+        # cells under 4 pixels wide reaches past its cell, so the order decides what shows
+        for pixel_index, (pixel, cell) in enumerate(zip(pixels, cells, strict=True)):
+            # Draw normal pixel
+            pygame.draw.rect(image, pixel, cell)
+            # Draw plus sign indicator on top if a controller is on this pixel
+            if indicator_colors_by_pixel and pixel_index in indicator_colors_by_pixel:
                 self._draw_plus_indicator(
-                    self.canvas_sprite.image,
-                    controller_indicator_color,
-                    x=x,
-                    y=y,
-                    width=self.canvas_sprite.pixel_width,
-                    height=self.canvas_sprite.pixel_height,
+                    image,
+                    indicator_colors_by_pixel[pixel_index],
+                    x=cell[0],
+                    y=cell[1],
+                    width=cell[2],
+                    height=cell[3],
                 )
-            else:
-                # Draw normal pixel
-                pygame.draw.rect(
-                    self.canvas_sprite.image,
-                    pixel,
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                )
-
             # Only draw border if border_thickness > 0
             if border_thickness > 0:
-                pygame.draw.rect(
-                    self.canvas_sprite.image,
-                    (64, 64, 64),
-                    (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
-                    border_thickness,
-                )
+                pygame.draw.rect(image, CANVAS_GRID_COLOR, cell, border_thickness)
 
     def _draw_hover_effects(self) -> None:
         """Draw hover effects on the canvas (pixel hover + canvas border)."""
@@ -1121,9 +1138,25 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             tuple[int, int, int] | None: The controller indicator for pixel.
 
         """
+        return self._controller_indicator_colors_by_pixel().get(pixel_index)
+
+    def _controller_indicator_colors_by_pixel(self) -> dict[int, tuple[int, int, int]]:
+        """Map each pixel a controller in canvas mode is on to that controller's colour.
+
+        Read once per redraw, so the pixel loops never look controllers up per pixel. When
+        several controllers are on one pixel, the first one (in selection order) whose
+        controller info is known gives the colour.
+
+        Returns:
+            dict[int, tuple[int, int, int]]: Indicator colour by pixel index.
+
+        """
+        indicator_colors_by_pixel: dict[int, tuple[int, int, int]] = {}
         scene = self._get_controller_scene()
-        if not scene:
-            return None
+        if not scene or not hasattr(scene, 'controller_handler'):
+            return indicator_colors_by_pixel
+        pixels_across: int = self.canvas_sprite.pixels_across
+        pixels_tall: int = self.canvas_sprite.pixels_tall
         # Check all controllers for canvas mode
         for controller_id in scene.controller_selections:
             controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
@@ -1133,22 +1166,17 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             if not (position and position.is_valid):
                 continue
             x, y = position.position
-            if not (
-                0 <= x < self.canvas_sprite.pixels_across
-                and 0 <= y < self.canvas_sprite.pixels_tall
-            ):
+            if not (0 <= x < pixels_across and 0 <= y < pixels_tall):
                 continue
-            controller_pixel_index = y * self.canvas_sprite.pixels_across + x
-            if controller_pixel_index != pixel_index:
-                continue
-            if not hasattr(scene, 'controller_handler'):
+            controller_pixel_index = y * pixels_across + x
+            if controller_pixel_index in indicator_colors_by_pixel:
                 continue
             # Look up by controller id: MultiControllerManager.get_controller_info takes an SDL
             # instance id, which differs from the controller id after a reconnect (BUGS.md #96)
             controller_info = scene.controller_handler.find_controller_info(controller_id)
             if controller_info:
-                return controller_info.color
-        return None
+                indicator_colors_by_pixel[controller_pixel_index] = controller_info.color
+        return indicator_colors_by_pixel
 
     def _draw_plus_indicator(  # ruff: ignore[too-many-arguments]
         self,

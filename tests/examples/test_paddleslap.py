@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 import sys
@@ -27,6 +28,7 @@ from glitchygames.examples.paddleslap import (
     Game,
     PaddleSlapGameOverScene,
 )
+from glitchygames.examples.paddleslap import log as paddleslap_log
 from glitchygames.game_objects.ball import (
     BallSpawnMode,
     BallSprite,
@@ -424,6 +426,44 @@ class TestPaddleslapExample:
         actions = [action.dest for action in parser._actions]
         assert 'balls' in actions
         assert 'version' in actions
+
+
+class TestPaddleslapBallTrajectoryLogging:
+    """The per-frame ball trajectory logs (and their history) run only with DEBUG logging."""
+
+    def test_dt_tick_skips_the_ball_trajectory_logs_without_debug_logging(self, caplog):
+        """With DEBUG off, dt_tick neither logs the balls nor keeps their trajectory history."""
+        game = Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+        ball = game.balls[0]
+        caplog.clear()  # only these frames count
+
+        with caplog.at_level(logging.INFO, logger=paddleslap_log.name):
+            for _ in range(3):
+                game.dt_tick(0.01)
+
+        assert ball._debug_positions == []
+        assert 'BALL 1 BEFORE' not in caplog.text
+        assert 'BALL 1 AFTER' not in caplog.text
+        assert 'BALL 1 COLLISION CHECK' not in caplog.text
+
+    def test_dt_tick_logs_the_ball_trajectory_with_debug_logging(self, caplog):
+        """With DEBUG on, dt_tick logs each ball and detects an upward curve from its history."""
+        game = Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+        ball = game.balls[0]
+        ball.world_x = 300.0
+        ball.world_y = 300.0
+        ball.speed.x = 10.0
+        ball.speed.y = -100.0  # 1 px up per 0.01 s frame: 6 px over 7 frames passes -5
+
+        with caplog.at_level(logging.DEBUG, logger=paddleslap_log.name):
+            for _ in range(7):
+                game.dt_tick(0.01)
+
+        assert len(ball._debug_positions) == 7
+        assert 'BALL 1 BEFORE: pos=(' in caplog.text
+        assert 'BALL 1 AFTER:  pos=(' in caplog.text
+        assert 'BALL 1 COLLISION CHECK: pos=(' in caplog.text
+        assert 'BALL 1 UPWARD CURVE DETECTED' in caplog.text
 
 
 class TestPaddleslapSpawnCooldown:

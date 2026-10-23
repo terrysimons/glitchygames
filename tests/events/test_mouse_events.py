@@ -759,39 +759,54 @@ class TestMouseEventProxyMotionWithCollision:
         assert upper_sprite.received == [('motion', motion_event)]
         assert lower_sprite.received == []
 
-    def test_motion_runtime_error_in_mouse_state_iteration(self, mouse_scene):
-        """RuntimeError during mouse_state iteration should be caught gracefully."""
-        manager = MouseEventManager(game=mouse_scene)
-        proxy = manager.proxies[0]
+    def test_a_drag_handler_that_presses_another_button_does_not_break_the_drag(self):
+        """The drag loop survives a handler changing the mouse state while it runs.
 
-        # Use a custom dict that raises RuntimeError on values() to simulate
-        # the "dictionary changed size during iteration" RuntimeError path.
-        class RaisingDict(UserDict):
-            """Dict subclass that raises RuntimeError on first values() call."""
+        The proxy calls the drag handlers while walking its mouse state; a handler that leads
+        to another button press (a new entry) used to raise 'dictionary changed size during
+        iteration'. The drag still reaches the scene once for the button that was held.
+        """
 
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self._raise_on_values = True
+        class PressingDragScene(Scene):
+            def __init__(self):
+                super().__init__(options=dict(STRICT_EVENT_OPTIONS))
+                self.mouse_proxy = None
+                self.drags = []
 
-            def values(self):
-                if self._raise_on_values:
-                    self._raise_on_values = False
-                    msg = 'dictionary changed size during iteration'
-                    raise RuntimeError(msg)
-                return super().values()
+            def on_mouse_button_down_event(self, event):
+                """Accept the generic button down."""
 
-        proxy.mouse_state = RaisingDict()
+            def on_left_mouse_button_down_event(self, event):
+                """Accept the left button down."""
 
-        motion_event = HashableEvent(
-            pygame.MOUSEMOTION,
-            pos=(50, 50),
-            rel=(5, 5),
-            buttons=(0, 0, 0),
+            def on_right_mouse_button_down_event(self, event):
+                """Accept the right button down."""
+
+            def on_mouse_motion_event(self, event):
+                """Accept the motion."""
+
+            def on_mouse_drag_event(self, event, trigger):
+                self.drags.append(trigger.button)
+                if len(self.drags) == 1:
+                    self.mouse_proxy.on_mouse_button_down_event(
+                        HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(6, 6), button=3)
+                    )
+
+            def on_left_mouse_drag_event(self, event, trigger):
+                """Accept the left drag."""
+
+        scene = PressingDragScene()
+        manager = MouseEventManager(game=scene)
+        scene.mouse_proxy = manager.proxies[0]
+        manager.on_mouse_button_down_event(
+            HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(5, 5), button=1)
         )
-        # Should not raise
-        proxy.on_mouse_motion_event(motion_event)
 
-        assert mouse_scene.handler_calls == [('on_mouse_motion_event', (motion_event,))]
+        manager.on_mouse_motion_event(
+            HashableEvent(pygame.MOUSEMOTION, pos=(6, 6), rel=(1, 1), buttons=(1, 0, 0))
+        )
+
+        assert scene.drags == [1]
 
 
 # ---------------------------------------------------------------------------

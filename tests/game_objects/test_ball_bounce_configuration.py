@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Test coverage for BallSprite bounce configuration."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite, snap_to_pixel
+from glitchygames.game_objects.ball import log as ball_log
 from tests.game_objects.ball_helpers import (
     drawn_position,
     drawn_visible_rect,
@@ -195,3 +197,34 @@ class TestBallBounceConfiguration:
         # X should be positive (rightward), Y should be unchanged
         assert ball.speed.x > 0
         assert ball.speed.y == initial_speed_y
+
+
+class TestBallBounceCheckLogging:
+    """The per-frame bounce check is logged only with DEBUG logging, and bounces the same."""
+
+    def test_bounce_check_is_not_logged_without_debug_logging(self, caplog):
+        """With DEBUG off, a bounce happens and the bounce check logs nothing."""
+        ball = BallSprite(bounce_top_bottom=True, bounce_left_right=False)
+        place_visible_edge_past_wall(ball, wall='top', overshoot=0.0)
+        ball.speed.y = -100.0
+        caplog.clear()  # only this bounce check counts
+
+        with caplog.at_level(logging.INFO, logger=ball_log.name):
+            ball._do_bounce()
+
+        assert ball.speed.y > 0
+        assert 'BALL BOUNCE CHECK' not in caplog.text
+
+    def test_bounce_check_is_logged_with_debug_logging(self, caplog):
+        """With DEBUG on, the bounce check logs the ball's position, speed and settings."""
+        ball = BallSprite(bounce_top_bottom=True, bounce_left_right=False)
+        place_visible_edge_past_wall(ball, wall='top', overshoot=0.0)
+        ball.speed.y = -100.0
+
+        with caplog.at_level(logging.DEBUG, logger=ball_log.name):
+            ball._do_bounce()
+
+        assert ball.speed.y > 0
+        assert 'BALL BOUNCE CHECK' in caplog.text
+        assert 'speed=(' in caplog.text
+        assert 'bounce_top_bottom=True bounce_left_right=False' in caplog.text
