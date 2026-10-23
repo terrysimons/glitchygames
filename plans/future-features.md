@@ -69,6 +69,28 @@ This document tracks planned future features for the GlitchyGames project. Featu
   (`glitchygames/build_info.py`, `glitchygames/machine_state.py`, 2026-10-23)
 - **Priority**: High (requested 2026-10-23)
 
+### 47. Controller Layout Mapper: PlayStation-Style Pads (PS3, PS4, PS5) — TODO
+- **Description**: A game-style tool that draws a PlayStation-ish controller (PS3, PS4 and PS5
+  layouts: face buttons, D-pad, shoulders and triggers, sticks and their clicks, Start/Select or
+  Options/Share/Create, PS button, touchpad and its click on PS4/PS5, mute on PS5), points at one
+  control at a time ("press this"), and records what the pad actually sent for it: the joystick
+  layer (button, axis and direction, or hat value) and the controller layer
+  (`CONTROLLER_BUTTON_*`/`CONTROLLER_AXIS_*`) when SDL maps the pad. It writes the layout to a
+  file (TOML, like sprites) with the controller's information: name, GUID, vendor and product
+  ids, whether SDL has a mapping, the instance's button/axis/hat counts, the platform, SDL and
+  pygame versions, and when it was recorded. Skip and redo per control; a stick or trigger is
+  recorded by moving it past a threshold
+- **Why**: the same pad reports different indexes per platform, driver and connection (USB or
+  Bluetooth); recorded layouts let games and Bitmappy show the right glyphs, check or build SDL
+  mappings, and give the tests stand-in pads that match real ones (the gamepad golden replays,
+  feature #44's follow-up, need exactly that). DualSense notes: memory
+  `project_dualsense_speaker.md` (HID enable on macOS, button mappings)
+- **Status**: TODO: write the plan first (`plans/YYYY-MM-DD-controller-layout-mapper.md`):
+  drawing the three layouts, the prompt order, the file format, where layouts are stored (with
+  the engine, so tests and games can load them), and how it reads input (through the engine's
+  doors and `input_devices`, so a mapping session can itself be recorded and replayed)
+- **Priority**: Medium (requested 2026-10-23)
+
 ## Medium Priority Features
 
 ### 4. Performance Profiling Integration
