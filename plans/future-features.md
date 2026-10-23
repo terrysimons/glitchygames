@@ -232,6 +232,31 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
+### 42. Mr. Muncher Remade: A Maze Chase at the Movies ✅ COMPLETED
+- **Description**: The converted toy was not fun (12 px/s movement, an open field with two
+  wall pieces, munchers wandering at random, discs overlapping walls, a catch resetting only the
+  player, no end to a won game; a perfect bot cleared 87 of 211 dots in 10 minutes). It is now a
+  complete, original maze-chase game with a cinema theme (2026-10-23)
+- **Status**: ✅ COMPLETED (2026-10-23)
+- **Implementation** (`glitchygames/examples/mr_muncher/`):
+  - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
+    connected; tests check all four), tunnels at the top and bottom, a house with a door
+  - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is
+    taken at the first open junction; reversing is immediate); four munchers with their own
+    targets (chaser, ambusher, flanker, shy), scatter/chase phases, a frightened random walk on
+    the seeded stream, eyes going home and back out
+  - `levels.py`: speeds, fright length, mode schedule and bonus per reel, ramping to reel 8
+  - `game.py`: the scene (countdown 3-2-1-ACTION!, TAKE n after a death, REEL n, CUT!, THE END),
+    sprockets (10), snacks (50, a sugar rush), munchers 200/400/800/1600, the bonus reel twice a
+    reel, an extra life at 10,000, high scores through `open_saves`, the engine's pause and a
+    game-over screen, a screen shake and rumble on a catch, a projector-flutter live voice,
+    `debug_draw` marks muncher targets; `drawing.py` (velvet-and-gold maze, popcorn-bucket
+    player, fuzzball munchers, candy snacks), `scenery.py`, `sounds.py` (all original sounds)
+  - `autopilot.py`: a player bot (territory-safe BFS) used by the golden script and the tests;
+    golden replay re-recorded (2250 frames: countdown, pause, a snack, two munchers and the
+    bonus eaten, a death, take 2); tests `tests/examples/test_mr_muncher.py` and
+    `tests/examples/test_mr_muncher_maze_and_actors.py` (100% lines and branches)
+
 ### 41. Mr. Muncher Example Game and Microphone Capture Check ✅ COMPLETED
 - **Description**: Two untracked toys brought up to the project's standards (2026-10-23): the
   plain-pygame Pac-Man toy `scripts/mr_muncher.py` became the example game

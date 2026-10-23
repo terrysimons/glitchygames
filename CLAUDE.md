@@ -141,7 +141,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 ### Example Games
 `uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep` and
-`mr-muncher` (a Pac-Man style maze, `glitchygames/examples/mr_muncher/`) start the example games.
+`mr-muncher` (a maze chase at the movies, `glitchygames/examples/mr_muncher/`) start the example
+games.
 
 ## Architecture Overview
 

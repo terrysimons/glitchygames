@@ -59,7 +59,9 @@ from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from glitchygames.examples.mr_muncher.autopilot import Autopilot
 from glitchygames.examples.mr_muncher.game import MrMuncherScene
+from glitchygames.examples.mr_muncher.maze import Direction
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
@@ -117,6 +119,20 @@ GOLDEN_TRACE_GAMES: tuple[str, ...] = (
 
 # Where the Brave Adventurer script puts the player (world x on screen 2, ground level)
 BRAVE_ADVENTURER_SKIP_TO_WORLD_X = 2400.0
+
+# Mr. Muncher: the arrow key for each direction; the autopilot presses a key again if the player
+# still wants another way this many frames after it was pressed; it walks into a muncher (once)
+# after this much of the level's game time; the script pauses and resumes on these frames
+MR_MUNCHER_DIRECTION_KEYS: dict[Direction, int] = {
+    Direction.UP: pygame.K_UP,
+    Direction.LEFT: pygame.K_LEFT,
+    Direction.DOWN: pygame.K_DOWN,
+    Direction.RIGHT: pygame.K_RIGHT,
+}
+MR_MUNCHER_REPRESS_FRAMES = 4
+MR_MUNCHER_SEEK_CAPTURE_SECONDS = 22.0
+MR_MUNCHER_PAUSE_FRAME = 600
+MR_MUNCHER_RESUME_FRAME = 660
 
 # PaddleSlap paddle keys: (up key, down key) for the left and the right paddle
 PADDLESLAP_PADDLE_KEYS: tuple[tuple[int, int], tuple[int, int]] = (
@@ -448,21 +464,97 @@ def paddleslap_script() -> InputScript:
     return script
 
 
-def mr_muncher_script() -> InputScript:
-    """Mr. Muncher: steer right along the top corridor, then down, then back left.
+class MuncherSteering:
+    """Hold the arrow key for the way Mr. Muncher's autopilot asks for, frame by frame.
 
-    The player starts at the top left; going right it passes the sprockets of the row below its
-    path close enough to collect them. The munchers start far away and wander at random.
+    The autopilot (glitchygames/examples/mr_muncher/autopilot.py) reads the scene and names a
+    direction; this presses that direction's arrow key (releasing the one held before). A key
+    is pressed again when the player still wants another way after MR_MUNCHER_REPRESS_FRAMES
+    (a new life starts heading left, whatever key is held). Nothing is pressed while another
+    scene (the pause screen) is active.
+    """
+
+    def __init__(self, *, seek_capture_after_seconds: float | None) -> None:
+        """Steer with an autopilot.
+
+        Args:
+            seek_capture_after_seconds: When the autopilot walks into a muncher (once), in
+                seconds of the level's game time; None never.
+
+        """
+        self.autopilot = Autopilot(seek_capture_after_seconds=seek_capture_after_seconds)
+        self.held_key: int | None = None
+        self.frames_held = 0
+        self.key_to_press: int | None = None
+
+    def __call__(self, scene: Scene) -> list[pygame.event.Event]:
+        """Return the key events that steer the player this frame.
+
+        Args:
+            scene: The active scene.
+
+        Returns:
+            Key releases and presses.
+
+        """
+        if not isinstance(scene, MrMuncherScene):
+            return []
+        self.frames_held += 1
+        if self.key_to_press is not None:
+            key, self.key_to_press = self.key_to_press, None
+            return self._hold(key)
+        direction = self.autopilot.choose_direction(scene=scene)
+        if direction is None:
+            return []
+        key = MR_MUNCHER_DIRECTION_KEYS[direction]
+        if key != self.held_key:
+            return self._hold(key)
+        if (
+            scene.player.wanted_direction is not direction
+            and self.frames_held >= MR_MUNCHER_REPRESS_FRAMES
+        ):
+            # Release now and press again next frame: a press in the same frame as its
+            # release would not count as a new press
+            self.key_to_press = key
+            return self._hold(None)
+        return []
+
+    def _hold(self, key: int | None) -> list[pygame.event.Event]:
+        """Release the held key (if any) and press another (if any).
+
+        Args:
+            key: The key to hold, or None to hold none.
+
+        Returns:
+            The release and press events.
+
+        """
+        events: list[pygame.event.Event] = []
+        if self.held_key is not None:
+            events.append(release(self.held_key))
+        if key is not None:
+            events.append(press(key))
+        self.held_key = key
+        self.frames_held = 0
+        return events
+
+
+def mr_muncher_script() -> InputScript:
+    """Mr. Muncher: the autopilot plays, loses a life on purpose, and the game pauses once.
+
+    The autopilot eats sprockets, a snack and frightened munchers; after
+    MR_MUNCHER_SEEK_CAPTURE_SECONDS it walks into a muncher, so the session holds a death and
+    the next life's READY.
 
     Returns:
         The input script.
 
     """
-    script = InputScript()
-    script.at(5, press(pygame.K_RIGHT))
-    script.at(300, release(pygame.K_RIGHT), press(pygame.K_DOWN))
-    script.at(420, release(pygame.K_DOWN), press(pygame.K_LEFT))
-    script.at(560, release(pygame.K_LEFT))
+    steering = MuncherSteering(seek_capture_after_seconds=MR_MUNCHER_SEEK_CAPTURE_SECONDS)
+    script = InputScript(per_frame=steering)
+    _pause_and_resume(
+        script, pause_frame=MR_MUNCHER_PAUSE_FRAME, resume_frame=MR_MUNCHER_RESUME_FRAME
+    )
     return script
 
 
