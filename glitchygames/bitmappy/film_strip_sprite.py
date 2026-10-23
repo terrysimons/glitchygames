@@ -378,53 +378,81 @@ class FilmStripSprite(BitmappySprite):
 
         """
         try:
-            result = self._get_frame_pixel_data(animation, frame_idx)
-            if result is None:
-                return
-
-            frame, pixel_data = result
-            actual_width, actual_height = self._get_frame_dimensions(frame)
-
-            frame_layout = self._find_frame_layout(animation, frame_idx)
-            if not frame_layout:
-                return
-
-            pixel_coords = self._screen_to_pixel_coords(
-                film_x,
-                film_y,
-                frame_layout,
-                actual_width,
-                actual_height,
-            )
-            if pixel_coords is None:
-                return
-
-            pixel_x, pixel_y = pixel_coords
-            pixel_num = pixel_y * actual_width + pixel_x
-
-            if pixel_num >= len(pixel_data):
-                LOG.debug(
-                    f'FilmStripSprite: Pixel index {pixel_num} out of range for pixel data length'
-                    f' {len(pixel_data)}',
-                )
-                return
-
-            color = pixel_data[pixel_num]
-            if len(color) == RGBA_COMPONENT_COUNT:
-                red, green, blue, alpha = color
-            else:
-                red, green, blue = color
-                alpha = 255
-
-            LOG.debug(
-                f'FilmStripSprite: Sampled color from frame {animation}[{frame_idx}] pixel'
-                f' ({pixel_x}, {pixel_y}) - R:{red}, G:{green}, B:{blue}, A:{alpha}',
-            )
-
-            self._update_color_sliders(red, green, blue, alpha)
-
+            sampled_color = self._sample_frame_pixel_color(animation, frame_idx, film_x, film_y)
         except IndexError, ValueError, TypeError:
             LOG.exception('FilmStripSprite: Error sampling color from frame')
+            return
+
+        if sampled_color is None:
+            return
+
+        red, green, blue, alpha = sampled_color
+        self._update_color_sliders(red, green, blue, alpha)
+
+    def _sample_frame_pixel_color(
+        self,
+        animation: str,
+        frame_idx: int,
+        film_x: int,
+        film_y: int,
+    ) -> tuple[int, int, int, int] | None:
+        """Read the color of the frame pixel under a film strip position.
+
+        Args:
+            animation: Animation name
+            frame_idx: Frame index
+            film_x: X coordinate within the film strip
+            film_y: Y coordinate within the film strip
+
+        Returns:
+            The pixel's (red, green, blue, alpha) color (alpha 255 for an RGB pixel), or None
+            when the position is not over a pixel of the frame.
+
+        """
+        result = self._get_frame_pixel_data(animation, frame_idx)
+        if result is None:
+            return None
+
+        frame, pixel_data = result
+        actual_width, actual_height = self._get_frame_dimensions(frame)
+
+        frame_layout = self._find_frame_layout(animation, frame_idx)
+        if not frame_layout:
+            return None
+
+        pixel_coords = self._screen_to_pixel_coords(
+            film_x,
+            film_y,
+            frame_layout,
+            actual_width,
+            actual_height,
+        )
+        if pixel_coords is None:
+            return None
+
+        pixel_x, pixel_y = pixel_coords
+        pixel_num = pixel_y * actual_width + pixel_x
+
+        if pixel_num >= len(pixel_data):
+            LOG.debug(
+                f'FilmStripSprite: Pixel index {pixel_num} out of range for pixel data length'
+                f' {len(pixel_data)}',
+            )
+            return None
+
+        color = pixel_data[pixel_num]
+        if len(color) == RGBA_COMPONENT_COUNT:
+            red, green, blue, alpha = color
+        else:
+            red, green, blue = color
+            alpha = 255
+
+        LOG.debug(
+            f'FilmStripSprite: Sampled color from frame {animation}[{frame_idx}] pixel'
+            f' ({pixel_x}, {pixel_y}) - R:{red}, G:{green}, B:{blue}, A:{alpha}',
+        )
+
+        return red, green, blue, alpha
 
     @override
     def on_key_down_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
@@ -647,51 +675,63 @@ class FilmStripSprite(BitmappySprite):
             SpriteFrame object or None if conversion failed.
 
         """
+        # A dropped file may be any image: a failed conversion is logged, never raised
         try:
-            # Load the image
-            image = pygame.image.load(file_path)
-
-            # Get current canvas size for resizing
-            canvas_width, canvas_height = self._get_canvas_dimensions()
-
-            # Resize image to match canvas size
-            if image.get_size() != (canvas_width, canvas_height):
-                image = pygame.transform.scale(image, (canvas_width, canvas_height))
-
-            # Convert to RGBA if needed, preserving transparency
-            if image.get_flags() & pygame.SRCALPHA:
-                # Image already has alpha - keep it
-                pass
-            else:
-                # Convert RGB to RGBA by adding alpha channel
-                rgba_image = pygame.Surface((canvas_width, canvas_height), pygame.SRCALPHA)
-                rgba_image.blit(image, (0, 0))
-                image = rgba_image
-
-            # The image has an alpha channel by now. pygame-ce has no surfarray.array4d
-            # (BUGS.md #87), so read the colour and alpha planes separately; both are
-            # indexed [x, y], and the pixel list is row-major (y outer, x inner).
-            color_planes: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
-            alpha_plane: Any = pygame.surfarray.array_alpha(image)  # type: ignore[reportUnknownMemberType]
-            pixels: list[tuple[int, ...]] = []
-            for y in range(canvas_height):
-                for x in range(canvas_width):
-                    red, green, blue = color_planes[x, y]
-                    pixels.append((int(red), int(green), int(blue), int(alpha_plane[x, y])))
-
-            # Create a new SpriteFrame with the surface
-            from glitchygames.sprites import SpriteFrame
-
-            frame = SpriteFrame(image, duration=0.1)  # 0.1 second duration
-            frame.set_pixel_data(pixels)
-
-            LOG.debug('FilmStripSprite: Successfully converted image to sprite frame')
-
+            frame = self._load_image_as_sprite_frame(file_path)
         except pygame.error, OSError, ValueError, AttributeError:
             LOG.exception(f'FilmStripSprite: Failed to convert image {file_path}')
             return None
+
+        LOG.debug('FilmStripSprite: Successfully converted image to sprite frame')
+        return frame
+
+    def _load_image_as_sprite_frame(self, file_path: str) -> SpriteFrame:
+        """Load an image file as an RGBA SpriteFrame of the canvas size.
+
+        Args:
+            file_path: Path to the image file to convert.
+
+        Returns:
+            The new SpriteFrame.
+
+        """
+        # Load the image
+        image = pygame.image.load(file_path)
+
+        # Get current canvas size for resizing
+        canvas_width, canvas_height = self._get_canvas_dimensions()
+
+        # Resize image to match canvas size
+        if image.get_size() != (canvas_width, canvas_height):
+            image = pygame.transform.scale(image, (canvas_width, canvas_height))
+
+        # Convert to RGBA if needed, preserving transparency
+        if image.get_flags() & pygame.SRCALPHA:
+            # Image already has alpha - keep it
+            pass
         else:
-            return frame
+            # Convert RGB to RGBA by adding alpha channel
+            rgba_image = pygame.Surface((canvas_width, canvas_height), pygame.SRCALPHA)
+            rgba_image.blit(image, (0, 0))
+            image = rgba_image
+
+        # The image has an alpha channel by now. pygame-ce has no surfarray.array4d
+        # (BUGS.md #87), so read the colour and alpha planes separately; both are
+        # indexed [x, y], and the pixel list is row-major (y outer, x inner).
+        color_planes: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
+        alpha_plane: Any = pygame.surfarray.array_alpha(image)  # type: ignore[reportUnknownMemberType]
+        pixels: list[tuple[int, ...]] = []
+        for y in range(canvas_height):
+            for x in range(canvas_width):
+                red, green, blue = color_planes[x, y]
+                pixels.append((int(red), int(green), int(blue), int(alpha_plane[x, y])))
+
+        # Create a new SpriteFrame with the surface
+        from glitchygames.sprites import SpriteFrame
+
+        frame = SpriteFrame(image, duration=0.1)  # 0.1 second duration
+        frame.set_pixel_data(pixels)
+        return frame
 
     def _should_update_canvas_frame(self, animation: str, frame_idx: int) -> bool:
         """Check if the canvas should be updated for a given animation frame.

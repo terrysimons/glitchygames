@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -44,7 +44,7 @@ LOG = logging.getLogger('glitchygames.api')
 
 
 @asynccontextmanager
-async def lifespan(application: Any) -> AsyncGenerator[None]:  # ruff: ignore[unused-function-argument]
+async def lifespan(application: FastAPI) -> AsyncGenerator[None]:  # ruff: ignore[unused-function-argument]
     """Manage application startup and shutdown lifecycle."""
     LOG.info('Starting GlitchyGames Sprite Generation API')
 
@@ -61,14 +61,14 @@ async def lifespan(application: Any) -> AsyncGenerator[None]:  # ruff: ignore[un
         LOG.info('Shutting down GlitchyGames Sprite Generation API')
 
 
-def create_app() -> Any:
+def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
     Returns:
         Configured FastAPI application
 
     """
-    application: Any = FastAPI(
+    application: FastAPI = FastAPI(
         title='GlitchyGames Sprite Generation API',
         description=(
             'Generate pixel art sprites using AI. Supports static and animated sprites '

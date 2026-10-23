@@ -439,6 +439,21 @@ def test_replay_stand_ins_drop_hardware_requests():
     assert controller.rumble(0.5, 0.5, 100) is True
 
 
+def test_replay_stand_ins_are_initialized_on_creation():
+    """Opened stand-ins answer get_init() True before any init(), as pygame-ce's devices do.
+
+    pygame-ce opens a Joystick or Controller on creation (its ``Joystick.init`` is deprecated),
+    so a live device answers True right away; code that asks before calling init() (Bitmappy's
+    controller scan) must see the same answer in a replay.
+    """
+    registry = ReplayDeviceRegistry(descriptors=[PAD], enumeration_answers=[])
+
+    assert registry.open_joystick(device_index=PAD.device_index).get_init() is True
+    controller = registry.open_controller(device_index=PAD.device_index)
+    assert controller.get_init() is True
+    assert controller.as_joystick().get_init() is True
+
+
 def test_replay_registry_has_no_enumeration_answers_to_hand_out():
     """A rebaseline copies answers from the source recording, so the replay hands out none."""
     registry = ReplayDeviceRegistry(

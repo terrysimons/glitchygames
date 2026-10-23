@@ -824,39 +824,41 @@ class SliderManager:
             screen_pos: Screen coordinates (x, y) to sample from
 
         """
+        # Only reading the screen may fail (no screen yet, a position off the screen): that is
+        # logged and samples nothing. Errors setting the sliders are editor bugs and propagate
         try:
             # Sample directly from the screen
             assert self.editor.screen is not None
             color = self.editor.screen.get_at(screen_pos)
-
-            # Handle both RGB and RGBA screen formats
-            if len(color) == RGBA_COMPONENT_COUNT:
-                red, green, blue, _ = color  # Ignore alpha from screen
-            else:
-                red, green, blue = color
-            alpha = 255  # Screen has no meaningful alpha, default to opaque
-
-            self.log.info(
-                'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',
-                red,
-                green,
-                blue,
-                alpha,
-            )
-
-            # Update all sliders with the sampled RGB values and default alpha
-            self.apply_color(red=red, green=green, blue=blue, alpha=alpha)
-
-            self.log.info(
-                'Updated sliders with screen color R:%s, G:%s, B:%s, A:%s',
-                red,
-                green,
-                blue,
-                alpha,
-            )
-
         except Exception:
             self.log.exception('Error sampling color from screen')
+            return
+
+        # Handle both RGB and RGBA screen formats
+        if len(color) == RGBA_COMPONENT_COUNT:
+            red, green, blue, _ = color  # Ignore alpha from screen
+        else:
+            red, green, blue = color
+        alpha = 255  # Screen has no meaningful alpha, default to opaque
+
+        self.log.info(
+            'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',
+            red,
+            green,
+            blue,
+            alpha,
+        )
+
+        # Update all sliders with the sampled RGB values and default alpha
+        self.apply_color(red=red, green=green, blue=blue, alpha=alpha)
+
+        self.log.info(
+            'Updated sliders with screen color R:%s, G:%s, B:%s, A:%s',
+            red,
+            green,
+            blue,
+            alpha,
+        )
 
     # ──────────────────────────────────────────────────────────────────────
     # Controller check

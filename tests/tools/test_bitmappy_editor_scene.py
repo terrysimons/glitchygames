@@ -3439,3 +3439,40 @@ class TestCanvasRedrawInTheRealEditor:
         assert canvas.image.get_size() == (3 * canvas.pixel_width, 2 * canvas.pixel_height)
         drawn_colors = {_drawn_rgb_at(real_editor, x=x, y=y) for x in range(3) for y in range(2)}
         assert drawn_colors == {MAGENTA_RGB}
+
+    @pytest.mark.parametrize('dimensions', ['0x16', '16x0', '-4x4'])
+    def test_non_positive_dimensions_keep_the_canvas(self, real_editor, caplog, dimensions):
+        """A zero or negative size is refused as invalid; the painted canvas stays as it was.
+
+        A zero width or height used to raise ZeroDivisionError sizing the pixels, and a
+        negative one a pygame error making the surface, crashing the editor.
+        """
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+
+        real_editor.on_new_file_event(dimensions)
+
+        canvas = real_editor.canvas
+        assert (canvas.pixels_across, canvas.pixels_tall) == (32, 32)
+        assert _drawn_rgb_at(real_editor, x=0, y=0) == PAINT_RGB
+        assert f"Invalid dimensions format '{dimensions}'" in caplog.text
+
+    def test_a_failure_building_the_canvas_is_not_reported_as_bad_dimensions(
+        self,
+        real_editor,
+        mocker,
+        caplog,
+    ):
+        """Only parsing the dimensions is guarded: a ValueError building the canvas propagates.
+
+        It used to be logged as an invalid dimensions format, hiding the real error.
+        """
+        mocker.patch.object(
+            real_editor,
+            '_create_fresh_animated_sprite',
+            side_effect=ValueError('canvas build failed'),
+        )
+
+        with pytest.raises(ValueError, match='canvas build failed'):
+            real_editor.on_new_file_event('16x16')
+
+        assert 'Invalid dimensions format' not in caplog.text

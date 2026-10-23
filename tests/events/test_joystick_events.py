@@ -304,15 +304,21 @@ class TestJoystickManagerInitExceptionPaths:
         assert 'Joystick 0 vanished before it could be opened' in caplog.text
         assert list(manager.joysticks) == [5]
 
-    def test_init_joystick_get_id_pygame_error(self, mocker):
-        """Test that pygame.error in get_id is caught (lines 297-298)."""
-        joystick = ScriptedJoystick(always_failing={'get_id': pygame.error('no id')})
+    def test_opened_joysticks_need_no_deprecated_calls(self, mocker):
+        """Startup never calls the deprecated init() or get_id(): an opened joystick is ready."""
+        joystick = ScriptedJoystick(
+            always_failing={
+                'init': pygame.error('init() is deprecated'),
+                'get_id': pygame.error('get_id() is deprecated'),
+            }
+        )
         _fake_joystick_hardware(mocker, joystick_count=1, joysticks=joystick)
 
         manager = JoystickEventManager(game=JoystickRecordingScene())
 
         assert len(manager.joysticks) == 1
-        assert joystick.call_counts['get_id'] >= 1
+        assert 'init' not in joystick.call_counts
+        assert 'get_id' not in joystick.call_counts
 
     def test_init_joystick_get_instance_id_pygame_error(self, mocker):
         """Test that pygame.error in get_instance_id in the debug block is caught.
@@ -428,19 +434,25 @@ class TestJoystickDeviceAddedExceptionPaths:
 
         assert 11 in manager.joysticks
 
-    def test_device_added_get_id_error(self, mocker):
-        """Test pygame.error in get_id during device added (lines 464-465)."""
+    def test_device_added_needs_no_deprecated_calls(self, mocker):
+        """A hot-plugged joystick is tracked without the deprecated init() or get_id()."""
         _fake_joystick_hardware(mocker, joystick_count=0)
         manager = JoystickEventManager(game=JoystickRecordingScene())
 
         joystick = ScriptedJoystick(
-            instance_id=12, always_failing={'get_id': pygame.error('no id')}
+            instance_id=12,
+            always_failing={
+                'init': pygame.error('init() is deprecated'),
+                'get_id': pygame.error('get_id() is deprecated'),
+            },
         )
         _fake_joystick_hardware(mocker, joystick_count=0, joysticks=joystick)
 
         manager.on_joy_device_added_event(HashableEvent(pygame.JOYDEVICEADDED, device_index=0))
 
         assert 12 in manager.joysticks
+        assert 'init' not in joystick.call_counts
+        assert 'get_id' not in joystick.call_counts
 
     def test_device_added_get_instance_id_error(self, mocker):
         """Test pygame.error in get_instance_id during device added (lines 468-469)."""
@@ -475,7 +487,7 @@ class TestJoystickDeviceAddedExceptionPaths:
         with caplog.at_level('DEBUG', logger='game.joysticks'):
             manager.on_joy_device_added_event(HashableEvent(pygame.JOYDEVICEADDED, device_index=0))
 
-        assert 'DEVICEADDED index=0 get_id=0 instance_id=None' in caplog.text
+        assert 'DEVICEADDED index=0 instance_id=None' in caplog.text
         assert 7 in manager.joysticks
 
     def test_device_added_without_device_index_is_ignored(self, mocker, caplog):
@@ -927,14 +939,16 @@ class TestJoystickEventManagerRouting:
         scene = JoystickRecordingScene()
         manager = JoystickEventManager(game=scene)
 
-        # The device opens, but init() during the instance_id derivation raises; the proxy's
-        # own open (a second device object) initializes fine
+        # The device opens (the door's describe reads its instance id: call 1), but reading
+        # the instance id for the key raises (call 2); the proxy's own open (a second device
+        # object) works
         _fake_joystick_hardware(
             mocker,
             joystick_count=0,
             opens=[
                 ScriptedJoystick(
-                    device_index=7, always_failing={'init': pygame.error('no joystick')}
+                    device_index=7,
+                    failing_calls={'get_instance_id': {2: pygame.error('no joystick')}},
                 ),
                 ScriptedJoystick(instance_id=70, device_index=7),
             ],

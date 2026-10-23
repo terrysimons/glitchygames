@@ -191,9 +191,6 @@ ignore = [
   # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
   # e.g. conftest's singleton reset and pygame mocks must apply to every test.
   "pytest-fixture-autouse",
-  # TEMPORARY: 102 existing violations to refactor (narrow each try block to the
-  # statements that can raise). Tracked in BUGS.md bug #19; remove when done.
-  "PLW0717",
 ]
 fixable = ["ALL"]
 

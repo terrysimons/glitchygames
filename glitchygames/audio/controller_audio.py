@@ -23,9 +23,14 @@ import math
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from glitchygames.randomness import random_stream
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from speech_recognition import AudioData
 
 log: logging.Logger = logging.getLogger('game.audio.controller')
 
@@ -54,6 +59,15 @@ CHANNEL_HEADPHONE_LEFT = 0
 CHANNEL_SPEAKER = 1
 CHANNEL_HAPTIC_LEFT = 2
 CHANNEL_HAPTIC_RIGHT = 3
+
+# A miniaudio device id: an opaque cffi pointer (miniaudio's ``ffi.CData``, which has no type
+# information) that is only handed back to miniaudio's devices
+type MiniaudioDeviceId = object
+# miniaudio's CaptureCallbackGeneratorType and PlaybackCallbackGeneratorType, with the frames'
+# array item type spelled out (miniaudio's own FramesType leaves array.array bare)
+type MiniaudioFrames = bytes | array.array[int]
+type CaptureCallbackGenerator = Generator[None, MiniaudioFrames]
+type PlaybackCallbackGenerator = Generator[MiniaudioFrames, int]
 
 # DualSense HID constants
 # Source: Linux kernel hid-playstation.c, dualsensectl
@@ -157,7 +171,7 @@ def enable_dualsense_speaker(
 def find_device_by_name(
     device_list: list[dict[str, Any]],
     controller_name: str,
-) -> Any | None:
+) -> MiniaudioDeviceId | None:
     """Find a miniaudio device ID by matching controller name.
 
     Args:
@@ -373,8 +387,8 @@ class ControllerAudio:
         self,
         controller_name: str,
         *,
-        capture_device_id: Any = None,
-        playback_device_id: Any = None,
+        capture_device_id: MiniaudioDeviceId | None = None,
+        playback_device_id: MiniaudioDeviceId | None = None,
         capture_sample_rate: int = 16000,
         capture_channels: int = 1,
         volume: float = 1.0,
@@ -459,7 +473,7 @@ class ControllerAudio:
             self._capture_buffer = bytearray()
             self._capturing = True
 
-        def _capture_callback() -> Any:
+        def _capture_callback() -> CaptureCallbackGenerator:
             """Generator that receives audio data from miniaudio.
 
             Yields:
@@ -467,10 +481,10 @@ class ControllerAudio:
 
             """
             while True:
-                received = yield  # pyright: ignore[reportUnknownVariableType]
+                received = yield
                 if received and self._capturing:
                     with self._capture_lock:
-                        self._capture_buffer.extend(bytes(received))  # pyright: ignore[reportUnknownArgumentType]
+                        self._capture_buffer.extend(bytes(received))
 
         self._capture_device = mi.CaptureDevice(
             input_format=mi.SampleFormat.SIGNED16,
@@ -503,7 +517,7 @@ class ControllerAudio:
         log.info('Stopped capture: %d bytes', len(audio_data))
         return audio_data
 
-    def get_speech_recognizer_audio(self, audio_data: bytes) -> Any:
+    def get_speech_recognizer_audio(self, audio_data: bytes) -> AudioData | None:
         """Convert raw PCM audio to a speech_recognition AudioData object.
 
         Args:
@@ -757,7 +771,7 @@ class ControllerAudio:
         num_frames = len(stream_data) // DUALSENSE_CHANNELS
         offset = 0
 
-        def _stream_generator() -> Any:
+        def _stream_generator() -> PlaybackCallbackGenerator:
             """Yield 4-channel interleaved frames on demand.
 
             Yields:
@@ -765,14 +779,14 @@ class ControllerAudio:
 
             """
             nonlocal offset
-            num_requested = yield b''  # pyright: ignore[reportUnknownVariableType]
+            num_requested = yield b''
             while True:
-                num_samples = int(num_requested) * DUALSENSE_CHANNELS  # pyright: ignore[reportUnknownArgumentType]
+                num_samples = int(num_requested) * DUALSENSE_CHANNELS
                 chunk = stream_data[offset : offset + num_samples]
                 offset += num_samples
                 if not chunk:
                     break
-                num_requested = yield chunk  # pyright: ignore[reportUnknownVariableType]
+                num_requested = yield chunk
 
         device: Any = mi.PlaybackDevice(
             output_format=mi.SampleFormat.SIGNED16,

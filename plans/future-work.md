@@ -369,6 +369,9 @@ only replays; Part 2 Task 1).
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
 - Vsync-locked presentation to remove the remaining beat between 60.01 FPS and a 60 Hz display.
+- Cache parsed sprite TOML by path: Brave Adventurer Papyrus parses `PapyrusGoldScarab`'s TOML
+  once per collectible while building a level (46 times, 3 frames each; found counting log calls,
+  2026-10-22). Load time only; every instance gets the same frames.
 - **Audit defensive attribute lookups for CPU (user request, 2026-10-21), the engine first.**
   Look for `getattr(self, 'name', default)` / `hasattr` on the engine's own attributes, values
   computed when they may go unused, and conditional chains re-evaluated every frame. Declare
@@ -481,6 +484,8 @@ only replays; Part 2 Task 1).
   blocks outside Bitmappy narrowed. Left, carried forward by the user's choice (2026-10-21):
   Bitmappy's 62 `PLW0717` sites (`glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py`,
   `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
+  Phase 3 done 2026-10-22 (ignore removed); phase 4: 128 of 152 typed, the rest waiting on the
+  device and event plans and two Bitmappy decisions (see the plan); phase 5: converting all.
 - **Tests that never run in CI** (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
   only, nothing changed). Every collected test runs in CI, but these skip on every CI OS or are
   never collected:

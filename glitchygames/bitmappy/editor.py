@@ -388,7 +388,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.log.info('Creating new canvas with dimensions: %s', dimensions)
 
         try:
-            width, height = map(int, dimensions.lower().split('x'))
+            width, height = self._parse_canvas_dimensions(dimensions)
+        except ValueError:
+            self.log.exception("Invalid dimensions format '%s'", dimensions)
+            self.log.exception("Expected format: WxH (e.g., '32x32')")
+        else:
             self.log.info('Parsed dimensions: %sx%s', width, height)
 
             available_height = self.screen_height - 80 - 24
@@ -418,11 +422,28 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 new_pixel_size,
             )
 
-        except ValueError:
-            self.log.exception("Invalid dimensions format '%s'", dimensions)
-            self.log.exception("Expected format: WxH (e.g., '32x32')")
-
         self.dirty = 1
+
+    @staticmethod
+    def _parse_canvas_dimensions(dimensions: str) -> tuple[int, int]:
+        """Parse canvas dimensions typed as WxH (e.g. '32x32').
+
+        Args:
+            dimensions: The dimensions text from the new canvas dialog.
+
+        Returns:
+            The canvas width and height in pixels.
+
+        Raises:
+            ValueError: If the text is not two whole numbers joined by 'x', or either is not
+                positive (a zero width or height would divide by zero sizing the pixels).
+
+        """
+        width, height = map(int, dimensions.lower().split('x'))
+        if width <= 0 or height <= 0:
+            msg = f'Canvas dimensions must be positive, got {width}x{height}'
+            raise ValueError(msg)
+        return width, height
 
     def on_new_canvas_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle the new canvas dialog event."""

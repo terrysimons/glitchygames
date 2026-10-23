@@ -38,6 +38,7 @@ from glitchygames.clock import elapsed_seconds
 from glitchygames.input.state import current_input
 
 if TYPE_CHECKING:
+    from glitchygames.bitmappy.controllers.manager import ControllerInfo
     from glitchygames.bitmappy.protocols import EditorContext
     from glitchygames.sprites import BitmappySprite
 
@@ -792,7 +793,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             return False
         return current_input().button(device_id=controller_info.instance_id, button=button)
 
-    def find_controller_info(self, controller_id: int) -> Any:
+    def find_controller_info(self, controller_id: int) -> ControllerInfo | None:
         """Find controller info by controller ID.
 
         This method is public because it is used by composition delegates

@@ -13,9 +13,11 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from glitchygames.bitmappy.history.undo_redo import OperationType
+    from glitchygames.bitmappy.protocols import EditorContext
+    from glitchygames.sprites.animated import SpriteFrame
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -61,7 +63,8 @@ class UndoRedoCommand(Protocol):
 class _ApplyingUndoRedoGuard:
     """Mixin that sets ``editor._applying_undo_redo`` around a block."""
 
-    def _guard_execute(self, editor: Any, action: Any) -> bool:
+    # ``editor`` is ``Any``: see "Protected-member access" at the end of this module.
+    def _guard_execute(self, editor: Any, action: Callable[[], bool]) -> bool:
         """Run *action* while ``editor._applying_undo_redo`` is True.
 
         Args:
@@ -89,7 +92,7 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         pixels: list[tuple[int, int, tuple[int, int, int], tuple[int, int, int]]],
         operation_type: OperationType,
     ) -> None:
@@ -170,7 +173,7 @@ class FloodFillCommand(_ApplyingUndoRedoGuard):
 
     def __init__(  # ruff: ignore[too-many-arguments]
         self,
-        editor: Any,
+        editor: EditorContext,
         *,
         start_x: int,
         start_y: int,
@@ -256,7 +259,7 @@ class CanvasPanCommand(_ApplyingUndoRedoGuard):
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         *,
         animation: str,
         frame: int,
@@ -323,7 +326,7 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         old_animation: str,
         old_frame: int,
         new_animation: str,
@@ -398,7 +401,7 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
 
     def __init__(  # ruff: ignore[too-many-arguments]
         self,
-        editor: Any,
+        editor: EditorContext,
         *,
         animation: str,
         frame: int,
@@ -455,50 +458,64 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
         return self._apply_frame_data(self.old_pixels, self.old_duration)
 
     def _apply_frame_data(self, pixels: list[tuple[int, ...]], duration: float) -> bool:
+        # Deliberately broad: undo and redo must never crash the editor, so any error setting
+        # the frame is logged and reported as a failed step
         try:
-            if (
-                not hasattr(self.editor, 'canvas')
-                or not self.editor.canvas
-                or not hasattr(self.editor.canvas, 'animated_sprite')
-            ):
-                LOG.warning('Canvas or animated sprite not available for frame paste')
-                return False
-
-            animations = self.editor.canvas.animated_sprite._animations
-            if self.animation not in animations:
-                LOG.warning(f"Animation '{self.animation}' not found for frame paste")
-                return False
-
-            frames = animations[self.animation]
-            if self.frame >= len(frames):
-                LOG.warning(f"Frame {self.frame} not found in animation '{self.animation}'")
-                return False
-
-            target_frame = frames[self.frame]
-            target_frame.set_pixel_data(pixels)
-            target_frame.duration = duration
-
-            # Update the canvas pixels if this is the currently displayed frame
-            if (
-                hasattr(self.editor, 'selected_animation')
-                and hasattr(self.editor, 'selected_frame')
-                and self.editor.selected_animation == self.animation
-                and self.editor.selected_frame == self.frame
-                and hasattr(self.editor.canvas, 'pixels')
-            ):
-                self.editor.canvas.pixels = pixels.copy()
-                if hasattr(self.editor.canvas, 'dirty_pixels'):
-                    self.editor.canvas.dirty_pixels = [True] * len(pixels)
-                if hasattr(self.editor.canvas, 'dirty'):
-                    self.editor.canvas.dirty = 1
-
-            LOG.debug(f'Applied frame paste to {self.animation}[{self.frame}]')
-
+            applied = self._write_frame_data(pixels=pixels, duration=duration)
         except AttributeError, IndexError, KeyError, TypeError, ValueError:
             LOG.exception('Error applying frame paste')
             return False
-        else:
-            return True
+        return applied
+
+    def _write_frame_data(self, *, pixels: list[tuple[int, ...]], duration: float) -> bool:
+        """Set the target frame's pixels and duration, and the canvas when it shows that frame.
+
+        Args:
+            pixels: The frame's pixel data.
+            duration: The frame's duration.
+
+        Returns:
+            True when the frame was set, False when the canvas, animation or frame is missing.
+
+        """
+        if (
+            not hasattr(self.editor, 'canvas')
+            or not self.editor.canvas
+            or not hasattr(self.editor.canvas, 'animated_sprite')
+        ):
+            LOG.warning('Canvas or animated sprite not available for frame paste')
+            return False
+
+        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        if self.animation not in animations:
+            LOG.warning(f"Animation '{self.animation}' not found for frame paste")
+            return False
+
+        frames = animations[self.animation]
+        if self.frame >= len(frames):
+            LOG.warning(f"Frame {self.frame} not found in animation '{self.animation}'")
+            return False
+
+        target_frame = frames[self.frame]
+        target_frame.set_pixel_data(pixels)
+        target_frame.duration = duration
+
+        # Update the canvas pixels if this is the currently displayed frame
+        if (
+            hasattr(self.editor, 'selected_animation')
+            and hasattr(self.editor, 'selected_frame')
+            and self.editor.selected_animation == self.animation
+            and self.editor.selected_frame == self.frame
+            and hasattr(self.editor.canvas, 'pixels')
+        ):
+            self.editor.canvas.pixels = pixels.copy()
+            if hasattr(self.editor.canvas, 'dirty_pixels'):
+                self.editor.canvas.dirty_pixels = [True] * len(pixels)
+            if hasattr(self.editor.canvas, 'dirty'):
+                self.editor.canvas.dirty = 1
+
+        LOG.debug(f'Applied frame paste to {self.animation}[{self.frame}]')
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +528,7 @@ class FrameAddCommand:
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         frame_index: int,
         animation_name: str,
         frame_data: dict[str, Any],
@@ -563,64 +580,10 @@ class FrameAddCommand:
     def _add_frame(self) -> bool:
         import pygame
 
-        from glitchygames.sprites.animated import SpriteFrame
-
+        # Deliberately broad: undo and redo must never crash the editor, so any error rebuilding
+        # or inserting the frame is logged and reported as a failed step
         try:
-            if (
-                not hasattr(self.editor, 'canvas')
-                or not self.editor.canvas
-                or not hasattr(self.editor.canvas, 'animated_sprite')
-            ):
-                LOG.warning('Canvas or animated sprite not available for frame addition')
-                return False
-
-            # SRCALPHA like the editor's own frames (FilmStripCoordinator._create_blank_frame),
-            # so restored pixels keep their alpha
-            surface = pygame.Surface(
-                (self.frame_data['width'], self.frame_data['height']),
-                pygame.SRCALPHA,
-            )
-            # Only an explicit frame hitbox is recorded; None keeps the hitbox fallback
-            hitbox_data = self.frame_data.get('hitbox')
-            new_frame = SpriteFrame(
-                surface=surface,
-                duration=self.frame_data.get('duration', 1.0),
-                hitbox=None if hitbox_data is None else pygame.Rect(hitbox_data),
-            )
-            if self.frame_data.get('pixels'):
-                # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
-                # has no .flat, so the previous copy raised and every restore failed; see
-                # BUGS.md #51 for the same fix in AnimationAddCommand.)
-                new_frame.set_pixel_data(self.frame_data['pixels'])
-
-            self.editor.canvas.animated_sprite.add_frame(
-                self.animation_name,
-                new_frame,
-                self.frame_index,
-            )
-
-            # Adjust canvas frame index if viewing this animation
-            frame_manager = self.editor.canvas.animated_sprite.frame_manager
-            if frame_manager.current_animation == self.animation_name:
-                if frame_manager.current_frame >= self.frame_index:
-                    frame_manager.current_frame += 1
-
-                max_frame = (
-                    len(self.editor.canvas.animated_sprite._animations[self.animation_name]) - 1
-                )
-                if frame_manager.current_frame > max_frame:
-                    frame_manager.current_frame = max(0, max_frame)
-
-                self.editor.canvas.show_frame(self.animation_name, frame_manager.current_frame)
-
-            self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
-            self.editor.film_strip_coordinator.on_frame_inserted(
-                self.animation_name,
-                self.frame_index,
-            )
-
-            LOG.debug(f"Added frame {self.frame_index} to '{self.animation_name}'")
-
+            added = self._insert_frame()
         except (
             AttributeError,
             IndexError,
@@ -631,54 +594,131 @@ class FrameAddCommand:
         ):
             LOG.exception('Error adding frame')
             return False
-        else:
-            return True
+        return added
+
+    def _insert_frame(self) -> bool:
+        """Rebuild the frame from frame_data and insert it at frame_index.
+
+        Returns:
+            True when the frame was inserted, False when the canvas or sprite is missing.
+
+        """
+        import pygame
+
+        from glitchygames.sprites.animated import SpriteFrame
+
+        if (
+            not hasattr(self.editor, 'canvas')
+            or not self.editor.canvas
+            or not hasattr(self.editor.canvas, 'animated_sprite')
+        ):
+            LOG.warning('Canvas or animated sprite not available for frame addition')
+            return False
+
+        # SRCALPHA like the editor's own frames (FilmStripCoordinator._create_blank_frame),
+        # so restored pixels keep their alpha
+        surface = pygame.Surface(
+            (self.frame_data['width'], self.frame_data['height']),
+            pygame.SRCALPHA,
+        )
+        # Only an explicit frame hitbox is recorded; None keeps the hitbox fallback
+        hitbox_data = self.frame_data.get('hitbox')
+        new_frame = SpriteFrame(
+            surface=surface,
+            duration=self.frame_data.get('duration', 1.0),
+            hitbox=None if hitbox_data is None else pygame.Rect(hitbox_data),
+        )
+        if self.frame_data.get('pixels'):
+            # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
+            # has no .flat, so the previous copy raised and every restore failed; see
+            # BUGS.md #51 for the same fix in AnimationAddCommand.)
+            new_frame.set_pixel_data(self.frame_data['pixels'])
+
+        self.editor.canvas.animated_sprite.add_frame(
+            self.animation_name,
+            new_frame,
+            self.frame_index,
+        )
+
+        # Adjust canvas frame index if viewing this animation
+        frame_manager = self.editor.canvas.animated_sprite.frame_manager
+        if frame_manager.current_animation == self.animation_name:
+            if frame_manager.current_frame >= self.frame_index:
+                frame_manager.current_frame += 1
+
+            max_frame = (
+                len(_animation_frames(self.editor.canvas.animated_sprite)[self.animation_name]) - 1
+            )
+            if frame_manager.current_frame > max_frame:
+                frame_manager.current_frame = max(0, max_frame)
+
+            self.editor.canvas.show_frame(self.animation_name, frame_manager.current_frame)
+
+        self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
+        self.editor.film_strip_coordinator.on_frame_inserted(
+            self.animation_name,
+            self.frame_index,
+        )
+
+        LOG.debug(f"Added frame {self.frame_index} to '{self.animation_name}'")
+        return True
 
     def _delete_frame(self) -> bool:
+        # Deliberately broad: undo and redo must never crash the editor, so any error removing
+        # the frame is logged and reported as a failed step
         try:
-            if (
-                not hasattr(self.editor, 'canvas')
-                or not self.editor.canvas
-                or not hasattr(self.editor.canvas, 'animated_sprite')
-            ):
-                LOG.warning('Canvas or animated sprite not available for frame deletion')
-                return False
-
-            animations = self.editor.canvas.animated_sprite._animations
-            if self.animation_name not in animations:
-                LOG.warning(f"Animation '{self.animation_name}' not found")
-                return False
-
-            frames = animations[self.animation_name]
-            if not (0 <= self.frame_index < len(frames)):
-                LOG.warning(
-                    f"Frame index {self.frame_index} out of range for '{self.animation_name}'",
-                )
-                return False
-
-            _stop_animation_and_adjust_frame_before_deletion(
-                self.editor,
-                self.animation_name,
-                self.frame_index,
-            )
-
-            frames.pop(self.frame_index)
-
-            _adjust_canvas_frame_after_deletion(self.editor, self.animation_name, self.frame_index)
-
-            self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
-            self.editor.film_strip_coordinator.on_frame_removed(
-                self.animation_name,
-                self.frame_index,
-            )
-
-            LOG.debug(f"Deleted frame {self.frame_index} from '{self.animation_name}'")
-
+            deleted = self._remove_frame()
         except AttributeError, IndexError, KeyError, TypeError, ValueError:
             LOG.exception('Error deleting frame')
             return False
-        else:
-            return True
+        return deleted
+
+    def _remove_frame(self) -> bool:
+        """Remove the frame at frame_index and keep the canvas on a valid frame.
+
+        Returns:
+            True when the frame was removed, False when the canvas, animation or frame is
+            missing.
+
+        """
+        if (
+            not hasattr(self.editor, 'canvas')
+            or not self.editor.canvas
+            or not hasattr(self.editor.canvas, 'animated_sprite')
+        ):
+            LOG.warning('Canvas or animated sprite not available for frame deletion')
+            return False
+
+        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        if self.animation_name not in animations:
+            LOG.warning(f"Animation '{self.animation_name}' not found")
+            return False
+
+        frames = animations[self.animation_name]
+        if not (0 <= self.frame_index < len(frames)):
+            LOG.warning(
+                f"Frame index {self.frame_index} out of range for '{self.animation_name}'",
+            )
+            return False
+
+        _stop_animation_and_adjust_frame_before_deletion(
+            self.editor,
+            self.animation_name,
+            self.frame_index,
+        )
+
+        frames.pop(self.frame_index)
+
+        _adjust_canvas_frame_after_deletion(self.editor, self.animation_name, self.frame_index)
+
+        self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
+        self.editor.film_strip_coordinator.on_frame_removed(
+            self.animation_name,
+            self.frame_index,
+        )
+
+        LOG.debug(f"Deleted frame {self.frame_index} from '{self.animation_name}'")
+        return True
 
 
 class FrameDeleteCommand:
@@ -686,7 +726,7 @@ class FrameDeleteCommand:
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         frame_index: int,
         animation_name: str,
         frame_data: dict[str, Any],
@@ -748,7 +788,7 @@ class FrameReorderCommand:
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         old_index: int,
         new_index: int,
         animation_name: str,
@@ -795,42 +835,54 @@ class FrameReorderCommand:
         return self._reorder(self.new_index, self.old_index)
 
     def _reorder(self, source: int, destination: int) -> bool:
+        # Deliberately broad: undo and redo must never crash the editor, so any error moving
+        # the frame is logged and reported as a failed step
         try:
-            if (
-                not hasattr(self.editor, 'canvas')
-                or not self.editor.canvas
-                or not hasattr(self.editor.canvas, 'animated_sprite')
-            ):
-                LOG.warning('Canvas or animated sprite not available for frame reorder')
-                return False
-
-            animations = self.editor.canvas.animated_sprite._animations
-            if self.animation_name not in animations:
-                LOG.warning(f"Animation '{self.animation_name}' not found")
-                return False
-
-            frames = animations[self.animation_name]
-            if not (0 <= source < len(frames) and 0 <= destination < len(frames)):
-                LOG.warning(f"Frame indices out of range for '{self.animation_name}'")
-                return False
-
-            frame = frames.pop(source)
-            frames.insert(destination, frame)
-
-            # Refresh the film strip widget
-            if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
-                self.editor.film_strip_widget._initialize_preview_animations()
-                self.editor.film_strip_widget.update_layout()
-                self.editor.film_strip_widget._create_film_tabs()
-                self.editor.film_strip_widget.mark_dirty()
-
-            LOG.debug(f"Reordered frame {source} -> {destination} in '{self.animation_name}'")
-
+            moved = self._move_frame(source=source, destination=destination)
         except AttributeError, IndexError, KeyError, TypeError:
             LOG.exception('Error reordering frame')
             return False
-        else:
-            return True
+        return moved
+
+    def _move_frame(self, *, source: int, destination: int) -> bool:
+        """Move the frame at source to destination and refresh the film strip.
+
+        Args:
+            source: The frame's index before the move.
+            destination: The frame's index after the move.
+
+        Returns:
+            True when the frame was moved, False when the canvas, animation or an index is
+            missing.
+
+        """
+        if (
+            not hasattr(self.editor, 'canvas')
+            or not self.editor.canvas
+            or not hasattr(self.editor.canvas, 'animated_sprite')
+        ):
+            LOG.warning('Canvas or animated sprite not available for frame reorder')
+            return False
+
+        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        if self.animation_name not in animations:
+            LOG.warning(f"Animation '{self.animation_name}' not found")
+            return False
+
+        frames = animations[self.animation_name]
+        if not (0 <= source < len(frames) and 0 <= destination < len(frames)):
+            LOG.warning(f"Frame indices out of range for '{self.animation_name}'")
+            return False
+
+        frame = frames.pop(source)
+        frames.insert(destination, frame)
+
+        # Refresh the film strip widget
+        if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
+            _refresh_film_strip_widget(self.editor.film_strip_widget, recalculate_layout=False)
+
+        LOG.debug(f"Reordered frame {source} -> {destination} in '{self.animation_name}'")
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -838,7 +890,7 @@ class FrameReorderCommand:
 # ---------------------------------------------------------------------------
 
 
-def _refresh_film_strip_widgets(editor: Any) -> None:
+def _refresh_film_strip_widgets(editor: EditorContext) -> None:
     """Refresh all film strip widgets after animation changes.
 
     Args:
@@ -846,10 +898,7 @@ def _refresh_film_strip_widgets(editor: Any) -> None:
 
     """
     if hasattr(editor, 'film_strip_widget') and editor.film_strip_widget:
-        editor.film_strip_widget._initialize_preview_animations()
-        editor.film_strip_widget.update_layout()
-        editor.film_strip_widget._create_film_tabs()
-        editor.film_strip_widget.mark_dirty()
+        _refresh_film_strip_widget(editor.film_strip_widget, recalculate_layout=False)
 
     if hasattr(editor, 'film_strip_sprites') and editor.film_strip_sprites:
         for film_strip_sprite in editor.film_strip_sprites.values():
@@ -857,11 +906,10 @@ def _refresh_film_strip_widgets(editor: Any) -> None:
                 hasattr(film_strip_sprite, 'film_strip_widget')
                 and film_strip_sprite.film_strip_widget
             ):
-                film_strip_sprite.film_strip_widget._initialize_preview_animations()
-                film_strip_sprite.film_strip_widget._calculate_layout()
-                film_strip_sprite.film_strip_widget.update_layout()
-                film_strip_sprite.film_strip_widget._create_film_tabs()
-                film_strip_sprite.film_strip_widget.mark_dirty()
+                _refresh_film_strip_widget(
+                    film_strip_sprite.film_strip_widget,
+                    recalculate_layout=True,
+                )
                 film_strip_sprite.dirty = 1
 
 
@@ -870,7 +918,7 @@ class AnimationAddCommand:
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         animation_name: str,
         animation_data: dict[str, Any],
     ) -> None:
@@ -916,33 +964,10 @@ class AnimationAddCommand:
     def _add_animation(self) -> bool:
         import pygame
 
-        from glitchygames.sprites.animated import SpriteFrame
-
+        # Deliberately broad: undo and redo must never crash the editor, so any error rebuilding
+        # the animation's frames is logged and reported as a failed step
         try:
-            if (
-                not hasattr(self.editor, 'canvas')
-                or not self.editor.canvas
-                or not hasattr(self.editor.canvas, 'animated_sprite')
-            ):
-                LOG.warning('Canvas or animated sprite not available for animation add')
-                return False
-
-            animations = self.editor.canvas.animated_sprite._animations
-            for frame_data in self.animation_data.get('frames', []):
-                surface = pygame.Surface((frame_data['width'], frame_data['height']))
-                new_frame = SpriteFrame(surface=surface, duration=frame_data.get('duration', 1.0))
-                if frame_data.get('pixels'):
-                    # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
-                    # has no .flat, so the previous copy raised and every restore failed.)
-                    new_frame.set_pixel_data(frame_data['pixels'])
-
-                animations[self.animation_name] = animations.get(self.animation_name, [])
-                animations[self.animation_name].append(new_frame)
-
-            _refresh_film_strip_widgets(self.editor)
-
-            LOG.debug(f"Added animation '{self.animation_name}'")
-
+            added = self._insert_animation()
         except (
             AttributeError,
             IndexError,
@@ -953,38 +978,84 @@ class AnimationAddCommand:
         ):
             LOG.exception('Error adding animation')
             return False
-        else:
-            return True
+        return added
+
+    def _insert_animation(self) -> bool:
+        """Rebuild the animation's frames from animation_data and add them to the sprite.
+
+        Returns:
+            True when the animation was added, False when the canvas or sprite is missing.
+
+        """
+        import pygame
+
+        from glitchygames.sprites.animated import SpriteFrame
+
+        if (
+            not hasattr(self.editor, 'canvas')
+            or not self.editor.canvas
+            or not hasattr(self.editor.canvas, 'animated_sprite')
+        ):
+            LOG.warning('Canvas or animated sprite not available for animation add')
+            return False
+
+        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        for frame_data in self.animation_data.get('frames', []):
+            surface = pygame.Surface((frame_data['width'], frame_data['height']))
+            new_frame = SpriteFrame(surface=surface, duration=frame_data.get('duration', 1.0))
+            if frame_data.get('pixels'):
+                # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
+                # has no .flat, so the previous copy raised and every restore failed.)
+                new_frame.set_pixel_data(frame_data['pixels'])
+
+            animations[self.animation_name] = animations.get(self.animation_name, [])
+            animations[self.animation_name].append(new_frame)
+
+        _refresh_film_strip_widgets(self.editor)
+
+        LOG.debug(f"Added animation '{self.animation_name}'")
+        return True
 
     def _delete_animation(self) -> bool:
+        # Deliberately broad: undo and redo must never crash the editor, so any error removing
+        # the animation is logged and reported as a failed step
         try:
-            if (
-                not hasattr(self.editor, 'canvas')
-                or not self.editor.canvas
-                or not hasattr(self.editor.canvas, 'animated_sprite')
-            ):
-                LOG.warning('Canvas or animated sprite not available for animation delete')
-                return False
-
-            animations = self.editor.canvas.animated_sprite._animations
-            if self.animation_name not in animations:
-                LOG.warning(f"Animation '{self.animation_name}' not found")
-                return False
-
-            del animations[self.animation_name]
-
-            _refresh_film_strip_widgets(self.editor)
-
-            # Recreate film strips to reflect the deleted animation
-            self.editor.film_strip_coordinator.on_sprite_loaded(self.editor.canvas.animated_sprite)
-
-            LOG.debug(f"Deleted animation '{self.animation_name}'")
-
+            deleted = self._remove_animation()
         except AttributeError, KeyError, TypeError:
             LOG.exception('Error deleting animation')
             return False
-        else:
-            return True
+        return deleted
+
+    def _remove_animation(self) -> bool:
+        """Remove the animation from the sprite and rebuild the film strips.
+
+        Returns:
+            True when the animation was removed, False when the canvas, sprite or animation is
+            missing.
+
+        """
+        if (
+            not hasattr(self.editor, 'canvas')
+            or not self.editor.canvas
+            or not hasattr(self.editor.canvas, 'animated_sprite')
+        ):
+            LOG.warning('Canvas or animated sprite not available for animation delete')
+            return False
+
+        animations = _animation_frames(self.editor.canvas.animated_sprite)
+        if self.animation_name not in animations:
+            LOG.warning(f"Animation '{self.animation_name}' not found")
+            return False
+
+        del animations[self.animation_name]
+
+        _refresh_film_strip_widgets(self.editor)
+
+        # Recreate film strips to reflect the deleted animation
+        self.editor.film_strip_coordinator.on_sprite_loaded(self.editor.canvas.animated_sprite)
+
+        LOG.debug(f"Deleted animation '{self.animation_name}'")
+        return True
 
 
 class AnimationDeleteCommand:
@@ -992,7 +1063,7 @@ class AnimationDeleteCommand:
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         animation_name: str,
         animation_data: dict[str, Any],
     ) -> None:
@@ -1067,7 +1138,7 @@ class AnimationRenameCommand:
     strip, so undo (renaming back) restores all of them.
     """
 
-    def __init__(self, editor: Any, old_name: str, new_name: str) -> None:
+    def __init__(self, editor: EditorContext, old_name: str, new_name: str) -> None:
         """Initialize an animation-rename command.
 
         Args:
@@ -1126,7 +1197,7 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
 
     def __init__(  # ruff: ignore[too-many-arguments]
         self,
-        editor: Any,
+        editor: EditorContext,
         controller_id: int,
         *,
         old_position: tuple[int, int],
@@ -1181,24 +1252,40 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
 
     def _apply_position(self, position: tuple[int, int]) -> bool:
         def _apply() -> bool:
+            # Deliberately broad: undo and redo must never crash the editor, so any error
+            # moving the controller is logged and reported as a failed step
             try:
-                if hasattr(self.editor, 'mode_switcher') and self.editor.mode_switcher:
-                    self.editor.mode_switcher.save_controller_position(self.controller_id, position)
-
-                    if hasattr(self.editor, 'controller_handler'):
-                        self.editor.controller_handler.update_controller_canvas_visual_indicator(
-                            self.controller_id,
-                        )
-
-                    LOG.debug(f'Applied controller position: {self.controller_id} -> {position}')
-                    return True
-                LOG.warning('Mode switcher not available for controller position')
-                return False  # ruff: ignore[try-consider-else]
+                saved = self._save_position(position=position)
             except AttributeError, KeyError, TypeError:
                 LOG.exception('Error applying controller position')
                 return False
+            return saved
 
         return self._guard_execute(self.editor, _apply)
+
+    def _save_position(self, *, position: tuple[int, int]) -> bool:
+        """Save the controller's position and redraw its canvas indicator.
+
+        Args:
+            position: The controller's position (x, y).
+
+        Returns:
+            True when the position was saved, False when the editor has no mode switcher.
+
+        """
+        if not (hasattr(self.editor, 'mode_switcher') and self.editor.mode_switcher):
+            LOG.warning('Mode switcher not available for controller position')
+            return False
+
+        self.editor.mode_switcher.save_controller_position(self.controller_id, position)
+
+        if hasattr(self.editor, 'controller_handler'):
+            self.editor.controller_handler.update_controller_canvas_visual_indicator(
+                self.controller_id,
+            )
+
+        LOG.debug(f'Applied controller position: {self.controller_id} -> {position}')
+        return True
 
 
 class ControllerModeCommand(_ApplyingUndoRedoGuard):
@@ -1206,7 +1293,7 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         controller_id: int,
         old_mode: str,
         new_mode: str,
@@ -1254,37 +1341,54 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
 
     def _apply_mode(self, mode: str) -> bool:
         def _apply() -> bool:
+            # Deliberately broad: undo and redo must never crash the editor, so any error
+            # switching the controller's mode is logged and reported as a failed step
             try:
-                if hasattr(self.editor, 'mode_switcher') and self.editor.mode_switcher:
-                    from glitchygames.bitmappy.controllers.modes import ControllerMode
-
-                    try:
-                        controller_mode = ControllerMode(mode)
-                    except ValueError:
-                        LOG.warning('Invalid controller mode: %s', mode)
-                        return False
-
-                    current_time = elapsed_seconds()
-                    self.editor.mode_switcher.controller_modes[self.controller_id].switch_to_mode(
-                        controller_mode,
-                        current_time,
-                    )
-
-                    if hasattr(self.editor, 'controller_handler'):
-                        self.editor.controller_handler.update_controller_visual_indicator_for_mode(
-                            self.controller_id,
-                            controller_mode,
-                        )
-
-                    LOG.debug(f'Applied controller mode: {self.controller_id} -> {mode}')
-                    return True
-                LOG.warning('Mode switcher not available for controller mode')
-                return False  # ruff: ignore[try-consider-else]
+                switched = self._switch_mode(mode=mode)
             except AttributeError, KeyError, TypeError, ValueError:
                 LOG.exception('Error applying controller mode')
                 return False
+            return switched
 
         return self._guard_execute(self.editor, _apply)
+
+    def _switch_mode(self, *, mode: str) -> bool:
+        """Switch the controller to the mode and redraw its visual indicator.
+
+        Args:
+            mode: The mode's string value.
+
+        Returns:
+            True when the mode was switched, False when the editor has no mode switcher or
+            the mode is not a ControllerMode.
+
+        """
+        if not (hasattr(self.editor, 'mode_switcher') and self.editor.mode_switcher):
+            LOG.warning('Mode switcher not available for controller mode')
+            return False
+
+        from glitchygames.bitmappy.controllers.modes import ControllerMode
+
+        try:
+            controller_mode = ControllerMode(mode)
+        except ValueError:
+            LOG.warning('Invalid controller mode: %s', mode)
+            return False
+
+        current_time = elapsed_seconds()
+        self.editor.mode_switcher.controller_modes[self.controller_id].switch_to_mode(
+            controller_mode,
+            current_time,
+        )
+
+        if hasattr(self.editor, 'controller_handler'):
+            self.editor.controller_handler.update_controller_visual_indicator_for_mode(
+                self.controller_id,
+                controller_mode,
+            )
+
+        LOG.debug(f'Applied controller mode: {self.controller_id} -> {mode}')
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -1297,7 +1401,7 @@ class FrameCopyCommand:
 
     def __init__(
         self,
-        editor: Any,
+        editor: EditorContext,
         source_frame: int,
         source_animation: str,
         frame_data: dict[str, Any],
@@ -1350,7 +1454,7 @@ class FrameCopyCommand:
 
 
 def _stop_animation_and_adjust_frame_before_deletion(
-    editor: Any,
+    editor: EditorContext,
     animation_name: str,
     frame_index: int,
 ) -> None:
@@ -1368,7 +1472,7 @@ def _stop_animation_and_adjust_frame_before_deletion(
     ):
         return
 
-    editor.canvas.animated_sprite._is_playing = False
+    _stop_playback(editor.canvas.animated_sprite)
 
     if editor.canvas.animated_sprite.frame_manager.current_frame >= frame_index:
         if editor.canvas.animated_sprite.frame_manager.current_frame > 0:
@@ -1377,7 +1481,9 @@ def _stop_animation_and_adjust_frame_before_deletion(
             editor.canvas.animated_sprite.frame_manager.current_frame = 0
 
 
-def _adjust_canvas_frame_after_deletion(editor: Any, animation_name: str, frame_index: int) -> None:
+def _adjust_canvas_frame_after_deletion(
+    editor: EditorContext, animation_name: str, frame_index: int
+) -> None:
     """Clamp and show the canvas frame after a frame has been deleted.
 
     The shown frame was already moved back past the deleted one by
@@ -1396,8 +1502,60 @@ def _adjust_canvas_frame_after_deletion(editor: Any, animation_name: str, frame_
 
     LOG.debug(f'Showing frame {frame_manager.current_frame} after deleting frame {frame_index}')
 
-    max_frame = len(editor.canvas.animated_sprite._animations[animation_name]) - 1
+    max_frame = len(_animation_frames(editor.canvas.animated_sprite)[animation_name]) - 1
     if frame_manager.current_frame > max_frame:
         frame_manager.current_frame = max(0, max_frame)
 
     editor.canvas.show_frame(animation_name, frame_manager.current_frame)
+
+
+# ---------------------------------------------------------------------------
+# Protected-member access
+#
+# The commands reach into protected members of AnimatedSprite (``_animations``,
+# ``_is_playing``) and FilmStripWidget (``_initialize_preview_animations``,
+# ``_calculate_layout``, ``_create_film_tabs``), and the guard writes the editor's protected
+# ``_applying_undo_redo``. Their test stand-ins provide only these protected names, so the
+# commands keep using them. With a typed receiver each access is a basedpyright
+# reportPrivateUsage error, so these helpers (and ``_ApplyingUndoRedoGuard._guard_execute``)
+# take ``Any``; everything else in this module is typed.
+# ---------------------------------------------------------------------------
+
+
+def _animation_frames(animated_sprite: Any) -> dict[str, list[SpriteFrame]]:
+    """Return the sprite's own animation dict (``_animations``, not a copy).
+
+    Args:
+        animated_sprite: The canvas's AnimatedSprite.
+
+    Returns:
+        The animation name to frames mapping the sprite plays from.
+
+    """
+    return animated_sprite._animations
+
+
+def _stop_playback(animated_sprite: Any) -> None:
+    """Stop the sprite's playback without resetting its frame.
+
+    Args:
+        animated_sprite: The canvas's AnimatedSprite.
+
+    """
+    animated_sprite._is_playing = False
+
+
+def _refresh_film_strip_widget(film_strip_widget: Any, *, recalculate_layout: bool) -> None:
+    """Rebuild a film strip widget's previews, layout and film tabs, and mark it dirty.
+
+    Args:
+        film_strip_widget: The FilmStripWidget to refresh.
+        recalculate_layout: Recalculate the frame layout before updating it.
+
+    """
+    film_strip_widget._initialize_preview_animations()
+    if recalculate_layout:
+        film_strip_widget._calculate_layout()
+    film_strip_widget.update_layout()
+    film_strip_widget._create_film_tabs()
+    film_strip_widget.mark_dirty()

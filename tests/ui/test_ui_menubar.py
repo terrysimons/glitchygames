@@ -130,7 +130,9 @@ class TestMenuBarFunctionality:
         # Inset by the border, and magenta is its transparent colour
         assert menu.rect.y == TEST_MENU_OFFSET_Y
         assert menu.text.rect.y == TEST_MENU_OFFSET_Y
-        assert menu.image.get_colorkey()[:3] == (255, 0, 255)
+        colorkey = menu.image.get_colorkey()
+        assert colorkey is not None
+        assert colorkey[:3] == (255, 0, 255)
         assert menubar.menu_offset_x == menu.rect.right + TEST_BORDER_WIDTH
 
     def test_menubar_add_menu_places_icon_menus_side_by_side(self):

@@ -367,31 +367,35 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
 
     def toggle_onion_skinning(self, animation_name: str, frame_index: int) -> None:
         """Toggle onion skinning for a specific frame."""
+        # A click on a frame's onion skinning toggle must never crash the editor
         try:
-            from .onion_skinning import get_onion_skinning_manager
-
-            onion_manager = get_onion_skinning_manager()
-            new_state = onion_manager.toggle_frame_onion_skinning(animation_name, frame_index)
-
-            LOG.debug(
-                f'Onion skinning toggled for {animation_name}[{frame_index}]: {new_state}',
-            )
-
-            # Mark the film strip as dirty to trigger a redraw
-            self.widget.force_redraw = True
-
-            # Force canvas redraw to show onion skinning changes
-            if (
-                hasattr(self.widget, 'parent_scene')
-                and self.widget.parent_scene
-                and hasattr(self.widget.parent_scene, 'canvas')
-                and self.widget.parent_scene.canvas
-            ):
-                self.widget.parent_scene.canvas.force_redraw()
-                LOG.debug('Forced canvas redraw for onion skinning toggle')
-
+            self._toggle_onion_skinning_and_redraw(animation_name, frame_index)
         except Exception:
             LOG.exception('Failed to toggle onion skinning')
+
+    def _toggle_onion_skinning_and_redraw(self, animation_name: str, frame_index: int) -> None:
+        """Toggle a frame's onion skinning, then redraw the film strip and the canvas."""
+        from .onion_skinning import get_onion_skinning_manager
+
+        onion_manager = get_onion_skinning_manager()
+        new_state = onion_manager.toggle_frame_onion_skinning(animation_name, frame_index)
+
+        LOG.debug(
+            f'Onion skinning toggled for {animation_name}[{frame_index}]: {new_state}',
+        )
+
+        # Mark the film strip as dirty to trigger a redraw
+        self.widget.force_redraw = True
+
+        # Force canvas redraw to show onion skinning changes
+        if (
+            hasattr(self.widget, 'parent_scene')
+            and self.widget.parent_scene
+            and hasattr(self.widget.parent_scene, 'canvas')
+            and self.widget.parent_scene.canvas
+        ):
+            self.widget.parent_scene.canvas.force_redraw()
+            LOG.debug('Forced canvas redraw for onion skinning toggle')
 
     def copy_current_frame(self) -> bool:
         """Copy the currently selected frame to the clipboard.

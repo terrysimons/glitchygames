@@ -83,7 +83,7 @@ class Game(Scene):
         assert self.input_box.image is not None
         self.screen.blit(self.input_box.image, (320, 240))
 
-    def on_input_box_submit_event(self: Self, control: Any) -> None:
+    def on_input_box_submit_event(self: Self, control: InputBox) -> None:
         """Handle input box submit events.
 
         Args:

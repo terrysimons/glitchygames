@@ -29,6 +29,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.events.input_event_interfaces import MouseEventStubs
 from glitchygames.sprites import (
     BitmappySprite,
     FocusableSingletonBitmappySprite,
@@ -269,11 +270,8 @@ class TestRootSpriteInitialization:
         on RootSprite's default.
         """
 
-        class DirectRootSprite(RootSprite):
-            """A RootSprite subclass with its mouse handlers left as the stubs."""
-
-        # The 22 abstract mouse handlers do not matter here
-        DirectRootSprite.__abstractmethods__ = frozenset()
+        class DirectRootSprite(MouseEventStubs, RootSprite):
+            """A RootSprite subclass whose mouse handlers are the stubs (they don't matter here)."""
 
         sprite = DirectRootSprite()
 
@@ -931,6 +929,17 @@ class TestBitmappySpriteStr:
         result = str(sprite)
         assert 'error rendering' in result
 
+    def test_str_with_malformed_toml_returns_fallback(self, tmp_path):
+        """A file that is not valid TOML (tomllib raises a ValueError) gives the fallback text."""
+        malformed_file = tmp_path / 'malformed.toml'
+        malformed_file.write_text('[sprite\nname = ', encoding='utf-8')
+        sprite = BitmappySprite(x=0, y=0, width=10, height=10, name='test')
+        sprite.filename = str(malformed_file)
+
+        result = str(sprite)
+
+        assert result.startswith(f'{type(sprite)} "test" (error rendering: ')
+
 
 class TestBitmappySpriteEventHandlers:
     """Test BitmappySprite event handler overrides."""
@@ -1248,6 +1257,22 @@ blue = 0
         assert image is not None
         assert name == 'simple'
         assert _rgb_rows(image) == [[(0, 0, 0), (0, 0, 0)], [(0, 0, 0), (0, 0, 0)]]
+
+    def test_load_does_not_fall_back_when_converting_the_loaded_sprite_fails(self, mocker):
+        """A ValueError after the factory loaded the sprite propagates instead of a fallback.
+
+        Only the factory's own ValueError means "not a sprite it can load"; one raised while
+        copying the loaded image is a real failure, not a reason to re-read the file statically.
+        """
+        loaded_sprite = mocker.Mock()
+        loaded_sprite.image.copy.side_effect = ValueError('copy failed')
+        mocker.patch.object(SpriteFactory, 'load_sprite', return_value=loaded_sprite)
+        static_load = mocker.patch.object(BitmappySprite, '_load_static_only')
+
+        sprite = BitmappySprite(x=0, y=0, width=2, height=2)
+        with pytest.raises(ValueError, match='copy failed'):
+            sprite.load('unused.toml')
+        static_load.assert_not_called()
 
 
 class TestSpriteFactoryDetectFileFormat:

@@ -158,64 +158,78 @@ class FileIOManager:
             Path to the converted TOML file, or None if conversion failed.
 
         """
+        # A dropped file may be any PNG: a failed conversion is logged, never raised
         try:
-            image, width, height = self._load_and_resize_png(file_path)
-            pixel_array: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
-            self.log.info(f'Pixel array shape: {pixel_array.shape}')
-
-            has_transparency, original_image = self._detect_png_transparency(image, file_path)
-            unique_colors, sample_count, transparent_pixels = self._sample_png_colors(
-                pixel_array,
-                width,
-                height,
-                has_transparency=has_transparency,
-                original_image=original_image,
-            )
-
-            if has_transparency:
-                self.log.info(
-                    'Found %s transparent pixels, mapped to magenta (255, 0, 255)',
-                    transparent_pixels,
-                )
-            self.log.info(
-                f'Sampled {sample_count} pixels, found {len(unique_colors)} unique colors',
-            )
-
-            unique_colors = quantize_colors_if_needed(
-                unique_colors,
-                has_transparency=has_transparency,
-                log=self.log,
-            )
-            color_mapping = build_color_to_glyph_mapping(
-                unique_colors,
-                has_transparency=has_transparency,
-                log=self.log,
-            )
-
-            pixel_string = generate_pixel_string(
-                pixel_array,
-                width,
-                height,
-                has_transparency=has_transparency,
-                original_image=original_image,
-                color_mapping=color_mapping,
-                log=self.log,
-            )
-
-            toml_content = generate_toml_content(
-                file_path,
-                pixel_string,
-                color_mapping,
-                log=self.log,
-            )
-            output_path = self._save_and_validate_toml(file_path, toml_content)
-
-            self.log.info('Successfully converted PNG to bitmappy format: %s', output_path)
-            return str(output_path)
-
+            output_path = self._write_toml_from_png(file_path)
         except OSError, ValueError, TypeError, AttributeError, pygame.error:
             self.log.exception('Error converting PNG to bitmappy format')
             return None
+
+        self.log.info('Successfully converted PNG to bitmappy format: %s', output_path)
+        return output_path
+
+    def _write_toml_from_png(self, file_path: str) -> str:
+        """Convert a PNG file to a bitmappy TOML file next to it.
+
+        Args:
+            file_path: Path to the PNG file to convert.
+
+        Returns:
+            Path to the written TOML file.
+
+        """
+        image, width, height = self._load_and_resize_png(file_path)
+        pixel_array: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
+        self.log.info(f'Pixel array shape: {pixel_array.shape}')
+
+        has_transparency, original_image = self._detect_png_transparency(image, file_path)
+        unique_colors, sample_count, transparent_pixels = self._sample_png_colors(
+            pixel_array,
+            width,
+            height,
+            has_transparency=has_transparency,
+            original_image=original_image,
+        )
+
+        if has_transparency:
+            self.log.info(
+                'Found %s transparent pixels, mapped to magenta (255, 0, 255)',
+                transparent_pixels,
+            )
+        self.log.info(
+            f'Sampled {sample_count} pixels, found {len(unique_colors)} unique colors',
+        )
+
+        unique_colors = quantize_colors_if_needed(
+            unique_colors,
+            has_transparency=has_transparency,
+            log=self.log,
+        )
+        color_mapping = build_color_to_glyph_mapping(
+            unique_colors,
+            has_transparency=has_transparency,
+            log=self.log,
+        )
+
+        pixel_string = generate_pixel_string(
+            pixel_array,
+            width,
+            height,
+            has_transparency=has_transparency,
+            original_image=original_image,
+            color_mapping=color_mapping,
+            log=self.log,
+        )
+
+        toml_content = generate_toml_content(
+            file_path,
+            pixel_string,
+            color_mapping,
+            log=self.log,
+        )
+        output_path = self._save_and_validate_toml(file_path, toml_content)
+
+        return str(output_path)
 
     def _load_and_resize_png(self, file_path: str) -> tuple[pygame.Surface, int, int]:
         """Load a PNG image and resize it to match the canvas size.
@@ -418,18 +432,9 @@ class FileIOManager:
             toml_path: Path to the converted TOML file.
 
         """
+        # A dropped file is a load boundary: a failed load is logged, never raised
         try:
-            self.log.info('=== STARTING _load_converted_sprite ===')
-            canvas_sprite = self._find_canvas_sprite()
-
-            if not canvas_sprite:
-                self.log.warning('Could not find canvas sprite to load converted file')
-                return
-
-            self._load_sprite_into_canvas(canvas_sprite, toml_path)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-            self._transfer_loaded_sprite_pixels(canvas_sprite)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-            self._finalize_sprite_load(canvas_sprite)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-
+            self._load_toml_into_canvas(toml_path)
         except (
             OSError,
             ValueError,
@@ -439,6 +444,24 @@ class FileIOManager:
             pygame.error,
         ):
             self.log.exception('Error loading converted sprite into editor')
+
+    def _load_toml_into_canvas(self, toml_path: str) -> None:
+        """Load a TOML sprite into the editor's canvas sprite, if there is one.
+
+        Args:
+            toml_path: Path to the TOML file.
+
+        """
+        self.log.info('=== STARTING _load_converted_sprite ===')
+        canvas_sprite = self._find_canvas_sprite()
+
+        if not canvas_sprite:
+            self.log.warning('Could not find canvas sprite to load converted file')
+            return
+
+        self._load_sprite_into_canvas(canvas_sprite, toml_path)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+        self._transfer_loaded_sprite_pixels(canvas_sprite)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+        self._finalize_sprite_load(canvas_sprite)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     def _find_canvas_sprite(self) -> object | None:
         """Find the canvas sprite in the scene that can handle file loading.
@@ -599,38 +622,49 @@ class FileIOManager:
             loaded_sprite: The loaded animated sprite
 
         """
+        # Onion skinning is a convenience: failing to set it up must not fail the load
         try:
-            from .onion_skinning import get_onion_skinning_manager
-
-            onion_manager = get_onion_skinning_manager()
-
-            # Clear any existing onion skinning state for this sprite
-            if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
-                for animation_name in loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
-                    onion_manager.clear_animation_onion_skinning(animation_name)
-                    self.log.debug('Cleared onion skinning state for animation: %s', animation_name)
-
-            # Initialize onion skinning for all animations in the loaded sprite
-            if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
-                for animation_name, frames in loaded_sprite._animations.items():  # type: ignore[reportPrivateUsage]
-                    # Enable onion skinning for all frames except the first one
-                    frame_states = {}
-                    for frame_idx in range(len(frames)):
-                        # Enable onion skinning for all frames except frame 0
-                        frame_states[frame_idx] = frame_idx != 0
-
-                    onion_manager.set_animation_onion_state(animation_name, frame_states)  # type: ignore[arg-type]
-                    self.log.debug(
-                        f"Initialized onion skinning for animation '{animation_name}' with"
-                        f' {len(frames)} frames',
-                    )
-
-            # Ensure global onion skinning is enabled
-            if not onion_manager.is_global_onion_skinning_enabled():
-                onion_manager.toggle_global_onion_skinning()
-                self.log.debug('Enabled global onion skinning for new sprite')
-
-            self.log.info('Onion skinning initialized for loaded sprite')
-
+            self._apply_onion_skinning_defaults(loaded_sprite)
         except ImportError, AttributeError, KeyError, TypeError:
             self.log.exception('Failed to initialize onion skinning for loaded sprite')
+        else:
+            self.log.info('Onion skinning initialized for loaded sprite')
+
+    def _apply_onion_skinning_defaults(self, loaded_sprite: AnimatedSprite) -> None:
+        """Reset onion skinning for a loaded sprite: on for every frame but the first.
+
+        Also turns global onion skinning on.
+
+        Args:
+            loaded_sprite: The loaded animated sprite
+
+        """
+        from .onion_skinning import get_onion_skinning_manager
+
+        onion_manager = get_onion_skinning_manager()
+
+        # Clear any existing onion skinning state for this sprite
+        if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
+            for animation_name in loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
+                onion_manager.clear_animation_onion_skinning(animation_name)
+                self.log.debug('Cleared onion skinning state for animation: %s', animation_name)
+
+        # Initialize onion skinning for all animations in the loaded sprite
+        if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
+            for animation_name, frames in loaded_sprite._animations.items():  # type: ignore[reportPrivateUsage]
+                # Enable onion skinning for all frames except the first one
+                frame_states = {}
+                for frame_idx in range(len(frames)):
+                    # Enable onion skinning for all frames except frame 0
+                    frame_states[frame_idx] = frame_idx != 0
+
+                onion_manager.set_animation_onion_state(animation_name, frame_states)  # type: ignore[arg-type]
+                self.log.debug(
+                    f"Initialized onion skinning for animation '{animation_name}' with"
+                    f' {len(frames)} frames',
+                )
+
+        # Ensure global onion skinning is enabled
+        if not onion_manager.is_global_onion_skinning_enabled():
+            onion_manager.toggle_global_onion_skinning()
+            self.log.debug('Enabled global onion skinning for new sprite')

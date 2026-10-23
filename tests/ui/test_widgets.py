@@ -1039,7 +1039,9 @@ class TestMenuItemEventHandlers:
         """A named MenuItem keys out its white image and shows its name in black on white."""
         item = _menu_item()
 
-        assert item.image.get_colorkey()[:3] == (255, 255, 255)
+        colorkey = item.image.get_colorkey()
+        assert colorkey is not None
+        assert colorkey[:3] == (255, 255, 255)
         assert item.text.text == 'TestItem'
         assert item.text.rect.topleft == item.rect.topleft
         # Black text on the text sprite's white background

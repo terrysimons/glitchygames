@@ -14,8 +14,9 @@ import pygame
 from glitchygames.debug import panels
 
 if TYPE_CHECKING:
+    from glitchygames.camera import Camera2D
     from glitchygames.debug.panels import DebugFrameInfo
-    from glitchygames.debug.protocols import DebugDrawable
+    from glitchygames.debug.protocols import DebugDrawable, InspectedScene
 
 log: logging.Logger = logging.getLogger('game.debug.overlay')
 
@@ -222,7 +223,7 @@ class DebugOverlay:
         self,
         surface: pygame.Surface,
         *,
-        scene: Any,
+        scene: InspectedScene,
         screen_offset: tuple[int, int],
         frame_info: DebugFrameInfo,
     ) -> None:
@@ -233,7 +234,8 @@ class DebugOverlay:
 
         Args:
             surface (pygame.Surface): The presented frame to draw onto.
-            scene (Any): The active scene (needs `camera`; may have `all_sprites`, `collisions`).
+            scene (InspectedScene): The active scene (needs `camera`; may have `all_sprites`,
+                `collisions`).
             screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
             frame_info (DebugFrameInfo): Per-frame engine readings (FPS target, audio, rumble,
                 shake, mouse).
@@ -283,7 +285,9 @@ class DebugOverlay:
         if self.panel is not DebugPanel.PERFORMANCE:
             self._call_hooks(surface=surface, scene=scene, camera=camera)
 
-    def _call_hooks(self, *, surface: pygame.Surface, scene: Any, camera: Any) -> None:
+    def _call_hooks(
+        self, *, surface: pygame.Surface, scene: InspectedScene, camera: Camera2D
+    ) -> None:
         """Call `debug_draw` on the scene and on every sprite that has one."""
         hook_owners: list[Any] = [scene, *getattr(scene, 'all_sprites', ())]
         for hook_owner in hook_owners:

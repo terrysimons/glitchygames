@@ -1211,24 +1211,35 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             # set_pixel_data() will update _image to match pixels
             for frames in self.animated_sprite._animations.values():  # type: ignore[reportPrivateUsage]
                 for frame in frames:
-                    try:
-                        # Only sync if frame already has pixels in memory
-                        # Don't extract from _image - use the raw pixel data we have
-                        if hasattr(frame, 'pixels') and frame.pixels:
-                            # Just sync pixels to surface - set_pixel_data updates _image to match
-                            # pixels
-                            # This ensures _image matches what's in frame.pixels
-                            frame.set_pixel_data(list(frame.pixels))
-                        # If frame doesn't have pixels, leave it alone.
-                        # It will extract from _image via get_pixel_data() when needed,
-                        # preserving original indexed colors.
-                    except (AttributeError, TypeError, ValueError) as frame_sync_error:
-                        # Best-effort sync; continue if frame cannot be updated
-                        LOG.debug(f'Best-effort frame sync failed: {frame_sync_error}')
-                        continue
+                    self._sync_frame_pixel_data(frame)
         except (AttributeError, KeyError, TypeError) as sync_error:
             # Best-effort sync; continue even if some frames fail
             LOG.debug(f'Best-effort pixel-to-surface sync failed: {sync_error}')
+
+    @staticmethod
+    def _sync_frame_pixel_data(frame: SpriteFrame) -> None:
+        """Sync one frame's in-memory pixels to its surface, best-effort.
+
+        A frame that cannot be updated is logged and skipped, so the other frames still sync.
+
+        Args:
+            frame: The frame to sync.
+
+        """
+        try:
+            # Only sync if frame already has pixels in memory
+            # Don't extract from _image - use the raw pixel data we have
+            if hasattr(frame, 'pixels') and frame.pixels:
+                # Just sync pixels to surface - set_pixel_data updates _image to match
+                # pixels
+                # This ensures _image matches what's in frame.pixels
+                frame.set_pixel_data(list(frame.pixels))
+            # If frame doesn't have pixels, leave it alone.
+            # It will extract from _image via get_pixel_data() when needed,
+            # preserving original indexed colors.
+        except (AttributeError, TypeError, ValueError) as frame_sync_error:
+            # Best-effort sync; continue if frame cannot be updated
+            LOG.debug(f'Best-effort frame sync failed: {frame_sync_error}')
 
     def on_save_file_event(self, filename: str) -> None:
         """Handle save file events.
@@ -1240,30 +1251,40 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         """
         self.log.info('Starting save to file: %s', filename)
+        # Every save failure is logged here, then re-raised for the caller to report
         try:
-            # CRITICAL: Sync all frame pixel data before saving
-            # This ensures that any direct modifications to frame.pixels during drag
-            # are properly reflected in the frame surface, which get_pixel_data() may read from
-            self._sync_all_frames_pixel_data()
-
-            # Detect file format from extension
-            file_format = detect_file_format(filename)
-            self.log.info('Detected file format: %s', file_format)
-
-            # Check if this is a single-frame animation (converted from static sprite)
-            if self._is_single_frame_animation():
-                self.log.info('Detected single-frame animation, saving as static sprite')
-                self._save_as_static_sprite(filename, file_format)
-            else:
-                # Use the interface-based save method for multi-frame animations
-                self.sprite_serializer.save(
-                    self.animated_sprite,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-                    filename=filename,
-                    file_format=file_format,
-                )
+            self._save_to_file(filename)
         except OSError, ValueError, KeyError:
             self.log.exception('Error saving file')
             raise
+
+    def _save_to_file(self, filename: str) -> None:
+        """Save the animated sprite to a file, as a static sprite when it has one frame.
+
+        Args:
+            filename: The file to save to; its extension picks the format.
+
+        """
+        # CRITICAL: Sync all frame pixel data before saving
+        # This ensures that any direct modifications to frame.pixels during drag
+        # are properly reflected in the frame surface, which get_pixel_data() may read from
+        self._sync_all_frames_pixel_data()
+
+        # Detect file format from extension
+        file_format = detect_file_format(filename)
+        self.log.info('Detected file format: %s', file_format)
+
+        # Check if this is a single-frame animation (converted from static sprite)
+        if self._is_single_frame_animation():
+            self.log.info('Detected single-frame animation, saving as static sprite')
+            self._save_as_static_sprite(filename, file_format)
+        else:
+            # Use the interface-based save method for multi-frame animations
+            self.sprite_serializer.save(
+                self.animated_sprite,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                filename=filename,
+                file_format=file_format,
+            )
 
     def get_canvas_interface(self) -> AnimatedCanvasInterface:
         """Get the canvas interface for external access.
@@ -1296,30 +1317,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """Handle load file event for animated sprites."""
         self.log.debug('=== Starting on_load_file_event for animated sprite ===')
         LOG.debug(f'DEBUG: Canvas on_load_file_event called with event: {event}')
+        # A load is a file boundary: any failure is shown to the user instead of crashing
         try:
-            filename = event if isinstance(event, str) else event.text
-            LOG.debug(f'DEBUG: Loading sprite from filename: {filename}')
-
-            # Load the sprite from file
-            loaded_sprite = self._load_sprite_from_file(filename)
-
-            # Set the loaded sprite as the current animated sprite. A pan gesture of the
-            # previous sprite must not carry over: its frames are gone.
-            self.animated_sprite = loaded_sprite
-            self.end_panning()
-
-            # Check if canvas needs resizing and resize if necessary
-            self._check_and_resize_canvas(loaded_sprite)
-
-            # Set up animation state
-            self._setup_animation_state(loaded_sprite)
-
-            # Update UI components
-            self._update_ui_components(loaded_sprite)
-
-            # Finalize the loading process
-            self._finalize_sprite_loading(loaded_sprite, filename)
-
+            self._load_file_into_canvas(event)
         except FileNotFoundError as e:
             self.log.exception('File not found')
             # Show user-friendly error message instead of crashing
@@ -1332,6 +1332,36 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             self.log.exception(f'Traceback: {traceback.format_exc()}')
             # Show user-friendly error message instead of crashing
             self._show_load_message(f'Error loading sprite: {e}')
+
+    def _load_file_into_canvas(self, event: events.HashableEvent | str) -> None:
+        """Load a sprite file and make it the canvas's animated sprite.
+
+        Args:
+            event: The load event (its ``text`` is the filename), or the filename itself.
+
+        """
+        filename = event if isinstance(event, str) else event.text
+        LOG.debug(f'DEBUG: Loading sprite from filename: {filename}')
+
+        # Load the sprite from file
+        loaded_sprite = self._load_sprite_from_file(filename)
+
+        # Set the loaded sprite as the current animated sprite. A pan gesture of the
+        # previous sprite must not carry over: its frames are gone.
+        self.animated_sprite = loaded_sprite
+        self.end_panning()
+
+        # Check if canvas needs resizing and resize if necessary
+        self._check_and_resize_canvas(loaded_sprite)
+
+        # Set up animation state
+        self._setup_animation_state(loaded_sprite)
+
+        # Update UI components
+        self._update_ui_components(loaded_sprite)
+
+        # Finalize the loading process
+        self._finalize_sprite_loading(loaded_sprite, filename)
 
     def _show_load_message(self, message: str) -> None:
         """Show a load message in the editor's debug text box, where a successful load reports.

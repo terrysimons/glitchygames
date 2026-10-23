@@ -20,12 +20,13 @@ exactly.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Protocol, Self, cast
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast, overload
 
 if TYPE_CHECKING:
     from glitchygames.scenes import Scene
+    from glitchygames.tracing import JsonValue
 
 BREAKPOINT_KIND = 'breakpoint'
 PLAYBACK_KIND = 'playback'
@@ -56,7 +57,26 @@ class Supervisor(Protocol):
         ...
 
 
-def frozen_json_value(value: Any) -> Any:
+# A JSON value made read-only by frozen_json_value: mappings are read-only, lists are tuples
+type FrozenJsonValue = (
+    str | int | float | bool | tuple[FrozenJsonValue, ...] | Mapping[str, FrozenJsonValue] | None
+)
+# What frozen_json_value and thawed_json_value take: a plain or a frozen JSON value (the covariant
+# Sequence and Mapping make both JsonValue and FrozenJsonValue members)
+type JsonShapedValue = (
+    str | int | float | bool | Sequence[JsonShapedValue] | Mapping[str, JsonShapedValue] | None
+)
+
+
+@overload
+def frozen_json_value(value: Mapping[str, JsonShapedValue]) -> Mapping[str, FrozenJsonValue]: ...
+
+
+@overload
+def frozen_json_value(value: JsonShapedValue) -> FrozenJsonValue: ...
+
+
+def frozen_json_value(value: object) -> object:
     """Return a read-only copy of JSON-shaped ``value``: mappings and lists, recursively.
 
     Used for control event data and ghost appearances (glitchygames/replay/ghosts.py).
@@ -66,15 +86,23 @@ def frozen_json_value(value: Any) -> Any:
 
     """
     if isinstance(value, Mapping):
-        mapping = cast('Mapping[Any, Any]', value)
+        mapping = cast('Mapping[str, JsonShapedValue]', value)
         return MappingProxyType({key: frozen_json_value(item) for key, item in mapping.items()})
     if isinstance(value, list | tuple):
-        items = cast('list[Any] | tuple[Any, ...]', value)
+        items = cast('list[JsonShapedValue] | tuple[JsonShapedValue, ...]', value)
         return tuple(frozen_json_value(item) for item in items)
     return value
 
 
-def thawed_json_value(value: Any) -> Any:
+@overload
+def thawed_json_value(value: Mapping[str, JsonShapedValue]) -> dict[str, JsonValue]: ...
+
+
+@overload
+def thawed_json_value(value: JsonShapedValue) -> JsonValue: ...
+
+
+def thawed_json_value(value: object) -> object:
     """Return plain JSON types for a value made by ``frozen_json_value`` (dicts and lists).
 
     Returns:
@@ -82,10 +110,11 @@ def thawed_json_value(value: Any) -> Any:
 
     """
     if isinstance(value, Mapping):
-        mapping = cast('Mapping[Any, Any]', value)
+        mapping = cast('Mapping[str, JsonShapedValue]', value)
         return {key: thawed_json_value(item) for key, item in mapping.items()}
     if isinstance(value, list | tuple):
-        return [thawed_json_value(item) for item in cast('list[Any] | tuple[Any, ...]', value)]
+        items = cast('list[JsonShapedValue] | tuple[JsonShapedValue, ...]', value)
+        return [thawed_json_value(item) for item in items]
     return value
 
 

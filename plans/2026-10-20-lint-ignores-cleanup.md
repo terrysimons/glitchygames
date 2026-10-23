@@ -7,11 +7,11 @@
   shared with basedpyright, which reads only `# pyright:`/`# type:` comments; ty now reports
   nothing). Phase 2: `S311` moved to per-file ignores for `glitchygames/randomness.py` and
   `tests/**`; the 34 measured sites were all in those two places, so no engine code changed.
-  Phase 3 in progress (go-ahead 2026-10-21): the 36 sites outside Bitmappy are narrowed (engine
-  `start()` and the thread/HTTP boundaries keep their broad catch around one helper call; the
-  dead `StopIteration` guards in `pixels/pixel.py` removed); Bitmappy's 62 (`glitchygames/bitmappy/`,
-  `sprites/bitmappy_sprite.py`, `tests/tools/`) remain, then the ignore goes. Phases 4-5 still
-  need the user's go-ahead (standing rule for lint configuration changes).
+  Phase 3 done 2026-10-22: the 36 sites outside Bitmappy narrowed on 2026-10-21, the last 60 in
+  Bitmappy on 2026-10-22, and the `PLW0717` ignore removed (BUGS.md #19 resolved; the bugs it
+  found are #175, fixed, and #176-#178). Phase 4 in progress (the user's go-ahead 2026-10-22, as
+  part of the post-replay cleanup): 128 of 152 sites typed; the 24 left are listed under Phase 4.
+  Phase 5: the user chose to convert all of them (2026-10-22); measurements under Phase 5.
 - **Why:** several global ignores in `pyproject.toml` are dead, mislabelled or broader than needed,
   and some suppression comments no longer suppress anything. Tightening them makes the linters catch
   real problems again (broad try blocks hide bugs; a stray `random` call would break replay
@@ -85,11 +85,42 @@
 3. Do it area by area; remove the global ignore when the remaining sites are covered by per-file
    ignores with reasons.
 
+Progress (2026-10-22): 128 of 152 typed. New shared types: `tracing.JsonValue` (recursive JSON
+alias, reused by `recording.py`), `supervision.FrozenJsonValue`/`JsonShapedValue`,
+`input.devices.OpenedJoystick`/`OpenedController` (live or replay device), the collision
+`RectSprite`/`WorldRectSprite` Protocols, `debug.protocols.InspectedScene`, a generic
+`Tween[TargetT]`, minimal Protocols for the untyped aisuite client (`services/` and
+`bitmappy/ai_worker.py`). Left, each waiting on a decision:
+- `examples/joystick_demo.py` (12): the demo picks joystick or controller with an `input_mode`
+  string. The user chose (2026-10-22) to plan one `InputDevice` per physical device first (an
+  instance id with a joystick layer and, when SDL maps it, a controller layer), since joysticks
+  and controllers are meant to run together; the demo then lists every device with no mode.
+- `events/base.py` `HashableEvent.__getattr__` (1): the event attribute bag (pygame's own is
+  `Any`; `object` gave 292 caller errors). Keeps `Any` with a per-file ignore and its reason
+  until typed per-family event subclasses exist (to be planned; basedpyright does not let
+  `__getattr__` satisfy a Protocol, so typed views must be classes).
+- Bitmappy (11): 4 in `history/commands.py` and 3 in `ai_worker.py` reach protected members
+  (`AnimatedSprite._animations`, `FilmStripWidget._calculate_layout`, aisuite's
+  `client._providers`); typed, every access is a `reportPrivateUsage` error, so they need public
+  APIs (and test stand-ins that set them). 4 in `history/operations.py`: the trackers' `editor`
+  defaults to `None`; either the editor becomes required or the commands accept `None`.
+
 ## Phase 5 — `G004`: decide (optional)
 
 1,123 f-strings in logging calls. Lazy `%` formatting avoids building messages for disabled log
 levels, but the gain is small and the churn large. Measure the cost on a hot path (e.g. per-frame
 debug logging) first; convert only hot paths, or the whole codebase if the user wants consistency.
+
+Measured 2026-10-22 (1,099 sites): a disabled `log.debug(f'...')` costs 106-713 ns against 61-88 ns
+lazy (two plain values ~200 vs 63 ns; PaddleSlap's six-float ball message 713 vs 88 ns; Bitmappy's
+mouse-drag message, which formats two events and the sprite, 1.8 us vs 75 ns). Disabled calls made
+inside frames (counted by wrapping `logging.Logger`'s methods over each golden replay, and over 600
+Bitmappy frames of mouse motion and drags): Bitmappy 27.2 per frame (~26 us saved per frame, 0.16%
+of a 60 FPS frame; 20 us of it the drag message), PaddleSlap 9.3 (~5.5 us), Brave Adventurer
+Papyrus 9.3 (~0.5 us), Brave Adventurer and Clockwork Keep ~0. Enabled calls (0.2-0.3 per frame)
+save nothing. Lazy formatting still evaluates the arguments; only removing a per-frame debug line
+or guarding it with `isEnabledFor` saves that. Decision (the user, 2026-10-22): convert all of
+them, then remove the ignore.
 
 ## Order and dependencies
 

@@ -224,6 +224,29 @@ class TestQueryModelCapabilities:
             'max_tokens': None,
         }
 
+    def test_message_without_content_has_unknown_max_tokens(self):
+        """A choice whose message has no content (aisuite's Message.content is None) is no answer.
+
+        It used to reach _parse_capabilities_response, which raised AttributeError on None.
+        """
+        completions = FakeCompletions(response=_response_with_content(None))
+
+        assert ai_worker._query_model_capabilities(LOG, _client_with(completions)) == {
+            'max_tokens': None,
+        }
+
+
+class TestParseCapabilitiesResponse:
+    """Test ai_worker._parse_capabilities_response's unparseable answers."""
+
+    @pytest.mark.parametrize('content', ['65536,8192,1', 'lots,8192', '8192,', ''])
+    def test_anything_but_one_or_two_numbers_cannot_be_parsed(self, content):
+        """Three numbers, a word or an empty part give no max tokens and keep the answer."""
+        assert ai_worker._parse_capabilities_response(LOG, content) == {
+            'max_tokens': None,
+            'raw_response': content,
+        }
+
 
 class TestGetModelCapabilities:
     """Test _get_model_capabilities."""
@@ -536,6 +559,39 @@ class TestRunAiWorker:
 
         ai_worker.run_ai_worker(FailingOnceQueue(), response_queue)  # type: ignore[arg-type]
 
+        assert response_queue.empty()
+
+    def test_queue_error_after_a_request_does_not_answer_it_again(self, mocker):
+        """A failed read after an answered request sends that request nothing more.
+
+        The request read before the failure used to be answered a second time, with the
+        queue's error.
+        """
+        mocker.patch.object(ai_worker, '_initialize_ai_client', return_value=None)
+
+        class FailingSecondReadQueue:
+            """A request queue that gives one request, fails once, then asks for shutdown."""
+
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def get(self) -> AIRequest | None:
+                self.reads += 1
+                if self.reads == 1:
+                    return _request('first')
+                if self.reads == 2:
+                    msg = 'queue broken'
+                    raise OSError(msg)
+                return None
+
+        response_queue: queue.Queue = queue.Queue()
+
+        ai_worker.run_ai_worker(FailingSecondReadQueue(), response_queue)  # type: ignore[arg-type]
+
+        assert response_queue.get_nowait() == (
+            'first',
+            AIResponse(content='AI features not available'),
+        )
         assert response_queue.empty()
 
     def test_client_initialization_failure_is_fatal(self, mocker):

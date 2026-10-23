@@ -93,6 +93,10 @@ if TYPE_CHECKING:
 
 LOG = logging.getLogger(__name__)
 
+# A JSON value as json.loads returns it and json.dumps accepts it: the data traces hold
+# (also the type of recording.py's JSON-safe event values and supervision.py's control data)
+type JsonValue = str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None
+
 TRACE_FORMAT_VERSION = 3
 # Versions this reader decodes: version 3 only adds frame and header fields a recording uses
 # (glitchygames/recording.py), so a version 2 file decodes exactly as before
@@ -268,7 +272,7 @@ def _same_json_value(first: object, second: object) -> bool:
     return first == second
 
 
-def _copy_json(value: Any) -> Any:
+def _copy_json[JsonT: JsonValue](value: JsonT) -> JsonT:
     """Copy a JSON value (lists and dicts are copied at every level; scalars are immutable).
 
     Much faster than ``copy.deepcopy`` for the plain JSON data traces hold.
@@ -281,9 +285,9 @@ def _copy_json(value: Any) -> Any:
 
     """
     if isinstance(value, list):
-        return [_copy_json(item) for item in cast('list[Any]', value)]
+        return cast('JsonT', [_copy_json(item) for item in value])
     if isinstance(value, dict):
-        return {key: _copy_json(item) for key, item in cast('dict[str, Any]', value).items()}
+        return cast('JsonT', {key: _copy_json(item) for key, item in value.items()})
     return value
 
 

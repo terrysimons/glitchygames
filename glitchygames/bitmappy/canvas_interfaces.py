@@ -19,6 +19,8 @@ from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
 if TYPE_CHECKING:
+    from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
+    from glitchygames.bitmappy.protocols import EditorContext
     from glitchygames.sprites import BitmappySprite
     from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
@@ -145,11 +147,24 @@ class CanvasRenderer(ABC):
         """
 
 
+class PixelCanvasSprite(Protocol):
+    """The canvas sprite StaticCanvasInterface edits (AnimatedCanvasSprite satisfies it)."""
+
+    pixels: list[tuple[int, ...]]
+    dirty_pixels: list[bool]
+    dirty: int
+    pixels_across: int
+    pixels_tall: int
+    image: pygame.Surface
+
+
 class StaticCanvasInterface:
     """Canvas interface implementation for static BitmappySprites."""
 
-    def __init__(self, canvas_sprite: Any) -> None:
+    def __init__(self, canvas_sprite: PixelCanvasSprite) -> None:
         """Initialize with a CanvasSprite instance."""
+        # Stays Any: typed, the sprite's pixels (tuple[int, ...]) do not match the RGBA
+        # tuples get_pixel_data promises.
         self.canvas_sprite: Any = canvas_sprite
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
@@ -243,8 +258,10 @@ class StaticSpriteSerializer(SpriteSerializer):
 class AnimatedCanvasInterface:
     """Canvas interface implementation for animated sprites."""
 
-    def __init__(self, canvas_sprite: Any) -> None:
+    def __init__(self, canvas_sprite: AnimatedCanvasSprite) -> None:
         """Initialize with a CanvasSprite instance."""
+        # Stays Any: typed, it exposes mismatches that need fixes of their own (a
+        # MockPixelEvent passed as a HashableEvent, the scene's missing controller_drags).
         self.canvas_sprite: Any = canvas_sprite
         # Set initial animation using sprite introspection
         if hasattr(canvas_sprite, 'animated_sprite') and canvas_sprite.animated_sprite:
@@ -617,8 +634,10 @@ class AnimatedSpriteSerializer(SpriteSerializer):
 class AnimatedCanvasRenderer(CanvasRenderer):
     """Renderer for animated sprites."""
 
-    def __init__(self, canvas_sprite: Any) -> None:
+    def __init__(self, canvas_sprite: AnimatedCanvasSprite) -> None:
         """Initialize with a CanvasSprite instance."""
+        # Stays Any: typed, the sprite's pixels (tuple[int, ...]) do not match the RGB/RGBA
+        # tuples the redraw helpers take.
         self.canvas_sprite: Any = canvas_sprite
 
     @override
@@ -1053,7 +1072,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         """
         return (self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
 
-    def _get_controller_scene(self) -> Any | None:
+    def _get_controller_scene(self) -> EditorContext | None:
         """Get the parent scene if it has controller support.
 
         Returns:

@@ -155,7 +155,9 @@ class TestBallSpriteColor:
         """A new ball draws a white radius-5 circle; the rest of its image is the colorkey."""
         ball = BallSprite()
 
-        assert ball.image.get_colorkey()[:3] == (0, 0, 0)
+        colorkey = ball.image.get_colorkey()
+        assert colorkey is not None
+        assert colorkey[:3] == (0, 0, 0)
         assert tuple(ball.image.get_at((10, 10)))[:3] == (255, 255, 255)
         assert ball.image.get_bounding_rect() == pygame.Rect(5, 5, 10, 10)
 

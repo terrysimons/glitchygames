@@ -53,7 +53,10 @@ class InitializationTestGame(Scene):
 def assert_active_cursor(cursor: list[str], *, black: str, white: str, xor: str) -> None:
     """Assert the display's cursor is ``cursor`` compiled with these characters, hotspot 0,0."""
     cursor_data, cursor_mask = pygame.cursors.compile(cursor, black=black, white=white, xor=xor)
-    size, hotspot, active_data, active_mask = pygame.mouse.get_cursor().data
+    cursor_parts = pygame.mouse.get_cursor().data
+    # A bitmap cursor's data is (size, hotspot, xormasks, andmasks)
+    assert len(cursor_parts) == 4
+    size, hotspot, active_data, active_mask = cursor_parts
     assert size == (len(cursor[0]), len(cursor))
     assert hotspot == (0, 0)
     assert active_data == tuple(cursor_data)

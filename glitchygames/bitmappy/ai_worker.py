@@ -7,11 +7,14 @@ and selecting training examples.
 
 from __future__ import annotations
 
+import inspect
+import json
 import logging
 import operator
 import signal
+import urllib.request
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from glitchygames.ai import get_sprite_size_hint
 from glitchygames.clock import measured_seconds
@@ -47,7 +50,70 @@ import tenacity
 
 if TYPE_CHECKING:
     import multiprocessing
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+
+
+# aisuite ships no type information, so these protocols name exactly what this module calls
+# on its client (aisuite.Client) and reads from its responses (ChatCompletionResponse).
+
+
+class AIChatMessage(Protocol):
+    """A response choice's message (aisuite.framework.message.Message)."""
+
+    @property
+    def content(self) -> str | None:
+        """The message text, or None when the model returned none."""
+        ...
+
+
+class AIChatChoice(Protocol):
+    """One choice of a chat completion (aisuite.framework.choice.Choice)."""
+
+    @property
+    def message(self) -> AIChatMessage:
+        """The choice's message."""
+        ...
+
+
+class AIChatCompletion(Protocol):
+    """A chat completion response (aisuite.framework.ChatCompletionResponse)."""
+
+    @property
+    def choices(self) -> Sequence[AIChatChoice]:
+        """The response's choices."""
+        ...
+
+
+class AIChatCompletions(Protocol):
+    """The chat completions endpoint (``client.chat.completions``)."""
+
+    def create(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, str]],
+        **arguments: object,
+    ) -> AIChatCompletion:
+        """Send the messages to the model and return its completion."""
+        ...
+
+
+class AIChat(Protocol):
+    """The chat API (``client.chat``)."""
+
+    @property
+    def completions(self) -> AIChatCompletions:
+        """The chat completions endpoint."""
+        ...
+
+
+class AIClient(Protocol):
+    """The AI client (aisuite.Client): the chat completions API is all this module uses."""
+
+    @property
+    def chat(self) -> AIChat:
+        """The chat API."""
+        ...
 
 
 def _setup_ai_worker_logging() -> logging.Logger:
@@ -228,7 +294,7 @@ def _configure_provider_client_timeout(
                 log.info('Set %s for %s provider (was: %s)', attr_name, provider_name, old_timeout)
 
 
-def _configure_client_timeouts(log: logging.Logger, client: Any) -> None:
+def _configure_client_timeouts(log: logging.Logger, client: AIClient) -> None:
     """Configure timeouts on all providers in the AI client.
 
     Args:
@@ -236,35 +302,48 @@ def _configure_client_timeouts(log: logging.Logger, client: Any) -> None:
         client: The AI client.
 
     """
+    # The providers are third-party objects whose attributes may raise anything: failing to
+    # set a timeout must never stop the client from being used, so the catch stays broad
     try:
-        log.debug(f'Client type: {type(client)}')
-        log.debug(f'Client attributes: {dir(client)}')
-
-        if not hasattr(client, '_providers'):
-            log.warning('Client does not have _providers attribute')
-            log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
-            return
-
-        timeout_value = _get_provider_timeout_value(log)
-        log.debug(f'Found {len(client._providers)} providers')
-
-        for provider_name, provider in client._providers.items():
-            log.debug(f'Provider {provider_name}: {type(provider)}')
-            log.debug(f'Provider attributes: {dir(provider)}')
-            _configure_provider_client_timeout(log, provider_name, provider, timeout_value)
-
-        log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
+        _apply_client_timeouts(log, client)
     except Exception as e:
         log.warning('Could not configure timeout: %s', e)
         log.exception('Timeout configuration error details')
         log.info('AI client initialized with default timeout')
 
 
-def _initialize_ai_client(log: logging.Logger) -> Any:
+def _apply_client_timeouts(log: logging.Logger, client: Any) -> None:
+    """Set the timeout on every provider in the AI client (_configure_client_timeouts's body).
+
+    Args:
+        log: Logger instance.
+        client: The AI client.
+
+    """
+    log.debug(f'Client type: {type(client)}')
+    log.debug(f'Client attributes: {dir(client)}')
+
+    if not hasattr(client, '_providers'):
+        log.warning('Client does not have _providers attribute')
+        log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
+        return
+
+    timeout_value = _get_provider_timeout_value(log)
+    log.debug(f'Found {len(client._providers)} providers')
+
+    for provider_name, provider in client._providers.items():
+        log.debug(f'Provider {provider_name}: {type(provider)}')
+        log.debug(f'Provider attributes: {dir(provider)}')
+        _configure_provider_client_timeout(log, provider_name, provider, timeout_value)
+
+    log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
+
+
+def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
     """Initialize AI client.
 
     Returns:
-        object: The result.
+        The AI client, or None when aisuite is not available.
 
     """
     if ai is None:
@@ -308,33 +387,45 @@ def _check_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
     if not AI_MODEL.startswith('ollama:'):
         return {'downloaded': True, 'reason': 'not_ollama'}
 
+    # The local ollama server may be down or answer with anything: every failure of the
+    # query (connection, HTTP read, JSON) means the status is unknown
     try:
-        import json
-        import urllib.request
-
-        # Extract model name from ollama:model_name format
-        model_name = AI_MODEL.split(':', 1)[1]
-
-        # Check if model exists locally
-        request = urllib.request.Request('http://localhost:11434/api/tags')
-        # URL is constructed from hardcoded http://localhost for local ollama API only
-        with urllib.request.urlopen(request, timeout=10) as response:  # ruff: ignore[suspicious-url-open-usage] # nosec B310 -- hardcoded http://localhost URL
-            if response.status == HTTPStatus.OK:
-                data = json.loads(response.read().decode())
-                models = data.get('models', [])
-                for model in models:
-                    if model_name in model.get('name', ''):
-                        log.info('Model %s is already downloaded', model_name)
-                        return {'downloaded': True, 'reason': 'already_downloaded'}
-
-                log.info('Model %s needs to be downloaded', model_name)
-                return {'downloaded': False, 'reason': 'needs_download'}
-            log.warning(f'Could not check model status: HTTP {response.status}')
-            return {'downloaded': False, 'reason': 'api_error'}
-
+        return _query_ollama_model_status(log)
     except (OSError, ValueError, KeyError) as e:
         log.warning('Could not check ollama model status: %s', e)
         return {'downloaded': False, 'reason': 'check_failed'}
+
+
+def _query_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
+    """Ask the local ollama server whether AI_MODEL is downloaded (_check_ollama_model_status).
+
+    Args:
+        log: Logger instance.
+
+    Returns:
+        The status: whether the model is downloaded, and why.
+
+    """
+    # Extract model name from ollama:model_name format
+    model_name = AI_MODEL.split(':', 1)[1]
+
+    # Check if model exists locally
+    request = urllib.request.Request('http://localhost:11434/api/tags')
+    # URL is constructed from hardcoded http://localhost for local ollama API only
+    with urllib.request.urlopen(request, timeout=10) as response:  # ruff: ignore[suspicious-url-open-usage] # nosec B310 -- hardcoded http://localhost URL
+        if response.status != HTTPStatus.OK:
+            log.warning(f'Could not check model status: HTTP {response.status}')
+            return {'downloaded': False, 'reason': 'api_error'}
+        data = json.loads(response.read().decode())
+
+    models = data.get('models', [])
+    for model in models:
+        if model_name in model.get('name', ''):
+            log.info('Model %s is already downloaded', model_name)
+            return {'downloaded': True, 'reason': 'already_downloaded'}
+
+    log.info('Model %s needs to be downloaded', model_name)
+    return {'downloaded': False, 'reason': 'needs_download'}
 
 
 def _log_capabilities_dump(log: logging.Logger, **fields: object) -> None:
@@ -365,44 +456,45 @@ def _parse_capabilities_response(log: logging.Logger, content: str) -> dict[str,
         Dictionary of capabilities.
 
     """
+    # Either "context_size,output_limit" or a single max token count; anything else (a part
+    # that is not a number, more parts) cannot be parsed
     try:
-        # Try to parse comma-separated values first
-        if ',' in content.strip():
-            parts = content.strip().split(',')
-            if len(parts) == AI_CAPABILITY_RESPONSE_FIELD_COUNT:
-                context_size = int(parts[0].strip())
-                output_limit = int(parts[1].strip())
-                log.info('Detected context size: %s, output limit: %s', context_size, output_limit)
-                _log_capabilities_dump(
-                    log,
-                    **{
-                        'Context Size': context_size,
-                        'Max Output Tokens': output_limit,
-                        'Model Response': content,
-                    },
-                )
-                return {
-                    'max_tokens': output_limit,
-                    'context_size': context_size,
-                    'output_limit': output_limit,
-                }
-
-        # Fallback to single number parsing
-        max_tokens = int(content.strip())
-        log.info('Detected max tokens: %s', max_tokens)
-        _log_capabilities_dump(log, **{'Max Output Tokens': max_tokens, 'Model Response': content})
+        numbers = [int(part.strip()) for part in content.strip().split(',')]
     except ValueError:
-        log.warning('Could not parse max tokens from response: %s', content)
+        numbers = []
+
+    if len(numbers) == AI_CAPABILITY_RESPONSE_FIELD_COUNT:
+        context_size, output_limit = numbers
+        log.info('Detected context size: %s, output limit: %s', context_size, output_limit)
         _log_capabilities_dump(
             log,
-            **{'Max Output Tokens': 'Could not parse', 'Model Response': content},
+            **{
+                'Context Size': context_size,
+                'Max Output Tokens': output_limit,
+                'Model Response': content,
+            },
         )
-        return {'max_tokens': None, 'raw_response': content}
-    else:
+        return {
+            'max_tokens': output_limit,
+            'context_size': context_size,
+            'output_limit': output_limit,
+        }
+
+    if len(numbers) == 1:
+        [max_tokens] = numbers
+        log.info('Detected max tokens: %s', max_tokens)
+        _log_capabilities_dump(log, **{'Max Output Tokens': max_tokens, 'Model Response': content})
         return {'max_tokens': max_tokens}
 
+    log.warning('Could not parse max tokens from response: %s', content)
+    _log_capabilities_dump(
+        log,
+        **{'Max Output Tokens': 'Could not parse', 'Model Response': content},
+    )
+    return {'max_tokens': None, 'raw_response': content}
 
-def _query_model_capabilities(log: logging.Logger, client: Any) -> dict[str, Any]:
+
+def _query_model_capabilities(log: logging.Logger, client: AIClient) -> dict[str, Any]:
     """Send a test request to query model capabilities.
 
     Args:
@@ -444,7 +536,9 @@ def _query_model_capabilities(log: logging.Logger, client: Any) -> dict[str, Any
     if hasattr(response, 'choices') and response.choices:
         content = response.choices[0].message.content
         log.info('Model response about capabilities: %s', content)
-        return _parse_capabilities_response(log, content)
+        # A message with no content (None) is no answer, like a response with no choices
+        if content is not None:
+            return _parse_capabilities_response(log, content)
 
     _log_capabilities_dump(log, **{'Max Tokens': 'Unknown (no response)'})
     return {'max_tokens': None}
@@ -457,19 +551,21 @@ def _get_model_capabilities(log: logging.Logger) -> dict[str, Any]:  # type: ign
         dict: The model capabilities.
 
     """
+    # _check_ollama_model_status reports its own failures (OSError, ValueError, KeyError) as
+    # a status, so only the client and the query below can raise
+    model_status = _check_ollama_model_status(log)
+
+    if not model_status['downloaded']:
+        log.info(f'Model needs to be downloaded: {model_status["reason"]}')
+        log.info(f'\n{"=" * 60}')
+        log.info('MODEL DOWNLOAD DETECTED')
+        log.info('=' * 60)
+        log.info('Model: %s', AI_MODEL)
+        log.info('Status: Model needs to be downloaded')
+        log.info('This may take several minutes depending on model size...')
+        log.info(f'{"=" * 60}\n')
+
     try:
-        model_status = _check_ollama_model_status(log)
-
-        if not model_status['downloaded']:
-            log.info(f'Model needs to be downloaded: {model_status["reason"]}')
-            log.info(f'\n{"=" * 60}')
-            log.info('MODEL DOWNLOAD DETECTED')
-            log.info('=' * 60)
-            log.info('Model: %s', AI_MODEL)
-            log.info('Status: Model needs to be downloaded')
-            log.info('This may take several minutes depending on model size...')
-            log.info(f'{"=" * 60}\n')
-
         client = _initialize_ai_client(log)
 
         if client is None:
@@ -564,11 +660,15 @@ def _create_ai_retry_decorator(
     )
 
 
-def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> Any:
+def _make_ai_api_call(
+    request: AIRequest,
+    client: AIClient,
+    log: logging.Logger,
+) -> AIChatCompletion:
     """Make the actual API call to the AI service.
 
     Returns:
-        object: The result.
+        The model's chat completion.
 
     """
     log.info('Making API call to AI service...')
@@ -579,43 +679,11 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
 
     start_time = measured_seconds()
 
+    # Only logs the failure (with its duration) and re-raises it: the retry decorator and
+    # _process_ai_request decide what happens to any provider SDK error
     try:
-        # Try to pass timeout parameters directly to the API call
-        api_kwargs = {
-            'model': AI_MODEL,
-            'messages': request.messages,
-            'max_tokens': AI_MAX_OUTPUT_TOKENS,  # Use OUTPUT token limit for AI response
-        }
-
-        # Add timeout parameters if the client supports them
-        if hasattr(client.chat.completions, 'create'):
-            # Check if the create method accepts timeout parameters
-            import inspect
-
-            sig = inspect.signature(client.chat.completions.create)
-
-            # Try multiple timeout parameter names
-            timeout_params = ['timeout', 'request_timeout', 'client_timeout', 'api_timeout']
-            timeout_added = False
-
-            for param_name in timeout_params:
-                if param_name in sig.parameters:
-                    # Use longer timeout for ollama models
-                    timeout_value = (
-                        AI_MODEL_DOWNLOAD_TIMEOUT if AI_MODEL.startswith('ollama:') else AI_TIMEOUT
-                    )
-                    api_kwargs[param_name] = timeout_value
-                    log.debug('Added %s=%s to API call', param_name, timeout_value)
-                    timeout_added = True
-                    break
-
-            if not timeout_added:
-                log.warning('No timeout parameter found in API call signature')
-                log.debug(f'Available parameters: {list(sig.parameters.keys())}')
-
-        # Diagnostics (the whole request, prompt included), not an event of any severity
-        log.debug('API call kwargs: %s', api_kwargs)
-        response = client.chat.completions.create(**api_kwargs)
+        api_arguments = _build_ai_api_arguments(request=request, client=client, log=log)
+        response = client.chat.completions.create(**api_arguments)
     except Exception:
         end_time = measured_seconds()
         duration = end_time - start_time
@@ -630,7 +698,64 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
     return response
 
 
-def _process_ai_request(request: AIRequest, client: Any, log: logging.Logger) -> AIResponse:
+def _build_ai_api_arguments(
+    *,
+    request: AIRequest,
+    client: AIClient,
+    log: logging.Logger,
+) -> dict[str, Any]:
+    """Build the keyword arguments of the API call, with a timeout if the client takes one.
+
+    Args:
+        request: The AI request.
+        client: The AI client.
+        log: Logger instance.
+
+    Returns:
+        The keyword arguments for ``client.chat.completions.create``.
+
+    """
+    # Try to pass timeout parameters directly to the API call
+    api_kwargs: dict[str, Any] = {
+        'model': AI_MODEL,
+        'messages': request.messages,
+        'max_tokens': AI_MAX_OUTPUT_TOKENS,  # Use OUTPUT token limit for AI response
+    }
+
+    # Add timeout parameters if the client supports them
+    if hasattr(client.chat.completions, 'create'):
+        # Check if the create method accepts timeout parameters
+        signature = inspect.signature(client.chat.completions.create)
+
+        # Try multiple timeout parameter names
+        timeout_params = ['timeout', 'request_timeout', 'client_timeout', 'api_timeout']
+        timeout_added = False
+
+        for param_name in timeout_params:
+            if param_name in signature.parameters:
+                # Use longer timeout for ollama models
+                timeout_value = (
+                    AI_MODEL_DOWNLOAD_TIMEOUT if AI_MODEL.startswith('ollama:') else AI_TIMEOUT
+                )
+                api_kwargs[param_name] = timeout_value
+                log.debug('Added %s=%s to API call', param_name, timeout_value)
+                timeout_added = True
+                break
+
+        if not timeout_added:
+            log.warning('No timeout parameter found in API call signature')
+            log.debug(f'Available parameters: {list(signature.parameters.keys())}')
+
+    # Diagnostics (the whole request, prompt included), not an event of any severity
+    log.debug('API call kwargs: %s', api_kwargs)
+    return api_kwargs
+
+
+def _process_ai_request(
+    request: AIRequest,
+    client: AIClient | None,
+    log: logging.Logger,
+) -> AIResponse:
     """Process a single AI request with retry logic.
 
     Returns:
@@ -938,6 +1063,83 @@ def run_ai_worker_process(
     run_ai_worker(request_queue, response_queue)
 
 
+def _serve_ai_requests(
+    *,
+    request_queue: multiprocessing.Queue[AIRequest | None],
+    response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
+    client: AIClient | None,
+    log: logging.Logger,
+) -> None:
+    """Answer requests until the shutdown message (None) arrives.
+
+    A request that fails with ValueError, KeyError, AttributeError or OSError is answered
+    with an error response and the worker goes on; any other error ends the worker.
+
+    Args:
+        request_queue: Queue to receive requests from
+        response_queue: Queue to send responses to
+        client: The AI client, or None when AI is unavailable.
+        log: Logger instance.
+
+    """
+    request_count = 0
+    while True:
+        # Reset every time: a failed get must not answer the previous request a second time
+        request = None
+        try:
+            request = request_queue.get()
+            request_count += 1
+            keep_serving = _answer_ai_request(
+                request=request,
+                request_number=request_count,
+                response_queue=response_queue,
+                client=client,
+                log=log,
+            )
+        except (ValueError, KeyError, AttributeError, OSError) as e:
+            log.exception('Error processing AI request')
+            if request:
+                response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
+            continue
+
+        if not keep_serving:
+            break
+
+
+def _answer_ai_request(
+    *,
+    request: AIRequest | None,
+    request_number: int,
+    response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
+    client: AIClient | None,
+    log: logging.Logger,
+) -> bool:
+    """Process one request and send its response.
+
+    Args:
+        request: The request, or None (the shutdown message).
+        request_number: How many messages the worker has received, this one included.
+        response_queue: Queue to send the response to.
+        client: The AI client, or None when AI is unavailable.
+        log: Logger instance.
+
+    Returns:
+        False for the shutdown message, True once a request is answered.
+
+    """
+    log.info('Processing AI request #%s', request_number)
+
+    if request is None:  # Shutdown signal
+        log.info('Received shutdown signal, closing AI worker')
+        return False
+
+    ai_response = _process_ai_request(request, client, log)
+    response_data = (request.request_id, ai_response)
+    response_queue.put(response_data)
+    log.info('Response sent successfully')
+    return True
+
+
 def run_ai_worker(
     request_queue: multiprocessing.Queue[AIRequest | None],
     response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
@@ -960,28 +1162,12 @@ def run_ai_worker(
 
     try:
         client = _initialize_ai_client(log)
-        request_count = 0
-
-        request = None
-        while True:
-            try:
-                request = request_queue.get()
-                request_count += 1
-                log.info('Processing AI request #%s', request_count)
-
-                if request is None:  # Shutdown signal
-                    log.info('Received shutdown signal, closing AI worker')
-                    break
-
-                ai_response = _process_ai_request(request, client, log)
-                response_data = (request.request_id, ai_response)
-                response_queue.put(response_data)
-                log.info('Response sent successfully')
-
-            except (ValueError, KeyError, AttributeError, OSError) as e:
-                log.exception('Error processing AI request')
-                if request:
-                    response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
+        _serve_ai_requests(
+            request_queue=request_queue,
+            response_queue=response_queue,
+            client=client,
+            log=log,
+        )
     except ImportError:
         log.exception('Failed to import aisuite')
         raise

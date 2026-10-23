@@ -359,22 +359,40 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         """
         try:
-            pixel_data = frame.get_pixel_data()
-            if not pixel_data:
-                return
-
-            width, height = frame.get_size()
-            surface = pygame.Surface((width, height), pygame.SRCALPHA)
-
-            for i, color in enumerate(pixel_data):
-                if i < width * height:
-                    surface.set_at((i % width, i // width), color)
-
-            frame.image = surface
-            LOG.debug(f'DEBUG: Created image for frame {frame_idx} from pixel data')
-
+            surface = self._surface_from_frame_pixel_data(frame)
         except pygame.error, AttributeError, TypeError, ValueError, IndexError:
             LOG.exception(f'DEBUG: Failed to create image for frame {frame_idx}')
+            return
+
+        if surface is None:
+            return
+
+        frame.image = surface
+        LOG.debug(f'DEBUG: Created image for frame {frame_idx} from pixel data')
+
+    @staticmethod
+    def _surface_from_frame_pixel_data(frame: SpriteFrame) -> pygame.Surface | None:
+        """Paint a frame's pixel data onto a new surface of the frame's size.
+
+        Args:
+            frame: The sprite frame object.
+
+        Returns:
+            The painted surface, or None when the frame has no pixel data.
+
+        """
+        pixel_data = frame.get_pixel_data()
+        if not pixel_data:
+            return None
+
+        width, height = frame.get_size()
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+        for i, color in enumerate(pixel_data):
+            if i < width * height:
+                surface.set_at((i % width, i // width), color)
+
+        return surface
 
     def _create_default_magenta_frame(self, frame: SpriteFrame, frame_idx: int) -> None:
         """Create a default magenta frame image and pixel data.
@@ -389,14 +407,11 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             surface = pygame.Surface((width, height), pygame.SRCALPHA)
             surface.fill((255, 0, 255, 255))
             frame.image = surface
-
-            pixel_data = [(255, 0, 255, 255)] * (width * height)
-            frame.set_pixel_data(pixel_data)
-
-            LOG.debug(f'DEBUG: Created default magenta frame for frame {frame_idx}')
-
+            frame.set_pixel_data([(255, 0, 255, 255)] * (width * height))
         except pygame.error, AttributeError, TypeError, ValueError:
             LOG.exception(f'DEBUG: Failed to create default frame for frame {frame_idx}')
+        else:
+            LOG.debug(f'DEBUG: Created default magenta frame for frame {frame_idx}')
 
     def _ensure_frames_have_image_data(self, animated_sprite: AnimatedSprite) -> None:
         """Ensure all frames in the animated sprite have proper image data.
@@ -1429,25 +1444,39 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             # Update bounding box (rect) after layout recalculation
             if hasattr(strip_widget, '_update_height'):
                 strip_widget._update_height()  # type: ignore[reportPrivateUsage]
-            # Update film strip sprite rect if it exists
-            if (
-                hasattr(self.editor, 'film_strip_sprites')
-                and new_name in self.editor.film_strip_sprites
-            ):
-                film_strip_sprite = self.editor.film_strip_sprites[new_name]
-                film_strip_sprite.rect.height = strip_widget.rect.height
-                film_strip_sprite.rect.width = strip_widget.rect.width
-                # Update sprite surface size
-                film_strip_sprite.image = pygame.Surface(
-                    (strip_widget.rect.width, strip_widget.rect.height),
-                    pygame.SRCALPHA,
-                )
-                film_strip_sprite.dirty = 1
+            self._resize_film_strip_sprite_to_widget(strip_widget, new_name)
         except (AttributeError, KeyError, TypeError, pygame.error) as e:
             self.log.warning('FilmStripWidget layout update failed after rename: %s', e)
         # Ensure redraw
         if hasattr(strip_widget, 'mark_dirty'):
             strip_widget.mark_dirty()
+
+    def _resize_film_strip_sprite_to_widget(
+        self,
+        strip_widget: FilmStripWidget,
+        animation_name: str,
+    ) -> None:
+        """Size an animation's film strip sprite, if it has one, to its widget's rect.
+
+        Args:
+            strip_widget: The FilmStripWidget whose rect gives the size.
+            animation_name: The animation whose film strip sprite to resize.
+
+        """
+        if not (
+            hasattr(self.editor, 'film_strip_sprites')
+            and animation_name in self.editor.film_strip_sprites
+        ):
+            return
+        film_strip_sprite = self.editor.film_strip_sprites[animation_name]
+        film_strip_sprite.rect.height = strip_widget.rect.height
+        film_strip_sprite.rect.width = strip_widget.rect.width
+        # Update sprite surface size
+        film_strip_sprite.image = pygame.Surface(
+            (strip_widget.rect.width, strip_widget.rect.height),
+            pygame.SRCALPHA,
+        )
+        film_strip_sprite.dirty = 1
 
     def _rename_in_film_strips_dict(self, old_name: str, new_name: str) -> None:
         """Rename an animation in the film_strips and film_strip_sprites dictionaries.

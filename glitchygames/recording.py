@@ -259,6 +259,7 @@ if TYPE_CHECKING:
     from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
     from glitchygames.supervision import ControlEvent
+    from glitchygames.tracing import JsonValue
 
 LOG = logging.getLogger('game.recording')
 LOG.addHandler(logging.NullHandler())
@@ -589,7 +590,7 @@ def _non_finite_float_name(value: float) -> str:
     return 'inf' if value > 0 else '-inf'
 
 
-def _json_safe_scalar(value: float | str | None) -> Any:
+def _json_safe_scalar(value: float | str | None) -> JsonValue:
     if value is None or isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -601,7 +602,7 @@ def _json_safe_scalar(value: float | str | None) -> Any:
     return {FLOAT_TAG: _non_finite_float_name(value)}
 
 
-def _json_safe_number(value: numbers.Real | np.generic) -> Any:
+def _json_safe_number(value: numbers.Real | np.generic) -> JsonValue:
     """Store a number that is not a Python bool, int or float (a numpy scalar) as one.
 
     ``numbers.Integral`` and ``numbers.Real`` cover numpy's integer and floating scalars;
@@ -621,7 +622,7 @@ def _json_safe_number(value: numbers.Real | np.generic) -> Any:
     return _json_safe_object(value)
 
 
-def _json_safe_container(value: JsonSafeContainer) -> Any:
+def _json_safe_container(value: JsonSafeContainer) -> JsonValue:
     if isinstance(value, list):
         return {LIST_TAG: [json_safe_value(item) for item in value]}
     if isinstance(value, dict):
@@ -665,7 +666,7 @@ def recorded_start_time(*, header: Mapping[str, Any]) -> datetime | None:
     return start if start.tzinfo is not None else start.replace(tzinfo=UTC)
 
 
-def json_safe_value(value: object) -> Any:
+def json_safe_value(value: object) -> JsonValue:
     """Convert an event attribute value to a JSON-safe form ``value_from_json`` reverses.
 
     Args:

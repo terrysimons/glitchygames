@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
     from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
     from glitchygames.bitmappy.scroll_arrow import ScrollArrowSprite
+    from glitchygames.events import HashableEvent
     from glitchygames.ui import ColorWellSprite, SliderSprite, TabControlSprite
 
 
@@ -158,7 +159,7 @@ class EditorContext(Protocol):
 
     def on_film_strip_frame_selected(
         self,
-        film_strip_widget: Any,
+        film_strip_widget: FilmStripWidget,
         animation: str,
         frame: int,
     ) -> None:
@@ -169,7 +170,7 @@ class EditorContext(Protocol):
         """Synchronize film strip selection highlights with current state."""
         ...
 
-    def on_slider_event(self, event: Any, trigger: Any) -> None:
+    def on_slider_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a slider value change event."""
         ...
 

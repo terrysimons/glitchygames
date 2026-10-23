@@ -31,6 +31,7 @@ from glitchygames.bitmappy.constants import (
 )
 from glitchygames.bitmappy.models import AIRequest, AIRequestState, AIResponse
 from glitchygames.sprites import SPRITE_GLYPHS, SpriteFactory
+from glitchygames.sprites.animated import AnimatedSprite
 
 STATIC_SPRITE_TOML = (
     '[sprite]\nname = "ball"\npixels = """\n#.\n.#\n"""\n\n'
@@ -689,6 +690,23 @@ class TestSerializeCurrentSpriteForRefinement:
 
         assert manager._serialize_current_sprite_for_refinement() == (False, None, None)
 
+    def test_save_failure_leaves_no_temporary_file(self, temporary_files_in_tmp_path):
+        """The temporary file a failed save was meant to fill is removed (it used to stay)."""
+
+        class UnsavableSprite:
+            """A sprite whose save fails."""
+
+            def save(self, filename: str, file_format: str) -> None:
+                msg = 'disk full'
+                raise OSError(msg)
+
+        canvas = FakeCanvas()
+        canvas.animated_sprite = UnsavableSprite()  # type: ignore[assignment]
+
+        AIManager(_editor(canvas=canvas))._serialize_current_sprite_for_refinement()  # type: ignore[arg-type]
+
+        assert list(temporary_files_in_tmp_path.iterdir()) == []
+
 
 # ---------------------------------------------------------------------------
 # Response processing
@@ -1213,6 +1231,19 @@ class TestSaveCurrentStripToTempToml:
 
         assert AIManager(_editor(canvas=canvas))._save_current_strip_to_temp_toml() is None  # type: ignore[arg-type]
 
+    def test_save_failure_leaves_no_temporary_file(
+        self,
+        mocker,
+        tmp_path,
+        temporary_files_in_tmp_path,
+    ):
+        """A strip that cannot be saved gives no path and leaves no temporary file behind."""
+        canvas = _canvas_with_sprite(tmp_path=tmp_path, content=ANIMATED_SPRITE_TOML)
+        mocker.patch.object(AnimatedSprite, 'save', side_effect=OSError('disk full'))
+
+        assert AIManager(_editor(canvas=canvas))._save_current_strip_to_temp_toml() is None  # type: ignore[arg-type]
+        assert list(temporary_files_in_tmp_path.iterdir()) == []
+
 
 class TestGenerateFrameTomlContent:
     """Test AIManager._generate_frame_toml_content."""
@@ -1305,6 +1336,20 @@ class TestLoadTempTomlAsExample:
         sprite_path = _write_sprite(tmp_path=tmp_path, name='bad.toml', content='[sprite\n')
 
         assert AIManager(_editor())._load_temp_toml_as_example(sprite_path) is None  # type: ignore[arg-type]
+
+    def test_unreadable_example_file_is_still_removed(self, tmp_path):
+        """A temporary file that is not TOML is removed too (it used to be left behind)."""
+        sprite_path = _write_sprite(tmp_path=tmp_path, name='bad.toml', content='[sprite\n')
+
+        AIManager(_editor())._load_temp_toml_as_example(sprite_path)  # type: ignore[arg-type]
+
+        assert not Path(sprite_path).exists()
+
+    def test_missing_example_file_gives_no_example(self, tmp_path):
+        """A file that is already gone yields no example and no cleanup error."""
+        missing_path = str(tmp_path / 'missing.toml')
+
+        assert AIManager(_editor())._load_temp_toml_as_example(missing_path) is None  # type: ignore[arg-type]
 
 
 class TestSmallHelpers:

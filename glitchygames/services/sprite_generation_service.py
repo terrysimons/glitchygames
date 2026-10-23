@@ -6,7 +6,7 @@ interface for generating and refining sprites from text prompts.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from glitchygames.ai.sprite_generator import (
     build_refinement_messages,
@@ -18,7 +18,68 @@ from glitchygames.ai.sprite_generator import (
 from glitchygames.services.config import ServiceConfig
 from glitchygames.services.exceptions import AIProviderError
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 LOG = logging.getLogger('glitchygames.services.sprite_generation')
+
+
+# The parts of aisuite's client this service uses. aisuite ships no type information, so these
+# Protocols name exactly what is called and read: client.chat.completions.create(...) and the
+# response's choices[0].message.content (the OpenAI-style response shape aisuite returns).
+class ChatCompletionMessage(Protocol):
+    """A chat completion's message."""
+
+    @property
+    def content(self) -> str | None:
+        """The message text (None when the model returned none)."""
+        ...
+
+
+class ChatCompletionChoice(Protocol):
+    """One choice of a chat completion."""
+
+    @property
+    def message(self) -> ChatCompletionMessage:
+        """The choice's message."""
+        ...
+
+
+class ChatCompletion(Protocol):
+    """A chat completion response."""
+
+    @property
+    def choices(self) -> Sequence[ChatCompletionChoice]:
+        """The response's choices."""
+        ...
+
+
+class ChatCompletions(Protocol):
+    """The chat completions endpoint."""
+
+    def create(
+        self, *, model: str, messages: list[dict[str, str]], max_tokens: int
+    ) -> ChatCompletion:
+        """Request a chat completion."""
+        ...
+
+
+class ChatEndpoints(Protocol):
+    """The client's chat namespace."""
+
+    @property
+    def completions(self) -> ChatCompletions:
+        """The chat completions endpoint."""
+        ...
+
+
+class ChatClient(Protocol):
+    """An AI client with an OpenAI-style chat completions API (aisuite.Client)."""
+
+    @property
+    def chat(self) -> ChatEndpoints:
+        """The client's chat namespace."""
+        ...
 
 
 @dataclass
@@ -60,14 +121,14 @@ class SpriteGenerationService:
 
         """
         self.config = config or ServiceConfig.from_env()
-        self._client = None
+        self._client: ChatClient | None = None
         self._ai_module = None
 
-    def _ensure_client(self) -> Any:
+    def _ensure_client(self) -> ChatClient:
         """Lazily initialize the AI client.
 
         Returns:
-            aisuite Client instance
+            The aisuite Client instance (used through the ChatClient Protocol)
 
         Raises:
             AIProviderError: If aisuite is not available

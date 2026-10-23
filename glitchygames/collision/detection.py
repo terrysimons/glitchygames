@@ -8,16 +8,71 @@ sprites without hitboxes collide as the visible pixels of their image
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Protocol, TypeIs
 
 import pygame
 
 from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.pixel_snap import resolve_snap_mode, snap_to_pixel
+from glitchygames.world import WorldPositioned
+
+
+class RectSprite(Protocol):
+    """A sprite as collision reads it: its rect gives the size when no hitbox applies.
+
+    The member is a read-only property, so RootSprite's and AnimatedSprite's rect properties
+    and plain rect attributes both match.
+    """
+
+    @property
+    def rect(self) -> pygame.Rect | pygame.FRect:
+        """The sprite's rect (collision reads only its size, or its position on screen)."""
+        ...
+
+
+class WorldRectSprite(RectSprite, WorldPositioned, Protocol):
+    """A world-space sprite as collision reads it: its world position and its rect."""
+
+
+class HitboxWorldRectProvider(Protocol):
+    """A sprite with a TOML hitbox (AnimatedSprite): it places its own collision rect."""
+
+    def get_hitbox_world_rect(self, world_x: float, world_y: float) -> pygame.Rect:
+        """Return the hitbox positioned at a world position."""
+        ...
+
+
+def provides_hitbox_world_rect(sprite: object) -> TypeIs[HitboxWorldRectProvider]:
+    """Whether a sprite places its own collision rect (has get_hitbox_world_rect).
+
+    Args:
+        sprite: Any object; only the presence of get_hitbox_world_rect is checked.
+
+    Returns:
+        True if the sprite has a get_hitbox_world_rect attribute.
+
+    """
+    return hasattr(sprite, 'get_hitbox_world_rect')
+
+
+def is_world_rect_sprite(sprite: object) -> TypeIs[WorldRectSprite]:
+    """Whether a sprite has world_x and world_y (a game object; like every sprite, a rect).
+
+    Only world_x and world_y are checked, as collision always has: a world sprite is a
+    sprite, so it has a rect too.
+
+    Args:
+        sprite: Any object.
+
+    Returns:
+        True if the sprite has both world_x and world_y attributes.
+
+    """
+    return hasattr(sprite, 'world_x') and hasattr(sprite, 'world_y')
 
 
 def snapped_world_position(
-    sprite: Any,
+    sprite: object,
     world_x: float,
     world_y: float,
 ) -> tuple[int, int]:
@@ -45,7 +100,7 @@ def snapped_world_position(
 
 
 def get_collision_rect(
-    sprite: Any,
+    sprite: RectSprite,
     world_x: float,
     world_y: float,
 ) -> pygame.Rect:
@@ -66,7 +121,7 @@ def get_collision_rect(
         A pygame.Rect positioned in world coordinates.
 
     """
-    if hasattr(sprite, 'get_hitbox_world_rect'):
+    if provides_hitbox_world_rect(sprite):
         return sprite.get_hitbox_world_rect(world_x, world_y)
 
     snapped_x, snapped_y = snapped_world_position(sprite, world_x, world_y)
@@ -89,7 +144,7 @@ def get_collision_rect(
 
 
 def get_collision_rect_with_margin(
-    sprite: Any,
+    sprite: RectSprite,
     world_x: float,
     world_y: float,
     margin: int = 0,

@@ -82,6 +82,7 @@ if TYPE_CHECKING:
     from glitchygames.scene_start import SceneStart
     from glitchygames.sources import RedeliveredEvent
     from glitchygames.supervision import Supervisor
+    from glitchygames.transitions import Transition
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
@@ -195,8 +196,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._initialize_supervision()
 
         # Scene transition support
-        self._active_transition: Any = None  # Transition object during effect
-        self._pending_transition: tuple[Any, Any] | None = None  # (next_scene, transition)
+        self._active_transition: Transition | None = None  # Transition object during effect
+        # The requested switch, as its next scene and its transition
+        self._pending_transition: tuple[SceneInterface | None, Transition] | None = None
 
         self.clock: pygame.time.Clock = pygame.time.Clock()
 
@@ -721,7 +723,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def request_transition(
         self: Self,
         next_scene: SceneInterface | None,
-        transition: Any,
+        transition: Transition,
     ) -> None:
         """Request a scene switch with a visual transition effect.
 
@@ -735,7 +737,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         self._pending_transition = (next_scene, transition)
 
-    def _start_transition(self: Self, next_scene: Any, transition: Any) -> None:
+    def _start_transition(
+        self: Self, next_scene: SceneInterface | None, transition: Transition
+    ) -> None:
         """Capture screenshots and begin a transition effect.
 
         Args:
@@ -1871,6 +1875,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self._process_transition_events()
             self._run_supervisor_slot()
             self._update_frame_services()
+            # A transition frame presents, so the display surface exists
+            assert self.screen is not None
             self._active_transition.render(self.screen)
             self._present_frame(full_update=True)
             if transition_done:
@@ -2849,7 +2855,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
 
-    def transition_to(self: Self, next_scene: Any, transition: Any) -> None:
+    def transition_to(
+        self: Self, next_scene: SceneInterface | None, transition: Transition
+    ) -> None:
         """Switch to another scene with a visual transition effect.
 
         Args:

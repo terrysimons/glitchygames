@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     import argparse
 
     from glitchygames.events.base import HashableEvent
+    from glitchygames.input.devices import OpenedController, OpenedJoystick
 
 import pygame
 import pygame.gfxdraw
@@ -400,7 +401,7 @@ class TextSprite(Sprite):
             self._joystick_index_by_instance = joystick_index_by_instance
         return self._joystick_index_by_instance
 
-    def _find_joystick_device_id(self: Self, device_obj: Any) -> int | None:
+    def _find_joystick_device_id(self: Self, device_obj: OpenedJoystick) -> int | None:
         """Find the current pygame device index for a joystick by its instance id.
 
         Joysticks are matched by instance id, not object identity: a replay's stand-ins are new
@@ -525,7 +526,9 @@ class TextSprite(Sprite):
         else:
             self._render_joystick_inputs(device_obj)
 
-    def _render_controller_inputs(self: Self, proxy: Any, device_obj: Any) -> None:
+    def _render_controller_inputs(
+        self: Self, proxy: ControllerEventManager.ControllerEventProxy, device_obj: OpenedController
+    ) -> None:
         """Render controller-specific input info (axes, buttons).
 
         Args:
@@ -571,7 +574,7 @@ class TextSprite(Sprite):
         # Controllers don't have hats
         self.text_box.print(self.image, 'Number of hats: 0')
 
-    def _render_joystick_inputs(self: Self, device_obj: Any) -> None:
+    def _render_joystick_inputs(self: Self, device_obj: OpenedJoystick) -> None:
         """Render joystick-specific input info (axes, buttons, hats).
 
         Args:
@@ -926,7 +929,9 @@ class JoystickScene(Scene):
                 LOG.debug('Removing stale joystick %s', stale_id)
                 del devices[stale_id]
 
-    def _add_new_controllers(self: Self, devices: dict[int, Any], device_manager: Any) -> None:
+    def _add_new_controllers(
+        self: Self, devices: dict[int, Any], device_manager: ControllerEventManager
+    ) -> None:
         """Add newly connected controllers that pygame knows about but the manager doesn't.
 
         Args:
@@ -999,7 +1004,9 @@ class JoystickScene(Scene):
         for stale_id in stale_ids:
             devices.pop(stale_id, None)
 
-    def _find_controller_device_id(self: Self, joystick_id: int, device_obj: Any) -> int:
+    def _find_controller_device_id(
+        self: Self, joystick_id: int, device_obj: OpenedController
+    ) -> int:
         """Find the current device index for a controller by its instance id.
 
         Controllers are counted and opened through the devices door
@@ -1083,7 +1090,9 @@ class JoystickScene(Scene):
         else:
             return device_id
 
-    def _validated_joystick_device_id(self: Self, *, joystick_id: int, device_obj: Any) -> int:
+    def _validated_joystick_device_id(
+        self: Self, *, joystick_id: int, device_obj: OpenedJoystick
+    ) -> int:
         """Validate a joystick by reading its name and GUID, and return its current device ID.
 
         A joystick that is no longer reachable raises pygame.error.

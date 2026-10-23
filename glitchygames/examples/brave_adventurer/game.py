@@ -63,6 +63,8 @@ if TYPE_CHECKING:
     import argparse
 
     from glitchygames.events.base import HashableEvent
+    from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
+    from glitchygames.examples.brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
 
 log = logging.getLogger('game')
 
@@ -298,7 +300,7 @@ class BraveAdventurerScene(Scene):
         self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
 
     @staticmethod
-    def _snapped_terrain_left(terrain_sprite: Any) -> int:
+    def _snapped_terrain_left(terrain_sprite: GroundSegment | StoneWall) -> int:
         """Return a ground segment's or wall's left edge in world pixels, snapped as it is drawn.
 
         Uses the engine's snapping (the scene's PIXEL_SNAP_MODE, or the sprite's own mode), so
@@ -593,7 +595,9 @@ class BraveAdventurerScene(Scene):
             callback=self._on_player_enemy_collision,
         )
 
-    def _on_player_enemy_collision(self: Self, _player: Any, _enemy: Any) -> None:
+    def _on_player_enemy_collision(
+        self: Self, _player: Player, _enemy: Cobra | Scarab | Scorpion
+    ) -> None:
         """Handle player-enemy collision by triggering death, once per collision pass.
 
         Touching two enemies at once must cost one life and one respawn, and a player
@@ -615,7 +619,7 @@ class BraveAdventurerScene(Scene):
             callback=self._on_player_collect,
         )
 
-    def _on_player_collect(self: Self, _player: Any, collectible: Any) -> None:
+    def _on_player_collect(self: Self, _player: Player, collectible: GoldScarab) -> None:
         """Handle player-collectible collision by awarding points."""
         self.player.score += COLLECTIBLE_SCORE_BONUS
         self.sounds.play_collect()

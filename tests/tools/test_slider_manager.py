@@ -582,6 +582,27 @@ class TestSampleColorFromScreen:
         assert editor.color_well.active_color == (0, 0, 0, 255)
         assert 'Error sampling color from screen' in caplog.text
 
+    def test_sampling_off_the_screen_leaves_sliders_unchanged(self, editor, screen, caplog):
+        """A position outside the screen is logged and samples nothing."""
+        off_screen = (screen.get_width() + 10, screen.get_height() + 10)
+
+        editor.slider_manager.sample_color_from_screen(off_screen)
+
+        assert editor.color_well.active_color == (0, 0, 0, 255)
+        assert 'Error sampling color from screen' in caplog.text
+
+    def test_error_setting_the_sliders_propagates(self, editor, screen, mocker):
+        """Only reading the screen is guarded: an error applying the sampled color is raised."""
+        screen.fill((12, 34, 56))
+        mocker.patch.object(
+            editor.slider_manager,
+            'apply_color',
+            side_effect=AttributeError('editor has no color well'),
+        )
+
+        with pytest.raises(AttributeError, match='editor has no color well'):
+            editor.slider_manager.sample_color_from_screen((5, 5))
+
 
 class TestControllerSliderMode:
     """Test detecting controllers in a slider mode."""

@@ -116,42 +116,47 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
 
     def _draw_frame_number(self, surface: pygame.Surface, frame_index: int) -> None:
         """Draw the frame number at the bottom center of the frame."""
+        # Thumbnail text is decoration: a font failure must never stop the film strip drawing
         try:
-            # Create font for frame number
-            font = pygame.font.Font(None, 12)  # Small font size
-
-            # Get total frames for current animation
-            total_frames = 1  # Default fallback
-            if (
-                hasattr(self.widget, 'animated_sprite')
-                and self.widget.animated_sprite
-                and hasattr(self.widget, 'current_animation')
-                and self.widget.current_animation
-                and self.widget.current_animation in self.widget.animated_sprite.animations
-            ):
-                total_frames = len(
-                    self.widget.animated_sprite.animations[self.widget.current_animation]
-                )
-
-            # Render frame number text in format "current+1/total"
-            frame_text = f'{frame_index + 1}/{total_frames}'
-            text_surface = font.render(
-                frame_text,
-                antialias=True,
-                color=(255, 255, 255),
-            )  # White text
-            text_rect = text_surface.get_rect()
-
-            # Position at bottom center of the frame (like animation preview)
-            target_rect = pygame.Rect(0, 0, self.widget.frame_width, self.widget.frame_height)
-            text_rect.centerx = target_rect.centerx
-            text_rect.bottom = target_rect.bottom - 2  # Small margin from bottom edge
-
-            # Draw text
-            surface.blit(text_surface, text_rect)
+            self._render_frame_number(surface, frame_index)
         except Exception:
             # Log font rendering failures
             LOG.exception('Font rendering failed')
+
+    def _render_frame_number(self, surface: pygame.Surface, frame_index: int) -> None:
+        """Render the "current/total" frame number at the bottom center of the frame."""
+        # Create font for frame number
+        font = pygame.font.Font(None, 12)  # Small font size
+
+        # Get total frames for current animation
+        total_frames = 1  # Default fallback
+        if (
+            hasattr(self.widget, 'animated_sprite')
+            and self.widget.animated_sprite
+            and hasattr(self.widget, 'current_animation')
+            and self.widget.current_animation
+            and self.widget.current_animation in self.widget.animated_sprite.animations
+        ):
+            total_frames = len(
+                self.widget.animated_sprite.animations[self.widget.current_animation]
+            )
+
+        # Render frame number text in format "current+1/total"
+        frame_text = f'{frame_index + 1}/{total_frames}'
+        text_surface = font.render(
+            frame_text,
+            antialias=True,
+            color=(255, 255, 255),
+        )  # White text
+        text_rect = text_surface.get_rect()
+
+        # Position at bottom center of the frame (like animation preview)
+        target_rect = pygame.Rect(0, 0, self.widget.frame_width, self.widget.frame_height)
+        text_rect.centerx = target_rect.centerx
+        text_rect.bottom = target_rect.bottom - 2  # Small margin from bottom edge
+
+        # Draw text
+        surface.blit(text_surface, text_rect)
 
     def _draw_onion_skinning_indicator(
         self,
@@ -160,38 +165,47 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         frame_index: int,
     ) -> None:
         """Draw onion skinning indicator on the frame thumbnail."""
+        # The indicator is decoration: a failure must never stop the film strip drawing
         try:
-            # Import onion skinning manager
-            from .onion_skinning import get_onion_skinning_manager
-
-            # Check if this frame has onion skinning enabled
-            onion_manager = get_onion_skinning_manager()
-            is_onion_skinned = onion_manager.is_frame_onion_skinned(animation_name, frame_index)
-
-            if is_onion_skinned:
-                # Draw a small semi-transparent overlay in the top-right corner
-                overlay_size = 12
-                overlay_x = self.widget.frame_width - overlay_size - 2  # 2 pixels from right edge
-                overlay_y = 2  # 2 pixels from top edge
-
-                # Create semi-transparent surface for overlay
-                overlay_surface = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
-                overlay_surface.fill((255, 255, 0, 128))  # Semi-transparent yellow
-
-                # Draw a small circle or square to indicate onion skinning
-                pygame.draw.circle(
-                    overlay_surface,
-                    (255, 255, 0, 200),
-                    (overlay_size // 2, overlay_size // 2),
-                    overlay_size // 2 - 1,
-                )
-
-                # Blit the overlay to the frame surface
-                surface.blit(overlay_surface, (overlay_x, overlay_y))
-
+            self._render_onion_skinning_indicator(surface, animation_name, frame_index)
         except Exception:
             # Log onion skinning indicator failures
             LOG.exception('Onion skinning indicator rendering failed')
+
+    def _render_onion_skinning_indicator(
+        self,
+        surface: pygame.Surface,
+        animation_name: str,
+        frame_index: int,
+    ) -> None:
+        """Render the onion skinning overlay in the top-right corner of an onion-skinned frame."""
+        # Import onion skinning manager
+        from .onion_skinning import get_onion_skinning_manager
+
+        # Check if this frame has onion skinning enabled
+        onion_manager = get_onion_skinning_manager()
+        is_onion_skinned = onion_manager.is_frame_onion_skinned(animation_name, frame_index)
+
+        if is_onion_skinned:
+            # Draw a small semi-transparent overlay in the top-right corner
+            overlay_size = 12
+            overlay_x = self.widget.frame_width - overlay_size - 2  # 2 pixels from right edge
+            overlay_y = 2  # 2 pixels from top edge
+
+            # Create semi-transparent surface for overlay
+            overlay_surface = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
+            overlay_surface.fill((255, 255, 0, 128))  # Semi-transparent yellow
+
+            # Draw a small circle or square to indicate onion skinning
+            pygame.draw.circle(
+                overlay_surface,
+                (255, 255, 0, 200),
+                (overlay_size // 2, overlay_size // 2),
+                overlay_size // 2 - 1,
+            )
+
+            # Blit the overlay to the frame surface
+            surface.blit(overlay_surface, (overlay_x, overlay_y))
 
     def get_frame_image_for_rendering(
         self,
@@ -905,42 +919,50 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         anim_name: str,
     ) -> None:
         """Draw the current frame index on the animation preview."""
+        # Preview text is decoration: a font failure must never stop the film strip drawing
         try:
-            # Get the current frame index for this animation
-            current_frame_idx = self.widget.animation.get_current_preview_frame(anim_name)
-
-            # Get total frames for this animation
-            total_frames = 1  # Default fallback
-            if (
-                hasattr(self.widget, 'animated_sprite')
-                and self.widget.animated_sprite
-                and anim_name in self.widget.animated_sprite.animations
-            ):
-                total_frames = len(self.widget.animated_sprite.animations[anim_name])
-
-            # Create font for frame index
-            font = pygame.font.Font(None, 14)  # Slightly larger than frame numbers
-
-            # Render frame index text in format "current+1/total"
-            frame_text = f'{current_frame_idx + 1}/{total_frames}'
-            text_surface = font.render(
-                frame_text,
-                antialias=True,
-                color=(255, 255, 255),
-            )  # White text
-            text_rect = text_surface.get_rect()
-
-            # Position at bottom center of the preview
-            text_x = preview_rect.x + (preview_rect.width - text_rect.width) // 2
-            text_y = (
-                preview_rect.y + preview_rect.height - text_rect.height - 4
-            )  # 4 pixels from bottom
-
-            # Draw text
-            surface.blit(text_surface, (text_x, text_y))
+            self._render_preview_frame_index(surface, preview_rect, anim_name)
         except Exception:
             # Log font rendering failures
             LOG.exception('Font rendering failed')
+
+    def _render_preview_frame_index(
+        self,
+        surface: pygame.Surface,
+        preview_rect: pygame.Rect,
+        anim_name: str,
+    ) -> None:
+        """Render the "current/total" frame index at the bottom center of the preview."""
+        # Get the current frame index for this animation
+        current_frame_idx = self.widget.animation.get_current_preview_frame(anim_name)
+
+        # Get total frames for this animation
+        total_frames = 1  # Default fallback
+        if (
+            hasattr(self.widget, 'animated_sprite')
+            and self.widget.animated_sprite
+            and anim_name in self.widget.animated_sprite.animations
+        ):
+            total_frames = len(self.widget.animated_sprite.animations[anim_name])
+
+        # Create font for frame index
+        font = pygame.font.Font(None, 14)  # Slightly larger than frame numbers
+
+        # Render frame index text in format "current+1/total"
+        frame_text = f'{current_frame_idx + 1}/{total_frames}'
+        text_surface = font.render(
+            frame_text,
+            antialias=True,
+            color=(255, 255, 255),
+        )  # White text
+        text_rect = text_surface.get_rect()
+
+        # Position at bottom center of the preview
+        text_x = preview_rect.x + (preview_rect.width - text_rect.width) // 2
+        text_y = preview_rect.y + preview_rect.height - text_rect.height - 4  # 4 pixels from bottom
+
+        # Draw text
+        surface.blit(text_surface, (text_x, text_y))
 
     def _draw_triangle_preview(self, surface: pygame.Surface, center_x: int, center_y: int) -> None:
         """Draw a triangle for the preview with different color."""

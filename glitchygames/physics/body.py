@@ -154,7 +154,7 @@ class PhysicsBody:
         """
         self.behaviors.remove(behavior)
 
-    def get_behavior(self, behavior_type: type[Any]) -> Any | None:
+    def get_behavior[BehaviorT](self, behavior_type: type[BehaviorT]) -> BehaviorT | None:
         """Find the first behavior of a given type.
 
         Args:

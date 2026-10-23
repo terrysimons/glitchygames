@@ -47,7 +47,7 @@ class BehaviorContext:
         self._variables: dict[str, Any] = dict(initial_context) if initial_context else {}
         self._dt: float = 0.0
 
-    def get(self, name: str, default: Any = False) -> Any:  # ruff: ignore[boolean-default-value-positional-argument]
+    def get(self, name: str, default: object = False) -> object:  # ruff: ignore[boolean-default-value-positional-argument]
         """Get a context variable.
 
         Args:
@@ -112,7 +112,7 @@ class BehaviorScheduler:
     def start(
         self,
         behavior_function: BehaviorFunction,
-        sprite: Any,
+        sprite: object,
         initial_context: dict[str, Any] | None = None,
     ) -> None:
         """Start a new behavior coroutine.

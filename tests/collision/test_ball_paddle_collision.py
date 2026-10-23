@@ -124,7 +124,9 @@ class TestImageFormat:
         assert ball.image.get_masks() == display.get_masks()
         assert ball.image.get_bitsize() == display.get_bitsize()
         # The key's alpha follows the display format (255 on dummy's XRGB, 0 on cocoa's ARGB)
-        assert ball.image.get_colorkey()[:3] == (0, 0, 0)
+        colorkey = ball.image.get_colorkey()
+        assert colorkey is not None
+        assert colorkey[:3] == (0, 0, 0)
         # Drawn, the corners are keyed out and the ball itself is not
         backdrop = pygame.Surface(ball.image.get_size())
         backdrop.fill((200, 10, 10))

@@ -10,7 +10,9 @@ import contextlib
 import itertools
 import logging
 import multiprocessing
+import os
 import tempfile
+import tomllib
 import weakref
 from pathlib import Path
 from queue import Empty
@@ -61,6 +63,10 @@ from .toml_processing import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from glitchygames.sprites.animated import AnimatedSprite
+
     from .protocols import EditorContext
 
 
@@ -74,6 +80,31 @@ _RUNNING_AI_MANAGERS: weakref.WeakSet[AIManager] = weakref.WeakSet()
 # Appended to each AI request id: the wall clock stands still within a frame in a replay
 # (glitchygames/clock.py), so two requests made in one frame would otherwise share an id
 _AI_REQUEST_COUNTER = itertools.count()
+
+
+def _write_temporary_toml_file(*, prefix: str, write: Callable[[str], object]) -> str:
+    """Create a temporary .toml file and fill it by calling ``write`` with its path.
+
+    The file is removed again when ``write`` fails, so a failed save leaves no empty temporary
+    file behind (the frame, strip and refinement saves each used to leave one).
+
+    Args:
+        prefix: The temporary file name's prefix.
+        write: Writes the file's content, given its path.
+
+    Returns:
+        The path of the written file.
+
+    """
+    temporary_file_descriptor, temporary_path = tempfile.mkstemp(suffix='.toml', prefix=prefix)
+    os.close(temporary_file_descriptor)  # Close the file descriptor, we'll use the path
+    try:
+        write(temporary_path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            Path(temporary_path).unlink()
+        raise
+    return temporary_path
 
 
 def shut_down_running_ai_workers() -> None:
@@ -131,14 +162,14 @@ class AIManager:
                 )
 
                 self.ai_process.start()
-                self.log.info(f'AI worker process started with PID: {self.ai_process.pid}')
-                _RUNNING_AI_MANAGERS.add(self)
-
             except OSError, RuntimeError:
                 self.log.exception('Error initializing AI worker process')
                 self.ai_request_queue = None
                 self.ai_response_queue = None
                 self.ai_process = None
+            else:
+                self.log.info(f'AI worker process started with PID: {self.ai_process.pid}')
+                _RUNNING_AI_MANAGERS.add(self)
         else:
             self.log.warning('Not in main process, AI processing not available')
 
@@ -276,34 +307,42 @@ class AIManager:
             return (False, None, None)
 
         try:
-            import os
-            import tempfile
-
-            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_refinement_')
-            os.close(temp_fd)
-
-            self.editor.canvas.animated_sprite.save(temp_path, DEFAULT_FILE_FORMAT)
-
-            last_sprite_content = Path(temp_path).read_text(encoding='utf-8')
-
-            with contextlib.suppress(OSError):
-                Path(temp_path).unlink()
-
-            conversation_history = self.last_conversation_history
-
-            anim_count = last_sprite_content.count('[[animation]]')
-            frame_count = last_sprite_content.count('[[animation.frame]]')
-            self.log.info(
-                f'Sprite loaded - serialized for AI context ({len(last_sprite_content)} chars,'
-                f' {anim_count} animations, {frame_count} frames)',
-            )
-            self.log.debug(f'Serialized sprite preview:\n{last_sprite_content[:500]}')
+            last_sprite_content = self._read_canvas_sprite_as_toml()
         except OSError, ValueError, AttributeError, TypeError:
             self.log.exception('Failed to serialize sprite')
             self.log.warning('Will use standard generation mode instead')
             return (False, None, None)
-        else:
-            return (True, last_sprite_content, conversation_history)
+
+        conversation_history = self.last_conversation_history
+
+        animation_count = last_sprite_content.count('[[animation]]')
+        frame_count = last_sprite_content.count('[[animation.frame]]')
+        self.log.info(
+            f'Sprite loaded - serialized for AI context ({len(last_sprite_content)} chars,'
+            f' {animation_count} animations, {frame_count} frames)',
+        )
+        self.log.debug(f'Serialized sprite preview:\n{last_sprite_content[:500]}')
+        return (True, last_sprite_content, conversation_history)
+
+    def _read_canvas_sprite_as_toml(self) -> str:
+        """Save the canvas sprite to a temporary TOML file and return the file's text.
+
+        The temporary file is removed afterwards, whether or not it could be read.
+
+        Returns:
+            The sprite's TOML text.
+
+        """
+        canvas_sprite = self.editor.canvas.animated_sprite
+        temporary_path = _write_temporary_toml_file(
+            prefix='bitmappy_refinement_',
+            write=lambda path: canvas_sprite.save(path, DEFAULT_FILE_FORMAT),
+        )
+        try:
+            return Path(temporary_path).read_text(encoding='utf-8')
+        finally:
+            with contextlib.suppress(OSError):
+                Path(temporary_path).unlink()
 
     def _submit_ai_request(
         self,
@@ -323,30 +362,30 @@ class AIManager:
             last_sprite_content: Last sprite TOML content for refinement.
 
         """
+        request_id = f'{wall_clock_epoch_seconds()}-{next(_AI_REQUEST_COUNTER)}'
+
+        request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
+        self.log.info(f'Submitting AI request: {request}')
+
+        assert self.ai_request_queue is not None
         try:
-            request_id = f'{wall_clock_epoch_seconds()}-{next(_AI_REQUEST_COUNTER)}'
-
-            request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
-            self.log.info(f'Submitting AI request: {request}')
-
-            assert self.ai_request_queue is not None
             self.ai_request_queue.put(request)
-
-            self.pending_ai_requests[request_id] = AIRequestState(
-                original_prompt=text,
-                retry_count=0,
-                training_examples=relevant_examples,
-                conversation_history=conversation_history,
-                last_sprite_content=last_sprite_content,
-            )
-
-            if hasattr(self.editor, 'debug_text'):
-                self.editor.debug_text.text = f'Processing AI request... (ID: {request_id})'
-
         except AttributeError, OSError, ValueError:
             self.log.exception('Error submitting AI request')
             if hasattr(self.editor, 'debug_text'):
                 self.editor.debug_text.text = 'Error: Failed to submit AI request'
+            return
+
+        self.pending_ai_requests[request_id] = AIRequestState(
+            original_prompt=text,
+            retry_count=0,
+            training_examples=relevant_examples,
+            conversation_history=conversation_history,
+            last_sprite_content=last_sprite_content,
+        )
+
+        if hasattr(self.editor, 'debug_text'):
+            self.editor.debug_text.text = f'Processing AI request... (ID: {request_id})'
 
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
@@ -550,15 +589,14 @@ class AIManager:
                 data = parse_toml_robustly(cleaned_content, self.log)
                 # Normalize the TOML data to convert escaped newlines to actual newlines
                 data = normalize_toml_data(data)
-                if 'sprite' not in data:
-                    data['sprite'] = {}
-                data['sprite']['description'] = original_prompt
+                data.setdefault('sprite', {})['description'] = original_prompt
 
                 # Manually construct TOML to preserve formatting instead of using toml.dumps()
                 cleaned_content = self._construct_toml_with_preserved_formatting(data)
-                self.log.debug(f"Added description to TOML content: '{original_prompt}'")
             except (KeyError, ValueError) as e:
                 self.log.warning(f'Failed to add description to TOML content: {e}')
+            else:
+                self.log.debug(f"Added description to TOML content: '{original_prompt}'")
 
         return cleaned_content
 
@@ -740,38 +778,50 @@ class AIManager:
             True if frame has content (non-magenta pixels), False if all magenta
 
         """
-        try:
-            if not (hasattr(self.editor, 'canvas') and hasattr(self.editor.canvas, 'pixels')):
-                self.log.debug('No canvas or canvas.pixels found, returning False')
-                return False
+        if not (hasattr(self.editor, 'canvas') and hasattr(self.editor.canvas, 'pixels')):
+            self.log.debug('No canvas or canvas.pixels found, returning False')
+            return False
 
-            pixels = self.editor.canvas.pixels
+        pixels = self.editor.canvas.pixels
+        try:
             self.log.debug(f'Checking frame content: {len(pixels)} pixels')
             if not pixels:
                 self.log.debug('No pixels found, returning False')
                 return False
 
-            # Check if any pixel is not magenta (255, 0, 255)
-            non_magenta_count = 0
-            for i, pixel in enumerate(pixels):
-                color = (
-                    (int(pixel[0]), int(pixel[1]), int(pixel[2]))
-                    if len(pixel) >= RGB_COMPONENT_COUNT
-                    else pixel
-                )
-                if color != (255, 0, 255):
-                    non_magenta_count += 1
-                    if non_magenta_count <= DEBUG_LOG_FIRST_N_PIXELS:
-                        self.log.debug(f'Found non-magenta pixel {i}: {color}')
-
-            self.log.debug(
-                f'Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total',
-            )
+            non_magenta_count = self._count_non_magenta_pixels(pixels)
         except AttributeError, TypeError, IndexError:
             self.log.exception('Error checking frame content')
             return False
         else:
             return non_magenta_count > 0
+
+    def _count_non_magenta_pixels(self, pixels: list[tuple[int, ...]]) -> int:
+        """Count the pixels that are not magenta (255, 0, 255).
+
+        Args:
+            pixels: The frame's pixels; a pixel that is not a sequence raises TypeError.
+
+        Returns:
+            The number of non-magenta pixels.
+
+        """
+        non_magenta_count = 0
+        for pixel_index, pixel in enumerate(pixels):
+            color = (
+                (int(pixel[0]), int(pixel[1]), int(pixel[2]))
+                if len(pixel) >= RGB_COMPONENT_COUNT
+                else pixel
+            )
+            if color != (255, 0, 255):
+                non_magenta_count += 1
+                if non_magenta_count <= DEBUG_LOG_FIRST_N_PIXELS:
+                    self.log.debug(f'Found non-magenta pixel {pixel_index}: {color}')
+
+        self.log.debug(
+            f'Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total',
+        )
+        return non_magenta_count
 
     def _save_current_frame_to_temp_toml(self) -> str | None:
         """Save the current frame to a temporary TOML file.
@@ -780,35 +830,30 @@ class AIManager:
             Path to the temporary TOML file, or None if failed
 
         """
+        # Get current frame data
+        if not hasattr(self.editor, 'canvas') or not hasattr(self.editor.canvas, 'pixels'):
+            return None
+
+        pixels = self.editor.canvas.pixels
+        if not pixels:
+            return None
+
+        # Generate TOML content with single-char glyphs only
+        # This ensures the AI sees only single-character glyphs in the training data
+        # (it logs its own errors and returns '' rather than raising)
+        toml_content = self._generate_frame_toml_content(pixels, force_single_char_glyphs=True)
+
         try:
-            import os
-            import tempfile
-
-            # Get current frame data
-            if not hasattr(self.editor, 'canvas') or not hasattr(self.editor.canvas, 'pixels'):
-                return None
-
-            pixels = self.editor.canvas.pixels
-            if not pixels:
-                return None
-
-            # Create temporary file
-            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_frame_')
-            os.close(temp_fd)  # Close the file descriptor, we'll use the path
-
-            # Generate TOML content with single-char glyphs only
-            # This ensures the AI sees only single-character glyphs in the training data
-            toml_content = self._generate_frame_toml_content(pixels, force_single_char_glyphs=True)
-
-            # Write to temporary file
-            Path(temp_path).write_text(toml_content, encoding='utf-8')
-
-            self.log.info(f'Saved current frame to temporary TOML: {temp_path}')
+            temp_path = _write_temporary_toml_file(
+                prefix='bitmappy_frame_',
+                write=lambda path: Path(path).write_text(toml_content, encoding='utf-8'),
+            )
         except OSError, ValueError, AttributeError, TypeError:
             self.log.exception('Error saving frame to temp TOML')
             return None
-        else:
-            return temp_path
+
+        self.log.info(f'Saved current frame to temporary TOML: {temp_path}')
+        return temp_path
 
     def _save_current_strip_to_temp_toml(self) -> str | None:
         """Save the current animation strip to a temporary TOML file.
@@ -818,54 +863,60 @@ class AIManager:
 
         """
         try:
-            import os
-            import tempfile
-
-            # Get current animation data
-            if not hasattr(self.editor, 'canvas') or not hasattr(
-                self.editor.canvas,
-                'animated_sprite',
-            ):
+            strip_sprite = self._build_current_strip_sprite()
+            if strip_sprite is None:
                 return None
-
-            animated_sprite = self.editor.canvas.animated_sprite
-            if not animated_sprite or not hasattr(animated_sprite, '_animations'):
-                return None
-
-            current_animation = getattr(self.editor.canvas, 'current_animation', None)
-            if not current_animation or current_animation not in animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-                return None
-
-            # Create a new AnimatedSprite with just the current animation
-            from glitchygames.sprites.animated import AnimatedSprite
-
-            # Get the current animation frames
-            current_frames = animated_sprite._animations[current_animation]  # type: ignore[reportPrivateUsage]
-
-            # Create new sprite with the current animation
-            new_sprite = AnimatedSprite()
-            new_sprite.name = f'current_strip_{current_animation}'
-            new_sprite.description = f'Current animation strip: {current_animation}'
-
-            # Copy the animation data
-            new_sprite._animations = {current_animation: current_frames}  # type: ignore[reportPrivateUsage]
-            # Set the animation order to only include this animation
-            new_sprite._animation_order = [current_animation]  # type: ignore[reportPrivateUsage]
-            # The sprite will automatically play the first (and only) animation
-
-            # Create temporary file
-            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_strip_')
-            os.close(temp_fd)  # Close the file descriptor, we'll use the path
 
             # Save the sprite to TOML using the existing save method
-            new_sprite.save(temp_path)
-
-            self.log.info(f'Saved current strip to temporary TOML: {temp_path}')
+            temp_path = _write_temporary_toml_file(
+                prefix='bitmappy_strip_', write=strip_sprite.save
+            )
         except OSError, ValueError, AttributeError, KeyError, TypeError:
             self.log.exception('Error saving strip to temp TOML')
             return None
-        else:
-            return temp_path
+
+        self.log.info(f'Saved current strip to temporary TOML: {temp_path}')
+        return temp_path
+
+    def _build_current_strip_sprite(self) -> AnimatedSprite | None:
+        """Build a sprite holding only the canvas's current animation.
+
+        Returns:
+            The new sprite, or None when the canvas has no current animation to copy.
+
+        """
+        # Get current animation data
+        if not hasattr(self.editor, 'canvas') or not hasattr(
+            self.editor.canvas,
+            'animated_sprite',
+        ):
+            return None
+
+        animated_sprite = self.editor.canvas.animated_sprite
+        if not animated_sprite or not hasattr(animated_sprite, '_animations'):
+            return None
+
+        current_animation = getattr(self.editor.canvas, 'current_animation', None)
+        if not current_animation or current_animation not in animated_sprite._animations:  # type: ignore[reportPrivateUsage]
+            return None
+
+        # Create a new AnimatedSprite with just the current animation
+        from glitchygames.sprites.animated import AnimatedSprite
+
+        # Get the current animation frames
+        current_frames = animated_sprite._animations[current_animation]  # type: ignore[reportPrivateUsage]
+
+        # Create new sprite with the current animation
+        new_sprite = AnimatedSprite()
+        new_sprite.name = f'current_strip_{current_animation}'
+        new_sprite.description = f'Current animation strip: {current_animation}'
+
+        # Copy the animation data
+        new_sprite._animations = {current_animation: current_frames}  # type: ignore[reportPrivateUsage]
+        # Set the animation order to only include this animation
+        new_sprite._animation_order = [current_animation]  # type: ignore[reportPrivateUsage]
+        # The sprite will automatically play the first (and only) animation
+        return new_sprite
 
     def _generate_frame_toml_content(
         self,
@@ -883,68 +934,91 @@ class AIManager:
             TOML content string
 
         """
+        # Pixel and color processing can fail in many ways (a canvas without a size, malformed
+        # pixels): every failure gives empty content, so the whole build is one call here
         try:
-            width = self.editor.canvas.pixels_across
-            height = self.editor.canvas.pixels_tall
+            return self._build_frame_toml_content(
+                pixels,
+                force_single_char_glyphs=force_single_char_glyphs,
+            )
+        except AttributeError, IndexError, KeyError, TypeError, ValueError:
+            self.log.exception('Error generating frame TOML content')
+            return ''
 
-            unique_colors = collect_unique_colors_from_pixels(pixels)
+    def _build_frame_toml_content(
+        self,
+        pixels: list[tuple[int, ...]],
+        *,
+        force_single_char_glyphs: bool,
+    ) -> str:
+        """Build the TOML content for the current frame (_generate_frame_toml_content's body).
 
-            if force_single_char_glyphs and len(unique_colors) > MAX_COLORS_FOR_AI_TRAINING:
-                self.log.info(f'Quantizing {len(unique_colors)} colors down to 64 for AI training')
-                unique_colors = quantize_colors_if_needed(
-                    unique_colors,
-                    has_transparency=False,
-                    max_colors=64,
-                    log=self.log,
-                )
+        Args:
+            pixels: List of pixel colors
+            force_single_char_glyphs: If True, limit to 64 single-character glyphs for AI training
 
-            color_to_glyph = build_color_to_glyph_mapping(
+        Returns:
+            TOML content string
+
+        """
+        width = self.editor.canvas.pixels_across
+        height = self.editor.canvas.pixels_tall
+
+        unique_colors = collect_unique_colors_from_pixels(pixels)
+
+        if force_single_char_glyphs and len(unique_colors) > MAX_COLORS_FOR_AI_TRAINING:
+            self.log.info(f'Quantizing {len(unique_colors)} colors down to 64 for AI training')
+            unique_colors = quantize_colors_if_needed(
                 unique_colors,
                 has_transparency=False,
-                force_single_char_glyphs=force_single_char_glyphs,
+                max_colors=64,
                 log=self.log,
             )
 
-            sorted_colors = sorted(color_to_glyph.keys())
+        color_to_glyph = build_color_to_glyph_mapping(
+            unique_colors,
+            has_transparency=False,
+            force_single_char_glyphs=force_single_char_glyphs,
+            log=self.log,
+        )
 
-            pixel_string = build_pixel_string_from_pixels(
-                pixels,
-                width,
-                height,
-                color_to_glyph,
-                sorted_colors,
-                force_single_char_glyphs=force_single_char_glyphs,
+        sorted_colors = sorted(color_to_glyph.keys())
+
+        pixel_string = build_pixel_string_from_pixels(
+            pixels,
+            width,
+            height,
+            color_to_glyph,
+            sorted_colors,
+            force_single_char_glyphs=force_single_char_glyphs,
+        )
+
+        # Generate color definitions using the consistent mapping (every color is an
+        # RGB tuple: collect_unique_colors_from_pixels keeps three components)
+        color_definitions = ''
+        for color in sorted_colors:
+            red = int(color[0])
+            green = int(color[1])
+            blue = int(color[2])
+            glyph: str = color_to_glyph[color]
+            color_definitions += (
+                f'[colors."{glyph}"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
             )
 
-            # Generate color definitions using the consistent mapping (every color is an
-            # RGB tuple: collect_unique_colors_from_pixels keeps three components)
-            color_definitions = ''
-            for color in sorted_colors:
-                r = int(color[0])
-                g = int(color[1])
-                b = int(color[2])
-                glyph: str = color_to_glyph[color]
-                color_definitions += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+        # Always ensure block character is mapped to magenta for transparency
+        if MAGENTA_TRANSPARENT in color_to_glyph:
+            color_definitions += (
+                f'[colors."{TRANSPARENT_GLYPH}"]\nred = 255\ngreen = 0\nblue = 255\n\n'
+            )
 
-            # Always ensure block character is mapped to magenta for transparency
-            if MAGENTA_TRANSPARENT in color_to_glyph:
-                color_definitions += (
-                    f'[colors."{TRANSPARENT_GLYPH}"]\nred = 255\ngreen = 0\nblue = 255\n\n'
-                )
-
-            # Build complete TOML
-            toml_result = f"""[sprite]
+        # Build complete TOML
+        return f"""[sprite]
 name = "current_frame"
 pixels = \"\"\"
 {pixel_string}
 \"\"\"
 
 {color_definitions}"""
-        except AttributeError, IndexError, KeyError, TypeError, ValueError:
-            self.log.exception('Error generating frame TOML content')
-            return ''
-        else:
-            return toml_result
 
     def _get_glyph_for_color(self, color: tuple[int, int, int] | int) -> str:
         """Get a glyph for a specific color.
@@ -973,59 +1047,84 @@ pixels = \"\"\"
 
         """
         try:
-            import tomllib
-
             file_content = Path(temp_toml_path).read_text(encoding='utf-8')
             # tomllib keeps the newlines inside a multi-line pixels string; only the newline
             # before the closing quotes is extra
             config_data = tomllib.loads(file_content)
-            sprite_name = config_data.get('sprite', {}).get('name', 'current_frame')
-            colors = config_data.get('colors', {})
-
-            animations = config_data.get('animation', [])
-            if animations:
-                # An animation strip: every frame goes in, not only the first pixels block
-                # (which was all the example held, labelled static)
-                for animation in animations:
-                    for frame in animation.get('frame', []):
-                        frame['pixels'] = frame.get('pixels', '').removesuffix('\n')
-                every_frame_pixels = [
-                    frame['pixels']
-                    for animation in animations
-                    for frame in animation.get('frame', [])
-                ]
-                sprite_data: dict[str, Any] = {
-                    'name': sprite_name,
-                    'sprite_type': 'animated',
-                    # Every frame's rows, one blank line between frames
-                    'pixels': '\n\n'.join(every_frame_pixels),
-                    'animations': animations,
-                    'colors': colors,
-                    # format_training_example sends the file itself, frames and all
-                    'raw_content': file_content,
-                }
-            else:
-                pixels_data = config_data.get('sprite', {}).get('pixels', '')
-                sprite_data = {
-                    'name': sprite_name,
-                    'sprite_type': 'static',
-                    'pixels': pixels_data.removesuffix('\n'),
-                    'colors': colors,
-                }
-
-            # Clean up temporary file
-            try:
-                Path(temp_toml_path).unlink()
-                self.log.debug(f'Cleaned up temporary file: {temp_toml_path}')
-            except OSError as cleanup_error:
-                self.log.warning(f'Failed to clean up temp file {temp_toml_path}: {cleanup_error}')
-
-            self.log.info(f'Loaded current frame as training example: {sprite_data["name"]}')
+            sprite_data = self._training_example_from_toml(
+                config_data=config_data,
+                file_content=file_content,
+            )
         except OSError, ValueError, KeyError, TypeError:
             self.log.exception('Error loading temp TOML as example')
             return None
-        else:
-            return sprite_data
+        finally:
+            # Clean up temporary file, also when it could not be read (it used to be left)
+            self._remove_temporary_file(temp_toml_path)
+
+        self.log.info(f'Loaded current frame as training example: {sprite_data["name"]}')
+        return sprite_data
+
+    def _remove_temporary_file(self, temporary_path: str) -> None:
+        """Remove a temporary file, logging (not raising) a failure.
+
+        Args:
+            temporary_path: The file to remove; one that is already gone is fine.
+
+        """
+        try:
+            Path(temporary_path).unlink(missing_ok=True)
+            self.log.debug(f'Cleaned up temporary file: {temporary_path}')
+        except OSError as cleanup_error:
+            self.log.warning(f'Failed to clean up temp file {temporary_path}: {cleanup_error}')
+
+    @staticmethod
+    def _training_example_from_toml(
+        *,
+        config_data: dict[str, Any],
+        file_content: str,
+    ) -> dict[str, Any]:
+        """Build a training example from a parsed sprite TOML file.
+
+        Args:
+            config_data: The parsed TOML.
+            file_content: The file's text (an animated example carries it).
+
+        Returns:
+            The training example dict.
+
+        """
+        sprite_name = config_data.get('sprite', {}).get('name', 'current_frame')
+        colors = config_data.get('colors', {})
+
+        animations = config_data.get('animation', [])
+        if not animations:
+            pixels_data = config_data.get('sprite', {}).get('pixels', '')
+            return {
+                'name': sprite_name,
+                'sprite_type': 'static',
+                'pixels': pixels_data.removesuffix('\n'),
+                'colors': colors,
+            }
+
+        # An animation strip: every frame goes in, not only the first pixels block
+        # (which was all the example held, labelled static)
+        for animation in animations:
+            for frame in animation.get('frame', []):
+                frame['pixels'] = frame.get('pixels', '').removesuffix('\n')
+        every_frame_pixels = [
+            frame['pixels'] for animation in animations for frame in animation.get('frame', [])
+        ]
+        return {
+            'name': sprite_name,
+            'sprite_type': 'animated',
+            # Every frame's rows, one blank line between frames
+            'pixels': '\n\n'.join(every_frame_pixels),
+            'animations': animations,
+            'colors': colors,
+            # format_training_example sends the file itself, frames and all
+            'raw_content': file_content,
+        }
 
     def _validate_ai_content(self, content: str) -> tuple[bool, str]:
         """Validate AI response content, accepting content that cleaning makes valid.
@@ -1260,19 +1359,6 @@ pixels = \"\"\"
         try:
             self._detect_and_load_ai_sprite(tmp_path)
             self._update_sprite_description(original_prompt)
-
-            # Save successful sprite content for future refinements
-            self.last_successful_sprite_content = cleaned_content
-            self.log.info('Saved sprite content for potential refinement requests')
-
-            self._update_conversation_history(request_id, original_prompt, cleaned_content)
-
-            # Update UI components
-            self._update_ui_after_ai_load(request_id)
-
-            # Clean up pending request
-            self._cleanup_ai_request(request_id)
-
         except (
             OSError,
             ValueError,
@@ -1282,7 +1368,20 @@ pixels = \"\"\"
             pygame.error,
         ) as sprite_error:
             self._handle_ai_sprite_load_error(sprite_error, request_id, content)
+            return
         # Note: Temp file is kept for debugging - remove this comment when done debugging
+
+        # Save successful sprite content for future refinements
+        self.last_successful_sprite_content = cleaned_content
+        self.log.info('Saved sprite content for potential refinement requests')
+
+        self._update_conversation_history(request_id, original_prompt, cleaned_content)
+
+        # Update UI components
+        self._update_ui_after_ai_load(request_id)
+
+        # Clean up pending request
+        self._cleanup_ai_request(request_id)
 
     def _clean_ai_response(self, content: str) -> str:
         """Clean up markdown formatting from AI response using AI module.
@@ -1317,17 +1416,7 @@ pixels = \"\"\"
             return
 
         try:
-            self.log.info('Waiting for AI process to finish...')
-            self.ai_process.join(timeout=AI_WORKER_JOIN_TIMEOUT_SECONDS)
-            if self.ai_process.is_alive():
-                self.log.info('AI process still alive, terminating...')
-                self.ai_process.terminate()
-                self.ai_process.join(timeout=1.0)  # Longer timeout for terminate
-                if self.ai_process.is_alive():
-                    self.log.info('AI process still alive, force killing...')
-                    self.ai_process.kill()  # Force kill if still alive
-                    self.ai_process.join(timeout=0.5)  # Final cleanup
-            self.log.info('AI process cleanup completed')
+            self._stop_ai_process(self.ai_process)
         except OSError, RuntimeError, AttributeError:
             self.log.exception('Error during AI process cleanup')
         finally:
@@ -1338,6 +1427,26 @@ pixels = \"\"\"
                     self.ai_process.kill()
             except OSError, AttributeError, RuntimeError:
                 self.log.debug('Error during final AI process cleanup (ignored)')
+
+    def _stop_ai_process(self, ai_process: multiprocessing.Process) -> None:
+        """Join the worker, terminating and then killing it only if it does not exit.
+
+        Args:
+            ai_process: The worker process (any step may raise OSError, RuntimeError or
+                AttributeError; _cleanup_ai_process logs it and still kills a live worker).
+
+        """
+        self.log.info('Waiting for AI process to finish...')
+        ai_process.join(timeout=AI_WORKER_JOIN_TIMEOUT_SECONDS)
+        if ai_process.is_alive():
+            self.log.info('AI process still alive, terminating...')
+            ai_process.terminate()
+            ai_process.join(timeout=1.0)  # Longer timeout for terminate
+            if ai_process.is_alive():
+                self.log.info('AI process still alive, force killing...')
+                ai_process.kill()  # Force kill if still alive
+                ai_process.join(timeout=0.5)  # Final cleanup
+        self.log.info('AI process cleanup completed')
 
     def _cleanup_queues(self) -> None:
         """Clean up AI queues."""

@@ -19,7 +19,8 @@ from glitchygames.sprites import BitmappySprite
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
-    from glitchygames.bitmappy.indicators import VisualIndicator
+    from glitchygames.bitmappy.controllers.manager import ControllerInfo
+    from glitchygames.bitmappy.indicators import LocationType, VisualIndicator
 
 log = logging.getLogger('game.tools.bitmappy.controllers.visual_indicators')
 log.addHandler(logging.NullHandler())
@@ -127,7 +128,7 @@ class VisualIndicators:
             position,
             location_type,
         )
-        self._mark_dirty_for_mode_change(controller_id, location_type)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+        self._mark_dirty_for_mode_change(controller_id, location_type)
 
     def _get_controller_mode_position(
         self,
@@ -167,9 +168,9 @@ class VisualIndicators:
     def _update_visual_collision_indicator(
         self,
         controller_id: int,
-        controller_info: Any,
+        controller_info: ControllerInfo,
         position: tuple[int, int],
-        location_type: Any,
+        location_type: LocationType,
     ) -> None:
         """Update the visual collision manager indicator for a controller.
 
@@ -209,7 +210,7 @@ class VisualIndicators:
     def _mark_dirty_for_mode_change(
         self,
         controller_id: int,
-        location_type: str,
+        location_type: LocationType,
     ) -> None:
         """Mark appropriate areas as dirty after a controller mode change.
 
@@ -237,7 +238,7 @@ class VisualIndicators:
     def _mark_dirty_for_specific_mode(
         self,
         controller_id: int,
-        location_type: str,
+        location_type: LocationType,
     ) -> None:
         """Mark mode-specific areas as dirty.
 

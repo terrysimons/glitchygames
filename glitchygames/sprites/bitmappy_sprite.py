@@ -141,26 +141,25 @@ class BitmappySprite(Sprite):
         self.log.debug('=== Starting load from %s ===', filename)
 
         # Use the factory to load sprite (always returns AnimatedSprite now)
+        from .factory import SpriteFactory
+
         try:
-            from .factory import SpriteFactory
-
             animated_sprite = SpriteFactory.load_sprite(filename=filename)
-
-            # Convert AnimatedSprite to BitmappySprite format: a copy of its current image
-            assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
-            self.image = animated_sprite.image.copy()
-
-            self.rect = self.image.get_rect()
-            self.name = animated_sprite.name
-            self.width = self.rect.width
-            self.height = self.rect.height
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug('Factory failed, falling back to static-only loading: %s', e)
             assert filename is not None, 'filename must be provided for static-only loading'
             return self._load_static_only(filename)
-        else:
-            return (self.image, self.rect, self.name)
+
+        # Convert AnimatedSprite to BitmappySprite format: a copy of its current image
+        assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
+        self.image = animated_sprite.image.copy()
+
+        self.rect = self.image.get_rect()
+        self.name = animated_sprite.name
+        self.width = self.rect.width
+        self.height = self.rect.height
+        return (self.image, self.rect, self.name)
 
     @staticmethod
     def _raise_animated_sprite_error(filename: str) -> None:
@@ -224,63 +223,98 @@ class BitmappySprite(Sprite):
         self.log.debug(f'TOML data keys: {list(data.keys())}')
 
         try:
-            name = data['sprite']['name']
-            self.log.debug('Sprite name: %s', name)
-
-            # Get pixel data
-            pixel_text = str(data['sprite']['pixels'])
-            self.log.debug(f'Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}')
-
-            # Split into rows and process each row
-            rows: list[str] = []
-            for i, raw_row in enumerate(pixel_text.split('\n')):
-                row = raw_row.strip()
-                if row:  # Only add non-empty rows
-                    rows.append(row)
-                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
-
-            self.log.debug(f'Total rows processed: {len(rows)}')
-
-            # Calculate dimensions
-            width = len(rows[0]) if rows else 0
-            height = len(rows)
-            self.log.debug('Calculated dimensions: %sx%s', width, height)
-
-            # Get color definitions
-            color_map: dict[str, Any] = {}
-            if 'colors' in data:
-                for color_key, color_data in data['colors'].items():
-                    red = color_data['red']
-                    green = color_data['green']
-                    blue = color_data['blue']
-                    color_map[str(color_key)] = (red, green, blue)
-                    self.log.debug(
-                        "Color map entry: '%s' -> RGB(%s, %s, %s)",
-                        color_key,
-                        red,
-                        green,
-                        blue,
-                    )
-
-            self.log.debug(f'Total colors in map: {len(color_map)}')
-
-            # Create image and rect
-            self.log.debug('Creating image and rect...')
-            (image, rect) = self.inflate(
-                width=width,
-                height=height,
-                pixels=rows,
-                color_map=color_map,
-            )
-            self.log.debug(f'Created image size: {image.get_size()}')
-            self.log.debug('Created rect: %s', rect)
-
+            (image, rect, name) = self._static_sprite_from_toml_data(data=data)
         except Exception:
             self.log.exception('Error in TOML load')
             raise
-        else:
-            # Return the successfully loaded sprite data
-            return (image, rect, str(name))
+
+        # Return the successfully loaded sprite data
+        return (image, rect, name)
+
+    def _parse_static_toml_data(
+        self: Self,
+        data: dict[str, Any],
+    ) -> tuple[str, list[str], dict[str, Any]]:
+        """Read a static sprite's name, pixel rows and color map from parsed TOML.
+
+        Shared by _load_static_toml and _inflate_toml. A missing sprite name or pixels, or a
+        color's missing channel, raises KeyError.
+
+        Args:
+            data: The parsed TOML document.
+
+        Returns:
+            tuple[str, list[str], dict[str, Any]]: The sprite name, its non-empty pixel rows
+                (stripped) and the map of each color character to its (red, green, blue).
+
+        """
+        name = data['sprite']['name']
+        self.log.debug('Sprite name: %s', name)
+
+        # Get pixel data
+        pixel_text = str(data['sprite']['pixels'])
+        self.log.debug(f'Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}')
+
+        # Split into rows and process each row
+        rows: list[str] = []
+        for i, raw_row in enumerate(pixel_text.split('\n')):
+            row = raw_row.strip()
+            if row:  # Only add non-empty rows
+                rows.append(row)
+                self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
+
+        self.log.debug(f'Total rows processed: {len(rows)}')
+
+        # Get color definitions
+        color_map: dict[str, Any] = {}
+        if 'colors' in data:
+            for color_key, color_data in data['colors'].items():
+                red = color_data['red']
+                green = color_data['green']
+                blue = color_data['blue']
+                color_map[str(color_key)] = (red, green, blue)
+                self.log.debug(
+                    "Color map entry: '%s' -> RGB(%s, %s, %s)",
+                    color_key,
+                    red,
+                    green,
+                    blue,
+                )
+
+        self.log.debug(f'Total colors in map: {len(color_map)}')
+        return (str(name), rows, color_map)
+
+    def _static_sprite_from_toml_data(
+        self: Self,
+        data: dict[str, Any],
+    ) -> tuple[pygame.Surface, pygame.Rect, str]:
+        """Build a static sprite's image and rect from parsed TOML (the body of _load_static_toml).
+
+        Args:
+            data: The parsed TOML document.
+
+        Returns:
+            tuple[pygame.Surface, pygame.Rect, str]: The sprite's image, rect and name.
+
+        """
+        (name, rows, color_map) = self._parse_static_toml_data(data=data)
+
+        # Calculate dimensions
+        width = len(rows[0]) if rows else 0
+        height = len(rows)
+        self.log.debug('Calculated dimensions: %sx%s', width, height)
+
+        # Create image and rect
+        self.log.debug('Creating image and rect...')
+        (image, rect) = self.inflate(
+            width=width,
+            height=height,
+            pixels=rows,
+            color_map=color_map,
+        )
+        self.log.debug(f'Created image size: {image.get_size()}')
+        self.log.debug('Created rect: %s', rect)
+        return (image, rect, name)
 
     @classmethod
     def inflate(
@@ -356,21 +390,30 @@ class BitmappySprite(Sprite):
         See LOADER_README.md for detailed implementation guide.
         """
         try:
-            self.log.debug('Starting static-only save in %s format to %s', file_format, filename)
-            config = self.deflate(file_format=file_format)
-            self.log.debug('Got config from deflate: %s', config)
-
-            # deflate() refused any other format, so this is TOML
-            self.log.debug('About to write TOML')
-            with Path(filename).open('wb') as toml_file:
-                tomli_w.dump(config, toml_file)
-            self.log.debug('TOML write complete')
-
-            self.log.debug('Successfully saved to %s', filename)
-
+            self._write_static_toml(filename=filename, file_format=file_format)
         except Exception:
             self.log.exception('Error in save')
             raise
+
+    def _write_static_toml(self: Self, filename: str, file_format: str) -> None:
+        """Deflate the sprite and write it as TOML (the body of _save_static_only).
+
+        Args:
+            filename: The file to write.
+            file_format: The format to deflate to; deflate() refuses anything but TOML.
+
+        """
+        self.log.debug('Starting static-only save in %s format to %s', file_format, filename)
+        config = self.deflate(file_format=file_format)
+        self.log.debug('Got config from deflate: %s', config)
+
+        # deflate() refused any other format, so this is TOML
+        self.log.debug('About to write TOML')
+        with Path(filename).open('wb') as toml_file:
+            tomli_w.dump(config, toml_file)
+        self.log.debug('TOML write complete')
+
+        self.log.debug('Successfully saved to %s', filename)
 
     def _validate_and_normalize_pixels(
         self: Self,
@@ -419,57 +462,67 @@ class BitmappySprite(Sprite):
 
         """
         try:
-            self.log.debug(f'Starting deflate for {self.name} in {file_format} format')
-
-            # Handle empty surfaces
-            pixels_across: int = int(getattr(self, 'pixels_across', self.width))
-            pixels_tall: int = int(getattr(self, 'pixels_tall', self.height))
-            expected_pixels = pixels_across * pixels_tall
-
-            if expected_pixels == 0:
-                # Return minimal config for empty surface
-                if file_format == 'toml':
-                    return {
-                        'sprite': {
-                            'name': self.name,
-                            'pixels_across': 0,
-                            'pixels_tall': 0,
-                            'pixels': [],
-                        },
-                    }
-                self._raise_unsupported_format_error(file_format)
-
-            self._validate_and_normalize_pixels(pixels_across, pixels_tall)
-
-            # Get unique colors from the pixels list
-            unique_colors = set(self.pixels)
-            self.log.debug(f'Found {len(unique_colors)} unique colors')
-            self.log.debug(f'Pixels list length: {len(self.pixels)}')
-            self.log.debug(f'Expected pixels: {pixels_across * pixels_tall}')
-            self.log.debug(f'Sample pixels: {self.pixels[:10]}')
-
-            # Check if there are too many colors
-            if len(unique_colors) > len(SPRITE_GLYPHS):
-                self._raise_too_many_colors_error(len(unique_colors))
-
-            # Create color to character mapping using the helper method
-            color_map = self._create_color_map()
-
-            # Process pixels row by row
-            pixel_rows = self._process_pixel_rows(color_map, pixels_across, pixels_tall)
-
-            # Create configuration based on format
-            if file_format == 'toml':
-                config = self._create_toml_config(pixel_rows, color_map)
-            else:
-                self._raise_unsupported_format_error(file_format)
-
+            config = self._deflate_config(file_format=file_format)
         except Exception:
             self.log.exception('Error in deflate')
             raise
-        else:
-            # Return the successfully created configuration
-            return config
+
+        # Return the successfully created configuration
+        return config
+
+    def _deflate_config(self: Self, file_format: str) -> dict[str, Any]:
+        """Build the sprite's configuration (the body of deflate).
+
+        Args:
+            file_format: The configuration format; only TOML is supported.
+
+        Returns:
+            dict: The configuration.
+
+        """
+        self.log.debug(f'Starting deflate for {self.name} in {file_format} format')
+
+        # Handle empty surfaces
+        pixels_across: int = int(getattr(self, 'pixels_across', self.width))
+        pixels_tall: int = int(getattr(self, 'pixels_tall', self.height))
+        expected_pixels = pixels_across * pixels_tall
+
+        if expected_pixels == 0:
+            # Return minimal config for empty surface
+            if file_format == 'toml':
+                return {
+                    'sprite': {
+                        'name': self.name,
+                        'pixels_across': 0,
+                        'pixels_tall': 0,
+                        'pixels': [],
+                    },
+                }
+            self._raise_unsupported_format_error(file_format)
+
+        self._validate_and_normalize_pixels(pixels_across, pixels_tall)
+
+        # Get unique colors from the pixels list
+        unique_colors = set(self.pixels)
+        self.log.debug(f'Found {len(unique_colors)} unique colors')
+        self.log.debug(f'Pixels list length: {len(self.pixels)}')
+        self.log.debug(f'Expected pixels: {pixels_across * pixels_tall}')
+        self.log.debug(f'Sample pixels: {self.pixels[:10]}')
+
+        # Check if there are too many colors
+        if len(unique_colors) > len(SPRITE_GLYPHS):
+            self._raise_too_many_colors_error(len(unique_colors))
+
+        # Create color to character mapping using the helper method
+        color_map = self._create_color_map()
+
+        # Process pixels row by row
+        pixel_rows = self._process_pixel_rows(color_map, pixels_across, pixels_tall)
+
+        # Create configuration based on format
+        if file_format != 'toml':
+            self._raise_unsupported_format_error(file_format)
+        return self._create_toml_config(pixel_rows, color_map)
 
     def _process_pixel_rows(
         self,
@@ -653,61 +706,41 @@ class BitmappySprite(Sprite):
         self.log.debug(f'TOML data keys: {list(data.keys())}')
 
         try:
-            name = data['sprite']['name']
-            self.log.debug('Sprite name: %s', name)
-
-            # Get pixel data
-            pixel_text = str(data['sprite']['pixels'])
-            self.log.debug(f'Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}')
-
-            # Split into rows and process each row
-            rows: list[str] = []
-            for i, raw_row in enumerate(pixel_text.split('\n')):
-                row = raw_row.strip()
-                if row:  # Only add non-empty rows
-                    rows.append(row)
-                    self.log.debug(f"Row {i}: '{row}' (len={len(row)})")
-
-            self.log.debug(f'Total rows processed: {len(rows)}')
-
-            # Calculate dimensions
-            width = len(rows[0]) if rows else 0
-            height = len(rows)
-            self.log.debug('Calculated dimensions: %sx%s', width, height)
-
-            # Get color definitions
-            color_map: dict[str, Any] = {}
-            if 'colors' in data:
-                for color_key, color_data in data['colors'].items():
-                    red = color_data['red']
-                    green = color_data['green']
-                    blue = color_data['blue']
-                    color_map[str(color_key)] = (red, green, blue)
-                    self.log.debug(
-                        "Color map entry: '%s' -> RGB(%s, %s, %s)",
-                        color_key,
-                        red,
-                        green,
-                        blue,
-                    )
-
-            self.log.debug(f'Total colors in map: {len(color_map)}')
-
-            # Convert rows to pixels
-            pixels: list[tuple[int, int, int]] = []
-            for row in rows:
-                for char in row:
-                    if char in color_map:
-                        pixels.append(color_map[char])
-                    else:
-                        # Default color for unknown characters
-                        pixels.append((255, 0, 255))
-
-            return {'pixels': pixels, 'width': width, 'height': height, 'name': str(name)}
-
+            sprite_data = self._sprite_data_from_toml_data(data=data)
         except Exception:
             self.log.exception('Error in TOML inflate')
             raise
+
+        return sprite_data
+
+    def _sprite_data_from_toml_data(self: Self, data: dict[str, Any]) -> dict[str, Any]:
+        """Convert parsed TOML to sprite data (the body of _inflate_toml).
+
+        Args:
+            data: The parsed TOML document.
+
+        Returns:
+            dict: Sprite data dictionary (pixels, width, height and name).
+
+        """
+        (name, rows, color_map) = self._parse_static_toml_data(data=data)
+
+        # Calculate dimensions
+        width = len(rows[0]) if rows else 0
+        height = len(rows)
+        self.log.debug('Calculated dimensions: %sx%s', width, height)
+
+        # Convert rows to pixels
+        pixels: list[tuple[int, int, int]] = []
+        for row in rows:
+            for char in row:
+                if char in color_map:
+                    pixels.append(color_map[char])
+                else:
+                    # Default color for unknown characters
+                    pixels.append((255, 0, 255))
+
+        return {'pixels': pixels, 'width': width, 'height': height, 'name': name}
 
     def inflate_from_file(self: Self, filename: str) -> dict[str, Any]:
         """Inflate a sprite from a file.
@@ -934,27 +967,38 @@ class BitmappySprite(Sprite):
             str: Colorized TOML representation of the sprite with all frames
 
         """
+        if not self.filename:
+            return f'{type(self)} "{self.name}" (no file loaded)'
+
         try:
-            # Import here to avoid circular imports
-            from glitchygames.tools.ascii_renderer import ASCIIRenderer
-
-            # Load TOML data from file
-            if not self.filename:
-                return f'{type(self)} "{self.name}" (no file loaded)'
-
-            with Path(self.filename).open('rb') as f:
-                toml_data = tomllib.load(f)
-
-            # Check if it's an animated sprite and show all frames
-            if 'animation' in toml_data and len(toml_data['animation']) > 0:
-                return self._render_animated_str(toml_data)
-            # Static sprite - show normally
-            renderer = ASCIIRenderer()
-            return renderer.render_sprite(toml_data)
-
+            return self._render_file_str(filename=self.filename)
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
             # Fallback to basic representation if rendering fails
             return f'{type(self)} "{self.name}" (error rendering: {e})'
+
+    def _render_file_str(self: Self, filename: str) -> str:
+        """Render a sprite file's TOML as a colorized ASCII string (the body of __str__).
+
+        Args:
+            filename: The sprite file to render.
+
+        Returns:
+            str: Colorized representation of the sprite (every frame, if animated).
+
+        """
+        # Import here to avoid circular imports
+        from glitchygames.tools.ascii_renderer import ASCIIRenderer
+
+        # Load TOML data from file
+        with Path(filename).open('rb') as toml_file:
+            toml_data = tomllib.load(toml_file)
+
+        # Check if it's an animated sprite and show all frames
+        if 'animation' in toml_data and len(toml_data['animation']) > 0:
+            return self._render_animated_str(toml_data)
+        # Static sprite - show normally
+        renderer = ASCIIRenderer()
+        return renderer.render_sprite(toml_data)
 
 
 class Singleton:

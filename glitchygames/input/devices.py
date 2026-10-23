@@ -39,6 +39,8 @@ from glitchygames.sources import notify_device_answer
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pygame.typing import ColorLike
+
 LOG = logging.getLogger('game.input.devices')
 LOG.addHandler(logging.NullHandler())
 
@@ -53,6 +55,11 @@ OPEN_JOYSTICK_CALL = 'open_joystick'
 OPEN_CONTROLLER_CALL = 'open_controller'
 
 type EnumerationValue = int | bool | str | None
+
+# What the door hands out: real pygame devices live, the recorded stand-ins in a replay (their
+# methods share pygame's signatures, so callers use the methods both have)
+type OpenedJoystick = pygame.joystick.JoystickType | ReplayJoystick
+type OpenedController = pygame._sdl2.controller.Controller | ReplayController
 
 
 @dataclasses.dataclass(frozen=True)
@@ -194,7 +201,7 @@ class DeviceRegistry(Protocol):
         """
         ...
 
-    def open_joystick(self, *, device_index: int) -> Any:
+    def open_joystick(self, *, device_index: int) -> OpenedJoystick:
         """Open the joystick at ``device_index``.
 
         Args:
@@ -203,7 +210,7 @@ class DeviceRegistry(Protocol):
         """
         ...
 
-    def open_controller(self, *, device_index: int) -> Any:
+    def open_controller(self, *, device_index: int) -> OpenedController:
         """Open the game controller at ``device_index``.
 
         Args:
@@ -212,7 +219,7 @@ class DeviceRegistry(Protocol):
         """
         ...
 
-    def joystick_for_instance(self, *, instance_id: int) -> Any | None:
+    def joystick_for_instance(self, *, instance_id: int) -> OpenedJoystick | None:
         """Return an opened device's joystick view by instance id, or None.
 
         Args:
@@ -239,7 +246,7 @@ class DeviceRegistry(Protocol):
         ...
 
 
-def _describe(*, kind: str, device_index: int, device: Any) -> DeviceDescriptor:
+def _describe(*, kind: str, device_index: int, device: OpenedJoystick) -> DeviceDescriptor:
     """Return the descriptor of an opened device (its joystick view).
 
     Returns:
@@ -264,7 +271,7 @@ def _describe(*, kind: str, device_index: int, device: Any) -> DeviceDescriptor:
 
 
 def _poll_joystick_layer(
-    *, device: Any
+    *, device: OpenedJoystick
 ) -> tuple[tuple[float, ...], tuple[bool, ...], tuple[tuple[int, int], ...]]:
     """Read a device's joystick-layer axes, buttons and hats.
 
@@ -281,7 +288,9 @@ def _poll_joystick_layer(
     return axes, buttons, hats
 
 
-def _poll_controller_layer(*, controller: Any) -> tuple[tuple[int, ...], tuple[bool, ...]]:
+def _poll_controller_layer(
+    *, controller: OpenedController
+) -> tuple[tuple[int, ...], tuple[bool, ...]]:
     """Read a game controller's axes and buttons by every CONTROLLER_AXIS_*/BUTTON_* id.
 
     Returns:
@@ -301,8 +310,8 @@ class LiveDeviceRegistry:
     def __init__(self: Self) -> None:
         """Start with no devices opened and nothing asked."""
         # Joystick views by instance id (a controller's is its as_joystick())
-        self._devices_by_instance: dict[int, Any] = {}
-        self._controllers_by_instance: dict[int, Any] = {}
+        self._devices_by_instance: dict[int, pygame.joystick.JoystickType] = {}
+        self._controllers_by_instance: dict[int, pygame._sdl2.controller.Controller] = {}
         self._new_descriptors: list[DeviceDescriptor] = []
         self._new_answers: list[EnumerationAnswer] = []
 
@@ -391,7 +400,7 @@ class LiveDeviceRegistry:
         self._remember_answer(call=NAME_FOR_INDEX_CALL, device_index=device_index, value=name)
         return name
 
-    def open_joystick(self: Self, *, device_index: int) -> Any:
+    def open_joystick(self: Self, *, device_index: int) -> pygame.joystick.JoystickType:
         """Open the joystick at ``device_index`` and remember it.
 
         Args:
@@ -418,7 +427,7 @@ class LiveDeviceRegistry:
         )
         return joystick
 
-    def open_controller(self: Self, *, device_index: int) -> Any:
+    def open_controller(self: Self, *, device_index: int) -> pygame._sdl2.controller.Controller:
         """Open the game controller at ``device_index`` and remember it.
 
         Its joystick view is described and polled on the joystick layer, and the controller
@@ -461,7 +470,9 @@ class LiveDeviceRegistry:
         )
         return controller
 
-    def joystick_for_instance(self: Self, *, instance_id: int) -> Any | None:
+    def joystick_for_instance(
+        self: Self, *, instance_id: int
+    ) -> pygame.joystick.JoystickType | None:
         """Return an opened device's joystick view by instance id, or None.
 
         Args:
@@ -593,8 +604,8 @@ class LiveDeviceRegistry:
         *,
         call: str,
         descriptor: DeviceDescriptor,
-        joystick_view: Any,
-        controller: Any | None,
+        joystick_view: pygame.joystick.JoystickType,
+        controller: pygame._sdl2.controller.Controller | None,
     ) -> None:
         self._devices_by_instance[descriptor.instance_id] = joystick_view
         if controller is not None:
@@ -624,7 +635,9 @@ class ReplayJoystick:
 
         """
         self._descriptor = descriptor
-        self._initialized = False
+        # Initialized on creation, as pygame-ce's devices are (its docs: "opened immediately on
+        # creation"), so get_init() answers as live play does before any init() call
+        self._initialized = True
 
     def init(self: Self) -> None:
         """Mark initialized (no hardware)."""
@@ -635,10 +648,10 @@ class ReplayJoystick:
         self._initialized = False
 
     def get_init(self: Self) -> bool:
-        """Return whether init() was called.
+        """Return whether the stand-in is initialized (from creation until quit()).
 
         Returns:
-            True after init().
+            True from creation, or after init(); False after quit().
 
         """
         return self._initialized
@@ -791,7 +804,7 @@ class ReplayJoystick:
     def stop_rumble(self: Self) -> None:
         """Nothing to stop."""
 
-    def set_led(self: Self, color: Any, /) -> bool:
+    def set_led(self: Self, color: ColorLike, /) -> bool:
         """Ignore an LED colour (positional-only: pygame's signature; no hardware).
 
         Args:
@@ -823,7 +836,9 @@ class ReplayController:
         """
         self._descriptor = descriptor
         self._joystick_view = ReplayJoystick(descriptor=descriptor)
-        self._initialized = False
+        # Initialized on creation, as pygame-ce's devices are (its docs: "opened immediately on
+        # creation"), so get_init() answers as live play does before any init() call
+        self._initialized = True
 
     def init(self: Self) -> None:
         """Mark initialized (no hardware)."""
@@ -834,10 +849,10 @@ class ReplayController:
         self._initialized = False
 
     def get_init(self: Self) -> bool:
-        """Return whether init() was called.
+        """Return whether the stand-in is initialized (from creation until quit()).
 
         Returns:
-            True after init().
+            True from creation, or after init(); False after quit().
 
         """
         return self._initialized
@@ -923,7 +938,7 @@ class ReplayController:
     def stop_rumble(self: Self) -> None:
         """Nothing to stop."""
 
-    def set_led(self: Self, color: Any, /) -> bool:
+    def set_led(self: Self, color: ColorLike, /) -> bool:
         """Ignore an LED colour (positional-only: pygame's signature; no hardware).
 
         Args:

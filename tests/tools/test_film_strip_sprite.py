@@ -558,6 +558,28 @@ class TestFilmStripSpriteColorSampling:
         assert parent_scene.slider_values == {}
         assert 'Error sampling color from frame' in caplog.text
 
+    def test_a_slider_failure_is_not_reported_as_a_sampling_error(
+        self,
+        real_film_strip_sprite,
+        mocker,
+        caplog,
+    ):
+        """Only reading the pixel is guarded: a ValueError setting the sliders propagates."""
+        sprite = real_film_strip_sprite
+        parent_scene = RecordingParentScene()
+        sprite.parent_scene = parent_scene  # type: ignore[assignment]
+        mocker.patch.object(
+            parent_scene,
+            'apply_color',
+            side_effect=ValueError('slider update failed'),
+        )
+        frame_layout = frame_layout_of(sprite, frame_index=0)
+
+        with pytest.raises(ValueError, match='slider update failed'):
+            sprite._sample_color_from_frame('idle', 0, frame_layout.x + 5, frame_layout.y + 5)
+
+        assert 'Error sampling color from frame' not in caplog.text
+
 
 class TestFilmStripSpriteCopyPasteKeys:
     """Test Ctrl+C and Ctrl+V on the film strip sprite.

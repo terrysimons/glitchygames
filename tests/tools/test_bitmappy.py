@@ -545,6 +545,47 @@ blue = 0
         ai_training_state['format'] = original_format
         Path(temp_file.name).unlink()
 
+    def test_file_vanishing_before_the_colorized_output_keeps_the_training_data(
+        self,
+        mocker,
+        tmp_path,
+        caplog,
+    ):
+        """A file gone between the parse and the sprite load only loses the colorized log."""
+        mocker.patch.dict(ai_training_state, {'format': 'toml'})
+        sprite_file = tmp_path / 'vanishing.toml'
+        sprite_file.write_text(
+            '[sprite]\nname = "vanishing"\npixels = """\n##\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n',
+            encoding='utf-8',
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection.SpriteFactory.load_sprite',
+            side_effect=FileNotFoundError('gone'),
+        )
+        training_data = []
+
+        _process_config_file(sprite_file, training_data)
+
+        assert [example['name'] for example in training_data] == ['vanishing']
+        assert 'Could not create colorized output for vanishing.toml: gone' in caplog.text
+
+    def test_malformed_file_adds_no_training_data(self, mocker, tmp_path, caplog):
+        """A file that is not valid TOML is skipped with a warning."""
+        mocker.patch.dict(ai_training_state, {'format': 'toml'})
+        sprite_file = tmp_path / 'broken.toml'
+        sprite_file.write_text('[sprite\nname = ', encoding='utf-8')
+        load_sprite = mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection.SpriteFactory.load_sprite',
+        )
+        training_data = []
+
+        _process_config_file(sprite_file, training_data)
+
+        assert training_data == []
+        assert 'Error loading sprite config' in caplog.text
+        assert load_sprite.call_count == 0
+
 
 # ---------------------------------------------------------------------------
 # TestLoadAiTrainingData

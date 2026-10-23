@@ -325,14 +325,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Pinned: `tests/game_objects/test_ball_collision_physics.py::TestBallCollisionSweepFrameAlignedMeeting::test_head_on_balls_meeting_on_a_frame_collide` (4 angles). A fix (swept collision or sub-stepping) changes PaddleSlap physics and so its golden trace and replay. Note: the moving-pair sweep's 10% velocity-swap tolerance holds only with its 2 px contact phase (the game computes contact directions from whole-pixel centres, so on a 10 px circle a pixel of rounding turns the direction by about 10 degrees)
 - **Files**: `glitchygames/examples/paddleslap.py`, `glitchygames/game_objects/ball.py`
 
-### 19. Ruff PLW0717: 102 Try Blocks Too Broad
-- **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
-- **Status**: Active (rule temporarily disabled in `pyproject.toml`; remove that ignore when done). 2026-10-21: every site outside Bitmappy is narrowed; 62 remain in `glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py` and `tests/tools/` (plan: `plans/2026-10-20-lint-ignores-cleanup.md`, phase 3)
-- **Priority**: Low
-- **Reporter**: Found while fixing the pre-push hooks
-- **Date Reported**: 2026-10-15
-- **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
-
 ### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size
 - **Description**: Papyrus's TOML sprites are drawn at 2x (`SPRITE_SCALE`), but their `rect` keeps the native size: the player's rect is 20x28 while its image is 40x56, a scarab's 10x8 while its image is 20x16
 - **Status**: Active (latent)
@@ -423,7 +415,54 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code. Documented for game authors in `docs/architecture/gameplay_replay.md` (Polled input): handle such keys through events or by position (`scancode_pressed`, `ActionMap.bind(scancode=...)`), not by polling their key code
 - **Files**: `glitchygames/input/state.py`
 
+### 176. Bitmappy Accepts Canvas Widths That Leave No Room for a Pixel
+- **Description**: The new-canvas dialog's width is never capped: a width over 350, or one too large for the screen, makes `new_pixel_size` 0, and the editor builds a zero-size canvas surface that can't be seen or drawn on
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
+- **Date Reported**: 2026-10-22
+- **Details**: Non-positive sizes (`0x16`, `-4x4`) are refused since #175; very large ones are not. Refuse (or cap) a size whose pixel size would be 0, with the same "Invalid dimensions" log
+- **Files**: `glitchygames/bitmappy/editor.py:402`
+
+### 177. The Fallback TOML Parser Crashes on Some Malformed Files
+- **Description**: `parse_toml_robustly`, the regex fallback for TOML that `tomllib` rejects, raises instead of recovering: a section header under a key already holding a non-table value raises `TypeError: argument of type 'int' is not a container` (`'a = 1\na = 2\n[a.b]\nc = 1\n'`), and a section header with an unterminated quote raises `ValueError: substring not found` from `remaining.index('"', 1)` (`'x = 1\nx = 2\n["unterminated]\n'`)
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
+- **Date Reported**: 2026-10-22
+- **Details**: The fallback exists to load damaged files; it should skip a line it cannot place and log it. Related: `normalize_toml_data` copies only the top level, so it changes the caller's nested `sprite`/`animation` tables in place, and an error part way returns them half-normalized
+- **Files**: `glitchygames/bitmappy/toml_processing.py:215`, `:219`, `:360`, `:634`
+
+### 178. Smaller Findings From Narrowing the Try Blocks
+- **Description**: Minor findings, none breaking a feature
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
+- **Date Reported**: 2026-10-22
+- **Details**: (1) `BitmappySprite.inflate` discards `image.convert()`'s result (as #143/#173.5), builds a `raw_pixels` list it never uses, and its docstring says "Raises: None" though an unknown pixel character raises KeyError. (2) The two static loaders disagree: an unknown pixel character raises KeyError through `_load_static_toml` but becomes magenta through `_inflate_toml`. (3) A static sprite's width comes from its first row: longer rows are clipped, shorter ones leave black pixels. (4) `_process_pixel_rows` writes a colour missing from the map as '.', which could collide with a real '.' glyph (unreachable today: too many colours is refused first). (5) `animated_canvas.py:1316-1332` logs one load failure three times with `log.exception`, the third adding `traceback.format_exc()` to a traceback already printed. (6) `film_strip_rendering.py:129`, `:949` create a `pygame.font.Font(None, size)` per thumbnail per draw: slow, and pygame's default font, not the bundled Vera (#156). (7) The AI worker spins logging exceptions forever if its request queue is permanently broken (`get()` always raising). (8) `_make_ai_api_call` logs every failure's traceback twice (two `log.exception` calls). (9) `_load_ai_sprite` keeps every AI response's temp file (deliberate, per its comment, for debugging): one file leaks per response. (10) `AIManager.setup` drops its two queues without `close()` when `Process.start()` fails. (11) `undo_frame`/`redo_frame` drop a command that raises from the history but put back one that returns False. (12) `InputBox` calls its parent's `on_input_box_submit_event(event=self)`, but `ui/dialogs.py:256` and `examples/text_input_demo.py:86` name the parameter `control`, so either would raise TypeError if called (latent: no InputBox has those as its parent today). (13) `examples/joystick_demo.py` (~319) builds its TextSprite with `game=self`, the scene, which has no `controller_manager`, so the demo always makes its own `ControllerEventManager` instead of using the engine's for hotplug events as its comment intends
+- **Files**: see Details
+
 ## Resolved Bugs
+
+### 19. Ruff PLW0717: 102 Try Blocks Too Broad
+- **Description**: ruff 0.17's `too-many-statements-in-try-clause` (PLW0717, max 5) flags 102 existing try blocks across `glitchygames/`, `scripts/`, and `tests/`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found while fixing the pre-push hooks
+- **Date Reported**: 2026-10-15
+- **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
+- **Date Resolved**: 2026-10-22
+- **Solution**: Every site narrowed (36 outside Bitmappy on 2026-10-21, the last 60 in Bitmappy on 2026-10-22) and the ignore removed from `pyproject.toml`. Each `try` holds only what can raise what it catches; deliberate boundaries (the engine's `start()`, thread and HTTP/AI-client boundaries, file loads, undo/redo, draw paths that must never crash the editor) keep their broad catch around one helper call. No suppressions. Narrowing found the bugs in #175 (fixed) and #176-#178
+
+### 175. Bugs Fixed While Narrowing the Try Blocks
+- **Description**: Bugs the broad try blocks hid or sat next to: (1) Bitmappy's new-canvas dialog accepted `0x16`/`16x0` (`ZeroDivisionError`, crashing the editor) and `-4x4` (`pygame.error: Invalid resolution for Surface`); (2) a `ValueError` while building the new canvas was logged as "Invalid dimensions format"; (3) a slider failure after sampling a frame's colour was reported as a sampling error; (4) the AI manager left temp files behind when saving or reading the sprite, the frame or the strip failed, and when an example file was unreadable; (5) the AI worker answered an earlier request a second time (with an error) when the queue's `get()` failed after it; (6) a `ValueError` after `BitmappySprite.load`'s factory call silently re-read the file the old static way
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
+- **Date Reported**: 2026-10-22
+- **Files**: `glitchygames/bitmappy/editor.py`, `film_strip_sprite.py`, `ai_manager.py`, `ai_worker.py`, `glitchygames/sprites/bitmappy_sprite.py`
+- **Date Resolved**: 2026-10-22
+- **Solution**: (1) the size parser refuses non-positive sizes (logged as invalid input); (2), (3), (6) the try holds only the parse/sample/factory call, so other errors propagate; (4) temp files are removed in `finally` (or by `_write_temporary_toml_file` on a failed write); (5) the request is reset every iteration. Tests: `TestCanvasRedrawInTheRealEditor::test_non_positive_dimensions_keep_the_canvas`, `test_a_failure_building_the_canvas_is_not_reported_as_bad_dimensions`, `TestFilmStripSpriteColorSampling::test_a_slider_failure_is_not_reported_as_a_sampling_error`, the `test_save_failure_leaves_no_temporary_file` pair, `TestLoadTempTomlAsExample`, `TestRunAiWorker::test_queue_error_after_a_request_does_not_answer_it_again`, `TestBitmappySpriteLoadWithFactory::test_load_does_not_fall_back_when_converting_the_loaded_sprite_fails`
 
 ### 158. `BitmappySprite.load` Had a Branch Only a Mock Could Reach
 - **Description**: `if current_frame and hasattr(current_frame, 'surface')`: `SpriteFrame` has no `surface`, so only the mocked factory's Mock frames reached it; real loads always copied the AnimatedSprite's image

@@ -454,53 +454,60 @@ class EditorSetup:
         release microphone resources and stop background threads.
 
         """
+        # Voice recognition is optional hardware: any failure to start it leaves it off
         try:
-            self.editor.voice_manager = VoiceEventManager(logger=self.editor.log)
-
-            if self.editor.voice_manager.is_available():
-                # Register voice commands
-                self.editor.voice_manager.register_command(
-                    'clear the ai sprite box',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai sprite box',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai box',
-                    self.editor.clear_ai_sprite_box,
-                )
-                # Add commands for what speech recognition actually hears
-                self.editor.voice_manager.register_command(
-                    'clear the ai sprite',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai sprite',
-                    self.editor.clear_ai_sprite_box,
-                )
-                # Add command for "window" variation
-                self.editor.voice_manager.register_command(
-                    'clear the ai sprite window',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai sprite window',
-                    self.editor.clear_ai_sprite_box,
-                )
-
-                # Start listening for voice commands
-                self.editor.voice_manager.start_listening()
-                self.editor.log.info('Voice recognition initialized and started')
-            else:
-                self.editor.log.warning(
-                    'Voice recognition not available - microphone not found',
-                )
-                self.editor.voice_manager = None
-
+            self._start_voice_recognition()
         except ImportError, OSError, AttributeError, RuntimeError:
             self.editor.log.exception('Failed to initialize voice recognition')
+            self.editor.voice_manager = None
+
+    def _start_voice_recognition(self) -> None:
+        """Create the voice manager, register the voice commands and start listening.
+
+        Sets the editor's ``voice_manager`` to None when no microphone is available.
+        """
+        self.editor.voice_manager = VoiceEventManager(logger=self.editor.log)
+
+        if self.editor.voice_manager.is_available():
+            # Register voice commands
+            self.editor.voice_manager.register_command(
+                'clear the ai sprite box',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai sprite box',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai box',
+                self.editor.clear_ai_sprite_box,
+            )
+            # Add commands for what speech recognition actually hears
+            self.editor.voice_manager.register_command(
+                'clear the ai sprite',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai sprite',
+                self.editor.clear_ai_sprite_box,
+            )
+            # Add command for "window" variation
+            self.editor.voice_manager.register_command(
+                'clear the ai sprite window',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai sprite window',
+                self.editor.clear_ai_sprite_box,
+            )
+
+            # Start listening for voice commands
+            self.editor.voice_manager.start_listening()
+            self.editor.log.info('Voice recognition initialized and started')
+        else:
+            self.editor.log.warning(
+                'Voice recognition not available - microphone not found',
+            )
             self.editor.voice_manager = None
 
     # ------------------------------------------------------------------

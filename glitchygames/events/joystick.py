@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -17,6 +17,25 @@ from glitchygames.sources import active_sources
 
 LOG = logging.getLogger('game.joysticks')
 LOG.addHandler(logging.NullHandler())
+
+
+class IdentifiableJoystick(Protocol):
+    """An opened joystick as the DEVICEADDED debug log reads it (pygame's or a replay's).
+
+    Both pygame's JoystickType and the replay's ReplayJoystick match it.
+    """
+
+    def get_name(self) -> str:
+        """Return the device's name."""
+        ...
+
+    def get_guid(self) -> str | None:
+        """Return the device's GUID (a replay's may be None)."""
+        ...
+
+    def get_instance_id(self) -> int:
+        """Return the device's instance id."""
+        ...
 
 
 class JoystickEventManager(JoystickEvents, ResourceManager):
@@ -67,7 +86,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             # The snapshot (glitchygames/input/state.py) keys positions by the opened device's
             # instance id
             self._instance_id: int = int(self.joystick.get_instance_id())
-            self.joystick.init()
+            # Opened means initialized: pygame-ce opens a joystick on creation (init() is
+            # deprecated) and a replay's stand-in starts initialized
             self._init = self.joystick.get_init()
             self._name = self.joystick.get_name()
 
@@ -333,13 +353,10 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                     exc_info=True,
                 )
                 continue
-            joystick.init()
+            # Opened means initialized (pygame-ce opens a joystick on creation; a replay's
+            # stand-in starts initialized), so there is no init() to call
 
             # Deep debug: capture both index and instance identity at init time
-            try:
-                reported_device_id = joystick.get_id() if hasattr(joystick, 'get_id') else None
-            except pygame.error:
-                reported_device_id = None
             try:
                 reported_instance_id = (
                     joystick.get_instance_id() if hasattr(joystick, 'get_instance_id') else None
@@ -355,9 +372,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             except pygame.error:
                 reported_guid = None
             self.log.debug(
-                'INIT MAP index=%s get_id=%s instance_id=%s name=%s guid=%s',
+                'INIT MAP index=%s instance_id=%s name=%s guid=%s',
                 pygame_joystick_index,
-                reported_device_id,
                 reported_instance_id,
                 reported_name,
                 reported_guid,
@@ -487,7 +503,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.joysticks[joystick_id].on_joy_ball_motion_event(event)
 
     def _log_joystick_debug_info(
-        self: Self, added_device_index: int, *, joystick: Any | None
+        self: Self, added_device_index: int, *, joystick: IdentifiableJoystick | None
     ) -> None:
         """Log debug info for a newly added joystick device.
 
@@ -508,17 +524,12 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             except pygame.error:
                 joystick_guid = None
             try:
-                joystick_device_id = joystick.get_id()
-            except pygame.error:
-                joystick_device_id = None
-            try:
                 joystick_instance_id = joystick.get_instance_id()
             except pygame.error:
                 joystick_instance_id = None
             self.log.debug(
-                'DEVICEADDED index=%s get_id=%s instance_id=%s name=%s guid=%s',
+                'DEVICEADDED index=%s instance_id=%s name=%s guid=%s',
                 added_device_index,
-                joystick_device_id,
                 joystick_instance_id,
                 joystick_name,
                 joystick_guid,
@@ -538,7 +549,6 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         """
         try:
             opened_joystick = active_sources().devices().open_joystick(device_index=device_index)
-            opened_joystick.init()
             return int(opened_joystick.get_instance_id())
         except pygame.error:
             LOG.debug(

@@ -226,25 +226,27 @@ def _handle_key_value(
     log: logging.Logger,
 ) -> None:
     """Handle key = value pairs, including multi-line triple-quoted strings."""
+    # The caller sends only lines holding '=', so the split always gives a key and a value
+    key, value = line.split('=', 1)
+    key = key.strip()
+    value = _strip_inline_comment(value.strip())
+
+    # Handle multi-line triple-quoted strings
+    if value == '"""' or (value.startswith('"""') and not value.endswith('"""')):
+        value = _read_multiline_string(state, value)
+        parsed_value: str | bool | int | float | list[Any] = value
+    else:
+        parsed_value = _parse_toml_value(value)
+
+    # Remove quotes from key
+    if key.startswith('"') and key.endswith('"'):
+        key = key[1:-1]
+
+    # The current section's path can run into a value that is not a table (a key reused as a
+    # section name): that line is skipped
     try:
-        key, value = line.split('=', 1)
-        key = key.strip()
-        value = _strip_inline_comment(value.strip())
-
-        # Handle multi-line triple-quoted strings
-        if value == '"""' or (value.startswith('"""') and not value.endswith('"""')):
-            value = _read_multiline_string(state, value)
-            parsed_value: str | bool | int | float | list[Any] = value
-        else:
-            parsed_value = _parse_toml_value(value)
-
-        # Remove quotes from key
-        if key.startswith('"') and key.endswith('"'):
-            key = key[1:-1]
-
         state.get_target_dict()[key] = parsed_value
-
-    except (ValueError, TypeError, KeyError) as e:
+    except (TypeError, KeyError) as e:
         log.warning('Failed to parse line %s: %s - %s', line_num, line, e)
 
 
@@ -459,24 +461,8 @@ def _fix_comma_separated_color_field(
 
     """
     try:
-        values = [int(x.strip()) for x in field_value.split(',')]
-
-        if field_name == 'red' and len(values) >= 1:
-            fixed_color['red'] = values[0]
-            if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_GREEN:
-                fixed_color['green'] = values[1]
-            if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
-                fixed_color['blue'] = values[2]
-            log.warning(
-                "Fixed comma-separated color format for '%s': %s -> separate fields",
-                color_key,
-                field_value,
-            )
-        elif field_name == 'green' and len(values) >= 1:
-            fixed_color['green'] = values[0]
-        elif field_name == 'blue' and len(values) >= 1:
-            fixed_color['blue'] = values[0]
-    except (ValueError, IndexError) as e:
+        values = [int(value.strip()) for value in field_value.split(',')]
+    except ValueError as e:
         log.warning(
             "Failed to parse comma-separated color value '%s' for '%s': %s",
             field_value,
@@ -484,6 +470,24 @@ def _fix_comma_separated_color_field(
             e,
         )
         fixed_color[field_name] = field_value
+        return
+
+    # Each index is read only after its length check, so none can be out of range
+    if field_name == 'red' and len(values) >= 1:
+        fixed_color['red'] = values[0]
+        if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_GREEN:
+            fixed_color['green'] = values[1]
+        if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
+            fixed_color['blue'] = values[2]
+        log.warning(
+            "Fixed comma-separated color format for '%s': %s -> separate fields",
+            color_key,
+            field_value,
+        )
+    elif field_name == 'green' and len(values) >= 1:
+        fixed_color['green'] = values[0]
+    elif field_name == 'blue' and len(values) >= 1:
+        fixed_color['blue'] = values[0]
 
 
 def _fix_list_color_field(
@@ -625,24 +629,32 @@ def normalize_toml_data(config_data: dict[str, Any]) -> dict[str, Any]:
         Normalized TOML data with proper string formatting
 
     """
+    # Malformed data (a sprite or animation that is not a table) is returned as it came
     try:
         normalized_data = config_data.copy()
-
-        # Handle sprite pixels
-        if 'sprite' in normalized_data and 'pixels' in normalized_data['sprite']:
-            pixels = normalized_data['sprite']['pixels']
-            if isinstance(pixels, str):
-                normalized_data['sprite']['pixels'] = _normalize_escaped_newlines(pixels)
-
-        # Handle animation frame pixels
-        if 'animation' in normalized_data:
-            _normalize_animation_pixels(normalized_data['animation'])
-
+        _normalize_pixel_strings(normalized_data)
     except (AttributeError, KeyError, TypeError) as e:
         LOG.warning(f'Error normalizing TOML data: {e}')
         return config_data
-    else:
-        return normalized_data
+    return normalized_data
+
+
+def _normalize_pixel_strings(config_data: dict[str, Any]) -> None:
+    """Normalize the escaped newlines in the sprite's and the animation frames' pixels in place.
+
+    Args:
+        config_data: TOML data whose pixel strings are normalized.
+
+    """
+    # Handle sprite pixels
+    if 'sprite' in config_data and 'pixels' in config_data['sprite']:
+        pixels = config_data['sprite']['pixels']
+        if isinstance(pixels, str):
+            config_data['sprite']['pixels'] = _normalize_escaped_newlines(pixels)
+
+    # Handle animation frame pixels
+    if 'animation' in config_data:
+        _normalize_animation_pixels(config_data['animation'])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
