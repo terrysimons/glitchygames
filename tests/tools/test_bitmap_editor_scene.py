@@ -13,6 +13,7 @@ from glitchygames.bitmappy.constants import (
     JOYSTICK_HAT_DOWN,
     JOYSTICK_HAT_LEFT,
     JOYSTICK_HAT_RIGHT,
+    JOYSTICK_HAT_UP,
     JOYSTICK_LEFT_SHOULDER_BUTTON,
 )
 from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
@@ -1141,18 +1142,11 @@ class TestJoystickEventHandlers:
         event.value = (1, 0)  # Right direction tuple
         mock_editor.on_joy_hat_motion_event(event)
 
-    def test_on_joy_hat_motion_event_integer_up(self, mock_editor, mocker):
-        """Test hat motion with integer bitmask for up direction."""
+    def test_on_joy_hat_motion_event_up(self, mock_editor, mocker):
+        """Test hat motion for the up direction (pygame's (x, y) tuple)."""
         event = mocker.Mock()
         event.hat = 0
-        event.value = 1  # Up
-        mock_editor.on_joy_hat_motion_event(event)
-
-    def test_on_joy_hat_motion_event_integer_below_threshold(self, mock_editor, mocker):
-        """Test hat motion with integer value below threshold."""
-        event = mocker.Mock()
-        event.hat = 0
-        event.value = 0  # Center/no movement
+        event.value = JOYSTICK_HAT_UP
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_on_joy_button_down_event_a_button(self, mock_editor, mocker):
@@ -1409,21 +1403,21 @@ class TestJoyHatMotionDirections:
     """Tests for on_joy_hat_motion_event direction handling."""
 
     def test_hat_right_direction(self, mock_editor, mocker):
-        """Test hat right direction (bitmask 2)."""
+        """Test hat right direction ((1, 0))."""
         event = mocker.Mock()
         event.hat = 0
         event.value = JOYSTICK_HAT_RIGHT
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_hat_down_direction(self, mock_editor, mocker):
-        """Test hat down direction (bitmask 4)."""
+        """Test hat down direction ((0, -1))."""
         event = mocker.Mock()
         event.hat = 0
         event.value = JOYSTICK_HAT_DOWN
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_hat_left_direction(self, mock_editor, mocker):
-        """Test hat left direction (bitmask 8)."""
+        """Test hat left direction ((-1, 0))."""
         event = mocker.Mock()
         event.hat = 0
         event.value = JOYSTICK_HAT_LEFT

@@ -1,9 +1,11 @@
 # Typed Events — Plan
 
 - **Date:** 2026-10-22
-- **Status:** Approved 2026-10-22 ("Do both now", with the unified devices plan); to be implemented
-  on `cleanup/post-replay` after the devices work. Decision (the user, 2026-10-22): events become
-  immutable (step 5: mutators replaced by `with_fields(**changes) -> Self`).
+- **Status:** Done 2026-10-22, all five steps, on `cleanup/post-replay` (approved 2026-10-22, "Do
+  both now", with the unified devices plan). Decision (the user, 2026-10-22): events become
+  immutable (step 5: mutators replaced by `with_fields(**changes) -> Self`). What landed, and
+  where it differs from the proposal, is under "Implementation" at the end; findings are BUGS.md
+  #186.
 - **Why:** `HashableEvent` exists because pygame events are not hashable and the engine needs to
   hash and serialize events (API mechanics, recordings, replays). Its fields are reached through
   `__getattr__ -> Any` (the attribute bag; pygame's own `Event.__getattr__` is `Any` too), so every
@@ -70,3 +72,36 @@
 Event construction picks a class from a dict: no measurable cost (one dict lookup per event).
 Frozen pydantic models were considered (free validation and JSON) and rejected for dispatch: a few
 microseconds per event, and mouse-motion bursts make that visible.
+
+## Implementation (2026-10-22)
+
+- Classes and map: `glitchygames/events/base.py` (exported by `glitchygames.events`): 31 classes
+  (`KeyEvent`, `MouseMotionEvent`, `MouseButtonEvent`, `MouseWheelEvent`, `TextInputEvent`,
+  `TextEditingEvent`, `JoyAxisEvent`, `JoyBallEvent`, `JoyHatEvent`, `JoyButtonEvent`,
+  `JoyDeviceAddedEvent`, `JoyDeviceRemovedEvent`, `ControllerAxisEvent`, `ControllerButtonEvent`,
+  `ControllerDeviceAddedEvent`, `ControllerDeviceEvent`, `ControllerTouchpadEvent`,
+  `TouchFingerEvent`, `MultiGestureEvent`, `WindowEvent`, `WindowGeometryEvent`,
+  `WindowDisplayChangedEvent`, `DropEvent`, `DropFileEvent`, `DropTextEvent`, `AudioDeviceEvent`,
+  `MidiEvent`, `ActiveEvent`, `VideoResizeEvent`, `FpsEvent`, `GameEvent`), fields from pygame-ce's
+  `dict_from_event`; added/removed device events are split (one names a device index, the other
+  an instance id). `EVENT_CLASSES` is read by `HashableEvent.__new__`, so every construction site
+  gets the type's class (not only the dispatch site); the dispatch site uses
+  `HashableEvent.from_pygame(pygame_event)`, which skips unpacking the fields into keyword
+  arguments. Equality and hashing are by type and fields, never by class.
+- Signatures: every interface, stub, manager, scene, sprite, UI, Bitmappy and example handler
+  names its class; chords are `keys: tuple[KeyEvent, ...]`. `GameEngine.process_controller_event`,
+  `process_joystick_event` and `process_game_event` match by class (`match event: case
+  events.ControllerButtonEvent(type=pygame.CONTROLLERBUTTONDOWN): ...`).
+- JSON: `to_json()` / `from_json()` reuse the recording's value encoding (`json_safe_value`,
+  `event_from_record`), windows as None. Nothing serialized `HashableEvent`s by hand: recordings
+  store raw pygame events (`recording.event_to_record`), so their format is unchanged. The
+  proposed `EventValue` alias was not needed (the fields are declared with concrete types).
+- Immutability: mutators raise TypeError; `with_fields`, `|`; `dict` is a read-only view. The
+  hash is cached in the `_content_hash` slot (never a field; `__getstate__` returns the fields
+  only). Production writes found: one (`SliderManager.on_slider_event`'s clamped trigger value,
+  never read).
+- Timings (Python 3.14, macOS, a 5-field MOUSEMOTION): dispatch wrap 344 ns -> 283 ns
+  (`from_pygame`); `HashableEvent(type, **fields)` 344 ns -> ~470 ns (class selection in
+  `__new__`); repeat `hash(event)` 707 ns -> 46 ns; the first hash about the same.
+- `__getattr__ -> Any` stays on the base; the global ANN401 ignore is replaced by a per-file
+  ignore for `glitchygames/events/base.py` with its reason (`plans/2026-10-20-lint-ignores-cleanup.md`).

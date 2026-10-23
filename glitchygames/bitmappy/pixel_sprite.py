@@ -144,11 +144,11 @@ class BitmapPixelSprite(BitmappySprite):
                 callback(event=event, trigger=self)
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button down event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
         Raises:
             None

@@ -16,7 +16,14 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import DROP_EVENTS, DropEvents, HashableEvent, ResourceManager
+from glitchygames.events import (
+    DROP_EVENTS,
+    DropEvent,
+    DropEvents,
+    DropFileEvent,
+    DropTextEvent,
+    ResourceManager,
+)
 
 log = logging.getLogger('game.events.drop_events')
 log.addHandler(logging.NullHandler())
@@ -41,7 +48,7 @@ class DropEventManager(ResourceManager):
             self.proxies = [self.game]
 
         @override
-        def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
+        def on_drop_begin_event(self: Self, event: DropEvent) -> None:
             """Handle drop begin event.
 
             Args:
@@ -51,7 +58,7 @@ class DropEventManager(ResourceManager):
             self.game.on_drop_begin_event(event)
 
         @override
-        def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
+        def on_drop_complete_event(self: Self, event: DropEvent) -> None:
             """Handle drop complete event.
 
             Args:
@@ -61,7 +68,7 @@ class DropEventManager(ResourceManager):
             self.game.on_drop_complete_event(event)
 
         @override
-        def on_drop_file_event(self: Self, event: HashableEvent) -> None:
+        def on_drop_file_event(self: Self, event: DropFileEvent) -> None:
             """Handle drop file event.
 
             Args:
@@ -71,7 +78,7 @@ class DropEventManager(ResourceManager):
             self.game.on_drop_file_event(event)
 
         @override
-        def on_drop_text_event(self: Self, event: HashableEvent) -> None:
+        def on_drop_text_event(self: Self, event: DropTextEvent) -> None:
             """Handle drop text event.
 
             Args:

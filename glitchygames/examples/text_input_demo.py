@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent, MouseButtonEvent
 
 import pygame
 
@@ -93,21 +93,21 @@ class Game(Scene):
         self.log.info('%s Got text input from: %s: %s', self.name, control.name, control.text)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle mouse button up events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.input_box.activate()
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         if self.input_box.is_active:
@@ -118,11 +118,11 @@ class Game(Scene):
             super().on_key_up_event(event)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         if self.input_box.is_active:

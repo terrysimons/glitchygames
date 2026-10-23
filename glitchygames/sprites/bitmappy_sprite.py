@@ -18,7 +18,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self, cast, override
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        HashableEvent,
+        MouseButtonEvent,
+        MouseMotionEvent,
+        MouseWheelEvent,
+    )
 
 import pygame
 import tomli_w
@@ -757,12 +762,14 @@ class BitmappySprite(Sprite):
         raise ValueError(_ERR_UNSUPPORTED_FORMAT.format(file_format=file_format))
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle a left mouse drag event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drag.
+            event (MouseMotionEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drag.
 
         """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
@@ -771,38 +778,42 @@ class BitmappySprite(Sprite):
     @override
     def on_middle_mouse_drag_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent,
+        event: MouseMotionEvent,
+        trigger: MouseButtonEvent,
     ) -> None:
         """Handle a middle mouse drag event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drag.
+            event (MouseMotionEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drag.
 
         """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
 
     @override
-    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_right_mouse_drag_event(
+        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle a right mouse drag event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drag.
+            event (MouseMotionEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drag.
 
         """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
 
     @override
-    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_left_mouse_drop_event(
+        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle a left mouse drop event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drop.
+            event (MouseButtonEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drop.
 
         """
         self.log.debug(
@@ -812,14 +823,14 @@ class BitmappySprite(Sprite):
     @override
     def on_middle_mouse_drop_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent,
+        event: MouseButtonEvent,
+        trigger: MouseButtonEvent,
     ) -> None:
         """Handle a middle mouse drop event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drop.
+            event (MouseButtonEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drop.
 
         """
         self.log.debug(
@@ -827,12 +838,14 @@ class BitmappySprite(Sprite):
         )
 
     @override
-    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_right_mouse_drop_event(
+        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle a right mouse drop event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drop.
+            event (MouseButtonEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drop.
 
         """
         self.log.debug(
@@ -840,34 +853,34 @@ class BitmappySprite(Sprite):
         )
 
     @override
-    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_mouse_drag_event(self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent) -> None:
         """Handle a mouse drag event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drag.
+            event (MouseMotionEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drag.
 
         """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
 
     @override
-    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_mouse_drop_event(self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent) -> None:
         """Handle a mouse drop event.
 
         Args:
-            event (HashableEvent): The event to handle.
-            trigger (HashableEvent): The event that triggered the drop.
+            event (MouseButtonEvent): The event to handle.
+            trigger (MouseButtonEvent): The event that triggered the drop.
 
         """
         self.log.debug('%s: Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger)
 
     @override
-    def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_wheel_event(self: Self, event: MouseWheelEvent) -> None:
         """Handle a mouse wheel event.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (MouseWheelEvent): The event to handle.
 
         """
         self.log.debug('%s: Mouse Wheel Event: %s @ %s', type(self), event, self)

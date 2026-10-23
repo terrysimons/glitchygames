@@ -628,7 +628,15 @@ mode with `Scene.PIXEL_SNAP_MODE`; a sprite may override it with `pixel_snap_mod
 **Event Managers** (`glitchygames/events/`):
 - Specialized classes: `MouseEventManager`, `KeyboardEventManager`, `ControllerEventManager`
 - Scenes override `on_*_event()` methods to handle specific events
-- `HashableEvent`: Custom wrapper allowing arbitrary attributes
+- `HashableEvent` (`glitchygames/events/base.py`): the hashable, immutable wrapper every handler
+  gets (dispatch: `HashableEvent.from_pygame`). `HashableEvent(type, **fields)` builds the type's
+  class from `EVENT_CLASSES` (`KeyEvent`, `MouseMotionEvent`, `MouseButtonEvent`, `JoyAxisEvent`,
+  `ControllerButtonEvent`, `WindowEvent`, `FpsEvent`, `GameEvent`, ...: field declarations only;
+  custom types stay `HashableEvent`, fields `Any`), so handlers name their class (chords get
+  `keys: tuple[KeyEvent, ...]`). Equal by type and fields, never by class. Mutators raise
+  TypeError: use `event.with_fields(**changes)`; the hash is cached in a slot, never a field.
+  `to_json()`/`from_json()` encode values as recordings do, windows as None (recordings still
+  store raw pygame events)
 - Unhandled events: `GameEngine.unhandled_events` keeps per-type count, first-seen time and attribute names; logged as a table at teardown (`_shutdown`)
 
 ### Sprite and Animation System

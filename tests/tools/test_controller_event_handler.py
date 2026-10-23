@@ -450,24 +450,27 @@ class TestJoystickEvents:
         select.assert_not_called()
         cancel.assert_not_called()
 
-    @pytest.mark.parametrize('hat_value', [(0, 0), 0])
-    def test_a_centered_hat_is_below_the_threshold(self, caplog, hat_value):
-        """A centered hat, as a tuple or a bitmask, is ignored as below the threshold."""
+    def test_a_centered_hat_is_below_the_threshold(self, caplog):
+        """A centered hat ((0, 0), as pygame reports it) is ignored as below the threshold."""
         caplog.set_level(logging.DEBUG, logger=HANDLER_LOGGER)
         handler, _editor = _make_handler()
 
         handler.on_joy_hat_motion_event(
-            HashableEvent(pygame.JOYHATMOTION, hat=0, value=hat_value),
+            HashableEvent(pygame.JOYHATMOTION, hat=0, value=(0, 0)),
         )
 
         assert 'DEBUG: Joystick hat motion below threshold, ignoring' in _debug_messages(caplog)
 
     @pytest.mark.parametrize(
         ('hat_value', 'direction'),
-        [(1, 'up'), (2, 'right'), (4, 'down'), (8, 'left')],
+        [((0, 1), 'up'), ((1, 0), 'right'), ((0, -1), 'down'), ((-1, 0), 'left')],
     )
     def test_hat_directions_are_disabled(self, caplog, hat_value, direction):
-        """Each hat direction is recognised but left to the multi-controller system."""
+        """Each hat direction (pygame's (x, y) tuple) is recognised but left to the controllers.
+
+        They are left to the multi-controller system; they were compared with integer bitmasks,
+        which never matched.
+        """
         caplog.set_level(logging.DEBUG, logger=HANDLER_LOGGER)
         handler, _editor = _make_handler()
 
@@ -480,13 +483,13 @@ class TestJoystickEvents:
             in _debug_messages(caplog)
         )
 
-    def test_a_tuple_hat_direction_matches_no_bitmask(self, caplog):
-        """A pushed tuple hat passes the threshold but matches none of the bitmask values."""
+    def test_a_diagonal_hat_matches_no_direction(self, caplog):
+        """A diagonal passes the threshold but names none of the four directions."""
         caplog.set_level(logging.DEBUG, logger=HANDLER_LOGGER)
         handler, _editor = _make_handler()
 
         handler.on_joy_hat_motion_event(
-            HashableEvent(pygame.JOYHATMOTION, hat=0, value=(1, 0)),
+            HashableEvent(pygame.JOYHATMOTION, hat=0, value=(1, 1)),
         )
 
         assert not any('DISABLED' in message for message in _debug_messages(caplog))

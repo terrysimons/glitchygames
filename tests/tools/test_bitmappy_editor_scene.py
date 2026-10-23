@@ -285,20 +285,20 @@ class TestOnSliderEvent:
         assert mock_editor.alpha_slider.value == 128
 
     def test_slider_event_clamps_below_zero(self, mock_editor):
-        """Slider value is clamped to minimum 0."""
+        """Slider value is clamped to minimum 0; the trigger event is left unchanged."""
         trigger = _make_event(name='R', value=-10)
         event = _make_event()
         mock_editor.on_slider_event(event=event, trigger=trigger)
         assert mock_editor.red_slider.value == 0
-        assert trigger.value == 0
+        assert trigger.value == -10
 
     def test_slider_event_clamps_above_255(self, mock_editor):
-        """Slider value is clamped to maximum 255."""
+        """Slider value is clamped to maximum 255; the trigger event is left unchanged."""
         trigger = _make_event(name='G', value=300)
         event = _make_event()
         mock_editor.on_slider_event(event=event, trigger=trigger)
         assert mock_editor.green_slider.value == 255
-        assert trigger.value == 255
+        assert trigger.value == 300
 
     def test_slider_event_updates_color_well(self, mock_editor):
         """Slider event updates the color well active_color."""

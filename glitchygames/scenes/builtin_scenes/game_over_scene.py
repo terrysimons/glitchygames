@@ -10,7 +10,7 @@ import pygame
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
@@ -123,11 +123,11 @@ class GameOverScene(Scene):
         log.debug('GameOverScene update() called')
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events for the Game Over scene.
 
         Args:
-            event (HashableEvent): The key down event.
+            event (KeyEvent): The key down event.
 
         """
         if event.key == pygame.K_SPACE:
@@ -141,11 +141,11 @@ class GameOverScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key up events for the Game Over scene.
 
         Args:
-            event (HashableEvent): The key up event.
+            event (KeyEvent): The key up event.
 
         """
         if event.key == pygame.K_SPACE and self._space_pressed:

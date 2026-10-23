@@ -11,6 +11,8 @@
   Bitmappy on 2026-10-22, and the `PLW0717` ignore removed (BUGS.md #19 resolved; the bugs it
   found are #175, fixed, and #176-#178). Phase 4 in progress (the user's go-ahead 2026-10-22, as
   part of the post-replay cleanup): 128 of 152 sites typed; the 24 left are listed under Phase 4.
+  Phase 4 done 2026-10-22: the global `ANN401` ignore is gone; the one `Any` left
+  (`HashableEvent.__getattr__`, custom events' fields) has a per-file ignore with its reason.
   Phase 5 done 2026-10-22 (the user's choice: convert all): every logging f-string is lazy
   `%`-style and the `G004` ignore is removed; measurements under Phase 5.
 - **Why:** several global ignores in `pyproject.toml` are dead, mislabelled or broader than needed,
@@ -96,10 +98,12 @@ alias, reused by `recording.py`), `supervision.FrozenJsonValue`/`JsonShapedValue
 - ~~`examples/joystick_demo.py` (12)~~ done 2026-10-22: rewritten on one `InputDevice` per
   physical device (`plans/2026-10-22-unified-input-devices.md`); it lists every device with no
   mode and no `Any`. The package's last ANN401 site is `events/base.py`'s `__getattr__` (below).
-- `events/base.py` `HashableEvent.__getattr__` (1): the event attribute bag (pygame's own is
-  `Any`; `object` gave 292 caller errors). Keeps `Any` with a per-file ignore and its reason
-  until typed per-family event subclasses exist (to be planned; basedpyright does not let
-  `__getattr__` satisfy a Protocol, so typed views must be classes).
+- `events/base.py` `HashableEvent.__getattr__` (1), done 2026-10-22 (the user approved finishing
+  phase 4 this way): the typed per-type event classes exist (`plans/2026-10-22-typed-events.md`),
+  so every handler's fields are typed; `__getattr__ -> Any` stays on the base for custom and
+  unknown events' fields (pygame's own is `Any`; `object` gave 292 caller errors). The global
+  `ANN401` ignore is removed from `pyproject.toml`; a per-file ignore for
+  `glitchygames/events/base.py`, with that reason, covers the one site.
 - Bitmappy (11), done 2026-10-22 (the user's choices: public APIs; the editor required):
   `AnimatedSprite.animation_data`/`pause()`, `FilmStripWidget.refresh(recalculate_layout=...)`,
   `EditorContext.applying_undo_redo`; the trackers require `editor`; the dead aisuite

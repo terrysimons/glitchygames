@@ -11,7 +11,13 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import KEYBOARD_EVENTS, HashableEvent, KeyboardEvents, ResourceManager
+from glitchygames.events import (
+    KEYBOARD_EVENTS,
+    HashableEvent,
+    KeyboardEvents,
+    KeyEvent,
+    ResourceManager,
+)
 
 log = logging.getLogger('game.keyboard')
 log.addHandler(logging.NullHandler())
@@ -38,11 +44,11 @@ class KeyboardEventManager(ResourceManager):
             self.proxies = [self.game, pygame.key]
 
         @override
-        def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        def on_key_down_event(self: Self, event: KeyEvent) -> None:
             """Handle key down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (KeyEvent): The event to handle.
 
             """
             # Re-inserted, so a key pressed again is the last key down (BUGS.md #180: keyed by
@@ -54,11 +60,11 @@ class KeyboardEventManager(ResourceManager):
             self.on_key_chord_down_event(event)
 
         @override
-        def on_key_up_event(self: Self, event: HashableEvent) -> None:
+        def on_key_up_event(self: Self, event: KeyEvent) -> None:
             """Handle key up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (KeyEvent): The event to handle.
 
             """
             self.keys[event.key] = event
@@ -69,15 +75,15 @@ class KeyboardEventManager(ResourceManager):
         @override
         def on_key_chord_down_event(
             self: Self,
-            event: HashableEvent,
-            keys: list[int] | None = None,
+            event: KeyEvent,
+            keys: tuple[KeyEvent, ...] = (),
         ) -> None:
             """Handle key chord down events.
 
             Args:
-                event (HashableEvent): The event to handle.
-                keys (list[int] | None): The keys in the chord
-                    (computed internally if not provided).
+                event (KeyEvent): The event to handle.
+                keys (tuple[KeyEvent, ...]): Unused: the proxy passes the game the KEYDOWN
+                    events of the keys held now, in the order they were pressed.
 
             """
             keys_down = self._keys_down()
@@ -88,15 +94,15 @@ class KeyboardEventManager(ResourceManager):
         @override
         def on_key_chord_up_event(
             self: Self,
-            event: HashableEvent,
-            keys: list[int] | None = None,
+            event: KeyEvent,
+            keys: tuple[KeyEvent, ...] = (),
         ) -> None:
             """Handle key chord up events.
 
             Args:
-                event (HashableEvent): The event to handle.
-                keys (list[int] | None): The keys in the chord
-                    (computed internally if not provided).
+                event (KeyEvent): The event to handle.
+                keys (tuple[KeyEvent, ...]): Unused: the proxy passes the game the KEYDOWN
+                    events of the keys held now, in the order they were pressed.
 
             """
             self.game.on_key_chord_up_event(event, self._keys_down())

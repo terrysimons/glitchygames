@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import AUDIO_EVENTS, AudioEvents, HashableEvent, ResourceManager
+from glitchygames.events import (
+    AUDIO_EVENTS,
+    AudioDeviceEvent,
+    AudioEvents,
+    ResourceManager,
+)
 
 log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
@@ -39,7 +44,7 @@ class AudioEventManager(ResourceManager):
             self.proxies = [self.game, pygame.mixer]
 
         @override
-        def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
+        def on_audio_device_added_event(self: Self, event: AudioDeviceEvent) -> None:
             """Handle audio device added event.
 
             Args:
@@ -49,7 +54,7 @@ class AudioEventManager(ResourceManager):
             self.game.on_audio_device_added_event(event)
 
         @override
-        def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
+        def on_audio_device_removed_event(self: Self, event: AudioDeviceEvent) -> None:
             """Handle audio device removed event.
 
             Args:

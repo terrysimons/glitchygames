@@ -252,12 +252,12 @@ class TestSliderEvents:
         [(-5, 0), (300, 255)],
     )
     def test_slider_event_clamps_out_of_range_values(self, editor, requested_value, clamped_value):
-        """Values outside 0-255 are clamped on the trigger and the slider."""
+        """Values outside 0-255 are clamped on the slider; the trigger event is left unchanged."""
         trigger = events.HashableEvent(0, name='R', value=requested_value)
 
         editor.slider_manager.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
 
-        assert trigger.value == clamped_value
+        assert trigger.value == requested_value
         assert editor.red_slider.value == clamped_value
 
     def test_slider_event_shows_hex_text_in_hex_format(self, editor):

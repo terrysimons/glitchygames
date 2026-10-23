@@ -21,7 +21,7 @@ if TYPE_CHECKING:
         FilmStripWidget,
         FilmTabWidget,
     )
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent
     from glitchygames.sprites import SpriteFrame
 
 ANIMATION_NAME_MAX_LENGTH = 50
@@ -228,7 +228,7 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
                 return (anim_name, global_selected_frame)
         return None
 
-    def handle_keyboard_input(self, event: HashableEvent) -> bool:
+    def handle_keyboard_input(self, event: KeyEvent) -> bool:
         """Handle keyboard input for animation renaming.
 
         Args:

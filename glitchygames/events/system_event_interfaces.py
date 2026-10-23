@@ -11,7 +11,21 @@ from __future__ import annotations
 import abc
 from typing import Self
 
-from glitchygames.events.base import EventInterface, HashableEvent, unhandled_event
+from glitchygames.events.base import (
+    ActiveEvent,
+    AudioDeviceEvent,
+    DropEvent,
+    DropFileEvent,
+    DropTextEvent,
+    EventInterface,
+    FpsEvent,
+    GameEvent,
+    HashableEvent,
+    VideoResizeEvent,
+    WindowEvent,
+    WindowGeometryEvent,
+    unhandled_event,
+)
 
 
 # Mixin
@@ -19,21 +33,21 @@ class AudioEvents(EventInterface):
     """Mixin for audio events."""
 
     @abc.abstractmethod
-    def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_audio_device_added_event(self: Self, event: AudioDeviceEvent) -> None:
         """Handle audio device added events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEADDED   which, iscapture
 
     @abc.abstractmethod
-    def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_audio_device_removed_event(self: Self, event: AudioDeviceEvent) -> None:
         """Handle audio device removed events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEREMOVED which, iscapture
@@ -43,21 +57,21 @@ class AudioEvents(EventInterface):
 class AudioEventStubs(AudioEvents):
     """Mixin for audio events."""
 
-    def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
+    def on_audio_device_added_event(self: Self, event: AudioDeviceEvent) -> None:  # type: ignore[override]
         """Handle audio device added events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEADDED   which, iscapture
         return unhandled_event(self, event)
 
-    def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
+    def on_audio_device_removed_event(self: Self, event: AudioDeviceEvent) -> None:  # type: ignore[override]
         """Handle audio device removed events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEREMOVED which, iscapture
@@ -169,161 +183,161 @@ class WindowEvents(EventInterface):
     """Mixin for window events."""
 
     @abc.abstractmethod
-    def on_window_close_event(self: Self, event: HashableEvent) -> None:
+    def on_window_close_event(self: Self, event: WindowEvent) -> None:
         """Handle window close events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWCLOSE      none
 
     @abc.abstractmethod
-    def on_window_enter_event(self: Self, event: HashableEvent) -> None:
+    def on_window_enter_event(self: Self, event: WindowEvent) -> None:
         """Handle window enter events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWENTER      none
 
     @abc.abstractmethod
-    def on_window_exposed_event(self: Self, event: HashableEvent) -> None:
+    def on_window_exposed_event(self: Self, event: WindowEvent) -> None:
         """Handle window exposed events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWEXPOSED    none
 
     @abc.abstractmethod
-    def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_gained_event(self: Self, event: WindowEvent) -> None:
         """Handle window focus gained events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSGAINED none
 
     @abc.abstractmethod
-    def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_lost_event(self: Self, event: WindowEvent) -> None:
         """Handle window focus lost events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSLOST  none
 
     @abc.abstractmethod
-    def on_window_hidden_event(self: Self, event: HashableEvent) -> None:
+    def on_window_hidden_event(self: Self, event: WindowEvent) -> None:
         """Handle window hidden events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHIDDEN     none
 
     @abc.abstractmethod
-    def on_window_hit_test_event(self: Self, event: HashableEvent) -> None:
+    def on_window_hit_test_event(self: Self, event: WindowEvent) -> None:
         """Handle window hit test events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHITTEST    none
 
     @abc.abstractmethod
-    def on_window_leave_event(self: Self, event: HashableEvent) -> None:
+    def on_window_leave_event(self: Self, event: WindowEvent) -> None:
         """Handle window leave events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWLEAVE      none
 
     @abc.abstractmethod
-    def on_window_maximized_event(self: Self, event: HashableEvent) -> None:
+    def on_window_maximized_event(self: Self, event: WindowEvent) -> None:
         """Handle window maximized events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMAXIMIZED  none
 
     @abc.abstractmethod
-    def on_window_minimized_event(self: Self, event: HashableEvent) -> None:
+    def on_window_minimized_event(self: Self, event: WindowEvent) -> None:
         """Handle window minimized events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMINIMIZED  none
 
     @abc.abstractmethod
-    def on_window_moved_event(self: Self, event: HashableEvent) -> None:
+    def on_window_moved_event(self: Self, event: WindowGeometryEvent) -> None:
         """Handle window moved events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWMOVED      none
 
     @abc.abstractmethod
-    def on_window_resized_event(self: Self, event: HashableEvent) -> None:
+    def on_window_resized_event(self: Self, event: WindowGeometryEvent) -> None:
         """Handle window resized events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWRESIZED    size, w, h
 
     @abc.abstractmethod
-    def on_window_restored_event(self: Self, event: HashableEvent) -> None:
+    def on_window_restored_event(self: Self, event: WindowEvent) -> None:
         """Handle window restored events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWRESTORED   none
 
     @abc.abstractmethod
-    def on_window_shown_event(self: Self, event: HashableEvent) -> None:
+    def on_window_shown_event(self: Self, event: WindowEvent) -> None:
         """Handle window shown events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWSHOWN      none
 
     @abc.abstractmethod
-    def on_window_size_changed_event(self: Self, event: HashableEvent) -> None:
+    def on_window_size_changed_event(self: Self, event: WindowGeometryEvent) -> None:
         """Handle window size changed events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWSIZECHANGED size, w, h
 
     @abc.abstractmethod
-    def on_window_take_focus_event(self: Self, event: HashableEvent) -> None:
+    def on_window_take_focus_event(self: Self, event: WindowEvent) -> None:
         """Handle window take focus events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWTAKEFOCUS  none
@@ -332,161 +346,161 @@ class WindowEvents(EventInterface):
 class WindowEventStubs(EventInterface):
     """Mixin for window events."""
 
-    def on_window_close_event(self: Self, event: HashableEvent) -> None:
+    def on_window_close_event(self: Self, event: WindowEvent) -> None:
         """Handle window close events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWCLOSE      none
         unhandled_event(self, event)
 
-    def on_window_enter_event(self: Self, event: HashableEvent) -> None:
+    def on_window_enter_event(self: Self, event: WindowEvent) -> None:
         """Handle window enter events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWENTER      none
         unhandled_event(self, event)
 
-    def on_window_exposed_event(self: Self, event: HashableEvent) -> None:
+    def on_window_exposed_event(self: Self, event: WindowEvent) -> None:
         """Handle window exposed events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWEXPOSED    none
         unhandled_event(self, event)
 
-    def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_gained_event(self: Self, event: WindowEvent) -> None:
         """Handle window focus gained events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSGAINED none
         unhandled_event(self, event)
 
-    def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_lost_event(self: Self, event: WindowEvent) -> None:
         """Handle window focus lost events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSLOST  none
         unhandled_event(self, event)
 
-    def on_window_hidden_event(self: Self, event: HashableEvent) -> None:
+    def on_window_hidden_event(self: Self, event: WindowEvent) -> None:
         """Handle window hidden events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHIDDEN     none
         unhandled_event(self, event)
 
-    def on_window_hit_test_event(self: Self, event: HashableEvent) -> None:
+    def on_window_hit_test_event(self: Self, event: WindowEvent) -> None:
         """Handle window hit test events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHITTEST    none
         unhandled_event(self, event)
 
-    def on_window_leave_event(self: Self, event: HashableEvent) -> None:
+    def on_window_leave_event(self: Self, event: WindowEvent) -> None:
         """Handle window leave events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWLEAVE      none
         unhandled_event(self, event)
 
-    def on_window_maximized_event(self: Self, event: HashableEvent) -> None:
+    def on_window_maximized_event(self: Self, event: WindowEvent) -> None:
         """Handle window maximized events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMAXIMIZED  none
         unhandled_event(self, event)
 
-    def on_window_minimized_event(self: Self, event: HashableEvent) -> None:
+    def on_window_minimized_event(self: Self, event: WindowEvent) -> None:
         """Handle window minimized events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMINIMIZED  none
         unhandled_event(self, event)
 
-    def on_window_moved_event(self: Self, event: HashableEvent) -> None:
+    def on_window_moved_event(self: Self, event: WindowGeometryEvent) -> None:
         """Handle window moved events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWMOVED      none
         unhandled_event(self, event)
 
-    def on_window_resized_event(self: Self, event: HashableEvent) -> None:
+    def on_window_resized_event(self: Self, event: WindowGeometryEvent) -> None:
         """Handle window resized events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWRESIZED    size, w, h
         unhandled_event(self, event)
 
-    def on_window_restored_event(self: Self, event: HashableEvent) -> None:
+    def on_window_restored_event(self: Self, event: WindowEvent) -> None:
         """Handle window restored events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWRESTORED   none
         unhandled_event(self, event)
 
-    def on_window_shown_event(self: Self, event: HashableEvent) -> None:
+    def on_window_shown_event(self: Self, event: WindowEvent) -> None:
         """Handle window shown events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWSHOWN      none
         unhandled_event(self, event)
 
-    def on_window_size_changed_event(self: Self, event: HashableEvent) -> None:
+    def on_window_size_changed_event(self: Self, event: WindowGeometryEvent) -> None:
         """Handle window size changed events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWSIZECHANGED size, w, h
         unhandled_event(self, event)
 
-    def on_window_take_focus_event(self: Self, event: HashableEvent) -> None:
+    def on_window_take_focus_event(self: Self, event: WindowEvent) -> None:
         """Handle window take focus events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWTAKEFOCUS  none
@@ -498,7 +512,7 @@ class DropEvents(EventInterface):
     """Mixin for drop events."""
 
     @abc.abstractmethod
-    def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_begin_event(self: Self, event: DropEvent) -> None:
         """Handle drop begin event.
 
         Args:
@@ -508,7 +522,7 @@ class DropEvents(EventInterface):
         # DROPBEGIN        none
 
     @abc.abstractmethod
-    def on_drop_file_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_file_event(self: Self, event: DropFileEvent) -> None:
         """Handle drop file event.
 
         Args:
@@ -518,7 +532,7 @@ class DropEvents(EventInterface):
         # DROPFILE         file
 
     @abc.abstractmethod
-    def on_drop_text_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_text_event(self: Self, event: DropTextEvent) -> None:
         """Handle drop text event.
 
         Args:
@@ -528,7 +542,7 @@ class DropEvents(EventInterface):
         # DROPTEXT         text
 
     @abc.abstractmethod
-    def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_complete_event(self: Self, event: DropEvent) -> None:
         """Handle drop complete event.
 
         Args:
@@ -542,7 +556,7 @@ class DropEvents(EventInterface):
 class DropEventStubs(EventInterface):
     """Mixin for drop events."""
 
-    def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_begin_event(self: Self, event: DropEvent) -> None:
         """Handle drop begin event.
 
         Args:
@@ -552,7 +566,7 @@ class DropEventStubs(EventInterface):
         # DROPBEGIN        none
         unhandled_event(self, event)
 
-    def on_drop_file_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_file_event(self: Self, event: DropFileEvent) -> None:
         """Handle drop file event.
 
         Args:
@@ -562,7 +576,7 @@ class DropEventStubs(EventInterface):
         # DROPFILE         file
         unhandled_event(self, event)
 
-    def on_drop_text_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_text_event(self: Self, event: DropTextEvent) -> None:
         """Handle drop text event.
 
         Args:
@@ -572,7 +586,7 @@ class DropEventStubs(EventInterface):
         # DROPTEXT         text
         unhandled_event(self, event)
 
-    def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
+    def on_drop_complete_event(self: Self, event: DropEvent) -> None:
         """Handle drop complete event.
 
         Args:
@@ -598,31 +612,31 @@ class GameEvents(EventInterface):
     """
 
     @abc.abstractmethod
-    def on_active_event(self: Self, event: HashableEvent) -> None:
+    def on_active_event(self: Self, event: ActiveEvent) -> None:
         """Handle active events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (ActiveEvent): The event to handle.
 
         """
         # ACTIVEEVENT      gain, state
 
     @abc.abstractmethod
-    def on_fps_event(self: Self, event: HashableEvent) -> None:
+    def on_fps_event(self: Self, event: FpsEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (FpsEvent): The event to handle.
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
 
     @abc.abstractmethod
-    def on_game_event(self: Self, event: HashableEvent) -> None:
+    def on_game_event(self: Self, event: GameEvent) -> None:
         """Handle game events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (GameEvent): The event to handle.
 
         """
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -668,11 +682,11 @@ class GameEvents(EventInterface):
         # VIDEOEXPOSE      none
 
     @abc.abstractmethod
-    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
+    def on_video_resize_event(self: Self, event: VideoResizeEvent) -> None:
         """Handle video resize events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (VideoResizeEvent): The event to handle.
 
         """
         # VIDEORESIZE      size, w, h
@@ -738,31 +752,31 @@ class GameEventStubs(EventInterface):
     a good home otherwise.
     """
 
-    def on_active_event(self: Self, event: HashableEvent) -> None:
+    def on_active_event(self: Self, event: ActiveEvent) -> None:
         """Handle active events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (ActiveEvent): The event to handle.
 
         """
         # ACTIVEEVENT      gain, state
         unhandled_event(self, event)
 
-    def on_fps_event(self: Self, event: HashableEvent) -> None:
+    def on_fps_event(self: Self, event: FpsEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (FpsEvent): The event to handle.
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
         unhandled_event(self, event)
 
-    def on_game_event(self: Self, event: HashableEvent) -> None:
+    def on_game_event(self: Self, event: GameEvent) -> None:
         """Handle game events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (GameEvent): The event to handle.
 
         """
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -808,11 +822,11 @@ class GameEventStubs(EventInterface):
         # VIDEOEXPOSE      none
         unhandled_event(self, event)
 
-    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
+    def on_video_resize_event(self: Self, event: VideoResizeEvent) -> None:
         """Handle video resize events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (VideoResizeEvent): The event to handle.
 
         """
         # VIDEORESIZE      size, w, h

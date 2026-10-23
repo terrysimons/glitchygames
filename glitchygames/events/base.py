@@ -13,12 +13,17 @@ import logging
 import re
 from collections.abc import Iterable, Mapping
 from collections.abc import Set as AbstractSet
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast, override
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Protocol, Self, cast, override
 
 import pygame
 
 if TYPE_CHECKING:
+    import builtins
     from collections.abc import Callable, Iterator, KeysView, ValuesView
+    from types import MemberDescriptorType
+
+    from glitchygames.tracing import JsonValue
 
 
 class UnhandledEventError(Exception):
@@ -335,9 +340,65 @@ def _hashable_value(value: object) -> object:
     return value
 
 
+IMMUTABLE_EVENT_MSG = (
+    '{cls} is immutable: build a changed copy with with_fields(...) (it cannot {operation})'
+)
+EVENT_TYPE_CHANGE_MSG = (
+    "An event's type cannot change ({old} -> {new}): build a new event of the other type"
+)
+WRONG_EVENT_CLASS_MSG = '{cls} cannot hold a {event_name} event ({event_type}); use {expected}'
+
+
+def _refused_class(cls: type[HashableEvent], event_type: int) -> NoReturn:
+    """Refuse a per-type class called with a type that has no class of its own.
+
+    Raises:
+        ValueError: Always.
+
+    """
+    raise ValueError(
+        WRONG_EVENT_CLASS_MSG.format(
+            cls=cls.__name__,
+            event_name=pygame.event.event_name(event_type),
+            event_type=event_type,
+            expected='HashableEvent',
+        )
+    )
+
+
+def _event_class_for(
+    *, cls: type[HashableEvent], event_type: int, type_class: type[HashableEvent]
+) -> type[HashableEvent]:
+    """Return the class to build when ``cls`` (not the base, nor the type's class) is called.
+
+    A family class called with one of its subclasses' types builds the subclass
+    (``WindowEvent(pygame.WINDOWMOVED)`` is a ``WindowGeometryEvent``); a game's own subclass
+    of the type's class is kept.
+
+    Returns:
+        type[HashableEvent]: The class.
+
+    Raises:
+        ValueError: If ``cls`` is unrelated to the type's class.
+
+    """
+    if issubclass(type_class, cls):
+        return type_class
+    if issubclass(cls, type_class):
+        return cls
+    raise ValueError(
+        WRONG_EVENT_CLASS_MSG.format(
+            cls=cls.__name__,
+            event_name=pygame.event.event_name(event_type),
+            event_type=event_type,
+            expected=type_class.__name__,
+        )
+    )
+
+
 # Note, we can't subclass pygame's Event because it's a C type.
 class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-public-methods]
-    """Hashable event class.
+    """Hashable, immutable event class.
 
     Hashable events are cacheable, so we can mitigate some of the
     performance overhead of glitchygames' event subsystem by caching
@@ -347,35 +408,213 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
     Games are welcome to use the built-in pygame event subsystem, but
     on_*_event callbacks will not be available in that case.
 
-    This also allows us to insert metadata into the pygame events
-    which allows us to extend them with additional information.
+    The class is chosen by the event's type: ``HashableEvent(pygame.MOUSEMOTION, ...)`` builds
+    a ``MouseMotionEvent`` (``EVENT_CLASSES``), so every event of a type is an instance of
+    that type's class however it was built; custom and unknown types stay ``HashableEvent``.
+    The per-type classes only declare their fields (for the type checker): they store, hash,
+    compare, pickle and serialize exactly as this class does. Equality is by type and fields,
+    never by Python class.
+
+    An event never changes after construction (it is hashed, and its hash is cached):
+    item and attribute assignment, deletion, ``update``, ``clear``, ``pop``, ``popitem``,
+    ``setdefault`` and ``|=`` raise TypeError; ``with_fields(**changes)`` returns a changed
+    copy. Field values should be immutable too: a list or dict inside a game event is hashed
+    by its contents once, so changing it afterwards leaves the cached hash stale.
     """
 
-    def __init__(self: Self, type: int, *_args: Any, **attributes: Any) -> None:  # ruff: ignore[builtin-argument-shadowing]
-        """Create a hashable event.
+    # The cached hash lives in a slot, outside __dict__, so it is never one of the event's
+    # fields (iteration, len, dict(), keys(), __eq__, pickling, to_json; BUGS.md #179 was a
+    # hash stored in __dict__). None until the first __hash__
+    __slots__ = ('_content_hash',)
 
-        Pygames events are not hashable by default.
+    # Every event has its type (stored in __dict__ with the fields)
+    type: int
+    _content_hash: int | None
+
+    def __new__(cls, type: int, *_args: Any, **attributes: Any) -> Self:  # ruff: ignore[builtin-argument-shadowing]
+        """Create a hashable event, as the class its type maps to (``EVENT_CLASSES``).
+
+        Pygames events are not hashable by default. All of the construction happens here
+        (``__init__`` is object's): one Python call per event, which matters for mouse-motion
+        floods. A per-type class called with a type it cannot hold (another family's, or a
+        type without a class of its own) raises ValueError.
 
         Args:
             type: The type of the event.
             *_args: Additional positional arguments (unused).
-            **attributes: The keyword arguments.
+            **attributes: The event's fields.
+
+        Returns:
+            Self: An instance of the type's class: ``HashableEvent`` (or the class called) for
+            a type with no class of its own.
 
         """
+        type_class = EVENT_CLASSES.get(type)
+        if type_class is None:
+            event_class = cls if cls not in _TYPED_EVENT_CLASSES else _refused_class(cls, type)
+        elif cls is HashableEvent or cls is type_class:
+            event_class = type_class
+        else:
+            event_class = _event_class_for(cls=cls, event_type=type, type_class=type_class)
+        event = object.__new__(event_class)
         # The event's attributes are exactly its type and fields: nothing else is stored in
-        # __dict__ (a stored hash there showed up as a field, BUGS.md #179)
-        self.type = type
-        self.__dict__.update(attributes)
+        # __dict__ (a stored hash there showed up as a field, BUGS.md #179). Written through
+        # __dict__ because attribute assignment raises (the event is immutable); the cached
+        # hash is None until the first __hash__
+        fields = event.__dict__
+        fields['type'] = type
+        fields.update(attributes)
+        _CONTENT_HASH_SLOT.__set__(event, None)
+        # event_class is cls or one of its subclasses, so the event is a Self
+        return cast('Self', event)
+
+    if TYPE_CHECKING:
+        # The constructor's signature for the type checker (UserDict's __init__ takes a
+        # mapping); at run time __init__ is object's
+        def __init__(self, type: int, *_args: Any, **attributes: Any) -> None:  # ruff: ignore[builtin-argument-shadowing]
+            """Declare the constructor's arguments (``__new__`` builds the event)."""
+
+    else:
+        # Everything is done in __new__; object's __init__ accepts the constructor's arguments
+        # (a class that overrides __new__ but not __init__) and does nothing, without a second
+        # Python call per event
+        __init__ = object.__init__
+
+    @staticmethod
+    def from_pygame(pygame_event: pygame.event.Event) -> HashableEvent:
+        """Wrap a pygame event, as its type's class (``EVENT_CLASSES``): the engine's dispatch.
+
+        The same event the constructor builds (``HashableEvent(pygame_event.type,
+        **pygame_event.dict)``), without unpacking the fields into keyword arguments twice:
+        every dispatched event comes through here, mouse-motion floods included.
+
+        Args:
+            pygame_event: The raw event.
+
+        Returns:
+            HashableEvent: The event.
+
+        """
+        event_type = pygame_event.type
+        event = object.__new__(EVENT_CLASSES.get(event_type, HashableEvent))
+        fields = event.__dict__
+        fields['type'] = event_type
+        fields.update(pygame_event.dict)
+        _CONTENT_HASH_SLOT.__set__(event, None)
+        return event
 
     @property
-    def dict(self: Self) -> dict[str, Any]:  # ty: ignore[invalid-type-form]
-        """The dictionary representation of the object."""
-        return self.__dict__
+    def dict(self: Self) -> Mapping[str, Any]:
+        """A read-only view of the event's type and fields (pygame's ``Event.dict``)."""
+        return MappingProxyType(self.__dict__)
+
+    def with_fields(self: Self, **changes: object) -> Self:
+        """Return a copy of the event with some fields changed or added (the same class).
+
+        Args:
+            **changes: The fields to change or add; ``type`` may be given only unchanged.
+
+        Returns:
+            Self: The changed copy; this event is left as it was.
+
+        Raises:
+            TypeError: If ``changes`` gives the event another type.
+
+        """
+        fields: dict[str, object] = {**self.__dict__, **changes}
+        new_type = fields.pop('type')
+        if new_type != self.type:
+            raise TypeError(EVENT_TYPE_CHANGE_MSG.format(old=self.type, new=new_type))
+        return self.__class__(self.type, **fields)
+
+    def to_json(self: Self) -> builtins.dict[str, JsonValue]:
+        """Describe the event as JSON: ``{"type": <number>, "attributes": {...}}``.
+
+        The attributes are encoded as a recording encodes an event's
+        (``glitchygames.recording.json_safe_value``: tuples as lists, lists, dicts, bytes and
+        non-finite floats tagged), except that a window reference is written as None, as a
+        replay serves one. ``from_json`` reverses it.
+
+        Returns:
+            dict[str, JsonValue]: The JSON-safe description (``json.dumps`` accepts it).
+
+        """
+        # Deferred: glitchygames.recording imports the sources and input modules, which import
+        # the events package
+        from glitchygames.recording import (
+            EVENT_ATTRIBUTES_FIELD,
+            EVENT_TYPE_FIELD,
+            json_safe_value,
+        )
+
+        attributes: dict[str, JsonValue] = {
+            name: json_safe_value(None if isinstance(value, pygame.Window) else value)
+            for name, value in self.__dict__.items()
+            if name != 'type'
+        }
+        return {EVENT_TYPE_FIELD: self.type, EVENT_ATTRIBUTES_FIELD: attributes}
+
+    @classmethod
+    def from_json(cls, record: Mapping[str, JsonValue]) -> Self:
+        """Build an event from ``to_json``'s description (or a recording's event record).
+
+        A recorded window reference (a recording's records hold them) becomes None, as a
+        replay serves it. The class is the type's (``EVENT_CLASSES``), as for the constructor.
+        A malformed record raises the recording's ``TraceFormatError``
+        (``glitchygames.recording.event_from_record``).
+
+        Args:
+            record: ``{"type": <number>, "attributes": {...}}``, as read back from JSON.
+
+        Returns:
+            Self: The event.
+
+        """
+        # Deferred: glitchygames.recording imports the sources and input modules, which import
+        # the events package
+        from glitchygames.recording import (
+            WINDOW_REFERENCE,
+            RecordedReference,
+            event_from_record,
+        )
+
+        pygame_event = event_from_record(dict(record))
+        attributes = {
+            name: (
+                None
+                if isinstance(value, RecordedReference) and value.kind == WINDOW_REFERENCE
+                else value
+            )
+            for name, value in pygame_event.dict.items()
+        }
+        return cls(pygame_event.type, **attributes)
+
+    def _refuse_change(self: Self, operation: str) -> NoReturn:
+        """Raise the TypeError every mutator raises.
+
+        Args:
+            operation: What the caller tried, for the message.
+
+        Raises:
+            TypeError: Always: events are immutable.
+
+        """
+        raise TypeError(IMMUTABLE_EVENT_MSG.format(cls=type(self).__name__, operation=operation))
+
+    @override
+    def __setattr__(self: Self, name: str, value: object) -> None:
+        """Refuse: events are immutable (use ``with_fields``)."""
+        self._refuse_change(f'set {name!r}')
+
+    @override
+    def __delattr__(self: Self, name: str) -> None:
+        """Refuse: events are immutable."""
+        self._refuse_change(f'delete {name!r}')
 
     @override
     def __setitem__(self: Self, key: str, item: object) -> None:
-        """Set an item in the object."""
-        self.__dict__[key] = item
+        """Refuse: events are immutable (use ``with_fields``)."""
+        self._refuse_change(f'set {key!r}')
 
     @override
     def __getitem__(self: Self, key: str) -> object:
@@ -399,25 +638,78 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
 
     @override
     def __delitem__(self: Self, key: str) -> None:
-        """Delete an item from the object."""
-        del self.__dict__[key]
+        """Refuse: events are immutable."""
+        self._refuse_change(f'delete {key!r}')
 
     @override
     def clear(self: Self) -> None:
-        """Clear the object."""
-        return self.__dict__.clear()
+        """Refuse: events are immutable."""
+        self._refuse_change('clear')
+
+    @override
+    def pop(self: Self, key: str, default: object = None) -> NoReturn:
+        """Refuse: events are immutable."""
+        self._refuse_change(f'pop {key!r}')
+
+    @override
+    def popitem(self: Self) -> NoReturn:
+        """Refuse: events are immutable."""
+        self._refuse_change('popitem')
+
+    @override
+    def setdefault(self: Self, key: str, default: object = None) -> NoReturn:
+        """Refuse: events are immutable (use ``with_fields``)."""
+        self._refuse_change(f'setdefault {key!r}')
+
+    @override
+    def update(self: Self, *args: object, **kwargs: object) -> None:
+        """Refuse: events are immutable (use ``with_fields``)."""
+        self._refuse_change('update')
+
+    @override
+    def __ior__(self: Self, other: object) -> NoReturn:
+        """Refuse: events are immutable (``event | changes`` builds a changed copy)."""
+        self._refuse_change('|=')
+
+    @override
+    def __or__(self: Self, other: object) -> Self:
+        """Return a copy with ``other``'s fields changed or added (``with_fields``).
+
+        UserDict's own ``|`` read ``self.data``, which this class never sets, so it raised
+        AttributeError.
+
+        Returns:
+            Self: The changed copy, or NotImplemented when ``other`` is not a mapping.
+
+        """
+        if not isinstance(other, Mapping):
+            return NotImplemented
+        changes = cast('Mapping[str, object]', other)
+        return self.with_fields(**changes)
+
+    @override
+    def __ror__(self: Self, other: object) -> Self:
+        """Return a copy with ``other``'s fields added where the event has none.
+
+        Returns:
+            Self: The copy (the event's own fields win), or NotImplemented when ``other`` is
+            not a mapping.
+
+        """
+        if not isinstance(other, Mapping):
+            return NotImplemented
+        additions = cast('Mapping[str, object]', other)
+        return self.with_fields(**{**additions, **self.__dict__})
 
     @override
     def copy(self: Self) -> Self:
         """Shallow copy the object.
 
         Returns:
-            Self: The result.
+            Self: An equal event of the same class.
 
         """
-        clone = self.__class__.__new__(self.__class__)
-        clone.__dict__.update(self.__dict__)
-        return clone
+        return self.with_fields()
 
     def has_key(self: Self, key: str) -> bool:
         """Return True if the key is in the object.
@@ -463,11 +755,6 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
         return self.__dict__.get(key, default)
 
     @override
-    def update(self: Self, *args: Any, **kwargs: Any) -> None:
-        """Update the object."""
-        return self.__dict__.update(*args, **kwargs)
-
-    @override
     def keys(self: Self) -> KeysView[str]:
         """Return the keys of the object.
 
@@ -491,26 +778,33 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
 
     @override
     def __hash__(self: Self) -> int:
-        """Return the hash of the event's current content (its type and fields).
+        """Return the hash of the event's content (its type and fields), cached.
 
-        Equal events hash alike however they were built or changed. Unhashable values (a game
-        event's lists and dicts) hash by their content.
+        Equal events hash alike however they were built. Unhashable values (a game event's
+        lists and dicts) hash by their content. Computed on the first call and kept in a slot
+        (never a field); a copy (pickled, ``with_fields``) computes its own.
 
         Returns:
             int: The hash value.
 
         """
-        # Guard against infinite recursion when __dict__ contains this event (as __eq__ does)
+        content_hash: int | None = self._content_hash
+        if content_hash is not None:
+            return content_hash
+        # Guard against infinite recursion when __dict__ contains this event (as __eq__ does);
+        # the inner call's stand-in is never cached
         self_id = id(self)
         if self_id in HashableEvent._hashing_ids:
             return hash(self.type)
         HashableEvent._hashing_ids.add(self_id)
         try:
-            return hash(
+            content_hash = hash(
                 frozenset((name, _hashable_value(value)) for name, value in self.__dict__.items())
             )
         finally:
             HashableEvent._hashing_ids.discard(self_id)
+        _CONTENT_HASH_SLOT.__set__(self, content_hash)
+        return content_hash
 
     _comparing_ids: ClassVar[set[int]] = set()
 
@@ -581,9 +875,9 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
             Self: The result.
 
         """
-        return self.__class__(**self.__dict__)
+        return self.with_fields()
 
-    def __deepcopy__(self: Self, memo: dict[int, Any]) -> Self:  # ty: ignore[invalid-type-form]
+    def __deepcopy__(self: Self, memo: builtins.dict[int, Any]) -> Self:
         """Deep copy the object.
 
         Returns:
@@ -601,9 +895,22 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
 
         """
         # The type is the one required constructor argument (BUGS.md #121)
-        return (self.__class__, (self.type,), dict(self.__dict__))
+        return (self.__class__, (self.type,), self.__getstate__())
 
-    def __setstate__(self: Self, state: dict[str, Any]) -> None:  # ty: ignore[invalid-type-form]
+    @override
+    def __getstate__(self: Self) -> builtins.dict[str, Any]:
+        """Return the event's type and fields: the state pickling keeps.
+
+        object's own ``__getstate__`` would add the slots, so the cached hash: a copy never
+        carries it (it computes its own).
+
+        Returns:
+            dict[str, Any]: A copy of the type and fields.
+
+        """
+        return dict(self.__dict__)
+
+    def __setstate__(self: Self, state: builtins.dict[str, Any]) -> None:
         """Set the state of the object.
 
         The event is rebuilt from the state's attributes exactly as __init__ builds it, so it
@@ -614,7 +921,12 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
         # A state pickled before BUGS.md #179 carries the hash it stored as an attribute
         attributes.pop('_HashableEvent__hash', None)
         self.__dict__.clear()
-        HashableEvent.__init__(self, event_type, **attributes)
+        # Rebuilt as __new__ builds an event; the cached hash (none yet: pickle builds the
+        # event just before) is cleared, so the event hashes by the state's content
+        fields = self.__dict__
+        fields['type'] = event_type
+        fields.update(attributes)
+        _CONTENT_HASH_SLOT.__set__(self, None)
 
     def __getattr__(self: Self, name: str) -> Any:
         """Allow dynamic attribute access for event fields.
@@ -631,6 +943,336 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
 
         """
         raise AttributeError(MISSING_ATTRIBUTE_MSG.format(cls=type(self).__name__, attr=name))
+
+
+# The slot's descriptor: __init__ and __hash__ write the slot through it, since the event's own
+# attribute assignment raises
+_CONTENT_HASH_SLOT: MemberDescriptorType = vars(HashableEvent)['_content_hash']
+
+
+# Per-type event classes. Each only declares the fields pygame-ce gives its types (its
+# event.c, dict_from_event, and the pygame.event documentation), for the type checker: no
+# behaviour, no slots, so they store, hash, compare and pickle exactly as HashableEvent.
+# A field a test or a game leaves out is simply absent (AttributeError when read), and any
+# other attribute still reads through HashableEvent.__getattr__.
+class KeyEvent(HashableEvent):
+    """KEYDOWN and KEYUP."""
+
+    key: int
+    mod: int
+    scancode: int
+    unicode: str
+    window: pygame.Window | None
+
+
+class MouseMotionEvent(HashableEvent):
+    """MOUSEMOTION."""
+
+    pos: tuple[int, int]
+    rel: tuple[int, int]
+    buttons: tuple[int, int, int]
+    touch: bool
+    window: pygame.Window | None
+
+
+class MouseButtonEvent(HashableEvent):
+    """MOUSEBUTTONDOWN and MOUSEBUTTONUP (buttons 4 and 5 are the old scroll wheel)."""
+
+    pos: tuple[int, int]
+    button: int
+    touch: bool
+    window: pygame.Window | None
+
+
+class MouseWheelEvent(HashableEvent):
+    """MOUSEWHEEL."""
+
+    x: int
+    y: int
+    flipped: bool
+    precise_x: float
+    precise_y: float
+    touch: bool
+    window: pygame.Window | None
+
+
+class TextInputEvent(HashableEvent):
+    """TEXTINPUT."""
+
+    text: str
+    window: pygame.Window | None
+
+
+class TextEditingEvent(HashableEvent):
+    """TEXTEDITING."""
+
+    text: str
+    start: int
+    length: int
+    window: pygame.Window | None
+
+
+class JoyAxisEvent(HashableEvent):
+    """JOYAXISMOTION (pygame's deprecated ``joy`` is not declared)."""
+
+    instance_id: int
+    axis: int
+    value: float
+
+
+class JoyBallEvent(HashableEvent):
+    """JOYBALLMOTION."""
+
+    instance_id: int
+    ball: int
+    rel: tuple[int, int]
+
+
+class JoyHatEvent(HashableEvent):
+    """JOYHATMOTION."""
+
+    instance_id: int
+    hat: int
+    value: tuple[int, int]
+
+
+class JoyButtonEvent(HashableEvent):
+    """JOYBUTTONDOWN and JOYBUTTONUP."""
+
+    instance_id: int
+    button: int
+
+
+class JoyDeviceAddedEvent(HashableEvent):
+    """JOYDEVICEADDED: names a device index, not an instance id."""
+
+    device_index: int
+    guid: str
+
+
+class JoyDeviceRemovedEvent(HashableEvent):
+    """JOYDEVICEREMOVED."""
+
+    instance_id: int
+
+
+class ControllerAxisEvent(HashableEvent):
+    """CONTROLLERAXISMOTION (values on pygame's int scale)."""
+
+    instance_id: int
+    axis: int
+    value: int
+
+
+class ControllerButtonEvent(HashableEvent):
+    """CONTROLLERBUTTONDOWN and CONTROLLERBUTTONUP."""
+
+    instance_id: int
+    button: int
+
+
+class ControllerDeviceAddedEvent(HashableEvent):
+    """CONTROLLERDEVICEADDED: names a device index, not an instance id."""
+
+    device_index: int
+    guid: str
+
+
+class ControllerDeviceEvent(HashableEvent):
+    """CONTROLLERDEVICEREMOVED and CONTROLLERDEVICEREMAPPED."""
+
+    instance_id: int
+
+
+class ControllerTouchpadEvent(HashableEvent):
+    """CONTROLLERTOUCHPADDOWN, CONTROLLERTOUCHPADMOTION and CONTROLLERTOUCHPADUP."""
+
+    instance_id: int
+    touch_id: int
+    finger_id: int
+    x: float
+    y: float
+    pressure: float
+
+
+class TouchFingerEvent(HashableEvent):
+    """FINGERDOWN, FINGERMOTION and FINGERUP (positions normalized to 0-1)."""
+
+    touch_id: int
+    finger_id: int
+    x: float
+    y: float
+    dx: float
+    dy: float
+    pressure: float
+    window: pygame.Window | None
+
+
+class MultiGestureEvent(HashableEvent):
+    """MULTIGESTURE."""
+
+    touch_id: int
+    x: float
+    y: float
+    rotated: float
+    pinched: float
+    num_fingers: int
+
+
+class WindowEvent(HashableEvent):
+    """The WINDOW* events without coordinates (shown, hidden, focus, close, ...)."""
+
+    window: pygame.Window | None
+
+
+class WindowGeometryEvent(WindowEvent):
+    """WINDOWMOVED, WINDOWRESIZED and WINDOWSIZECHANGED: a position or a size."""
+
+    x: int
+    y: int
+
+
+class WindowDisplayChangedEvent(WindowGeometryEvent):
+    """WINDOWDISPLAYCHANGED."""
+
+    display_index: int
+
+
+class DropEvent(HashableEvent):
+    """DROPBEGIN and DROPCOMPLETE."""
+
+    window: pygame.Window | None
+
+
+class DropFileEvent(DropEvent):
+    """DROPFILE."""
+
+    file: str
+
+
+class DropTextEvent(DropEvent):
+    """DROPTEXT."""
+
+    text: str
+
+
+class AudioDeviceEvent(HashableEvent):
+    """AUDIODEVICEADDED and AUDIODEVICEREMOVED."""
+
+    which: int
+    iscapture: int
+
+
+class MidiEvent(HashableEvent):
+    """MIDIIN and MIDIOUT, as ``pygame.midi.midis2events`` builds them."""
+
+    status: int
+    data1: int
+    data2: int
+    data3: int
+    timestamp: int
+    vice_id: int
+
+
+class ActiveEvent(HashableEvent):
+    """ACTIVEEVENT (legacy)."""
+
+    gain: int
+    state: int
+
+
+class VideoResizeEvent(HashableEvent):
+    """VIDEORESIZE (legacy)."""
+
+    size: tuple[int, int]
+    w: int
+    h: int
+
+
+class FpsEvent(HashableEvent):
+    """FPSEVENT, posted by ``Scene`` with its measured frame rate."""
+
+    fps: float
+
+
+class GameEvent(HashableEvent):
+    """GAMEEVENT (``GameEngine.post_game_event``): a subtype plus the game's own fields."""
+
+    subtype: int
+
+
+def _classes_by_type(
+    event_class: type[HashableEvent], *event_types: int
+) -> dict[int, type[HashableEvent]]:
+    return dict.fromkeys(event_types, event_class)
+
+
+# Every event type with a class of its own; any other type (custom types, QUIT, the APP_*
+# events, the field-less SDL events) is a plain HashableEvent. HashableEvent.__new__ reads it,
+# so every construction site (the engine's dispatch, tests, games) gets the type's class
+EVENT_CLASSES: dict[int, type[HashableEvent]] = {
+    **_classes_by_type(KeyEvent, pygame.KEYDOWN, pygame.KEYUP),
+    **_classes_by_type(MouseMotionEvent, pygame.MOUSEMOTION),
+    **_classes_by_type(MouseButtonEvent, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP),
+    **_classes_by_type(MouseWheelEvent, pygame.MOUSEWHEEL),
+    **_classes_by_type(TextInputEvent, pygame.TEXTINPUT),
+    **_classes_by_type(TextEditingEvent, pygame.TEXTEDITING),
+    **_classes_by_type(JoyAxisEvent, pygame.JOYAXISMOTION),
+    **_classes_by_type(JoyBallEvent, pygame.JOYBALLMOTION),
+    **_classes_by_type(JoyHatEvent, pygame.JOYHATMOTION),
+    **_classes_by_type(JoyButtonEvent, pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP),
+    **_classes_by_type(JoyDeviceAddedEvent, pygame.JOYDEVICEADDED),
+    **_classes_by_type(JoyDeviceRemovedEvent, pygame.JOYDEVICEREMOVED),
+    **_classes_by_type(ControllerAxisEvent, pygame.CONTROLLERAXISMOTION),
+    **_classes_by_type(
+        ControllerButtonEvent, pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLERBUTTONUP
+    ),
+    **_classes_by_type(ControllerDeviceAddedEvent, pygame.CONTROLLERDEVICEADDED),
+    **_classes_by_type(
+        ControllerDeviceEvent, pygame.CONTROLLERDEVICEREMOVED, pygame.CONTROLLERDEVICEREMAPPED
+    ),
+    **_classes_by_type(
+        ControllerTouchpadEvent,
+        pygame.CONTROLLERTOUCHPADDOWN,
+        pygame.CONTROLLERTOUCHPADMOTION,
+        pygame.CONTROLLERTOUCHPADUP,
+    ),
+    **_classes_by_type(TouchFingerEvent, pygame.FINGERDOWN, pygame.FINGERMOTION, pygame.FINGERUP),
+    **_classes_by_type(MultiGestureEvent, pygame.MULTIGESTURE),
+    **_classes_by_type(
+        WindowEvent,
+        pygame.WINDOWSHOWN,
+        pygame.WINDOWHIDDEN,
+        pygame.WINDOWEXPOSED,
+        pygame.WINDOWMINIMIZED,
+        pygame.WINDOWMAXIMIZED,
+        pygame.WINDOWRESTORED,
+        pygame.WINDOWENTER,
+        pygame.WINDOWLEAVE,
+        pygame.WINDOWFOCUSGAINED,
+        pygame.WINDOWFOCUSLOST,
+        pygame.WINDOWCLOSE,
+        pygame.WINDOWTAKEFOCUS,
+        pygame.WINDOWHITTEST,
+        pygame.WINDOWICCPROFCHANGED,
+    ),
+    **_classes_by_type(
+        WindowGeometryEvent, pygame.WINDOWMOVED, pygame.WINDOWRESIZED, pygame.WINDOWSIZECHANGED
+    ),
+    **_classes_by_type(WindowDisplayChangedEvent, pygame.WINDOWDISPLAYCHANGED),
+    **_classes_by_type(DropEvent, pygame.DROPBEGIN, pygame.DROPCOMPLETE),
+    **_classes_by_type(DropFileEvent, pygame.DROPFILE),
+    **_classes_by_type(DropTextEvent, pygame.DROPTEXT),
+    **_classes_by_type(AudioDeviceEvent, pygame.AUDIODEVICEADDED, pygame.AUDIODEVICEREMOVED),
+    **_classes_by_type(MidiEvent, pygame.MIDIIN, pygame.MIDIOUT),
+    **_classes_by_type(ActiveEvent, pygame.ACTIVEEVENT),
+    **_classes_by_type(VideoResizeEvent, pygame.VIDEORESIZE),
+    **_classes_by_type(FpsEvent, FPSEVENT),
+    **_classes_by_type(GameEvent, GAMEEVENT),
+}
+
+# The per-type classes: one of them called with a type outside its own is refused
+_TYPED_EVENT_CLASSES: frozenset[type[HashableEvent]] = frozenset(EVENT_CLASSES.values())
 
 
 # We intentionally don't implement any methods here.

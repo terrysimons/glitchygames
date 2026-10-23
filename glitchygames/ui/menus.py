@@ -20,7 +20,12 @@ from glitchygames.sprites import (
 )
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        HashableEvent,
+        MouseButtonEvent,
+        MouseMotionEvent,
+        MouseWheelEvent,
+    )
 
 LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())
@@ -141,11 +146,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
             pygame.draw.rect(self.image, focus_color, self.rect, 1)
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle left mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         """
@@ -155,13 +162,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
     @override
     def on_left_mouse_drop_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseButtonEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle left mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -170,13 +177,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
     @override
     def on_middle_mouse_drag_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseMotionEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle middle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -186,24 +193,24 @@ class MenuBar(FocusableSingletonBitmappySprite):
     @override
     def on_middle_mouse_drop_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseButtonEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle middle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
-    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_mouse_drag_event(self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         """
@@ -211,22 +218,22 @@ class MenuBar(FocusableSingletonBitmappySprite):
         # line here would run every frame of a drag and drown out useful debug output.
 
     @override
-    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_mouse_drop_event(self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent) -> None:
         """Handle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The object that triggered the event.
 
         """
         self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
-    def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_motion_event(self: Self, event: MouseMotionEvent) -> None:
         """Handle mouse motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
 
         """
         # Not logged: motion arrives every frame while the mouse moves over the menu bar, so a
@@ -298,11 +305,11 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.has_focus = False
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # Figure out which item was clicked.
@@ -323,11 +330,11 @@ class MenuBar(FocusableSingletonBitmappySprite):
                     sprite.menu_items[menu_item].on_left_mouse_button_down_event(event)
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         mouse = MousePointer(pos=event.pos)
@@ -355,13 +362,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
     @override
     def on_right_mouse_drag_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseMotionEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle right mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -371,13 +378,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
     @override
     def on_right_mouse_drop_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseButtonEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle right mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -386,13 +393,13 @@ class MenuBar(FocusableSingletonBitmappySprite):
     @override
     def on_mouse_wheel_event(
         self: Self,
-        event: HashableEvent,
+        event: MouseWheelEvent,
         trigger: HashableEvent | None = None,
     ) -> None:
         """Handle mouse wheel events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseWheelEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -604,11 +611,13 @@ class MenuItem(BitmappySprite):
             self.image.blit(self.menu_image, (0, 0))  # Draw relative to our own surface
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle left mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The trigger object.
 
         """
@@ -616,11 +625,13 @@ class MenuItem(BitmappySprite):
         # line here would run every frame of a drag and drown out useful debug output.
 
     @override
-    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_left_mouse_drop_event(
+        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
+    ) -> None:
         """Handle left mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The trigger object.
 
         """
@@ -629,13 +640,13 @@ class MenuItem(BitmappySprite):
     @override
     def on_middle_mouse_drag_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent,
+        event: MouseMotionEvent,
+        trigger: MouseButtonEvent,
     ) -> None:
         """Handle middle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The trigger object.
 
         """
@@ -645,24 +656,24 @@ class MenuItem(BitmappySprite):
     @override
     def on_middle_mouse_drop_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent,
+        event: MouseButtonEvent,
+        trigger: MouseButtonEvent,
     ) -> None:
         """Handle middle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The trigger object.
 
         """
         self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
-    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_mouse_drag_event(self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The trigger object.
 
         """
@@ -670,22 +681,22 @@ class MenuItem(BitmappySprite):
         # line here would run every frame of a drag and drown out useful debug output.
 
     @override
-    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_mouse_drop_event(self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent) -> None:
         """Handle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The trigger object.
 
         """
         self.log.debug('%s Mouse Drop %s', type(self), self.name)
 
     @override
-    def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_motion_event(self: Self, event: MouseMotionEvent) -> None:
         """Handle mouse motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
 
         """
         mouse = MousePointer(pos=event.pos)
@@ -787,11 +798,11 @@ class MenuItem(BitmappySprite):
         self.dirty = 1
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.log.debug('%s Mouse Up %s', type(self), self.name)
@@ -843,11 +854,11 @@ class MenuItem(BitmappySprite):
                 )
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.log.debug('%s Mouse Down %s', type(self), self.name)
@@ -884,13 +895,13 @@ class MenuItem(BitmappySprite):
     @override
     def on_right_mouse_drag_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseMotionEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle right mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -900,13 +911,13 @@ class MenuItem(BitmappySprite):
     @override
     def on_right_mouse_drop_event(
         self: Self,
-        event: HashableEvent,
-        trigger: HashableEvent | None = None,
+        event: MouseButtonEvent,
+        trigger: MouseButtonEvent | None = None,
     ) -> None:
         """Handle right mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """
@@ -915,13 +926,13 @@ class MenuItem(BitmappySprite):
     @override
     def on_mouse_wheel_event(
         self: Self,
-        event: HashableEvent,
+        event: MouseWheelEvent,
         trigger: HashableEvent | None = None,
     ) -> None:
         """Handle mouse wheel events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseWheelEvent): The event to handle.
             trigger (HashableEvent | None): The object that triggered the event.
 
         """

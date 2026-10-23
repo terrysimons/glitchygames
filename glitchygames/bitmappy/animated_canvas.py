@@ -886,11 +886,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.image = self.canvas_renderer.force_redraw(self)
 
     @override
-    def on_left_mouse_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button down event."""
         if self.rect.collidepoint(event.pos):
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            x = int((event.pos[0] - self.rect.x) // self.pixel_width)
+            y = int((event.pos[1] - self.rect.y) // self.pixel_height)
 
             # Mark that we're starting a potential drag operation
             self._drag_active = False  # Will be set to True on first drag event
@@ -1022,7 +1022,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             del frame._image_stale  # type: ignore[reportPrivateUsage]
 
     @override
-    def on_left_mouse_drag_event(self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(self, event: events.MouseMotionEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Optimized path that updates visuals but defers expensive ops.
@@ -1030,8 +1030,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if not self.rect.collidepoint(event.pos):
             return
 
-        x = (event.pos[0] - self.rect.x) // self.pixel_width
-        y = (event.pos[1] - self.rect.y) // self.pixel_height
+        x = int((event.pos[0] - self.rect.x) // self.pixel_width)
+        y = int((event.pos[1] - self.rect.y) // self.pixel_height)
 
         if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
             return
@@ -1146,7 +1146,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             del self._drag_frame
 
     @override
-    def on_left_mouse_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self, event: events.MouseButtonEvent) -> None:
         """Handle mouse button up - flush batched drag updates."""
         if not (hasattr(self, '_drag_active') and self._drag_active):
             return
@@ -1168,7 +1168,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.dirty = 1
 
     @override
-    def on_mouse_motion_event(self, event: events.HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: events.MouseMotionEvent) -> None:
         """Handle mouse motion events."""
         if self.rect.collidepoint(event.pos):
             # Mouse is over canvas - set hover state
@@ -1179,8 +1179,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 pygame.mouse.set_visible(False)
 
             # Convert mouse position to pixel coordinates
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            x = int((event.pos[0] - self.rect.x) // self.pixel_width)
+            y = int((event.pos[1] - self.rect.y) // self.pixel_height)
 
             # Check if the coordinates are within valid range
             if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:

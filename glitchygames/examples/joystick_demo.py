@@ -29,7 +29,19 @@ from glitchygames.scenes import Scene
 if TYPE_CHECKING:
     import pygame
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerAxisEvent,
+        ControllerButtonEvent,
+        ControllerDeviceAddedEvent,
+        ControllerDeviceEvent,
+        HashableEvent,
+        JoyAxisEvent,
+        JoyBallEvent,
+        JoyButtonEvent,
+        JoyDeviceAddedEvent,
+        JoyDeviceRemovedEvent,
+        JoyHatEvent,
+    )
     from glitchygames.input.input_devices import InputDevice
 
 LOG = logging.getLogger('game.joystick_demo')
@@ -181,7 +193,7 @@ class Game(Scene):
         self.last_input_event = f'{handler_name} from instance {event.instance_id}'
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Report a joystick-layer axis motion.
 
         Args:
@@ -191,7 +203,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_joy_axis_motion_event', event=event)
 
     @override
-    def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_ball_motion_event(self: Self, event: JoyBallEvent) -> None:
         """Report a joystick-layer trackball motion.
 
         Args:
@@ -201,7 +213,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_joy_ball_motion_event', event=event)
 
     @override
-    def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_hat_motion_event(self: Self, event: JoyHatEvent) -> None:
         """Report a joystick-layer hat motion.
 
         Args:
@@ -211,7 +223,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_joy_hat_motion_event', event=event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Report a joystick-layer button press.
 
         Args:
@@ -221,7 +233,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_joy_button_down_event', event=event)
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Report a joystick-layer button release.
 
         Args:
@@ -231,7 +243,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_joy_button_up_event', event=event)
 
     @override
-    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_axis_motion_event(self: Self, event: ControllerAxisEvent) -> None:
         """Report a controller-layer axis motion.
 
         Args:
@@ -241,7 +253,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_controller_axis_motion_event', event=event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Report a controller-layer button press.
 
         Args:
@@ -251,7 +263,7 @@ class Game(Scene):
         self._report_input_event(handler_name='on_controller_button_down_event', event=event)
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Report a controller-layer button release.
 
         Args:
@@ -264,7 +276,7 @@ class Game(Scene):
     # on_input_device_added / on_input_device_removed, so these need nothing more
 
     @override
-    def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_device_added_event(self: Self, event: JoyDeviceAddedEvent) -> None:
         """Nothing to do: see on_input_device_added.
 
         Args:
@@ -273,7 +285,7 @@ class Game(Scene):
         """
 
     @override
-    def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_device_removed_event(self: Self, event: JoyDeviceRemovedEvent) -> None:
         """Nothing to do: see on_input_device_removed.
 
         Args:
@@ -282,7 +294,7 @@ class Game(Scene):
         """
 
     @override
-    def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_added_event(self: Self, event: ControllerDeviceAddedEvent) -> None:
         """Nothing to do: see on_input_device_added.
 
         Args:
@@ -291,7 +303,7 @@ class Game(Scene):
         """
 
     @override
-    def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_removed_event(self: Self, event: ControllerDeviceEvent) -> None:
         """Nothing to do: see on_input_device_removed.
 
         Args:
@@ -300,7 +312,7 @@ class Game(Scene):
         """
 
     @override
-    def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_remapped_event(self: Self, event: ControllerDeviceEvent) -> None:
         """Nothing to do: the readout follows the device's mapping every frame.
 
         Args:

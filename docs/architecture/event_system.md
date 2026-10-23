@@ -479,9 +479,9 @@ reference passed around — the singleton already has it from first initializati
 
 ## HashableEvent Wrapper
 
-Raw pygame events are wrapped in `HashableEvent` to enable caching, hashing,
-and arbitrary attribute attachment. This is the universal event type throughout
-the system.
+Raw pygame events are wrapped in `HashableEvent` to enable caching, hashing
+and serialization. This is the universal event type throughout the system: every
+event of a type with a class of its own is an instance of that class (below).
 
 !!! warning "pygame.event.Event is not hashable"
     Raw `pygame.event.Event` objects cannot be hashed, cached, or used as
@@ -642,22 +642,72 @@ cache key.
 This is the primary reason `HashableEvent` exists: **to make pygame events
 cacheable, so unhandled event stubs can be O(1) after their first occurrence**.
 
-But caching isn't the only benefit. Because `HashableEvent` is a `UserDict`,
-events also become serializable — you can convert them to JSON, pickle them,
-log them as structured data, or send them over a network. Raw
-`pygame.event.Event` objects support none of these. The `UserDict` base also
-allows attaching arbitrary fields to events after creation (e.g., the keyboard
-manager adds `keys_down` to chord events), which raw pygame events don't
-support.
+But caching isn't the only benefit. Events are also serializable: `to_json()` /
+`from_json()` (below), pickling, structured logging. Raw `pygame.event.Event`
+objects support none of these.
 
-This extensibility is what makes compound event handlers possible. The
-synthesized events — drag, drop, chord, focus — are built by enriching a
-raw pygame event with additional context: the mouse drag handler receives
-both the current `MOUSEMOTION` event *and* the original `MOUSEBUTTONDOWN`
-trigger that started the drag. The keyboard chord handler attaches the full
-list of currently held keys. None of this is possible with raw pygame events,
-which are fixed structs with no way to carry extra data through the dispatch
-chain.
+The synthesized events — drag, drop, chord, focus — carry their extra context as
+extra handler arguments, never by changing the event: the mouse drag handler
+receives both the current `MOUSEMOTION` event *and* the `MOUSEBUTTONDOWN` trigger
+that started the drag, and the keyboard chord handlers receive the held keys'
+`KEYDOWN` events as `keys: tuple[KeyEvent, ...]`.
+
+### Typed event classes
+
+`HashableEvent(type, **fields)` builds the class its type maps to in
+`EVENT_CLASSES` (`glitchygames/events/base.py`, exported by `glitchygames.events`),
+so a `MOUSEMOTION` is a `MouseMotionEvent` however it was built (the engine's
+dispatch, `HashableEvent.from_pygame(pygame_event)`, tests, games). The classes only
+declare the fields pygame-ce gives their types, for the type checker; they store,
+hash, compare, pickle and serialize exactly as `HashableEvent`. Equality is by type
+and fields, never by Python class. Custom and field-less types (`QUIT`, `MENUEVENT`,
+`USEREVENT`, the `APP_*` events) stay `HashableEvent`, whose undeclared fields read
+as `Any`.
+
+| Class | Types | Fields |
+| --- | --- | --- |
+| `KeyEvent` | `KEYDOWN`, `KEYUP` | `key`, `mod`, `scancode`, `unicode`, `window` |
+| `MouseMotionEvent` | `MOUSEMOTION` | `pos`, `rel`, `buttons`, `touch`, `window` |
+| `MouseButtonEvent` | `MOUSEBUTTONDOWN`, `MOUSEBUTTONUP` | `pos`, `button`, `touch`, `window` |
+| `MouseWheelEvent` | `MOUSEWHEEL` | `x`, `y`, `flipped`, `precise_x`, `precise_y`, `touch`, `window` |
+| `TextInputEvent`, `TextEditingEvent` | `TEXTINPUT`, `TEXTEDITING` | `text` (`start`, `length`), `window` |
+| `JoyAxisEvent`, `JoyBallEvent`, `JoyHatEvent`, `JoyButtonEvent` | `JOY*MOTION`, `JOYBUTTON*` | `instance_id` and `axis`/`value`, `ball`/`rel`, `hat`/`value`, `button` |
+| `JoyDeviceAddedEvent`, `JoyDeviceRemovedEvent` | `JOYDEVICEADDED`, `JOYDEVICEREMOVED` | `device_index`, `guid` / `instance_id` |
+| `ControllerAxisEvent`, `ControllerButtonEvent` | `CONTROLLERAXISMOTION`, `CONTROLLERBUTTON*` | `instance_id`, `axis`/`value`, `button` |
+| `ControllerDeviceAddedEvent`, `ControllerDeviceEvent` | `CONTROLLERDEVICEADDED`, `CONTROLLERDEVICEREMOVED`/`REMAPPED` | `device_index`, `guid` / `instance_id` |
+| `ControllerTouchpadEvent` | `CONTROLLERTOUCHPAD*` | `instance_id`, `touch_id`, `finger_id`, `x`, `y`, `pressure` |
+| `TouchFingerEvent`, `MultiGestureEvent` | `FINGER*`, `MULTIGESTURE` | `touch_id`, `finger_id`, `x`, `y`, `dx`, `dy`, `pressure` / `rotated`, `pinched`, `num_fingers` |
+| `WindowEvent`, `WindowGeometryEvent`, `WindowDisplayChangedEvent` | `WINDOW*` | `window` (`x`, `y` for moved/resized/size changed; `display_index`) |
+| `DropEvent`, `DropFileEvent`, `DropTextEvent` | `DROP*` | `window` (`file`, `text`) |
+| `AudioDeviceEvent`, `MidiEvent` | `AUDIODEVICE*`, `MIDIIN`/`MIDIOUT` | `which`, `iscapture` / `status`, `data1`-`data3`, `timestamp`, `vice_id` |
+| `ActiveEvent`, `VideoResizeEvent` | `ACTIVEEVENT`, `VIDEORESIZE` | `gain`, `state` / `size`, `w`, `h` |
+| `FpsEvent`, `GameEvent` | `FPSEVENT`, `GAMEEVENT` | `fps` / `subtype` (plus the game's own fields) |
+
+Handlers name their class (`def on_mouse_motion_event(self, event: MouseMotionEvent)`),
+so `event.pos` is a `tuple[int, int]` to the type checker. A game's own subclass of a
+type's class (or of `HashableEvent` for a custom type) is kept; a class called with
+another family's type raises `ValueError`.
+
+### Immutability and the cached hash
+
+An event never changes after construction. Item and attribute assignment, deletion,
+`update`, `clear`, `pop`, `popitem`, `setdefault` and `|=` raise `TypeError`;
+`event.with_fields(**changes)` (or `event | changes`) returns a changed copy of the
+same class (its type cannot change). `event.dict` is a read-only view. The hash is
+computed on the first `hash(event)` and kept in a slot outside the fields, so it never
+shows in iteration, `len()`, `dict(event)`, the pickled state or `to_json()`; a pickled
+or `with_fields` copy computes its own. Field values should be immutable too: a list
+inside a game event is hashed by its contents once.
+
+### JSON
+
+`event.to_json()` returns `{"type": <number>, "attributes": {...}}`, the attributes
+encoded as a recording encodes an event's (`glitchygames.recording.json_safe_value`:
+tuples as lists; lists, dicts, bytes and non-finite floats tagged), except that a
+window is written as `None`, as a replay serves it. `HashableEvent.from_json(record)`
+reverses it, and also reads a recording's event records (a recorded window reference
+becomes `None`). Recordings themselves still store the raw pygame events
+(`recording.event_to_record`); their format is unchanged.
 
 ```mermaid
 flowchart LR
@@ -672,7 +722,7 @@ flowchart LR
             H_DICT["dict: standard pygame fields"]:::wrapped
         end
         H_HASH["__hash__#40;#41; — hashable"]
-        H_ATTR["extended fields"]
+        H_ATTR["immutable; typed per-type class"]
         H_CACHE["cacheable by functools.cache"]
     end
 
@@ -732,28 +782,28 @@ sequenceDiagram
     participant KM as KeyboardEventManager
     participant SCENE as Scene
 
-    Note over KM: keys dict tracks<br/>active KEYDOWN events
+    Note over KM: keys dict holds each key's<br/>latest event, by key code
 
     PG->>KM: KEYDOWN (key=LCTRL)
-    KM->>KM: keys[frozenset(event)] = event
+    KM->>KM: keys[LCTRL] = event
     KM->>SCENE: on_key_down_event(event)
-    KM->>SCENE: on_key_chord_down_event(event, [LCTRL])
+    KM->>SCENE: on_key_chord_down_event(event, (LCTRL down,))
 
     PG->>KM: KEYDOWN (key=Z)
-    KM->>KM: keys[frozenset(event)] = event
+    KM->>KM: keys[Z] = event
     KM->>SCENE: on_key_down_event(event)
-    KM->>SCENE: on_key_chord_down_event(event, [LCTRL, Z])
+    KM->>SCENE: on_key_chord_down_event(event, (LCTRL down, Z down))
     Note over SCENE: Scene detects Ctrl+Z chord
 
     PG->>KM: KEYUP (key=Z)
+    KM->>KM: keys[Z] = event (no longer down)
     KM->>SCENE: on_key_up_event(event)
-    KM->>SCENE: on_key_chord_up_event(event, [LCTRL])
-    KM->>KM: Remove Z from keys
+    KM->>SCENE: on_key_chord_up_event(event, (LCTRL down,))
 
     PG->>KM: KEYUP (key=LCTRL)
+    KM->>KM: keys[LCTRL] = event (no longer down)
     KM->>SCENE: on_key_up_event(event)
-    KM->>SCENE: on_key_chord_up_event(event, [])
-    KM->>KM: Remove LCTRL from keys
+    KM->>SCENE: on_key_chord_up_event(event, ())
 ```
 
 ## Controller State Machine
@@ -800,7 +850,8 @@ to GlitchyGames handler method. Each diagram shows SDL events on the left and th
 borders) are derived from primitive SDL events by the event managers.
 
 The `event` parameter in every handler is a `HashableEvent` wrapping the original
-SDL event — the same fields shown in the left box (e.g., `pos`, `button`, `key`)
+SDL event, as its type's class (`KeyEvent`, `MouseMotionEvent`, ...; see Typed event
+classes) — the same fields shown in the left box (e.g., `pos`, `button`, `key`)
 are accessible as `event.pos`, `event.button`, `event.key`, etc. Synthesized
 handlers may receive additional arguments beyond the event (noted in their
 signatures).
@@ -1046,7 +1097,7 @@ def on_key_chord_down_event(
     event: HashableEvent(KEYDOWN {
         'unicode': ..., 'key': ..., 'mod': ..., 'scancode': ...,
     }),
-    keys: list,  # all keys currently held down
+    keys: tuple[KeyEvent, ...],  # the KEYDOWN events of the keys held, in press order
 ):
     ...
 ```
@@ -1064,7 +1115,7 @@ def on_key_chord_up_event(
     event: HashableEvent(KEYUP {
         'key': ..., 'mod': ..., 'scancode': ...,
     }),
-    keys: list,  # all keys currently held down
+    keys: tuple[KeyEvent, ...],  # the KEYDOWN events of the keys still held
 ):
     ...
 ```

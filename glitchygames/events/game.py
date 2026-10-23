@@ -8,7 +8,15 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 if TYPE_CHECKING:
     import argparse
 
-from glitchygames.events import GameEvents, HashableEvent, ResourceManager
+from glitchygames.events import (
+    ActiveEvent,
+    FpsEvent,
+    GameEvent,
+    GameEvents,
+    HashableEvent,
+    ResourceManager,
+    VideoResizeEvent,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -34,7 +42,7 @@ class GameEventManager(ResourceManager, GameEvents):
             self.game: Any = game
             self.proxies: list[Any] = [self.game]
 
-        def on_active_event(self: Self, event: HashableEvent) -> None:
+        def on_active_event(self: Self, event: ActiveEvent) -> None:
             """Handle active event.
 
             Args:
@@ -44,7 +52,7 @@ class GameEventManager(ResourceManager, GameEvents):
             # ACTIVEEVENT      gain, state
             self.game.on_active_event(event=event)
 
-        def on_fps_event(self: Self, event: HashableEvent) -> None:
+        def on_fps_event(self: Self, event: FpsEvent) -> None:
             """Handle fps event.
 
             Args:
@@ -54,7 +62,7 @@ class GameEventManager(ResourceManager, GameEvents):
             # FPSEVENT is pygame.USEREVENT + 1
             self.game.on_fps_event(event=event)
 
-        def on_game_event(self: Self, event: HashableEvent) -> None:
+        def on_game_event(self: Self, event: GameEvent) -> None:
             """Handle game event.
 
             Args:
@@ -104,7 +112,7 @@ class GameEventManager(ResourceManager, GameEvents):
             # VIDEOEXPOSE      none
             self.game.on_video_expose_event(event=event)
 
-        def on_video_resize_event(self: Self, event: HashableEvent) -> None:
+        def on_video_resize_event(self: Self, event: VideoResizeEvent) -> None:
             """Handle video resize event.
 
             Args:
@@ -177,7 +185,7 @@ class GameEventManager(ResourceManager, GameEvents):
         ]
 
     @override
-    def on_active_event(self: Self, event: HashableEvent) -> None:
+    def on_active_event(self: Self, event: ActiveEvent) -> None:
         """Handle active event."""
         for proxy in self.proxies:
             proxy.on_active_event(event)
@@ -189,13 +197,13 @@ class GameEventManager(ResourceManager, GameEvents):
             proxy.on_clipboard_update_event(event)
 
     @override
-    def on_fps_event(self: Self, event: HashableEvent) -> None:
+    def on_fps_event(self: Self, event: FpsEvent) -> None:
         """Handle fps event."""
         for proxy in self.proxies:
             proxy.on_fps_event(event)
 
     @override
-    def on_game_event(self: Self, event: HashableEvent) -> None:
+    def on_game_event(self: Self, event: GameEvent) -> None:
         """Handle game event."""
         for proxy in self.proxies:
             proxy.on_game_event(event)
@@ -249,7 +257,7 @@ class GameEventManager(ResourceManager, GameEvents):
             proxy.on_video_expose_event(event)
 
     @override
-    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
+    def on_video_resize_event(self: Self, event: VideoResizeEvent) -> None:
         """Handle video resize event."""
         for proxy in self.proxies:
             proxy.on_video_resize_event(event)

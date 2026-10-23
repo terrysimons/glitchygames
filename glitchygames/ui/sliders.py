@@ -21,7 +21,7 @@ from glitchygames.ui.text_widgets import TextSprite
 if TYPE_CHECKING:
     from typing import Protocol
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import HashableEvent, MouseButtonEvent, MouseMotionEvent
 
     class SliderProtocol(Protocol):
         """Parent that hosts slider widgets and handles slider events."""
@@ -386,7 +386,7 @@ class SliderSprite(BitmappySprite):
         return self._gradient
 
     @override
-    def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down event."""
         self.log.info('Slider %s mouse down event at %s, rect: %s', self.name, event.pos, self.rect)
         if self.rect.collidepoint(event.pos):
@@ -397,13 +397,13 @@ class SliderSprite(BitmappySprite):
             self.log.info('Mouse click not on slider %s rect', self.name)
 
     @override
-    def on_left_mouse_button_up_event(self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up event."""
         self.log.info('Slider %s mouse up event', self.name)
         self.dragging = False
 
     @override
-    def on_mouse_motion_event(self, event: HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: MouseMotionEvent) -> None:
         """Handle mouse motion event."""
         if self.dragging:
             self.log.info('Dragging slider %s', self.name)
@@ -581,16 +581,16 @@ class TabControlSprite(BitmappySprite):
         self.text_color = (0, 0, 0)
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
         """
         if self.rect.collidepoint(event.pos):
             # Calculate which tab was clicked
-            relative_x = event.pos[0] - self.rect.x
+            relative_x = int(event.pos[0] - self.rect.x)
             clicked_tab = relative_x // self.tab_width
 
             if 0 <= clicked_tab < len(self.tabs):

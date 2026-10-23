@@ -1849,9 +1849,7 @@ class TestProcessMouseEvent:
         engine = _make_engine(mocker)
         engine.mouse_manager = mocker.Mock()
 
-        event = events.HashableEvent(pygame.MOUSEBUTTONDOWN)
-        event.button = 1
-        event.pos = (100, 100)
+        event = events.HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
 
         result = engine.process_mouse_event(event)
         assert result is True

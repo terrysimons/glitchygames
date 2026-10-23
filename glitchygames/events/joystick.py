@@ -13,7 +13,17 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import JOYSTICK_EVENTS, HashableEvent, JoystickEvents, ResourceManager
+from glitchygames.events import (
+    JOYSTICK_EVENTS,
+    JoyAxisEvent,
+    JoyBallEvent,
+    JoyButtonEvent,
+    JoyDeviceAddedEvent,
+    JoyDeviceRemovedEvent,
+    JoyHatEvent,
+    JoystickEvents,
+    ResourceManager,
+)
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
 
@@ -147,11 +157,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         # Define some high level APIs
         @override
-        def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
             """Handle joystick axis motion events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyAxisEvent): The event to handle.
 
             """
             # JOYAXISMOTION    joy, axis, value
@@ -159,11 +169,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self.game.on_joy_axis_motion_event(event)
 
         @override
-        def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
             """Handle joystick button down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyButtonEvent): The event to handle.
 
             """
             # JOYBUTTONDOWN    joy, button
@@ -176,11 +186,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self.game.on_joy_button_down_event(event)
 
         @override
-        def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
             """Handle joystick button up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyButtonEvent): The event to handle.
 
             """
             # JOYBUTTONUP      joy, button
@@ -192,11 +202,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self.game.on_joy_button_up_event(event)
 
         @override
-        def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_hat_motion_event(self: Self, event: JoyHatEvent) -> None:
             """Handle joystick hat motion events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyHatEvent): The event to handle.
 
             """
             # JOYHATMOTION     joy, hat, value
@@ -204,11 +214,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self.game.on_joy_hat_motion_event(event)
 
         @override
-        def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_ball_motion_event(self: Self, event: JoyBallEvent) -> None:
             """Handle joystick ball motion events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyBallEvent): The event to handle.
 
             """
             # JOYBALLMOTION    joy, ball, rel
@@ -216,22 +226,22 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self.game.on_joy_ball_motion_event(event)
 
         @override
-        def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_device_added_event(self: Self, event: JoyDeviceAddedEvent) -> None:
             """Handle joystick device added events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyDeviceAddedEvent): The event to handle.
 
             """
             # JOYDEVICEADDED device_index, guid
             self.game.on_joy_device_added_event(event)
 
         @override
-        def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
+        def on_joy_device_removed_event(self: Self, event: JoyDeviceRemovedEvent) -> None:
             """Handle joystick device removed events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (JoyDeviceRemovedEvent): The event to handle.
 
             """
             # JOYDEVICEREMOVED device_index
@@ -432,11 +442,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
     # we do for other event types because
     # we need to know which joystick the event is intended for.
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Handle joystick axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyAxisEvent): The event to handle.
 
         """
         # JOYAXISMOTION    joy, axis, value
@@ -449,11 +459,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.joysticks[joystick_id].on_joy_axis_motion_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyButtonEvent): The event to handle.
 
         """
         # JOYBUTTONDOWN    joy, button
@@ -466,11 +476,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.joysticks[joystick_id].on_joy_button_down_event(event)
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyButtonEvent): The event to handle.
 
         """
         # JOYBUTTONUP      joy, button
@@ -483,11 +493,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.joysticks[joystick_id].on_joy_button_up_event(event)
 
     @override
-    def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_hat_motion_event(self: Self, event: JoyHatEvent) -> None:
         """Handle joystick hat motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyHatEvent): The event to handle.
 
         """
         # JOYHATMOTION     joy, hat, value
@@ -500,11 +510,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.joysticks[joystick_id].on_joy_hat_motion_event(event)
 
     @override
-    def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_ball_motion_event(self: Self, event: JoyBallEvent) -> None:
         """Handle joystick ball motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyBallEvent): The event to handle.
 
         """
         # JOYBALLMOTION    joy, ball, rel
@@ -572,11 +582,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             return None
 
     @override
-    def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_device_added_event(self: Self, event: JoyDeviceAddedEvent) -> None:
         """Handle joystick device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyDeviceAddedEvent): The event to handle.
 
         """
         # JOYDEVICEADDED device_index, guid
@@ -640,11 +650,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         self.joysticks[tracking_key].on_joy_device_added_event(event)
 
     @override
-    def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_device_removed_event(self: Self, event: JoyDeviceRemovedEvent) -> None:
         """Handle joystick device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyDeviceRemovedEvent): The event to handle.
 
         """
         # JOYDEVICEREMOVED instance_id

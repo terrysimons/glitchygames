@@ -19,7 +19,7 @@ import pygame
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.editor import AnimatedCanvasSprite
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent
     from glitchygames.sprites import AnimatedSprite, SpriteFrame
 
 from .film_strip_animation import FilmStripAnimation
@@ -329,7 +329,7 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         """Handle mouse hover over the film strip."""
         self.event_handler.handle_hover(pos)
 
-    def handle_keyboard_input(self, event: HashableEvent) -> bool:
+    def handle_keyboard_input(self, event: KeyEvent) -> bool:
         """Handle keyboard input for animation renaming.
 
         Returns:

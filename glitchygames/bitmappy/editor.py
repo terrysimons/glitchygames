@@ -481,11 +481,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self._slider_manager.on_slider_event(event, trigger)
 
     @override
-    def on_right_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_right_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the right mouse button up event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
         Raises:
             None
@@ -599,11 +599,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         return True
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button down event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
         Raises:
             None
@@ -670,11 +670,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self._slider_manager.on_tab_change_event(tab_format)
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button up event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
         Raises:
             None
@@ -693,11 +693,13 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             sprite.on_left_mouse_button_up_event(event)
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: events.MouseMotionEvent, trigger: object
+    ) -> None:
         """Handle the left mouse drag event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseMotionEvent): The pygame event.
             trigger (object): The trigger object.
 
         Raises:
@@ -734,7 +736,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             pass
 
     @override
-    def on_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle mouse button up events."""
         # Check if debug text box should handle the event
         if (
@@ -792,11 +794,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 sprite.on_mouse_button_up_event(event)
 
     @override
-    def on_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: events.MouseMotionEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle
+            event (MouseMotionEvent): The event to handle
             trigger (object): The trigger object
 
         """
@@ -805,11 +807,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 sprite.on_mouse_drag_event(event, trigger)
 
     @override
-    def on_mouse_motion_event(self: Self, event: events.HashableEvent) -> None:
+    def on_mouse_motion_event(self: Self, event: events.MouseMotionEvent) -> None:
         """Handle mouse motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle
+            event (MouseMotionEvent): The event to handle
 
         """
         # Handle slider hover effects
@@ -936,7 +938,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         super().cleanup()
 
     @override
-    def on_key_up_event(self, event: events.HashableEvent) -> None:
+    def on_key_up_event(self, event: events.KeyEvent) -> None:
         """Handle key release events.
 
         Releasing any key of Ctrl+Shift+Arrow (in any order) ends the pan gesture in
@@ -954,7 +956,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Call parent class handler
         super().on_key_up_event(event)
 
-    def _handle_film_strip_text_input(self, event: events.HashableEvent) -> bool | None:
+    def _handle_film_strip_text_input(self, event: events.KeyEvent) -> bool | None:
         """Handle text input for film strips in text editing mode.
 
         Args:
@@ -980,7 +982,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 return None
         return False
 
-    def _handle_ctrl_key_shortcuts(self, event: events.HashableEvent, mod: int) -> bool:  # ruff: ignore[too-many-return-statements]
+    def _handle_ctrl_key_shortcuts(self, event: events.KeyEvent, mod: int) -> bool:  # ruff: ignore[too-many-return-statements]
         """Handle Ctrl-based keyboard shortcuts (undo, redo, copy, paste, panning).
 
         Args:
@@ -1038,7 +1040,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def _handle_arrow_key_navigation(self, event: events.HashableEvent) -> bool:
+    def _handle_arrow_key_navigation(self, event: events.KeyEvent) -> bool:
         """Handle UP/DOWN arrow keys for animation navigation.
 
         Args:
@@ -1064,7 +1066,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def _route_to_canvas_or_parent(self, event: events.HashableEvent) -> None:
+    def _route_to_canvas_or_parent(self, event: events.KeyEvent) -> None:
         """Route keyboard event to canvas or fall back to parent handler.
 
         Args:
@@ -1085,7 +1087,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             super().on_key_down_event(event)
 
     @override
-    def on_key_down_event(self, event: events.HashableEvent) -> None:
+    def on_key_down_event(self, event: events.KeyEvent) -> None:
         """Handle keyboard events for frame navigation and text input."""
         self.log.debug('Key down event received: key=%s', event.key)
 
@@ -1108,7 +1110,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # arrow keys, or route to canvas
         self._handle_key_down_actions(event)
 
-    def _handle_key_down_actions(self, event: events.HashableEvent) -> None:
+    def _handle_key_down_actions(self, event: events.KeyEvent) -> None:
         """Handle remaining key-down actions after text input checks.
 
         Args:
@@ -1349,7 +1351,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         parser.add_argument('-s', '--size', default='32x32')
 
     @override
-    def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
+    def _handle_scene_key_events(self, event: events.KeyEvent) -> None:
         """Handle scene-level key events."""
         self.log.debug('Scene-level key event: %s', event.key)
 
@@ -1357,7 +1359,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.on_key_down_event(event)
 
     @override
-    def on_drop_file_event(self, event: events.HashableEvent) -> None:
+    def on_drop_file_event(self, event: events.DropFileEvent) -> None:
         """Handle drop file event by delegating to FileIOManager."""
         self._file_io.on_drop_file_event(event)
 
@@ -1467,42 +1469,42 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     # ──────────────────────────────────────────────────────────────────────
 
     @override
-    def on_controller_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_down_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button down events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_button_down_event(event)
 
     @override
-    def on_controller_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_up_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button up events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_button_up_event(event)
 
     @override
-    def on_joy_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_down_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button down events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_button_down_event(event)
 
     @override
-    def on_joy_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_up_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button up events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_button_up_event(event)
 
     @override
-    def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_hat_motion_event(self, event: events.JoyHatEvent) -> None:
         """Handle joystick hat motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_hat_motion_event(event)
 
     @override
-    def on_joy_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_axis_motion_event(self, event: events.JoyAxisEvent) -> None:
         """Handle joystick axis motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_axis_motion_event(event)
 
     @override
-    def on_joy_ball_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_ball_motion_event(self, event: events.JoyBallEvent) -> None:
         """Handle joystick ball motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_ball_motion_event(event)
 
     @override
-    def on_controller_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_controller_axis_motion_event(self, event: events.ControllerAxisEvent) -> None:
         """Handle controller axis motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_axis_motion_event(event)
 

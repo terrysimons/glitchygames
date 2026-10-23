@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Self, cast, override
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent
 
 import pygame
 
@@ -130,11 +130,11 @@ class Game(Scene):
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         if current_input().key_pressed(pygame.K_SPACE):

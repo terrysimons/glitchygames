@@ -11,7 +11,13 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import TOUCH_EVENTS, HashableEvent, ResourceManager, TouchEvents
+from glitchygames.events import (
+    TOUCH_EVENTS,
+    HashableEvent,
+    ResourceManager,
+    TouchEvents,
+    TouchFingerEvent,
+)
 
 LOG = logging.getLogger('game.touch')
 LOG.addHandler(logging.NullHandler())
@@ -39,31 +45,31 @@ class TouchEventManager(ResourceManager):
                 self.proxies = [self.game]
 
         @override
-        def on_touch_down_event(self: Self, event: HashableEvent) -> None:
+        def on_touch_down_event(self: Self, event: TouchFingerEvent) -> None:
             """Handle finger down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (TouchFingerEvent): The event to handle.
 
             """
             self.game.on_touch_down_event(event)
 
         @override
-        def on_touch_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_touch_motion_event(self: Self, event: TouchFingerEvent) -> None:
             """Handle finger motion events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (TouchFingerEvent): The event to handle.
 
             """
             self.game.on_touch_motion_event(event)
 
         @override
-        def on_touch_up_event(self: Self, event: HashableEvent) -> None:
+        def on_touch_up_event(self: Self, event: TouchFingerEvent) -> None:
             """Handle finger up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (TouchFingerEvent): The event to handle.
 
             """
             self.game.on_touch_up_event(event)

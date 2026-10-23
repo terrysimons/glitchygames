@@ -18,7 +18,17 @@ if TYPE_CHECKING:
 import pygame
 import pygame._sdl2.controller
 
-from glitchygames.events import CONTROLLER_EVENTS, ControllerEvents, HashableEvent, ResourceManager
+from glitchygames.events import (
+    CONTROLLER_EVENTS,
+    ControllerAxisEvent,
+    ControllerButtonEvent,
+    ControllerDeviceAddedEvent,
+    ControllerDeviceEvent,
+    ControllerEvents,
+    ControllerTouchpadEvent,
+    HashableEvent,
+    ResourceManager,
+)
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
 
@@ -125,22 +135,22 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             return self._id
 
         @override
-        def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_axis_motion_event(self: Self, event: ControllerAxisEvent) -> None:
             """Handle controller axis motion events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerAxisEvent): The event to handle.
 
             """
             self._axes[event.axis] = event.value
             self.game.on_controller_axis_motion_event(event)
 
         @override
-        def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
             """Handle controller button down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerButtonEvent): The event to handle.
 
             """
             self.log.debug('CONTROLLERBUTTONDOWN triggered: %s', event)
@@ -153,11 +163,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self.game.on_controller_button_down_event(event)
 
         @override
-        def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
             """Handle controller button up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerButtonEvent): The event to handle.
 
             """
             self.log.debug('CONTROLLERBUTTONUP triggered: %s', event)
@@ -169,63 +179,63 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self.game.on_controller_button_up_event(event)
 
         @override
-        def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_device_added_event(self: Self, event: ControllerDeviceAddedEvent) -> None:
             """Handle controller device added events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerDeviceAddedEvent): The event to handle.
 
             """
             # CONTROLLERDEVICEADDED device_index, guid
             self.game.on_controller_device_added_event(event)
 
         @override
-        def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_device_remapped_event(self: Self, event: ControllerDeviceEvent) -> None:
             """Handle controller device remapped events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerDeviceEvent): The event to handle.
 
             """
             self.game.on_controller_device_remapped_event(event)
 
         @override
-        def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_device_removed_event(self: Self, event: ControllerDeviceEvent) -> None:
             """Handle controller device removed events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerDeviceEvent): The event to handle.
 
             """
             # CONTROLLERDEVICEREMOVED instance_id
             self.game.on_controller_device_removed_event(event)
 
         @override
-        def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_touchpad_down_event(self: Self, event: ControllerTouchpadEvent) -> None:
             """Handle controller touchpad down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerTouchpadEvent): The event to handle.
 
             """
             self.game.on_controller_touchpad_down_event(event)
 
         @override
-        def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_touchpad_motion_event(self: Self, event: ControllerTouchpadEvent) -> None:
             """Handle controller touchpad motion events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerTouchpadEvent): The event to handle.
 
             """
             self.game.on_controller_touchpad_motion_event(event)
 
         @override
-        def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:
+        def on_controller_touchpad_up_event(self: Self, event: ControllerTouchpadEvent) -> None:
             """Handle controller touchpad up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (ControllerTouchpadEvent): The event to handle.
 
             """
             self.game.on_controller_touchpad_up_event(event)
@@ -389,22 +399,22 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         return parser
 
     @override
-    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_axis_motion_event(self: Self, event: ControllerAxisEvent) -> None:
         """Handle controller axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerAxisEvent): The event to handle.
 
         """
         self.log.debug('CONTROLLERAXISMOTION triggered: on_controller_axis_motion_event(%s)', event)
         self.controllers[event.instance_id].on_controller_axis_motion_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerButtonEvent): The event to handle.
 
         """
         self.log.debug(
@@ -414,11 +424,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         self.controllers[event.instance_id].on_controller_button_down_event(event)
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerButtonEvent): The event to handle.
 
         """
         self.log.debug(
@@ -428,11 +438,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         self.controllers[event.instance_id].on_controller_button_up_event(event)
 
     @override
-    def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_added_event(self: Self, event: ControllerDeviceAddedEvent) -> None:
         """Handle controller device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerDeviceAddedEvent): The event to handle.
 
         """
         # CONTROLLERDEVICEADDED device_index, guid
@@ -473,11 +483,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         controller_proxy.on_controller_device_added_event(event)
 
     @override
-    def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_remapped_event(self: Self, event: ControllerDeviceEvent) -> None:
         """Handle controller device remapped events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerDeviceEvent): The event to handle.
 
         """
         self.log.debug(
@@ -489,11 +499,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self.controllers[event.instance_id].on_controller_device_remapped_event(event)
 
     @override
-    def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_removed_event(self: Self, event: ControllerDeviceEvent) -> None:
         """Handle controller device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerDeviceEvent): The event to handle.
 
         """
         # CONTROLLERDEVICEREMOVED instance_id
@@ -509,11 +519,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             )
 
     @override
-    def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_touchpad_down_event(self: Self, event: ControllerTouchpadEvent) -> None:
         """Handle controller touchpad down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerTouchpadEvent): The event to handle.
 
         """
         self.log.debug(
@@ -523,11 +533,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         self.controllers[event.instance_id].on_controller_touchpad_down_event(event)
 
     @override
-    def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_touchpad_motion_event(self: Self, event: ControllerTouchpadEvent) -> None:
         """Handle controller touchpad motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerTouchpadEvent): The event to handle.
 
         """
         self.log.debug(
@@ -537,11 +547,11 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         self.controllers[event.instance_id].on_controller_touchpad_motion_event(event)
 
     @override
-    def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_touchpad_up_event(self: Self, event: ControllerTouchpadEvent) -> None:
         """Handle controller touchpad up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerTouchpadEvent): The event to handle.
 
         """
         self.log.debug('CONTROLLERTOUCHPADUP triggered: on_controller_touchpad_up_event(%s)', event)

@@ -59,7 +59,7 @@ class FileIOManager:
     # Drop event handling
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_drop_file_event(self, event: events.HashableEvent) -> None:
+    def on_drop_file_event(self, event: events.DropFileEvent) -> None:
         """Handle drop file event.
 
         Args:
@@ -85,7 +85,7 @@ class FileIOManager:
         # If no film strip handled it, check if drop is on the canvas
         self._try_canvas_drop(file_path)
 
-    def _try_film_strip_drop(self, event: events.HashableEvent) -> bool:
+    def _try_film_strip_drop(self, event: events.DropFileEvent) -> bool:
         """Try to handle a file drop via film strip sprites.
 
         Args:

@@ -648,12 +648,9 @@ class SliderManager:
 
         self.log.debug('Slider: event: %s, trigger: %s value: %s', event, trigger, value)
 
-        if value < MIN_COLOR_VALUE:
-            value = MIN_COLOR_VALUE
-            trigger.value = MIN_COLOR_VALUE  # pyright: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-        elif value > MAX_COLOR_VALUE:
-            value = MAX_COLOR_VALUE
-            trigger.value = MAX_COLOR_VALUE  # pyright: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
+        # Clamped here only: the trigger is an event, which never changes (nothing read the
+        # clamped value it used to be given)
+        value = max(MIN_COLOR_VALUE, min(MAX_COLOR_VALUE, value))
 
         color = {
             'R': self.editor.red_slider.value,
@@ -723,7 +720,7 @@ class SliderManager:
             if slider.text_sprite.is_active and slider is not clicked_slider:
                 slider.commit_text(event=event)
 
-    def handle_slider_text_input(self, event: events.HashableEvent) -> bool | None:
+    def handle_slider_text_input(self, event: events.KeyEvent) -> bool | None:
         """Handle text input for active slider text boxes.
 
         Args:

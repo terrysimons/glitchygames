@@ -186,7 +186,6 @@ ignore = [
   "D213",    # Multi-line summary second line (conflicts with D212)
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
   "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
-  "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
   "PLR6301", # Method could be a function/staticmethod
   # --- Added with ruff 0.17 ---
   # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
@@ -215,6 +214,9 @@ fixable = ["ALL"]
   "B002",    # False positive on double-negation test: -(-speed)
   "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
   "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+"glitchygames/events/base.py" = [
+  "ANN401", # HashableEvent.__getattr__ returns Any: custom and unknown events' fields (pygame's own Event.__getattr__ is Any); the per-type classes declare theirs
 ]
 "glitchygames/randomness.py" = [
   "S311", # The engine's seeded random streams are deliberately non-cryptographic (replayable)

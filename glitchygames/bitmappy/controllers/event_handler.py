@@ -24,6 +24,7 @@ from glitchygames.bitmappy.constants import (
     JOYSTICK_HAT_DOWN,
     JOYSTICK_HAT_LEFT,
     JOYSTICK_HAT_RIGHT,
+    JOYSTICK_HAT_UP,
     JOYSTICK_LEFT_SHOULDER_BUTTON,
 )
 from glitchygames.bitmappy.controllers.canvas_operations import CanvasOperations
@@ -41,6 +42,14 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.controllers.manager import ControllerInfo
     from glitchygames.bitmappy.protocols import EditorContext
     from glitchygames.sprites import BitmappySprite
+
+# The hat positions that name a direction (diagonals name none)
+HAT_DIRECTION_NAMES: dict[tuple[int, int], str] = {
+    JOYSTICK_HAT_UP: 'up',
+    JOYSTICK_HAT_RIGHT: 'right',
+    JOYSTICK_HAT_DOWN: 'down',
+    JOYSTICK_HAT_LEFT: 'left',
+}
 
 
 class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
@@ -238,11 +247,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     # Core controller event dispatch
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_controller_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_down_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button down events for multi-controller system.
 
         Args:
-            event (pygame.event.Event): The controller button down event.
+            event (ControllerButtonEvent): The controller button down event.
 
         """
         # Scan for controllers and update manager
@@ -296,11 +305,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             # Fallback for controllers without a registered mode
             self.log.debug('Controller %s: no strategy found, skipping button press', controller_id)
 
-    def on_controller_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_up_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The controller button up event.
+            event (ControllerButtonEvent): The controller button up event.
 
         """
         instance_id = event.instance_id
@@ -319,11 +328,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     # Joystick event handling
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_joy_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_down_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button down events (for controllers detected as joysticks).
 
         Args:
-            event (pygame.event.Event): The joystick button down event.
+            event (JoyButtonEvent): The joystick button down event.
 
         """
         # Map joystick buttons to controller actions
@@ -341,61 +350,45 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             # Unknown joystick button - not handled
             pass
 
-    def on_joy_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_up_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button up events.
 
         Args:
-            event (pygame.event.Event): The joystick button up event.
+            event (JoyButtonEvent): The joystick button up event.
 
         """
 
-    def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_hat_motion_event(self, event: events.JoyHatEvent) -> None:
         """Handle joystick hat motion events - requires threshold to prevent jittery behavior.
 
         Args:
-            event (pygame.event.Event): The joystick hat motion event.
+            event (JoyHatEvent): The joystick hat motion event.
 
         """
         self.log.debug('DEBUG: Joystick hat motion: hat=%s, value=%s', event.hat, event.value)
 
-        # Only respond to strong hat inputs (threshold > 0.5)
-        # Hat values can be either:
-        # - Integer bitmask: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
-        # - Tuple (x, y): (0,0)=center, (0,1)=up, (1,0)=right, (0,-1)=down, (-1,0)=left
-        if isinstance(event.value, tuple):
-            # For tuple, calculate magnitude
-            hat_magnitude: float = (event.value[0] ** 2 + event.value[1] ** 2) ** 0.5  # type: ignore[index]
-            if hat_magnitude < HAT_INPUT_MAGNITUDE_THRESHOLD:
-                self.log.debug('DEBUG: Joystick hat motion below threshold, ignoring')
-                return
-        # For integer bitmask, use abs
-        elif abs(event.value) < HAT_INPUT_MAGNITUDE_THRESHOLD:
+        # Only respond to strong hat inputs (threshold > 0.5). pygame reports a hat's position
+        # as an (x, y) tuple: (0, 0) centered, (0, 1) up, (1, 0) right, (0, -1) down, (-1, 0)
+        # left (the directions were compared with integer bitmasks, which never matched)
+        hat_x, hat_y = event.value
+        hat_magnitude = (hat_x**2 + hat_y**2) ** 0.5
+        if hat_magnitude < HAT_INPUT_MAGNITUDE_THRESHOLD:
             self.log.debug('DEBUG: Joystick hat motion below threshold, ignoring')
             return
 
-        # Map hat directions to controller actions
-        if event.value == 1:  # type: ignore[comparison-overlap]  # Up
-            self.log.debug('DEBUG: Joystick hat up - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
-        if event.value == JOYSTICK_HAT_RIGHT:  # type: ignore[comparison-overlap]  # Right
-            self.log.debug('DEBUG: Joystick hat right - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
-        if event.value == JOYSTICK_HAT_DOWN:  # type: ignore[comparison-overlap]  # Down
-            self.log.debug('DEBUG: Joystick hat down - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
-        if event.value == JOYSTICK_HAT_LEFT:  # type: ignore[comparison-overlap]  # Left
-            self.log.debug('DEBUG: Joystick hat left - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
+        # Map hat directions to controller actions: each is disabled (the multi-controller
+        # system handles them); a diagonal matches no direction
+        direction = HAT_DIRECTION_NAMES.get(event.value)
+        if direction is not None:
+            self.log.debug(
+                'DEBUG: Joystick hat %s - DISABLED (use multi-controller system)', direction
+            )
 
-    def on_joy_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_axis_motion_event(self, event: events.JoyAxisEvent) -> None:
         """Handle joystick axis motion events - disabled to prevent jittery behavior.
 
         Args:
-            event (pygame.event.Event): The joystick axis motion event.
+            event (JoyAxisEvent): The joystick axis motion event.
 
         """
         # Handle trigger axis motion for mode switching (axes 4 and 5)
@@ -415,11 +408,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         )
         # Disabled to prevent jittery behavior
 
-    def on_joy_ball_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_ball_motion_event(self, event: events.JoyBallEvent) -> None:
         """Handle joystick ball motion events - disabled to prevent jittery behavior.
 
         Args:
-            event (pygame.event.Event): The joystick ball motion event.
+            event (JoyBallEvent): The joystick ball motion event.
 
         """
         self.log.debug(
@@ -433,11 +426,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     # Controller axis motion
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_controller_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_controller_axis_motion_event(self, event: events.ControllerAxisEvent) -> None:
         """Handle controller axis motion events.
 
         Args:
-            event (pygame.event.Event): The controller axis motion event.
+            event (ControllerAxisEvent): The controller axis motion event.
 
         """
         # Handle trigger axis motion for mode switching

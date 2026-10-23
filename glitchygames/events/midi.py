@@ -14,7 +14,7 @@ from glitchygames.events import MIDI_EVENTS
 if TYPE_CHECKING:
     import argparse
 
-from glitchygames.events import HashableEvent, MidiEvents, ResourceManager
+from glitchygames.events import MidiEvent, MidiEvents, ResourceManager
 
 log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
@@ -36,13 +36,13 @@ class MidiEventManager(ResourceManager):
             self.proxies = [self.game, pygame.midi]
 
         @override
-        def on_midi_in_event(self: Self, event: HashableEvent) -> None:
+        def on_midi_in_event(self: Self, event: MidiEvent) -> None:
             """Forward MIDI input events to the game object."""
             if hasattr(self.game, 'on_midi_in_event'):
                 self.game.on_midi_in_event(event)
 
         @override
-        def on_midi_out_event(self: Self, event: HashableEvent) -> None:
+        def on_midi_out_event(self: Self, event: MidiEvent) -> None:
             """Forward MIDI output events to the game object."""
             if hasattr(self.game, 'on_midi_out_event'):
                 self.game.on_midi_out_event(event)

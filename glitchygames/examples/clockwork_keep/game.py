@@ -82,7 +82,13 @@ if TYPE_CHECKING:
     import argparse
 
     from glitchygames.audio.live import LiveVoice
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+        WindowEvent,
+    )
     from glitchygames.transitions import Transition
 
 log = logging.getLogger('game')
@@ -906,7 +912,7 @@ class ClockworkKeepScene(Scene):
     # --- Input handlers ---
 
     @override
-    def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_lost_event(self: Self, event: WindowEvent) -> None:
         """Auto-pause when the window loses focus (Cmd-Tab, etc.).
 
         Args:
@@ -918,7 +924,7 @@ class ClockworkKeepScene(Scene):
             self.next_scene = PauseScene(options=self.options)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key presses.
 
         Args:
@@ -937,7 +943,7 @@ class ClockworkKeepScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key releases.
 
         Args:
@@ -947,7 +953,7 @@ class ClockworkKeepScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button presses.
 
         Args:
@@ -960,7 +966,7 @@ class ClockworkKeepScene(Scene):
             self._try_jump()
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button releases.
 
         Args:
@@ -970,7 +976,7 @@ class ClockworkKeepScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Handle joystick axis motion.
 
         Args:
@@ -980,7 +986,7 @@ class ClockworkKeepScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button presses.
 
         Args:
@@ -993,7 +999,7 @@ class ClockworkKeepScene(Scene):
             self._try_jump()
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button releases.
 
         Args:

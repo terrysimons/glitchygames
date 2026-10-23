@@ -10,7 +10,7 @@ import pygame
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent, WindowEvent
 from glitchygames.sprites import Sprite
 from glitchygames.ui.message_screen import MessageScreen
 
@@ -90,7 +90,7 @@ class PauseScene(Scene):
         return self._paused_scene if self._paused_scene is not None else self
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events for the pause scene.
 
         Args:
@@ -107,7 +107,7 @@ class PauseScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key up events for the pause scene.
 
         Args:
@@ -123,7 +123,7 @@ class PauseScene(Scene):
             super().on_key_up_event(event)
 
     @override
-    def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_gained_event(self: Self, event: WindowEvent) -> None:
         """Auto-resume when the window regains focus.
 
         Waits a short time after setup to avoid the focus gained event

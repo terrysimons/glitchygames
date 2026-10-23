@@ -2550,7 +2550,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
                 continue
 
-            event = events.HashableEvent(pygame_event.type, **pygame_event.dict)
+            event = events.HashableEvent.from_pygame(pygame_event)
 
             # Decided per event: a type missing from the map is unhandled
             event_was_handled = False
@@ -2657,7 +2657,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements]
+    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a controller event.
 
         Args:
@@ -2678,50 +2678,50 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         ):
             return True
 
-        if event.type == pygame.CONTROLLERAXISMOTION:
-            self.controller_manager.on_controller_axis_motion_event(event)
-            return True
+        # Matched by class (the type's class from events.EVENT_CLASSES, which every event of
+        # the type is, however it was built) and then by type where a class covers several
+        manager = self.controller_manager
+        match event:
+            case events.ControllerAxisEvent():
+                manager.on_controller_axis_motion_event(event)
+            case events.ControllerTouchpadEvent(type=pygame.CONTROLLERTOUCHPADMOTION):
+                manager.on_controller_touchpad_motion_event(event)
+            case events.ControllerButtonEvent(type=pygame.CONTROLLERBUTTONDOWN):
+                manager.on_controller_button_down_event(event)
+            case events.ControllerButtonEvent(type=pygame.CONTROLLERBUTTONUP):
+                manager.on_controller_button_up_event(event)
+            case events.ControllerTouchpadEvent(type=pygame.CONTROLLERTOUCHPADDOWN):
+                manager.on_controller_touchpad_down_event(event)
+            case events.ControllerTouchpadEvent(type=pygame.CONTROLLERTOUCHPADUP):
+                manager.on_controller_touchpad_up_event(event)
+            case events.HashableEvent(type=pygame.CONTROLLERSENSORUPDATE):
+                manager.on_controller_sensor_update_event(event)
+            case _:
+                return self._process_controller_device_event(manager=manager, event=event)
+        return True
 
-        if event.type == pygame.CONTROLLERTOUCHPADMOTION:
-            self.controller_manager.on_controller_touchpad_motion_event(event)
-            return True
+    def _process_controller_device_event(
+        self: Self, *, manager: ControllerEventManager, event: events.HashableEvent
+    ) -> bool:
+        """Process a controller's added, removed or remapped event (``process_controller_event``).
 
-        if event.type == pygame.CONTROLLERBUTTONDOWN:
-            self.controller_manager.on_controller_button_down_event(event)
-            return True
+        Returns:
+            bool: True if the event was handled, False otherwise.
 
-        if event.type == pygame.CONTROLLERBUTTONUP:
-            self.controller_manager.on_controller_button_up_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERTOUCHPADDOWN:
-            self.controller_manager.on_controller_touchpad_down_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERTOUCHPADUP:
-            self.controller_manager.on_controller_touchpad_up_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERSENSORUPDATE:
-            self.controller_manager.on_controller_sensor_update_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERDEVICEREMOVED:
-            self.controller_manager.on_controller_device_removed_event(event)
-            self._synchronize_input_devices()
-            return True
-
-        if event.type == pygame.CONTROLLERDEVICEADDED:
-            self.controller_manager.on_controller_device_added_event(event)
-            self._synchronize_input_devices()
-            return True
-
-        if event.type == pygame.CONTROLLERDEVICEREMAPPED:
-            self.controller_manager.on_controller_device_remapped_event(event)
-            return True
-
-        # We haven't handled this event, so let's see if it's a controller init event
-        return False
+        """
+        match event:
+            case events.ControllerDeviceEvent(type=pygame.CONTROLLERDEVICEREMOVED):
+                manager.on_controller_device_removed_event(event)
+                self._synchronize_input_devices()
+            case events.ControllerDeviceAddedEvent():
+                manager.on_controller_device_added_event(event)
+                self._synchronize_input_devices()
+            case events.ControllerDeviceEvent(type=pygame.CONTROLLERDEVICEREMAPPED):
+                manager.on_controller_device_remapped_event(event)
+            case _:
+                # We haven't handled this event, so let's see if it's a controller init event
+                return False
+        return True
 
     def process_drop_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a drop event.
@@ -2855,7 +2855,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
+    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a joystick event.
 
         Args:
@@ -2873,42 +2873,33 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         ):
             return True
 
-        if event.type == pygame.JOYAXISMOTION:
-            # JOYAXISMOTION    joy, axis, value
-            self.joystick_manager.on_joy_axis_motion_event(event)
-            return True
-
-        if event.type == pygame.JOYBALLMOTION:
-            # JOYBALLMOTION    joy, ball, rel
-            self.joystick_manager.on_joy_ball_motion_event(event)
-            return True
-
-        if event.type == pygame.JOYHATMOTION:
-            # JOYHATMOTION     joy, hat, value
-            self.joystick_manager.on_joy_hat_motion_event(event)
-            return True
-
-        if event.type == pygame.JOYBUTTONUP:
-            # JOYBUTTONUP      joy, button
-            self.joystick_manager.on_joy_button_up_event(event)
-            return True
-
-        if event.type == pygame.JOYBUTTONDOWN:
-            # JOYBUTTONDOWN    joy, button
-            self.joystick_manager.on_joy_button_down_event(event)
-            return True
-
-        if event.type == pygame.JOYDEVICEADDED:
-            self.joystick_manager.on_joy_device_added_event(event)
-            self._synchronize_input_devices()
-            return True
-
-        if event.type == pygame.JOYDEVICEREMOVED:
-            self.joystick_manager.on_joy_device_removed_event(event)
-            self._synchronize_input_devices()
-            return True
-
-        return False
+        # Matched by class (the type's class from events.EVENT_CLASSES), then by type for
+        # the button class's two types
+        match event:
+            case events.JoyAxisEvent():
+                # JOYAXISMOTION    instance_id, axis, value
+                self.joystick_manager.on_joy_axis_motion_event(event)
+            case events.JoyBallEvent():
+                # JOYBALLMOTION    instance_id, ball, rel
+                self.joystick_manager.on_joy_ball_motion_event(event)
+            case events.JoyHatEvent():
+                # JOYHATMOTION     instance_id, hat, value
+                self.joystick_manager.on_joy_hat_motion_event(event)
+            case events.JoyButtonEvent(type=pygame.JOYBUTTONUP):
+                # JOYBUTTONUP      instance_id, button
+                self.joystick_manager.on_joy_button_up_event(event)
+            case events.JoyButtonEvent(type=pygame.JOYBUTTONDOWN):
+                # JOYBUTTONDOWN    instance_id, button
+                self.joystick_manager.on_joy_button_down_event(event)
+            case events.JoyDeviceAddedEvent():
+                self.joystick_manager.on_joy_device_added_event(event)
+                self._synchronize_input_devices()
+            case events.JoyDeviceRemovedEvent():
+                self.joystick_manager.on_joy_device_removed_event(event)
+                self._synchronize_input_devices()
+            case _:
+                return False
+        return True
 
     @staticmethod
     def _device_event_instance_id(*, event: events.HashableEvent) -> int | None:
@@ -3038,49 +3029,50 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         # Game events are listed in the order they're most
-        # likely to occur in.
-        match event.type:
-            case events.FPSEVENT:
+        # likely to occur in; matched by class (the type's class from events.EVENT_CLASSES),
+        # or by type for the types without a class of their own
+        match event:
+            case events.FpsEvent():
                 # FPSEVENT is pygame.USEREVENT + 1
                 self.game_manager.on_fps_event(event)
                 return True
 
-            case events.GAMEEVENT:
+            case events.GameEvent():
                 # GAMEEVENT is pygame.USEREVENT + 2
                 self.game_manager.on_game_event(event)
                 return True
 
-            case events.MENUEVENT:
+            case events.HashableEvent(type=events.MENUEVENT):
                 # MENUEVENT is pygame.USEREVENT + 3
                 self.game_manager.on_menu_item_event(event)
                 return True
 
-            case pygame.ACTIVEEVENT:
+            case events.ActiveEvent():
                 # ACTIVEEVENT      gain, state
                 self.game_manager.on_active_event(event)
                 return True
 
-            case pygame.USEREVENT:
+            case events.HashableEvent(type=pygame.USEREVENT):
                 # USEREVENT        code
                 self.game_manager.on_user_event(event)
                 return True
 
-            case pygame.VIDEORESIZE:
+            case events.VideoResizeEvent():
                 # VIDEORESIZE      size, w, h
                 self.game_manager.on_video_resize_event(event)
                 return True
 
-            case pygame.VIDEOEXPOSE:
+            case events.HashableEvent(type=pygame.VIDEOEXPOSE):
                 # VIDEOEXPOSE      none
                 self.game_manager.on_video_expose_event(event)
                 return True
 
-            case pygame.SYSWMEVENT:
+            case events.HashableEvent(type=pygame.SYSWMEVENT):
                 # SYSWMEVENT
                 self.game_manager.on_sys_wm_event(event)
                 return True
 
-            case pygame.QUIT:
+            case events.HashableEvent(type=pygame.QUIT):
                 # QUIT             none
                 self.game_manager.on_quit_event(event)
                 return True

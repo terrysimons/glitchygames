@@ -1269,7 +1269,7 @@ class SceneManager(SceneInterface, events.EventManager):
             getattr(sprite, 'is_active', False) is True for sprite in self.active_scene.all_sprites
         )
 
-    def on_key_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: events.KeyEvent) -> None:
         """Handle the debug overlay keys, then forward key-down events as the proxy would.
 
         F3 toggles the overlay and F4 cycles its panels, unless a sprite in the active scene has
@@ -1278,7 +1278,7 @@ class SceneManager(SceneInterface, events.EventManager):
         or to the game engine when there is no active scene.
 
         Args:
-            event (events.HashableEvent): The key-down event.
+            event (KeyEvent): The key-down event.
 
         Raises:
             AttributeError: If there is no active scene and the game engine has no handler.
@@ -2354,22 +2354,22 @@ class SceneManager(SceneInterface, events.EventManager):
         # QUIT             none
         self.quit_requested = True
 
-    def on_fps_event(self: Self, event: events.HashableEvent) -> None:
+    def on_fps_event(self: Self, event: events.FpsEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (FpsEvent): The event to handle.
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
         if self.active_scene:
             self.active_scene.on_fps_event(event)
 
-    def on_game_event(self: Self, event: events.HashableEvent) -> None:
+    def on_game_event(self: Self, event: events.GameEvent) -> None:
         """Handle game events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (GameEvent): The event to handle.
 
         """
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -3199,77 +3199,77 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         post_event(pygame.event.Event(pygame.QUIT))
 
     @override
-    def on_audio_device_added_event(self: Self, event: events.HashableEvent) -> None:
+    def on_audio_device_added_event(self: Self, event: events.AudioDeviceEvent) -> None:
         """Handle audio device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEADDED which, iscapture
         self.log.debug('%s: On Audio Device Added Event %s', type(self), event)
 
     @override
-    def on_audio_device_removed_event(self: Self, event: events.HashableEvent) -> None:
+    def on_audio_device_removed_event(self: Self, event: events.AudioDeviceEvent) -> None:
         """Handle audio device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEREMOVED which, iscapture
         self.log.debug('%s: On Audio Device Removed Event %s', type(self), event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerButtonEvent): The event to handle.
 
         """
         # CONTROLLERBUTTONDOWN which, button
         self.log.debug('%s: On Controller Button Down Event %s', type(self), event)
 
     @override
-    def on_controller_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerButtonEvent): The event to handle.
 
         """
         # CONTROLLERBUTTONUP which, button
         self.log.debug('%s: On Controller Button Up Event %s', type(self), event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: events.JoyButtonEvent) -> None:
         """Handle joy button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyButtonEvent): The event to handle.
 
         """
         # JOYBUTTONDOWN    joy, button
         self.log.debug('%s: On Joy Button Down Event %s', type(self), event)
 
     @override
-    def on_joy_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: events.JoyButtonEvent) -> None:
         """Handle joy button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyButtonEvent): The event to handle.
 
         """
         # JOYBUTTONUP      joy, button
         self.log.debug('%s: On Joy Button Up Event %s', type(self), event)
 
     @override
-    def on_key_up_event(self, event: events.HashableEvent) -> None:
+    def on_key_up_event(self, event: events.KeyEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         self.log.debug('%s: On Key Up Event %s', type(self), event)
@@ -3305,11 +3305,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug('%s: On Menu Item Event %s', type(self), event)
 
     @override
-    def on_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.log.debug('=== Scene: Mouse Button Down ===')
@@ -3345,11 +3345,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 sprite.on_mouse_button_down_event(event)
 
     @override
-    def on_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: events.MouseMotionEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3375,11 +3375,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_mouse_drag_event(event, trigger)
 
     @override
-    def on_mouse_drop_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_mouse_drop_event(self: Self, event: events.MouseButtonEvent, trigger: object) -> None:
         """Handle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3391,11 +3391,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_mouse_drop_event(event, trigger)
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: events.MouseMotionEvent, trigger: object
+    ) -> None:
         """Handle left mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3407,11 +3409,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
 
     @override
-    def on_left_mouse_drop_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drop_event(
+        self: Self, event: events.MouseButtonEvent, trigger: object
+    ) -> None:
         """Handle left mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3425,13 +3429,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     @override
     def on_middle_mouse_drag_event(
         self: Self,
-        event: events.HashableEvent,
+        event: events.MouseMotionEvent,
         trigger: object,
     ) -> None:
         """Handle middle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3445,13 +3449,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     @override
     def on_middle_mouse_drop_event(
         self: Self,
-        event: events.HashableEvent,
+        event: events.MouseButtonEvent,
         trigger: object,
     ) -> None:
         """Handle middle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3463,11 +3467,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_middle_mouse_drop_event(event, trigger)
 
     @override
-    def on_right_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drag_event(
+        self: Self, event: events.MouseMotionEvent, trigger: object
+    ) -> None:
         """Handle right mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3479,11 +3485,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_right_mouse_drag_event(event, trigger)
 
     @override
-    def on_right_mouse_drop_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drop_event(
+        self: Self, event: events.MouseButtonEvent, trigger: object
+    ) -> None:
         """Handle right mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
@@ -3495,11 +3503,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_right_mouse_drop_event(event, trigger)
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -3512,11 +3520,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_left_mouse_button_up_event(event)
 
     @override
-    def on_middle_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_middle_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle middle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -3529,11 +3537,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_middle_mouse_button_up_event(event)
 
     @override
-    def on_right_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_right_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle right mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -3546,11 +3554,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_right_mouse_button_up_event(event)
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.log.debug('=== Scene: Left Mouse Button Down ===')
@@ -3576,11 +3584,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 sprite.on_left_mouse_button_down_event(event)
 
     @override
-    def on_middle_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_middle_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle middle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN    pos, button
@@ -3593,11 +3601,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_middle_mouse_button_down_event(event)
 
     @override
-    def on_right_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_right_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle right mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -3620,53 +3628,53 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug('%s: Sys WM Event: %s', type(self), event)
 
     @override
-    def on_text_editing_event(self: Self, event: events.HashableEvent) -> None:
+    def on_text_editing_event(self: Self, event: events.TextEditingEvent) -> None:
         """Handle text editing events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TextEditingEvent): The event to handle.
 
         """
         self.log.debug('%s: Text Editing Event: %s', type(self), event)
 
     @override
-    def on_text_input_event(self: Self, event: events.HashableEvent) -> None:
+    def on_text_input_event(self: Self, event: events.TextInputEvent) -> None:
         """Handle text input events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TextInputEvent): The event to handle.
 
         """
         self.log.debug('%s: Text Input Event: %s', type(self), event)
 
     @override
-    def on_touch_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_touch_down_event(self: Self, event: events.TouchFingerEvent) -> None:
         """Handle touch down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TouchFingerEvent): The event to handle.
 
         """
         # TOUCHBUTTONDOWN  touch, pos, button
         self.log.debug('%s: Touch Down Event: %s', type(self), event)
 
     @override
-    def on_touch_motion_event(self: Self, event: events.HashableEvent) -> None:
+    def on_touch_motion_event(self: Self, event: events.TouchFingerEvent) -> None:
         """Handle touch motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TouchFingerEvent): The event to handle.
 
         """
         # TOUCHMOTION      touch, pos
         self.log.debug('%s: Touch Motion Event: %s', type(self), event)
 
     @override
-    def on_touch_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_touch_up_event(self: Self, event: events.TouchFingerEvent) -> None:
         """Handle touch up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TouchFingerEvent): The event to handle.
 
         """
         # TOUCHBUTTONUP    touch, pos
@@ -3695,187 +3703,187 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug('%s: Video Expose Event: %s', type(self), event)
 
     @override
-    def on_video_resize_event(self: Self, event: events.HashableEvent) -> None:
+    def on_video_resize_event(self: Self, event: events.VideoResizeEvent) -> None:
         """Handle video resize events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (VideoResizeEvent): The event to handle.
 
         """
         # VIDEORESIZE      size, w, h
         self.log.debug('%s: Video Resize Event: %s', type(self), event)
 
     @override
-    def on_window_close_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_close_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window close events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWCLOSE      none
         self.log.debug('%s: Window Close Event: %s', type(self), event)
 
     @override
-    def on_window_enter_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_enter_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window enter events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWENTER      none
         self.log.debug('%s: Window Enter Event: %s', type(self), event)
 
     @override
-    def on_window_exposed_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_exposed_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window exposed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWEXPOSED    none
         self.log.debug('%s: Window Exposed Event: %s', type(self), event)
 
     @override
-    def on_window_focus_gained_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_focus_gained_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window focus gained events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSGAINED none
         self.log.debug('%s: Window Focus Gained Event: %s', type(self), event)
 
     @override
-    def on_window_focus_lost_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_focus_lost_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window focus lost events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSLOST  none
         self.log.debug('%s: Window Focus Lost Event: %s', type(self), event)
 
     @override
-    def on_window_hidden_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_hidden_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window hidden events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHIDDEN     none
         self.log.debug('%s: Window Hidden Event: %s', type(self), event)
 
     @override
-    def on_window_hit_test_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_hit_test_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window hit test events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHITTEST    pos
         self.log.debug('%s: Window Hit Test Event: %s', type(self), event)
 
     @override
-    def on_window_leave_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_leave_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window leave events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWLEAVE      none
         self.log.debug('%s: Window Leave Event: %s', type(self), event)
 
     @override
-    def on_window_maximized_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_maximized_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window maximized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMAXIMIZED  none
         self.log.debug('%s: Window Maximized Event: %s', type(self), event)
 
     @override
-    def on_window_minimized_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_minimized_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window minimized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMINIMIZED  none
         self.log.debug('%s: Window Minimized Event: %s', type(self), event)
 
     @override
-    def on_window_moved_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_moved_event(self: Self, event: events.WindowGeometryEvent) -> None:
         """Handle window moved events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWMOVED      pos
         self.log.debug('%s: Window Moved Event: %s', type(self), event)
 
     @override
-    def on_window_resized_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_resized_event(self: Self, event: events.WindowGeometryEvent) -> None:
         """Handle window resized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWRESIZED    size, w, h
         self.log.debug('%s: Window Resized Event: %s', type(self), event)
 
     @override
-    def on_window_restored_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_restored_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window restored events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWRESTORED   none
         self.log.debug('%s: Window Restored Event: %s', type(self), event)
 
     @override
-    def on_window_shown_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_shown_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window shown events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWSHOWN      none
         self.log.debug('%s: Window Shown Event: %s', type(self), event)
 
     @override
-    def on_window_size_changed_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_size_changed_event(self: Self, event: events.WindowGeometryEvent) -> None:
         """Handle window size changed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWSIZECHANGED size, w, h
         self.log.debug('%s: Window Size Changed Event: %s', type(self), event)
 
     @override
-    def on_window_take_focus_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_take_focus_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window take focus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWTAKEFOCUS  none
@@ -3893,11 +3901,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug('%s: %s', type(self), event)
 
     @override
-    def on_fps_event(self: Self, event: events.HashableEvent) -> None:
+    def on_fps_event(self: Self, event: events.FpsEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (FpsEvent): The event to handle.
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
@@ -3919,7 +3927,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.log.debug('Implement load_resource() in %s.', type(self))
 
     @override
-    def on_key_down_event(self, event: events.HashableEvent) -> None:
+    def on_key_down_event(self, event: events.KeyEvent) -> None:
         """Handle key down events."""
         self.log.debug('%s: On Key Down Event %s', type(self), event)
 
@@ -3930,7 +3938,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Only process scene-level key events if no focused sprite handled it
         self._handle_scene_key_events(event)
 
-    def _handle_focused_sprite_events(self, event: events.HashableEvent) -> bool:
+    def _handle_focused_sprite_events(self, event: events.KeyEvent) -> bool:
         """Handle events for focused sprites.
 
         Args:
@@ -3956,7 +3964,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         return False
 
-    def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
+    def _handle_scene_key_events(self, event: events.KeyEvent) -> None:
         """Handle scene-level key events.
 
         Args:

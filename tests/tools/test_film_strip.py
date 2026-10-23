@@ -1513,10 +1513,9 @@ class TestFilmStripHandleKeyboardInput:
         widget.editing_animation = 'idle'
         widget.editing_text = ''
 
-        event = key_down_event(key=pygame.K_BACKSPACE)
         # With empty editing_text, backspace condition is False, falls through
         # unicode is empty string so printable check also fails
-        event.unicode = ''
+        event = key_down_event(key=pygame.K_BACKSPACE).with_fields(unicode='')
         result = widget.handle_keyboard_input(event)
         assert result is False
 

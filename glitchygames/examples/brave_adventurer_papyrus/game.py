@@ -68,7 +68,12 @@ from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+    )
     from glitchygames.examples.brave_adventurer.terrain import GroundSegment, StoneWall
     from glitchygames.examples.brave_adventurer_papyrus.enemies import (
         PapyrusCobra,
@@ -727,7 +732,7 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.stop_horizontal()
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle keyboard key presses via ActionMap.
 
         Movement is handled frame-driven in dt_tick via is_held().
@@ -751,7 +756,7 @@ class PapyrusBraveAdventurerScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle keyboard key releases.
 
         Args:
@@ -761,7 +766,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button presses via ActionMap.
 
         Args:
@@ -776,7 +781,7 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.jump()
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button releases.
 
         Args:
@@ -786,7 +791,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button presses (pygame-ce uses joystick API).
 
         Args:
@@ -801,7 +806,7 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.jump()
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button releases.
 
         Args:
@@ -811,7 +816,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Handle joystick axis motion.
 
         Args:

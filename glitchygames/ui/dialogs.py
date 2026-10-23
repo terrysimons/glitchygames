@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import HashableEvent, KeyEvent, MouseButtonEvent
 
 import pygame
 
@@ -266,22 +266,22 @@ class InputConfirmationDialogScene(Scene):
         self.log.info('%s Got text input from: %s: %s', self.name, input_box_name, input_box_text)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle the mouse button up event.
 
         Args:
-            event (HashableEvent): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
 
         """
         self.dialog.input_box.activate()
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle the key up event.
 
         Args:
-            event (HashableEvent): The pygame event.
+            event (KeyEvent): The pygame event.
 
 
         """
@@ -293,11 +293,11 @@ class InputConfirmationDialogScene(Scene):
             super().on_key_up_event(event)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle the key down event.
 
         Args:
-            event (HashableEvent): The pygame event.
+            event (KeyEvent): The pygame event.
 
 
         """
@@ -563,7 +563,7 @@ class DeleteAnimationDialogScene(Scene):
         self.scene_manager.switch_to_scene(self.previous_scene)
 
     @override
-    def on_key_down_event(self, event: HashableEvent) -> None:
+    def on_key_down_event(self, event: KeyEvent) -> None:
         """Handle the key down event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
@@ -571,7 +571,7 @@ class DeleteAnimationDialogScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self, event: HashableEvent) -> None:
+    def on_key_up_event(self, event: KeyEvent) -> None:
         """Handle the key up event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
@@ -703,7 +703,7 @@ class DeleteFrameDialogScene(Scene):
         self.scene_manager.switch_to_scene(self.previous_scene)
 
     @override
-    def on_key_down_event(self, event: HashableEvent) -> None:
+    def on_key_down_event(self, event: KeyEvent) -> None:
         """Handle the key down event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
@@ -711,7 +711,7 @@ class DeleteFrameDialogScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self, event: HashableEvent) -> None:
+    def on_key_up_event(self, event: KeyEvent) -> None:
         """Handle the key up event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)

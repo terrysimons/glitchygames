@@ -15,7 +15,13 @@ from typing import TYPE_CHECKING, Any, Self, cast, override
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerAxisEvent,
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+    )
 
 import pygame
 
@@ -992,7 +998,7 @@ class Game(Scene):
             self.player2.stop()
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Feed controller button events to action maps.
 
         Movement is handled frame-driven in dt_tick.
@@ -1005,7 +1011,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Feed controller button releases to action maps.
 
         Args:
@@ -1016,7 +1022,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_axis_motion_event(self: Self, event: ControllerAxisEvent) -> None:
         """Feed controller axis motion to action maps.
 
         Args:
@@ -1027,7 +1033,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Feed joystick button events to action maps (pygame-ce uses joystick API).
 
         Args:
@@ -1038,7 +1044,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Feed joystick button releases to action maps.
 
         Args:
@@ -1049,7 +1055,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Feed joystick axis motion to action maps.
 
         Args:
@@ -1060,7 +1066,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Feed key presses to action maps.
 
         Movement is handled frame-driven in dt_tick.
@@ -1073,7 +1079,7 @@ class Game(Scene):
             action_map.handle_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Feed key releases to action maps.
 
         Args:
@@ -1145,7 +1151,7 @@ class PaddleSlapGameOverScene(GameOverScene):
             self.scene_manager.play_recording(path=PADDLESLAP_DEMO_PATH, then=self)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Start the idle wait again, then handle the key as the game-over screen does.
 
         Args:
@@ -1156,7 +1162,7 @@ class PaddleSlapGameOverScene(GameOverScene):
         super().on_key_down_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Start the idle wait again.
 
         Args:
@@ -1167,7 +1173,7 @@ class PaddleSlapGameOverScene(GameOverScene):
         super().on_joy_button_down_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Start the idle wait again.
 
         Args:

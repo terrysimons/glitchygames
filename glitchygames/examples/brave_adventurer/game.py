@@ -62,7 +62,12 @@ from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+    )
     from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
     from glitchygames.examples.brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
 
@@ -753,7 +758,7 @@ class BraveAdventurerScene(Scene):
             self.voice_assistant.update()
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle keyboard key presses via ActionMap.
 
         Movement is handled frame-driven in dt_tick via is_held().
@@ -777,7 +782,7 @@ class BraveAdventurerScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle keyboard key releases.
 
         Args:
@@ -787,7 +792,7 @@ class BraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button presses via ActionMap.
 
         Args:
@@ -804,7 +809,7 @@ class BraveAdventurerScene(Scene):
             self.voice_assistant.start_listening()
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button releases.
 
         Args:
@@ -817,7 +822,7 @@ class BraveAdventurerScene(Scene):
             self.voice_assistant.stop_listening_and_respond()
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button presses (pygame-ce uses joystick API).
 
         Args:
@@ -834,7 +839,7 @@ class BraveAdventurerScene(Scene):
             self.voice_assistant.start_listening()
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button releases.
 
         Args:
@@ -847,7 +852,7 @@ class BraveAdventurerScene(Scene):
             self.voice_assistant.stop_listening_and_respond()
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Handle joystick axis motion.
 
         Args:

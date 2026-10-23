@@ -110,7 +110,7 @@ class FilmStripSprite(BitmappySprite):
         super().kill()
 
     @override
-    def on_left_mouse_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self, event: events.MouseButtonEvent) -> None:
         """Handle mouse clicks on the film strip."""
         LOG.debug(f'FilmStripSprite: Mouse click at {event.pos}, rect: {self.rect}')
         if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
@@ -119,8 +119,8 @@ class FilmStripSprite(BitmappySprite):
                 'coordinates',
             )
             # Convert screen coordinates to film strip coordinates
-            film_x = event.pos[0] - self.rect.x
-            film_y = event.pos[1] - self.rect.y
+            film_x = int(event.pos[0] - self.rect.x)
+            film_y = int(event.pos[1] - self.rect.y)
 
             # Check for shift-click using the frame's polled input
             held_keys = current_input()
@@ -160,7 +160,7 @@ class FilmStripSprite(BitmappySprite):
             LOG.debug('FilmStripSprite: Click is outside bounds or no widget')
 
     @override
-    def on_right_mouse_button_up_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
+    def on_right_mouse_button_up_event(self, event: events.MouseButtonEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
         """Handle right mouse clicks on the film strip for onion skinning and color sampling.
 
         Returns:
@@ -175,8 +175,8 @@ class FilmStripSprite(BitmappySprite):
                 'converting coordinates',
             )
             # Convert screen coordinates to film strip coordinates
-            film_x = event.pos[0] - self.rect.x
-            film_y = event.pos[1] - self.rect.y
+            film_x = int(event.pos[0] - self.rect.x)
+            film_y = int(event.pos[1] - self.rect.y)
 
             # Check for shift-right-click (screen sampling)
             held_keys = current_input()
@@ -455,7 +455,7 @@ class FilmStripSprite(BitmappySprite):
         return red, green, blue, alpha
 
     @override
-    def on_key_down_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
+    def on_key_down_event(self, event: events.KeyEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
         """Handle keyboard events for copy/paste functionality.
 
         Returns:
@@ -491,7 +491,7 @@ class FilmStripSprite(BitmappySprite):
         """Set the parent canvas for frame changes."""
         self.parent_canvas = canvas
 
-    def on_drop_file_event(self, event: events.HashableEvent) -> bool:
+    def on_drop_file_event(self, event: events.DropFileEvent) -> bool:
         """Handle drop file event on film strip.
 
         Args:
@@ -535,7 +535,7 @@ class FilmStripSprite(BitmappySprite):
         return self._insert_image_as_new_frame(file_path, int(film_x), int(film_y))
 
     @override
-    def on_mouse_motion_event(self, event: events.HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: events.MouseMotionEvent) -> None:
         """Handle mouse motion events for drag hover effects.
 
         Args:
@@ -547,8 +547,8 @@ class FilmStripSprite(BitmappySprite):
 
         if self.rect.collidepoint(event.pos):
             # Convert screen coordinates to film strip coordinates
-            film_x = event.pos[0] - self.rect.x
-            film_y = event.pos[1] - self.rect.y
+            film_x = int(event.pos[0] - self.rect.x)
+            film_y = int(event.pos[1] - self.rect.y)
 
             # Snapshot previous hover state to detect changes
             previous_hovered_frame = self.film_strip_widget.hovered_frame

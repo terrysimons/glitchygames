@@ -5,10 +5,12 @@ EventManager, ResourceManager, and utility functions.
 """
 
 import copy
+import json
 import logging
 import sys
 import types
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from pathlib import Path
 
 import pygame
@@ -18,14 +20,24 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (  # ruff: ignore[unsorted-imports]
+    EVENT_CLASSES,
+    FPSEVENT,
+    GAMEEVENT,
+    MENUEVENT,
     EventInterface,
     EventManager,
     HashableEvent,
+    KeyEvent,
+    MouseButtonEvent,
+    MouseMotionEvent,
     ResourceManager,
+    WindowEvent,
+    WindowGeometryEvent,
     supported_events,
     unhandled_event,
     UnhandledEventError,
 )
+from glitchygames.tracing import TraceFormatError
 
 
 # Constants for magic values
@@ -43,6 +55,19 @@ class GameWithOptions:
 
 class EventSource:
     """A minimal real event source for EventManager.EventProxy."""
+
+
+def pickle_round_trip(event):
+    """Rebuild an event the way pickle does, from what pickle.dumps takes from __reduce__.
+
+    Returns:
+        HashableEvent: The rebuilt event.
+
+    """
+    rebuild, arguments, state = event.__reduce__()
+    restored = rebuild(*arguments)
+    restored.__setstate__(state)
+    return restored
 
 
 class TestHashableEvent:
@@ -63,12 +88,18 @@ class TestHashableEvent:
         assert event['extra'] == 'test'
 
     def test_hashable_event_dict_property(self):
-        """Test HashableEvent dict property."""
+        """The dict property is a read-only view of the type and fields."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=pygame.KMOD_CTRL)
         event_dict = event.dict
-        assert isinstance(event_dict, dict)
-        assert event_dict['key'] == pygame.K_SPACE
-        assert event_dict['mod'] == pygame.KMOD_CTRL
+        assert isinstance(event_dict, Mapping)
+        assert event_dict == {
+            'type': pygame.KEYDOWN,
+            'key': pygame.K_SPACE,
+            'mod': pygame.KMOD_CTRL,
+        }
+        with pytest.raises(TypeError):
+            event_dict['key'] = pygame.K_RETURN  # type: ignore[index]
+        assert event.key == pygame.K_SPACE
 
     def test_hashable_event_item_access(self):
         """Test HashableEvent item access methods."""
@@ -78,32 +109,30 @@ class TestHashableEvent:
         assert event['pos'] == (200, 200)
         assert event['rel'] == (10, 10)
 
-        # Test __setitem__
-        event['new_attr'] = 'test_value'
-        assert event['new_attr'] == 'test_value'
-
-        # Test __delitem__
-        del event['new_attr']
+        # Item assignment and deletion are refused: events are immutable
+        with pytest.raises(TypeError, match='immutable'):
+            event['new_attr'] = 'test_value'
+        with pytest.raises(TypeError, match='immutable'):
+            del event['pos']
         with pytest.raises(KeyError):
             _ = event['new_attr']
+        assert event['pos'] == (200, 200)
 
     def test_hashable_event_length(self):
         """Test HashableEvent length."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-        # HashableEvent includes type, key, and __hash attributes
-        assert len(event) >= MIN_ATTRIBUTES_1  # At least 'key' attribute
+        # The type and the fields, nothing else
+        assert len(event) == MIN_ATTRIBUTES_2
 
-        event['mod'] = pygame.KMOD_CTRL
-        assert len(event) >= MIN_ATTRIBUTES_2  # At least 'key' and 'mod' attributes
+        assert len(event.with_fields(mod=pygame.KMOD_CTRL)) == MIN_ATTRIBUTES_2 + 1
 
     def test_hashable_event_clear(self):
-        """Test HashableEvent clear method."""
+        """clear() is refused: the event keeps its fields."""
         event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100))
-        initial_length = len(event)
-        assert initial_length >= MIN_ATTRIBUTES_2  # At least button and pos
 
-        event.clear()
-        assert len(event) == 0
+        with pytest.raises(TypeError, match='immutable'):
+            event.clear()
+        assert len(event) == 3
 
     def test_hashable_event_copy(self):
         """Test HashableEvent copy method."""
@@ -113,9 +142,14 @@ class TestHashableEvent:
         assert event_copy['key'] == pygame.K_SPACE
         assert event_copy['mod'] == pygame.KMOD_CTRL
 
-        # Modify copy and ensure original is unchanged
-        event_copy['key'] = pygame.K_RETURN
-        assert event['key'] == pygame.K_SPACE  # Original unchanged
+        assert event_copy == event
+        assert event_copy is not event
+        assert type(event_copy) is type(event)
+
+        # A changed copy of the copy leaves the original unchanged
+        changed = event_copy.with_fields(key=pygame.K_RETURN)
+        assert changed['key'] == pygame.K_RETURN
+        assert event['key'] == pygame.K_SPACE
 
     def test_hashable_event_hash(self):
         """Test HashableEvent hash functionality."""
@@ -163,11 +197,13 @@ class TestHashableEvent:
             HashableEvent()  # type: ignore[missing-argument]
 
     def test_hashable_event_delattr(self):
-        """Test HashableEvent.__delattr__ method."""
+        """Attribute and item deletion are refused: the field stays."""
         event = HashableEvent(type=1, data='test')
-        del event['data']
-        # HashableEvent inherits from UserDict, so we need to check __dict__ directly
-        assert 'data' not in event.__dict__
+        with pytest.raises(TypeError, match='immutable'):
+            del event.data
+        with pytest.raises(TypeError, match='immutable'):
+            del event['data']
+        assert event.data == 'test'
 
     def test_hashable_event_getattr(self):
         """Test HashableEvent.__getattr__ method."""
@@ -175,10 +211,11 @@ class TestHashableEvent:
         assert event.data == 'test'
 
     def test_hashable_event_setattr(self):
-        """Test HashableEvent.__setattr__ method."""
+        """Attribute assignment is refused, with a message naming with_fields."""
         event = HashableEvent(type=1)
-        event.new_attr = 'new_value'  # type: ignore[unresolved-attribute]
-        assert event.new_attr == 'new_value'  # type: ignore[unresolved-attribute]
+        with pytest.raises(TypeError, match=r'with_fields'):
+            event.new_attr = 'new_value'  # type: ignore[unresolved-attribute]
+        assert 'new_attr' not in event
 
     def test_hashable_event_eq(self):
         """Test HashableEvent.__eq__ method."""
@@ -230,35 +267,58 @@ class TestHashableEventHasKey:
         event = HashableEvent(pygame.MOUSEMOTION, pos=(10, 20))
         assert event.has_key('nonexistent_key') is False
 
-    def test_has_key_after_setitem(self):
-        """has_key should return True for attributes added via __setitem__."""
+    def test_has_key_after_with_fields(self):
+        """has_key answers for a field with_fields added (and the original lacks it)."""
         event = HashableEvent(pygame.USEREVENT)
-        event['custom_data'] = 42
-        assert event.has_key('custom_data') is True
+        changed = event.with_fields(custom_data=42)
+        assert changed.has_key('custom_data') is True
+        assert event.has_key('custom_data') is False
 
 
 class TestHashableEventUpdate:
-    """Test HashableEvent.update() method."""
+    """update() is refused; with_fields() builds the updated copy instead."""
 
-    def test_update_adds_new_attributes(self):
-        """Update should add new key-value pairs to the event."""
-        event = HashableEvent(pygame.USEREVENT)
-        event.update({'score': 100, 'level': 5})
-        assert event['score'] == 100
-        assert event['level'] == 5
-
-    def test_update_overwrites_existing_attributes(self):
-        """Update should overwrite existing attributes."""
+    def test_update_is_refused(self):
+        """Update with a mapping or keywords raises and leaves the event unchanged."""
         event = HashableEvent(pygame.USEREVENT, score=50)
-        event.update({'score': 100})
-        assert event['score'] == 100
+        with pytest.raises(TypeError, match='immutable'):
+            event.update({'score': 100})
+        with pytest.raises(TypeError, match='immutable'):
+            event.update(score=100)
+        assert event['score'] == 50
 
-    def test_update_with_keyword_arguments(self):
-        """Update should accept keyword arguments."""
+    def test_with_fields_adds_new_attributes(self):
+        """with_fields adds new fields to the copy."""
         event = HashableEvent(pygame.USEREVENT)
-        event.update(player_name='test_player', health=100)
-        assert event['player_name'] == 'test_player'
-        assert event['health'] == 100
+        changed = event.with_fields(score=100, level=5)
+        assert changed['score'] == 100
+        assert changed['level'] == 5
+        assert 'score' not in event
+
+    def test_with_fields_overwrites_existing_attributes(self):
+        """with_fields overwrites a field in the copy only."""
+        event = HashableEvent(pygame.USEREVENT, score=50)
+        changed = event.with_fields(score=100)
+        assert changed['score'] == 100
+        assert event['score'] == 50
+
+    def test_with_fields_keeps_the_class_and_the_field_order(self):
+        """The copy is the same class, its fields in the original's order, new ones last."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0)
+        changed = event.with_fields(mod=pygame.KMOD_SHIFT, unicode='A')
+        assert type(changed) is KeyEvent
+        assert list(changed) == ['type', 'key', 'mod', 'unicode']
+
+    def test_with_fields_accepts_the_unchanged_type(self):
+        """Naming the same type is allowed; the copy equals the original."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        assert event.with_fields(type=pygame.KEYDOWN) == event
+
+    def test_with_fields_refuses_another_type(self):
+        """An event's type cannot change: the class follows from it."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        with pytest.raises(TypeError, match='type cannot change'):
+            event.with_fields(type=pygame.KEYUP)
 
 
 class TestHashableEventKeys:
@@ -311,11 +371,12 @@ class TestHashableEventIdentity:
         assert len(event) == 3
         assert dict(event) == {'type': pygame.KEYDOWN, 'key': pygame.K_SPACE, 'mod': 0}
 
-    def test_an_event_filled_in_after_construction_equals_one_built_whole(self):
+    def test_an_event_filled_in_by_with_fields_equals_one_built_whole(self):
         """Equal content means equal events with equal hashes, however they were built."""
         built_whole = HashableEvent(pygame.MOUSEMOTION, pos=(1, 2), rel=(0, 0), buttons=(0, 0, 0))
-        filled_in = HashableEvent(pygame.MOUSEMOTION)
-        filled_in.update(pos=(1, 2), rel=(0, 0), buttons=(0, 0, 0))
+        filled_in = HashableEvent(pygame.MOUSEMOTION).with_fields(
+            pos=(1, 2), rel=(0, 0), buttons=(0, 0, 0)
+        )
 
         assert filled_in == built_whole
         assert hash(filled_in) == hash(built_whole)
@@ -353,17 +414,23 @@ class TestHashableEventIdentity:
 
     def test_an_event_that_contains_itself_hashes_without_recursing(self):
         """As __eq__ does, hashing stops at an event already being hashed."""
-        event = HashableEvent(pygame.USEREVENT)
-        event['self_reference'] = (event,)
+        # Only a mutable value can hold the event it belongs to (the event itself never changes)
+        holder: list[HashableEvent] = []
+        event = HashableEvent(pygame.USEREVENT, self_reference=holder)
+        holder.append(event)
 
         assert isinstance(hash(event), int)
+        assert not HashableEvent._hashing_ids
 
-    def test_a_changed_event_hashes_like_one_built_with_the_change(self):
-        """The hash is never stale: it is the hash of the event's current content."""
-        changed = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
-        changed['key'] = pygame.K_b
+    def test_a_changed_copy_hashes_like_one_built_with_the_change(self):
+        """with_fields's copy hashes by its own content, not the original's cached hash."""
+        original = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        original_hash = hash(original)
+        changed = original.with_fields(key=pygame.K_b)
 
         assert hash(changed) == hash(HashableEvent(pygame.KEYDOWN, key=pygame.K_b))
+        assert hash(changed) != original_hash
+        assert hash(original) == original_hash
 
 
 class TestHashableEventEquality:
@@ -418,10 +485,13 @@ class TestHashableEventEquality:
 
     def test_events_that_contain_themselves_compare_without_recursing(self):
         """The recursion guard ends the comparison of self-referencing events."""
-        event_a = HashableEvent(pygame.USEREVENT, score=1)
-        event_b = HashableEvent(pygame.USEREVENT, score=1)
-        event_a['parent'] = event_a
-        event_b['parent'] = event_b
+        # Only a mutable value can hold the event it belongs to (the event itself never changes)
+        holder_a: list[HashableEvent] = []
+        holder_b: list[HashableEvent] = []
+        event_a = HashableEvent(pygame.USEREVENT, score=1, parent=holder_a)
+        event_b = HashableEvent(pygame.USEREVENT, score=1, parent=holder_b)
+        holder_a.append(event_a)
+        holder_b.append(event_b)
 
         assert event_a == event_b
         assert not HashableEvent._comparing_ids
@@ -431,10 +501,9 @@ class TestHashableEventStringRepresentations:
     """Test HashableEvent.__repr__ and __str__ methods."""
 
     def test_repr_contains_class_name(self):
-        """__repr__ should include the class name."""
-        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
-        representation = repr(event)
-        assert 'HashableEvent' in representation
+        """__repr__ should include the class name: the type's class, or HashableEvent."""
+        assert repr(HashableEvent(pygame.KEYDOWN, key=pygame.K_a)).startswith('KeyEvent(')
+        assert repr(HashableEvent(pygame.USEREVENT, score=1)).startswith('HashableEvent(')
 
     def test_repr_contains_attributes(self):
         """__repr__ should include attribute information."""
@@ -444,10 +513,9 @@ class TestHashableEventStringRepresentations:
         assert 'key' in representation
 
     def test_str_contains_class_name(self):
-        """__str__ should include the class name."""
-        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
-        string_form = str(event)
-        assert 'HashableEvent' in string_form
+        """__str__ should include the class name: the type's class, or HashableEvent."""
+        assert str(HashableEvent(pygame.KEYDOWN, key=pygame.K_a)).startswith('KeyEvent(')
+        assert str(HashableEvent(pygame.USEREVENT, score=1)).startswith('HashableEvent(')
 
     def test_str_matches_repr(self):
         """__str__ and __repr__ should produce the same output."""
@@ -475,9 +543,7 @@ class TestHashableEventMappingAccess:
         assert 'type' in event
         assert 'mod' not in event
 
-        event['mod'] = pygame.KMOD_SHIFT
-        assert 'mod' in event
-        del event['mod']
+        assert 'mod' in event.with_fields(mod=pygame.KMOD_SHIFT)
         assert 'mod' not in event
 
     def test_hashable_event_keys_iteration_and_items_agree(self):
@@ -518,17 +584,19 @@ class TestHashableEventGetSetContains:
         with pytest.raises(KeyError):
             _ = event['nonexistent_key']
 
-    def test_setitem_adds_new_attribute(self):
-        """__setitem__ should add a new attribute to the event."""
+    def test_setitem_of_a_new_attribute_is_refused(self):
+        """__setitem__ raises; the event gains no attribute."""
         event = HashableEvent(pygame.USEREVENT)
-        event['custom_data'] = 'test_value'
-        assert event['custom_data'] == 'test_value'
+        with pytest.raises(TypeError, match='immutable'):
+            event['custom_data'] = 'test_value'
+        assert 'custom_data' not in event
 
-    def test_setitem_overwrites_existing_attribute(self):
-        """__setitem__ should overwrite an existing attribute."""
+    def test_setitem_of_an_existing_attribute_is_refused(self):
+        """__setitem__ raises; the attribute keeps its value."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
-        event['key'] = pygame.K_b
-        assert event['key'] == pygame.K_b
+        with pytest.raises(TypeError, match='immutable'):
+            event['key'] = pygame.K_b
+        assert event['key'] == pygame.K_a
 
     def test_contains_tests_attributes(self):
         """The 'in' operator tests the event's attributes (it raised before BUGS.md #88)."""
@@ -553,18 +621,20 @@ class TestHashableEventMiscMethods:
         # Should include type, key, mod, and the private __hash attribute
         assert length >= 3
 
-    def test_delitem_removes_attribute(self):
-        """__delitem__ should remove an attribute from the event."""
+    def test_delitem_is_refused(self):
+        """__delitem__ raises; the attribute stays."""
         event = HashableEvent(pygame.USEREVENT, score=100, level=5)
-        del event['score']
-        assert event.has_key('score') is False
+        with pytest.raises(TypeError, match='immutable'):
+            del event['score']
+        assert event.has_key('score') is True
         assert event.has_key('level') is True
 
-    def test_clear_removes_all_attributes(self):
-        """clear() should remove all attributes from the event."""
+    def test_clear_is_refused(self):
+        """clear() raises; every attribute stays."""
         event = HashableEvent(pygame.USEREVENT, score=100, level=5)
-        event.clear()
-        assert len(event) == 0
+        with pytest.raises(TypeError, match='immutable'):
+            event.clear()
+        assert len(event) == 3
 
     def test_copy_returns_dict_copy(self):
         """copy() should return a shallow copy as a HashableEvent."""
@@ -631,7 +701,10 @@ class TestHashableEventCopyAndPickle:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
         reduced = event.__reduce__()
         assert isinstance(reduced, tuple)
-        assert reduced[0] is HashableEvent
+        # The event's own class: a KEYDOWN is a KeyEvent however it was built
+        assert reduced[0] is KeyEvent
+        assert reduced[1] == (pygame.KEYDOWN,)
+        assert reduced[2] == {'type': pygame.KEYDOWN, 'key': pygame.K_a}
 
     def test_pickle_round_trip_keeps_attributes_equality_and_hash(self):
         """BUGS.md #121: an unpickled event equals the original and hashes the same.
@@ -1235,3 +1308,329 @@ class TestEventSystemEdgeCases:
         assert callable(handler)
         # Call handler; should not raise
         handler(event=HashableEvent(pygame.KEYDOWN, key=pygame.K_a), trigger=None)
+
+
+class TestTypedEventClasses:
+    """Each pygame event type is built as its class from EVENT_CLASSES, however it is built."""
+
+    @pytest.mark.parametrize(('event_type', 'event_class'), sorted(EVENT_CLASSES.items()))
+    def test_the_constructor_builds_the_types_class(self, event_type, event_class):
+        """HashableEvent(type, ...) is an instance of exactly the type's class."""
+        assert type(HashableEvent(event_type)) is event_class
+
+    @pytest.mark.parametrize(('event_type', 'event_class'), sorted(EVENT_CLASSES.items()))
+    def test_from_pygame_builds_the_same_event_as_the_constructor(self, event_type, event_class):
+        """The engine's dispatch wrapper equals the constructor's event, class and fields."""
+        pygame_event = pygame.event.Event(event_type, {'instance_id': 3, 'value': 7})
+
+        wrapped = HashableEvent.from_pygame(pygame_event)
+
+        assert type(wrapped) is event_class
+        assert wrapped == HashableEvent(event_type, instance_id=3, value=7)
+        assert list(wrapped) == ['type', 'instance_id', 'value']
+
+    @pytest.mark.parametrize(('event_type', 'event_class'), sorted(EVENT_CLASSES.items()))
+    def test_each_class_round_trips_through_pickle_and_json(self, event_type, event_class):
+        """Pickled or through JSON, an event comes back the same class, equal, hashing alike."""
+        event = HashableEvent(event_type, instance_id=3, pos=(1, 2), text='a')
+
+        for restored in (
+            pickle_round_trip(event),
+            HashableEvent.from_json(json.loads(json.dumps(event.to_json()))),
+        ):
+            assert type(restored) is event_class
+            assert restored == event
+            assert hash(restored) == hash(event)
+
+    @pytest.mark.parametrize(
+        'event_type', [pygame.QUIT, pygame.USEREVENT, MENUEVENT, pygame.APP_LOWMEMORY, 0]
+    )
+    def test_types_without_a_class_stay_hashable_events(self, event_type):
+        """Custom, field-less and unknown types keep the base class."""
+        assert event_type not in EVENT_CLASSES
+        assert type(HashableEvent(event_type)) is HashableEvent
+        assert type(HashableEvent.from_pygame(pygame.event.Event(event_type))) is HashableEvent
+
+    def test_the_engines_own_event_types_have_classes(self):
+        """FPSEVENT and GAMEEVENT carry declared fields; MENUEVENT stays custom."""
+        assert EVENT_CLASSES[FPSEVENT].__name__ == 'FpsEvent'
+        assert EVENT_CLASSES[GAMEEVENT].__name__ == 'GameEvent'
+
+    def test_a_class_called_with_its_own_type_builds_it(self):
+        """Calling the type's class directly is the same as calling the base."""
+        event = KeyEvent(pygame.KEYDOWN, key=pygame.K_a)
+
+        assert type(event) is KeyEvent
+        assert event == HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+
+    def test_a_family_class_builds_its_subclass_for_a_subclass_type(self):
+        """WindowEvent(pygame.WINDOWMOVED) is a WindowGeometryEvent, as the base would build."""
+        assert type(WindowEvent(pygame.WINDOWMOVED, x=1, y=2)) is WindowGeometryEvent
+
+    def test_a_games_own_subclass_of_a_types_class_is_kept(self):
+        """A game's subclass of KeyEvent builds itself for a key type."""
+
+        class GameKeyEvent(KeyEvent):
+            """A game's key event class."""
+
+        event = GameKeyEvent(pygame.KEYUP, key=pygame.K_a)
+
+        assert type(event) is GameKeyEvent
+        assert event == HashableEvent(pygame.KEYUP, key=pygame.K_a)
+
+    def test_a_games_own_subclass_holds_its_custom_type(self):
+        """A subclass of HashableEvent for a custom type is built as itself."""
+
+        class ScoreEvent(HashableEvent):
+            """A game's custom event class."""
+
+            score: int
+
+        event = ScoreEvent(pygame.USEREVENT + 20, score=5)
+
+        assert type(event) is ScoreEvent
+        assert event.score == 5
+
+    def test_a_class_called_with_another_familys_type_is_refused(self):
+        """A KeyEvent cannot hold a mouse motion."""
+        with pytest.raises(
+            ValueError, match=r'KeyEvent cannot hold a MouseMotion event .*MouseMotionEvent'
+        ):
+            KeyEvent(pygame.MOUSEMOTION, pos=(1, 2))
+
+    def test_a_class_called_with_a_type_without_a_class_is_refused(self):
+        """A per-type class cannot hold a custom type; HashableEvent holds it."""
+        with pytest.raises(ValueError, match=r'MouseButtonEvent cannot hold .*use HashableEvent'):
+            MouseButtonEvent(pygame.USEREVENT, button=1)
+
+    def test_an_event_built_as_the_base_equals_its_class_built_directly(self):
+        """Equality and hashing are by type and fields, never by Python class."""
+        through_base = HashableEvent(pygame.MOUSEMOTION, pos=(4, 5))
+        direct = MouseMotionEvent(pygame.MOUSEMOTION, pos=(4, 5))
+
+        assert through_base == direct
+        assert hash(through_base) == hash(direct)
+        assert len({through_base, direct}) == 1
+
+    def test_declared_fields_read_like_any_other_field(self):
+        """The class declarations store nothing: a field is read from the event.
+
+        A field a test leaves out is simply absent.
+        """
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(3, 4))
+
+        assert event.pos == (3, 4)
+        assert 'button' not in event
+        with pytest.raises(
+            AttributeError, match="'MouseButtonEvent' object has no attribute 'button'"
+        ):
+            _ = event.button
+        assert not hasattr(MouseButtonEvent, 'button')
+
+
+class TestHashableEventImmutability:
+    """No operation changes an event; | builds a changed copy."""
+
+    @pytest.mark.parametrize(
+        'mutation',
+        [
+            lambda event: setattr(event, 'key', pygame.K_b),
+            lambda event: delattr(event, 'key'),
+            lambda event: event.__setitem__('key', pygame.K_b),
+            lambda event: event.__delitem__('key'),
+            lambda event: event.update(key=pygame.K_b),
+            lambda event: event.clear(),
+            lambda event: event.pop('key'),
+            lambda event: event.popitem(),
+            lambda event: event.setdefault('mod', 0),
+            lambda event: event.__ior__({'key': pygame.K_b}),
+        ],
+        ids=[
+            'setattr',
+            'delattr',
+            'setitem',
+            'delitem',
+            'update',
+            'clear',
+            'pop',
+            'popitem',
+            'setdefault',
+            'ior',
+        ],
+    )
+    def test_every_mutator_raises_and_changes_nothing(self, mutation):
+        """Each mutator raises TypeError naming with_fields; the event and its hash stay."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        original_hash = hash(event)
+
+        with pytest.raises(
+            TypeError, match=r'KeyEvent is immutable: build a changed copy with with_fields'
+        ):
+            mutation(event)
+
+        assert dict(event) == {'type': pygame.KEYDOWN, 'key': pygame.K_a}
+        assert hash(event) == original_hash == hash(HashableEvent(pygame.KEYDOWN, key=pygame.K_a))
+
+    def test_or_builds_a_changed_copy(self):
+        """Or-ing changes into an event is with_fields(**changes) (UserDict's own | raised)."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+
+        changed = event | {'key': pygame.K_b, 'mod': 0}
+
+        assert changed == HashableEvent(pygame.KEYDOWN, key=pygame.K_b, mod=0)
+        assert type(changed) is KeyEvent
+        assert event.key == pygame.K_a
+
+    def test_reflected_or_adds_only_missing_fields(self):
+        """Mapping | event keeps the event's own fields and adds the mapping's others."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+
+        combined = {'key': pygame.K_z, 'mod': 0} | event
+
+        assert combined == HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0)
+        assert type(combined) is KeyEvent
+
+    def test_or_with_a_non_mapping_is_not_implemented(self):
+        """| with anything but a mapping is left to Python (TypeError)."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        assert event.__or__(3) is NotImplemented
+        assert event.__ror__(3) is NotImplemented
+        with pytest.raises(TypeError):
+            _ = event | 3  # type: ignore[operator]
+
+
+class TestHashableEventCachedHash:
+    """The hash is computed once, kept outside the fields, and never copied."""
+
+    def test_the_cached_hash_is_never_a_field(self):
+        """After hashing, iteration, len, dict(), keys, the state and JSON hold only fields."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0)
+        hash(event)
+        fields = {'type': pygame.KEYDOWN, 'key': pygame.K_SPACE, 'mod': 0}
+
+        assert list(event) == ['type', 'key', 'mod']
+        assert len(event) == 3
+        assert dict(event) == fields
+        assert dict(event.dict) == fields
+        assert set(event.keys()) == set(fields)
+        assert event.__getstate__() == fields
+        assert event.__reduce__()[2] == fields
+        assert event.to_json() == {
+            'type': pygame.KEYDOWN,
+            'attributes': {'key': pygame.K_SPACE, 'mod': 0},
+        }
+        assert '_content_hash' not in event.__dict__
+
+    def test_the_hash_is_computed_once(self, mocker):
+        """A second hash reads the cache: the content is not hashed again."""
+        event = HashableEvent(pygame.USEREVENT, items=[1, 2])
+        first_hash = hash(event)
+        content_hashing = mocker.patch('glitchygames.events.base._hashable_value')
+
+        assert hash(event) == first_hash
+        content_hashing.assert_not_called()
+
+    def test_a_pickled_copy_hashes_by_its_own_content(self):
+        """The cache is not pickled: the copy computes the same hash from its fields."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        original_hash = hash(event)
+
+        restored = pickle_round_trip(event)
+
+        assert restored._content_hash is None
+        assert hash(restored) == original_hash
+
+    def test_a_with_fields_copy_starts_without_a_cached_hash(self):
+        """with_fields never carries the original's hash into the changed copy."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        hash(event)
+
+        unchanged_copy = event.with_fields()
+        changed_copy = event.with_fields(key=pygame.K_b)
+
+        assert unchanged_copy._content_hash is None
+        assert changed_copy._content_hash is None
+        assert hash(unchanged_copy) == hash(event)
+        assert hash(changed_copy) == hash(HashableEvent(pygame.KEYDOWN, key=pygame.K_b))
+
+    def test_setstate_clears_the_cached_hash(self):
+        """An event given another state hashes by that state, not by a hash it cached."""
+        event = HashableEvent(pygame.USEREVENT, stale='gone')
+        hash(event)
+
+        event.__setstate__({'type': pygame.USEREVENT, 'fresh': 'here'})
+
+        assert hash(event) == hash(HashableEvent(pygame.USEREVENT, fresh='here'))
+
+
+class TestHashableEventJson:
+    """to_json / from_json use the recording's value encoding; windows become None."""
+
+    def test_to_json_encodes_values_as_a_recording_does(self):
+        """Tuples as lists, lists and dicts tagged, non-finite floats tagged, all JSON-safe."""
+        event = HashableEvent(
+            GAMEEVENT, subtype=1, position=(1, 2), items=[3], data={'a': 1}, speed=float('inf')
+        )
+
+        description = event.to_json()
+
+        assert description == {
+            'type': GAMEEVENT,
+            'attributes': {
+                'subtype': 1,
+                'position': [1, 2],
+                'items': {'__list__': [3]},
+                'data': {'__mapping__': {'a': 1}},
+                'speed': {'__float__': 'inf'},
+            },
+        }
+        assert json.loads(json.dumps(description, allow_nan=False)) == description
+
+    def test_from_json_reverses_to_json_exactly(self):
+        """Tuples, lists and dicts come back as themselves."""
+        event = HashableEvent(GAMEEVENT, subtype=1, position=(1, 2), items=[3], data={'a': 1})
+
+        restored = HashableEvent.from_json(json.loads(json.dumps(event.to_json())))
+
+        assert restored == event
+        assert restored.position == (1, 2)
+        assert restored.items == [3]
+        assert restored.data == {'a': 1}
+
+    def test_a_window_is_written_as_none(self):
+        """A pygame Window is not JSON: it is written as None, as a replay serves it."""
+        window = pygame.Window(size=(8, 8), hidden=True)
+        try:
+            event = HashableEvent(pygame.WINDOWSHOWN, window=window)
+
+            assert event.to_json() == {'type': pygame.WINDOWSHOWN, 'attributes': {'window': None}}
+            assert HashableEvent.from_json(event.to_json()).window is None
+        finally:
+            window.destroy()
+
+    def test_a_recorded_window_reference_reads_as_none(self):
+        """A recording's event record (window reference tagged) reads as a replay serves it."""
+        record = {
+            'type': pygame.KEYDOWN,
+            'name': 'KeyDown',
+            'origin': 'external',
+            'attributes': {'key': pygame.K_a, 'window': {'__ref__': 'window', 'id': 1}},
+        }
+
+        event = HashableEvent.from_json(record)
+
+        assert type(event) is KeyEvent
+        assert event == HashableEvent(pygame.KEYDOWN, key=pygame.K_a, window=None)
+
+    def test_from_json_on_a_class_builds_the_types_class(self):
+        """KeyEvent.from_json builds a KeyEvent; a mismatched class is refused."""
+        description = HashableEvent(pygame.KEYUP, key=pygame.K_a).to_json()
+
+        assert type(KeyEvent.from_json(description)) is KeyEvent
+        with pytest.raises(ValueError, match='MouseMotionEvent cannot hold'):
+            MouseMotionEvent.from_json(description)
+
+    def test_a_malformed_description_is_refused(self):
+        """A description without attributes raises the recording's TraceFormatError."""
+        with pytest.raises(TraceFormatError, match='Malformed event record'):
+            HashableEvent.from_json({'type': pygame.KEYDOWN})
