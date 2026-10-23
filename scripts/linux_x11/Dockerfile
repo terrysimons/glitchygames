@@ -1,5 +1,6 @@
-# Linux image for `nox -s test-linux-x11`: its SDL opens real windows on an X server (XQuartz on
-# the Mac host), so the suite runs on Linux with a real framebuffer instead of SDL's dummy driver
+# Linux image for `nox -s test-linux-x11` (and `nox -s compare-drivers -- --driver x11`): its SDL
+# opens real windows on an X server (XQuartz on the Mac host), so the suite runs on Linux with a
+# real framebuffer instead of SDL's dummy driver
 FROM python:3.14-slim
 # X11 client libraries that pygame-ce's bundled SDL loads at start-up; a C++ compiler for
 # miniaudio, which has no ARM Linux wheel; git for uv's version detection

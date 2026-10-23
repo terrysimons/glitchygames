@@ -62,6 +62,9 @@ def scene_manager():
         GoldenTraceSceneManager.uninstall()
 
 
+@pytest.mark.frames_vary(
+    reason='the session runs the real frame loop: each frame moves by its measured frame time'
+)
 def test_scripted_session_records_and_replays(mocker, tmp_path):
     """A PaddleSlap session records its frames and external key events, then replays exactly."""
     path = tmp_path / 'rally.jsonl.gz'

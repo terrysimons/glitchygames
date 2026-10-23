@@ -23,8 +23,12 @@ uv sync --all-extras
 
 ### Testing
 ```bash
-# Run all tests with coverage (99% minimum required)
+# Run all tests with coverage (99% minimum required). Outside CI this also runs the suite on
+# the native SDL driver (macOS cocoa) and fails on any frame that differs (see Testing Guidelines)
 pytest
+
+# Fast iteration: the dummy driver only, no native run or comparison
+pytest --dummy-only
 
 # Run specific test file
 pytest tests/test_specific.py
@@ -86,6 +90,7 @@ nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
 nox -s test-linux-x11      # Tests on Linux in Docker with real X11 windows on XQuartz (macOS; see its docstring)
+nox -s compare-drivers     # On demand: dummy twice (nondeterminism) + native, PNG diffs; `-- tests/x` selects, `-- --driver x11` (macOS: in test-linux-x11's container)
 
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)
@@ -742,6 +747,20 @@ Features:
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
 - `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
+- Driver comparison (`tests/driver_comparison.py`; frames recorded by
+  `glitchygames/testing/frame_fingerprints.py`, compared by `scripts/compare_driver_frames.py`):
+  outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
+  driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
+  child run, the usual workers split between them (native two thirds), then compares every frame
+  each test presented and fails on a difference, re-running the differing tests on both drivers
+  to save PNGs and a difference image under `test-results/driver-comparison/pytest/` (the summary
+  names the files and the native run's log). Coverage and the 99% gate come from the dummy run.
+  Off (dummy only, said in the summary) in CI (`CI=true`), with `--dummy-only`, when you set
+  `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` (that driver alone), and on Linux without a display. A test
+  whose frames legitimately differ between runs or drivers (measured frame times, the live
+  window's mouse focus) carries `@pytest.mark.frames_vary(reason=...)`: listed, not compared.
+  `nox -s compare-drivers` is the on-demand deeper check (two dummy runs to find nondeterministic
+  tests, reports without failing)
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
   canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)

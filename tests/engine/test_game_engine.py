@@ -2861,6 +2861,12 @@ class TestFpsHistogramArgument:
 class TestReplayRestartExitStatus:
     """A watched replay's restart exits with the status the restarted replays ended with."""
 
+    @pytest.mark.frames_vary(
+        reason=(
+            "its watched replay shows the live window's mouse focus, which the dummy driver "
+            'always has'
+        )
+    )
     def test_a_status_no_exit_code_names_is_passed_through(self, mocker, tmp_path, caplog):
         """A restarted replay that ends with a game's own status (42) ends this run with it."""
         game_own_exit_status = 42

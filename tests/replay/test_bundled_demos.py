@@ -11,12 +11,14 @@ way the game plays it, through ``SceneManager.play_recording``.
 from __future__ import annotations
 
 import pytest
+from scripts.record_golden_traces import FRAME_SECONDS
 
 # Loaded on purpose: its scene is also named Game, so the playback below must tell PaddleSlap's
 # apart by module (glitchygames/replay/playback.py, find_scene_class)
 from glitchygames.examples import joystick_demo
 from glitchygames.examples.paddleslap import PADDLESLAP_DEMO_PATH, Game
 from glitchygames.exit_codes import ExitCode
+from glitchygames.live_sources import LiveSources
 from glitchygames.testing.replays import bundled_demo_paths, replay_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result
 from tests.replay.playback_fixtures import step_finishing
@@ -42,12 +44,15 @@ def test_bundled_demo_replays_without_divergence(console_script, demo_path):
     assert completed.returncode == ExitCode.SUCCESS, completed.stdout
 
 
-def test_the_paddleslap_demo_plays_in_game():
+def test_the_paddleslap_demo_plays_in_game(mocker):
     """The demo plays to its end inside a running PaddleSlap and returns to the live scene.
 
     Frames run with ``_finish_frame`` (``step_finishing``), where a playback's frames take the
     recording's dt; the golden harness's ``step`` never feeds a playback the recording's dt.
+    The live frames get a fixed dt: measured, one slow frame (a busy machine, a real window's
+    first frames) moved the live ball far enough to end the game before the assertions.
     """
+    mocker.patch.object(LiveSources, 'frame_seconds', return_value=FRAME_SECONDS)
     assert joystick_demo.Game.__name__ == Game.__name__
     recorded_frames = read_trace_result(path=PADDLESLAP_DEMO_PATH).trace[FRAMES_FIELD]
     with running_scene(Game) as manager:

@@ -434,7 +434,28 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Logging (or any I/O) from a finaliser is unsafe: it runs at whatever point the collector triggers. Likely fix: report the sprite counts from the run's teardown (`_shutdown`) instead of `__del__`, or drop `__del__`
 - **Files**: `glitchygames/engine/game_engine.py` (`GameEngine.__del__`)
 
+### 190. LayeredDirty Chooses How to Draw the Next Frame From Wall-Clock Time (Suspected)
+- **Description**: pygame's `LayeredDirty.draw` times itself with `pygame.time.get_ticks()` and draws the next frame in full-screen mode (the background over the whole surface, then every visible sprite) when a draw took longer than its threshold (1000/80 ms by default), and in dirty-rect mode (only the dirty areas cleared and redrawn) otherwise. Which mode a frame is drawn in therefore depends on the machine's speed and load, not on the game. Where the two modes draw different pixels (anything drawn on the surface before `draw()` outside the dirty areas, a non-dirty sprite outside them after the surface was filled) a slow machine presents different frames from a fast one
+- **Status**: Active
+- **Priority**: Low (not observed: no frame differed between two dummy runs or between dummy and cocoa for this reason in the driver comparison, `nox -s compare-drivers`)
+- **Reporter**: Found investigating the dummy/cocoa driver comparison
+- **Date Reported**: 2026-10-23
+- **Details**: Replays compare sprite rects, not pixels, so they are unaffected; the clock read is inside pygame, so `tests/test_engine_doors.py` cannot see it. A fix would pin the mode (`LayeredDirty.set_timing_threshold` with a huge threshold keeps dirty-rect mode; `_use_update = False` keeps full-screen mode) wherever the engine makes its groups, after checking which mode each game relies on
+- **Files**: pygame-ce `sprite.py` (`LayeredDirty.draw`); the groups made in `glitchygames/scenes/scene.py` and the games
+
 ## Resolved Bugs
+
+### 189. The Elevator Ride Drew a Black Box Around the Player on macOS
+- **Description**: During Clockwork Keep's elevator ride (`ElevatorTransition`), the player, pinned on the platform, was drawn inside a black rectangle on cocoa: its transparent pixels showed black instead of the floor behind it. The dummy and x11 drivers drew it correctly
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the driver comparison (`nox -s compare-drivers`): `tests/world/test_golden_traces.py::test_game_matches_golden_trace[clockwork_keep]`, `tests/world/test_gameplay_recording.py::test_recording_matches_the_golden_harness_frames` and `tests/world/test_transition_input.py::test_jump_pressed_during_elevator_ride_does_not_jump_on_arrival` presented 761 differing pixels from the ride's first frame
+- **Date Reported**: 2026-10-23
+- **Date Resolved**: 2026-10-23
+- **Root Cause**: The ride's composite (new floor, shaft, old floor) was a plain `pygame.Surface(size)`, which on cocoa takes the display's format (an alpha mask without SRCALPHA). Blending the floor screenshots onto it left alpha 0 there (the effect behind #142); each frame copied that alpha 0 into the display, and pygame-ce's alpha blitter copies a source pixel outright onto a destination pixel with alpha 0, so the player's transparent pixels (0, 0, 0, 0) replaced the floor and `make_opaque` then showed them black
+- **Solution**: The composite and the shaft are made in the screenshots' format (`pygame.Surface(size, 0, old_surface)`) and the finished composite is made opaque (`make_opaque`), so the display keeps alpha 255 under the player. The driver comparison then finds no difference in those tests
+- **Tests**: `tests/transitions/test_transitions.py::TestElevatorTransitionOnPerPixelAlphaDisplays` (screenshots in cocoa's format, so it fails without the fix on dummy too; it failed on cocoa before the fix)
+- **Files**: `glitchygames/transitions/elevator.py`
 
 ### 187. Tests After a Headless Engine Ran on the Dummy Drivers
 - **Description**: In a full-suite run on real drivers (`SDL_VIDEODRIVER=cocoa SDL_AUDIODRIVER=coreaudio`), 2,186 of 19,025 tests started on the dummy video driver and 4,686 on the dummy audio driver (99 more with no mixer at all): a test that constructs an engine with `--headless` sets `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` to `dummy` and restarts a display and mixer on another driver on the dummy one, and nothing switched back, so every later test on that xdist worker ran without a window or sound

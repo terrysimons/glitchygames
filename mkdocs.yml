@@ -30,6 +30,7 @@ nav:
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
+    - Driver Comparison: "quality/driver_comparison.md"
     - Galimore Survey: "galimore.md"
 
 extra_javascript:

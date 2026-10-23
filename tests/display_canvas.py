@@ -24,7 +24,7 @@ from glitchygames.backgrounds import (
     BackgroundPattern,
     background_pattern_surface,
 )
-from glitchygames.opacity import has_per_pixel_alpha
+from glitchygames.opacity import every_pixel_has_alpha, has_per_pixel_alpha
 
 TEST_CANVAS_VARIABLE = 'GLITCHYGAMES_TEST_CANVAS'
 TEST_DISPLAY_SIZE = (800, 600)
@@ -133,7 +133,7 @@ def display_looks_entirely_black(display_surface: pygame.Surface) -> bool:
         bool: True when no pixel shows any red, green or blue.
 
     """
-    if has_per_pixel_alpha(surface=display_surface) and not _every_pixel_has_alpha(
+    if has_per_pixel_alpha(surface=display_surface) and not every_pixel_has_alpha(
         surface=display_surface
     ):
         return not _any_pixel_shows_colour_through_its_alpha(surface=display_surface)
@@ -146,21 +146,6 @@ def display_looks_entirely_black(display_surface: pygame.Surface) -> bool:
     finally:
         # The view locks the display surface until it is released
         del color_planes
-
-
-def _every_pixel_has_alpha(*, surface: pygame.Surface) -> bool:
-    """Tell whether no pixel of a per-pixel-alpha surface has alpha 0.
-
-    Args:
-        surface: A surface with per-pixel alpha.
-
-    Returns:
-        bool: True when every pixel's alpha is above zero.
-
-    """
-    # A mask's bits are set where alpha is above the threshold
-    visible_pixels = pygame.mask.from_surface(surface, threshold=0)
-    return visible_pixels.count() == surface.get_width() * surface.get_height()
 
 
 def _any_pixel_shows_colour_through_its_alpha(*, surface: pygame.Surface) -> bool:

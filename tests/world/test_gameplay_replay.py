@@ -286,6 +286,14 @@ def record_session(
     return recording_path
 
 
+# A watched replay of a session this test recorded live shows the debug overlay's camera panel,
+# whose mouse line appears only while the recorded window had mouse focus: the dummy driver
+# always reports focus, a real window in the background has none (tests/driver_comparison.py)
+LIVE_MOUSE_FOCUS_FRAMES_VARY = pytest.mark.frames_vary(
+    reason="the recording holds the live window's mouse focus, which the dummy driver always has"
+)
+
+
 def replay_session(
     *,
     recording_path: Path,
@@ -1052,6 +1060,7 @@ class TestDivergence:
         assert result.end_reason == 'diverged'
         assert result.frames_replayed == 4
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_divergence_is_logged_and_exits_as_diverged(
         self, mocker, tmp_path, caplog, capsys
     ):
@@ -2095,6 +2104,12 @@ class TestHeadlessDriverRestore:
                 UNUSED_AUDIO_DRIVER,
             )
 
+    @pytest.mark.frames_vary(
+        reason=(
+            "it puts the run's driver back mid-test: a real-driver run ends on the canvas, a "
+            "dummy run on the engine's display"
+        )
+    )
     def test_the_harness_puts_a_constructed_headless_engine_back_on_the_runs_drivers(
         self, run_sdl_driver_state
     ):
@@ -2777,6 +2792,7 @@ class TestWatched:
         assert not harness_replay_sources(manager=manager).options.wait_for_start
         GoldenTraceSceneManager.uninstall()
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_replay_waits_at_the_start_screen_until_space(self, mocker, tmp_path):
         """Only frame 0 runs before Space (its picture behind the message); F3 works while held."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3253,6 +3269,7 @@ class TestStepBack:
         assert sources.stop_requested
         assert sources.result.restart_frame == 9
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_step_back_from_a_divergence_relaunches_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
@@ -3721,6 +3738,7 @@ class TestBookmarks:
         )
         assert 'Could not save bookmarks' in caplog.text
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_restart_carries_unsaved_bookmarks(self, mocker, tmp_path):
         relaunch = mocker.patch.object(
             game_engine_module, 'relaunch_replay', return_value=ExitCode.SUCCESS
@@ -3740,6 +3758,7 @@ class TestBookmarks:
         command = relaunch.call_args.kwargs['command']
         assert command[-4:] == ['--replay-trace', str(copy_path), '--replay-pause-at-frame', '3']
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_restart_whose_copy_cannot_be_saved_warns_about_the_lost_bookmarks(
         self, mocker, tmp_path, caplog
     ):
@@ -4647,6 +4666,7 @@ class TestAuditReplayRuns:
         assert len(failures) == 1
         assert failures[0].exc_info is None
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_the_digest_file_of_a_diverged_replay_ends_with_its_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=1)

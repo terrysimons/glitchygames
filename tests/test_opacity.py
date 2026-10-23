@@ -8,7 +8,13 @@ from __future__ import annotations
 
 import pygame
 
-from glitchygames.opacity import OPAQUE, has_per_pixel_alpha, make_opaque
+from glitchygames.opacity import (
+    OPAQUE,
+    every_pixel_has_alpha,
+    has_per_pixel_alpha,
+    make_opaque,
+    shown_rgb_bytes,
+)
 
 SURFACE_SIZE = (4, 3)
 NO_ALPHA_MASKS = (0xFF0000, 0x00FF00, 0x0000FF, 0)
@@ -69,3 +75,51 @@ class TestMakeOpaque:
         make_opaque(surface=surface)
 
         assert pygame.image.tobytes(surface, 'RGB') == pixels_before
+
+
+class TestEveryPixelHasAlpha:
+    """every_pixel_has_alpha tells whether no pixel of an alpha surface has alpha 0."""
+
+    def test_an_opaque_surface_has_alpha_everywhere(self):
+        """Alpha 255 everywhere."""
+        surface = pygame.Surface(SURFACE_SIZE, pygame.SRCALPHA)
+        surface.fill((10, 20, 30, OPAQUE))
+
+        assert every_pixel_has_alpha(surface=surface)
+
+    def test_one_pixel_with_alpha_0_is_found(self):
+        """A single transparent pixel is enough."""
+        surface = pygame.Surface(SURFACE_SIZE, pygame.SRCALPHA)
+        surface.fill((10, 20, 30, 1))
+        surface.set_at((3, 2), (10, 20, 30, 0))
+
+        assert not every_pixel_has_alpha(surface=surface)
+
+
+class TestShownRgbBytes:
+    """shown_rgb_bytes: a surface's colours as the window shows them, alpha 0 shown black."""
+
+    def test_a_surface_without_alpha_shows_its_colours(self):
+        """The dummy and x11 display format: the RGB bytes as they are."""
+        surface = pygame.Surface(SURFACE_SIZE, depth=32, masks=NO_ALPHA_MASKS)
+        surface.fill((70, 80, 90))
+
+        assert shown_rgb_bytes(surface=surface) == bytes((70, 80, 90)) * 12
+
+    def test_an_opaque_alpha_surface_shows_its_colours(self):
+        """Cocoa's format with every pixel opaque (the engine's frames)."""
+        surface = pygame.Surface(SURFACE_SIZE, depth=32, masks=ALPHA_MASKS)
+        surface.fill((70, 80, 90, OPAQUE))
+
+        assert shown_rgb_bytes(surface=surface) == bytes((70, 80, 90)) * 12
+
+    def test_alpha_0_shows_black_and_any_other_alpha_its_colour(self):
+        """Row by row: the transparent pixel is black, the translucent one keeps its colour."""
+        surface = pygame.Surface(SURFACE_SIZE, depth=32, masks=ALPHA_MASKS)
+        surface.fill((70, 80, 90, 0))
+        surface.set_at((1, 0), (40, 50, 60, 1))
+
+        shown = shown_rgb_bytes(surface=surface)
+
+        assert shown[:6] == bytes((0, 0, 0, 40, 50, 60))
+        assert shown[6:] == bytes(30)
