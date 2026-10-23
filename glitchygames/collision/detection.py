@@ -52,6 +52,7 @@ def provides_hitbox_world_rect(sprite: object) -> TypeIs[HitboxWorldRectProvider
         True if the sprite has a get_hitbox_world_rect attribute.
 
     """
+    # Duck-typed by design: any sprite may be in a collision layer
     return hasattr(sprite, 'get_hitbox_world_rect')
 
 
@@ -68,6 +69,7 @@ def is_world_rect_sprite(sprite: object) -> TypeIs[WorldRectSprite]:
         True if the sprite has both world_x and world_y attributes.
 
     """
+    # Duck-typed by design: UI sprites in a collision layer have only a rect
     return hasattr(sprite, 'world_x') and hasattr(sprite, 'world_y')
 
 
@@ -125,6 +127,7 @@ def get_collision_rect(
         return sprite.get_hitbox_world_rect(world_x, world_y)
 
     snapped_x, snapped_y = snapped_world_position(sprite, world_x, world_y)
+    # Looked up by name: a RectSprite needs only a rect (no image: its whole rect collides)
     image = getattr(sprite, 'image', None)
     if image is not None and trims_transparent_hitbox(sprite):
         visible_bounds = opaque_bounds(image)

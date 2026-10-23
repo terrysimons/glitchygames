@@ -91,6 +91,10 @@ class BitmappySprite(Sprite):
         self.is_active: bool = False
         self.focusable: bool = focusable
         self.filename: str = filename or ''
+        # Pixel data (deflate and the TOML writers read it)
+        self.pixels: list[tuple[int, ...]] = []
+        self.pixels_across: int = int(width)
+        self.pixels_tall: int = int(height)
 
         super().__init__(
             x=x,
@@ -101,11 +105,6 @@ class BitmappySprite(Sprite):
             parent=parent,
             groups=groups,
         )
-
-        # Initialize pixel data attributes
-        self.pixels: list[tuple[int, ...]] = []
-        self.pixels_across: int = int(width)
-        self.pixels_tall: int = int(height)
 
         # Try to load a file if one was specified, otherwise
         # if a width and height is specified, make a surface.
@@ -431,10 +430,6 @@ class BitmappySprite(Sprite):
         """
         expected_pixels = pixels_across * pixels_tall
 
-        # Ensure pixels attribute exists
-        if not hasattr(self, 'pixels'):
-            self.pixels = []
-
         # Validate pixels list
         if len(self.pixels) != expected_pixels:
             self.log.error(
@@ -485,8 +480,8 @@ class BitmappySprite(Sprite):
         self.log.debug('Starting deflate for %s in %s format', self.name, file_format)
 
         # Handle empty surfaces
-        pixels_across: int = int(getattr(self, 'pixels_across', self.width))
-        pixels_tall: int = int(getattr(self, 'pixels_tall', self.height))
+        pixels_across: int = int(self.pixels_across)
+        pixels_tall: int = int(self.pixels_tall)
         expected_pixels = pixels_across * pixels_tall
 
         if expected_pixels == 0:
@@ -546,13 +541,9 @@ class BitmappySprite(Sprite):
 
         """
         if pixels_across is None:
-            pixels_across = int(getattr(self, 'pixels_across', self.width))
+            pixels_across = int(self.pixels_across)
         if pixels_tall is None:
-            pixels_tall = int(getattr(self, 'pixels_tall', self.height))
-
-        # These are guaranteed to be int after the fallbacks above
-        assert pixels_across is not None, 'pixels_across must be set'
-        assert pixels_tall is not None, 'pixels_tall must be set'
+            pixels_tall = int(self.pixels_tall)
 
         pixel_rows: list[str] = []
         for y in range(pixels_tall):
@@ -590,9 +581,8 @@ class BitmappySprite(Sprite):
 
         # Process pixels into rows
         pixel_rows: list[str] = []
-        # Use height and width if pixels_tall/pixels_across not available
-        pixels_tall: int = int(getattr(self, 'pixels_tall', self.height))
-        pixels_across: int = int(getattr(self, 'pixels_across', self.width))
+        pixels_tall: int = int(self.pixels_tall)
+        pixels_across: int = int(self.pixels_across)
 
         for y in range(pixels_tall):
             row: str = ''
@@ -628,7 +618,7 @@ class BitmappySprite(Sprite):
         """
         # Generate pixel_rows and color_map if not provided
         if pixel_rows is None:
-            if not hasattr(self, 'pixels') or not self.pixels:
+            if not self.pixels:
                 pixel_rows = []
             else:
                 pixel_rows, color_map = self._generate_pixel_rows(color_map)
@@ -662,7 +652,7 @@ class BitmappySprite(Sprite):
             dict: Mapping of colors to characters
 
         """
-        if not hasattr(self, 'pixels') or not self.pixels:
+        if not self.pixels:
             return {}
 
         # Get unique colors from the pixels list
@@ -1157,7 +1147,7 @@ def _get_pixel_string(self: BitmappySprite) -> str:
         str: The pixel string.
 
     """
-    if not hasattr(self, 'pixels') or not self.pixels:
+    if not self.pixels:
         return ''
 
     # Convert pixels to character representation
@@ -1183,7 +1173,7 @@ def _get_color_map(self: BitmappySprite) -> dict[str, Any]:
         dict[str, Any]: The color map.
 
     """
-    if not hasattr(self, 'pixels') or not self.pixels:
+    if not self.pixels:
         return {}
 
     # Get unique colors and create mapping

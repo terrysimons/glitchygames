@@ -53,4 +53,5 @@ def trims_transparent_hitbox(sprite: object) -> bool:
         bool: True unless the sprite opts out.
 
     """
+    # Looked up by name: the opt-out is optional on any sprite, of any class
     return bool(getattr(sprite, 'TRIM_TRANSPARENT_HITBOX', True))

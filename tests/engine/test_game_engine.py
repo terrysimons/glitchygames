@@ -331,23 +331,23 @@ class TestGameEngineSuggestedResolution:
 class TestGameEngineResolveSceneName:
     """Test GameEngine._resolve_scene_name_for_error method."""
 
-    def test_resolve_with_current_scene(self, mocker):
-        """Test _resolve_scene_name_for_error with current scene."""
+    def test_resolve_with_active_scene(self, mocker):
+        """Test _resolve_scene_name_for_error with an active scene."""
         engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = mocker.Mock()
-        engine.scene_manager.current_scene.NAME = 'ActiveScene'
+        engine.scene_manager.active_scene = mocker.Mock()
+        engine.scene_manager.active_scene.NAME = 'ActiveScene'
 
         result = engine._resolve_scene_name_for_error()
         assert result == 'ActiveScene'
 
-    def test_resolve_with_current_scene_no_name(self, mocker):
-        """Test _resolve_scene_name_for_error when current scene has no NAME."""
+    def test_resolve_with_active_scene_no_name(self, mocker):
+        """Test _resolve_scene_name_for_error when the active scene has no NAME."""
         engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = mocker.Mock()
-        engine.scene_manager.current_scene.NAME = None
-        engine.scene_manager.current_scene.__class__.__name__ = 'FallbackScene'
+        engine.scene_manager.active_scene = mocker.Mock()
+        engine.scene_manager.active_scene.NAME = None
+        engine.scene_manager.active_scene.__class__.__name__ = 'FallbackScene'
 
         result = engine._resolve_scene_name_for_error()
         assert result == 'FallbackScene'
@@ -356,7 +356,7 @@ class TestGameEngineResolveSceneName:
         """Test _resolve_scene_name_for_error falls back to previous scene."""
         engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = None
+        engine.scene_manager.active_scene = None
         engine.scene_manager.previous_scene = mocker.Mock()
         engine.scene_manager.previous_scene.NAME = 'PrevScene'
 
@@ -367,7 +367,7 @@ class TestGameEngineResolveSceneName:
         """Test _resolve_scene_name_for_error with no scenes returns 'None'."""
         engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = None
+        engine.scene_manager.active_scene = None
         engine.scene_manager.previous_scene = None
 
         result = engine._resolve_scene_name_for_error()
@@ -1566,7 +1566,7 @@ class TestResolveSceneNameForError:
         """Test falls back to class name when previous scene has NAME=None."""
         engine = _make_engine(mocker)
         engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = None
+        engine.scene_manager.active_scene = None
         engine.scene_manager.previous_scene = mocker.Mock()
         engine.scene_manager.previous_scene.NAME = None
         engine.scene_manager.previous_scene.__class__.__name__ = 'FallbackPrevScene'

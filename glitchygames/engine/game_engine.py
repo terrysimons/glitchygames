@@ -763,6 +763,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if command_line_target_fps is not None:
             return float(command_line_target_fps)
 
+        # Looked up by name: TARGET_FPS is optional on a game (Scene does not declare it)
         game_target_fps = getattr(game, 'TARGET_FPS', None)
         if game_target_fps is None:
             return DEFAULT_TARGET_FPS
@@ -803,7 +804,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # args is a class method, which allows us to call it before initializing a game
         # object, which allows us to query all of the game engine objects for their
-        # command line parameters.
+        # command line parameters. It is optional (Scene does not declare it): looked up by name
         game_args_method: Callable[..., Any] | None = getattr(game, 'args', None)
         if game_args_method is not None:
             game_args_method(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
@@ -1373,6 +1374,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         #
         # Always call this before you call set_mode()
 
+        # Looked up by name: icon is optional on a game (Scene does not declare it)
         icon_attr: pygame.Surface | None = getattr(self.game, 'icon', GameEngine.icon)
 
         if icon_attr is None:
@@ -1465,24 +1467,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             The scene name string for error messages.
 
         """
-        current_scene = getattr(self.scene_manager, 'current_scene', None)
-        if current_scene:
-            scene_name = getattr(current_scene, 'NAME', None)
-            # If NAME is None, use the class name
-            if scene_name is None:
-                scene_name = current_scene.__class__.__name__
-            return scene_name
-
-        # If current scene is None, try to get the previous scene
-        previous_scene = getattr(self.scene_manager, 'previous_scene', None)
-        if previous_scene:
-            scene_name = getattr(previous_scene, 'NAME', None)
-            # If NAME is None, use the class name
-            if scene_name is None:
-                scene_name = previous_scene.__class__.__name__
-            return scene_name
-
-        return 'None'
+        # The scene that was running, else (none active: the run ended before a scene began,
+        # or after the last one) the scene before it
+        scene = self.scene_manager.active_scene
+        if scene is None:
+            scene = self.scene_manager.previous_scene
+        if scene is None:
+            return 'None'
+        # Looked up by name: this runs after a crash, and a SceneInterface stand-in (which the
+        # scene manager accepts) has no NAME; then, as for a NAME of None, the class name
+        scene_name = getattr(scene, 'NAME', None)
+        if scene_name is None:
+            scene_name = scene.__class__.__name__
+        return scene_name
 
     def measurement_run(
         self: Self, *, processing_paced: bool, rebaselined_from: str | None

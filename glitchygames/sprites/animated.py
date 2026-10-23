@@ -620,6 +620,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
         self._color_map: dict[str, tuple[int, ...]] = {}
+        # The animations' order as loaded from a file; None for a sprite never loaded, whose
+        # animation_order is its animations' insertion order
+        self._animation_order: list[str] | None = None
+        # The color glyphs in their file order, so a save keeps the file's layout; None for a
+        # sprite never loaded (a save then orders them itself)
+        self._color_order: list[str] | None = None
+        # The glyphs whose colors had per-pixel alpha (0-254) in the loaded file, and that alpha
+        self._colors_with_per_pixel_alpha: dict[str, int] = {}
 
         # Initialize frame manager as the single source of truth
         self.frame_manager = FrameManager(self)
@@ -774,7 +782,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     @property
     def animation_order(self: Self) -> list[str]:
         """The order of animations as loaded from file."""
-        return getattr(self, '_animation_order', list(self._animations.keys()))
+        if self._animation_order is None:
+            return list(self._animations.keys())
+        return self._animation_order
+
+    @property
+    def has_own_animation_order(self: Self) -> bool:
+        """Whether the sprite keeps an animation order of its own (a loaded file's, or one set).
+
+        False for a sprite never loaded, whose animation_order is its animations' order.
+        """
+        return self._animation_order is not None
 
     @property
     @override
@@ -973,7 +991,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             (new_name if name == old_name else name): frames
             for name, frames in self._animations.items()
         }
-        if hasattr(self, '_animation_order'):
+        if self._animation_order is not None:
             self._animation_order = [
                 (new_name if name == old_name else name) for name in self._animation_order
             ]
@@ -1066,7 +1084,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         self._loop_flags.pop(animation_name, None)
         self._animation_frame_intervals.pop(animation_name, None)
-        if hasattr(self, '_animation_order'):
+        if self._animation_order is not None:
             self._animation_order = [
                 name for name in self._animation_order if name != animation_name
             ]
@@ -1096,7 +1114,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._animations = {
             name: (frames if name == animation_name else self._animations[name]) for name in names
         }
-        if hasattr(self, '_animation_order'):
+        if self._animation_order is not None:
             order = [name for name in self._animation_order if name != animation_name]
             order.insert(position, animation_name)
             self._animation_order = order
@@ -1133,10 +1151,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         )
         self.copy_transitions_from(source)
         self._color_map = dict(source._color_map)
-        self._color_order = list(getattr(source, '_color_order', []))
-        self._colors_with_per_pixel_alpha = dict(
-            getattr(source, '_colors_with_per_pixel_alpha', {})
-        )
+        # A source never loaded has no color order: the copy gets an empty one
+        self._color_order = list(source._color_order) if source._color_order is not None else []
+        self._colors_with_per_pixel_alpha = dict(source._colors_with_per_pixel_alpha)
 
     @override
     def get_frame(self: Self, animation_name: str, frame_index: int) -> SpriteFrame:
@@ -1339,7 +1356,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         )
 
         self._animations = {}
-        self._animation_order: list[str] = []
+        self._animation_order = []
         self._animation_frame_intervals = {}
         self._loop_flags = {}
         self.transition_data = [dict(transition) for transition in data.get('transition', [])]
@@ -1357,7 +1374,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Check if this is a static sprite (has sprite.pixels but no animations)
         if not animations and 'sprite' in data and 'pixels' in data['sprite']:
             self.log.debug('Detected static sprite, converting to single-frame animation')
-            self._convert_static_sprite(data, color_map)
+            self._animation_order.append(self._convert_static_sprite(data, color_map))
         else:
             # Process normal animated sprite
             for anim_data in animations:
@@ -1399,8 +1416,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self: Self,
         data: dict[str, Any],
         color_map: dict[str, tuple[int, ...]],
-    ) -> None:
-        """Convert a static sprite to a single-frame animation."""
+    ) -> str:
+        """Convert a static sprite to a single-frame animation.
+
+        Returns:
+            str: The animation's name (the caller adds it to the animation order).
+
+        """
         sprite_data = data['sprite']
         pixels = sprite_data['pixels']
 
@@ -1476,7 +1498,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Create a single animation with one frame
         animation_name = sprite_data.get('name', 'idle')
         self._animations[animation_name] = [frame]
-        self._animation_order.append(animation_name)
 
         self.log.debug(
             "Converted static sprite to single-frame animation '%s' (%sx%s)",
@@ -1484,6 +1505,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             width,
             height,
         )
+        return animation_name
 
     @staticmethod
     def build_color_map(
@@ -1924,7 +1946,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             AnimatedSprite._write_toml_colors(
                 f,
                 {'colors': color_data},
-                getattr(self, '_color_order', None),
+                self._color_order,
             )
             AnimatedSprite._write_toml_transitions(f, self.transition_data)
 
@@ -1945,8 +1967,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             AnimatedSprite._write_toml_sprite_section(f, data)
             AnimatedSprite._write_toml_animations(f, data)
             # Use original color order if available to preserve file format
-            color_order = getattr(self, '_color_order', None)
-            AnimatedSprite._write_toml_colors(f, data, color_order)
+            AnimatedSprite._write_toml_colors(f, data, self._color_order)
             AnimatedSprite._write_toml_transitions(f, self.transition_data)
 
     def _build_toml_color_map(self: Self) -> dict[tuple[int, ...], str]:
@@ -2031,7 +2052,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         original_color_to_char: dict[tuple[int, ...], str] = {}
         used_chars: set[str] = set()
-        if not (hasattr(self, '_color_map') and self._color_map):
+        if not self._color_map:
             return original_color_to_char, used_chars
 
         for char, color in self._color_map.items():
@@ -2112,7 +2133,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         """
         colors: dict[str, dict[str, int]] = {}
-        original_alpha_values = getattr(self, '_colors_with_per_pixel_alpha', {})
+        original_alpha_values = self._colors_with_per_pixel_alpha
         for color_tuple, char in color_map.items():
             r, g, b = color_tuple[:3]
             if char in original_alpha_values:
@@ -2681,7 +2702,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             dict: The animation data.
 
         """
-        if not hasattr(self, '_animations') or not self._animations:
+        if not self._animations:
             return {}
 
         animation_data: dict[str, dict[str, object]] = {}

@@ -192,7 +192,7 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
 
         # Use sprite introspection to find the first animation
         if animated_sprite.animations:
-            if hasattr(animated_sprite, '_animation_order') and animated_sprite.animation_order:
+            if animated_sprite.animation_order:
                 # Use the first animation in the file order
                 self.current_animation = animated_sprite.animation_order[0]
                 LOG.debug(

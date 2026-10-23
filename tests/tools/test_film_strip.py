@@ -565,8 +565,8 @@ class TestFilmStripSetAnimatedSprite:
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         frame1 = SpriteFrame(surface, duration=FRAME_DURATION)
         sprite.add_animation('walk', [frame1])
-        if hasattr(sprite, '_animation_order'):
-            del sprite._animation_order
+        # Never loaded from a file: its animation order is its animations' order
+        assert not sprite.has_own_animation_order
         return sprite
 
     def test_set_animated_sprite_with_order(self, widget, animated_sprite_with_order):
@@ -580,6 +580,18 @@ class TestFilmStripSetAnimatedSprite:
         """Test set_animated_sprite falls back to first animation key."""
         widget.set_animated_sprite(animated_sprite_without_order)
         assert widget.current_animation == 'walk'
+
+    def test_set_animated_sprite_with_an_empty_own_order(self, widget):
+        """An animation order of its own that is empty falls back to the first animation key."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
+        sprite.add_animation('jump', [SpriteFrame(surface, duration=FRAME_DURATION)])
+        sprite._animation_order = []
+        assert sprite.has_own_animation_order
+
+        widget.set_animated_sprite(sprite)
+
+        assert widget.current_animation == 'jump'
 
     def test_set_animated_sprite_empty(self, widget):
         """Test set_animated_sprite with empty animations."""

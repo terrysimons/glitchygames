@@ -1420,7 +1420,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         strip_widget.animated_sprite._animations[new_name] = widget_frames  # type: ignore[reportPrivateUsage]
 
         # Update animation order
-        if hasattr(strip_widget.animated_sprite, '_animation_order'):
+        if strip_widget.animated_sprite.has_own_animation_order:
             strip_widget.animated_sprite._animation_order = [new_name]  # type: ignore[reportPrivateUsage]
 
             # Update frame manager

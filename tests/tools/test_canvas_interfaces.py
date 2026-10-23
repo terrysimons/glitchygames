@@ -458,9 +458,8 @@ class TestAnimatedCanvasInterfaceInit:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         animated_sprite.add_animation('walk', [SpriteFrame(surface)])
-        # Remove _animation_order if it exists
-        if hasattr(animated_sprite, '_animation_order'):
-            del animated_sprite._animation_order
+        # Never loaded from a file: its animation order is its animations' order
+        assert not animated_sprite.has_own_animation_order
         canvas_sprite.animated_sprite = animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)

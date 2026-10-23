@@ -3679,6 +3679,40 @@ class TestAnimatedSpriteAnimationEditing:
         assert 'strike' not in sprite._loop_flags
         assert 'strike' not in sprite._animation_frame_intervals
 
+    def test_a_sprite_never_loaded_orders_its_animations_as_added(self):
+        """Without a file's order, animation_order follows the animations, through edits."""
+        sprite = AnimatedSprite()
+        sprite.add_animation('walk', [self._solid_frame((255, 0, 0))])
+        sprite.add_animation('run', [self._solid_frame((0, 255, 0))])
+
+        sprite.rename_animation(old_name='walk', new_name='stroll')
+        sprite.remove_animation('run')
+
+        assert not sprite.has_own_animation_order
+        assert sprite.animation_order == ['stroll']
+
+    def test_a_loaded_sprite_keeps_the_files_animation_order(self, tmp_path):
+        """A loaded file's order is the sprite's own, and edits keep it in step."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+        assert sprite.has_own_animation_order
+        assert sprite.animation_order == ['idle', 'strike']
+
+        sprite.rename_animation(old_name='idle', new_name='rest')
+
+        assert sprite.animation_order == ['rest', 'strike']
+
+    def test_metadata_copied_from_a_sprite_never_loaded_has_no_glyph_choices(self):
+        """A source with no file gives the copy an empty color order and no alpha glyphs."""
+        source = AnimatedSprite()
+        copy = AnimatedSprite()
+
+        copy.copy_sprite_metadata_from(source)
+
+        assert copy._color_order == []
+        assert copy._colors_with_per_pixel_alpha == {}
+
     def test_switching_to_an_empty_animation_keeps_the_current_image(self):
         """An animation with no frames has nothing to show, so the image stays as it was."""
         sprite = AnimatedSprite()

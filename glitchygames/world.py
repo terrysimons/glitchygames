@@ -93,6 +93,8 @@ def is_world_positioned(sprite: object) -> bool:
         bool: True only when COORDINATE_SPACE is CoordinateSpace.WORLD.
 
     """
+    # Looked up by name: any pygame sprite may be in a scene's group (a game's own DirtySprite,
+    # GhostSprite), and one without the declaration is screen space
     return getattr(sprite, 'COORDINATE_SPACE', CoordinateSpace.SCREEN) is CoordinateSpace.WORLD
 
 
@@ -116,6 +118,8 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
             draw_offset is not whole pixels.
 
     """
+    # Looked up by name: sprite is any object (the declaration is checked at runtime only), and
+    # one without its world position gets the TypeError below
     world_x = getattr(sprite, 'world_x', None)
     world_y = getattr(sprite, 'world_y', None)
     if world_x is None or world_y is None:
@@ -128,6 +132,7 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
     # The WORLD shake offset is read, never advanced here: the camera's update or aim, or the
     # engine's still-camera step (SceneManager._advance_still_camera_shake), advances it
     shake_x, shake_y = camera.shake_effect.offset
+    # Looked up by name: only frame-anchored sprites (AnimatedSprite, GhostSprite) have one
     draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
     if not all(
         isinstance(component, int) and not isinstance(component, bool)
@@ -182,6 +187,7 @@ def position_world_sprites(
             # dirty == 2 sprites already redraw every frame; keep their mode
             if positioned_sprite.dirty != DIRTY_ALWAYS_REDRAW:
                 positioned_sprite.dirty = DIRTY_REDRAW_ONCE
+        # Looked up by name: a world sprite need not declare hidden (World Space)
         is_visible = positioned_sprite.rect.colliderect(cull_rect) and not getattr(
             sprite, 'hidden', False
         )

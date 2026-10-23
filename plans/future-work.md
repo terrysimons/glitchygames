@@ -394,6 +394,21 @@ only replays; Part 2 Task 1).
   `sprites/bitmappy_sprite.py`. Measure the per-frame paths (`SceneManager._run_frame_steps`,
   the event dispatch) before and after; keep a lookup only where an attribute really may not
   exist (a duck-typed game object), with a comment saying so.
+  Done 2026-10-22: the engine's own state is declared and read directly (SceneManager's
+  `_initialized`, jitter and pacing fields, the engine's `timer`, `controller_manager`,
+  `live_voice_channels` and `game`; AnimatedSprite's `_animation_order` (None until a file is
+  loaded; `has_own_animation_order`), `_color_order` and `_colors_with_per_pixel_alpha`;
+  BitmappySprite's `pixels`, `pixels_across` and `pixels_tall`), which also fixed BUGS.md #167.
+  Kept, with comments: lookups on game-optional attributes (`player`, `TARGET_FPS`, `args`,
+  `icon`, `hidden`, `draw_offset`, `pixel_snap_mode`, `TRIM_TRANSPARENT_HITBOX`), on any sprite
+  in a group, and on scenes where the scene manager tolerates a SceneInterface stand-in (its
+  `switch_to_scene` accepts one; tests pin it: `scene_start_capture`, `debug_subject`, `camera`,
+  `MAX_FRAME_SECONDS`, `PIXEL_SNAP_MODE`, `INSTANT_REPLAY_SECONDS`, `_forget_key_presses`,
+  `_record_key_press`). The gain is a few tens of nanoseconds per frame (a `getattr` with a
+  default costs ~16-25 ns, a direct read ~5-17 ns); the per-sprite helpers (`resolve_snap_mode`,
+  `is_world_positioned`, `screen_position_for`, collision) make about 1,200 lookups per Brave
+  Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites. Dropping the
+  SceneInterface stand-in tolerance would let about ten more scene lookups go (a design call).
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.

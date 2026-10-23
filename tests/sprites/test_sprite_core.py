@@ -1778,19 +1778,19 @@ class TestBitmappySpriteSaveStaticOnlyUnsupported:
             sprite._save_static_only(str(tmp_path / 'test.json'), file_format='json')
 
 
-class TestBitmappySpriteDeflateNoPixelsAttr:
-    """Test deflate when pixels attribute missing (line 1166)."""
+class TestBitmappySpriteDeflateNoPixelData:
+    """Test deflate of a sprite whose pixel data was never set."""
 
-    def test_deflate_without_pixels_attribute(self):
-        """Test deflate initializes pixels to empty list if attribute missing."""
+    def test_deflate_without_pixel_data(self):
+        """A new sprite declares empty pixel data; deflate pads it to its size with magenta."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='no_pixels')
-        sprite.pixels_across = 2
-        sprite.pixels_tall = 2
-        # Remove pixels attribute to trigger line 1166
-        if hasattr(sprite, 'pixels'):
-            del sprite.pixels
+        assert sprite.pixels == []
+        assert (sprite.pixels_across, sprite.pixels_tall) == (2, 2)
+
         config = sprite.deflate(file_format='toml')
+
         assert 'sprite' in config
+        assert sprite.pixels == [(255, 0, 255)] * 4
 
 
 class TestBitmappySpriteCreateColorMapExceedsGlyphs:
@@ -2166,11 +2166,9 @@ class TestGetPixelString:
         # Should still produce full grid with dots for missing pixels
         assert result == '..\n..'
 
-    def test_get_pixel_string_no_pixels_attr(self):
-        """Test _get_pixel_string when pixels attribute missing."""
+    def test_get_pixel_string_without_pixel_data(self):
+        """Test _get_pixel_string of a new sprite, whose pixel data was never set."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
-        if hasattr(sprite, 'pixels'):
-            del sprite.pixels
         result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         assert not result
 
@@ -2200,11 +2198,9 @@ class TestGetColorMap:
         result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert len(result) <= 8
 
-    def test_get_color_map_no_pixels_attr(self):
-        """Test _get_color_map when pixels attribute missing."""
+    def test_get_color_map_without_pixel_data(self):
+        """Test _get_color_map of a new sprite, whose pixel data was never set."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
-        if hasattr(sprite, 'pixels'):
-            del sprite.pixels
         result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert result == {}
 

@@ -277,14 +277,6 @@ class TestEngineLifecycle:
         assert isinstance(engine.game, game_class)
         assert engine.game.frames_run == 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'GameEngine._resolve_scene_name_for_error reads scene_manager.current_scene, which '
-            'SceneManager does not have (it has active_scene), so a crash in a game scene is '
-            "logged as being in the previous scene: here 'None'"
-        ),
-    )
     def test_start_method_error_message_with_current_scene(self, mocker, caplog):
         """A crash in the active scene's logic is logged with that scene's name."""
         game_class = first_frame_game(run_error=RuntimeError('Test exception'))
@@ -295,14 +287,6 @@ class TestEngineLifecycle:
 
         assert logged_crash_scene_names(caplog) == [game_class.NAME]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'GameEngine._resolve_scene_name_for_error reads scene_manager.current_scene, which '
-            'SceneManager does not have, so a crash after a scene switch is logged with the '
-            'scene before the switch (scene_manager.previous_scene), not the one that crashed'
-        ),
-    )
     def test_start_method_error_message_with_previous_scene(self, mocker, caplog):
         """A crash in the scene switched to is logged with its name, not the previous scene's."""
         crashing_scene_class = first_frame_game(run_error=RuntimeError('Test exception'))

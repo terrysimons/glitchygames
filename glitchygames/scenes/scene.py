@@ -160,6 +160,8 @@ class SceneManager(SceneInterface, events.EventManager):
     _instance: ClassVar[SceneManager | None] = None
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
+    # True once __init__ ran: SceneManager() returns the singleton, whose __init__ runs again
+    _initialized: bool = False
 
     def __new__(cls) -> Self:
         """Create a new instance or return the existing singleton instance."""
@@ -170,7 +172,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def __init__(self: Self) -> None:
         """Initialize the scene manager."""
         # Prevent re-initialization of singleton
-        if hasattr(self, '_initialized'):
+        if self._initialized:
             return
 
         super().__init__()
@@ -249,7 +251,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._instant_replay_journal: InstantReplayJournal | None = None
 
         # Mark as initialized to prevent re-initialization
-        self._initialized: bool = True
+        self._initialized = True
 
     def _initialize_supervision(self: Self) -> None:
         """Make the supervision state (``__init__``): supervisors, handlers, control events."""
@@ -276,8 +278,8 @@ class SceneManager(SceneInterface, events.EventManager):
         in tests.
         """
         instance = cls._instance
-        if instance is not None and hasattr(instance, '_initialized'):
-            del instance._initialized
+        if instance is not None:
+            instance._initialized = False
         cls._instance = None
 
     def update_screen(self) -> None:
@@ -439,7 +441,8 @@ class SceneManager(SceneInterface, events.EventManager):
                     input_before=input_before,
                 )
             return
-        start = getattr(journal.scene, 'scene_start', None)
+        # The journal's scene is a Scene (InstantReplayJournal reads its scene_start as it is made)
+        start = journal.scene.scene_start
         if (
             not journal.is_recording
             and journal.scene is self.active_scene
@@ -517,8 +520,9 @@ class SceneManager(SceneInterface, events.EventManager):
         if journal is not None and journal.scene is scene:
             return
         self._end_instant_replay_journal()
+        game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
-            scene=scene, game=getattr(self.game_engine, 'game', None)
+            scene=scene, game=game_engine.game if game_engine is not None else None
         )
 
     def _journal_frame(self: Self, *, frame_dt: float) -> None:
@@ -756,7 +760,8 @@ class SceneManager(SceneInterface, events.EventManager):
         scene = cast('Scene | None', next_scene)
         self._setup_new_scene(scene)
         # Its first logic frame comes after the ride, which its playback repeats the arrival of
-        # (glitchygames/scene_start.py, rule 7)
+        # (glitchygames/scene_start.py, rule 7). Looked up by name: the scene may be None or a
+        # SceneInterface stand-in without a capture
         start_capture = getattr(scene, 'scene_start_capture', None)
         if (
             isinstance(start_capture, SceneStartCapture)
@@ -785,6 +790,7 @@ class SceneManager(SceneInterface, events.EventManager):
             A copy of the screen showing the outgoing scene.
 
         """
+        # Looked up by name: player is the game's own attribute, which a scene may not have
         old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
         old_player_was_hidden = self._hide_world_player_for_capture(old_player)
 
@@ -833,6 +839,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if player is None or not is_world_positioned(player):
             return None
+        # Looked up by name: a game's world sprite need not declare hidden (World Space)
         was_hidden = bool(getattr(player, 'hidden', False))
         cast('Any', player).hidden = True
         return was_hidden
@@ -869,6 +876,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if self.active_scene and self.screen:
             camera = self.active_scene.camera
+            # Looked up by name: player is the game's own attribute, which a scene may not have
             player = getattr(self.active_scene, 'player', None)
             # A world-space player is hidden with hidden (positioning then culls it); a
             # screen-space player's visible is written directly, as it always was
@@ -881,6 +889,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 player.dirty = 0
                 camera_target = self.active_scene.camera_target()
                 if camera_target is None:
+                    # A screen-space player may have no world position: the camera snaps to 0
                     camera.snap_to(
                         target_x=getattr(player, 'world_x', 0.0),
                         target_y=getattr(player, 'world_y', 0.0),
@@ -1098,7 +1107,9 @@ class SceneManager(SceneInterface, events.EventManager):
         active_camera = self._active_camera()
         if active_camera is not None:
             shakers.append(active_camera.shake_effect)
-        controller_manager = getattr(self.game_engine, 'controller_manager', None)
+        # None without an engine (a bare SceneManager) and in joystick mode
+        game_engine = self.game_engine
+        controller_manager = game_engine.controller_manager if game_engine is not None else None
         self.rumble.update(
             shakers=shakers,
             dt=self.dt,
@@ -1162,7 +1173,8 @@ class SceneManager(SceneInterface, events.EventManager):
         if self._live_audio is None:
             from glitchygames.audio.live import LiveAudio
 
-            channels = getattr(self.game_engine, 'live_voice_channels', ())
+            game_engine = self.game_engine
+            channels = game_engine.live_voice_channels if game_engine is not None else ()
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
 
@@ -1460,9 +1472,9 @@ class SceneManager(SceneInterface, events.EventManager):
             p99 = data[int(0.99 * (count - 1))]
             p100 = data[-1]
             # Compute avg FPS and late-frame percentage over interval
-            span_ns = max(1, now_ns - getattr(self, '_jitter_interval_start_ns', now_ns))
+            span_ns = max(1, now_ns - self._jitter_interval_start_ns)
             avg_fps = (count * 1_000_000_000) / span_ns
-            late = getattr(self, '_jitter_late_frames', 0)
+            late = self._jitter_late_frames
             late_pct = (late / count) * 100.0
             self.log.info(
                 'Timer jitter ns: p50=%s p95=%s p99=%s max=%s frames=%s avg_fps=%.1f late=%.1f%%',
@@ -1584,7 +1596,9 @@ class SceneManager(SceneInterface, events.EventManager):
                 continue
 
             # Frame pacing using timer backend when available
-            timer = getattr(self.game_engine, 'timer', None)
+            # None without an engine (a bare SceneManager) or before the engine made its timer
+            game_engine = self.game_engine
+            timer = game_engine.timer if game_engine is not None else None
             # The doors may pace the frame themselves (0.0: not at all, in a headless replay)
             paced_seconds = active_sources().paced_frame_seconds()
             period_ns = 0
@@ -1665,7 +1679,7 @@ class SceneManager(SceneInterface, events.EventManager):
             timer=timer,
             period_ns=period_ns,
             # The previous frame's deadline: only pacing sets it, after each frame's work
-            prev_deadline_ns=getattr(self, '_timer_prev_deadline_ns', None),
+            prev_deadline_ns=self._timer_prev_deadline_ns,
             paced_seconds=paced_seconds,
         )
 

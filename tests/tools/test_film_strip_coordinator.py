@@ -1123,7 +1123,10 @@ class TestOnAnimationRename:
             animated_sprite=_make_animated_sprite(frame_counts={'other': 1}),
         )
         frames = [_make_frame()]
-        unordered_sprite = SimpleNamespace(_animations={'walk': frames})
+        # Never loaded from a file: it keeps no animation order of its own
+        unordered_sprite = AnimatedSprite()
+        unordered_sprite.add_animation('walk', frames)
+        assert not unordered_sprite.has_own_animation_order
         unordered_widget = _StripWidgetStandIn(animated_sprite=unordered_sprite)
         other_current_sprite = _make_animated_sprite(frame_counts={'idle': 1, 'walk': 1})
         other_current_widget = _StripWidgetStandIn(animated_sprite=other_current_sprite)
@@ -1134,6 +1137,7 @@ class TestOnAnimationRename:
 
         assert list(unrelated_widget.animated_sprite._animations) == ['other']
         assert unordered_sprite._animations == {'stroll': frames}
+        assert not unordered_sprite.has_own_animation_order
         assert other_current_sprite.frame_manager.current_animation == 'idle'
 
     def test_layout_failure_after_rename_is_logged(self):
