@@ -25,6 +25,11 @@ reports, it does not judge: it exits ``SUCCESS`` whatever differs (``MISSING_INP
 directory that does not exist, ``UNUSABLE_INPUT`` for an unreadable record, ``CANNOT_WRITE_OUTPUT``
 for an output that cannot be written).
 
+A run that recorded no test (pytest ran none: ``-- --help`` or ``--collect-only`` handed to
+every run exits 0 without a test) leaves nothing to compare, and a report of it would claim
+every configuration agrees (BUGS.md #192): the command then writes nothing (no report, no image
+request), names each such run on stderr and exits ``UNUSABLE_INPUT``.
+
 Usage:
     uv run python -m scripts.driver_frame_matrix dummy=RUN1 dummy=RUN2 cocoa=RUN3 \\
         x11-macos=RUN4 --output DIR [--image-request FILE] [--run-seconds FILE] \\
@@ -71,6 +76,29 @@ DIFFERENCE_KINDS = ('pixels', 'size', 'present count', 'display', 'outcome')
 OUTCOME_FAILED = 'failed'
 # Two agreement groups: one side differs from the other
 ONE_SIDE_AND_THE_OTHER = 2
+
+
+class NoTestsRecordedError(Exception):
+    """Some run recorded no test: there is nothing to compare, so no report is written."""
+
+
+def runs_without_tests_message(*, runs: Sequence[RunSummary]) -> str:
+    """Name the runs that recorded no test, for the refusal.
+
+    Args:
+        runs: The runs (at least one) whose ``tests_recorded`` is 0.
+
+    Returns:
+        One line: each run's directory name, configuration and directory, and why nothing was
+        written.
+
+    """
+    named_runs = ', '.join(f'{run.directory.name} ({run.label}, {run.directory})' for run in runs)
+    noun = 'run' if len(runs) == 1 else 'runs'
+    return (
+        f'No report written: {noun} {named_runs} recorded no test (did pytest run the suite? '
+        f'--help or --collect-only run no test), so nothing could be compared'
+    )
 
 
 class PairDifferences(BaseModel):
@@ -721,11 +749,17 @@ def write_report(
     Returns:
         The summary.
 
+    Raises:
+        NoTestsRecordedError: If a run recorded no test (nothing is written then).
+
     """
     run_seconds: dict[str, float] = (
         {} if run_seconds_path is None else json.loads(run_seconds_path.read_text(encoding='utf-8'))
     )
     matrix = build_matrix(runs=runs, run_seconds=run_seconds)
+    runs_without_tests = [summary for summary in matrix.runs if summary.tests_recorded == 0]
+    if runs_without_tests:
+        raise NoTestsRecordedError(runs_without_tests_message(runs=runs_without_tests))
     if reruns:
         matrix = compare_pair_images(matrix=matrix, reruns=reruns, output=output)
     output.mkdir(parents=True, exist_ok=True)
@@ -763,6 +797,9 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
     except FileNotFoundError as error:
         sys.stderr.write(f'{error}\n')
         return ExitCode.MISSING_INPUT
+    except NoTestsRecordedError as error:
+        sys.stderr.write(f'{error}\n')
+        return ExitCode.UNUSABLE_INPUT
     except pydantic.ValidationError, json.JSONDecodeError:
         sys.stderr.write(f'unusable record or run times: {sys.exception()}\n')
         return ExitCode.UNUSABLE_INPUT

@@ -438,9 +438,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
   `--record-trace` given too (recording over a replay is `--rebaseline`'s job only). A
   different engine version only warns. Recorded options apply except
-  `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`)
-  stops a `--headless` replay, as does the last recorded frame; closing the window stops any
-  replay. A watched replay (no `--headless`) is a read-only game inside a game
+  `REPLAY_LOCAL_OPTIONS`; the window opens at the header's `screen_size` (the recorded display's
+  size, not `--resolution`), and a window that still opens at another size is refused
+  `UNUSABLE_INPUT` (a header without one keeps `--resolution`, with a warning). The first
+  divergence (kinds `scene`, `sprite`, `event`, `length`) stops a `--headless` replay, as does
+  the last recorded frame; closing the window stops any replay. A watched replay (no `--headless`) is a read-only game inside a game
   (`glitchygames/replay/viewer.py` documents the contract): the OUTER `ReplayViewer` ticks at
   60 Hz real time (`clock.measured_seconds`), reads the viewer's keys (`ReplayControls`,
   `glitchygames/replay/controls.py`: once per press; `.` repeats after 300 ms at 10/s) and
@@ -772,7 +774,8 @@ Features:
   `nox -s compare-drivers` is the on-demand deeper check: an N-way matrix of dummy (run twice to
   find nondeterministic tests), the native driver, `x11-macos` (x11 on XQuartz through an SDL
   built with x11, `scripts/build_sdl_x11.py`) and `x11-linux` (Docker, forwarded to XQuartz);
-  it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing
+  it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing on a
+  difference; it fails, keeping the last complete report, when a run recorded no test
   (`docs/quality/driver_comparison.md`)
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the

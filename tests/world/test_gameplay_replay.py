@@ -27,7 +27,11 @@ from scripts.record_golden_traces import (
     record_trace,
     replay_golden_recording,
 )
-from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY, REPLAY_FIXTURE_SUFFIX
+from scripts.record_scripted_session import (
+    REPLAY_FIXTURE_DIRECTORY,
+    REPLAY_FIXTURE_SUFFIX,
+    record_scripted_session,
+)
 
 from glitchygames import recording_history
 from glitchygames.debug import DebugPanel
@@ -95,8 +99,10 @@ from glitchygames.replay.driver import (
     ReplayResult,
     ReplaySources,
     apply_recorded_options,
+    apply_recorded_screen_size,
     bookmarked_copy_path,
     check_recorded_game,
+    display_size_refusal,
     write_bookmarked_copy,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
@@ -115,7 +121,11 @@ from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
-from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
+from tests.replay.replay_helpers import (
+    replay_through_engine,
+    rewrite_recording,
+    tamper_first_sprite_rect,
+)
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
 from tests.world import test_gameplay_recording as recording_test_module
@@ -1653,6 +1663,166 @@ LIVE_HEADLESS_TARGET_FPS = 64
 # whose pygame.init is a stub (pygame is already started on the worker, so nothing reads them)
 UNUSED_VIDEO_DRIVER = 'unused-video-driver'
 UNUSED_AUDIO_DRIVER = 'unused-audio-driver'
+
+
+# The window size the stand-in window manager gives a window asked for at the golden scripts'
+# 800x480, and one no recording here has
+WINDOW_MANAGER_SIZE = (800, 600)
+UNRECORDED_WINDOW_SIZE = (640, 400)
+# Enough PaddleSlap frames to compare the paddles' places (set from the screen height in frame 0)
+DISPLAY_SIZE_FRAME_COUNT = 10
+
+
+def window_manager_choosing_size(*, mocker, size: tuple[int, int]):
+    """Make every window open at `size`, whatever size is asked for (BUGS.md #191).
+
+    A stand-in for a window manager that widens, tiles or resizes a new window: the display
+    simply has another size than requested, with no warning (pygame's set_mode answers at the
+    size the window got).
+
+    Returns:
+        The patch, for ``mocker.stop`` once the window manager should step aside.
+
+    """
+    real_set_mode = pygame.display.set_mode
+
+    def set_mode_at_the_chosen_size(requested_size, flags=0, *more_arguments):
+        del requested_size
+        return real_set_mode(size, flags, *more_arguments)
+
+    return mocker.patch('pygame.display.set_mode', side_effect=set_mode_at_the_chosen_size)
+
+
+def record_paddleslap_on_a_window_of_another_size(*, mocker, path: Path) -> None:
+    """Record PaddleSlap asking for 800x480 on a window the window manager makes 800x600."""
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    window_manager = window_manager_choosing_size(mocker=mocker, size=WINDOW_MANAGER_SIZE)
+    try:
+        record_scripted_session(
+            game_key='paddleslap', frame_count=DISPLAY_SIZE_FRAME_COUNT, path=path
+        )
+    finally:
+        mocker.stop(window_manager)
+
+
+class TestRecordedDisplaySize:
+    """A replay opens its window at the recorded display size, or refuses (BUGS.md #191)."""
+
+    @pytest.mark.frames_vary(
+        reason='the session runs the real frame loop: each frame moves by its measured frame time'
+    )
+    def test_a_recording_on_a_window_of_another_size_replays_at_that_size(self, mocker, tmp_path):
+        """PaddleSlap places its paddles from the display height, so the size must be the same."""
+        recording_path = tmp_path / 'rally.jsonl.gz'
+        record_paddleslap_on_a_window_of_another_size(mocker=mocker, path=recording_path)
+        header = read_trace_result(path=recording_path).trace
+        assert header['options']['resolution'] == '800x480'
+        assert header['screen_size'] == list(WINDOW_MANAGER_SIZE)
+
+        replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=recording_path)
+
+        assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
+        assert replay.result.frames_replayed == DISPLAY_SIZE_FRAME_COUNT
+
+    def test_a_window_that_does_not_open_at_the_recorded_size_is_refused(
+        self, mocker, tmp_path, caplog
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        recorded_size = read_trace_result(path=recording_path).trace['screen_size']
+        window_manager_choosing_size(mocker=mocker, size=UNRECORDED_WINDOW_SIZE)
+        caplog.clear()
+
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert refusals[0].getMessage() == (
+            f'Cannot replay {recording_path}: it was recorded on a '
+            f'{recorded_size[0]}x{recorded_size[1]} display, but the window opened at 640x400 '
+            f'(the window manager chose another size); refusing to replay it'
+        )
+
+    @pytest.mark.parametrize('format_version', [2, 3])
+    def test_a_recording_without_a_size_replays_at_its_resolution_with_a_warning(
+        self, mocker, tmp_path, caplog, format_version
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        if format_version == 2:
+            downgrade_to_version_two(recording_path=recording_path)
+        lines = gzip_lines(recording_path=recording_path)
+        header = json.loads(lines[0])
+        del header['screen_size']
+        with gzip.open(recording_path, 'wb') as recording_file:
+            recording_file.write((json.dumps(header) + '\n').encode('utf-8'))
+            recording_file.writelines(lines[1:])
+        caplog.clear()
+
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        assert engine.screen.get_size() == (320, 240)
+        warnings = [
+            record.getMessage()
+            for record in caplog.records
+            if 'does not hold the size of the display' in record.getMessage()
+        ]
+        assert warnings == [
+            (
+                'The recording does not hold the size of the display it was made on (no '
+                'screen_size in its header); the replay opens its window at the recorded '
+                '--resolution 320x240 and diverges if the recorded window had another size'
+            )
+        ]
+
+    @pytest.mark.parametrize(
+        'screen_size',
+        [[800], [800, 0], [800, '480'], [True, 480], '800x480', {'width': 800}],
+        ids=['one number', 'zero height', 'text height', 'boolean width', 'text', 'mapping'],
+    )
+    def test_a_malformed_size_is_unusable_input(self, mocker, tmp_path, caplog, screen_size):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace.update(screen_size=screen_size),
+        )
+        caplog.clear()
+
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert (
+            f'The recording header screen_size is not a positive [width, height] (found '
+            f'{screen_size!r})'
+        ) in refusals[0].getMessage()
+
+    def test_the_recorded_size_replaces_the_recorded_resolution(self):
+        options = {'resolution': '800x480'}
+
+        apply_recorded_screen_size(options=options, screen_size=WINDOW_MANAGER_SIZE)
+
+        assert options == {'resolution': '800x600'}
+
+    @pytest.mark.parametrize(
+        ('header', 'display_size', 'refused'),
+        [
+            ({'screen_size': [800, 600]}, (800, 600), False),
+            ({}, (800, 600), False),
+            ({'screen_size': [800, 600]}, (800, 480), True),
+        ],
+        ids=['same size', 'no recorded size', 'another size'],
+    )
+    def test_only_another_size_than_recorded_is_refused(self, header, display_size, refused):
+        refusal = display_size_refusal(header=header, display_size=display_size)
+
+        assert (refusal is not None) is refused
 
 
 def pygame_init_noting_drivers(mocker) -> list[tuple[str | None, str | None]]:

@@ -247,7 +247,19 @@ streams with its seed. It refuses, logging the reason and exiting with one of th
   has an unsupported format version: `UNUSABLE_INPUT` (65);
 - the file does not exist: `MISSING_INPUT` (66);
 - `--record-trace` is given too: `OPTIONS_REFUSED` (64). Recording over a replay is what
-  [`--rebaseline`](#rebaselining-rebaseline-new) does, and only it.
+  [`--rebaseline`](#rebaselining-rebaseline-new) does, and only it;
+- its window does not open at the recorded display size: `UNUSABLE_INPUT` (65), with one line
+  naming both sizes (`Cannot replay PATH: it was recorded on a 800x600 display, but the window
+  opened at 800x480 (the window manager chose another size); refusing to replay it`).
+
+Games read the display's size (PaddleSlap places its paddles at half the screen height), so the
+replay opens its window at the size the recorded display had (the header's `screen_size`), not
+at the recorded `--resolution`: a window manager may have given the recorded window another size
+than it asked for. A headless replay always gets that size; a watched one gets it unless the
+window manager refuses, and then the replay is refused as above. A recording whose header holds
+no `screen_size` (the engine's recorder always writes one; a hand-made header may not) replays at
+its recorded `--resolution` with a warning. A window resized during the recorded run is not
+recorded, so a game that reads the live size every frame can still diverge.
 
 A recording made by a different engine version replays with one warning. A version-2 recording
 replays with one warning too: it has no input snapshots, so polled input reads as idle.

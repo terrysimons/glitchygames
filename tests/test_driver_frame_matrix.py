@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import TYPE_CHECKING
 
+import noxfile
 import pytest
 from scripts.compare_driver_frames import LabelledRun
 from scripts.driver_frame_matrix import (
@@ -39,6 +41,9 @@ from scripts.driver_frame_matrix import (
 from glitchygames.exit_codes import ExitCode
 from glitchygames.testing.frame_fingerprints import RecordedFrames, images_folder_name
 from tests.test_compare_driver_frames import RED, frame, record, save_colour_frame, write_run
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 NODE_A = 'tests/test_a.py::test_cocoa_differs'
 NODE_B = 'tests/test_a.py::test_x11_differs[a|b]'
@@ -519,6 +524,57 @@ class TestCommandLine:
         assert exit_code == ExitCode.CANNOT_WRITE_OUTPUT
         assert 'cannot write the output' in capsys.readouterr().err
 
+    @pytest.mark.parametrize('empty_run_count', [1, 2])
+    def test_runs_that_recorded_no_test_write_nothing_and_are_named(
+        self, runs, tmp_path, capsys, empty_run_count
+    ):
+        """A run pytest ran no test in (``-- --help``) must not report full agreement (#192)."""
+        empty_runs = [
+            LabelledRun(
+                label=label, directory=write_run(directory=tmp_path / f'{label}-empty', records=[])
+            )
+            for label in CONFIGURATIONS[1 : 1 + empty_run_count]
+        ]
+        output = tmp_path / 'report'
+        request = output / 'image-request.json'
+
+        exit_code = run(
+            arguments=[
+                *self.run_arguments([*runs[:2], *empty_runs]),
+                f'--output={output}',
+                f'--image-request={request}',
+            ]
+        )
+
+        assert exit_code == ExitCode.UNUSABLE_INPUT
+        assert not output.exists()
+        captured = capsys.readouterr()
+        assert not captured.out
+        named_runs = ', '.join(
+            f'{empty_run.directory.name} ({empty_run.label}, {empty_run.directory})'
+            for empty_run in empty_runs
+        )
+        noun = 'run' if empty_run_count == 1 else 'runs'
+        assert captured.err == (
+            f'No report written: {noun} {named_runs} recorded no test (did pytest run the '
+            f'suite? --help or --collect-only run no test), so nothing could be compared\n'
+        )
+
+    def test_an_earlier_report_is_kept_when_a_run_recorded_no_test(self, runs, tmp_path):
+        output = tmp_path / 'report'
+        assert run(arguments=[*self.run_arguments(runs), f'--output={output}']) == (
+            ExitCode.SUCCESS
+        )
+        earlier_report = (output / MATRIX_MARKDOWN_NAME).read_text(encoding='utf-8')
+        empty_run = LabelledRun(
+            label='cocoa', directory=write_run(directory=tmp_path / 'cocoa-empty', records=[])
+        )
+
+        exit_code = run(arguments=[*self.run_arguments([runs[0], empty_run]), f'--output={output}'])
+
+        assert exit_code == ExitCode.UNUSABLE_INPUT
+        assert (output / MATRIX_MARKDOWN_NAME).read_text(encoding='utf-8') == earlier_report
+
     def test_main_exits_with_the_code(self, runs, tmp_path, monkeypatch):
         monkeypatch.setattr(
             sys, 'argv', ['driver_frame_matrix', *self.run_arguments(runs), f'--output={tmp_path}']
@@ -528,3 +584,85 @@ class TestCommandLine:
             main()
 
         assert raised.value.code == ExitCode.SUCCESS
+
+
+class LoggingSession:
+    """Stands in for the nox session the folder helpers log through: keeps each message."""
+
+    def __init__(self) -> None:
+        """Start with no messages."""
+        self.messages: list[str] = []
+
+    def log(self, message: str) -> None:
+        """Keep a message."""
+        self.messages.append(message)
+
+
+def write_comparison(*, folder: Path, report: str) -> None:
+    """Write a comparison folder holding a report and one run."""
+    (folder / 'dummy-1').mkdir(parents=True)
+    (folder / MATRIX_MARKDOWN_NAME).write_text(report, encoding='utf-8')
+
+
+class TestComparisonFolders:
+    """compare-drivers never replaces the last complete comparison with a failed one (#192)."""
+
+    @pytest.fixture
+    def folders(self, tmp_path) -> tuple[Path, Path, Path]:
+        """Return the output, previous and failed folders (none made).
+
+        Returns:
+            The three folders.
+
+        """
+        return tmp_path / 'nox', tmp_path / 'nox-previous', tmp_path / 'nox-failed'
+
+    def test_a_failed_comparison_puts_the_last_complete_one_back(self, folders):
+        output, previous, failed = folders
+        write_comparison(folder=output, report='complete')
+        session = LoggingSession()
+
+        noxfile._set_aside_previous_comparison(output=output, previous=previous)
+        assert list(output.iterdir()) == []
+        (output / 'dummy-1').mkdir()
+        noxfile._restore_previous_comparison(
+            session, output=output, previous=previous, failed=failed
+        )
+
+        assert (output / MATRIX_MARKDOWN_NAME).read_text(encoding='utf-8') == 'complete'
+        assert not previous.exists()
+        assert [path.name for path in failed.iterdir()] == ['dummy-1']
+        assert session.messages == [
+            (
+                f'The comparison did not finish: its runs are in {failed}; the last complete '
+                f'comparison is still in {output}'
+            )
+        ]
+
+    def test_a_failure_with_no_earlier_comparison_leaves_no_report(self, folders):
+        output, previous, failed = folders
+        session = LoggingSession()
+
+        noxfile._set_aside_previous_comparison(output=output, previous=previous)
+        noxfile._restore_previous_comparison(
+            session, output=output, previous=previous, failed=failed
+        )
+
+        assert not output.exists()
+        assert failed.is_dir()
+        assert session.messages == [
+            (
+                f'The comparison did not finish: its runs are in {failed}; there is no earlier '
+                f'complete comparison'
+            )
+        ]
+
+    def test_a_killed_sessions_previous_folder_stays_the_last_complete_one(self, folders):
+        output, previous, _failed = folders
+        write_comparison(folder=previous, report='complete')
+        write_comparison(folder=output, report='unfinished')
+
+        noxfile._set_aside_previous_comparison(output=output, previous=previous)
+
+        assert list(output.iterdir()) == []
+        assert (previous / MATRIX_MARKDOWN_NAME).read_text(encoding='utf-8') == 'complete'

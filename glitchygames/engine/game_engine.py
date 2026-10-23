@@ -83,6 +83,7 @@ from glitchygames.replay.driver import (
     ReplayRefusedError,
     ReplaySources,
     announce_replay,
+    display_size_refusal,
     installed_engine_version,
     start_replay,
 )
@@ -1071,6 +1072,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Initialize display
         self.initialize_display()
+        # A replay's window opened at the recorded size (start_replay asked for it), or the
+        # replay is refused: the game would be set up on another size (rule 1 of
+        # glitchygames/replay/driver.py)
+        self._refuse_a_replay_display_of_another_size(options=options)
 
         self.initialize_event_handlers()
 
@@ -1830,6 +1835,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             cause=refusal,
         )
+
+    def _refuse_a_replay_display_of_another_size(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.UNUSABLE_INPUT if the replay's window has another size than recorded.
+
+        The replay asked for the recorded ``screen_size`` (``start_replay``); a window manager
+        that gave the window another size would set the game up on it, and the replay would
+        diverge from its first frame.
+
+        Args:
+            options: The parsed options (``replay_trace`` names the recording).
+
+        """
+        if self.replay_sources is None:
+            return
+        refusal = display_size_refusal(
+            header=self.replay_sources.header, display_size=self.screen.get_size()
+        )
+        if refusal is None:
+            return
+        self.log.error('Cannot replay %s: %s', options['replay_trace'], refusal)
+        exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
 
     def _check_replay_options_without_a_recording(self: Self, *, options: dict[str, Any]) -> None:
         """Refuse --audit and --rebaseline without --replay-trace; warn about ignored options.

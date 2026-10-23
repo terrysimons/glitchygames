@@ -661,6 +661,11 @@ def build_sdl_x11(session: nox.Session) -> None:
 # run counts too; all cores starved other work), and the master seed each test's unseeded
 # engines draw from (with its node id)
 _COMPARE_DRIVERS_OUTPUT = Path('test-results/driver-comparison/nox')
+# While a comparison runs, the last complete one waits here, and goes back to the output folder
+# if this one fails (a run that recorded no test, a pytest that could not run, Ctrl-C); the
+# failed comparison's runs are then kept in the failed folder for a look (BUGS.md #192)
+_COMPARE_DRIVERS_PREVIOUS = Path('test-results/driver-comparison/nox-previous')
+_COMPARE_DRIVERS_FAILED = Path('test-results/driver-comparison/nox-failed')
 _COMPARE_DRIVERS_WORKERS = 4
 _COMPARE_DRIVERS_SEED = 20261023
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
@@ -868,6 +873,48 @@ def _run_timed_configurations(
     return run_seconds_path
 
 
+def _set_aside_previous_comparison(*, output: Path, previous: Path) -> None:
+    """Move the last complete comparison aside, and make the output folder empty for this one.
+
+    A previous folder already there was left by a session that ended before it could put it
+    back (killed): it is still the last complete comparison, so it stays, and the output folder
+    (that session's unfinished runs) is removed.
+
+    Args:
+        output: The comparison's folder.
+        previous: Where the last complete comparison waits.
+
+    """
+    if previous.exists():
+        shutil.rmtree(output, ignore_errors=True)
+    elif output.exists():
+        output.rename(previous)
+    output.mkdir(parents=True)
+
+
+def _restore_previous_comparison(
+    session: nox.Session, *, output: Path, previous: Path, failed: Path
+) -> None:
+    """Keep a failed comparison's runs in the failed folder; put the last complete one back.
+
+    Args:
+        session: The nox session (for its log).
+        output: The comparison's folder, holding the failed comparison's runs.
+        previous: Where the last complete comparison waits (absent: there was none).
+        failed: Where the failed comparison's runs are kept (replacing an earlier failure's).
+
+    """
+    shutil.rmtree(failed, ignore_errors=True)
+    if output.exists():
+        output.rename(failed)
+    if previous.exists():
+        previous.rename(output)
+        kept = f'the last complete comparison is still in {output}'
+    else:
+        kept = 'there is no earlier complete comparison'
+    session.log(f'The comparison did not finish: its runs are in {failed}; {kept}')
+
+
 @nox.session(venv_backend='none', name='compare-drivers', default=False)
 def compare_drivers(session: nox.Session) -> None:
     """Compare the frames tests present on every SDL driver configuration available here.
@@ -896,6 +943,14 @@ def compare_drivers(session: nox.Session) -> None:
     linked images); the summary is printed at the end. It reports; it does not fail on a
     difference.
 
+    It fails when a run recorded no test (pytest ran none: `-- --help` or `--collect-only`
+    reach every run and exit 0), naming the run, rather than report that every configuration
+    agrees (BUGS.md #192), and when a pytest run cannot run at all. A comparison that fails (or
+    is interrupted) never replaces the last complete one: that one waits in
+    test-results/driver-comparison/nox-previous/ while the comparison runs and goes back to
+    nox/ when it fails, and the failed comparison's runs are kept in
+    test-results/driver-comparison/nox-failed/.
+
     The container uses dummy audio; `--sound` plays its sound through the Mac's PulseAudio, as
     `test-linux-x11` does. Other arguments after `--` select tests, e.g. `nox -s
     compare-drivers -- tests/scenes`. The host runs use the project's own environment (`uv
@@ -904,8 +959,37 @@ def compare_drivers(session: nox.Session) -> None:
     """
     drivers, sound, selection = _compare_drivers_arguments(session)
     output = _COMPARE_DRIVERS_OUTPUT
-    shutil.rmtree(output, ignore_errors=True)
-    output.mkdir(parents=True)
+    _set_aside_previous_comparison(output=output, previous=_COMPARE_DRIVERS_PREVIOUS)
+    try:
+        _compare_driver_configurations(
+            session, output=output, drivers=drivers, sound=sound, selection=selection
+        )
+    except BaseException:
+        # Whatever ended it (a failed command, a refusal, Ctrl-C), the last complete comparison
+        # stays the report
+        _restore_previous_comparison(
+            session,
+            output=output,
+            previous=_COMPARE_DRIVERS_PREVIOUS,
+            failed=_COMPARE_DRIVERS_FAILED,
+        )
+        raise
+    shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
+
+
+def _compare_driver_configurations(
+    session: nox.Session, *, output: Path, drivers: str | None, sound: bool, selection: list[str]
+) -> None:
+    """Run compare-drivers' comparison into its (empty) folder: see ``compare_drivers``.
+
+    Args:
+        session: The nox session.
+        output: The comparison's folder.
+        drivers: The configurations asked for (None: every available one).
+        sound: The container plays its sound through the Mac's PulseAudio.
+        selection: More pytest arguments (the test selection).
+
+    """
     configurations = _plan_driver_configurations(session, drivers=drivers, output=output)
     container_audio_driver = _prepare_driver_configurations(
         session, configurations=configurations, sound=sound

@@ -67,6 +67,14 @@ differing frame's index and kind with the differing pixel count linked to the di
 The session prints the pair summary and the patterns at the end. It reports; it never fails on
 a difference.
 
+It fails when a run recorded no test, naming the run: arguments that make pytest run nothing and
+exit 0 (`-- --help`, `-- --collect-only`) reach every run, and a report of empty runs would say
+every configuration agrees. It fails too when a pytest run cannot run at all. A comparison that
+fails or is interrupted never replaces the last complete one: while a comparison runs, the last
+complete one waits in `test-results/driver-comparison/nox-previous/`, and it goes back to
+`test-results/driver-comparison/nox/` when the comparison fails; the failed comparison's runs
+are kept in `test-results/driver-comparison/nox-failed/`.
+
 ### x11 on macOS: SDL built with x11
 
 pygame-ce's macOS wheel bundles an SDL without x11. SDL's dynamic API loads another SDL at run
