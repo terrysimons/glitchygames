@@ -2538,8 +2538,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
                 continue
 
-            event: events.HashableEvent = events.HashableEvent(type=pygame_event.type)
-            event.__dict__.update(pygame_event.dict)
+            event = events.HashableEvent(pygame_event.type, **pygame_event.dict)
 
             # Decided per event: a type missing from the map is unhandled
             event_was_handled = False

@@ -115,11 +115,8 @@ class TestKeyboardEventProxy:
         proxy = KeyboardEventManager.KeyboardEventProxy(game=keyboard_scene)
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a', scancode=30)
         proxy.on_key_down_event(event)
-        # The key is tracked without its unicode (KEYUP has none), keyed by its sorted items
-        assert list(proxy.keys.values()) == [event]
-        (tracked_key,) = proxy.keys
-        assert ('unicode', 'a') not in tracked_key
-        assert ('key', pygame.K_a) in tracked_key
+        # The key's latest event, keyed by its key code
+        assert proxy.keys == {pygame.K_a: event}
 
     def test_on_key_chord_up_event_after_down(self, keyboard_scene):
         proxy = KeyboardEventManager.KeyboardEventProxy(game=keyboard_scene)
@@ -281,7 +278,44 @@ class TestKeyboardEventProxyChords:
 
         # The second chord should have both keys down, in the order they were pressed
         assert chords[1] == ('chord_down', event_a, (event_ctrl, event_a))
-        assert event_a['keys_down'] == (event_ctrl, event_a)
+
+    def test_a_released_key_is_not_in_a_later_chord(self, keyboard_scene):
+        """Press and release A, then press B: only B is down."""
+        proxy = KeyboardEventManager(game=keyboard_scene).proxies[0]
+        proxy.on_key_down_event(HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a'))
+        proxy.on_key_up_event(HashableEvent(pygame.KEYUP, key=pygame.K_a, mod=0))
+        event_b = HashableEvent(pygame.KEYDOWN, key=pygame.K_b, mod=0, unicode='b')
+
+        proxy.on_key_down_event(event_b)
+
+        assert keyboard_scene.received_with_tag('chord_down')[-1] == (
+            'chord_down',
+            event_b,
+            (event_b,),
+        )
+
+    def test_a_released_key_is_not_down_in_its_own_chord_up(self, keyboard_scene):
+        """Releasing the only key held leaves no keys down."""
+        proxy = KeyboardEventManager(game=keyboard_scene).proxies[0]
+        proxy.on_key_down_event(HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a'))
+        event_up = HashableEvent(pygame.KEYUP, key=pygame.K_a, mod=0)
+
+        proxy.on_key_up_event(event_up)
+
+        assert keyboard_scene.received_with_tag('chord_up') == [('chord_up', event_up, ())]
+
+    def test_a_key_pressed_again_is_last_in_the_chord(self, keyboard_scene):
+        """Keys down are in the order they were (last) pressed."""
+        proxy = KeyboardEventManager(game=keyboard_scene).proxies[0]
+        proxy.on_key_down_event(HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a'))
+        proxy.on_key_up_event(HashableEvent(pygame.KEYUP, key=pygame.K_a, mod=0))
+        event_b = HashableEvent(pygame.KEYDOWN, key=pygame.K_b, mod=0, unicode='b')
+        proxy.on_key_down_event(event_b)
+        event_a_again = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+
+        proxy.on_key_down_event(event_a_again)
+
+        assert keyboard_scene.received_with_tag('chord_down')[-1][2] == (event_b, event_a_again)
 
     def test_on_key_chord_up_event_called_on_key_release(self, keyboard_scene):
         """on_key_chord_up_event should be called when a key is released."""
@@ -332,16 +366,15 @@ class TestKeyboardEventProxyChords:
         assert len(chords_up) == 1
         assert event_ctrl_down in chords_up[0][2]
 
-    def test_key_down_event_adds_keys_down_to_event(self, keyboard_scene):
-        """on_key_down_event should add keys_down attribute to the event for chord detection."""
+    def test_key_down_event_leaves_the_event_unchanged(self, keyboard_scene):
+        """on_key_down_event passes the keys down as the chord's argument, not on the event."""
         manager = KeyboardEventManager(game=keyboard_scene)
         proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
         proxy.on_key_down_event(event)
 
-        # The event should have had 'keys_down' added to it during chord processing
-        assert event.has_key('keys_down')
+        assert not event.has_key('keys_down')
 
 
 class TestKeyboardEventManagerArgs:
@@ -432,7 +465,7 @@ class TestKeyboardEvents:
         assert [key_event.key for key_event in last_chord[2]] == [pygame.K_LCTRL, pygame.K_c]
 
     def test_key_chord_up_event(self, keyboard_scene):
-        """Releasing C while Ctrl is held gives the scene a chord up with the keys down."""
+        """Releasing C while Ctrl is held gives a chord up for C with the keys still down."""
         manager = KeyboardEventManager(game=keyboard_scene)
 
         control_down = HashableEvent(
@@ -447,7 +480,8 @@ class TestKeyboardEvents:
         (chord_up,) = keyboard_scene.received_with_tag('chord_up')
         assert chord_up[0] == 'chord_up'
         assert chord_up[1].key == pygame.K_c
-        assert [key_event.key for key_event in chord_up[2]] == [pygame.K_LCTRL, pygame.K_c]
+        # C is released: the keys still down are Ctrl's (the chord is those plus the event)
+        assert [key_event.key for key_event in chord_up[2]] == [pygame.K_LCTRL]
 
     def test_specific_key_events(self, keyboard_scene):
         """Test specific key event handling."""
@@ -504,7 +538,7 @@ class TestKeyboardEvents:
         assert len(keyboard_scene.received_with_tag('up')) == 8
 
     def test_key_chord_combinations(self, keyboard_scene):
-        """Each Ctrl+key combination gives a chord down and a chord up holding both keys."""
+        """Each Ctrl+key combination gives a chord down holding both keys, then a chord up."""
         # Test common key chord combinations
         chord_combinations = [
             (pygame.K_LCTRL, pygame.K_c),  # Ctrl+C
@@ -532,7 +566,7 @@ class TestKeyboardEvents:
             (chord_up,) = scene.received_with_tag('chord_up')
             assert [key_event.key for key_event in chord_down[2]] == [modifier_key, key]
             assert chord_up[1].key == key
-            assert [key_event.key for key_event in chord_up[2]] == [modifier_key, key]
+            assert [key_event.key for key_event in chord_up[2]] == [modifier_key]
 
     def test_key_with_modifiers(self, keyboard_scene):
         """Test key events with modifier keys."""

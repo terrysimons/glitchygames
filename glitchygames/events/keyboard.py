@@ -31,7 +31,9 @@ class KeyboardEventManager(ResourceManager):
 
             """
             super().__init__(game=game)
-            self.keys: dict[Any, Any] = {}
+            # Each key's latest event, by key code, in the order the keys were last pressed: a
+            # key is down while its latest event is its KEYDOWN
+            self.keys: dict[int, HashableEvent] = {}
             self.game: Any = game
             self.proxies = [self.game, pygame.key]
 
@@ -43,20 +45,10 @@ class KeyboardEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
 
             """
-            # The KEYUP and KEYDOWN events are
-            # different.  KEYDOWN contains an extra
-            # key in its dictionary (unicode), which
-            # KEYUP does not contain, so we'll make
-            # a copy of the dictionary, and then
-            # delete the key "unicode" so we can track
-            # both sets of events.
-            keyboard_key = event.dict.copy()
-            del keyboard_key['unicode']
-
-            # This makes it possible to use
-            # a dictionary as a key, which is
-            # normally not possible.
-            self.keys[tuple(sorted(frozenset(keyboard_key.items())))] = event
+            # Re-inserted, so a key pressed again is the last key down (BUGS.md #180: keyed by
+            # the whole event, a KEYUP never replaced its KEYDOWN, so released keys stayed down)
+            self.keys.pop(event.key, None)
+            self.keys[event.key] = event
 
             self.game.on_key_down_event(event)
             self.on_key_chord_down_event(event)
@@ -69,10 +61,7 @@ class KeyboardEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
 
             """
-            # This makes it possible to use
-            # a dictionary as a key, which is
-            # normally not possible.
-            self.keys[tuple(sorted(frozenset(event.dict.items())))] = event
+            self.keys[event.key] = event
 
             self.game.on_key_up_event(event)
             self.on_key_chord_up_event(event)
@@ -91,12 +80,9 @@ class KeyboardEventManager(ResourceManager):
                     (computed internally if not provided).
 
             """
-            keys_down: tuple[Any, ...] = tuple(
-                self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
-            )
+            keys_down = self._keys_down()
 
-            event['keys_down'] = keys_down
-
+            # The keys down are the chord's argument; the event itself is left unchanged
             self.game.on_key_chord_down_event(event, keys_down)
 
         @override
@@ -113,11 +99,18 @@ class KeyboardEventManager(ResourceManager):
                     (computed internally if not provided).
 
             """
-            keys_down: tuple[Any, ...] = tuple(
-                self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
-            )
+            self.game.on_key_chord_up_event(event, self._keys_down())
 
-            self.game.on_key_chord_up_event(event, keys_down)
+        def _keys_down(self: Self) -> tuple[HashableEvent, ...]:
+            """Return the KEYDOWN events of the keys held now, in the order they were pressed.
+
+            Returns:
+                tuple[HashableEvent, ...]: The keys down.
+
+            """
+            return tuple(
+                key_event for key_event in self.keys.values() if key_event.type == pygame.KEYDOWN
+            )
 
     def __init__(self: Self, game: object = None) -> None:
         """Initialize the keyboard event manager.

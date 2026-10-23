@@ -11,6 +11,8 @@ import abc
 import collections
 import logging
 import re
+from collections.abc import Iterable, Mapping
+from collections.abc import Set as AbstractSet
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast, override
 
 import pygame
@@ -307,7 +309,33 @@ class ResourceManager:
         raise AttributeError(NO_PROXIES_MSG.format(cls=type(self), attr=attr))
 
 
-# Note, we can't subclass HashableEvent because it's a C type.
+def _hashable_value(value: object) -> object:
+    """Return value, or a hashable stand-in with the same content when it is unhashable.
+
+    Returns:
+        object: The value itself, or tuples and frozensets of its contents.
+
+    """
+    try:
+        hash(value)
+    except TypeError:
+        # isinstance narrows to unparameterized ABCs; the items are only hashed, so object
+        if isinstance(value, Mapping):
+            mapping = cast('Mapping[object, object]', value)
+            return frozenset(
+                (_hashable_value(key), _hashable_value(item)) for key, item in mapping.items()
+            )
+        if isinstance(value, AbstractSet):
+            members = cast('AbstractSet[object]', value)
+            return frozenset(_hashable_value(item) for item in members)
+        if isinstance(value, Iterable):
+            items = cast('Iterable[object]', value)
+            return tuple(_hashable_value(item) for item in items)
+        return type(value).__qualname__
+    return value
+
+
+# Note, we can't subclass pygame's Event because it's a C type.
 class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-public-methods]
     """Hashable event class.
 
@@ -334,9 +362,10 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
             **attributes: The keyword arguments.
 
         """
+        # The event's attributes are exactly its type and fields: nothing else is stored in
+        # __dict__ (a stored hash there showed up as a field, BUGS.md #179)
         self.type = type
         self.__dict__.update(attributes)
-        self.__hash = hash((self.type, tuple(self.__dict__.keys())))
 
     @property
     def dict(self: Self) -> dict[str, Any]:  # ty: ignore[invalid-type-form]
@@ -458,15 +487,30 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
         """
         return self.__dict__.values()
 
+    _hashing_ids: ClassVar[set[int]] = set()
+
     @override
     def __hash__(self: Self) -> int:
-        """Return the hash of the object.
+        """Return the hash of the event's current content (its type and fields).
+
+        Equal events hash alike however they were built or changed. Unhashable values (a game
+        event's lists and dicts) hash by their content.
 
         Returns:
             int: The hash value.
 
         """
-        return self.__hash
+        # Guard against infinite recursion when __dict__ contains this event (as __eq__ does)
+        self_id = id(self)
+        if self_id in HashableEvent._hashing_ids:
+            return hash(self.type)
+        HashableEvent._hashing_ids.add(self_id)
+        try:
+            return hash(
+                frozenset((name, _hashable_value(value)) for name, value in self.__dict__.items())
+            )
+        finally:
+            HashableEvent._hashing_ids.discard(self_id)
 
     _comparing_ids: ClassVar[set[int]] = set()
 
@@ -567,7 +611,7 @@ class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-pu
         """
         attributes = dict(state)
         event_type = attributes.pop('type')
-        # The stored hash is recomputed by __init__, never carried over
+        # A state pickled before BUGS.md #179 carries the hash it stored as an attribute
         attributes.pop('_HashableEvent__hash', None)
         self.__dict__.clear()
         HashableEvent.__init__(self, event_type, **attributes)

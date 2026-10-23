@@ -7,6 +7,7 @@ EventManager, ResourceManager, and utility functions.
 import copy
 import logging
 import sys
+import types
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -299,6 +300,72 @@ class TestHashableEventValues:
         assert (10, 20) in event_values
 
 
+class TestHashableEventIdentity:
+    """An event is its type and fields: nothing else shows, and its hash follows its content."""
+
+    def test_an_event_holds_only_its_type_and_fields(self):
+        """No bookkeeping (such as a stored hash) appears among the event's attributes."""
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0)
+
+        assert list(event) == ['type', 'key', 'mod']
+        assert len(event) == 3
+        assert dict(event) == {'type': pygame.KEYDOWN, 'key': pygame.K_SPACE, 'mod': 0}
+
+    def test_an_event_filled_in_after_construction_equals_one_built_whole(self):
+        """Equal content means equal events with equal hashes, however they were built."""
+        built_whole = HashableEvent(pygame.MOUSEMOTION, pos=(1, 2), rel=(0, 0), buttons=(0, 0, 0))
+        filled_in = HashableEvent(pygame.MOUSEMOTION)
+        filled_in.update(pos=(1, 2), rel=(0, 0), buttons=(0, 0, 0))
+
+        assert filled_in == built_whole
+        assert hash(filled_in) == hash(built_whole)
+
+    def test_events_differing_only_in_a_value_hash_differently(self):
+        """The hash covers the values, not only the attribute names."""
+        here = HashableEvent(pygame.MOUSEMOTION, pos=(1, 2))
+        there = HashableEvent(pygame.MOUSEMOTION, pos=(9, 9))
+
+        assert hash(here) != hash(there)
+
+    def test_an_event_with_unhashable_values_hashes_by_content(self):
+        """List and dict values (a game event's data) still hash, equal content alike."""
+        first = HashableEvent(pygame.USEREVENT, items=[1, 2], data={'score': 3})
+        second = HashableEvent(pygame.USEREVENT, items=[1, 2], data={'score': 3})
+
+        assert hash(first) == hash(second)
+        assert len({first, second}) == 1
+
+    def test_set_values_hash_by_their_members(self):
+        """A set value hashes by its members, so equal sets give equal hashes."""
+        first = HashableEvent(pygame.USEREVENT, held={1, 2})
+        second = HashableEvent(pygame.USEREVENT, held={2, 1})
+
+        assert hash(first) == hash(second)
+
+    def test_an_unhashable_value_that_is_no_container_hashes_by_its_type(self):
+        """A value with no content to hash still lets the event hash (equal events alike)."""
+        # SimpleNamespace compares by value but is unhashable, and is no container
+        first = HashableEvent(pygame.USEREVENT, payload=types.SimpleNamespace(score=3))
+        second = HashableEvent(pygame.USEREVENT, payload=types.SimpleNamespace(score=3))
+
+        assert first == second
+        assert hash(first) == hash(second)
+
+    def test_an_event_that_contains_itself_hashes_without_recursing(self):
+        """As __eq__ does, hashing stops at an event already being hashed."""
+        event = HashableEvent(pygame.USEREVENT)
+        event['self_reference'] = (event,)
+
+        assert isinstance(hash(event), int)
+
+    def test_a_changed_event_hashes_like_one_built_with_the_change(self):
+        """The hash is never stale: it is the hash of the event's current content."""
+        changed = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
+        changed['key'] = pygame.K_b
+
+        assert hash(changed) == hash(HashableEvent(pygame.KEYDOWN, key=pygame.K_b))
+
+
 class TestHashableEventEquality:
     """Test HashableEvent.__eq__ and __ne__ methods."""
 
@@ -514,10 +581,10 @@ class TestHashableEventMiscMethods:
         hash_value_second = hash(event)
         assert hash_value_first == hash_value_second
 
-    def test_hash_same_for_same_type_and_keys(self):
-        """Events with the same type and attribute keys should have the same hash."""
+    def test_hash_same_for_same_type_and_content(self):
+        """Events with the same type and attribute values have the same hash."""
         event_a = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0)
-        event_b = HashableEvent(pygame.KEYDOWN, key=pygame.K_b, mod=1)
+        event_b = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0)
         assert hash(event_a) == hash(event_b)
 
     def test_hash_differs_for_different_types(self):
