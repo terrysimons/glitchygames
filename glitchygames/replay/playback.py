@@ -111,7 +111,8 @@ Demos and instant replays run inside a playback scope, not a new engine run
      records the player's polled input; it is kept as ``last_base_snapshot``), the replay's is
      returned.
    - ``frame_seconds``: the replay's (the recording's dt; past its end, the installed doors'
-     measurement), asked after the installed doors were asked as always.
+     measurement), asked after the installed doors were asked as always. Their answer is kept
+     (``installed_frame_seconds``) for their ``end_frame``.
    - ``saves``, ``devices``, ``wall_clock_time``, ``random_seed``,
      ``opened_save_namespaces``: the replay's (saves are a sandbox seeded from the scene
      start's save view: real saves are never touched).
@@ -121,8 +122,13 @@ Demos and instant replays run inside a playback scope, not a new engine run
      never compared (glitchygames/replay/driver.py, rule 8).
    - ``end_frame`` is ``compare_frame`` (the replay compares the frame, its ``playback``
      marker left out: the recording never holds it), then the installed doors' ``end_frame``
-     (a recording of the session writes it; glitchygames/recording.py, Playback scopes). The
-     scene manager calls the two itself, so only the comparison's errors end the scope.
+     (a recording of the session writes it; glitchygames/recording.py, Playback scopes) with
+     their own frame time (``installed_frame_seconds``), not the played recording's dt the
+     frame ran with: the scope's first frame's time was read as the live frame before it
+     ended, on the installed doors, and advanced the live frame clock and FPS event timer
+     there, so a replay of the session must be served that time as that frame ends (BUGS.md
+     #196). The scene manager calls the two itself, so only the comparison's errors end the
+     scope.
    - ``captures_scene_starts`` is True; ``stop_requested``, pacing, holding, presenting and
      the overlay are the installed doors' (the scope never stops the run), except while
      fast-forwarding (rule 6).
@@ -394,6 +400,10 @@ class PlaybackSources:
             is the scope's own (``SceneManager._exit_playback`` drops those as it ends), but
             for the live game's supervisors' and handlers' (``recording.live_game_posts``,
             posted again as it ends).
+        installed_frame_seconds: The installed doors' answer to the last ``frame_seconds``
+            call (the live measurement, or the session's recorded dt when it is replayed), or
+            None before the first: the frame time the installed doors' ``end_frame`` gets
+            (rule 5), not the played recording's that the frame runs with.
 
     """
 
@@ -436,6 +446,7 @@ class PlaybackSources:
         self.input_posts_at_pump: list[tuple[int, dict[str, Any]]] = []
         self.live_posts_before_scope: list[tuple[int, dict[str, Any]]] = []
         self.has_pumped = False
+        self.installed_frame_seconds: float | None = None
 
     def _note_end(self: Self, *, reason: PlaybackEndReason) -> None:
         """Keep why the scope should end; the first reason found wins (``end_reason``)."""
@@ -648,11 +659,15 @@ class PlaybackSources:
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Return the recording's dt, after asking the installed doors as always.
 
+        The installed doors' answer is kept (``installed_frame_seconds``) for their
+        ``end_frame``.
+
         Returns:
             Seconds (past the recording's end, the installed doors' answer).
 
         """
-        return self.replay.frame_seconds(measured=self.base.frame_seconds(measured=measured))
+        self.installed_frame_seconds = self.base.frame_seconds(measured=measured)
+        return self.replay.frame_seconds(measured=self.installed_frame_seconds)
 
     def performance_frame_seconds(self: Self, *, measured: float, frame_seconds: float) -> float:
         """Return the installed doors' frame time for FPS events and the statistics.

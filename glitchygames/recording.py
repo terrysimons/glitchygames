@@ -142,7 +142,11 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
   replays the exit press and the scene's posts as they happened.
 - ``input_changes``: the player's polled input (the scope reads the installed doors' snapshot
   every frame, then serves the recording's to the scene).
-- ``dt``: the frame times the frames ran with, which are the played recording's.
+- ``dt``: the installed doors' frame times (the live measurements), not the played
+  recording's that the frames ran with (the scope serves those, and serves them again when the
+  session is replayed). The scope's first frame's time was read as the live frame before it
+  ended and advanced the live frame clock and FPS event timer, so a replay of the session must
+  be served it there (BUGS.md #196).
 - The sprites: the active scene's, which is the playback scene.
 - ``control_events``: a ``playback`` marker (``{"kind": "playback", "source": <"demo" or
   "instant">, "frames": <frames to play>}``; glitchygames/supervision.py) on the frame the

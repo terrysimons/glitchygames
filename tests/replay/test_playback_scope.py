@@ -100,6 +100,9 @@ LATER_SCENE_FRAME = 4
 SCRIPTED_MOUSE_POSITION = (123, 45)
 # FPS events every other frame at 60 FPS (posted each half interval: 25 ms)
 FPS_EVENT_INTERVAL_MILLISECONDS = 50
+# A live frame longer than half the default FPS log interval (an FPS event after it), as on a
+# loaded machine (BUGS.md #196)
+LONG_LIVE_FRAME_SECONDS = 0.75
 
 
 def recorded_trace(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -652,6 +655,87 @@ class TestRecordingDuringAPlayback:
             replay_sources.finish_run()
             assert replay_sources.result.divergence is None
             assert replay_sources.result.frames_replayed == len(session_frames)
+
+    def test_a_session_whose_scope_began_after_a_long_frame_replays_exactly(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """The scope's first frame records the live frame time, which ended the frame before.
+
+        The live frame that asks for the playback ends on the live doors: its frame time
+        advances the frame clock and posts an FPS event (a long frame, as on a loaded machine),
+        before the next frame enters the scope and takes the played recording's dt. A replay of
+        the session asks the recording for that frame time as the frame before the scope ends,
+        so the recording must hold the live one (BUGS.md #196: it held the played recording's,
+        and the replay missed the FPS event and its frame clock fell behind the session's).
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        session_path = tmp_path / 'session.jsonl.gz'
+        live_frame_seconds = mocker.patch.object(
+            LiveSources, 'frame_seconds', return_value=FRAME_SECONDS
+        )
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            self._play_after_a_long_frame(
+                manager=manager,
+                recording_path=recording_path,
+                live_frame_seconds=live_frame_seconds,
+            )
+            engine.stop_trace_recording()
+        _header, session_frames = recorded_trace(path=session_path)
+        scope_start_frame = LIVE_FRAMES_BEFORE
+        assert session_frames[scope_start_frame]['control_events'] == [
+            {'kind': PLAYBACK_KIND, 'source': 'demo', 'frames': SHORT_RECORDED_FRAMES}
+        ]
+        assert session_frames[scope_start_frame]['dt'] == LONG_LIVE_FRAME_SECONDS
+        # The long frame posted the FPS event the scope's first pump drained
+        assert {'type': FPSEVENT, 'fps': 1.0 / LONG_LIVE_FRAME_SECONDS} in [
+            {'type': record['type'], **record['attributes']}
+            for batch in session_frames[scope_start_frame]['event_batches']
+            for record in batch
+        ]
+        with running_scene(
+            CountingScene, extra_arguments=['--replay-trace', str(session_path), '--headless']
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            self._play_after_a_long_frame(
+                manager=manager,
+                recording_path=recording_path,
+                live_frame_seconds=live_frame_seconds,
+            )
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None
+            assert replay_sources.result.frames_replayed == len(session_frames)
+
+    @staticmethod
+    def _play_after_a_long_frame(
+        *, manager: Any, recording_path: Path, live_frame_seconds: Any
+    ) -> None:
+        """Run live frames, the last of them long, then a playback and live frames after it.
+
+        Frames run as start() runs them (``step_finishing``), so the frame clock advances and
+        FPS events are posted from each frame's time. The long frame's time is read as it ends
+        (the start of the scope's first frame), so the scope begins right after it. The live
+        doors answer with the measurement they are given, which entering the scope gives them
+        again, so the long time stays the answer until the scope's first frame has ended.
+        """
+        step_finishing(manager, frames=LIVE_FRAMES_BEFORE - 1)
+        live_frame_seconds.return_value = LONG_LIVE_FRAME_SECONDS
+        step_finishing(manager)
+        start_playback_from_recording(
+            manager=manager, path=recording_path, then=active_counting_scene(manager)
+        )
+        step_finishing(manager)
+        live_frame_seconds.return_value = FRAME_SECONDS
+        step_finishing(manager, frames=SHORT_RECORDED_FRAMES - 1 + LIVE_FRAMES_AFTER)
+        assert manager.playback_session is None
+        result = manager.last_playback_result
+        assert result is not None
+        assert result.divergence is None
 
     @staticmethod
     def _play_in_the_session(*, manager: Any, recording_path: Path) -> None:

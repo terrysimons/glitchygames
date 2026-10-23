@@ -1830,11 +1830,14 @@ class SceneManager(SceneInterface, events.EventManager):
         self._begin_scene_logic_frame()
         self._begin_journal_frame()
         frame_dt = self.dt
+        installed_frame_dt = self._installed_doors_frame_seconds(frame_dt=frame_dt)
         self._run_in_playback_scope(step=self._run_frame_contents)
         processing_seconds = measured_seconds() - work_started_seconds - self._frame_present_seconds
         session = self._playback_session
         if session is None:
-            self._end_frame_at_doors(frame_dt=frame_dt, processing_seconds=processing_seconds)
+            self._end_frame_at_doors(
+                frame_dt=installed_frame_dt, processing_seconds=processing_seconds
+            )
             self._journal_frame(frame_dt=frame_dt)
         else:
             scoped_sources = session.sources
@@ -1850,13 +1853,39 @@ class SceneManager(SceneInterface, events.EventManager):
             )
             scoped_sources.base.end_frame(
                 frame_number=self.frame_number,
-                dt=frame_dt,
+                dt=installed_frame_dt,
                 scene=self.active_scene,
                 control_events=self._frame_control_events,
                 processing_seconds=processing_seconds,
             )
         self._frame_control_events = []
         self.frame_number += 1
+
+    def _installed_doors_frame_seconds(self: Self, *, frame_dt: float) -> float:
+        """Return the frame time the installed doors gave this frame, for their ``end_frame``.
+
+        Outside a playback scope it is the frame's dt. Inside one the frame runs with the
+        played recording's dt, while the installed doors answered with the live frame time (or,
+        in a replay of the session, its recorded one): a recording of the session must hold
+        that, because the scope's first frame's time was read as the live frame before it
+        ended and advanced the live frame clock and FPS event timer (BUGS.md #196;
+        glitchygames/replay/playback.py, rule 5).
+
+        Args:
+            frame_dt: The frame's dt, read before the frame ran.
+
+        Returns:
+            Seconds.
+
+        """
+        session = self._playback_session
+        if session is None:
+            return frame_dt
+        installed_frame_seconds = session.sources.installed_frame_seconds
+        # Entering the scope asks its doors for the frame time (_enter_playback), and every
+        # later frame's time is asked as the frame before it ends (_finish_frame)
+        assert installed_frame_seconds is not None, 'the scope never asked for a frame time'
+        return installed_frame_seconds
 
     def _begin_scene_logic_frame(self: Self) -> None:
         """Complete the active scene's start as its first logic frame begins (scene_start.py).
