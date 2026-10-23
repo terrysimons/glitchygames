@@ -68,11 +68,11 @@ type JsonShapedValue = (
 )
 
 
-@overload
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
 def frozen_json_value(value: Mapping[str, JsonShapedValue]) -> Mapping[str, FrozenJsonValue]: ...
 
 
-@overload
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
 def frozen_json_value(value: JsonShapedValue) -> FrozenJsonValue: ...
 
 
@@ -94,11 +94,11 @@ def frozen_json_value(value: object) -> object:
     return value
 
 
-@overload
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
 def thawed_json_value(value: Mapping[str, JsonShapedValue]) -> dict[str, JsonValue]: ...
 
 
-@overload
+@overload  # pragma: no cover - a typing stub, never called (the implementation below is)
 def thawed_json_value(value: JsonShapedValue) -> JsonValue: ...
 
 

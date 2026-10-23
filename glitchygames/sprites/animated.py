@@ -368,14 +368,15 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         drawn_hitbox.move_ip(draw_offset_x, draw_offset_y)
         return drawn_hitbox
 
-    def _frame_anchor_reference(self: Self) -> pygame.Rect | None:
+    def _frame_anchor_reference(self: Self) -> pygame.Rect:
         """Return the native hitbox every anchored frame is aligned to.
 
         The sprite-level default hitbox if there is one, else the union of all frames'
-        hitboxes (so every anchor point has a well-defined reference).
+        hitboxes (so every anchor point has a well-defined reference). Asked only for one of
+        the sprite's own frames (draw_offset, common_hitbox_x_range), so there is always one.
 
         Returns:
-            pygame.Rect | None: The reference hitbox, or None without frames.
+            pygame.Rect: The reference hitbox.
 
         """
         if self._default_hitbox is not None:
@@ -388,19 +389,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if cached_entry is None or cached_entry[0] != current_frames:
             cached_entry = (current_frames, self._union_of_frame_hitboxes(current_frames))
             self._frame_anchor_reference_cache = cached_entry
-        cached_reference = cached_entry[1]
-        return None if cached_reference is None else cached_reference.copy()
+        return cached_entry[1].copy()
 
-    def _union_of_frame_hitboxes(self: Self, frames: tuple[SpriteFrame, ...]) -> pygame.Rect | None:
+    def _union_of_frame_hitboxes(self: Self, frames: tuple[SpriteFrame, ...]) -> pygame.Rect:
         """Return the union of the given frames' native hitboxes.
 
         Returns:
-            pygame.Rect | None: The union, or None for no frames.
+            pygame.Rect: The union.
 
         """
+        assert frames, 'the anchor reference is built only while the sprite has a frame'
         frame_hitboxes = [self._native_frame_hitbox(frame) for frame in frames]
-        if not frame_hitboxes:
-            return None
         return frame_hitboxes[0].unionall(frame_hitboxes[1:])
 
     def _frame_draw_offset(self: Self, frame: SpriteFrame) -> tuple[int, int]:
@@ -413,8 +412,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if self.frame_anchor is FrameAnchor.NONE:
             return (0, 0)
         reference = self._frame_anchor_reference()
-        if reference is None:
-            return (0, 0)
         frame_hitbox = self._native_frame_hitbox(frame)
         horizontal_edge, vertical_edge = _FRAME_ANCHOR_EDGES[self.frame_anchor]
         # Computed in authored (unflipped) native pixels, doubled so centres stay exact
@@ -657,9 +654,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # for world sprites, a game placing rect itself must (see FrameAnchor's contract)
         self.frame_anchor: FrameAnchor = FrameAnchor.NONE
         # (frames it was built from, union of their hitboxes); see _frame_anchor_reference
-        self._frame_anchor_reference_cache: (
-            tuple[tuple[SpriteFrame, ...], pygame.Rect | None] | None
-        ) = None
+        self._frame_anchor_reference_cache: tuple[tuple[SpriteFrame, ...], pygame.Rect] | None = (
+            None
+        )
 
         if filename:
             self.load(filename)

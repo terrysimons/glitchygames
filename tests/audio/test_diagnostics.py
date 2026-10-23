@@ -17,6 +17,7 @@ from glitchygames.audio.diagnostics import (
     find_silent_gaps,
     measure_lock_wait,
 )
+from glitchygames.timing import FastTimer
 
 SAMPLE_RATE = 44100
 BUFFER_SAMPLES = 512
@@ -209,3 +210,25 @@ class TestMeasureLockWait:
             maximum_milliseconds=0.0,
             sample_count=0,
         )
+
+
+class TestPaceUntil:
+    """Tests for _pace_until without yielding in the spin."""
+
+    def test_a_frame_with_time_to_spare_sleeps_coarsely_then_spins_to_the_deadline(self, mocker):
+        """It sleeps until SLEEP_MARGIN_SECONDS before the deadline, then spins the rest.
+
+        The sleep is replaced (it returns at once): a real one runs late by about a quarter of
+        its length on macOS, often past the deadline, which left the spin unrun and its line
+        uncovered in some runs.
+        """
+        coarse_sleep = mocker.patch.object(diagnostics.time, 'sleep')
+        wait_seconds = 0.02
+        deadline_ns = diagnostics.time.perf_counter_ns() + int(wait_seconds * 1e9)
+
+        diagnostics._pace_until(deadline_ns=deadline_ns, timer=FastTimer(), yield_in_spin=False)
+
+        assert diagnostics.time.perf_counter_ns() >= deadline_ns
+        (sleep_call,) = coarse_sleep.call_args_list
+        (slept_seconds,) = sleep_call.args
+        assert 0.0 < slept_seconds <= wait_seconds - diagnostics.SLEEP_MARGIN_SECONDS

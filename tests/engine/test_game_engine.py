@@ -1114,6 +1114,35 @@ class TestUnhandledEventTracking:
         assert performance_manager._target_fps == engine.fps
 
 
+class TestSceneManagerGameEngineSetter:
+    """SceneManager.game_engine's setter configures the performance manager from the engine."""
+
+    def test_setting_the_engine_configures_the_performance_manager(self, mocker):
+        """The setter itself gives the performance manager the engine's interval and target FPS.
+
+        GameEngine.start configures the performance manager again later, which once hid an
+        edit that moved this configuration out of the setter: the setter is tested alone here.
+        """
+        from glitchygames.performance import performance_manager
+        from glitchygames.scenes import SceneManager
+
+        # The real manager is process-wide: put its settings back after the test
+        mocker.patch.object(
+            performance_manager, '_fps_log_interval_ms', performance_manager._fps_log_interval_ms
+        )
+        mocker.patch.object(performance_manager, '_target_fps', performance_manager._target_fps)
+        # The setter copies the engine's options onto the SceneManager class
+        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
+        engine = _make_engine(mocker, '--target-fps', '30', '--fps-log-interval-ms', '250')
+        performance_manager.set_fps_log_interval(interval_ms=1000.0)
+        performance_manager.set_target_fps(target_fps=0.0)
+
+        engine.scene_manager.game_engine = engine
+
+        assert performance_manager._fps_log_interval_ms == 250.0
+        assert performance_manager._target_fps == 30.0
+
+
 class TestPostGameEvent:
     """Test GameEngine.post_game_event method."""
 
