@@ -39,7 +39,7 @@ MANIFEST
 *.manifest
 *.spec
 # ...except Bitmappy's hand-written spec, which `nox -s build-binary` builds from
-!bitmappy.spec
+!/bitmappy.spec
 
 # Installer logs
 pip-log.txt
@@ -174,3 +174,24 @@ cython_debug/
 # macOS .DS_Store files
 .DS_Store
 site/
+
+# Generated reports (nox -s bandit-scan / safety-scan) and API client output
+bandit-report.json
+safety-report.json
+/auto-generated/
+
+# Rejected or leftover patch files
+*.rej
+*.orig
+
+# Personal sprite work kept on disk, outside git (move any you want into
+# glitchygames/examples/resources/sprites/ to track it)
+/bkp/
+/slime-jump*.toml
+/bomb-animation.toml2
+/glitchy-torch
+/jack
+/jack-o-lantern
+/bomb2.png
+/leprechan-128x128.png
+/leprechaun2-128x128.png
