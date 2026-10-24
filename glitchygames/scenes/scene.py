@@ -1630,6 +1630,23 @@ class SceneManager(SceneInterface, events.EventManager):
         Each frame starts at the previous frame's closing perf_counter() reading and ends in
         _finish_frame, which sets ``self.dt`` once, to that frame's start-to-start period, so
         logic in frame N receives the time frame N-1 took (engine audit #15).
+
+        The blocking frame loop: ``begin_frames``, then ``run_frame_step`` while
+        ``should_run_frames``, then ``end_frames``. An outer driver that must give control back
+        between frames (a browser; glitchygames/host.py ``GameHost.run_async``) runs the same
+        steps itself, one per tick, unpaced.
+        """
+        frame_start_seconds = self.begin_frames()
+        while self.should_run_frames():
+            frame_start_seconds = self.run_frame_step(frame_start_seconds=frame_start_seconds)
+        self.end_frames()
+
+    def begin_frames(self: Self) -> float:
+        """Begin the run's frames: the frame clock's first reading and the first frame's dt.
+
+        Returns:
+            The perf_counter() reading the first frame starts at.
+
         """
         frame_start_seconds: float = time.perf_counter()
         self._previous_fps_event_seconds = frame_clock_seconds()
@@ -1637,51 +1654,78 @@ class SceneManager(SceneInterface, events.EventManager):
         # above, as before (a replay's frame-time door returns the recorded first dt)
         self._set_frame_time(measured=time.perf_counter() - frame_start_seconds)
         mark_frames_started()
+        return frame_start_seconds
 
-        while (
+    def should_run_frames(self: Self) -> bool:
+        """Return True while a scene is active, no quit was requested and the doors go on.
+
+        Returns:
+            Whether the frame loop continues.
+
+        """
+        return (
             self.active_scene is not None
             and self.quit_requested is False
             and not active_sources().stop_requested
-        ):
-            # The doors may hold the loop between frames (a paused watched replay): no frame
-            # runs, the last one is presented again with the doors' overlay
-            if active_sources().hold_frame():
-                # Unless the hold ended the run (the viewer quit): nothing more to show
-                if not active_sources().stop_requested:
-                    self._present_held_frame()
-                # The hold is not part of the next frame's measured time
-                frame_start_seconds = time.perf_counter()
-                continue
+        )
 
-            # Frame pacing using timer backend when available
-            # None without an engine (a bare SceneManager) or before the engine made its timer
-            game_engine = self.game_engine
-            timer = game_engine.timer if game_engine is not None else None
-            # The doors may pace the frame themselves (0.0: not at all, in a headless replay)
-            paced_seconds = active_sources().paced_frame_seconds()
-            period_ns = 0
-            if timer is not None:
-                period_ns = (
-                    timer.start_frame(self.target_fps)
-                    if paced_seconds is None
-                    else round(paced_seconds * 1_000_000_000)
-                )
+    def run_frame_step(self: Self, *, frame_start_seconds: float, paced: bool = True) -> float:
+        """Run one step of the frame loop: one frame, or a held frame presented again.
 
-            self._run_frame()
+        Args:
+            frame_start_seconds: The perf_counter() reading this frame starts at (the previous
+                step's return value, or ``begin_frames``').
+            paced: True (``start``) paces the frame as always: the timer backend's deadline,
+                else the pygame clock, or the doors' pacing. False (an outer driver that waits
+                for its own tick, ``GameHost.run_async``) never waits or calibrates a timer:
+                the wait for the next tick is the pacing, and is measured into the next
+                frame's start-to-start dt like a pacing sleep.
 
-            # The frame's processing time: its work, without the pacing sleep that follows
-            processing_seconds = time.perf_counter() - frame_start_seconds
+        Returns:
+            The perf_counter() reading the next frame starts at.
 
-            frame_start_seconds = self._finish_frame(
-                frame_start_seconds=frame_start_seconds,
-                timer=timer,
-                period_ns=period_ns,
-                paced_seconds=paced_seconds,
-                processing_seconds=processing_seconds,
+        """
+        # The doors may hold the loop between frames (a paused watched replay): no frame
+        # runs, the last one is presented again with the doors' overlay
+        if active_sources().hold_frame():
+            # Unless the hold ended the run (the viewer quit): nothing more to show
+            if not active_sources().stop_requested:
+                self._present_held_frame()
+            # The hold is not part of the next frame's measured time
+            return time.perf_counter()
+
+        # Frame pacing using timer backend when available
+        # None without an engine (a bare SceneManager) or before the engine made its timer
+        game_engine = self.game_engine
+        timer = game_engine.timer if game_engine is not None and paced else None
+        # The doors may pace the frame themselves (0.0: not at all, in a headless replay);
+        # an unpaced step is never paced here
+        paced_seconds = active_sources().paced_frame_seconds() if paced else 0.0
+        period_ns = 0
+        if timer is not None:
+            period_ns = (
+                timer.start_frame(self.target_fps)
+                if paced_seconds is None
+                else round(paced_seconds * 1_000_000_000)
             )
 
+        self._run_frame()
+
+        # The frame's processing time: its work, without the pacing sleep that follows
+        processing_seconds = time.perf_counter() - frame_start_seconds
+
+        return self._finish_frame(
+            frame_start_seconds=frame_start_seconds,
+            timer=timer,
+            period_ns=period_ns,
+            paced_seconds=paced_seconds,
+            processing_seconds=processing_seconds,
+        )
+
+    def end_frames(self: Self) -> None:
+        """End the run's frames: log why they ended and terminate the scene manager."""
         self._log_quit_info()
-        return self.terminate()
+        self.terminate()
 
     def _present_held_frame(self: Self) -> None:
         """Present the latest frame while the doors hold the loop (a watched replay's outer tick).

@@ -1168,6 +1168,38 @@ def _compare_driver_configurations(
     )
 
 
+@nox.session(venv_backend='none', name='browser', default=False)
+def browser(session: nox.Session) -> None:
+    """Build a game for the browser (PyScript, Pyodide 314) and serve it on localhost.
+
+    scripts/build_browser_bundle.py writes build/browser/<game>: the page, the engine and our
+    pygame-ce wheel. The wheel is built from the third_party/pygame-ce submodule the first time
+    (several minutes; run ``git submodule update --init`` first) and reused while the submodule
+    stays at the same commit. The page opens in the default browser; click it to play. Design:
+    plans/2026-10-23-game-host-and-browser-runner.md.
+
+    Usage:
+        nox -s browser                                   # PaddleSlap
+        nox -s browser -- mr-muncher                     # Another game
+        nox -s browser -- clockwork-keep --port 9000     # Builder options after the game
+        nox -s browser -- paddleslap -- --target-fps 30  # The game's own options after a --
+    """
+    arguments = session.posargs or ['paddleslap']
+    session.run(
+        'uv',
+        'run',
+        '--frozen',
+        'python',
+        'scripts/build_browser_bundle.py',
+        # Before the game's own arguments, which may follow a -- that ends the builder's options
+        '--serve',
+        *arguments,
+        external=True,
+        # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
+        env={'VIRTUAL_ENV': None},
+    )
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='timer-report', default=False)
 def timer_report(session: nox.Session) -> None:
     """Report this machine's timer accuracy (diagnostic; always succeeds).

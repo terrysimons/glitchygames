@@ -14,17 +14,21 @@ snapshot's ``device_*`` fields) and the controller layer (``Controller.get_axis`
 ``get_button`` by ``pygame.CONTROLLER_AXIS_*`` / ``CONTROLLER_BUTTON_*`` id, axes on pygame's
 int scale, in the snapshot's ``controller_*`` fields). Each stand-in reads the layer its live
 counterpart reads, so live and replay answer the same.
+
+``pygame._sdl2.controller`` is optional (``sdl_controller_module``): a pygame-ce build without
+it (stock Pyodide's WebAssembly build, which compiles it in but never registers it) answers
+like SDL with no game controllers plugged in, and those answers are remembered as usual.
 """
 
 from __future__ import annotations
 
 import collections
 import dataclasses
+import importlib
 import logging
 from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import pygame
-import pygame._sdl2.controller
 
 from glitchygames.input.state import (
     ControllerAxes,
@@ -38,11 +42,43 @@ from glitchygames.sources import notify_device_answer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from types import ModuleType
 
+    # Type only: the module is optional at runtime (sdl_controller_module). The lazily
+    # evaluated `type OpenedController` alias below is what ruff counts as a runtime use
+    import pygame._sdl2.controller  # ruff: ignore[runtime-import-in-type-checking-block] - see above
     from pygame.typing import ColorLike
 
 LOG = logging.getLogger('game.input.devices')
 LOG.addHandler(logging.NullHandler())
+
+
+def _import_sdl_controller_module() -> ModuleType | None:
+    """Import pygame._sdl2.controller, or return None where this pygame build lacks it.
+
+    Returns:
+        The module, or None.
+
+    """
+    try:
+        return importlib.import_module('pygame._sdl2.controller')
+    except ImportError:
+        LOG.info('pygame._sdl2.controller is unavailable: game controllers are not supported')
+        return None
+
+
+_SDL_CONTROLLER_MODULE = _import_sdl_controller_module()
+
+
+def sdl_controller_module() -> ModuleType | None:
+    """Return pygame._sdl2.controller, or None in a pygame build without it.
+
+    Returns:
+        The module, or None.
+
+    """
+    return _SDL_CONTROLLER_MODULE
+
 
 JOYSTICK_KIND = 'joystick'
 CONTROLLER_KIND = 'controller'
@@ -369,8 +405,10 @@ class LiveDeviceRegistry:
             pygame.error: If SDL cannot answer (remembered too).
 
         """
+        controller_module = sdl_controller_module()
         try:
-            count = int(pygame._sdl2.controller.get_count())
+            # No controller module: like SDL with no game controller plugged in
+            count = 0 if controller_module is None else int(controller_module.get_count())
         except pygame.error as error:
             self._remember_failure(call=CONTROLLER_COUNT_CALL, device_index=None, error=error)
             raise
@@ -390,8 +428,13 @@ class LiveDeviceRegistry:
             pygame.error: If SDL cannot answer (remembered too).
 
         """
+        controller_module = sdl_controller_module()
         try:
-            flag = bool(pygame._sdl2.controller.is_controller(device_index))
+            flag = (
+                False
+                if controller_module is None
+                else bool(controller_module.is_controller(device_index))
+            )
         except pygame.error as error:
             self._remember_failure(call=IS_CONTROLLER_CALL, device_index=device_index, error=error)
             raise
@@ -415,7 +458,7 @@ class LiveDeviceRegistry:
 
         """
         name_lookup: Callable[[int], object] | None = getattr(
-            pygame._sdl2.controller, 'name_forindex', None
+            sdl_controller_module(), 'name_forindex', None
         )
         try:
             sdl_name = None if name_lookup is None else name_lookup(device_index)
@@ -466,11 +509,19 @@ class LiveDeviceRegistry:
             The pygame controller.
 
         Raises:
-            pygame.error: If the device is gone (unplugged since it was counted; remembered).
+            pygame.error: If the device is gone (unplugged since it was counted; remembered),
+                or this pygame build has no game controller module (remembered too).
 
         """
+        controller_module = sdl_controller_module()
+        if controller_module is None:
+            unavailable = pygame.error('game controllers are unavailable in this pygame build')
+            self._remember_failure(
+                call=OPEN_CONTROLLER_CALL, device_index=device_index, error=unavailable
+            )
+            raise unavailable
         try:
-            controller = pygame._sdl2.controller.Controller(device_index)
+            controller = controller_module.Controller(device_index)
         except pygame.error as error:
             self._remember_failure(
                 call=OPEN_CONTROLLER_CALL, device_index=device_index, error=error

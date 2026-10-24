@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from glitchygames.input.devices import OpenedController
 
 import pygame
-import pygame._sdl2.controller
 
 from glitchygames.events import (
     CONTROLLER_EVENTS,
@@ -29,11 +28,29 @@ from glitchygames.events import (
     HashableEvent,
     ResourceManager,
 )
+from glitchygames.input.devices import sdl_controller_module
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
 
-# Pygame has a bug where _sdl2 isn't visible in certain contexts
-pygame.controller = pygame._sdl2.controller  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+
+def alias_controller_module() -> bool:
+    """Expose pygame._sdl2.controller as pygame.controller, where this pygame build has it.
+
+    Pygame has a bug where _sdl2 isn't visible in certain contexts. Stock Pyodide's pygame-ce
+    has no controller module at all (input/devices.py ``sdl_controller_module``).
+
+    Returns:
+        True when the alias was set.
+
+    """
+    controller_module = sdl_controller_module()
+    if controller_module is None:
+        return False
+    pygame.controller = controller_module  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+    return True
+
+
+alias_controller_module()
 
 LOG: logging.Logger = logging.getLogger('game.controllers')
 LOG.addHandler(logging.NullHandler())
@@ -345,10 +362,14 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         self.game: Any = game
 
         # This must be called before other controller methods,
-        # and is safe to call more than once.
-        pygame._sdl2.controller.init()
-
-        self.log.debug('Controller Module Inited: %s', pygame._sdl2.controller.get_init())
+        # and is safe to call more than once. A pygame build without the controller module has
+        # nothing to initialize: its devices door reports no controllers (input/devices.py)
+        controller_module = sdl_controller_module()
+        if controller_module is None:
+            self.log.info('Controller Module unavailable in this pygame build: no controllers')
+        else:
+            controller_module.init()
+            self.log.debug('Controller Module Inited: %s', controller_module.get_init())
 
         # Enumerated through the devices door (glitchygames/input/devices.py)
         devices = active_sources().devices()

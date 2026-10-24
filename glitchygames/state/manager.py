@@ -49,6 +49,40 @@ _DATA_KEY: str = 'data'
 # Save file extensions, in the order a slot's file is looked up
 _SLOT_FILE_EXTENSIONS: tuple[str, ...] = ('.json', '.toml')
 
+# Told the path of each slot file a DiskSaveManager wrote or deleted, after the change is complete
+# (observe_disk_save_changes). A browser host flushes its persistent storage there: Pyodide's
+# files live in memory until synced to IndexedDB (plans/2026-10-23-game-host-and-browser-runner.md)
+_DISK_SAVE_CHANGE_OBSERVERS: list[Callable[[Path], None]] = []
+
+
+def observe_disk_save_changes(*, observer: Callable[[Path], None]) -> None:
+    """Call ``observer`` with each save file's path after a DiskSaveManager writes or deletes it.
+
+    Replays never call it: their stores are MemorySaveManagers (glitchygames/state/sandbox.py).
+
+    Args:
+        observer: Called with the written or deleted file's path.
+
+    """
+    _DISK_SAVE_CHANGE_OBSERVERS.append(observer)
+
+
+def stop_observing_disk_save_changes(*, observer: Callable[[Path], None]) -> None:
+    """Stop calling ``observer`` (nothing if it was not observing).
+
+    Args:
+        observer: An observer given to ``observe_disk_save_changes``.
+
+    """
+    with contextlib.suppress(ValueError):
+        _DISK_SAVE_CHANGE_OBSERVERS.remove(observer)
+
+
+def _notify_disk_save_changed(*, path: Path) -> None:
+    # A copy: an observer may stop observing while it is told
+    for observer in _DISK_SAVE_CHANGE_OBSERVERS.copy():
+        observer(path)
+
 
 def _get_engine_version() -> str:
     """Get the installed glitchygames engine version.
@@ -606,6 +640,7 @@ class DiskSaveManager(SaveManager):
 
         # Atomic write: temp file in same dir → os.replace()
         self._atomic_write(save_path, content)
+        _notify_disk_save_changed(path=save_path)
         return save_path
 
     @override
@@ -613,6 +648,7 @@ class DiskSaveManager(SaveManager):
         """Remove the slot's file."""
         del slot_name  # The file is enough (SaveManager signature)
         path.unlink()
+        _notify_disk_save_changed(path=path)
 
     @override
     def _read_slot_info(self, *, path: Path) -> SaveSlotInfo:

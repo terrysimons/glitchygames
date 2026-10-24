@@ -176,3 +176,65 @@ def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker
     sm.start()
 
     assert fake_timer.start_frame_targets[0] == 60.5
+
+
+def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypatch, mocker):
+    """An outer driver's steps (paced=False) run real frames but never wait or calibrate.
+
+    glitchygames/host.py's async runner waits for its own tick (a browser animation frame)
+    between steps, so the step itself must neither ask the timer backend (whose first paced
+    frame may measure the sleep model, sleeping) nor tick the pacing clock. The wait still
+    counts in the next frame's start-to-start dt, as a pacing sleep does.
+    """
+    sm = SceneManager()
+    fake_timer = FakeTimer()
+    engine_mock = mocker.Mock()
+    engine_mock.OPTIONS = {
+        'update_type': 'update',
+        'fps_log_interval_ms': 1000,
+        'target_fps': 60,
+        'log_timer_jitter': False,
+    }
+    engine_mock.timer = fake_timer
+    sm.game_engine = engine_mock
+    sm.target_fps = 60
+    # The stand-in engine has no event managers; every other frame step runs for real
+    monkeypatch.setattr(sm, '_process_events', lambda: None)
+    # pygame.time.Clock's methods are read-only: wrap the clock to watch its tick
+    sm.clock = mocker.Mock(wraps=sm.clock)
+    scene = PacedScene()
+    sm.switch_to_scene(scene)
+
+    frame_start_seconds = sm.begin_frames()
+    for _ in range(3):
+        assert sm.should_run_frames()
+        frame_start_seconds = sm.run_frame_step(
+            frame_start_seconds=frame_start_seconds, paced=False
+        )
+
+    assert scene.ticks == 3
+    assert fake_timer.start_calls == 0
+    assert fake_timer.sleep_calls == 0
+    sm.clock.tick.assert_not_called()
+    # Each frame's dt is measured start to start, as in the paced loop
+    assert sm.dt > 0
+
+
+def test_frame_steps_end_with_end_frames(monkeypatch, mocker):
+    """should_run_frames turns False once a quit is requested; end_frames terminates."""
+    sm = SceneManager()
+    engine_mock = mocker.Mock()
+    engine_mock.OPTIONS = {'update_type': 'update', 'fps_log_interval_ms': 1000}
+    engine_mock.timer = None
+    sm.game_engine = engine_mock
+    monkeypatch.setattr(sm, '_process_events', lambda: None)
+    terminate = mocker.spy(sm, 'terminate')
+    sm.switch_to_scene(PacedScene())
+
+    frame_start_seconds = sm.begin_frames()
+    sm.run_frame_step(frame_start_seconds=frame_start_seconds, paced=False)
+    sm.quit_requested = True
+
+    assert sm.should_run_frames() is False
+    sm.end_frames()
+    terminate.assert_called_once_with()

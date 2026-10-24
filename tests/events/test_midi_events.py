@@ -23,7 +23,7 @@ from glitchygames.events import (
     MidiEventStubs,
     UnhandledEventError,
 )
-from glitchygames.events.midi import MidiEventManager
+from glitchygames.events.midi import MidiEventManager, import_midi_module
 from glitchygames.scenes import Scene
 
 EVENT_TEST_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
@@ -454,3 +454,42 @@ class TestMidiEventManagerArgs:
         result = MidiEventManager.args(parser)
 
         assert result is parser
+
+
+# ---------------------------------------------------------------------------
+# pygame.midi is optional (WebAssembly pygame builds have no PortMidi)
+# ---------------------------------------------------------------------------
+
+
+class TestOptionalMidiModule:
+    """pygame.midi is proxied where pygame has it and left out where it does not."""
+
+    def test_proxy_includes_pygame_midi_when_available(self):
+        """Desktop pygame has PortMidi: the proxy asks pygame.midi after the game."""
+        game = GameWithoutMidiHandlers()
+        proxy = MidiEventManager(game=game).proxies[0]
+
+        assert proxy.proxies == [game, pygame.midi]
+
+    def test_proxy_has_only_the_game_without_pygame_midi(self, mocker):
+        """Without pygame.midi (a WebAssembly build) the proxy forwards to the game only."""
+        mocker.patch('glitchygames.events.midi.MIDI_MODULE', None)
+        game = GameWithoutMidiHandlers()
+        proxy = MidiEventManager(game=game).proxies[0]
+
+        assert proxy.proxies == [game]
+
+    def test_import_midi_module_returns_pygame_midi(self):
+        """The import helper returns pygame.midi where it imports."""
+        assert import_midi_module() is pygame.midi
+
+    def test_import_midi_module_is_none_when_pygame_midi_cannot_import(self, mocker, caplog):
+        """A pygame build without PortMidi (no pygame.pypm) gives None, logged once."""
+        mocker.patch(
+            'glitchygames.events.midi.importlib.import_module',
+            side_effect=ModuleNotFoundError("No module named 'pygame.pypm'"),
+        )
+        with caplog.at_level('INFO', logger='game.midi'):
+            assert import_midi_module() is None
+
+        assert 'pygame.midi is unavailable' in caplog.text

@@ -45,6 +45,7 @@ from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import ExitCode
 from glitchygames.fonts import FontManager
+from glitchygames.host import GameHost, HostSources
 from glitchygames.input.input_devices import InputDevices, InputMode
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
@@ -121,7 +122,7 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Mapping
+    from collections.abc import Awaitable, Callable, Generator, Mapping
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
@@ -139,6 +140,9 @@ PYGAME_MIN_MINOR_VERSION = 2
 UNKNOWN_SDL2_EVENT_TYPE_1543 = 1543
 
 GAME_NOT_INITIALIZED_MSG = 'Game not initialized.  Pass a game class to the GameEngine constructor.'
+ASYNC_RUN_NEEDS_HOST_MSG = (
+    'start_async() runs live games only: a replay has no game host (glitchygames/host.py)'
+)
 MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
@@ -993,16 +997,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # started late); _pump_events forgets the posts after each pump
         reset_internal_post_tracking()
         start_tracking_internal_posts()
-        install_sources(
-            sources=self.replay_sources
-            or LiveSources(
-                random_seed=self.random_seed,
-                use_fastevents=GameEngine.USE_FASTEVENTS,
-                # A recorded run captures scene starts from its first scene on, which is built
-                # before recording starts (glitchygames/scene_start.py)
-                captures_scene_starts=options.get('record_trace') is not None,
+        # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
+        # doors and drives the frames. A replay has no host (its viewer is its outer game)
+        self.host: GameHost | None = None
+        if self.replay_sources is None:
+            self.host = GameHost(
+                sources=HostSources(
+                    inner=LiveSources(
+                        random_seed=self.random_seed,
+                        use_fastevents=GameEngine.USE_FASTEVENTS,
+                        # A recorded run captures scene starts from its first scene on, which
+                        # is built before recording starts (glitchygames/scene_start.py)
+                        captures_scene_starts=options.get('record_trace') is not None,
+                    )
+                )
             )
-        )
+            install_sources(sources=self.host.sources)
+        else:
+            install_sources(sources=self.replay_sources)
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -1285,7 +1297,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Dump a bit more info about the configured mode.
         self.log.info('Display Driver: %s', pygame.display.get_driver())
-        self.log.info('Display Info: %s', self.display_info)
+        # Formatted here, not by logging: LogRecord checks isinstance(args[0], Mapping), and
+        # pygame-ce's VidInfo raises AttributeError for __class__, which CPython 3.14.2
+        # (Pyodide 314's) lets through isinstance (fixed in the pygame-ce fork; see
+        # plans/2026-10-23-game-host-and-browser-runner.md)
+        self.log.info('Display Info: %s', str(self.display_info))  # ruff: ignore[logging-eager-conversion] - VidInfo breaks LogRecord's isinstance (above)
         self.log.info('Initial Resolution: %s', self.initial_resolution)
         self.log.info('8-bit Modes: %s', pygame.display.list_modes(8))
         self.log.info('16-bit Modes: %s', pygame.display.list_modes(16))
@@ -1636,9 +1652,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         registry = inner.devices()
         # A store a run started with --record-trace opened before recording started is in the
         # header as first opened: the first scene's setup() may have written to it since, and
-        # the replay runs that setup() again (LiveSources.first_open_save_snapshots)
+        # the replay runs that setup() again (LiveSources.first_open_save_snapshots, read
+        # through the host's doors in a hosted run)
         first_open_snapshots: Mapping[str, dict[str, Any]] = (
-            inner.first_open_save_snapshots if isinstance(inner, LiveSources) else {}
+            inner.first_open_save_snapshots if isinstance(inner, LiveSources | HostSources) else {}
         )
         # A rebaseline copies these fields from the replayed recording instead (rebaseline.py)
         header = {
@@ -2299,16 +2316,54 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         with its own code (``ReplayResult.exit_code`` under its exit policy), watched or
         headless.
 
+        How it ends (``_begin_start`` and ``_crash_boundary`` raise these): RuntimeError if the
+        game is not initialized; SystemExit with ``ExitCode.INTERNAL_ERROR`` after an uncaught
+        exception (logged with its traceback), ``ExitCode.INTERRUPTED`` after Ctrl-C
+        (KeyboardInterrupt), or whatever status a SystemExit raised during the run carries (a
+        signal handler's, a game's own), except a game's own successful exit that cuts a replay
+        short (``ExitCode.REPLAY_DIVERGED``; a rebaseline ends normally then, with what the game
+        ran); at the normal end of a replay, with the replay's exit code (``ExitCode.SUCCESS``,
+        ``ExitCode.REPLAY_DIVERGED`` or ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
+        """
+        profiler = self._begin_start()
+        with self._crash_boundary(profiler=profiler):
+            self._run_game()
+
+    async def start_async(self: Self, *, wait_for_tick: Callable[[], Awaitable[float]]) -> None:
+        """Start the game engine, giving control back to the caller between frames.
+
+        For a host that must not block (a browser: glitchygames/host.py). The run is
+        ``start()``'s, inside the same crash boundary (the same teardown and exit codes), but
+        its frames are driven by ``GameHost.run_async``: one awaited ``wait_for_tick()`` per
+        outer tick, an inner frame on the ticks ``TickPacer`` picks for the target FPS.
+
+        Args:
+            wait_for_tick: Waits for the next outer tick (a browser animation frame) and
+                returns its timestamp in seconds.
+
+        It ends as ``start()`` does (see there).
+
+        Raises:
+            RuntimeError: If the run is a replay (only live runs are hosted), or (from
+                ``_begin_start``) the game is not initialized.
+
+        """
+        if self.host is None:
+            raise RuntimeError(ASYNC_RUN_NEEDS_HOST_MSG)
+        host = self.host
+        profiler = self._begin_start()
+        with self._crash_boundary(profiler=profiler):
+            self._prepare_run()
+            await host.run_async(scene_manager=self.scene_manager, wait_for_tick=wait_for_tick)
+
+    def _begin_start(self: Self) -> cProfile.Profile | None:
+        """Log the start, check there is a game and start the profiler (``--profile``).
+
+        Returns:
+            The running profiler, or None.
+
         Raises:
             RuntimeError: If the game is not initialized.
-            SystemExit: With ``ExitCode.INTERNAL_ERROR`` after an uncaught exception (logged
-                with its traceback), ``ExitCode.INTERRUPTED`` after Ctrl-C (KeyboardInterrupt),
-                or whatever status a SystemExit raised during the run carries (a signal
-                handler's, a game's own), except a game's own successful exit that cuts a
-                replay short (``ExitCode.REPLAY_DIVERGED``; a rebaseline ends normally then,
-                with what the game ran); at the normal end of a replay, with
-                the replay's exit code (``ExitCode.SUCCESS``, ``ExitCode.REPLAY_DIVERGED`` or
-                ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
 
         """
         # This ensures that logging is enabled as soon as the game object is created.
@@ -2323,6 +2378,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # Enabled before the crash boundary, so the teardown prints only a profiler that ran
             profiler = cProfile.Profile()
             profiler.enable()
+        return profiler
+
+    @contextlib.contextmanager
+    def _crash_boundary(self: Self, *, profiler: cProfile.Profile | None) -> Generator[None]:
+        """Turn however the run in the ``with`` block ends into an exit code, after the teardown.
+
+        Shared by ``start()`` and ``start_async()`` (a synchronous ``with`` holds an ``await``
+        too). An exception it handles ends the run with its exit code; a SystemExit it does not
+        turn into one propagates, after the teardown. See ``start()``.
+
+        Args:
+            profiler: The run's profiler (``--profile``), printed by the teardown; or None.
+
+        Yields:
+            Nothing: the run goes in the ``with`` block.
+
+        Raises:
+            SystemExit: A SystemExit raised in the block that does not cut a replay short,
+                again after the teardown (``start()`` lists the endings).
+
+        """
         # Set when the run ends in a way that start() turns into an exit code
         exit_code: ExitCode | None = None
         run_error: Exception | None = None
@@ -2330,7 +2406,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         run_ended_by: str | None = None
         try:
             # The crash boundary: anything the run raises is turned into an exit code below
-            self._run_game()
+            yield
         except KeyboardInterrupt:
             # Ctrl-C: never an internal error; exits INTERRUPTED once the teardown has run
             exit_code = ExitCode.INTERRUPTED
@@ -2361,6 +2437,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
     def _run_game(self: Self) -> None:
         """Construct the game and run its scenes: the whole run inside start()'s crash boundary."""
+        self._prepare_run()
+        if self.host is not None:
+            self.host.run(scene_manager=self.scene_manager)
+        else:
+            # A replay: its doors (and watched, its viewer) drive the blocking loop
+            self.scene_manager.start()
+
+    def _prepare_run(self: Self) -> None:
+        """Construct the game and its first scene, up to the first frame (inside the boundary)."""
         # For the whole run, so a signal always ends it through start()'s teardown
         self._install_signal_handlers()
 
@@ -2376,7 +2461,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.scene_manager.switch_to_scene(self.game)
         self._configure_timer_and_performance()
         self._start_requested_trace_recording()
-        self.scene_manager.start()
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:
         """Describe a SystemExit that ended the run, for the log and the replay report.
