@@ -75,6 +75,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
               </ul>
@@ -382,7 +384,7 @@ holds the game's own scenes (<code>MrMuncherGameOverScene</code> extends the eng
 <ul>
 <li><strong>Next reel</strong>: <code>_go_to_next_level</code> sets <code>next_scene</code> to a new <code>MrMuncherScene</code> with
   <code>GameProgress(level + 1, score, lives, extra_life_awarded)</code>. It does this only once (it
-  checks that <code>next_scene is self</code>).</li>
+  checks that <code>next_scene</code> is still <code>None</code>).</li>
 <li><strong>Game over</strong>: <code>_show_game_over_screen</code> fades (1 s <code>FadeTransition</code>) to
   <code>MrMuncherGameOverScene</code>. This screen shows the engine's GAME OVER layout (score and high
   score table) plus a headline, either <code>NEW HIGH SCORE!  Reel N</code> or <code>You reached reel N</code>.

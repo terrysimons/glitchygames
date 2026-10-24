@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/quality/upstream_issues/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Upstream Issues - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Upstream Issues";
+        var mkdocs_page_input_path = "quality/upstream_issues.md";
+        var mkdocs_page_url = "/glitchygames/quality/upstream_issues/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Upstream Issues</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/quality/upstream_issues.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../driver_comparison/" class="btn btn-neutral float-left" title="Driver Comparison"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../galimore/" class="btn btn-neutral float-right" title="Galimore Survey">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="upstream-issues">Upstream Issues<a class="headerlink" href="#upstream-issues" title="Permanent link">#</a></h1>
+<p>Problems found in the tools this project depends on, worked around here, to be reported to
+their projects. Each entry holds the evidence an upstream report needs: the versions, the
+measurements, how the cause was found, a reproduction, and the issue text drafted for posting.
+None has been posted yet.</p>
+<p>When a release fixes one, upgrade, check the reproduction no longer shows it, remove the
+workaround and move the entry to the Fixed section.</p>
+<h2 id="open">Open<a class="headerlink" href="#open" title="Permanent link">#</a></h2>
+<h3 id="mkdocs-serve-keeps-every-rebuild-alive-griffe-and-mkdocstrings-python"><code>mkdocs serve</code> keeps every rebuild alive (griffe and mkdocstrings-python)<a class="headerlink" href="#mkdocs-serve-keeps-every-rebuild-alive-griffe-and-mkdocstrings-python" title="Permanent link">#</a></h3>
+<p>Found 2026-10-24, BUGS.md #213. A local <code>mkdocs serve</code> (<code>nox -s docs-serve</code>) was at 14.5 GB.</p>
+<p><strong>Versions</strong>: griffe (<code>griffelib</code>) 2.4.1, mkdocstrings 1.0.8, mkdocstrings-python 2.0.10,
+mkdocs 1.6.1, Python 3.14, macOS. Both griffe and mkdocstrings-python were the latest releases
+on PyPI when this was measured.</p>
+<p><strong>Measurements</strong> (resident memory after each build; the same inputs every time):</p>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th>Four builds in one process, as <code>serve</code> builds</th>
+<th>With the workaround</th>
+<th><code>mkdocs serve</code>, with the workaround</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>start</td>
+<td></td>
+<td></td>
+<td>674 MB</td>
+</tr>
+<tr>
+<td>0</td>
+<td>694 MB</td>
+<td>688 MB</td>
+<td></td>
+</tr>
+<tr>
+<td>1</td>
+<td>1016 MB</td>
+<td>685 MB</td>
+<td>913 MB</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1375 MB</td>
+<td>718 MB</td>
+<td>936 MB</td>
+</tr>
+<tr>
+<td>3</td>
+<td>1532 MB</td>
+<td>647 MB</td>
+<td>920 MB</td>
+</tr>
+<tr>
+<td>4</td>
+<td></td>
+<td></td>
+<td>905 MB</td>
+</tr>
+<tr>
+<td>5</td>
+<td></td>
+<td></td>
+<td>928 MB</td>
+</tr>
+</tbody>
+</table>
+<p>About 330 MB per rebuild was never freed, though <code>gc.collect()</code> ran after each build. In the
+live server (last column, rebuilds triggered by touching <code>docs/index.md</code>) the first rebuild
+raised it to about 920 MB, and it stayed there.</p>
+<p><strong>How the cause was found</strong>:</p>
+<ol>
+<li>Not the data: the graphs this project's hook generates are a few kilobytes, and its scripts
+   load once (<code>sys.modules</code> stayed at 736 modules over the builds).</li>
+<li>Counting live objects by type across one build: the growth was griffe's models
+   (<code>ExprName</code> +23,876, <code>Alias</code> +17,512, <code>Parameter</code> +9,304, <code>Function</code> +4,314, ...),
+   mkdocstrings' <code>InventoryItem</code> and autorefs' <code>BacklinkCrumb</code>: a whole API tree and its
+   handler per build. Weak references to each build's config and Python handler showed every
+   one still alive.</li>
+<li>The old handler's referrers were all inside the build (the mkdocstrings plugin, its
+   Markdown extension and <code>AutoDocProcessor</code>), so something outside reached that group. Clearing
+   every populated <code>functools</code> cache in the process freed the first build's handler (958 -&gt;
+   521 MB).</li>
+<li>Clearing the suspect caches one at a time: mkdocstrings-python's <code>_test_existing_template</code>
+   freed the old handler (959 MB, its tree still held), then griffe's <code>_dataclass_parameters</code>
+   freed the tree (530 MB). Clearing others after those changed nothing.</li>
+</ol>
+<p><strong>The two caches</strong>:</p>
+<ul>
+<li>griffe, <code>griffe/_internal/extensions/dataclasses.py</code>:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@cache</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_dataclass_parameters</span><span class="p">(</span><span class="n">class_</span><span class="p">:</span> <span class="n">Class</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Parameter</span><span class="p">]:</span>
+</code></pre></div>
+<p>An unbounded cache keyed by <code>Class</code> objects. Each <code>Class</code> references its module and the whole
+  modules collection, so one entry keeps the build's entire API tree (about 430 MB here).
+- mkdocstrings-python, <code>mkdocstrings_handlers/python/_internal/rendering.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@cache</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nd">@pass_environment</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">_test_existing_template</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="k">return</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">list_templates</span><span class="p">()</span>
+</code></pre></div>
+<p>Keyed by the Jinja <code>Environment</code>, which each build makes afresh; through it the cache keeps
+  the build's <code>PythonHandler</code>.</p>
+<p><strong>Reproduction</strong>: run from a project whose <code>mkdocs.yml</code> uses mkdocstrings' Python handler on a
+package with dataclasses (<code>uv run python repeat_builds.py 4</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="sd">"""Build the docs several times in one process, as mkdocs serve does, printing memory after each."""</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">gc</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="kn">from</span><span class="w"> </span><span class="nn">mkdocs.commands.build</span><span class="w"> </span><span class="kn">import</span> <span class="n">build</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="kn">from</span><span class="w"> </span><span class="nn">mkdocs.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="k">def</span><span class="w"> </span><span class="nf">resident_megabytes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>        <span class="p">[</span><span class="s1">'ps'</span><span class="p">,</span> <span class="s1">'-o'</span><span class="p">,</span> <span class="s1">'rss='</span><span class="p">,</span> <span class="s1">'-p'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">())],</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="p">)</span><span class="o">.</span><span class="n">stdout</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">output</span><span class="p">)</span> <span class="o">//</span> <span class="mi">1024</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="n">site_directory</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">()</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="k">for</span> <span class="n">build_number</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">])):</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="c1"># serve loads the config afresh for every rebuild (mkdocs/commands/serve.py builder())</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="n">config_file</span><span class="o">=</span><span class="s1">'mkdocs.yml'</span><span class="p">,</span> <span class="n">site_dir</span><span class="o">=</span><span class="n">site_directory</span><span class="p">)</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="n">config</span><span class="o">.</span><span class="n">plugins</span><span class="o">.</span><span class="n">on_startup</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="s1">'serve'</span><span class="p">,</span> <span class="n">dirty</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    <span class="n">build</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">serve_url</span><span class="o">=</span><span class="s1">'http://127.0.0.1:8002/'</span><span class="p">)</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="k">del</span> <span class="n">config</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'build </span><span class="si">{</span><span class="n">build_number</span><span class="si">}</span><span class="s1">: resident </span><span class="si">{</span><span class="n">resident_megabytes</span><span class="p">()</span><span class="si">}</span><span class="s1"> MB'</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p>To name the caches, after two builds clear one at a time and watch the first build's handler
+(<code>weakref.ref(config.plugins['mkdocstrings'].handlers.get_handler('python'))</code>) and resident
+memory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">caches</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">item</span><span class="o">.</span><span class="vm">__module__</span><span class="si">}</span><span class="s1">.</span><span class="si">{</span><span class="n">item</span><span class="o">.</span><span class="vm">__qualname__</span><span class="si">}</span><span class="s1">'</span><span class="p">:</span> <span class="n">item</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">gc</span><span class="o">.</span><span class="n">get_objects</span><span class="p">()</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">functools</span><span class="o">.</span><span class="n">_lru_cache_wrapper</span><span class="p">)</span> <span class="ow">and</span> <span class="n">item</span><span class="o">.</span><span class="n">cache_info</span><span class="p">()</span><span class="o">.</span><span class="n">currsize</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">}</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">[</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="s1">'mkdocstrings_handlers.python._internal.rendering._test_existing_template'</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="s1">'griffe._internal.extensions.dataclasses._dataclass_parameters'</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">]:</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">caches</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">cache_clear</span><span class="p">()</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">'first handler alive:'</span><span class="p">,</span> <span class="n">first_handler</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="n">resident_megabytes</span><span class="p">(),</span> <span class="s1">'MB'</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Workaround here</strong>: <code>on_post_build</code> in <code>scripts/mkdocs_hooks.py</code> empties every module-level
+<code>functools</code> cache of the loaded griffe and mkdocstrings modules after each build
+(<code>documentation_caches()</code> finds them by scanning the modules, so a renamed cache is still
+found); tested in <code>tests/test_generate_complexity_graphs.py</code>. The caches only speed up work
+within one build, so emptying them between builds costs nothing. Remove both, and their tests,
+when both projects have fixed theirs.</p>
+<p><strong>Issue drafted for griffe</strong> (github.com/mkdocstrings/griffe):</p>
+<blockquote>
+<p><strong><code>_dataclass_parameters</code> cache keeps every <code>mkdocs serve</code> rebuild's API tree alive</strong></p>
+<p><code>griffe/_internal/extensions/dataclasses.py</code> decorates <code>_dataclass_parameters(class_)</code> with an
+unbounded <code>functools.cache</code> keyed by <code>Class</code> objects. Under <code>mkdocs serve</code>, each rebuild loads a
+new API tree, and the cache keeps the previous trees reachable (each <code>Class</code> references its
+module and the whole collection). With griffe 2.4.1 on a package of about 4,000 functions,
+memory grew by about 330 MB per rebuild (694 -&gt; 1016 -&gt; 1375 -&gt; 1532 MB over four in-process
+builds, <code>gc.collect()</code> after each); calling <code>_dataclass_parameters.cache_clear()</code> after each
+build kept it flat (about 690 MB).</p>
+<p>Suggestion: cache on the <code>Class</code> instance (e.g. a private attribute), or in a
+<code>weakref.WeakKeyDictionary</code>, so the cache dies with the tree.</p>
+<p>Reproduction: load the config and call <code>mkdocs.commands.build.build(config)</code> several times in
+one process, <code>gc.collect()</code> between, tracking resident memory (script attached).</p>
+</blockquote>
+<p><strong>Issue drafted for mkdocstrings-python</strong> (github.com/mkdocstrings/python):</p>
+<blockquote>
+<p><strong><code>_test_existing_template</code> cache keeps every rebuild's handler and Jinja environment alive</strong></p>
+<p><code>mkdocstrings_handlers/python/_internal/rendering.py</code> decorates <code>_test_existing_template(env,
+path)</code> with <code>functools.cache</code>, keyed by the Jinja <code>Environment</code>. Each <code>mkdocs serve</code> rebuild
+makes a new environment, so the cache keeps every previous one and, through it, the previous
+<code>PythonHandler</code> (mkdocstrings-python 2.0.10). Clearing it after each build frees the old
+handler.</p>
+<p>Suggestion: cache per environment (on <code>env</code> itself, or in a <code>weakref.WeakKeyDictionary</code>).</p>
+</blockquote>
+<h2 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">#</a></h2>
+<p>None yet.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../driver_comparison/" class="btn btn-neutral float-left" title="Driver Comparison"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../galimore/" class="btn btn-neutral float-right" title="Galimore Survey">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../driver_comparison/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../galimore/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
