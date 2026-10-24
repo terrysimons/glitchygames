@@ -106,6 +106,50 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Medium (requested 2026-10-23)
 
 ## Medium Priority Features
+### 48. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — TODO
+- **Description**: A CI pipeline (on the fork `terrysimons/pygame-ce`) that builds our patched
+  Pyodide wheel for the current pygame-ce and Pyodide versions, and then tries every newer
+  version too. For each pygame-ce release (and `main`) × each Pyodide release that PyScript
+  pins or that is newer, it checks out a fresh tree, applies our WebAssembly patches (the
+  `glitchygames-wasm` branch's commits, or `patches/` from the feasibility study), builds with
+  `buildconfig/glitchygames/build_pyodide_wheel.sh` against that Pyodide's cross-build
+  environment, runs the browser checks (pygame-ce's freetype, ftfont, controller, touch and
+  display tests, plus the static-module probe), and publishes the wheels that pass (with
+  `build-info.json`) as experimental releases. The matrix reports, per pair: patches applied
+  cleanly / needed rework / no longer needed (fixed upstream), build ok, tests ok.
+- **Why**: Pyodide repackages pygame-ce on its own schedule (it still ships 2.5.7 while 2.5.8 is
+  out), and PyScript pins one Pyodide. Knowing early which newer versions build and pass with
+  our patches, and when upstream makes a patch unnecessary, keeps the browser target from
+  freezing on one version. (The user, 2026-10-23.)
+- **Status**: TODO. Building blocks done on 2026-10-23:
+  - the build script and a single-version workflow on the fork
+    (`.github/workflows/glitchygames-wasm-wheel.yml`; pushing it needs the `gh` token's
+    `workflow` scope);
+  - reproducible builds (`SOURCE_DATE_EPOCH`);
+  - the in-browser test runner (`../pygame-ce-wasm/tools/run_pygame_tests_in_browser.py`).
+  Open: version discovery (PyPI and GitHub tags for pygame-ce; the Pyodide xbuildenv list),
+  patch rebasing strategy (`git am -3` and report conflicts), a browser test job in CI
+  (Playwright Chromium and WebKit headless), and where results are shown.
+- **Priority**: Medium (experimental)
+
+### 49. Browser Builds: PyScript/Pyodide Runner and the Game Host — IN PROGRESS
+- **Description**: Run the games in a browser through PyScript (Pyodide 314, Python 3.14) with
+  our pygame-ce fork's wheel. The engine gains an outer game on every live run (`GameHost`,
+  `glitchygames/host.py`: transparent doors beneath the recorder for later AI and event
+  injection, and an async frame driver paced at the target FPS whatever the display's refresh),
+  plus a local launcher (`nox -s browser`).
+- **Status**: IN PROGRESS on branch `wasm/pygame-ce-fork` (worktree `../glitchygames-wasm`). Plan
+  `plans/2026-10-23-game-host-and-browser-runner.md`; feasibility study in `../pygame-ce-wasm/`.
+  Done 2026-10-23 (uncommitted, for the user's testing):
+  - the game host;
+  - `GameEngine.start_async`;
+  - optional MIDI and controller modules;
+  - save observers;
+  - `nox -s browser -- <game>`, with all four games running in Chromium and WebKit.
+  Open: the startup focus-loss pause (Mr. Muncher), timer calibration skipped for async runs,
+  real-browser and iOS checks of the launcher.
+- **Priority**: High (requested 2026-10-23)
+
 
 ### 4. Performance Profiling Integration
 - **Description**: Detailed profiling capabilities for per-scene performance breakdown

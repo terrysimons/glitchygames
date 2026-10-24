@@ -131,8 +131,10 @@ ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
     'clock.py': {'measured_seconds': frozenset({'time.monotonic'})},
     'scenes/scene.py': {
         # The frame loop measures each frame's real time; logic gets it only through the
-        # frame-time door (SceneManager.start and _finish_frame)
-        'start': frozenset({'time.perf_counter'}),
+        # frame-time door (SceneManager.begin_frames, run_frame_step and _finish_frame: the
+        # steps SceneManager.start and an outer driver, glitchygames/host.py, both run)
+        'begin_frames': frozenset({'time.perf_counter'}),
+        'run_frame_step': frozenset({'time.perf_counter'}),
         '_finish_frame': frozenset({'time.perf_counter'}),
         # The pacing fallback clock (SceneManager.__init__): it only paces (tick), its
         # get_time and get_fps are never read (SceneManager._track_performance says why)

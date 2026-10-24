@@ -39,6 +39,7 @@ from glitchygames.events import FPSEVENT
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.examples import paddleslap
 from glitchygames.exit_codes import ExitCode
+from glitchygames.host import HostSources
 from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
@@ -1173,8 +1174,10 @@ class TestRecordingEdgeCases:
             finally:
                 engine.stop_trace_recording()
 
+        # One recording around the host's doors, around the live doors (glitchygames/host.py)
         assert isinstance(installed_sources, RecordingSources)
-        assert isinstance(installed_sources.inner, LiveSources)
+        assert isinstance(installed_sources.inner, HostSources)
+        assert isinstance(installed_sources.inner.inner, LiveSources)
         assert not (tmp_path / 'second.jsonl.gz').exists()
 
     def test_recording_records_saves_opened_by_any_doors(self, tmp_path, mocker):

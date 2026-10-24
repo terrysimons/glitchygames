@@ -87,6 +87,9 @@ def replay_through_engine(
         GoldenTraceSceneManager.uninstall()
     sources = engine.replay_sources
     assert sources is not None
+    # A replay is not hosted: its viewer, or nothing when headless, is its outer game; see
+    # glitchygames/host.py
+    assert engine.host is None
     return EngineReplay(exit_status=exit_info.value.code, result=sources.result)
 
 

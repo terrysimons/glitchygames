@@ -174,11 +174,36 @@ games.
   9. **Present**: debug overlay, `pygame.display.update()` or `flip()`
   10. **Finish**: `_finish_frame` (see Frame Pacing)
 - Handles scene transitions and lifecycle (`setup()`, `cleanup()`, `load_resources()`)
+- The frame loop is four steps: `begin_frames()` (the first frame's start reading and dt),
+  `should_run_frames()`, `run_frame_step(frame_start_seconds=..., paced=...)` (one frame, or a
+  held frame presented again) and `end_frames()`. `start()` runs them blocking, paced.
+  `GameHost.run_async` runs them one per outer tick with `paced=False` (no timer or clock waits:
+  the tick is the pacing, measured into the next dt)
 - The active scene is always a `Scene` (or subclass), or None: `switch_to_scene` and
   `request_transition`/`transition_to` raise `TypeError` for anything else
   (`scenes.scene.required_scene`), so the manager reads the attributes `Scene` declares
   (`camera`, `scene_start_capture`, `PIXEL_SNAP_MODE`, ...) directly. `SceneInterface`
   (`glitchygames/interfaces`) stays as the base both `SceneManager` and `Scene` implement
+
+**Game Host** (`glitchygames/host.py`; design `plans/2026-10-23-game-host-and-browser-runner.md`)
+- An outer game on top of every live run (`GameEngine.host`; None in a replay, whose viewer is
+  its outer game). It is transparent today; later it is where AI input and event/call injection
+  go without the game knowing
+- `HostSources`: doors forwarding every member to `inner`, installed around the live doors and
+  beneath the recorder: `HostSources(inner=LiveSources)`, with `--record-trace`
+  `RecordingSources(inner=HostSources(inner=LiveSources))`. Whatever the host adds or hides is
+  what a recording holds, so recordings replay exactly without the host
+- `GameHost.run` (blocking: `SceneManager.start`) and `GameHost.run_async(scene_manager=...,
+  wait_for_tick=...)`: one awaited tick per loop, which returns the tick's timestamp in seconds
+  (a browser animation frame), so the host never reads a clock. `TickPacer` runs an inner frame
+  when its accumulator holds the frame period less half a tick (the doors' `paced_frame_seconds`,
+  else `1 / target_fps`; 0 runs every tick), re-anchors after a stall rather than catching up,
+  and measures the median tick interval (the display's refresh, logged once). A 60 FPS game runs
+  every second tick at 120 Hz
+- `GameEngine.start_async(wait_for_tick=...)` runs a live game that way inside the same crash
+  boundary as `start()` (`_crash_boundary`, a context manager both share: the same teardown and
+  exit codes); a replay raises RuntimeError. `_prepare_run()` is everything up to the first
+  frame
 
 **Exit Codes** (`glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
 `glitchygames.engine`; never write the number in code or tests)
@@ -313,7 +338,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Only `ALLOWED_BYPASSES` in `tests/test_engine_doors.py` may read the raw clock (or use
   `pygame.time.set_timer`/`Clock`): pacing (`timing.py`), `performance/`, `debug/`,
   `audio/diagnostics.py` and the live doors' wall clock (`live_sources.py`); by function
-  (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.start`/`_finish_frame` (and its pacing `Clock`),
+  (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.begin_frames`/`run_frame_step`/`_finish_frame`
+  (and its pacing `Clock`),
   the recording's start stamp (`GameEngine.trace_recording_header`), each run's `measured_at`
   (`GameEngine.measurement_run`) and `clock.measured_seconds`
 - A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
@@ -328,8 +354,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   else `SourcesAlreadyRunningError`), `reset_sources()` (called by `GameEngine.__init__`), and the
   frame clock. It has no engine imports, which avoids an engine/scenes import cycle. Providers:
   `LiveSources` (`glitchygames/live_sources.py`: pygame's queue, the measured dt, pygame polling,
-  real devices, `DiskSaveManager`, the real wall clock), `RecordingSources`
-  (`glitchygames/recording.py`: wraps the live doors under `--record-trace` and records what
+  real devices, `DiskSaveManager`, the real wall clock), `HostSources` (`glitchygames/host.py`:
+  the game host's forwarding layer around the live doors), `RecordingSources`
+  (`glitchygames/recording.py`: wraps the host's doors under `--record-trace` and records what
   passes through) and `ReplaySources` (`glitchygames/replay/driver.py`: serves the recording)
 - Guard: `tests/test_engine_doors.py` AST-scans the package. Raw clock reads, pygame key/mouse
   polling, `pygame.event.get`/`post` and joystick/controller enumeration or construction outside
@@ -366,7 +393,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Saves: `glitchygames.state.open_saves(app_name=...)` returns a `SaveManager` (the base class
   holds every rule of the save format): `DiskSaveManager` live, `MemorySaveManager`
   (`glitchygames/state/sandbox.py`) in a replay, seeded from the recorded snapshot
-  (`save_namespace_snapshot`). Replay writes stay in memory; real saves are never touched
+  (`save_namespace_snapshot`). Replay writes stay in memory; real saves are never touched.
+  `observe_disk_save_changes(observer=...)` (`glitchygames/state/manager.py`) calls an observer
+  with each slot file's path after a `DiskSaveManager` writes or deletes it (a browser flushes
+  IndexedDB there)
 - Supervisor hook (`glitchygames/supervision.py`): `SceneManager.add_supervisor(supervisor=...)`
   calls `on_frame(frame_number=..., scene=...)` once per frame, after logic and events and before
   frame services, camera aim and positioning. `SceneManager.record_control_event(kind=...,

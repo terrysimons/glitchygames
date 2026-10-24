@@ -530,6 +530,28 @@ class TestGameEngineSystemInfo:
         assert 'Display inited: True' in caplog.text
         assert f'Initial Resolution: {engine.initial_resolution}' in caplog.text
 
+    def test_print_system_info_logs_display_info_as_text(self, mocker, caplog):
+        """The display info reaches logging already formatted, never as the VidInfo object.
+
+        pygame-ce 2.5.7's VidInfo raises AttributeError for every unknown attribute, __class__
+        included. logging.LogRecord runs isinstance(args[0], Mapping) on a single argument, and
+        on CPython 3.14.2 (Pyodide 314's) that isinstance raises, so logging the object itself
+        fails in the browser. (This interpreter's isinstance tolerates it, so the test checks
+        what logging is given rather than reproducing the failure.)
+        """
+        engine = _make_engine(mocker)
+
+        with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
+            engine.print_system_info()
+
+        # Engine construction logs it too (_make_engine): every such record is checked
+        display_info_records = [
+            record for record in caplog.records if record.msg == 'Display Info: %s'
+        ]
+        assert display_info_records
+        for record in display_info_records:
+            assert record.args == (str(engine.display_info),)
+
     def test_initialize_system_icons(self, mocker):
         """initialize_system_icons sets the real window caption (a game with no icon)."""
         engine = _make_engine(mocker, game=NoIconGame)

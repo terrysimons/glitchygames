@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pygame
+import pygame._sdl2.controller
 import pytest
 
 from glitchygames.input.devices import (
@@ -13,6 +14,8 @@ from glitchygames.input.devices import (
     ReplayController,
     ReplayDeviceRegistry,
     ReplayJoystick,
+    _import_sdl_controller_module,
+    sdl_controller_module,
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
@@ -655,3 +658,48 @@ def test_replay_registry_describes_each_opened_stand_in_by_instance_id():
     assert registry.descriptor_for_instance(instance_id=7) == controller_pad
     registry.forget_device(instance_id=7)
     assert registry.descriptor_for_instance(instance_id=7) is None
+
+
+def test_live_registry_without_controller_module_reports_no_controllers(mocker):
+    """A pygame build without pygame._sdl2.controller answers as SDL with none plugged in.
+
+    Stock Pyodide's pygame-ce compiles the module in but never registers it. Every answer is
+    still remembered, so a recording made there replays the same.
+    """
+    mocker.patch('glitchygames.input.devices._SDL_CONTROLLER_MODULE', None)
+    registry = LiveDeviceRegistry()
+
+    assert registry.controller_count() == 0
+    assert registry.is_controller(device_index=0) is False
+    assert registry.name_for_index(device_index=0) is None
+    with pytest.raises(pygame.error, match='game controllers are unavailable'):
+        registry.open_controller(device_index=0)
+
+    assert registry.take_enumeration_answers() == [
+        EnumerationAnswer(call='controller_count', device_index=None, value=0),
+        EnumerationAnswer(call='is_controller', device_index=0, value=False),
+        EnumerationAnswer(call='name_for_index', device_index=0, value=None),
+        EnumerationAnswer(
+            call='open_controller',
+            device_index=0,
+            value=None,
+            error='game controllers are unavailable in this pygame build',
+        ),
+    ]
+
+
+def test_sdl_controller_module_is_pygames_where_it_imports():
+    """Desktop pygame-ce has the controller module: the door uses it."""
+    assert sdl_controller_module() is pygame._sdl2.controller
+
+
+def test_import_sdl_controller_module_is_none_when_it_cannot_import(mocker, caplog):
+    """A pygame build without the controller module gives None, logged."""
+    mocker.patch(
+        'glitchygames.input.devices.importlib.import_module',
+        side_effect=ModuleNotFoundError("No module named 'pygame._sdl2.controller'"),
+    )
+    with caplog.at_level('INFO', logger='game.input.devices'):
+        assert _import_sdl_controller_module() is None
+
+    assert 'pygame._sdl2.controller is unavailable' in caplog.text
