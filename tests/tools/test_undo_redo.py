@@ -188,10 +188,11 @@ class TestUndoRedoManager:
 class TestCanvasOperationTracker:
     """Test canvas operation tracking."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
+    @pytest.fixture(autouse=True)
+    def set_up_tracker(self, bitmap_editor):
+        """Set up a tracker for a real editor, on its own undo/redo manager."""
         self.manager = UndoRedoManager()
-        self.tracker = CanvasOperationTracker(self.manager)
+        self.tracker = CanvasOperationTracker(self.manager, editor=bitmap_editor)
 
     def test_start_brush_stroke(self):
         """Test starting a brush stroke."""
@@ -259,10 +260,11 @@ class TestCanvasOperationTracker:
 class TestFilmStripOperationTracker:
     """Test film strip operation tracking."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
+    @pytest.fixture(autouse=True)
+    def set_up_tracker(self, bitmap_editor):
+        """Set up a tracker for a real editor, on its own undo/redo manager."""
         self.manager = UndoRedoManager()
-        self.tracker = FilmStripOperationTracker(self.manager)
+        self.tracker = FilmStripOperationTracker(self.manager, editor=bitmap_editor)
 
     def test_add_frame_added(self):
         """Test tracking frame addition."""
@@ -317,10 +319,11 @@ class TestFilmStripOperationTracker:
 class TestCrossAreaOperationTracker:
     """Test cross-area operation tracking."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
+    @pytest.fixture(autouse=True)
+    def set_up_tracker(self, bitmap_editor):
+        """Set up a tracker for a real editor, on its own undo/redo manager."""
         self.manager = UndoRedoManager()
-        self.tracker = CrossAreaOperationTracker(self.manager)
+        self.tracker = CrossAreaOperationTracker(self.manager, editor=bitmap_editor)
 
     def test_add_frame_copy(self):
         """Test tracking frame copy operation."""

@@ -1,4 +1,4 @@
-## ::: glitchygames.engine
+::: glitchygames.templates
     options:
       heading_level: 2
       inherited_members: true

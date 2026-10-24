@@ -21,10 +21,12 @@ Usage:
     actions.handle_event(event)
     action = actions.get_action(event)
 
-    # In dt_tick:
-    actions.begin_frame()
+    # In dt_tick: read first, then begin_frame() (the frame's events come after dt_tick)
+    if actions.just_pressed('jump'):
+        player.jump()
     if actions.is_held('move_right'):
         player.move_right()
+    actions.begin_frame()
 
 Keyboard bindings come in two kinds. ``keyboard=`` binds a key code (``pygame.K_*``), which
 the keyboard layout decides: right for mnemonic keys (P for pause, I for inventory), wrong for
@@ -42,6 +44,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 import pygame
+
+from glitchygames.input.input_devices import InputMode
 
 if TYPE_CHECKING:
     from glitchygames.events.base import HashableEvent
@@ -132,20 +136,33 @@ class ActionMap:
     def __init__(
         self,
         deadzone: float = DEFAULT_DEADZONE,
-        input_mode: str = 'joystick',
+        input_mode: str = InputMode.AUTO,
     ) -> None:
         """Initialize the action map.
 
         Args:
             deadzone: Analog stick deadzone (default 0.15).
-            input_mode: Which gamepad event family to bind.
+            input_mode: Which gamepad event family to bind (the engine's ``--input-mode``,
+                glitchygames/input/input_devices.py).
                 'joystick' binds JOYBUTTONDOWN/UP and JOYAXISMOTION.
                 'controller' binds CONTROLLERBUTTONDOWN/UP and
-                CONTROLLERAXISMOTION. Default 'joystick' (pygame-ce).
+                CONTROLLERAXISMOTION.
+                'auto' (the default) binds both: the engine dispatches a mapped pad's
+                controller events and any other device's joystick events, each press once.
+                Any other value is refused (InputMode raises ValueError).
 
         """
         self._deadzone = deadzone
-        self._input_mode = input_mode
+        self._input_mode = InputMode(input_mode)
+        # The event families a controller_button / controller_axis binding answers to
+        self._button_event_types: tuple[tuple[int, int], ...] = ()
+        self._axis_event_types: frozenset[int] = frozenset()
+        if self._input_mode is not InputMode.JOYSTICK:
+            self._button_event_types += ((pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLERBUTTONUP),)
+            self._axis_event_types |= {pygame.CONTROLLERAXISMOTION}
+        if self._input_mode is not InputMode.CONTROLLER:
+            self._button_event_types += ((pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP),)
+            self._axis_event_types |= {pygame.JOYAXISMOTION}
 
         # Digital bindings: (event_type, input_code) → list of Binding
         self._bindings: dict[tuple[int, int], list[Binding]] = {}
@@ -187,13 +204,15 @@ class ActionMap:
             scancode: A physical key position (e.g. pygame.KSCAN_A): the key in that place
                 on every layout, whatever the layout calls it.
             controller_button: A gamepad button constant. Automatically
-                uses the correct event type based on input_mode.
+                uses the event types of the input_mode (both families in 'auto').
             controller_axis: Tuple of (axis_constant, threshold).
                 Threshold sign encodes direction.
             joystick_button: A raw joystick button index. Always binds
                 JOYBUTTONDOWN/UP regardless of input_mode. Use for
-                non-standard buttons (e.g. DualSense mic mute) that
-                only come through the raw joystick API.
+                non-standard buttons (e.g. DualSense mic mute) on the raw
+                joystick API. In 'auto' mode the engine dispatches a mapped
+                pad's controller events only, so bind its controller_button
+                too (as Brave Adventurer's mic does: CONTROLLER_BUTTON 15).
             instance_id: Controller instance filter for button/axis
                 bindings. None accepts any controller.
 
@@ -226,32 +245,26 @@ class ActionMap:
                 )
 
         if controller_button is not None:
-            # Register the event family matching the active input mode.
-            # 'joystick' → JOYBUTTONDOWN/UP (pygame-ce default)
-            # 'controller' → CONTROLLERBUTTONDOWN/UP (SDL Game Controller API)
-            if self._input_mode == 'controller':
-                down_type = pygame.CONTROLLERBUTTONDOWN
-                up_type = pygame.CONTROLLERBUTTONUP
-            else:
-                down_type = pygame.JOYBUTTONDOWN
-                up_type = pygame.JOYBUTTONUP
-
-            self._add_binding(
-                Binding(
-                    action=action,
-                    event_type=down_type,
-                    input_code=controller_button,
-                    instance_id=instance_id,
+            # Register the event families of the input mode:
+            # 'joystick' → JOYBUTTONDOWN/UP, 'controller' → CONTROLLERBUTTONDOWN/UP (SDL Game
+            # Controller API), 'auto' → both (each device dispatches one of them)
+            for down_type, up_type in self._button_event_types:
+                self._add_binding(
+                    Binding(
+                        action=action,
+                        event_type=down_type,
+                        input_code=controller_button,
+                        instance_id=instance_id,
+                    )
                 )
-            )
-            self._add_binding(
-                Binding(
-                    action=action,
-                    event_type=up_type,
-                    input_code=controller_button,
-                    instance_id=instance_id,
+                self._add_binding(
+                    Binding(
+                        action=action,
+                        event_type=up_type,
+                        input_code=controller_button,
+                        instance_id=instance_id,
+                    )
                 )
-            )
 
         if controller_axis is not None:
             axis_constant, threshold = controller_axis
@@ -389,20 +402,19 @@ class ActionMap:
                     self._just_released.add(binding.action)
                 self._held.discard(binding.action)
 
-        # Handle analog axis inputs (only the active event family)
-        expected_axis_type = (
-            pygame.CONTROLLERAXISMOTION
-            if self._input_mode == 'controller'
-            else pygame.JOYAXISMOTION
-        )
-        if event.type == expected_axis_type:
+        # Handle analog axis inputs (only the input mode's event families)
+        if event.type in self._axis_event_types:
             self._handle_axis_event(event)
 
     def begin_frame(self) -> None:
-        """Reset per-frame transient state.
+        """Forget the presses and releases seen so far: start collecting the next frame's.
 
-        Call at the start of dt_tick() before querying just_pressed
-        or just_released.
+        Call it once per frame in dt_tick(), after reading just_pressed() and
+        just_released(). The scene manager runs dt_tick() before it processes the frame's
+        events, so the presses dt_tick() can see arrived in the previous frame's event phase;
+        calling begin_frame() before reading them clears them first, and just_pressed() is
+        then never True in dt_tick() (BUGS.md #209 item 11). is_held() and axis_value() are
+        not reset.
         """
         self._just_pressed.clear()
         self._just_released.clear()
@@ -478,10 +490,16 @@ class ActionMap:
         result: dict[str, list[dict[str, Any]]] = {}
 
         # Digital bindings (only DOWN events, UP is derived); a key position is stored as
-        # 'scancode', a key code or button as 'code'
+        # 'scancode', a key code or button as 'code'. A joystick button (JOYBUTTONDOWN: a
+        # controller_button bound in joystick mode, or a joystick_button) is kept too, or a
+        # save would drop every gamepad button of a joystick-mode map
         for bindings in [*self._bindings.values(), *self._scancode_bindings.values()]:
             for binding in bindings:
-                if binding.event_type not in {pygame.KEYDOWN, pygame.CONTROLLERBUTTONDOWN}:
+                if binding.event_type not in {
+                    pygame.KEYDOWN,
+                    pygame.CONTROLLERBUTTONDOWN,
+                    pygame.JOYBUTTONDOWN,
+                }:
                     continue
                 if binding.action not in result:
                     result[binding.action] = []
@@ -565,6 +583,7 @@ class ActionMap:
         event_name_to_type = {
             'KeyDown': pygame.KEYDOWN,
             'ControllerButtonDown': pygame.CONTROLLERBUTTONDOWN,
+            'JoyButtonDown': pygame.JOYBUTTONDOWN,
         }
 
         binding_type = entry.get('type', '')
@@ -596,6 +615,13 @@ class ActionMap:
             action_map.bind(
                 action_name,
                 controller_button=int(code),
+                instance_id=instance_id,
+            )
+        else:
+            # JOYBUTTONDOWN: restored as the raw joystick button it was, in any input mode
+            action_map.bind(
+                action_name,
+                joystick_button=int(code),
                 instance_id=instance_id,
             )
 
@@ -632,7 +658,11 @@ class ActionMap:
         """
         key = (binding.event_type, binding.input_code)
         table = self._scancode_bindings if binding.is_scancode else self._bindings
-        table.setdefault(key, []).append(binding)
+        bindings = table.setdefault(key, [])
+        # Once each: in 'auto' mode a saved controller_button holds a JOYBUTTONDOWN entry too,
+        # which loading binds again as a joystick_button
+        if binding not in bindings:
+            bindings.append(binding)
 
     def _bindings_for_event(self, event: HashableEvent) -> list[Binding]:
         """Return the digital bindings an event matches: by key code or button, and by position.

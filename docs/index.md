@@ -25,11 +25,16 @@ from glitchygames.scenes import Scene
 
 class BitrotAdventures(Scene):
     """Draws a pixel to the screen"""
+
+    NAME = 'Bitrot Adventures'
+    VERSION = '0.0.0'
+
     def __init__(self, options):
         super().__init__(options=options, groups=None)
 
 def main():
-    GameEngine().start()
+    # Pass the Scene class uninitialized; the engine creates it
+    GameEngine(game=BitrotAdventures).start()
 
 if __name__ == "__main__":
     main()

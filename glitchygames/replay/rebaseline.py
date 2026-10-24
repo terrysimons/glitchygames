@@ -77,6 +77,7 @@ from glitchygames.recording import GameplayRecorder, RecordingSources
 from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     MeasurementRun,
+    budget_seconds_for,
     stacked_measurement_runs,
 )
 from glitchygames.replay.driver import (
@@ -93,7 +94,7 @@ from glitchygames.sources import active_sources, install_sources
 from glitchygames.tracing import BOOKMARKED_COPY_OF_HEADER_FIELD
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
 LOG = logging.getLogger('game.replay.rebaseline')
 LOG.addHandler(logging.NullHandler())
@@ -220,7 +221,7 @@ def rebaseline_header(
     original_header: Mapping[str, Any],
     original_path: Path,
     measurement_run: MeasurementRun,
-    original_frame_count: int | None = None,
+    original_frames: Sequence[Mapping[str, Any]] | None = None,
     source_truncated: bool = False,
 ) -> dict[str, Any]:
     """Return the header of a recording rebaselined from another (rule 3).
@@ -241,8 +242,9 @@ def rebaseline_header(
         original_path: OLD's file.
         measurement_run: This run's provenance, put in front of OLD's ``measurement_runs``
             (its ``rebaselined_from`` is set to the header's, so both name OLD one way).
-        original_frame_count: How many complete frames OLD holds, given to OLD's newest run
-            (``frame_count``), or None.
+        original_frames: OLD's complete frames, decoded, or None: their count is OLD's newest
+            run's ``frame_count``, and every earlier run without a ``summary`` gets one from
+            them (``stacked_measurement_runs``).
         source_truncated: True when OLD was cut off part way.
 
     Returns:
@@ -262,7 +264,9 @@ def rebaseline_header(
     header[MEASUREMENT_RUNS_HEADER_FIELD] = stacked_measurement_runs(
         newest=measurement_run.model_copy(update={'rebaselined_from': str(original_path)}),
         previous=original_header.get(MEASUREMENT_RUNS_HEADER_FIELD),
-        previous_frame_count=original_frame_count,
+        previous_frame_count=None if original_frames is None else len(original_frames),
+        previous_frames=() if original_frames is None else original_frames,
+        budget_seconds=budget_seconds_for(header=original_header),
     )
     header[REBASELINED_FROM_HEADER_FIELD] = str(original_path)
     if source_truncated:
@@ -386,7 +390,7 @@ class Rebaseline:
             original_header=self._replay_sources.header,
             original_path=self._source_path,
             measurement_run=self._measurement_run,
-            original_frame_count=self._replay_sources.recording.frame_count,
+            original_frames=self._replay_sources.recording.frames,
             source_truncated=self._replay_sources.recording.is_truncated,
         )
         recorder = GameplayRecorder(path=self._partial_path, header=header)

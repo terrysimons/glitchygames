@@ -81,15 +81,17 @@ class Tinker(Sprite):
             min_x=float(PLAYFIELD_LEFT),
             max_x=float(PLAYFIELD_RIGHT - PLAYER_WIDTH),
         )
+        # Kept so the move methods set its target directly (the body always has it)
+        self._acceleration_behavior = AccelerationBehavior(
+            acceleration=PLAYER_ACCELERATION,
+            deceleration=PLAYER_DECELERATION,
+        )
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
             behaviors=[
                 GravityBehavior(strength=GRAVITY, terminal_velocity=MAX_FALL_SPEED),
-                AccelerationBehavior(
-                    acceleration=PLAYER_ACCELERATION,
-                    deceleration=PLAYER_DECELERATION,
-                ),
+                self._acceleration_behavior,
             ],
             constraints=[self._playfield_bounds],
         )
@@ -249,9 +251,7 @@ class Tinker(Sprite):
 
         """
         speed = PLAYER_RUN_SPEED if running else PLAYER_WALK_SPEED
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = speed
+        self._acceleration_behavior.target_velocity_x = speed
         self.facing_right = True
 
     def move_left(self, *, running: bool = False) -> None:
@@ -262,16 +262,12 @@ class Tinker(Sprite):
 
         """
         speed = PLAYER_RUN_SPEED if running else PLAYER_WALK_SPEED
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = -speed
+        self._acceleration_behavior.target_velocity_x = -speed
         self.facing_right = False
 
     def stop_horizontal(self) -> None:
         """Decelerate to a stop."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = 0.0
+        self._acceleration_behavior.target_velocity_x = 0.0
 
     @override
     def update(self: Self) -> None:

@@ -80,8 +80,9 @@ class _MusicFollowing:
             silencer: The silencer stopping.
 
         """
-        if silencer in self.followers:
-            self.followers.remove(silencer)
+        # A follower: FrameSilencer adds itself once (begin) and removes itself once
+        # (stop_following_music), guarded by its _is_following_music flag
+        self.followers.remove(silencer)
         if self.followers or self.wrappers is None or self.pygame_controls is None:
             return
         pause_wrapper, unpause_wrapper = self.wrappers

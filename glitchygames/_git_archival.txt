@@ -1,0 +1,2 @@
+commit: $Format:%H$
+committed: $Format:%cI$

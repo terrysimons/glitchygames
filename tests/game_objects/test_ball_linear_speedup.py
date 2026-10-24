@@ -22,7 +22,6 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 RELATIVE_TOLERANCE = 1e-12
 PROGRESSION_STEPS = 20
@@ -57,25 +56,23 @@ def _magnitude(ball: BallSprite) -> float:
 def _bounce_off_top_wall(ball: BallSprite) -> None:
     """Put the ball just past the top wall and run the real boundary bounce."""
     ball.world_x = WALL_TEST_X
-    ball.world_y = -WALL_OVERSHOOT
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_y = -float(ball._visible_rect().offset_y) - WALL_OVERSHOOT
     ball._do_bounce()
 
 
 def _bounce_off_bottom_wall(ball: BallSprite) -> None:
     """Put the ball just past the bottom wall and run the real boundary bounce."""
     ball.world_x = WALL_TEST_X
-    ball.world_y = float(ball.screen_height - ball.height) + WALL_OVERSHOOT
+    visible_rect = ball._visible_rect()
+    ball.world_y = (
+        float(ball.screen_height - visible_rect.height - visible_rect.offset_y) + WALL_OVERSHOOT
+    )
     ball._do_bounce()
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallLinearSpeedUp:
     """Test BallSprite linear speed-up behavior."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_linear_speed_up_preserves_direction(self):
         """Test that linear speed-up preserves ball direction while adding s0 * k."""

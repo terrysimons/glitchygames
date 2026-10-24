@@ -13,7 +13,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, TypeIs
 
 from glitchygames.animation.expressions import Expression, parse
 from glitchygames.animation.scheduler import BehaviorFunction, BehaviorScheduler
@@ -25,6 +25,47 @@ if TYPE_CHECKING:
 type StateCallback = Callable[[], None]
 
 log: logging.Logger = logging.getLogger('game.animation.state_machine')
+
+
+# What the state machine uses of its sprite, when the sprite has it (an AnimatedSprite has all
+# three; the example games' players are plain Sprites with none). Each is detected with hasattr.
+class ReportsAnimationCompletion(Protocol):
+    """A sprite that says whether its current non-looping animation has finished."""
+
+    def is_animation_complete(self) -> bool:
+        """Return True once the current non-looping animation has finished."""
+        ...
+
+
+class PlaysAnimations(Protocol):
+    """A sprite that switches to a named animation (AnimatedSprite.play)."""
+
+    def play(self, animation_name: str | None = None) -> None:
+        """Start playing the named animation."""
+        ...
+
+
+class HasAnimationLoopFlags(Protocol):
+    """A sprite with per-animation loop flags (AnimatedSprite): it loops as the flag says.
+
+    The flags themselves are AnimatedSprite's private ``_loop_flags``, so they are not a
+    member; _switch_to reads them by name.
+    """
+
+    is_looping: bool
+
+
+def _reports_animation_completion(sprite: object) -> TypeIs[ReportsAnimationCompletion]:
+    return hasattr(sprite, 'is_animation_complete')
+
+
+def _plays_animations(sprite: object) -> TypeIs[PlaysAnimations]:
+    return hasattr(sprite, 'play')
+
+
+def _has_animation_loop_flags(sprite: object) -> TypeIs[HasAnimationLoopFlags]:
+    # Only _loop_flags is checked, as always: is_looping is then set on the sprite
+    return hasattr(sprite, '_loop_flags')
 
 
 class Transition:
@@ -73,9 +114,9 @@ class AnimationStateMachine:
 
     """
 
-    def __init__(self, sprite: Any) -> None:
+    def __init__(self, sprite: object) -> None:
         """Initialize the state machine."""
-        self._sprite = sprite
+        self._sprite: object = sprite
         self._transitions: list[Transition] = []
         self._behaviors: dict[str, BehaviorFunction] = {}
         self._callbacks_on_enter: dict[str, list[StateCallback]] = {}
@@ -240,7 +281,7 @@ class AnimationStateMachine:
         context['timer'] = self._time_in_state
 
         # Check animation_complete from sprite if available
-        if hasattr(self._sprite, 'is_animation_complete'):
+        if _reports_animation_completion(self._sprite):
             context['animation_complete'] = self._sprite.is_animation_complete()
         elif 'animation_complete' not in context:
             context['animation_complete'] = False
@@ -298,12 +339,15 @@ class AnimationStateMachine:
         self._current_state = new_state
         self._time_in_state = 0.0
 
-        if hasattr(self._sprite, 'play'):
+        if _plays_animations(self._sprite):
             self._sprite.play(new_state)
 
         # Auto-set loop mode from animation data if available
-        if hasattr(self._sprite, '_loop_flags') and new_state in self._sprite._loop_flags:
-            self._sprite.is_looping = self._sprite._loop_flags[new_state]
+        if _has_animation_loop_flags(self._sprite):
+            # AnimatedSprite's private flags, read by name (the guard found them)
+            loop_flags: dict[str, bool] = getattr(self._sprite, '_loop_flags', {})
+            if new_state in loop_flags:
+                self._sprite.is_looping = loop_flags[new_state]
 
         # Fire enter callbacks
         if new_state in self._callbacks_on_enter:

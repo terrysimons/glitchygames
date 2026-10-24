@@ -18,9 +18,25 @@ from typing import TYPE_CHECKING, Any
 from glitchygames.clock import wall_clock_epoch_seconds
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from glitchygames.bitmappy.history.commands import UndoRedoCommand
 
 LOG = logging.getLogger(__name__)
+
+# Callbacks the legacy ``set_*_callback`` methods register, typed as _OperationAdapter calls
+# them with an operation's stored data. A pixel change counts as applied unless its callback
+# returns False; the others return whether they succeeded.
+type PixelChangeCallback = Callable[[int, int, tuple[int, ...]], object]
+type AddFrameCallback = Callable[[str, int, dict[str, Any]], bool]
+type DeleteFrameCallback = Callable[[str, int], bool]
+type ReorderFrameCallback = Callable[[str, list[int]], bool]
+type AddAnimationCallback = Callable[[str, dict[str, Any]], bool]
+type DeleteAnimationCallback = Callable[[str], bool]
+type FrameSelectionCallback = Callable[[str, int], bool]
+type ControllerPositionCallback = Callable[[int, tuple[int, int], str | None], bool]
+type ControllerModeCallback = Callable[[int, str], bool]
+type FramePasteCallback = Callable[[str, int, list[tuple[int, ...]], float], bool]
 
 MIN_UNDO_STACK_SIZE_FOR_COLLAPSE = 2
 
@@ -33,6 +49,7 @@ class OperationType(Enum):
     CANVAS_BRUSH_STROKE = 'canvas_brush_stroke'
     CANVAS_FLOOD_FILL = 'canvas_flood_fill'
     CANVAS_COLOR_CHANGE = 'canvas_color_change'
+    CANVAS_PAN = 'canvas_pan'
 
     # Film strip operations
     FILM_STRIP_FRAME_ADD = 'film_strip_frame_add'
@@ -132,16 +149,16 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
         # Legacy callback attributes — used by _OperationAdapter for backward
         # compatibility with tests that call add_operation() + set_*_callback().
-        self._pixel_change_callback: Any = None
-        self._frame_selection_callback: Any = None
-        self._controller_position_callback: Any = None
-        self._controller_mode_callback: Any = None
-        self._frame_paste_callback: Any = None
-        self._add_frame_callback: Any = None
-        self._delete_frame_callback: Any = None
-        self._reorder_frame_callback: Any = None
-        self._add_animation_callback: Any = None
-        self._delete_animation_callback: Any = None
+        self._pixel_change_callback: PixelChangeCallback | None = None
+        self._frame_selection_callback: FrameSelectionCallback | None = None
+        self._controller_position_callback: ControllerPositionCallback | None = None
+        self._controller_mode_callback: ControllerModeCallback | None = None
+        self._frame_paste_callback: FramePasteCallback | None = None
+        self._add_frame_callback: AddFrameCallback | None = None
+        self._delete_frame_callback: DeleteFrameCallback | None = None
+        self._reorder_frame_callback: ReorderFrameCallback | None = None
+        self._add_animation_callback: AddAnimationCallback | None = None
+        self._delete_animation_callback: DeleteAnimationCallback | None = None
 
         LOG.debug('UndoRedoManager initialized with max_history=%s', max_history)
 
@@ -251,7 +268,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
         # Clear redo stack on new operation (standard branching)
         if self.redo_stack:
-            LOG.debug(f'Clearing {len(self.redo_stack)} redo commands')
+            LOG.debug('Clearing %s redo commands', len(self.redo_stack))
             self.redo_stack.clear()
 
         self.undo_stack.append(command)
@@ -262,11 +279,13 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         # Maintain history limit
         if len(self.undo_stack) > self.max_history:
             removed = self.undo_stack.pop(0)
-            LOG.debug(f'Removed oldest command: {removed.description}')
+            LOG.debug('Removed oldest command: %s', removed.description)
 
         self.at_head_of_history = True
         LOG.debug(
-            f'Pushed command: {command.description} (undo stack size: {len(self.undo_stack)})',
+            'Pushed command: %s (undo stack size: %s)',
+            command.description,
+            len(self.undo_stack),
         )
 
     def push_frame_command(self, animation: str, frame: int, command: UndoRedoCommand) -> None:
@@ -293,7 +312,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         if len(self.frame_undo_stacks[frame_key]) > self.max_history:
             self.frame_undo_stacks[frame_key].pop(0)
 
-        LOG.debug(f'Pushed frame command for {animation}[{frame}]: {command.description}')
+        LOG.debug('Pushed frame command for %s[%s]: %s', animation, frame, command.description)
 
     # -- Legacy push (backward-compatible with Operation dataclass) ----------
 
@@ -385,16 +404,16 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self.is_undoing = True
         try:
             command = self.undo_stack.pop()
-            LOG.debug(f'Undoing: {command.description}')
+            LOG.debug('Undoing: %s', command.description)
 
             success = command.undo()
 
             if success:
                 self.redo_stack.append(command)
                 self.at_head_of_history = False
-                LOG.debug(f'Successfully undone: {command.description}')
+                LOG.debug('Successfully undone: %s', command.description)
             else:
-                LOG.warning(f'Failed to undo: {command.description}')
+                LOG.warning('Failed to undo: %s', command.description)
                 # Put it back if it failed
                 self.undo_stack.append(command)
 
@@ -416,7 +435,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self.is_redoing = True
         try:
             command = self.redo_stack.pop()
-            LOG.debug(f'Redoing: {command.description}')
+            LOG.debug('Redoing: %s', command.description)
 
             success = command.execute()
 
@@ -424,9 +443,9 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
                 self.undo_stack.append(command)
                 if not self.redo_stack:
                     self.at_head_of_history = True
-                LOG.debug(f'Successfully redone: {command.description}')
+                LOG.debug('Successfully redone: %s', command.description)
             else:
-                LOG.warning(f'Failed to redo: {command.description}')
+                LOG.warning('Failed to redo: %s', command.description)
                 self.redo_stack.append(command)
 
             return success
@@ -454,22 +473,24 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
             LOG.debug('Already in undo/redo operation')
             return False
 
+        command = self.frame_undo_stacks[frame_key].pop()
         self.is_undoing = True
+        # Deliberately broad: a frame undo must never crash the editor. The command is dropped
+        # from the history when it raises
         try:
-            command = self.frame_undo_stacks[frame_key].pop()
             success = command.undo()
-
-            if success:
-                self.frame_redo_stacks[frame_key].append(command)
-                LOG.debug(f'Undid frame command for {animation}[{frame}]: {command.description}')
-            else:
-                LOG.warning('Failed to undo frame command for %s[%s]', animation, frame)
-                self.frame_undo_stacks[frame_key].append(command)
-
         except Exception:
             LOG.exception('Error undoing frame command for %s[%s]', animation, frame)
             return False
         else:
+            if success:
+                self.frame_redo_stacks[frame_key].append(command)
+                LOG.debug(
+                    'Undid frame command for %s[%s]: %s', animation, frame, command.description
+                )
+            else:
+                LOG.warning('Failed to undo frame command for %s[%s]', animation, frame)
+                self.frame_undo_stacks[frame_key].append(command)
             return success
         finally:
             self.is_undoing = False
@@ -495,22 +516,24 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
             LOG.debug('Already in undo/redo operation')
             return False
 
+        command = self.frame_redo_stacks[frame_key].pop()
         self.is_redoing = True
+        # Deliberately broad: a frame redo must never crash the editor. The command is dropped
+        # from the history when it raises
         try:
-            command = self.frame_redo_stacks[frame_key].pop()
             success = command.execute()
-
-            if success:
-                self.frame_undo_stacks[frame_key].append(command)
-                LOG.debug(f'Redid frame command for {animation}[{frame}]: {command.description}')
-            else:
-                LOG.warning('Failed to redo frame command for %s[%s]', animation, frame)
-                self.frame_redo_stacks[frame_key].append(command)
-
         except Exception:
             LOG.exception('Error redoing frame command for %s[%s]', animation, frame)
             return False
         else:
+            if success:
+                self.frame_undo_stacks[frame_key].append(command)
+                LOG.debug(
+                    'Redid frame command for %s[%s]: %s', animation, frame, command.description
+                )
+            else:
+                LOG.warning('Failed to redo frame command for %s[%s]', animation, frame)
+                self.frame_redo_stacks[frame_key].append(command)
             return success
         finally:
             self.is_redoing = False
@@ -518,10 +541,19 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
     # -- History management -------------------------------------------------
 
     def clear_history(self) -> None:
-        """Clear all undo/redo history."""
+        """Clear all undo/redo history: the global stacks and every frame's stacks.
+
+        The frame stacks are keyed by animation name and frame index only, so a stroke kept
+        there would be undone (or redone) into any later sprite with the same names
+        (BUGS.md #150). The current frame is kept: it is where the editor is, not a step, and
+        the next frame selection records it as the frame to go back to.
+        """
         LOG.debug('Clearing undo/redo history')
         self.undo_stack.clear()
         self.redo_stack.clear()
+        self.frame_undo_stacks.clear()
+        self.frame_redo_stacks.clear()
+        self.at_head_of_history = True
 
     def get_history_info(self) -> dict[str, Any]:
         """Get information about the current history state.
@@ -542,7 +574,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
     # -- Legacy callback setters (kept for backward-compatible tests) -------
 
-    def set_pixel_change_callback(self, callback: Any) -> None:
+    def set_pixel_change_callback(self, callback: PixelChangeCallback) -> None:
         """Set the pixel change callback (legacy, used by _OperationAdapter).
 
         Args:
@@ -554,11 +586,11 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
     def set_film_strip_callbacks(
         self,
-        add_frame_callback: Any | None = None,
-        delete_frame_callback: Any | None = None,
-        reorder_frame_callback: Any | None = None,
-        add_animation_callback: Any | None = None,
-        delete_animation_callback: Any | None = None,
+        add_frame_callback: AddFrameCallback | None = None,
+        delete_frame_callback: DeleteFrameCallback | None = None,
+        reorder_frame_callback: ReorderFrameCallback | None = None,
+        add_animation_callback: AddAnimationCallback | None = None,
+        delete_animation_callback: DeleteAnimationCallback | None = None,
     ) -> None:
         """Set film strip operation callbacks (legacy, used by _OperationAdapter).
 
@@ -577,7 +609,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self._delete_animation_callback = delete_animation_callback
         LOG.debug('Film strip operation callbacks set')
 
-    def set_frame_selection_callback(self, callback: Any) -> None:
+    def set_frame_selection_callback(self, callback: FrameSelectionCallback) -> None:
         """Set the frame selection callback (legacy).
 
         Args:
@@ -587,7 +619,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self._frame_selection_callback = callback
         LOG.debug('Frame selection callback set')
 
-    def set_controller_position_callback(self, callback: Any) -> None:
+    def set_controller_position_callback(self, callback: ControllerPositionCallback) -> None:
         """Set the controller position callback (legacy).
 
         Args:
@@ -597,7 +629,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self._controller_position_callback = callback
         LOG.debug('Controller position callback set')
 
-    def set_controller_mode_callback(self, callback: Any) -> None:
+    def set_controller_mode_callback(self, callback: ControllerModeCallback) -> None:
         """Set the controller mode callback (legacy).
 
         Args:
@@ -607,7 +639,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         self._controller_mode_callback = callback
         LOG.debug('Controller mode callback set')
 
-    def set_frame_paste_callback(self, callback: Any) -> None:
+    def set_frame_paste_callback(self, callback: FramePasteCallback) -> None:
         """Set the frame paste callback (legacy).
 
         Args:
@@ -712,7 +744,7 @@ class _OperationAdapter:
         """
         return self._dispatch(is_undo=True)
 
-    def _dispatch(self, *, is_undo: bool) -> bool:  # ruff: ignore[too-many-return-statements]
+    def _dispatch(self, *, is_undo: bool) -> bool:
         """Route to the correct legacy callback based on operation type.
 
         Returns:
@@ -722,57 +754,82 @@ class _OperationAdapter:
         operation = self._operation
         data = operation.undo_data if is_undo else operation.redo_data
 
+        # Deliberately broad: the legacy callbacks are arbitrary editor code, and undo and redo
+        # must never crash the editor, so any error is logged and reported as a failed step
         try:
-            op_type = operation.operation_type
-
-            # Canvas operations
-            if op_type in {
-                OperationType.CANVAS_PIXEL_CHANGE,
-                OperationType.CANVAS_BRUSH_STROKE,
-                OperationType.CANVAS_FLOOD_FILL,
-                OperationType.CANVAS_COLOR_CHANGE,
-            }:
-                return self._dispatch_canvas(operation, data, is_undo=is_undo)
-
-            # Film strip operations
-            if op_type in {
-                OperationType.FILM_STRIP_FRAME_ADD,
-                OperationType.FILM_STRIP_FRAME_DELETE,
-                OperationType.FILM_STRIP_FRAME_REORDER,
-                OperationType.FILM_STRIP_ANIMATION_ADD,
-                OperationType.FILM_STRIP_ANIMATION_DELETE,
-            }:
-                return self._dispatch_film_strip(operation, data, is_undo=is_undo)
-
-            # Cross-area operations
-            if op_type in {
-                OperationType.FRAME_COPY,
-                OperationType.FRAME_PASTE,
-                OperationType.ANIMATION_COPY,
-                OperationType.ANIMATION_PASTE,
-            }:
-                return self._dispatch_cross_area(operation, data, is_undo=is_undo)
-
-            # Frame selection
-            if op_type == OperationType.FRAME_SELECTION:
-                return self._dispatch_frame_selection(data)
-
-            # Controller position
-            if op_type == OperationType.CONTROLLER_POSITION_CHANGE:
-                return self._dispatch_controller_position(data, is_undo=is_undo)
-
-            # Controller mode
-            if op_type == OperationType.CONTROLLER_MODE_CHANGE:
-                return self._dispatch_controller_mode(data, is_undo=is_undo)
-
-            LOG.warning('Unknown operation type: %s', op_type)
-
+            dispatched = self._dispatch_by_operation_type(
+                operation=operation,
+                data=data,
+                is_undo=is_undo,
+            )
         except Exception:
             label = 'undo' if is_undo else 'redo'
-            LOG.exception(f'Error executing {label} for {operation.description}')
+            LOG.exception('Error executing %s for %s', label, operation.description)
             return False
-        else:
-            return False
+        return dispatched
+
+    def _dispatch_by_operation_type(  # ruff: ignore[too-many-return-statements]
+        self,
+        *,
+        operation: Operation,
+        data: dict[str, Any],
+        is_undo: bool,
+    ) -> bool:
+        """Run the legacy callback for the operation's type.
+
+        Args:
+            operation: The recorded operation.
+            data: The operation's undo data when undoing, its redo data when redoing.
+            is_undo: True when undoing, False when redoing.
+
+        Returns:
+            The callback's result, or False for an unknown operation type.
+
+        """
+        operation_type = operation.operation_type
+
+        # Canvas operations
+        if operation_type in {
+            OperationType.CANVAS_PIXEL_CHANGE,
+            OperationType.CANVAS_BRUSH_STROKE,
+            OperationType.CANVAS_FLOOD_FILL,
+            OperationType.CANVAS_COLOR_CHANGE,
+        }:
+            return self._dispatch_canvas(operation, data, is_undo=is_undo)
+
+        # Film strip operations
+        if operation_type in {
+            OperationType.FILM_STRIP_FRAME_ADD,
+            OperationType.FILM_STRIP_FRAME_DELETE,
+            OperationType.FILM_STRIP_FRAME_REORDER,
+            OperationType.FILM_STRIP_ANIMATION_ADD,
+            OperationType.FILM_STRIP_ANIMATION_DELETE,
+        }:
+            return self._dispatch_film_strip(operation, data, is_undo=is_undo)
+
+        # Cross-area operations
+        if operation_type in {
+            OperationType.FRAME_COPY,
+            OperationType.FRAME_PASTE,
+            OperationType.ANIMATION_COPY,
+            OperationType.ANIMATION_PASTE,
+        }:
+            return self._dispatch_cross_area(operation, data, is_undo=is_undo)
+
+        # Frame selection
+        if operation_type == OperationType.FRAME_SELECTION:
+            return self._dispatch_frame_selection(data)
+
+        # Controller position
+        if operation_type == OperationType.CONTROLLER_POSITION_CHANGE:
+            return self._dispatch_controller_position(data, is_undo=is_undo)
+
+        # Controller mode
+        if operation_type == OperationType.CONTROLLER_MODE_CHANGE:
+            return self._dispatch_controller_mode(data, is_undo=is_undo)
+
+        LOG.warning('Unknown operation type: %s', operation_type)
+        return False
 
     # -- Canvas dispatch ----------------------------------------------------
 

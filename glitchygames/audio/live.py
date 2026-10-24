@@ -47,6 +47,10 @@ LIVE_RANDOM_STREAM = 'audio.live'
 DEFAULT_FADE_OUT = 0.1
 
 
+# The mixer's channel count after reserve_live_voice_pool grew it, by pool size
+_pool_grown_mixer_channel_counts: dict[int, int] = {}
+
+
 def reserve_live_voice_pool(pool_size: int) -> tuple[int, ...]:
     """Reserve channels for live voices; call once at startup before any sound plays.
 
@@ -65,8 +69,13 @@ def reserve_live_voice_pool(pool_size: int) -> tuple[int, ...]:
         raise ValueError(message)
     if pool_size == 0 or pygame.mixer.get_init() is None:
         return ()
-    original_count = pygame.mixer.get_num_channels()
-    pygame.mixer.set_num_channels(original_count + pool_size)
+    # A second engine in one process (a test run, a launcher) finds the pool it grew already
+    # there: growing again would add channels per engine, and every set_num_channels reallocates
+    # pygame's channel table while the audio thread may still finish a sound on it (BUGS.md
+    # #145). A restarted mixer is back at its default count, so it grows again.
+    if pygame.mixer.get_num_channels() != _pool_grown_mixer_channel_counts.get(pool_size):
+        pygame.mixer.set_num_channels(pygame.mixer.get_num_channels() + pool_size)
+        _pool_grown_mixer_channel_counts[pool_size] = pygame.mixer.get_num_channels()
     reserved_count = pygame.mixer.set_reserved(pool_size)
     return tuple(range(reserved_count))
 

@@ -9,22 +9,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.bitmappy.toml_processing import (
     collect_unique_colors_from_pixels,
 )
-from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestPixelSaving:
-    """Test pixel saving functionality using centralized mocks."""
-
-    def setup_method(self):
-        """Set up test fixtures using centralized mocks."""
-        # Use centralized mocks
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers.values():
-            patcher.start()
-
-    def teardown_method(self):
-        """Clean up after tests."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
+    """Test pixel saving functionality."""
 
     def test_pixel_processing_logic(self):
         """Test the pixel processing logic from _generate_frame_toml_content."""

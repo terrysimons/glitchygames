@@ -1,6 +1,7 @@
 """GlitchyGames UI slider, color well, and tab control components.
 
-This module contains the SliderSprite, ColorWellSprite, and TabControlSprite widget classes.
+This module contains the SliderSprite, ColorWellSprite, and TabControlSprite widget classes,
+and the one formatter and parser for the text typed into a slider's text box.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import pygame
 from pygame import Rect
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
+from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
 )
@@ -20,18 +22,12 @@ from glitchygames.ui.text_widgets import TextSprite
 if TYPE_CHECKING:
     from typing import Protocol
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import HashableEvent, MouseButtonEvent, MouseMotionEvent
 
     class SliderProtocol(Protocol):
         """Parent that hosts slider widgets and handles slider events."""
 
-        red_slider: SliderSprite
-        green_slider: SliderSprite
-        blue_slider: SliderSprite
-        alpha_slider: SliderSprite
-        color_well: ColorWellSprite
         slider_input_format: str
-        visual_collision_manager: object
 
         def on_slider_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
             """Handle slider value change events."""
@@ -50,77 +46,61 @@ LOG.addHandler(logging.NullHandler())
 
 MAX_COLOR_TEXT_INPUT_LENGTH = 3
 
+# The slider text box formats, as the tab control names them
+DECIMAL_INPUT_FORMAT = '%d'
+HEX_INPUT_FORMAT = '%X'
+HEX_DIGIT_LETTERS = 'abcdef'
+
+
+def format_channel(value: int, input_format: str) -> str:
+    """Format a color channel value for a slider text box.
+
+    Args:
+        value: The channel value (0-255).
+        input_format: The text box format, HEX_INPUT_FORMAT or DECIMAL_INPUT_FORMAT.
+
+    Returns:
+        str: Two hex digits ('FF') in the hex format, otherwise decimal ('255').
+
+    """
+    if input_format == HEX_INPUT_FORMAT:
+        return f'{value:02X}'
+    return str(value)
+
+
+def parse_channel(text: str, input_format: str) -> int | None:
+    """Parse the text typed into a slider text box as a color channel value.
+
+    The text is hex in the hex format (where "10" is 16, BUGS.md #110 item 3) or when it
+    contains hex letters; otherwise it is decimal.
+
+    Args:
+        text: The typed text.
+        input_format: The text box format, HEX_INPUT_FORMAT or DECIMAL_INPUT_FORMAT.
+
+    Returns:
+        int | None: The value, or None when the text is empty, unparsable or outside 0-255.
+
+    """
+    stripped_text = text.strip().lower()
+    if not stripped_text:
+        return None
+    is_hex = input_format == HEX_INPUT_FORMAT or any(
+        character in HEX_DIGIT_LETTERS for character in stripped_text
+    )
+    try:
+        value = int(stripped_text, 16 if is_hex else 10)
+    except ValueError:
+        return None
+    if not (0 <= value <= MAX_COLOR_CHANNEL_VALUE):
+        return None
+    return value
+
 
 class SliderSprite(BitmappySprite):
     """A slider sprite class."""
 
     log = logging.getLogger('game')
-
-    class SliderKnobSprite(BitmappySprite):
-        """A slider knob sprite class."""
-
-        log = logging.getLogger('game')
-
-        def __init__(
-            self: Self,
-            x: int,
-            y: int,
-            width: int,
-            height: int,
-            *,
-            name: str | None = None,
-            parent: object | None = None,
-            groups: pygame.sprite.LayeredDirty[Any] | None = None,
-        ) -> None:
-            """Initialize a SliderKnobSprite.
-
-            Args:
-                x (int): The x coordinate of the slider knob sprite.
-                y (int): The y coordinate of the slider knob sprite.
-                width (int): The width of the slider knob sprite.
-                height (int): The height of the slider knob sprite.
-                name (str): The name of the slider knob sprite.
-                parent (object): The parent object.
-                groups (pygame.sprite.LayeredDirty[Any] | None): The groups.
-
-            """
-            if groups is None:
-                groups = pygame.sprite.LayeredDirty()
-
-            super().__init__(
-                x=x,
-                y=y,
-                width=width,
-                height=height,
-                name=name,
-                parent=parent,
-                groups=groups,
-            )
-
-            self.value = 0
-
-            self.image.fill((255, 255, 255))
-            self.rect = Rect(x, y, self.width, self.height)
-            self.x = x
-            self.y = y
-
-        @override
-        def on_left_mouse_drag_event(
-            self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
-        ) -> None:
-            """Handle left mouse drag events.
-
-            Args:
-                event (HashableEvent): The event to handle.
-                trigger (HashableEvent): The object that triggered the event.
-
-            """
-            # There's not a good way to pass any useful info, so for now, pass None
-            # since we're not using the event for anything in this class.
-            self.on_left_mouse_button_down_event(event)
-            self.dirty = 1
 
     def __init__(
         self: Self,
@@ -148,9 +128,6 @@ class SliderSprite(BitmappySprite):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        # Store parent in a temporary variable
-        self._temp_parent = parent
-
         # self.log is the class-level SliderSprite.log (logging.getLogger('game')).
         self.log.info('Initializing slider %s with parent %s', name, parent)
 
@@ -161,19 +138,12 @@ class SliderSprite(BitmappySprite):
             height=height,
             name=name,
             focusable=True,
+            parent=parent,
             groups=groups,
         )
 
-        # Force set parent after super init
-        self.parent = self._temp_parent
-        del self._temp_parent
-
-        self.log.info(f'After super().__init__, parent is now {self.parent}')
-
         # Initialize base values
         self._value = 0
-        self.min_x = x
-        self.max_x = x + width - 5
         self.dragging = False
 
         # Initialize the slider knob
@@ -193,19 +163,17 @@ class SliderSprite(BitmappySprite):
         # Ensure slider rect is properly set for mouse detection
         self.rect = pygame.Rect(x, y, width, height)
 
-        # Ensure drag boundaries are properly set
+        # The knob's left edge runs from the slider's left edge to 5 pixels (its width) short
+        # of the right edge
         self.min_x = x
         self.max_x = x + width - 5
 
-        # Set color based on slider name
-        if name == 'R':
-            self.color = (255, 0, 0)
-        elif name == 'G':
-            self.color = (0, 255, 0)
-        elif name == 'B':
-            self.color = (0, 0, 255)
-        else:
-            self.color = (128, 128, 128)
+        # The track's gradient as last drawn, kept to repaint the image with (see
+        # _current_gradient), and the image, size and name it was drawn for
+        self._gradient: pygame.Surface | None = None
+        self._gradient_drawn_on: pygame.Surface | None = None
+        # The name is compared only; Sprite falls back to the class as a name (sprite.py)
+        self._gradient_drawn_for: tuple[int | float, int | float, object] | None = None
 
         # Set up appearance
         self.update_slider_appearance()
@@ -217,8 +185,6 @@ class SliderSprite(BitmappySprite):
         # Now set the initial value
         self.value = self._value
 
-        self.log.info(f'Finished initializing slider {name}, final parent is {self.parent}')
-
     @property
     def value(self) -> int:
         """The slider value."""
@@ -226,16 +192,26 @@ class SliderSprite(BitmappySprite):
 
     @value.setter
     def value(self, new_value: int) -> None:
-        """Set the slider value."""
-        if hasattr(self, 'slider_knob'):  # Only update knob if it exists
-            self._value = max(0, min(255, new_value))
-            self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
-            self.slider_knob.dirty = 2
-            if hasattr(self, 'text_sprite'):
-                # Deactivate text sprite and update text
-                self.text_sprite.is_active = False
-                self.text_sprite.text = str(self._value)
-                self.text_sprite.update_text(self.text_sprite.text)
+        """Set the slider value, move the knob and show the value in the text box's format.
+
+        Setting the value ends any editing in the text box.
+        """
+        # __init__ makes the knob and the text sprite before it first sets the value
+        self._value = max(0, min(MAX_COLOR_CHANNEL_VALUE, new_value))
+        self.slider_knob.rect.x = self.min_x + (
+            self._value * (self.max_x - self.min_x) // MAX_COLOR_CHANNEL_VALUE
+        )
+        self.slider_knob.dirty = 2
+        # Deactivate text sprite and update text
+        self.text_sprite.is_active = False
+        self.text_sprite.text = format_channel(self._value, self.input_format)
+        self.text_sprite.update_text(self.text_sprite.text)
+        self.text_sprite.dirty = 2  # Force redraw
+
+    @property
+    def input_format(self) -> str:
+        """The text box format: the parent's slider_input_format, decimal without a parent."""
+        return getattr(self.parent, 'slider_input_format', DECIMAL_INPUT_FORMAT)
 
     def _init_text_sprite(
         self,
@@ -277,12 +253,12 @@ class SliderSprite(BitmappySprite):
             if not self.text_sprite.is_active:
                 return
             if event.key == pygame.K_RETURN:
-                self._handle_text_enter(event)
+                self.commit_text(event=event)
             elif event.key == pygame.K_ESCAPE:
                 self._restore_original_value()
             elif (
                 event.unicode.isdigit()
-                or event.unicode.lower() in 'abcdef'
+                or event.unicode.lower() in HEX_DIGIT_LETTERS
                 or event.key == pygame.K_BACKSPACE
             ):
                 self._handle_text_character_input(event)
@@ -305,48 +281,58 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.on_left_mouse_button_down_event = handle_text_click  # type: ignore[assignment] # ty: ignore[invalid-assignment]
 
     def _restore_original_value(self) -> None:
-        """Restore the slider text to its original value and deactivate."""
-        self.text_sprite.text = str(self.original_value)
+        """Restore the slider text to its original value, in the active format, and deactivate.
+
+        It was always written in decimal, even on the hex tab.
+        """
+        self.text_sprite.text = format_channel(self.original_value, self.input_format)
         self.text_sprite.is_active = False
         self.text_sprite.update_text(self.text_sprite.text)
 
-    def _handle_text_enter(self, event: HashableEvent) -> None:
-        """Handle Enter key press in the slider text input."""
-        if not self.text_sprite.text.strip():
-            # Empty text, restore original value
+    def commit_text(self, *, event: HashableEvent) -> None:
+        """Commit the text typed into the text box: the one path for Enter and click-away.
+
+        Valid text sets the value and tells the parent, so the color well and the canvas
+        color follow; empty, unparsable or out-of-range text restores the value the box held
+        when editing began. Either way the text box stops editing.
+
+        Args:
+            event: The event that commits the text (the Enter key, or the click elsewhere).
+
+        """
+        new_value = parse_channel(self.text_sprite.text, self.input_format)
+        if new_value is None:
             self._restore_original_value()
             return
 
-        # Validate and apply new value
-        # Check if input is hex (contains letters) or decimal
-        text = self.text_sprite.text.strip().lower()
-        base = 16 if any(c in 'abcdef' for c in text) else 10
-        try:
-            new_value = int(text, base)
-        except ValueError:
-            self._restore_original_value()
-            return
-
-        if not (0 <= new_value <= MAX_COLOR_CHANNEL_VALUE):
-            self._restore_original_value()
-            return
-
-        # Valid value, update slider
         self.value = new_value
+        # Update original value for future restorations
+        self.original_value = new_value
+        self._notify_parent(event=event)
 
-        # Convert text to appropriate format based on parent's format setting
-        if hasattr(self.parent, 'slider_input_format') and self.parent.slider_input_format == '%X':
-            self.text_sprite.text = f'{new_value:02X}'
-        else:
-            self.text_sprite.text = str(new_value)
+    def _notify_parent(self, *, event: HashableEvent) -> None:
+        """Tell the parent the slider's value changed, so it can update its color.
 
-        self.text_sprite.is_active = False
-        self.text_sprite.update_text(self.text_sprite.text)
-        self.text_sprite.dirty = 2  # Force redraw
-        # Update parent scene
-        if hasattr(self.parent, 'on_slider_event'):
-            trigger = pygame.event.Event(0, {'name': self.name, 'value': new_value})
-            self.parent.on_slider_event(event=event, trigger=trigger)
+        Args:
+            event: The event that changed the value.
+
+        """
+        if self.parent is None:
+            self.log.info('Slider %s has no parent to notify', self.name)
+            return
+        trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
+        self.parent.on_slider_event(event=event, trigger=trigger)
+
+    def _set_value_from_mouse(self, event: HashableEvent) -> None:
+        """Set the value from the mouse's x position on the slider and notify the parent.
+
+        Args:
+            event: The mouse event.
+
+        """
+        mouse_x = max(self.min_x, min(event.pos[0], self.max_x))
+        self.value = ((mouse_x - self.min_x) * MAX_COLOR_CHANNEL_VALUE) // (self.max_x - self.min_x)
+        self._notify_parent(event=event)
 
     def _handle_text_character_input(self, event: HashableEvent) -> None:
         """Handle character input in the slider text input."""
@@ -364,7 +350,7 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.dirty = 2
 
     def update_slider_appearance(self) -> None:
-        """Update the slider's gradient appearance based on its color."""
+        """Draw the slider's gradient on its image, column by column, and keep a copy of it."""
         for x in range(int(self.width)):
             intensity = int((x / self.width) * 255)
             if self.name == 'R':
@@ -376,173 +362,67 @@ class SliderSprite(BitmappySprite):
             else:
                 color = (intensity, intensity, intensity)
             pygame.draw.line(self.image, color, (x, 0), (x, self.height))
+        self._gradient = self.image.copy()
+        # Copied back, never blended: on a display with per-pixel alpha (cocoa) the image takes
+        # the display's format, and alpha-blending onto it leaves alpha 0, which the window
+        # shows as black (glitchygames/opacity.py)
+        self._gradient.set_alpha(None)
+        self._gradient_drawn_on = self.image
+        self._gradient_drawn_for = (self.width, self.height, self.name)
 
-        # Draw visual indicators for multi-controller system
-        self._draw_slider_visual_indicators()
+    def _current_gradient(self) -> pygame.Surface | None:
+        """The kept gradient, when it was drawn for the slider's image, size and name.
 
-    def _draw_slider_visual_indicators(self) -> None:
-        """Draw visual indicators for multi-controller system on sliders."""
-        if not hasattr(self, 'parent') or not self.parent:
-            return
+        The slider is dirty every frame (dirty = 2), but its gradient depends only on these,
+        so it is drawn column by column only when one of them changed; otherwise the kept copy
+        repaints the image in one blit. The image holds only the gradient: the knob and the
+        text box are sprites of their own.
 
-        # Check if parent has visual collision manager
-        if not hasattr(self.parent, 'visual_collision_manager'):
-            return
+        Returns:
+            pygame.Surface | None: The kept gradient, or None when it must be drawn again.
 
-        from glitchygames.bitmappy.indicators import LocationType
-
-        # Get slider indicators from the visual collision manager
-        slider_indicators = self.parent.visual_collision_manager.get_indicators_by_location(
-            LocationType.SLIDER,
-        )
-        if not slider_indicators:
-            return
-
-        LOG.debug('Drawing %d slider indicators on %s slider', len(slider_indicators), self.name)
-
-        # Draw each indicator on this slider
-        for indicator in slider_indicators.values():
-            # Calculate position relative to this slider
-            slider_x = self.rect.x
-            slider_y = self.rect.y
-            slider_width = self.rect.width
-
-            # Map indicator position to slider coordinates
-            # For now, use a simple mapping - this could be improved
-            indicator_x = slider_x + (indicator.position[0] % slider_width)
-            indicator_y = slider_y + indicator.position[1]
-
-            # Draw the indicator based on its shape
-            if indicator.shape.value == 'circle':
-                # Draw circle (slider indicator)
-                pygame.draw.circle(
-                    self.image,
-                    indicator.color,
-                    (indicator_x - slider_x, indicator_y - slider_y),
-                    indicator.size // 2,
-                )
-            elif indicator.shape.value == 'square':
-                # Draw square
-                rect = pygame.Rect(
-                    indicator_x - slider_x - indicator.size // 2,
-                    indicator_y - slider_y - indicator.size // 2,
-                    indicator.size,
-                    indicator.size,
-                )
-                pygame.draw.rect(self.image, indicator.color, rect)
-            elif indicator.shape.value == 'triangle':
-                # Draw triangle
-                points = [
-                    (indicator_x - slider_x, indicator_y - slider_y - indicator.size // 2),
-                    (
-                        indicator_x - slider_x - indicator.size // 2,
-                        indicator_y - slider_y + indicator.size // 2,
-                    ),
-                    (
-                        indicator_x - slider_x + indicator.size // 2,
-                        indicator_y - slider_y + indicator.size // 2,
-                    ),
-                ]
-                pygame.draw.polygon(self.image, indicator.color, points)
-
-    def update_color_well(self) -> None:
-        """Update the color well with current value."""
-        if hasattr(self.parent, 'color_well'):
-            if self.name == 'R':
-                self.parent.red_slider.value = self._value
-            elif self.name == 'G':
-                self.parent.green_slider.value = self._value
-            elif self.name == 'B':
-                self.parent.blue_slider.value = self._value
-            elif self.name == 'A':
-                self.parent.alpha_slider.value = self._value
-
-            self.parent.color_well.active_color = (
-                self.parent.red_slider.value,
-                self.parent.green_slider.value,
-                self.parent.blue_slider.value,
-                self.parent.alpha_slider.value,
-            )
+        """
+        if self._gradient_drawn_on is not self.image or self._gradient_drawn_for != (
+            self.width,
+            self.height,
+            self.name,
+        ):
+            return None
+        return self._gradient
 
     @override
-    def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down event."""
-        self.log.info(f'Slider {self.name} mouse down event at {event.pos}, rect: {self.rect}')
+        self.log.info('Slider %s mouse down event at %s, rect: %s', self.name, event.pos, self.rect)
         if self.rect.collidepoint(event.pos):
-            self.log.info(f'Mouse down on slider {self.name}')
+            self.log.info('Mouse down on slider %s', self.name)
             self.dragging = True
-            # Update value based on click position
-            click_x = max(self.min_x, min(event.pos[0], self.max_x))
-            self._value = ((click_x - self.min_x) * 255) // (self.max_x - self.min_x)
-
-            # Create trigger event exactly like right-click does
-            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
-            if hasattr(self.parent, 'on_slider_event'):
-                self.log.info(
-                    f'Slider {self.name} calling on_slider_event with value {self._value}',
-                )
-                self.parent.on_slider_event(event=event, trigger=trigger)
-            else:
-                self.log.info(f'Parent {self.parent} has no on_slider_event')
-
-            self.value = self._value  # Update display after event
-
-            # Update text display based on current format
-            if (
-                hasattr(self.parent, 'slider_input_format')
-                and self.parent.slider_input_format == '%X'
-            ):
-                self.text_sprite.text = f'{self._value:02X}'
-            else:
-                self.text_sprite.text = str(self._value)
-            self.text_sprite.update_text(self.text_sprite.text)
-            self.text_sprite.dirty = 2  # Force redraw
+            self._set_value_from_mouse(event)
         else:
-            self.log.info(f'Mouse click not on slider {self.name} rect')
+            self.log.info('Mouse click not on slider %s rect', self.name)
 
     @override
-    def on_left_mouse_button_up_event(self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up event."""
-        self.log.info(f'Slider {self.name} mouse up event')
+        self.log.info('Slider %s mouse up event', self.name)
         self.dragging = False
 
     @override
-    def on_mouse_motion_event(self, event: HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: MouseMotionEvent) -> None:
         """Handle mouse motion event."""
         if self.dragging:
-            self.log.info(f'Dragging slider {self.name}')
-            # Update value based on drag position
-            drag_x = max(self.min_x, min(event.pos[0], self.max_x))
-            self._value = ((drag_x - self.min_x) * 255) // (self.max_x - self.min_x)
-
-            # Create trigger event exactly like right-click does
-            trigger = pygame.event.Event(0, {'name': self.name, 'value': self._value})
-            if hasattr(self.parent, 'on_slider_event'):
-                self.log.info(
-                    f'Slider {self.name} calling on_slider_event with value {self._value}',
-                )
-                self.parent.on_slider_event(event=event, trigger=trigger)
-            else:
-                self.log.info(f'Parent {self.parent} has no on_slider_event')
-
-            self.value = self._value  # Update display after event
-
-            # Update text display based on current format
-            if (
-                hasattr(self.parent, 'slider_input_format')
-                and self.parent.slider_input_format == '%X'
-            ):
-                self.text_sprite.text = f'{self._value:02X}'
-            else:
-                self.text_sprite.text = str(self._value)
-            self.text_sprite.update_text(self.text_sprite.text)
-            self.text_sprite.dirty = 2  # Force redraw
+            self.log.info('Dragging slider %s', self.name)
+            self._set_value_from_mouse(event)
 
     @override
     def update(self) -> None:
         """Update the slider."""
         if self.dirty:
-            self.update_slider_appearance()
+            gradient = self._current_gradient()
+            if gradient is None:
+                self.update_slider_appearance()
+            else:
+                self.image.blit(gradient, (0, 0))
         super().update()
         self.slider_knob.update()
         self.text_sprite.update()
@@ -596,16 +476,10 @@ class ColorWellSprite(BitmappySprite):
         self.green = 0
         self.blue = 0
         self.alpha = 255
-        # Ensure callbacks attribute is initialized (inheritance issue fix)
-        if not hasattr(self, 'callbacks'):
-            self.callbacks = {}
 
     @property
     def active_color(self: Self) -> tuple[int, int, int, int]:
         """The active color.
-
-        Args:
-            None
 
         Returns:
             tuple[R: int, G: int, B: int, A: int]: The active color.
@@ -635,44 +509,13 @@ class ColorWellSprite(BitmappySprite):
             self.alpha = 255  # Default to fully opaque if not specified
         self.dirty = 1
 
-    @property
-    def hex_color(self: Self) -> str:
-        """The hex color.
-
-        Args:
-            None
-
-        Returns:
-            str: The hex color in #RRGGBBAA format.
-
-        """
-        hex_str = '{:02X}'
-        red, green, blue, alpha = self.active_color
-
-        red = hex_str.format(red)
-        green = hex_str.format(green)
-        blue = hex_str.format(blue)
-        alpha = hex_str.format(alpha)
-
-        return f'#{red}{green}{blue}{alpha}'
-
     @override
     def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        """
+        """Update the nested sprites."""
 
     @override
     def update(self: Self) -> None:
-        """Update the color well sprite.
-
-        Args:
-            None
-
-        """
+        """Update the color well sprite."""
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
 
         # Draw the color directly on the alpha-compatible surface
@@ -718,8 +561,8 @@ class TabControlSprite(BitmappySprite):
         )
 
         # Tab options
-        self.tabs = ['%d', '%X']
-        self.active_tab = 0  # Start with %d (decimal)
+        self.tabs: list[str] = [DECIMAL_INPUT_FORMAT, HEX_INPUT_FORMAT]
+        self.active_tab: int = 0  # Start with %d (decimal)
 
         # Visual properties
         self.tab_height = height
@@ -730,22 +573,22 @@ class TabControlSprite(BitmappySprite):
         self.text_color = (0, 0, 0)
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
         """
         if self.rect.collidepoint(event.pos):
             # Calculate which tab was clicked
-            relative_x = event.pos[0] - self.rect.x
+            relative_x = int(event.pos[0] - self.rect.x)
             clicked_tab = relative_x // self.tab_width
 
             if 0 <= clicked_tab < len(self.tabs):
                 self.active_tab = clicked_tab
                 self.dirty = 2  # Force redraw
-                self.log.info(f'Tab control: Switched to tab {self.tabs[self.active_tab]}')
+                self.log.info('Tab control: Switched to tab %s', self.tabs[self.active_tab])
 
                 # Notify parent if it has a tab change handler
                 if hasattr(self.parent, 'on_tab_change_event'):
@@ -753,15 +596,11 @@ class TabControlSprite(BitmappySprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the tab control sprite.
-
-        Args:
-            None
-
-        """
+        """Update the tab control sprite."""
         if self.dirty:
-            # Clear the surface
-            self.image.fill((0, 0, 0, 0))  # Transparent background
+            # Clear the surface to black: the image has no SRCALPHA flag, so it is copied onto
+            # the screen whole and was never transparent (alpha 0 only showed black on cocoa)
+            self.image.fill((0, 0, 0))
 
             # Draw tabs
             for i, tab_text in enumerate(self.tabs):
@@ -784,3 +623,7 @@ class TabControlSprite(BitmappySprite):
                 except pygame.error, AttributeError:
                     # Handle font loading errors gracefully
                     pass
+
+            # The text was alpha-blended onto the image, which leaves alpha 0 on a surface in the
+            # format of a display with per-pixel alpha (cocoa's): black holes in the window
+            make_opaque(surface=self.image)

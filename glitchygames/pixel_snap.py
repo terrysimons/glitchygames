@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum
+from typing import assert_never
 
 # Fractional pixel at which NEAREST_HALF_UP snapping rounds up
 HALF_PIXEL = 0.5
@@ -53,6 +54,8 @@ def snap_to_pixel(value: float, mode: PixelSnapMode) -> int:
             return math.ceil(value)
         case PixelSnapMode.TRUNCATE:
             return math.trunc(value)
+        case _:  # pragma: no cover - every PixelSnapMode is matched above
+            assert_never(mode)
 
 
 class _ActiveSnapSettings:
@@ -91,6 +94,9 @@ def resolve_snap_mode(sprite: object) -> PixelSnapMode:
         PixelSnapMode: The mode to snap this sprite's positions with.
 
     """
+    # Looked up by name: any sprite may be resolved (a game's own DirtySprite), and only some
+    # declare a mode (BallSprite). A default declared on the engine's sprite classes would not
+    # save the lookup: getattr costs the same whether or not it finds the attribute
     sprite_mode = getattr(sprite, 'pixel_snap_mode', None)
     if isinstance(sprite_mode, PixelSnapMode):
         return sprite_mode

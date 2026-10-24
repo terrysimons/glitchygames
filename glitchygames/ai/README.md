@@ -12,7 +12,8 @@ This module provides optimized prompts and utilities for generating sprites usin
 ✅ **Smart Hints** - Auto-detects animation requests and size specifications
 ✅ **Clean Formatting** - Handles TOML format with per-pixel alpha support
 ✅ **Response Validation** - Catches common AI errors before processing
-✅ **Testable** - 33 tests covering all functionality
+✅ **Refinement** - Follow-up requests ("make it bigger") that keep the current sprite's structure
+✅ **Testable** - Unit tests in `tests/ai/test_sprite_generator.py`
 ✅ **Type-safe** - Full type hints for better IDE support
 
 ## Quick Start
@@ -76,6 +77,18 @@ messages = build_sprite_generation_messages(
 # Automatically adds: "IMPORTANT: This should be an ANIMATED sprite..."
 ```
 
+#### `build_refinement_messages(user_request, last_sprite_content, conversation_history=None, *, include_size_hint=True, include_animation_hint=True)`
+
+Builds a conversation that asks the AI to change an existing sprite, keeping its animation namespaces and frame counts unless the request says otherwise.
+
+**Parameters:**
+- `user_request` (str): User's refinement request (e.g. "make it red")
+- `last_sprite_content` (str): The current sprite's TOML
+- `conversation_history` (list[dict[str, str]], optional): Earlier messages, inserted after the format specification
+- `include_size_hint` / `include_animation_hint` (bool): As for `build_sprite_generation_messages` (default: True)
+
+**Returns:** `list[dict[str, str]]` - Messages ready for AI API
+
 ### Response Cleaning
 
 #### `clean_ai_response(content)`
@@ -83,14 +96,14 @@ messages = build_sprite_generation_messages(
 Removes markdown formatting and explanatory text from AI responses.
 
 **Parameters:**
-- `content` (str): Raw AI response
+- `content` (str | None): Raw AI response
 
-**Returns:** `str` - Cleaned TOML content
+**Returns:** `str | None` - Cleaned TOML content (empty or `None` input is returned unchanged)
 
 **Removes:**
 - Markdown code blocks (````toml`, ` ` ` `)
-- Leading explanatory text before TOML
-- Trailing explanations
+- Leading explanatory text before the first line starting with `[`
+- Surrounding whitespace
 
 **Example:**
 ```python
@@ -113,10 +126,11 @@ Validates AI response for common errors.
 **Checks for:**
 - Empty responses
 - Error/apology messages
+- Uncleaned markdown
+- Truncated pixel data (an unclosed `pixels = """` block)
 - Missing required sections ([sprite], [colors])
 - Mixed static/animated format
 - Comma-separated color values
-- Uncleaned markdown
 
 **Example:**
 ```python
@@ -157,6 +171,7 @@ formatted = format_training_example(example)
 # RR
 # RR
 # """
+#
 # [colors."R"]
 # red = 255
 # green = 0
@@ -179,7 +194,7 @@ Extracts size specification from user request.
 - "16 x 16" (with spaces)
 - "16×16" (with ×)
 
-**Size range:** 1-64 pixels
+**Size range:** 1-64 pixels (`MAX_SPRITE_DIMENSION`); larger sizes return None
 
 **Example:**
 ```python
@@ -210,6 +225,12 @@ is_animated = detect_animation_request("static coin")
 # Returns: False
 ```
 
+#### `detect_refinement_request(request)`
+
+Detects refinement phrasing ("make it", "change", "bigger", "add", ...). Not exported from `glitchygames.ai`; import it from `glitchygames.ai.sprite_generator`.
+
+**Returns:** `bool` - True if refinement keywords detected
+
 ## Prompt Templates
 
 ### `SpriteGenerationPrompt`
@@ -232,19 +253,10 @@ print(SpriteGenerationPrompt.FORMAT_SPEC)
 
 See [INTEGRATION.md](INTEGRATION.md) for detailed integration guide.
 
-**Quick integration:**
-```python
-# In bitmappy.py, replace lines 7788-7847:
-from glitchygames.ai import build_sprite_generation_messages
-
-# Old: 60+ lines of inline prompt construction
-# New:
-messages = build_sprite_generation_messages(
-    user_request=text,
-    training_examples=relevant_examples,
-    max_examples=3
-)
-```
+**Where it is used:**
+- `AIManager.on_text_submit_event()` (`glitchygames/bitmappy/ai_manager.py`) builds refinement messages when the canvas holds a sprite to refine, else generation messages (`max_examples=3`); responses go through `clean_ai_response` and `validate_ai_response`
+- `glitchygames/bitmappy/ai_worker.py` (the AI worker process) uses `get_sprite_size_hint`
+- `SpriteGenerationService` (`glitchygames/services/sprite_generation_service.py`, used by the API server) builds, cleans and validates the same way
 
 ## Testing
 
@@ -259,13 +271,9 @@ pytest tests/ai/test_sprite_generator.py::TestResponseValidation -v
 pytest tests/ai/test_sprite_generator.py -v --no-cov
 ```
 
-**Test coverage:** 33 tests covering:
-- Message building (5 tests)
-- Training example formatting (5 tests)
-- Response cleaning (5 tests)
-- Response validation (9 tests)
-- Size hint detection (5 tests)
-- Animation detection (4 tests)
+**Test coverage:** message building (generation and refinement), training example formatting and
+reconstruction, response cleaning, response validation (including truncation and mixed formats),
+size hint, animation and refinement detection.
 
 ## File Structure
 
@@ -278,7 +286,7 @@ glitchygames/ai/
 
 tests/ai/
 ├── __init__.py
-└── test_sprite_generator.py # 33 tests
+└── test_sprite_generator.py # Unit tests
 ```
 
 ## Performance
@@ -308,7 +316,6 @@ tests/ai/
 ## Future Enhancements
 
 - [ ] Semantic example selection (embeddings)
-- [ ] Multi-turn refinement ("make it bigger")
 - [ ] Style transfer support
 - [ ] Sprite variation generation
 - [ ] Animation preview before generation

@@ -23,7 +23,9 @@ def build(template: str) -> None:
     try:
         # The templates can be from remote repositories also.  Use a .repo file to name the repo
         with Path.open(Path(path) / template / '.repo') as fh:
-            template_loc = fh.readline()
+            # Without the line's newline, which cookiecutter would take as part of the
+            # location (BUGS.md #107)
+            template_loc = fh.readline().strip()
     except FileNotFoundError:
         template_loc = str(Path(path) / template)
     cookiecutter(template_loc)

@@ -1,7 +1,6 @@
 """Tests for the GlitchyGames palette module (glitchygames/color/palette.py)."""
 
 import configparser
-import json
 import sys
 
 import pytest
@@ -87,6 +86,30 @@ class TestColorPaletteSetColor:
         assert palette._colors is not None
         assert len(palette._colors) == 3
 
+    def test_set_color_replaces_the_last_entry(self):
+        """The last index is replaced in place, not appended to (BUGS.md #103)."""
+        palette = ColorPalette(colors=[Color(1, 1, 1), Color(2, 2, 2)])
+
+        palette.set_color(palette_index=1, new_color=Color(7, 7, 7))
+
+        assert palette._colors == [Color(1, 1, 1), Color(7, 7, 7)]
+
+    def test_appended_color_can_be_read_back(self):
+        """A color appended by set_color is seen by get_color (BUGS.md #103)."""
+        palette = ColorPalette(colors=[Color(1, 1, 1), Color(2, 2, 2)])
+
+        palette.set_color(palette_index=2, new_color=Color(8, 8, 8))
+
+        assert palette.get_color(palette_index=2) == Color(8, 8, 8)
+        assert palette.get_color(palette_index=3) is None
+
+    def test_one_color_palette_answers_its_color(self):
+        """A one-color palette answers that color, not magenta (BUGS.md #103)."""
+        palette = ColorPalette(colors=[Color(5, 6, 7)])
+
+        assert palette.get_color(palette_index=0) == Color(5, 6, 7)
+        assert palette.get_color(palette_index=1) is None
+
     def test_set_color_past_the_end_appends(self):
         """An index past the last color appends the new color."""
         palette = ColorPalette(colors=[Color(1, 1, 1), Color(2, 2, 2)])
@@ -123,16 +146,33 @@ class TestPaletteUtility:
 
         assert PaletteUtility.load_palette_from_file(config_file_path=palette_path) == colors
 
-    def test_write_palette_to_file_writes_the_data_as_json(self, tmp_path):
-        """write_palette_to_file stores the given dictionary as JSON."""
+    def test_written_palette_data_loads_back(self, tmp_path):
+        """write_palette_to_file writes the format load_palette_from_file reads (BUGS.md #104)."""
         output_path = tmp_path / 'written.palette'
-        palette_dictionary = {'default': {'colors': '1'}, '0': {'red': '1'}}
+        colors = [Color(3, 4, 5), Color(6, 7, 8, 9)]
+
+        PaletteUtility.write_palette_to_file(
+            config_data=PaletteUtility.create_palette_data(colors=colors),
+            output_file=output_path,
+        )
+
+        assert PaletteUtility.load_palette_from_file(config_file_path=output_path) == colors
+
+    def test_written_palette_dictionary_loads_back(self, tmp_path):
+        """A plain dictionary of sections is written in the same palette file format."""
+        output_path = tmp_path / 'written.palette'
+        palette_dictionary = {
+            'default': {'colors': '1'},
+            '0': {'red': '1', 'green': '2', 'blue': '3'},
+        }
 
         PaletteUtility.write_palette_to_file(
             config_data=palette_dictionary, output_file=output_path
         )
 
-        assert json.loads(output_path.read_text()) == palette_dictionary
+        assert PaletteUtility.load_palette_from_file(config_file_path=output_path) == [
+            Color(1, 2, 3, 255)
+        ]
 
     def test_rgb_data_file_is_parsed_without_duplicates(self, tmp_path):
         """Each line is one color (RGB or RGBA); repeated colors are kept once, in order."""
@@ -163,6 +203,48 @@ class TestBuiltinPalettes:
         assert len(palette._colors) == 16
         black = palette.BLACK
         assert black == Color(0, 0, 0)
+
+    def test_system_color_names_match_their_colors(self):
+        """Every named System color is the color its name says (BUGS.md #102)."""
+        palette = System()
+
+        named_colors = {
+            'BLACK': palette.BLACK,
+            'WHITE': palette.WHITE,
+            'RED': palette.RED,
+            'LIME': palette.LIME,
+            'BLUE': palette.BLUE,
+            'YELLOW': palette.YELLOW,
+            'CYAN': palette.CYAN,
+            'MAGENTA': palette.MAGENTA,
+            'SILVER': palette.SILVER,
+            'GREY': palette.GREY,
+            'MAROON': palette.MAROON,
+            'OLIVE': palette.OLIVE,
+            'GREEN': palette.GREEN,
+            'PURPLE': palette.PURPLE,
+            'TEAL': palette.TEAL,
+            'NAVY': palette.NAVY,
+        }
+
+        assert named_colors == {
+            'BLACK': Color(0, 0, 0),
+            'WHITE': Color(255, 255, 255),
+            'RED': Color(255, 0, 0),
+            'LIME': Color(0, 255, 0),
+            'BLUE': Color(0, 0, 255),
+            'YELLOW': Color(255, 255, 0),
+            'CYAN': Color(0, 255, 255),
+            'MAGENTA': Color(255, 0, 255),
+            'SILVER': Color(192, 192, 192),
+            'GREY': Color(128, 128, 128),
+            'MAROON': Color(128, 0, 0),
+            'OLIVE': Color(128, 128, 0),
+            'GREEN': Color(0, 128, 0),
+            'PURPLE': Color(128, 0, 128),
+            'TEAL': Color(0, 128, 128),
+            'NAVY': Color(0, 0, 128),
+        }
 
     def test_vga_palette_has_256_colors(self):
         """The VGA palette loads 256 colors; index 256 is past the end."""

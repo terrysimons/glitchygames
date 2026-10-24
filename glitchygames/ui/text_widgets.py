@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 try:
     import pyperclip
-except ImportError:
+except ImportError:  # pragma: no cover - pyperclip is an optional package
     pyperclip = None
 
 import pygame
@@ -28,7 +28,13 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Protocol
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        HashableEvent,
+        KeyEvent,
+        MouseButtonEvent,
+        MouseMotionEvent,
+        MouseWheelEvent,
+    )
 
     class TextSubmitProtocol(Protocol):
         """Parent that handles text submission events."""
@@ -170,23 +176,20 @@ class TextSprite(BitmappySprite):
         """Update the sprite."""
         # Handle cursor blinking for active text boxes
         if self.is_active:
-            old_visible = self._cursor_visible
             self._cursor_timer += 1
             # Blink every 30 frames (0.5 seconds at 60fps)
             if self._cursor_timer >= CURSOR_BLINK_FRAME_INTERVAL:
+                # The visibility changes, which the dirty flag below redraws
                 self._cursor_visible = not self._cursor_visible
                 self._cursor_timer = 0
-                # Force redraw when cursor visibility changes
-                if old_visible != self._cursor_visible:
-                    self.dirty = 2
             # Always mark as dirty when active to ensure continuous updates
             self.dirty = 2
         else:
             # Reset dirty flag when not active
             self.dirty = 1
 
-        if self.dirty:
-            self.update_text(self._text)
+        # Always dirty here (2 while active, else 1)
+        self.update_text(self._text)
 
     def update_text(self, text: str) -> None:
         """Update the text surface."""
@@ -254,7 +257,7 @@ class TextSprite(BitmappySprite):
                 text_surface, text_rect = self._render_with_freetype_font(
                     font, text, text_color, is_transparent=is_transparent
                 )
-            except TypeError, ValueError:
+            except TypeError, ValueError:  # pragma: no cover - freetype rejected the color
                 # Fall back to pygame.font style (returns surface)
                 text_surface = self._render_with_pygame_font(
                     font,
@@ -349,7 +352,7 @@ class TextSprite(BitmappySprite):
             pass
 
     @override
-    def on_mouse_motion_event(self, event: HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: MouseMotionEvent) -> None:
         """Handle mouse motion events for hover effects (disabled)."""
         # Hover effects disabled for TextSprite
 
@@ -423,22 +426,12 @@ class TextBoxSprite(BitmappySprite):
 
     @override
     def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        """
+        """Update the nested sprites."""
         self.text_box.dirty = self.dirty
 
     @override
     def update(self: Self) -> None:
-        """Update the text box sprite.
-
-        Args:
-            None
-
-        """
+        """Update the text box sprite."""
         if self.text_box:
             self.text_box.background_color = self.background_color
             self.image.blit(self.text_box.image, (self.x, self.y, self.width, self.height))
@@ -453,22 +446,22 @@ class TextBoxSprite(BitmappySprite):
             )
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.background_color = (128, 128, 128)
         self.dirty = 1
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.background_color = (0, 0, 0)
@@ -1049,7 +1042,7 @@ class MultiLineTextBox(BitmappySprite):
                     render_result = self.font.render(line, text_color)
                     if isinstance(render_result, tuple):
                         text_surface = render_result[0]
-                    else:
+                    else:  # pragma: no cover - a freetype font's render returns (surface, rect)
                         text_surface = render_result
                 else:
                     font_result = self.font.render(line, True, text_color)  # type: ignore[arg-type]  # ruff: ignore[boolean-positional-value-in-call]
@@ -1081,13 +1074,11 @@ class MultiLineTextBox(BitmappySprite):
             return
 
         # Get the current line text in wrapped text
+        # lines_before_cursor counts the newlines before the cursor, so the line exists
         wrapped_lines = self._text.split('\n')
-        if lines_before_cursor < len(wrapped_lines):
-            current_line_text = wrapped_lines[lines_before_cursor]
-            text_up_to_cursor = current_line_text[:column_pos]
-            text_width = self._get_text_width(text_up_to_cursor)
-        else:
-            text_width = 0
+        current_line_text = wrapped_lines[lines_before_cursor]
+        text_up_to_cursor = current_line_text[:column_pos]
+        text_width = self._get_text_width(text_up_to_cursor)
 
         cursor_x = text_width + 5
         cursor_y = 5 + ((lines_before_cursor - self.scroll_offset) * line_height)
@@ -1105,13 +1096,17 @@ class MultiLineTextBox(BitmappySprite):
         """Update the multi-line text box."""
         self._frame_count += 1
         current_time = frame_clock_milliseconds()
-        time_since_last_update = current_time - self._last_update_time
         line_height = self._get_line_height()
 
-        self.log.debug(f'\n--- Frame {self._frame_count} ---')
-        self.log.debug('Update called after %sms', time_since_last_update)
-        self.log.debug(f'State: active={self.is_active}, cursor_visible={self.cursor_visible}')
-        self.log.debug(f'Dirty flag: {self.dirty}')
+        # update() runs every frame (dirty = 2), so skip the whole frame dump unless it is logged
+        if self.log.isEnabledFor(logging.DEBUG):
+            time_since_last_update = current_time - self._last_update_time
+            self.log.debug('\n--- Frame %s ---', self._frame_count)
+            self.log.debug('Update called after %sms', time_since_last_update)
+            self.log.debug(
+                'State: active=%s, cursor_visible=%s', self.is_active, self.cursor_visible
+            )
+            self.log.debug('Dirty flag: %s', self.dirty)
 
         self._last_update_time = current_time
 
@@ -1141,18 +1136,18 @@ class MultiLineTextBox(BitmappySprite):
         self.dirty = 2
 
     @override
-    def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down events."""
         self.log.debug('\n--- Mouse Event ---')
-        self.log.debug(f'Mouse down at {event.pos}')
-        self.log.debug(f'Current rect: {self.rect}')
+        self.log.debug('Mouse down at %s', event.pos)
+        self.log.debug('Current rect: %s', self.rect)
         self.log.debug(
-            f'Current state: active={self.is_active}, cursor_visible={self.cursor_visible}'
+            'Current state: active=%s, cursor_visible=%s', self.is_active, self.cursor_visible
         )
 
         # Convert absolute mouse position to widget-relative coordinates
         if self.rect.collidepoint(event.pos):
-            relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+            relative_pos = (int(event.pos[0] - self.rect.x), int(event.pos[1] - self.rect.y))
 
             # Check if scrollbar handled the event
             if self.scrollbar.handle_mouse_down(relative_pos):
@@ -1170,14 +1165,12 @@ class MultiLineTextBox(BitmappySprite):
             pygame.key.set_repeat(500, 50)  # 500ms delay, 50ms interval
 
             # Calculate cursor position based on wrapped text, then map to original
-            x_rel = event.pos[0] - self.rect.x - 5
-            y_rel = event.pos[1] - self.rect.y - 5
+            x_rel = int(event.pos[0] - self.rect.x) - 5
+            y_rel = int(event.pos[1] - self.rect.y) - 5
 
-            # Get line height
-            if hasattr(self.font, 'get_linesize'):
-                line_height = self.font.get_linesize()
-            else:
-                line_height = self.font.size if hasattr(self.font, 'size') else 24
+            # Get line height (a freetype font's size is a float: the helper rounds it; this
+            # used the size unrounded)
+            line_height = self._get_line_height()
 
             # Determine which line was clicked
             clicked_line = max(0, int(y_rel // line_height))
@@ -1204,7 +1197,7 @@ class MultiLineTextBox(BitmappySprite):
             # Map the wrapped position back to original text position
             self.cursor_pos = self._map_wrapped_position_to_original(clicked_line, char_pos_in_line)
 
-            self.log.debug(f'Activated: cursor_pos={self.cursor_pos}')
+            self.log.debug('Activated: cursor_pos=%s', self.cursor_pos)
             self.log.debug('Text input started')
             self.dirty = 2
         else:
@@ -1215,7 +1208,7 @@ class MultiLineTextBox(BitmappySprite):
             self.log.debug('Deactivated, text input stopped')
 
     @override
-    def on_key_down_event(self, event: HashableEvent) -> None:
+    def on_key_down_event(self, event: KeyEvent) -> None:
         """Handle key down events."""
         if not self.is_active:
             return
@@ -1281,7 +1274,7 @@ class MultiLineTextBox(BitmappySprite):
             pygame.key.set_repeat()  # Disable key repeat
             self.log.debug('Deactivated after submission')
 
-    def _handle_shift_arrow(self, event: HashableEvent) -> None:
+    def _handle_shift_arrow(self, event: KeyEvent) -> None:
         """Handle shift+arrow key for text selection."""
         if self.selection_start is None:
             self.selection_start = self.cursor_pos
@@ -1292,7 +1285,7 @@ class MultiLineTextBox(BitmappySprite):
             self.cursor_pos = min(len(self._original_text), self.cursor_pos + 1)
         self.selection_end = self.cursor_pos
 
-    def _handle_clipboard_operation(self, event: HashableEvent, *, is_ctrl: bool) -> bool:
+    def _handle_clipboard_operation(self, event: KeyEvent, *, is_ctrl: bool) -> bool:
         """Handle copy, paste, cut, and select-all operations.
 
         Returns:
@@ -1369,7 +1362,7 @@ class MultiLineTextBox(BitmappySprite):
         self.selection_start = None
         self.selection_end = None
 
-    def _handle_delete_selection(self, event: HashableEvent) -> bool:
+    def _handle_delete_selection(self, event: KeyEvent) -> bool:
         """Handle delete key with active selection.
 
         Returns:
@@ -1388,7 +1381,7 @@ class MultiLineTextBox(BitmappySprite):
         self.selection_end = None
         return True
 
-    def _handle_regular_key(self, event: HashableEvent) -> None:
+    def _handle_regular_key(self, event: KeyEvent) -> None:
         """Handle regular key events (navigation, text input, backspace, delete)."""
         # Note: self.text setter moves cursor to end, so we save intended position first
         if event.key == pygame.K_RETURN:
@@ -1469,10 +1462,10 @@ class MultiLineTextBox(BitmappySprite):
         self.log.debug('MultiLineTextBox deactivated')
 
     @override
-    def on_mouse_motion_event(self, event: HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: MouseMotionEvent) -> None:
         """Handle mouse motion events for hover effects and scrollbar."""
         # Convert absolute mouse position to widget-relative coordinates
-        relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+        relative_pos = (int(event.pos[0] - self.rect.x), int(event.pos[1] - self.rect.y))
 
         # Check if scrollbar handled the event
         if self.scrollbar.handle_mouse_motion(relative_pos):
@@ -1492,10 +1485,10 @@ class MultiLineTextBox(BitmappySprite):
             self.dirty = 1  # Mark for redraw to remove hover effects
 
     @override
-    def on_left_mouse_button_up_event(self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up events."""
         # Convert absolute mouse position to widget-relative coordinates
-        relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+        relative_pos = (int(event.pos[0] - self.rect.x), int(event.pos[1] - self.rect.y))
 
         # Check if scrollbar handled the event
         if self.scrollbar.handle_mouse_up(relative_pos):
@@ -1507,7 +1500,7 @@ class MultiLineTextBox(BitmappySprite):
     @override
     def on_mouse_wheel_event(
         self,
-        event: HashableEvent,
+        event: MouseWheelEvent,
         trigger: HashableEvent | None = None,
     ) -> None:
         """Handle mouse wheel events for scrolling."""

@@ -1,598 +1,340 @@
 """Tests for GameEngine lifecycle functionality.
 
-This module tests GameEngine start/stop, game loop, and quit functionality.
+This module tests GameEngine start/stop, game loop, and quit functionality. Every engine here is
+real: real pygame, the real display, real event managers and the real SceneManager loop. A game
+ends its own run in its first frame, by quitting or by raising; only failures a game cannot
+cause (a teardown or an event manager that breaks) are simulated with targeted mocks.
 """
 
 import logging
+import os
 import signal
 import sys
 from pathlib import Path
+from typing import Any, ClassVar
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from scripts.record_golden_traces import GoldenTraceEngine
+
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
+from glitchygames.events.audio import AudioEventManager
+from glitchygames.events.joystick import JoystickEventManager
+from glitchygames.events.keyboard import KeyboardEventManager
+from glitchygames.events.mouse import MouseEventManager
 from glitchygames.exit_codes import ExitCode
-from glitchygames.scenes import Scene
-from tests.mocks import MockFactory
+from glitchygames.scenes import Scene, SceneManager
+
+# GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
+# 800x600 test display back after the test), no frame pacing, quiet logs
+ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
+
+# What the engine's log line names when no scene can be found (_resolve_scene_name_for_error)
+NO_SCENE_NAME = 'None'
+
+# Why GameWhoseConstructorRaises cannot be built
+CONSTRUCTOR_ERROR_MESSAGE = 'the game could not be built'
+
+# What cProfile's print_stats() prints first
+PROFILE_REPORT_MARKER = 'function calls'
 
 
+class FirstFrameGame(Scene):
+    """A game that ends the run in its first frame: it quits, or raises RUN_ERROR."""
+
+    NAME = 'FirstFrameGame'
+    VERSION = '1.0'
+    # Raised from the first frame's logic; None quits the game instead
+    RUN_ERROR: ClassVar[BaseException | None] = None
+
+    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Start counting the frames whose logic ran."""
+        super().__init__(options=options, groups=groups)
+        self.frames_run = 0
+
+    def dt_tick(self, dt: float) -> None:
+        """Run one frame of logic: raise RUN_ERROR, or ask the scene manager to quit."""
+        super().dt_tick(dt)
+        self.frames_run += 1
+        if self.RUN_ERROR is not None:
+            raise self.RUN_ERROR
+        self.scene_manager.quit()
+
+
+def first_frame_game(*, run_error: BaseException | None = None) -> type[FirstFrameGame]:
+    """Return a FirstFrameGame class whose first frame raises ``run_error`` (None: quits).
+
+    Returns:
+        A new subclass, so no test changes the class another test uses.
+
+    """
+    return type('FirstFrameGame', (FirstFrameGame,), {'RUN_ERROR': run_error})
+
+
+class NextSceneGame(FirstFrameGame):
+    """A game whose first frame switches to its NEXT_SCENE_CLASS instead of ending the run."""
+
+    NAME = 'NextSceneGame'
+    NEXT_SCENE_CLASS: ClassVar[type[Scene]] = FirstFrameGame
+
+    def dt_tick(self, dt: float) -> None:
+        """Switch to the next scene (the scene manager switches at the end of the frame)."""
+        self.frames_run += 1
+        self.next_scene = self.NEXT_SCENE_CLASS(options=self.options)
+
+
+class GameWhoseConstructorRaises(Scene):
+    """A game that fails before any scene is active: its constructor raises."""
+
+    NAME = 'GameWhoseConstructorRaises'
+    VERSION = '1.0'
+
+    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Fail at once.
+
+        Raises:
+            RuntimeError: Always.
+
+        """
+        raise RuntimeError(CONSTRUCTOR_ERROR_MESSAGE)
+
+
+@pytest.fixture
+def engine_run_environment(mocker):
+    """Let a test construct and start a real engine, leaving pygame usable for later tests.
+
+    GameEngine._shutdown quits the display and pygame at the end of a run; every later test on
+    the worker still needs them (the conftest keeps one pygame and one display for the run). The
+    engine also writes SDL hints to the environment and its event managers block and allow
+    event types: all of it is put back afterwards.
+
+    Yields:
+        None, while the environment is in place.
+
+    """
+    mocker.patch.object(pygame, 'quit')
+    mocker.patch.object(pygame.display, 'quit')
+    mocker.patch.dict(os.environ)
+    blocked_before = [
+        pygame.event.get_blocked(event_type) for event_type in range(pygame.NUMEVENTS)
+    ]
+    yield
+    pygame.event.clear()
+    for event_type, was_blocked in enumerate(blocked_before):
+        if was_blocked:
+            pygame.event.set_blocked(event_type)
+        else:
+            pygame.event.set_allowed(event_type)
+
+
+def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()):
+    """Construct a real engine for ``game`` on ENGINE_ARGUMENTS plus ``extra_arguments``.
+
+    The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
+    plain window, because SDL's dummy video driver warns "no fast renderer available" for
+    GameEngine's SCALED window, an error under pytest's filterwarnings.
+
+    Returns:
+        GoldenTraceEngine: The engine, constructed (not started).
+
+    """
+    mocker.patch.object(sys, 'argv', ['test_engine_lifecycle', *ENGINE_ARGUMENTS, *extra_arguments])
+    return GoldenTraceEngine(game=game)
+
+
+def logged_crash_scene_names(caplog) -> list[str]:
+    """Return the scene names the engine logged with 'Runtime error during game execution'.
+
+    Returns:
+        list[str]: One name per crash logged.
+
+    """
+    return [
+        record.args[0]
+        for record in caplog.records
+        if record.msg.startswith('Runtime error during game execution')
+    ]
+
+
+@pytest.mark.usefixtures('engine_run_environment')
 class TestEngineLifecycle:
     """Test GameEngine lifecycle functionality."""
 
-    def test_game_engine_quit_game(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.quit_game method."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+    def test_game_engine_quit_game(self, mocker):
+        """quit_game posts a QUIT event, and processing it asks the scene manager to stop."""
+        engine = build_engine(mocker, game=first_frame_game())
+        engine.install_game(scene_class=first_frame_game())
+        pygame.event.clear()
 
-        # Create a simple mock game using the centralized mock
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'MockGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        # Create GameEngine instance with mock game
-        engine = GameEngine(game=mock_game)
-
-        # Test quit_game method
         engine.quit_game()
 
-        # Verify the method completes without error
-        assert True  # If we get here, the method worked
+        assert pygame.event.peek(pygame.QUIT)
+        assert engine.scene_manager.quit_requested is False
+        engine.process_events()
+        assert engine.scene_manager.quit_requested is True
 
-    def test_game_engine_start_with_mock_game(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.start with mock game."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+    def test_game_engine_start_runs_the_game_until_it_quits(self, mocker):
+        """start() builds the game, runs its frames until it quits, and returns normally."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+        shutdown = mocker.spy(engine, '_shutdown')
 
-        # Create GameEngine instance with mock game
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'MockGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
-
-        # Mock the start method to avoid actual engine startup
-        mock_start = mocker.patch.object(engine, 'start')
-        mock_start.side_effect = SystemExit
-
-        # Test that start method can be called
-        with pytest.raises(SystemExit) as exit_info:
-            engine.start()
-        assert exit_info.value.code is None
-
-        # Verify the start method was called
-        mock_start.assert_called_once()
-
-    def test_game_engine_start_with_profiling(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.start with profiling enabled."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_args = mock_game_args
-        mock_args.profile = True  # Enable profiling
-        mock_parse_args.return_value = mock_args
-
-        # Create GameEngine instance with mock game
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'MockGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
-
-        # Mock the start method to avoid actual engine startup
-        mock_start = mocker.patch.object(engine, 'start')
-        mock_start.side_effect = SystemExit
-
-        # Test that start method can be called with profiling
-        with pytest.raises(SystemExit) as exit_info:
-            engine.start()
-        assert exit_info.value.code is None
-
-        # Verify the start method was called
-        mock_start.assert_called_once()
-
-    def test_game_engine_start_with_exception(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.start with exception handling."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create GameEngine instance with mock game
-        mock_game = mocker.Mock()
-        mock_game.NAME = 'MockGame'
-        mock_game.VERSION = '1.0'
-        mock_game.TARGET_FPS = None
-        mock_game.args = mocker.Mock(return_value=mocker.Mock())
-
-        engine = GameEngine(game=mock_game)
-
-        # Mock the start method to raise an exception
-        mock_start = mocker.patch.object(engine, 'start')
-        mock_start.side_effect = RuntimeError('Test exception')
-
-        # Test that start method handles exceptions
-        with pytest.raises(RuntimeError):
-            engine.start()
-
-        # Verify the start method was called
-        mock_start.assert_called_once()
-
-    def test_start_method_with_mocked_managers(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.start method with mocked managers."""
-
-        # Create a mock game class
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
-
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create engine with mock game
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-
-        # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
-        mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
-
-        # Mock all the manager classes
-        mocker.patch.multiple(
-            'glitchygames.engine.game_engine',
-            AudioEventManager=mocker.Mock,
-            DropEventManager=mocker.Mock,
-            ControllerEventManager=mocker.Mock,
-            TouchEventManager=mocker.Mock,
-            FontManager=mocker.Mock,
-            GameEventManager=mocker.Mock,
-            JoystickEventManager=mock_joystick_manager_class,
-            KeyboardEventManager=mocker.Mock,
-            MidiEventManager=mocker.Mock,
-            MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock,
-        )
-        mock_game_class = mocker.patch.object(engine, 'game')
-        mock_game_instance = mocker.Mock()
-        mock_game_class.return_value = mock_game_instance
-
-        # Mock scene manager
-        engine.scene_manager = mocker.Mock()
-        engine.scene_manager.switch_to_scene = mocker.Mock()
-        engine.scene_manager.start = mocker.Mock()
-
-        # Set up joysticks list properly - this will be overridden by start()
-        engine.joysticks = []
-        engine.joystick_count = 0
-
-        # Test start method - should not crash
         engine.start()
 
-        # Verify game was initialized
-        mock_game_class.assert_called_once()
+        assert isinstance(engine.game, game_class)
+        assert engine.game.frames_run == 1
+        # The scene manager ended its loop by switching away from the game
+        assert engine.scene_manager.active_scene is None
+        shutdown.assert_called_once_with(run_ended_by=None)
 
-    def test_start_method_with_profiling(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.start method with profiling enabled."""
+    def test_game_engine_start_with_profiling(self, mocker, capsys):
+        """A --profile run profiles the whole run and prints the profile after the teardown."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class, extra_arguments=('--profile',))
 
-        # Create a mock game class
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
-
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        # Enable profiling in args
-        mock_game_args.profile = True
-
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create engine with mock game
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-
-        # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
-        mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
-
-        # Mock all the manager classes
-        mocker.patch.multiple(
-            'glitchygames.engine.game_engine',
-            AudioEventManager=mocker.Mock,
-            DropEventManager=mocker.Mock,
-            ControllerEventManager=mocker.Mock,
-            TouchEventManager=mocker.Mock,
-            FontManager=mocker.Mock,
-            GameEventManager=mocker.Mock,
-            JoystickEventManager=mock_joystick_manager_class,
-            KeyboardEventManager=mocker.Mock,
-            MidiEventManager=mocker.Mock,
-            MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock,
-        )
-        mock_game_class = mocker.patch.object(engine, 'game')
-        mock_game_instance = mocker.Mock()
-        mock_game_class.return_value = mock_game_instance
-
-        # Mock scene manager
-        engine.scene_manager = mocker.Mock()
-        engine.scene_manager.switch_to_scene = mocker.Mock()
-        engine.scene_manager.start = mocker.Mock()
-
-        # Mock joystick manager
-        engine.joystick_manager = mocker.Mock()
-        engine.joystick_manager.joysticks = {}  # Empty dictionary (no joysticks connected)
-
-        # Set up joysticks list properly
-        engine.joysticks = []
-        engine.joystick_count = 0
-
-        # Mock cProfile to avoid actual profiling
-        mock_profile = mocker.patch('cProfile.Profile')
-        mock_profile_instance = mocker.Mock()
-        mock_profile.return_value = mock_profile_instance
-
-        # Test start method with profiling
         engine.start()
 
-        # Verify game was initialized
-        mock_game_class.assert_called_once()
+        assert engine.game.frames_run == 1
+        assert PROFILE_REPORT_MARKER in capsys.readouterr().out
 
-    def test_start_prints_the_profile_of_a_run_that_failed_at_once(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_game_engine_start_without_profiling_prints_no_profile(self, mocker, capsys):
+        """Without --profile, no profile is printed."""
+        engine = build_engine(mocker, game=first_frame_game())
+
+        engine.start()
+
+        assert PROFILE_REPORT_MARKER not in capsys.readouterr().out
+
+    def test_game_engine_start_with_exception(self, mocker, caplog):
+        """An exception in the game's logic ends the run as an internal error, logged."""
+        run_error = RuntimeError('Test exception')
+        engine = build_engine(mocker, game=first_frame_game(run_error=run_error))
+
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            engine.start()
+
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        assert exit_info.value.__cause__ is run_error
+
+    def test_start_method_initializes_real_managers(self, mocker):
+        """start() makes the game and the engine's event managers, wired to the scene manager."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+
+        engine.start()
+
+        assert isinstance(engine.game, game_class)
+        assert SceneManager.OPTIONS is GameEngine.OPTIONS
+        assert engine.scene_manager.game_engine is engine
+        for manager, manager_class in (
+            (engine.audio_manager, AudioEventManager),
+            (engine.joystick_manager, JoystickEventManager),
+            (engine.keyboard_manager, KeyboardEventManager),
+            (engine.mouse_manager, MouseEventManager),
+        ):
+            assert isinstance(manager, manager_class)
+            assert manager.game is engine.scene_manager
+        # The devices the game sees follow the managers' (whatever hardware is attached)
+        assert engine.scene_manager.input_devices is engine.input_devices
+        assert len(engine.input_devices) <= len(engine.joystick_manager.joysticks)
+
+    def test_start_prints_the_profile_of_a_run_that_failed_at_once(self, mocker, caplog, capsys):
         """A --profile run that fails at its first step still prints the profile it took."""
+        engine = build_engine(mocker, game=first_frame_game(), extra_arguments=('--profile',))
+        install_error = RuntimeError('no handlers')
+        # Simulated: the first step of the run fails
+        mocker.patch.object(engine, '_install_signal_handlers', side_effect=install_error)
 
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
-
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        mock_game_args.profile = True
-        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-        engine.scene_manager = mocker.Mock()
-        mock_profile_instance = mocker.Mock()
-        mocker.patch('cProfile.Profile', return_value=mock_profile_instance)
-        mocker.patch.object(
-            engine, '_install_signal_handlers', side_effect=RuntimeError('no handlers')
-        )
-        mocker.patch('glitchygames.engine.LOG.exception')
-
-        with pytest.raises(SystemExit) as exit_info:
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()
 
         assert exit_info.value.code == ExitCode.INTERNAL_ERROR
-        mock_profile_instance.enable.assert_called_once_with()
-        mock_profile_instance.disable.assert_called_once_with()
-        mock_profile_instance.print_stats.assert_called_once_with()
+        assert exit_info.value.__cause__ is install_error
+        assert PROFILE_REPORT_MARKER in capsys.readouterr().out
 
-    def test_start_method_exception_handling(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine.start method exception handling."""
+    def test_start_method_exception_handling(self, mocker, caplog):
+        """An event manager that fails to start ends the run as an internal error, logged."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+        manager_error = Exception('AudioEventManager failed')
+        # Simulated, after construction (which reads AudioEventManager.args): the audio event
+        # manager cannot be made
+        mocker.patch.object(game_engine_module, 'AudioEventManager', side_effect=manager_error)
 
-        # Create a mock game class
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
-
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create engine with mock game
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-
-        # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
-        mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
-
-        # Mock all the manager classes to raise exceptions
-        mocker.patch.multiple(
-            'glitchygames.engine.game_engine',
-            AudioEventManager=mocker.Mock(side_effect=Exception('AudioEventManager failed')),
-            DropEventManager=mocker.Mock,
-            ControllerEventManager=mocker.Mock,
-            TouchEventManager=mocker.Mock,
-            FontManager=mocker.Mock,
-            GameEventManager=mocker.Mock,
-            JoystickEventManager=mock_joystick_manager_class,
-            KeyboardEventManager=mocker.Mock,
-            MidiEventManager=mocker.Mock,
-            MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock,
-        )
-        mock_game_class = mocker.patch.object(engine, 'game')
-        mock_game_instance = mocker.Mock()
-        mock_game_class.return_value = mock_game_instance
-
-        # Mock scene manager
-        engine.scene_manager = mocker.Mock()
-        engine.scene_manager.switch_to_scene = mocker.Mock()
-        engine.scene_manager.start = mocker.Mock()
-
-        # Set up joysticks list properly
-        engine.joysticks = []
-        engine.joystick_count = 0
-
-        # An uncaught exception is logged with its traceback, then the run exits as an internal
-        # error once the teardown has run
-        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
-        with pytest.raises(SystemExit) as exit_info:
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()
+
         assert exit_info.value.code == ExitCode.INTERNAL_ERROR
-        mock_log.assert_called_once()
+        assert exit_info.value.__cause__ is manager_error
+        crash_records = [record for record in caplog.records if record.exc_info is not None]
+        assert [record.exc_info[1] for record in crash_records] == [manager_error]
+        # The game was built before the managers, and never ran a frame
+        assert isinstance(engine.game, game_class)
+        assert engine.game.frames_run == 0
 
-        # Verify game was initialized
-        mock_game_class.assert_called_once()
+    def test_start_method_error_message_with_current_scene(self, mocker, caplog):
+        """A crash in the active scene's logic is logged with that scene's name."""
+        game_class = first_frame_game(run_error=RuntimeError('Test exception'))
+        engine = build_engine(mocker, game=game_class)
 
-    def test_start_method_error_message_with_previous_scene(
-        self,
-        mock_pygame_patches,
-        mock_game_args,
-        mocker,
-    ):
-        """Test GameEngine.start method error message shows previous scene when current is None."""
-
-        # Create a mock game class
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
-
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create engine with mock game
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-
-        # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
-        mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
-
-        # Mock all the manager classes
-        mocker.patch.multiple(
-            'glitchygames.engine.game_engine',
-            AudioEventManager=mocker.Mock,
-            DropEventManager=mocker.Mock,
-            ControllerEventManager=mocker.Mock,
-            TouchEventManager=mocker.Mock,
-            FontManager=mocker.Mock,
-            GameEventManager=mocker.Mock,
-            JoystickEventManager=mock_joystick_manager_class,
-            KeyboardEventManager=mocker.Mock,
-            MidiEventManager=mocker.Mock,
-            MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock,
-        )
-        mock_game_class = mocker.patch.object(engine, 'game')
-        mock_game_instance = mocker.Mock()
-        mock_game_class.return_value = mock_game_instance
-
-        # Mock scene manager with current_scene=None and previous_scene set
-        engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = None
-        engine.scene_manager.previous_scene = mocker.Mock()
-        engine.scene_manager.previous_scene.NAME = 'PreviousScene'
-        engine.scene_manager.switch_to_scene = mocker.Mock()
-        engine.scene_manager.start = mocker.Mock(side_effect=RuntimeError('Test exception'))
-
-        # Set up joysticks list properly
-        engine.joysticks = []
-        engine.joystick_count = 0
-
-        # Test start method with exception handling
-        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
-        with pytest.raises(SystemExit) as exit_info:
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit):
             engine.start()
-        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
-        # Verify the exception was logged with previous scene info
-        mock_log.assert_called_once()
-        # Log uses %s format: ("Runtime error ... '%s'", scene_name)
-        format_args = mock_log.call_args[0]
-        assert 'PreviousScene' in format_args[1]
 
-    def test_start_method_error_message_with_current_scene(
-        self,
-        mock_pygame_patches,
-        mock_game_args,
-        mocker,
-    ):
-        """Test GameEngine.start method error message shows current scene when available."""
+        assert logged_crash_scene_names(caplog) == [game_class.NAME]
 
-        # Create a mock game class
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
-
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create engine with mock game
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-
-        # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
-        mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
-
-        # Mock all the manager classes
-        mocker.patch.multiple(
-            'glitchygames.engine.game_engine',
-            AudioEventManager=mocker.Mock,
-            DropEventManager=mocker.Mock,
-            ControllerEventManager=mocker.Mock,
-            TouchEventManager=mocker.Mock,
-            FontManager=mocker.Mock,
-            GameEventManager=mocker.Mock,
-            JoystickEventManager=mock_joystick_manager_class,
-            KeyboardEventManager=mocker.Mock,
-            MidiEventManager=mocker.Mock,
-            MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock,
+    def test_start_method_error_message_with_previous_scene(self, mocker, caplog):
+        """A crash in the scene switched to is logged with its name, not the previous scene's."""
+        crashing_scene_class = first_frame_game(run_error=RuntimeError('Test exception'))
+        crashing_scene_class.NAME = 'CrashingScene'
+        game_class = type(
+            'NextSceneGame', (NextSceneGame,), {'NEXT_SCENE_CLASS': crashing_scene_class}
         )
-        mock_game_class = mocker.patch.object(engine, 'game')
-        mock_game_instance = mocker.Mock()
-        mock_game_class.return_value = mock_game_instance
+        engine = build_engine(mocker, game=game_class)
 
-        # Mock scene manager with current_scene set
-        engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = mocker.Mock()
-        engine.scene_manager.current_scene.NAME = 'CurrentScene'
-        engine.scene_manager.switch_to_scene = mocker.Mock()
-        engine.scene_manager.start = mocker.Mock(side_effect=RuntimeError('Test exception'))
-
-        # Set up joysticks list properly
-        engine.joysticks = []
-        engine.joystick_count = 0
-
-        # Test start method with exception handling
-        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
-        with pytest.raises(SystemExit) as exit_info:
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit):
             engine.start()
-        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
-        # Verify the exception was logged with current scene info
-        mock_log.assert_called_once()
-        # Log uses %s format: ("Runtime error ... '%s'", scene_name)
-        format_args = mock_log.call_args[0]
-        assert 'CurrentScene' in format_args[1]
 
-    def test_start_method_error_message_with_no_scenes(
-        self,
-        mock_pygame_patches,
-        mock_game_args,
-        mocker,
-    ):
-        """Test GameEngine.start method error message shows None when both scenes are None."""
+        # The switch happened: the game scene ran, then the scene it switched to
+        assert engine.scene_manager.previous_scene is engine.game
+        assert logged_crash_scene_names(caplog) == ['CrashingScene']
 
-        # Create a mock game class
-        class MockGame:
-            NAME = 'MockGame'
-            VERSION = '1.0'
-            TARGET_FPS = None
+    def test_start_method_error_message_with_no_scenes(self, mocker, caplog):
+        """A crash before any scene is active (the game cannot be built) is logged as 'None'."""
+        engine = build_engine(mocker, game=GameWhoseConstructorRaises)
 
-            @classmethod
-            def args(cls, parser):
-                return parser
-
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create engine with mock game
-        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
-
-        # Use centralized mock factory for joystick manager
-        mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
-        mock_joystick_manager_class = mocker.Mock(return_value=mock_joystick_manager_instance)
-
-        # Mock all the manager classes
-        mocker.patch.multiple(
-            'glitchygames.engine.game_engine',
-            AudioEventManager=mocker.Mock,
-            DropEventManager=mocker.Mock,
-            ControllerEventManager=mocker.Mock,
-            TouchEventManager=mocker.Mock,
-            FontManager=mocker.Mock,
-            GameEventManager=mocker.Mock,
-            JoystickEventManager=mock_joystick_manager_class,
-            KeyboardEventManager=mocker.Mock,
-            MidiEventManager=mocker.Mock,
-            MouseEventManager=mocker.Mock,
-            WindowEventManager=mocker.Mock,
-        )
-        mock_game_class = mocker.patch.object(engine, 'game')
-        mock_game_instance = mocker.Mock()
-        mock_game_class.return_value = mock_game_instance
-
-        # Mock scene manager with both scenes None
-        engine.scene_manager = mocker.Mock()
-        engine.scene_manager.current_scene = None
-        engine.scene_manager.previous_scene = None
-        engine.scene_manager.switch_to_scene = mocker.Mock()
-        engine.scene_manager.start = mocker.Mock(side_effect=RuntimeError('Test exception'))
-
-        # Set up joysticks list properly
-        engine.joysticks = []
-        engine.joystick_count = 0
-
-        # Test start method with exception handling
-        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
-        with pytest.raises(SystemExit) as exit_info:
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()
+
         assert exit_info.value.code == ExitCode.INTERNAL_ERROR
-        # Verify the exception was logged with None
-        mock_log.assert_called_once()
-        # Log uses %s format: ("Runtime error ... '%s'", scene_name)
-        format_args = mock_log.call_args[0]
-        assert format_args[1] == 'None'
+        assert engine.scene_manager.active_scene is None
+        assert engine.scene_manager.previous_scene is None
+        assert logged_crash_scene_names(caplog) == [NO_SCENE_NAME]
 
 
-class StartExitStatusGame(Scene):
-    """The game class GameEngine is built with in TestStartExitStatus (never instantiated)."""
-
-    NAME = 'StartExitStatusGame'
-    VERSION = '1.0'
-
-
-def engine_whose_run_raises(
-    *, mocker, mock_game_args, run_error: BaseException | None
-) -> GameEngine:
-    """Build a GameEngine whose scene manager raises ``run_error`` (None: returns) when started.
+def engine_whose_run_raises(*, mocker, run_error: BaseException | None) -> GameEngine:
+    """Build a real engine whose game's first frame raises ``run_error`` (None: quits).
 
     Returns:
-        The engine, with its event managers mocked and ``_shutdown`` spied on.
+        The engine, with ``_shutdown`` spied on.
 
     """
-    mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
-    engine = GameEngine(game=StartExitStatusGame)
-    mocker.patch.object(engine, '_initialize_event_managers')
-    mocker.patch.object(engine, 'game')
-    engine.scene_manager = mocker.Mock()
-    engine.scene_manager.start = mocker.Mock(side_effect=run_error)
+    engine = build_engine(mocker, game=first_frame_game(run_error=run_error))
     mocker.spy(engine, '_shutdown')
     return engine
 
 
+@pytest.mark.usefixtures('engine_run_environment')
 class TestStartExitStatus:
     """How GameEngine.start() ends: crashes exit as internal errors, deliberate exits pass."""
 
-    def test_an_uncaught_exception_exits_as_an_internal_error_after_teardown(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog
-    ):
+    def test_an_uncaught_exception_exits_as_an_internal_error_after_teardown(self, mocker, caplog):
         run_error = RuntimeError('the game broke')
-        engine = engine_whose_run_raises(
-            mocker=mocker, mock_game_args=mock_game_args, run_error=run_error
-        )
+        engine = engine_whose_run_raises(mocker=mocker, run_error=run_error)
         with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()
         assert exit_info.value.code == ExitCode.INTERNAL_ERROR
@@ -603,13 +345,9 @@ class TestStartExitStatus:
         assert len(crash_records) == 1
         assert crash_records[0].exc_info[1] is run_error
 
-    def test_a_deliberate_system_exit_passes_through_unchanged(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_a_deliberate_system_exit_passes_through_unchanged(self, mocker):
         engine = engine_whose_run_raises(
-            mocker=mocker,
-            mock_game_args=mock_game_args,
-            run_error=SystemExit(ExitCode.REPLAY_DIVERGED),
+            mocker=mocker, run_error=SystemExit(ExitCode.REPLAY_DIVERGED)
         )
         with pytest.raises(SystemExit) as exit_info:
             engine.start()
@@ -618,13 +356,9 @@ class TestStartExitStatus:
             run_ended_by=ExitCode.describe_status(ExitCode.REPLAY_DIVERGED)
         )
 
-    def test_a_keyboard_interrupt_exits_as_interrupted_after_teardown(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog
-    ):
+    def test_a_keyboard_interrupt_exits_as_interrupted_after_teardown(self, mocker, caplog):
         """Ctrl-C is never an internal error: it exits INTERRUPTED once teardown has run."""
-        engine = engine_whose_run_raises(
-            mocker=mocker, mock_game_args=mock_game_args, run_error=KeyboardInterrupt()
-        )
+        engine = engine_whose_run_raises(mocker=mocker, run_error=KeyboardInterrupt())
         with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()
         assert exit_info.value.code == ExitCode.INTERRUPTED
@@ -632,17 +366,14 @@ class TestStartExitStatus:
         assert f'Exiting with {ExitCode.INTERRUPTED.describe()}' in caplog.text
         assert all(record.exc_info is None for record in caplog.records)
 
-    def test_signal_handlers_are_restored_even_when_the_teardown_does_not(
-        self, mock_pygame_patches, mock_game_args, mocker
-    ):
+    def test_signal_handlers_are_restored_even_when_the_teardown_does_not(self, mocker):
         """start() restores what it installed itself, so a mocked _shutdown leaks nothing."""
         handlers_before = {
             signal_number: signal.getsignal(signal_number)
             for signal_number in game_engine_module.terminating_signals()
         }
-        engine = engine_whose_run_raises(
-            mocker=mocker, mock_game_args=mock_game_args, run_error=None
-        )
+        engine = engine_whose_run_raises(mocker=mocker, run_error=None)
+        # Simulated: a teardown that restores nothing
         mocker.patch.object(engine, '_shutdown')
         engine.start()
         assert {
@@ -652,14 +383,11 @@ class TestStartExitStatus:
     @pytest.mark.parametrize(
         'run_error', [None, RuntimeError('the game broke')], ids=['clean run', 'crashed run']
     )
-    def test_a_teardown_failure_exits_as_an_internal_error(
-        self, mock_pygame_patches, mock_game_args, mocker, caplog, run_error
-    ):
+    def test_a_teardown_failure_exits_as_an_internal_error(self, mocker, caplog, run_error):
         """A _shutdown that raises never leaves Python to exit 1; every error is logged."""
         teardown_error = RuntimeError('the teardown broke')
-        engine = engine_whose_run_raises(
-            mocker=mocker, mock_game_args=mock_game_args, run_error=run_error
-        )
+        engine = engine_whose_run_raises(mocker=mocker, run_error=run_error)
+        # Simulated: the teardown fails
         mocker.patch.object(engine, '_shutdown', side_effect=teardown_error)
         with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()

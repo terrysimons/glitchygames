@@ -8,8 +8,8 @@ The Multi-Controller System enables up to 4 simultaneous controllers to navigate
 
 - **Multi-Controller Support**: Up to 4 simultaneous controllers
 - **Independent Navigation**: Each controller navigates film strips and frames independently
-- **Visual Distinction**: Unique colored triangles for each controller (Red, Green, Blue, Yellow)
-- **Smart Positioning**: Automatic collision avoidance when multiple controllers select the same frame
+- **Visual Distinction**: A unique color for each controller (Red, Green, Blue, Yellow): triangles on the film strips, squares on the canvas, circles on the sliders
+- **Smart Positioning**: Automatic collision avoidance when multiple controllers select the same spot
 - **State Preservation**: Controllers maintain their selection state when switching between them
 - **Hotplug Support**: Controllers can be connected/disconnected during operation
 
@@ -17,12 +17,17 @@ The Multi-Controller System enables up to 4 simultaneous controllers to navigate
 
 ### Core Components
 
-1. **MultiControllerManager** - Central singleton managing all controllers
-2. **ControllerSelection** - Individual controller state management
-3. **VisualCollisionManager** - Smart positioning and collision avoidance
-4. **Integration with Bitmappy** - Event handling and film strip navigation
+1. **MultiControllerManager** (`glitchygames/bitmappy/controllers/manager.py`) - Central singleton managing all controllers
+2. **ControllerSelection** (`glitchygames/bitmappy/controllers/selection.py`) - Individual controller state management
+3. **VisualCollisionManager** (`glitchygames/bitmappy/indicators/collision.py`) - Smart positioning and collision avoidance
+4. **ModeSwitcher** (`glitchygames/bitmappy/controllers/modes.py`) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers
+5. **Integration with Bitmappy** - `ControllerEventHandler` (`glitchygames/bitmappy/controllers/event_handler.py`) and the per-mode button strategies (`glitchygames/bitmappy/controllers/strategies.py`)
+
+The button and trigger bindings are listed in `CONTROLLER_CONTROLS_README.md` at the repository root.
 
 ### Controller Color Scheme
+
+`MultiControllerManager.CONTROLLER_COLORS`, indexed by controller ID. In Bitmappy, activating a controller (Start) gives it the next color in activation order (`assign_color_to_controller`), so the first controller activated is red:
 
 - **Controller 0**: Red (255, 0, 0)
 - **Controller 1**: Green (0, 255, 0)  
@@ -34,17 +39,19 @@ The Multi-Controller System enables up to 4 simultaneous controllers to navigate
 ### Basic Setup
 
 ```python
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+from glitchygames.bitmappy.controllers import ControllerSelection, MultiControllerManager
+from glitchygames.bitmappy.indicators import VisualCollisionManager
 
-# Initialize the system
+# Initialize the system (MultiControllerManager is a singleton)
 manager = MultiControllerManager()
 visual_manager = VisualCollisionManager()
 controller_selections = {}
 
-# Set up a controller
-instance_id = 0
+# Find the connected controllers (through the engine's devices door; at most once a second)
+connected_instance_ids = manager.scan_for_controllers()
+
+# Set up a controller: only a connected controller can be assigned (None otherwise)
+instance_id = connected_instance_ids[0]
 controller_id = manager.assign_controller(instance_id)
 controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
 ```
@@ -78,7 +85,7 @@ controller_selections[controller_id].set_selection("new_animation", 5)
 animation, frame = controller_selections[controller_id].get_selection()
 print(f"Controller {controller_id} is at {animation}, frame {frame}")
 
-# Get navigation history
+# Get navigation history (an entry is added when the animation changes)
 history = controller_selections[controller_id].get_navigation_history()
 for entry in history:
     print(f"Previous: {entry['animation']}, frame {entry['frame']}")
@@ -88,8 +95,7 @@ for entry in history:
 
 ```python
 # Set up multiple controllers
-for i in range(4):
-    instance_id = i
+for i, instance_id in enumerate(manager.scan_for_controllers()):
     controller_id = manager.assign_controller(instance_id)
     controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
     controller_selections[controller_id].activate()
@@ -124,10 +130,10 @@ for i in range(3):
         position=(100, 100)  # Same position
     )
 
-# System automatically applies offsets to prevent overlap
-# Controller 0: (100, 100) - no offset
-# Controller 1: (85, 85) - (-15, -15) offset
-# Controller 2: (100, 100) - fallback offset
+# System automatically applies offsets (VisualCollisionManager.POSITION_PATTERNS) to prevent overlap
+visual_manager.get_final_position(0)  # (100, 100) - no offset
+visual_manager.get_final_position(1)  # (85, 85) - (-15, -15) offset
+visual_manager.get_final_position(2)  # (115, 85) - (15, -15) offset
 ```
 
 ### Controller State Management
@@ -142,9 +148,9 @@ info = manager.get_controller_info(instance_id)
 if info:
     print(f"Controller {info.controller_id}: {info.status.value}")
 
-# Deactivate controller
+# Deactivate controller (the manager has no deactivate; cleanup_inactive_controllers()
+# unassigns controllers idle for more than ASSIGNMENT_TIMEOUT seconds)
 controller_selections[controller_id].deactivate()
-manager.deactivate_controller(instance_id)
 ```
 
 ### Hotplug Support
@@ -170,17 +176,21 @@ def on_controller_disconnected(instance_id):
 
 ### Event Handling
 
+Bitmappy's `ControllerEventHandler.on_controller_button_down_event` scans for controllers,
+assigns the controller on its first button press, and passes the button to its current mode's
+strategy (`FilmStripModeStrategy`, `CanvasModeStrategy` or `SliderModeStrategy`). A simplified
+version of the film strip navigation:
+
 ```python
-def handle_controller_event(event):
-    """Handle controller events in bitmappy."""
-    if event.type == pygame.CONTROLLERBUTTONDOWN:
-        controller_id = event.instance_id
-        
-        if event.button == pygame.CONTROLLER_BUTTON_A:
-            # A button - select current frame
+def on_controller_button_down_event(event):
+    """Handle controller button presses in bitmappy."""
+    controller_id = manager.get_controller_id(event.instance_id)
+    if controller_id is not None:
+        if event.button == pygame.CONTROLLER_BUTTON_START:
+            # Start button - activate the controller on the first frame of the first animation
             if controller_id in controller_selections:
                 controller_selections[controller_id].activate()
-                controller_selections[controller_id].set_selection("current_animation", 0)
+                controller_selections[controller_id].set_selection("first_animation", 0)
                 
         elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             # D-pad left - previous frame
@@ -207,8 +217,9 @@ def update_film_strip_indicators():
             
             # Update visual indicator position
             if animation in film_strips:
-                strip_position = film_strips[animation].get_frame_position(frame)
-                visual_manager.update_controller_position(controller_id, strip_position)
+                # frame_layouts maps (animation, frame) to the frame's rect on the strip
+                frame_rect = film_strips[animation].frame_layouts[animation, frame]
+                visual_manager.update_controller_position(controller_id, frame_rect.midtop)
 ```
 
 ## Advanced Features
@@ -310,7 +321,6 @@ def cleanup_controller(instance_id):
         if controller_id in controller_selections:
             controller_selections[controller_id].deactivate()
             del controller_selections[controller_id]
-        manager.deactivate_controller(instance_id)
 ```
 
 ### 2. Visual Indicator Management
@@ -348,7 +358,7 @@ def sync_controller_states():
 
 2. **Visual indicators overlapping**
    - System automatically handles collision avoidance
-   - Check collision groups: `visual_manager.collision_groups`
+   - Check collision groups: `visual_manager.film_strip_collision_groups`, `canvas_collision_groups` or `slider_collision_groups`
 
 3. **State not preserved**
    - Ensure controller selection is activated: `selection.activate()`
@@ -360,7 +370,7 @@ def sync_controller_states():
 # Get system status
 print(f"Active controllers: {manager.get_active_controllers()}")
 print(f"Visual indicators: {len(visual_manager.indicators)}")
-print(f"Collision groups: {len(visual_manager.collision_groups)}")
+print(f"Collision summary: {visual_manager.get_collision_summary()}")
 
 # Get controller details
 for instance_id, info in manager.controllers.items():
@@ -380,12 +390,15 @@ The multi-controller system provides a foundation for:
 
 ### MultiControllerManager
 
-- `assign_controller(instance_id)` - Assign a controller ID
-- `activate_controller(instance_id)` - Activate a controller
+- `scan_for_controllers()` - Scan for connected controllers (at most once per `scan_interval`, 1 s) and return their instance IDs
+- `assign_controller(instance_id)` - Assign a controller ID to a connected controller
+- `activate_controller(instance_id)` - Activate an assigned controller
+- `assign_color_to_controller(controller_id)` - Give a controller the next color in activation order
+- `get_controller_id(instance_id)` / `get_controller_color(instance_id)` - Look up an assigned controller
 - `is_controller_active(instance_id)` - Check if controller is active
 - `get_controller_info(instance_id)` - Get controller information
 - `get_active_controllers()` - Get list of active controllers
-- `cleanup_inactive_controllers()` - Clean up inactive controllers
+- `cleanup_inactive_controllers()` - Unassign controllers idle for more than `ASSIGNMENT_TIMEOUT` (5 s)
 
 ### ControllerSelection
 
@@ -398,8 +411,9 @@ The multi-controller system provides a foundation for:
 
 ### VisualCollisionManager
 
-- `add_controller_indicator(controller_id, instance_id, color, position)` - Add visual indicator
+- `add_controller_indicator(controller_id, instance_id, color, position, location_type=LocationType.FILM_STRIP)` - Add visual indicator (a triangle on the film strip, a square on the canvas, a circle on a slider)
 - `remove_controller_indicator(controller_id)` - Remove visual indicator
 - `update_controller_position(controller_id, position)` - Update indicator position
 - `get_final_position(controller_id)` - Get final position with offsets
 - `optimize_positioning()` - Optimize all indicator positions
+- `clear_all_indicators()` - Remove every indicator

@@ -188,11 +188,13 @@ def _training_example_body(example: dict[str, Any], *, include_raw: bool) -> str
     if include_raw and 'raw_content' in example:
         return example['raw_content']
 
-    # Fallback to sprite data reconstruction
-    if 'pixels' in example and 'colors' in example:
-        return _reconstruct_static_sprite(example)
+    # Fallback to sprite data reconstruction. Animations first: an animated example may also
+    # carry a 'pixels' summary of its frames (Bitmappy's strip context does), which must not
+    # turn it into one static sprite
     if 'animations' in example:
         return _reconstruct_animated_sprite(example)
+    if 'pixels' in example and 'colors' in example:
+        return _reconstruct_static_sprite(example)
 
     return '# (Format unavailable)'
 
@@ -540,9 +542,8 @@ def clean_ai_response(content: str | None) -> str | None:
     # Remove markdown code blocks
     if cleaned.startswith('```'):
         lines = cleaned.split('\n')
-        # Remove first line if it's a code fence
-        if lines[0].startswith('```'):
-            lines = lines[1:]
+        # Remove the first line: it starts with the code fence just checked
+        lines = lines[1:]
         # Remove last line if it's a code fence
         if lines and lines[-1].strip() == '```':
             lines = lines[:-1]

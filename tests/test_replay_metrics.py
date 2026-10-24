@@ -1,0 +1,414 @@
+"""scripts/replay_metrics.py measures recordings into the run ledger's pending rows.
+
+Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md. The measurements are
+real: each recording (a copy of a golden replay or bundled demo in tmp_path) is rebaselined
+headless through its console script, on this checkout. The published ledger is read from a
+throwaway repository whose ``origin`` has a ``gh-pages`` branch; nothing here touches this
+repository's remotes or the network.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+from pathlib import Path
+
+import pytest
+from scripts import replay_metrics
+from scripts.replay_metrics import (
+    PENDING_LEDGER_PATH,
+    MeasureSettings,
+    clear_published,
+    measure,
+    metric_recordings,
+    run,
+)
+
+from glitchygames.build_info import RevisionSource, SourceRevision, source_revision
+from glitchygames.exit_codes import ExitCode
+from glitchygames.process import run_command
+from glitchygames.recording_metrics import (
+    PUBLISHED_LEDGER_PATH,
+    PUBLISHED_LEDGER_REF,
+    LedgerOrigin,
+    ledger_text,
+    publishable_rows,
+    published_ledger_text,
+    read_ledger_file,
+)
+from tests.replay.test_replay_plugin import REPO_FIXTURE
+from tests.test_recording_metrics import ledger_row
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+GIT_TIMEOUT_SECONDS = 60.0
+
+
+def clean_revision() -> SourceRevision:
+    """Return this checkout's revision, as if it had no uncommitted changes.
+
+    The child rebaselines run on this checkout and record its commit; the tree's own state
+    (changed while developing, clean in CI) must not decide the tests.
+
+    Returns:
+        The revision.
+
+    """
+    return source_revision().model_copy(update={'uncommitted_changes': False})
+
+
+def copied_golden(*, project_root: Path) -> list[tuple[str, Path]]:
+    """Copy PaddleSlap's golden replay into a project tree laid out as this one is.
+
+    Returns:
+        The recordings to measure.
+
+    """
+    target = project_root / 'tests' / 'fixtures' / 'replays' / 'paddleslap' / 'golden.jsonl.gz'
+    target.parent.mkdir(parents=True)
+    shutil.copy(REPO_FIXTURE, target)
+    return [('paddleslap', target)]
+
+
+def git(*, repository: Path, arguments: list[str]) -> str:
+    """Run git in a throwaway repository (fixed author, no signing).
+
+    Returns:
+        git's standard output.
+
+    """
+    completed = run_command(
+        command=[
+            'git',
+            '-c',
+            'user.name=Metrics Test',
+            '-c',
+            'user.email=metrics@example.com',
+            '-c',
+            'commit.gpgsign=false',
+            *arguments,
+        ],
+        environment=os.environ,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
+        capture_output=True,
+        working_directory=repository,
+    )
+    assert completed.returncode == 0, completed.stdout
+    return completed.stdout or ''
+
+
+def clone_with_published_ledger(*, tmp_path: Path, ledger: str) -> Path:
+    """Make an origin whose gh-pages branch publishes ``ledger``, and clone it.
+
+    Returns:
+        The clone (its ``origin/gh-pages`` holds the ledger).
+
+    """
+    origin = tmp_path / 'origin'
+    origin.mkdir()
+    git(repository=origin, arguments=['init', '--quiet', '--initial-branch', 'main'])
+    (origin / 'README').write_text('main\n', encoding='utf-8')
+    git(repository=origin, arguments=['add', 'README'])
+    git(repository=origin, arguments=['commit', '--quiet', '-m', 'main'])
+    git(repository=origin, arguments=['checkout', '--quiet', '--orphan', 'gh-pages'])
+    git(repository=origin, arguments=['rm', '--quiet', '-r', '-f', '.'])
+    published = origin / PUBLISHED_LEDGER_PATH
+    published.parent.mkdir(parents=True)
+    published.write_text(ledger, encoding='utf-8')
+    git(repository=origin, arguments=['add', PUBLISHED_LEDGER_PATH])
+    git(repository=origin, arguments=['commit', '--quiet', '-m', 'site'])
+    git(repository=origin, arguments=['checkout', '--quiet', 'main'])
+    clone = tmp_path / 'clone'
+    git(repository=tmp_path, arguments=['clone', '--quiet', str(origin), str(clone)])
+    return clone
+
+
+class TestThePublishedLedger:
+    """The ledger published on gh-pages is read from the local origin/gh-pages ref."""
+
+    def test_the_published_ledger_is_read_from_origin_gh_pages(self, tmp_path):
+        text = ledger_text(rows=[ledger_row()])
+        clone = clone_with_published_ledger(tmp_path=tmp_path, ledger=text)
+        assert published_ledger_text(project_root=clone) == text
+
+    def test_no_ref_no_file_or_no_repository_is_an_empty_ledger(self, tmp_path):
+        clone = clone_with_published_ledger(tmp_path=tmp_path, ledger='')
+        assert not published_ledger_text(project_root=clone, ref='origin/missing')
+        # main has no ledger file
+        assert not published_ledger_text(project_root=clone, ref='origin/main')
+        not_a_repository = tmp_path / 'plain'
+        not_a_repository.mkdir()
+        assert not published_ledger_text(project_root=not_a_repository)
+        assert PUBLISHED_LEDGER_REF == 'origin/gh-pages'
+
+    def test_a_missing_git_is_an_empty_ledger(self, tmp_path, mocker):
+        mocker.patch.dict(os.environ, {'PATH': str(tmp_path)})
+        assert not published_ledger_text(project_root=tmp_path)
+
+    def test_a_missing_pending_file_is_empty(self, tmp_path):
+        assert read_ledger_file(path=tmp_path / 'none.jsonl').rows == ()
+
+
+class TestTheRecordings:
+    """Every golden replay and every bundled demo is measured."""
+
+    def test_this_projects_recordings(self):
+        recordings = metric_recordings(project_root=PROJECT_ROOT)
+        paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings}
+        assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz' in paths
+        assert 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
+        assert (
+            'mr-muncher',
+            PROJECT_ROOT / 'tests/fixtures/replays/mr-muncher/golden.jsonl.gz',
+        ) in (recordings)
+        assert all(console_script for console_script, _ in recordings)
+
+
+class TestMeasuring:
+    """Each recording is rebaselined into a temporary file and its runs become pending rows."""
+
+    def test_a_measurement_appends_rows_and_a_second_one_skips(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        pending = tmp_path / 'pending.jsonl'
+        revision = clean_revision()
+
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=revision,
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+
+        assert result.exit_code == ExitCode.SUCCESS
+        rows = read_ledger_file(path=pending).rows
+        measured, recorded = rows
+        assert measured.origin == LedgerOrigin.REPLAY_METRICS
+        assert measured.recording == 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
+        assert measured.console_script == 'paddleslap'
+        assert measured.commit == revision.commit
+        assert measured.rebaseline_exit == ExitCode.SUCCESS.describe()
+        assert measured.frames_changed == 0
+        assert measured.summary is not None
+        assert not measured.run.processing_paced
+        assert measured.run.machine_state is not None
+        assert recorded.origin == LedgerOrigin.RECORDING
+        assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz: 622 frames' in (
+            capsys.readouterr().out
+        )
+
+        again = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=revision,
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+        assert again.measured == ()
+        assert again.skipped == ('tests/fixtures/replays/paddleslap/golden.jsonl.gz',)
+        assert 'already measured' in capsys.readouterr().out
+        assert read_ledger_file(path=pending).rows == rows
+
+        forced = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=revision,
+                force=True,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text=ledger_text(rows=rows),
+        )
+        # The recording's own run is already known: only the new measurement is appended
+        assert len(forced.measured) == 1
+        assert len(read_ledger_file(path=pending).rows) == len(rows) + 1
+
+    def test_a_published_measurement_counts_as_measured(self, tmp_path):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        revision = clean_revision()
+        assert revision.commit is not None
+        # Measured on this machine (its label is the platform when no machine state is known)
+        published_run = ledger_row(commit=revision.commit).run.model_copy(
+            update={'machine_state': None, 'machine': replay_metrics.this_machine()}
+        )
+        published = ledger_row().model_copy(update={'run': published_run})
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=tmp_path / 'pending.jsonl',
+                revision=revision,
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text=ledger_text(rows=[published]),
+        )
+        assert result.skipped == ('tests/fixtures/replays/paddleslap/golden.jsonl.gz',)
+
+    def test_uncommitted_changes_are_refused_unless_allowed(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        pending = tmp_path / 'pending.jsonl'
+        dirty = source_revision().model_copy(update={'uncommitted_changes': True})
+        refused = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=dirty,
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+        assert refused.exit_code == ExitCode.OPTIONS_REFUSED
+        assert 'uncommitted changes' in capsys.readouterr().err
+        assert not pending.exists()
+
+        allowed = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=dirty,
+                force=False,
+                allow_dirty=True,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+        assert allowed.exit_code == ExitCode.SUCCESS
+        measured = read_ledger_file(path=pending).rows[0]
+        assert measured.allowed_uncommitted_changes
+
+    def test_an_unknown_commit_is_refused(self, tmp_path, capsys):
+        result = measure(
+            settings=MeasureSettings(
+                project_root=tmp_path,
+                pending_path=tmp_path / 'pending.jsonl',
+                revision=SourceRevision(source=RevisionSource.UNKNOWN),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=[],
+            published_text='',
+        )
+        assert result.exit_code == ExitCode.OPTIONS_REFUSED
+        assert 'git checkout' in capsys.readouterr().err
+
+    def test_failures_are_reported_and_measured_rows_kept(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        broken = project_root / 'tests' / 'fixtures' / 'replays' / 'paddleslap' / 'broken.jsonl.gz'
+        broken.write_text('not a recording', encoding='utf-8')
+        pending = tmp_path / 'pending.jsonl'
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=clean_revision(),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=[('paddleslap', broken), *recordings],
+            published_text='',
+        )
+        assert result.exit_code == ExitCode.INTERNAL_ERROR
+        assert result.failures == ('tests/fixtures/replays/paddleslap/broken.jsonl.gz',)
+        assert 'UNUSABLE_INPUT' in capsys.readouterr().err
+        assert len(read_ledger_file(path=pending).rows) == 2
+
+    def test_a_replay_of_another_commit_is_a_failure(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        other_commit = clean_revision().model_copy(update={'commit': 'f' * 40})
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=tmp_path / 'pending.jsonl',
+                revision=other_commit,
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+        assert result.exit_code == ExitCode.INTERNAL_ERROR
+        assert 'measured commit' in capsys.readouterr().err
+
+
+class TestClearingPublishedRows:
+    """After a deploy, pending rows the published ledger now holds are removed."""
+
+    def test_published_rows_leave_the_pending_file(self, tmp_path, capsys):
+        pending = tmp_path / 'pending.jsonl'
+        published_row = ledger_row()
+        unpublished_row = ledger_row(measured_at='2026-10-24T09:00:00+00:00')
+        pending.write_text(ledger_text(rows=[published_row, unpublished_row]), encoding='utf-8')
+        clear_published(pending_path=pending, published_text=ledger_text(rows=[published_row]))
+        assert read_ledger_file(path=pending).rows == (unpublished_row,)
+        assert '1 published row removed, 1 still pending' in capsys.readouterr().out
+        clear_published(pending_path=pending, published_text=ledger_text(rows=[unpublished_row]))
+        assert not pending.exists()
+        clear_published(pending_path=pending, published_text='')
+        assert 'No pending rows' in capsys.readouterr().out
+
+    def test_rows_from_uncommitted_changes_stay_pending_after_a_deploy(self, tmp_path):
+        """A deploy publishes only clean rows, so the trial stays local and pending."""
+        pending = tmp_path / 'pending.jsonl'
+        clean = ledger_row()
+        trial = ledger_row(measured_at='2026-10-24T09:00:00+00:00').model_copy(
+            update={'allowed_uncommitted_changes': True}
+        )
+        pending.write_text(ledger_text(rows=[clean, trial]), encoding='utf-8')
+        # What a gh-deploy build published (scripts/generate_performance_graphs.py)
+        published = ledger_text(rows=publishable_rows(rows=[clean, trial]))
+        clear_published(pending_path=pending, published_text=published)
+        assert read_ledger_file(path=pending).rows == (trial,)
+
+
+class TestTheCommandLine:
+    """``measure`` and ``clear-published``, as nox -s replay-metrics and docs-deploy run them."""
+
+    def test_measure_one_recording_then_clear(self, tmp_path, mocker, capsys):
+        mocker.patch.object(replay_metrics, 'source_revision', return_value=clean_revision())
+        pending = tmp_path / 'pending.jsonl'
+        arguments = ['--pending', str(pending), '--only', 'paddleslap_demos']
+        assert run(arguments=['measure', *arguments]) == ExitCode.SUCCESS
+        rows = read_ledger_file(path=pending).rows
+        assert {row.recording for row in rows} == {
+            'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        }
+        assert 'Measured 1 recording' in capsys.readouterr().out
+        # Nothing is published from this checkout's point of view in a test: the rows stay
+        mocker.patch.object(replay_metrics, 'published_ledger_text', return_value='')
+        assert run(arguments=['clear-published', '--pending', str(pending)]) == ExitCode.SUCCESS
+        assert read_ledger_file(path=pending).rows == rows
+
+    def test_skip_dirty_measures_nothing(self, tmp_path, mocker, capsys):
+        dirty = source_revision().model_copy(update={'uncommitted_changes': True})
+        mocker.patch.object(replay_metrics, 'source_revision', return_value=dirty)
+        pending = tmp_path / 'pending.jsonl'
+        assert run(arguments=['measure', '--pending', str(pending), '--skip-dirty']) == (
+            ExitCode.SUCCESS
+        )
+        assert not pending.exists()
+        assert 'Not measuring' in capsys.readouterr().out
+
+    def test_allow_dirty_and_skip_dirty_together_are_refused(self, capsys):
+        with pytest.raises(SystemExit) as exit_info:
+            run(arguments=['measure', '--allow-dirty', '--skip-dirty'])
+        assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+        assert 'not allowed with' in capsys.readouterr().err
+
+    def test_the_default_pending_file_is_gitignored(self):
+        assert PENDING_LEDGER_PATH.relative_to(PROJECT_ROOT).parts[0] == 'test-results'

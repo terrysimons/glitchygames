@@ -608,12 +608,24 @@ class TestOptimizedVisualCollisionManagerOptimize:
         assert stats.operation_count == 1
 
     def test_optimize_positioning_cleans_up_memory_when_needed(self, optimized_visual_manager):
-        """Test that memory cleanup is triggered when threshold exceeded."""
-        # Lower the threshold to trigger cleanup
-        optimized_visual_manager.memory_manager.cleanup_threshold = 0
+        """Test that memory cleanup is triggered when threshold exceeded.
+
+        More registered objects than the threshold makes optimize_positioning drop the dead
+        ones (with none registered the threshold is never exceeded, however low).
+        """
+
+        class Registered:
+            """An object the memory manager can hold a weak reference to."""
+
+        memory_manager = optimized_visual_manager.memory_manager
+        memory_manager.cleanup_threshold = 1
+        living_object = Registered()
+        memory_manager.register_object(1, living_object)
+        memory_manager.register_object(2, Registered())  # Dead once the statement ends
 
         optimized_visual_manager.optimize_positioning()
 
+        assert list(memory_manager.weak_refs) == [1]
         stats = optimized_visual_manager.performance_monitor.get_operation_stats(
             'optimize_positioning',
         )

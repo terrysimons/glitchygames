@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
     from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
     from glitchygames.bitmappy.scroll_arrow import ScrollArrowSprite
+    from glitchygames.events import HashableEvent
     from glitchygames.ui import ColorWellSprite, SliderSprite, TabControlSprite
 
 
@@ -84,6 +85,8 @@ class EditorContext(Protocol):
     # ── Pixel change tracking ────────────────────────────────────────────
 
     pixel_change_timer: float | None
+    # True while an undo or redo applies its change, so the change is not tracked as a new one
+    applying_undo_redo: bool
 
     # ── Selection state ──────────────────────────────────────────────────
 
@@ -113,6 +116,7 @@ class EditorContext(Protocol):
     options: dict[str, Any]
     name: Any  # Class attribute NAME on Scene, type varies
     confirmation_dialog: Any  # Confirmation dialog or None
+    next_scene: Any  # Scene to switch to at the end of the frame (Scene | None)
 
     @property
     def log(self) -> logging.Logger:
@@ -139,12 +143,12 @@ class EditorContext(Protocol):
         """Perform a redo operation."""
         ...
 
-    def get_current_color(self) -> tuple[int, ...]:
-        """Get the current drawing color from the sliders."""
+    def get_current_color(self) -> tuple[int, int, int, int]:
+        """Get the current RGBA drawing color from the sliders."""
         ...
 
-    def update_color_well_from_sliders(self) -> None:
-        """Update the color well widget with current slider values."""
+    def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
+        """Set the drawing color: the sliders, the color well and the canvas color."""
         ...
 
     def update_film_strip_visibility(self) -> None:
@@ -157,7 +161,7 @@ class EditorContext(Protocol):
 
     def on_film_strip_frame_selected(
         self,
-        film_strip_widget: Any,
+        film_strip_widget: FilmStripWidget,
         animation: str,
         frame: int,
     ) -> None:
@@ -168,7 +172,7 @@ class EditorContext(Protocol):
         """Synchronize film strip selection highlights with current state."""
         ...
 
-    def on_slider_event(self, event: Any, trigger: Any) -> None:
+    def on_slider_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a slider value change event."""
         ...
 

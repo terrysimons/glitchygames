@@ -31,6 +31,7 @@ from glitchygames.bitmappy.constants import (
 )
 from glitchygames.bitmappy.models import AIRequest, AIRequestState, AIResponse
 from glitchygames.sprites import SPRITE_GLYPHS, SpriteFactory
+from glitchygames.sprites.animated import AnimatedSprite
 
 STATIC_SPRITE_TOML = (
     '[sprite]\nname = "ball"\npixels = """\n#.\n.#\n"""\n\n'
@@ -689,6 +690,23 @@ class TestSerializeCurrentSpriteForRefinement:
 
         assert manager._serialize_current_sprite_for_refinement() == (False, None, None)
 
+    def test_save_failure_leaves_no_temporary_file(self, temporary_files_in_tmp_path):
+        """The temporary file a failed save was meant to fill is removed (it used to stay)."""
+
+        class UnsavableSprite:
+            """A sprite whose save fails."""
+
+            def save(self, filename: str, file_format: str) -> None:
+                msg = 'disk full'
+                raise OSError(msg)
+
+        canvas = FakeCanvas()
+        canvas.animated_sprite = UnsavableSprite()  # type: ignore[assignment]
+
+        AIManager(_editor(canvas=canvas))._serialize_current_sprite_for_refinement()  # type: ignore[arg-type]
+
+        assert list(temporary_files_in_tmp_path.iterdir()) == []
+
 
 # ---------------------------------------------------------------------------
 # Response processing
@@ -734,8 +752,8 @@ class TestProcessAiResponse:
         assert canvas.animated_sprite.description == 'a red ball'
         loaded_data = tomllib.loads(Path(canvas.loaded_paths[0]).read_text(encoding='utf-8'))
         assert loaded_data['sprite']['description'] == 'a red ball'
-        # The rewrite appends a blank line to the pixel block; the loader ignores it
-        assert loaded_data['sprite']['pixels'].rstrip('\n') == '#.\n.#'
+        # The rewrite keeps the pixel block exactly as the answer had it (BUGS.md #110 item 7)
+        assert loaded_data['sprite']['pixels'] == '#.\n.#\n'
         assert canvas.animated_sprite.animations[canvas.animated_sprite.current_animation][
             0
         ].image.get_size() == (2, 2)
@@ -748,6 +766,24 @@ class TestProcessAiResponse:
             {'role': 'assistant', 'content': manager.last_successful_sprite_content},
         ]
         assert editor.debug_text.text == 'a red ball'
+        assert manager.pending_ai_requests == {}
+
+    def test_fenced_valid_response_loads_without_a_retry(self):
+        """An answer wrapped in markdown fences is cleaned, not retried (BUGS.md #93)."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(original_prompt='a red ball')
+
+        manager._process_ai_response(
+            'request-1',
+            AIResponse(content=f'```toml\n{STATIC_SPRITE_TOML}```'),
+        )
+
+        assert not manager.ai_request_queue.items  # type: ignore[union-attr]
+        assert len(canvas.loaded_paths) == 1
+        loaded_data = tomllib.loads(Path(canvas.loaded_paths[0]).read_text(encoding='utf-8'))
+        assert loaded_data['sprite']['pixels'] == '#.\n.#\n'
         assert manager.pending_ai_requests == {}
 
     def test_response_for_an_unknown_request_is_loaded_anyway(self):
@@ -799,13 +835,41 @@ class TestProcessAiResponse:
 
         assert canvas.loaded_paths == []
         assert not manager.ai_request_queue.items  # type: ignore[union-attr]
-        # The 'loading anyway' notice is shown first, then the apology is appended below it
+        # The failure notice is shown first, then the apology is appended below it
         assert editor.debug_text.text.startswith(
             f'Failed after {AI_VALIDATION_MAX_RETRIES} retries:',
         )
         assert editor.debug_text.text.endswith(
             f'\n\n{apology}\n\n--- Original Prompt ---\na red ball',
         )
+        assert manager.pending_ai_requests == {}
+
+    def test_invalid_response_after_the_last_retry_says_it_was_not_loaded(self, caplog):
+        """Out of retries, the log and the text box say the sprite was not loaded.
+
+        They said "loading sprite anyway", but loading validates the same content and
+        rejects it, so nothing was ever loaded.
+        """
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        editor.debug_text.text = ''
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response(
+            'request-1',
+            AIResponse(content='[sprite]\nname = "x"\npixels = """\n#\n"""\n'),
+        )
+
+        assert canvas.loaded_paths == []
+        assert 'Missing [colors] section' in editor.debug_text.text
+        assert 'The sprite was not loaded.' in editor.debug_text.text
+        assert 'anyway' not in editor.debug_text.text
+        assert 'the sprite was not loaded' in caplog.text
+        assert 'anyway' not in caplog.text
         assert manager.pending_ai_requests == {}
 
 
@@ -947,8 +1011,6 @@ class TestConstructTomlWithPreservedFormatting:
     def test_animated_sprite_round_trips(self):
         """Animation sections are written back so the TOML parses to the same data."""
         data = tomllib.loads(ANIMATED_SPRITE_TOML)
-        for frame in data['animation'][0]['frame']:
-            frame['pixels'] = frame['pixels'].rstrip('\n')
 
         content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
 
@@ -960,6 +1022,25 @@ class TestConstructTomlWithPreservedFormatting:
             '.#\n#.\n',
         ]
         assert reparsed['colors'] == data['colors']
+
+    def test_rewriting_twice_adds_no_blank_lines_to_pixel_blocks(self):
+        """A rewrite of a rewrite keeps every pixel block unchanged (BUGS.md #110 item 7)."""
+        manager = AIManager(_editor())  # type: ignore[arg-type]
+        static_data = tomllib.loads(STATIC_SPRITE_TOML)
+        animated_data = tomllib.loads(ANIMATED_SPRITE_TOML)
+
+        static_once = manager._construct_toml_with_preserved_formatting(static_data)
+        static_twice = manager._construct_toml_with_preserved_formatting(
+            tomllib.loads(static_once),
+        )
+        animated_once = manager._construct_toml_with_preserved_formatting(animated_data)
+        animated_twice = manager._construct_toml_with_preserved_formatting(
+            tomllib.loads(animated_once),
+        )
+
+        assert static_twice == static_once
+        assert tomllib.loads(static_twice)['sprite']['pixels'] == '#.\n.#\n'
+        assert animated_twice == animated_once
 
     def test_sprite_without_name_or_pixels_writes_only_what_it_has(self):
         """Only the sprite fields present are written."""
@@ -1028,6 +1109,20 @@ class TestTemporaryFilesAndStaticLoad:
 
         assert canvas.loaded_paths == [sprite_path]
         assert canvas.redraw_count == 0
+
+    def test_detected_file_without_frames_loads_as_static(self, tmp_path):
+        """An animation with no frames leaves no animations, so it takes the static load path."""
+        canvas = FakeCanvas()
+        sprite_path = _write_sprite(
+            tmp_path=tmp_path,
+            name='frameless.toml',
+            content='[sprite]\nname = "frameless"\n\n[[animation]]\nnamespace = "idle"\n',
+        )
+
+        AIManager(_editor(canvas=canvas))._detect_and_load_ai_sprite(sprite_path)  # type: ignore[arg-type]
+
+        assert canvas.loaded_paths == [sprite_path]
+        assert canvas.redraw_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1136,6 +1231,19 @@ class TestSaveCurrentStripToTempToml:
 
         assert AIManager(_editor(canvas=canvas))._save_current_strip_to_temp_toml() is None  # type: ignore[arg-type]
 
+    def test_save_failure_leaves_no_temporary_file(
+        self,
+        mocker,
+        tmp_path,
+        temporary_files_in_tmp_path,
+    ):
+        """A strip that cannot be saved gives no path and leaves no temporary file behind."""
+        canvas = _canvas_with_sprite(tmp_path=tmp_path, content=ANIMATED_SPRITE_TOML)
+        mocker.patch.object(AnimatedSprite, 'save', side_effect=OSError('disk full'))
+
+        assert AIManager(_editor(canvas=canvas))._save_current_strip_to_temp_toml() is None  # type: ignore[arg-type]
+        assert list(temporary_files_in_tmp_path.iterdir()) == []
+
 
 class TestGenerateFrameTomlContent:
     """Test AIManager._generate_frame_toml_content."""
@@ -1191,6 +1299,28 @@ class TestLoadTempTomlAsExample:
         }
         assert not Path(sprite_path).exists()
 
+    def test_animated_example_carries_every_frame(self, tmp_path):
+        """An animated strip's example holds every frame, not only the first one.
+
+        It used to extract only the first pixels block and label the strip static.
+        """
+        sprite_path = _write_sprite(
+            tmp_path=tmp_path, name='strip.toml', content=ANIMATED_SPRITE_TOML
+        )
+
+        example = AIManager(_editor())._load_temp_toml_as_example(sprite_path)  # type: ignore[arg-type]
+
+        assert example is not None
+        assert example['name'] == 'blinker'
+        assert example['sprite_type'] == 'animated'
+        assert example['raw_content'] == ANIMATED_SPRITE_TOML
+        [animation] = example['animations']
+        assert animation['namespace'] == 'blink'
+        assert [frame['pixels'] for frame in animation['frame']] == ['#.\n.#', '.#\n#.']
+        assert example['pixels'] == '#.\n.#\n\n.#\n#.'
+        assert set(example['colors']) == {'#', '.'}
+        assert not Path(sprite_path).exists()
+
     def test_file_that_cannot_be_removed_still_gives_an_example(self, mocker, tmp_path):
         """Failing to delete the temp file does not lose the example."""
         sprite_path = _write_sprite(tmp_path=tmp_path, name='e.toml', content=STATIC_SPRITE_TOML)
@@ -1206,6 +1336,20 @@ class TestLoadTempTomlAsExample:
         sprite_path = _write_sprite(tmp_path=tmp_path, name='bad.toml', content='[sprite\n')
 
         assert AIManager(_editor())._load_temp_toml_as_example(sprite_path) is None  # type: ignore[arg-type]
+
+    def test_unreadable_example_file_is_still_removed(self, tmp_path):
+        """A temporary file that is not TOML is removed too (it used to be left behind)."""
+        sprite_path = _write_sprite(tmp_path=tmp_path, name='bad.toml', content='[sprite\n')
+
+        AIManager(_editor())._load_temp_toml_as_example(sprite_path)  # type: ignore[arg-type]
+
+        assert not Path(sprite_path).exists()
+
+    def test_missing_example_file_gives_no_example(self, tmp_path):
+        """A file that is already gone yields no example and no cleanup error."""
+        missing_path = str(tmp_path / 'missing.toml')
+
+        assert AIManager(_editor())._load_temp_toml_as_example(missing_path) is None  # type: ignore[arg-type]
 
 
 class TestSmallHelpers:

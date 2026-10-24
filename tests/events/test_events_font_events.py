@@ -1,6 +1,7 @@
 """Tests for font event functionality.
 
-This module tests font event interfaces, stubs, and event handling.
+This module tests font event interfaces, stubs, and event handling through a real
+FontManager, and the FontManager's font loading with real pygame fonts.
 """
 
 import argparse
@@ -8,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pygame
+import pygame.freetype
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -19,90 +21,140 @@ from glitchygames.events import (
     UnhandledEventError,
 )
 from glitchygames.fonts import FontManager
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.scenes import Scene
+
+EVENT_TEST_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
+
+# The bundled font the system-font tests hand back in place of a system lookup
+BUNDLED_VERA_PATH = (
+    Path(__file__).parent.parent.parent / 'glitchygames' / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
+)
+
+FONT_OPTIONS = {
+    'font_name': 'arial',
+    'font_size': 14,
+    'font_bold': False,
+    'font_italic': False,
+    'font_antialias': True,
+    'font_dpi': 72,
+    'font_system': 'freetype',
+}
+
+
+class FontRecordingScene(Scene):
+    """A real scene with font options that records the font events it receives."""
+
+    def __init__(self, options=None, groups=None):
+        """Create the scene with the font options and no font events received yet."""
+        super().__init__(
+            options=options if options is not None else dict(EVENT_TEST_OPTIONS),
+            groups=groups,
+        )
+        # FontManager reads the game's font options from OPTIONS
+        self.OPTIONS = dict(FONT_OPTIONS)
+        self.font_events_received: list[tuple[str, HashableEvent]] = []
+
+    def on_font_changed_event(self, event):
+        """Record a font changed event."""
+        self.font_events_received.append(('font_changed', event))
+
+
+class SceneWithoutFontHandler(Scene):
+    """A real scene with font options but no font handler: the font stub handles events."""
+
+    def __init__(self, options=None, groups=None):
+        """Create the scene with the font options."""
+        super().__init__(
+            options=options if options is not None else dict(EVENT_TEST_OPTIONS),
+            groups=groups,
+        )
+        self.OPTIONS = dict(FONT_OPTIONS)
+
+
+def font_scene_and_manager():
+    """Create a recording scene and a real FontManager delivering to it.
+
+    Returns:
+        tuple[FontRecordingScene, FontManager]: The scene and its manager.
+
+    """
+    scene = FontRecordingScene()
+    return scene, FontManager(game=scene)
+
+
+def bundled_freetype_font(*, size):
+    """Load the bundled Vera with pygame.freetype.
+
+    A system-font lookup (SysFont) depends on the machine's fonts and scans them, so the
+    tests of the system-font path hand back this real font in its place.
+
+    Returns:
+        pygame.freetype.Font: The bundled Vera at the size.
+
+    """
+    return pygame.freetype.Font(file=BUNDLED_VERA_PATH, size=size)
+
+
+def bundled_pygame_font(*, size):
+    """Load the bundled Vera with pygame.font (see bundled_freetype_font).
+
+    Returns:
+        pygame.font.Font: The bundled Vera at the size.
+
+    """
+    return pygame.font.Font(BUNDLED_VERA_PATH, size)
 
 
 class TestFontEvents:
     """Test FontEvents interface functionality."""
 
-    def test_font_events_interface(self, mock_pygame_patches):
+    def test_font_events_interface(self):
         """Test FontEvents interface methods."""
         # Test that FontEvents has required abstract methods
         assert hasattr(FontEvents, 'on_font_changed_event')
 
-    def test_font_event_stubs_implementation(self, mock_pygame_patches, mocker):
+    def test_font_event_stubs_implementation(self, mocker):
         """Test FontEventStubs implementation."""
-        # Use centralized mock for scene without event handlers (stub behavior)
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={},  # No event handlers - will fall back to stubs
-        )
+        # A real scene without a font handler falls back to the font stub
+        manager = FontManager(game=SceneWithoutFontHandler())
 
-        # Test that stub methods can be called
         event = HashableEvent(pygame.USEREVENT + 1)
-        # Mock the logger to suppress "Unhandled Event" messages during testing
+        # Silence the "Unhandled Event" log during testing
         mocker.patch('glitchygames.events.base.LOG.error')
 
         with pytest.raises(UnhandledEventError):
-            scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
 
-    def test_font_changed_event(self, mock_pygame_patches):
+    def test_font_changed_event(self):
         """Test font changed event handling."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test font changed event
         event = HashableEvent(pygame.USEREVENT + 1)  # Custom font change event
-        result = scene.on_font_changed_event(event)
+        manager.on_font_changed_event(event)
 
-        # Event should be handled successfully
-        assert result is True
         assert len(scene.font_events_received) == 1
         assert scene.font_events_received[0][0] == 'font_changed'
         assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
 
-    def test_font_changed_event_with_font_info(self, mock_pygame_patches):
+    def test_font_changed_event_with_font_info(self):
         """Test font changed event with font information."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test font changed event with font information
         event = HashableEvent(pygame.USEREVENT + 1, font_name='Arial', font_size=12)
-        result = scene.on_font_changed_event(event)
+        manager.on_font_changed_event(event)
 
-        # Event should be handled successfully
-        assert result is True
         assert len(scene.font_events_received) == 1
         assert scene.font_events_received[0][0] == 'font_changed'
         assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
         assert scene.font_events_received[0][1].font_name == 'Arial'
         assert scene.font_events_received[0][1].font_size == 12
 
-    def test_font_changed_event_with_different_fonts(self, mock_pygame_patches):
+    def test_font_changed_event_with_different_fonts(self):
         """Test font changed event with different font types."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test different font types
         font_scenarios = [
@@ -116,10 +168,8 @@ class TestFontEvents:
 
         for font_info in font_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **font_info)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -129,27 +179,17 @@ class TestFontEvents:
             # Clear for next iteration
             scene.font_events_received.clear()
 
-    def test_font_changed_event_with_different_sizes(self, mock_pygame_patches):
+    def test_font_changed_event_with_different_sizes(self):
         """Test font changed event with different font sizes."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test different font sizes
         font_sizes = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72]
 
         for size in font_sizes:
             event = HashableEvent(pygame.USEREVENT + 1, font_name='Arial', font_size=size)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -159,17 +199,9 @@ class TestFontEvents:
             # Clear for next iteration
             scene.font_events_received.clear()
 
-    def test_font_changed_event_with_style_info(self, mock_pygame_patches):
+    def test_font_changed_event_with_style_info(self):
         """Test font changed event with style information."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test font changed event with style information
         style_scenarios = [
@@ -181,10 +213,8 @@ class TestFontEvents:
 
         for style_info in style_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **style_info)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -194,17 +224,9 @@ class TestFontEvents:
             # Clear for next iteration
             scene.font_events_received.clear()
 
-    def test_font_changed_event_with_color_info(self, mock_pygame_patches):
+    def test_font_changed_event_with_color_info(self):
         """Test font changed event with color information."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test font changed event with color information
         color_scenarios = [
@@ -217,10 +239,8 @@ class TestFontEvents:
 
         for color_info in color_scenarios:
             event = HashableEvent(pygame.USEREVENT + 1, **color_info)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -230,17 +250,9 @@ class TestFontEvents:
             # Clear for next iteration
             scene.font_events_received.clear()
 
-    def test_font_changed_event_with_unicode_fonts(self, mock_pygame_patches):
+    def test_font_changed_event_with_unicode_fonts(self):
         """Test font changed event with Unicode font names."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test Unicode font names
         unicode_fonts = [
@@ -253,10 +265,8 @@ class TestFontEvents:
 
         for font_name in unicode_fonts:
             event = HashableEvent(pygame.USEREVENT + 1, font_name=font_name, font_size=12)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -266,17 +276,9 @@ class TestFontEvents:
             # Clear for next iteration
             scene.font_events_received.clear()
 
-    def test_font_changed_event_with_system_fonts(self, mock_pygame_patches):
+    def test_font_changed_event_with_system_fonts(self):
         """Test font changed event with system fonts."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test system fonts
         system_fonts = [
@@ -290,10 +292,8 @@ class TestFontEvents:
 
         for font_name in system_fonts:
             event = HashableEvent(pygame.USEREVENT + 1, font_name=font_name, font_size=12)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -303,17 +303,9 @@ class TestFontEvents:
             # Clear for next iteration
             scene.font_events_received.clear()
 
-    def test_font_changed_event_with_font_path(self, mock_pygame_patches):
+    def test_font_changed_event_with_font_path(self):
         """Test font changed event with font file paths."""
-        # Use centralized mock for scene with proper event handling
-        scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={
-                'on_font_changed_event': lambda event: (
-                    scene.font_events_received.append(('font_changed', event)),
-                    True,
-                )[1],
-            },
-        )
+        scene, manager = font_scene_and_manager()
 
         # Test font file paths
         font_paths = [
@@ -325,10 +317,8 @@ class TestFontEvents:
 
         for font_path in font_paths:
             event = HashableEvent(pygame.USEREVENT + 1, font_path=font_path, font_size=12)
-            result = scene.on_font_changed_event(event)
+            manager.on_font_changed_event(event)
 
-            # Event should be handled successfully
-            assert result is True
             assert len(scene.font_events_received) == 1
             assert scene.font_events_received[0][0] == 'font_changed'
             assert scene.font_events_received[0][1].type == pygame.USEREVENT + 1
@@ -342,90 +332,46 @@ class TestFontEvents:
 class TestFontManagerCoverage:
     """Test coverage for FontManager class."""
 
-    def test_font_manager_initialization_basic(self, mock_pygame_patches, mocker):
-        """Test FontManager initializes correctly."""
-        from tests.mocks import MockFactory
-
-        # Create a mock game with proper OPTIONS for FontManager
-        mock_game = MockFactory.create_event_test_scene_mock()
-        mock_game.OPTIONS = {
-            'font_name': 'Arial',
-            'font_size': 12,
-            'font_bold': False,
-            'font_italic': False,
-            'font_antialias': True,
-            'font_dpi': 72,
-        }
-
-        # Mock pygame.freetype to avoid import issues
-        mocker.patch('pygame.freetype', create=True)
-        manager = FontManager(game=mock_game)
-
-        assert manager.game == mock_game
-        assert hasattr(manager, 'proxies')
-        assert isinstance(manager.proxies, list)
-
-    def test_font_manager_with_fallback(self, mock_pygame_patches, mocker):
-        """Test FontManager with pygame.font fallback when freetype is not available."""
-        from tests.mocks import MockFactory
-
-        # Create a mock game with proper OPTIONS for FontManager
-        mock_game = MockFactory.create_event_test_scene_mock()
-        mock_game.OPTIONS = {
-            'font_name': 'Arial',
-            'font_size': 12,
-            'font_bold': False,
-            'font_italic': False,
-            'font_antialias': True,
-            'font_dpi': 72,
-        }
-
-        # Test that FontManager handles missing freetype gracefully
-        mocker.patch(
-            'pygame.freetype',
-            side_effect=AttributeError("No module named 'pygame.freetype'"),
-        )
-        manager = FontManager(game=mock_game)
-
-        assert manager.game == mock_game
-        assert hasattr(manager, 'proxies')
-        assert isinstance(manager.proxies, list)
-
     @pytest.fixture(autouse=True)
-    def setup_font_manager(self, mocker):
-        """Set up test fixtures."""
-        # Mock game object with required options
-        self.mock_game = mocker.Mock()
-        self.mock_game.OPTIONS = {
-            'font_name': 'arial',
-            'font_size': 14,
-            'font_bold': False,
-            'font_italic': False,
-            'font_antialias': True,
-            'font_dpi': 72,
-            'font_system': 'freetype',
-        }
+    def setup_font_manager(self):
+        """Give each test a game with font options and an empty font cache."""
+        self.game = FontRecordingScene()
 
-        # Clear any existing cache
         FontManager._font_cache.clear()
         FontManager.OPTIONS.clear()
 
-    def test_font_manager_initialization(self, mock_pygame_patches, mocker):
+    def test_font_manager_initialization_basic(self):
+        """Test FontManager initializes correctly."""
+        manager = FontManager(game=self.game)
+
+        assert manager.game is self.game
+        assert manager.proxies[1] is pygame.freetype
+        assert isinstance(manager.proxies[0], FontManager.FontProxy)
+
+    def test_font_manager_with_fallback(self, mocker):
+        """A freetype font that fails to load falls back to a pygame.font font."""
+        FontManager(game=self.game)
+        # A broken font file cannot be produced portably: simulate freetype failing to load
+        mocker.patch('pygame.freetype.Font', side_effect=OSError('unreadable font file'))
+
+        font = FontManager.get_font(font_system='freetype', font_config={'font_name': 'Vera'})
+
+        assert isinstance(font, pygame.font.Font)
+        assert 'pygame_Vera_14' in FontManager._font_cache
+
+    def test_font_manager_initialization(self):
         """Test FontManager initialization."""
         expected_font_size = 14
 
-        mock_init = mocker.patch('pygame.freetype.init')
-        mocker.patch('pygame.freetype.get_cache_size', return_value=100)
-        mocker.patch('pygame.freetype.get_default_resolution', return_value=72)
+        FontManager(self.game)
 
-        FontManager(self.mock_game)
-
-        mock_init.assert_called_once()
+        assert pygame.freetype.get_init()
+        assert pygame.freetype.get_default_resolution() == 72
         assert FontManager.OPTIONS['font_name'] == 'arial'
         assert FontManager.OPTIONS['font_size'] == expected_font_size
         assert FontManager.OPTIONS['use_freetype'] is True
 
-    def test_font_proxy_initialization(self, mock_pygame_patches, mocker):
+    def test_font_proxy_initialization(self):
         """Test FontProxy initialization."""
 
         # Create a concrete subclass that implements the abstract method
@@ -433,88 +379,77 @@ class TestFontManagerCoverage:
             def on_font_changed_event(self, event):
                 pass
 
-        mocker.patch('pygame.freetype.init')
-        FontManager(self.mock_game)
-        proxy = ConcreteFontProxy(self.mock_game)
+        FontManager(self.game)
+        proxy = ConcreteFontProxy(self.game)
 
-        assert proxy.game == self.mock_game
+        assert proxy.game is self.game
         assert pygame.freetype in proxy.proxies  # ty: ignore[possibly-missing-submodule]
 
-    def test_font_method_freetype_success(self, mock_pygame_patches, mocker):
+    def test_font_method_freetype_success(self, mocker):
         """Test font method with successful freetype loading."""
-        mock_font = mocker.Mock()
-        mock_sysfont = mocker.patch('pygame.freetype.SysFont', return_value=mock_font)
+        system_font = bundled_freetype_font(size=16)
+        system_font_lookup = mocker.patch('pygame.freetype.SysFont', return_value=system_font)
 
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.font(font_config)
 
-        mock_sysfont.assert_called_once_with(name='arial', size=16)
-        assert result == mock_font
-        assert 'arial_16' in FontManager._font_cache
+        system_font_lookup.assert_called_once_with(name='arial', size=16)
+        assert result is system_font
+        assert FontManager._font_cache['arial_16'] is system_font
 
-    def test_font_method_freetype_fallback(self, mock_pygame_patches, mocker):
-        """Test font method with freetype fallback to built-in font."""
-        mock_font = mocker.Mock()
+    def test_font_method_freetype_fallback(self, mocker):
+        """Test font method with freetype fallback to the bundled font."""
+        # A missing system font cannot be produced portably: simulate SysFont failing
         mocker.patch('pygame.freetype.SysFont', side_effect=TypeError('Font not found'))
-        mocker.patch('pygame.freetype.Font', return_value=mock_font)
-        mock_path = mocker.patch('pathlib.Path')
-
-        mock_path.return_value.parent = mocker.Mock()
-        mock_path.return_value.parent.__truediv__ = mocker.Mock(return_value='path/to/font.ttf')
 
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.font(font_config)
 
-        # Font was called successfully
-        assert result == mock_font
+        assert isinstance(result, pygame.freetype.Font)
+        assert Path(result.path).name == 'Vera.ttf'
+        assert FontManager._font_cache['arial_16'] is result
 
-    def test_pygame_font_method_success(self, mock_pygame_patches, mocker):
-        """Test pygame_font method with successful loading."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.Font', return_value=mock_font)
-        mock_path = mocker.patch('pathlib.Path')
-        mock_sysfont = mocker.patch('pygame.font.SysFont', return_value=mock_font)
-
-        mock_path.return_value.parent = mocker.Mock()
-        mock_path.return_value.parent.__truediv__ = mocker.Mock(return_value='path/to/font.ttf')
+    def test_pygame_font_method_success(self, mocker):
+        """Test pygame_font method with successful system font loading."""
+        system_font = bundled_pygame_font(size=16)
+        system_font_lookup = mocker.patch('pygame.font.SysFont', return_value=system_font)
 
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.pygame_font(font_config)
 
-        # Should use SysFont as fallback when Font fails
-        mock_sysfont.assert_called_once_with('arial', 16)
-        assert result == mock_font
-        assert 'pygame_arial_16' in FontManager._font_cache
+        system_font_lookup.assert_called_once_with('arial', 16)
+        assert result is system_font
+        assert FontManager._font_cache['pygame_arial_16'] is system_font
 
-    def test_pygame_font_method_fallback(self, mock_pygame_patches, mocker):
-        """Test pygame_font method with fallback to default font."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.Font', side_effect=FileNotFoundError('Font not found'))
-        mock_sysfont = mocker.patch('pygame.font.SysFont', return_value=mock_font)
+    def test_pygame_font_method_fallback(self, mocker):
+        """Test pygame_font method with fallback to pygame's default font."""
+        # A missing system font cannot be produced portably: simulate SysFont failing
+        system_font_lookup = mocker.patch(
+            'pygame.font.SysFont', side_effect=FileNotFoundError('Font not found')
+        )
 
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.pygame_font(font_config)
 
-        mock_sysfont.assert_called_once_with('arial', 16)
-        assert result == mock_font
+        system_font_lookup.assert_called_once_with('arial', 16)
+        assert isinstance(result, pygame.font.Font)
+        # pygame's default font at the requested size
+        assert result.get_height() == pygame.font.Font(None, 16).get_height()
 
-    def test_pygame_font_method_default_config(self, mock_pygame_patches, mocker):
+    def test_pygame_font_method_default_config(self, mocker):
         """Test pygame_font method with default configuration."""
-        # Set up OPTIONS
         FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
 
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.Font', return_value=mock_font)
-        mock_sysfont = mocker.patch('pygame.font.SysFont', return_value=mock_font)
+        system_font = bundled_pygame_font(size=16)
+        system_font_lookup = mocker.patch('pygame.font.SysFont', return_value=system_font)
 
         result = FontManager.pygame_font(None)
 
-        # Should use SysFont as fallback when Font fails
-        mock_sysfont.assert_called_once_with('arial', 16)
-        assert result == mock_font
+        system_font_lookup.assert_called_once_with('arial', 16)
+        assert result is system_font
         assert 'pygame_arial_16' in FontManager._font_cache
 
-    def test_args_method(self, mock_pygame_patches):
+    def test_args_method(self):
         """Test args class method."""
         parser = argparse.ArgumentParser()
         result = FontManager.args(parser)
@@ -524,56 +459,50 @@ class TestFontManagerCoverage:
         group_titles = [group.title for group in parser._action_groups]
         assert 'Font Options' in group_titles
 
-    def test_font_method_with_default_config(self, mock_pygame_patches, mocker):
+    def test_font_method_with_default_config(self, mocker):
         """Test font method with default configuration."""
-        # Set up OPTIONS
         FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
 
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', return_value=mock_font)
+        system_font = bundled_freetype_font(size=16)
+        mocker.patch('pygame.freetype.SysFont', return_value=system_font)
 
         result = FontManager.font()
 
-        assert result == mock_font
+        assert result is system_font
         assert 'arial_16' in FontManager._font_cache
 
-    def test_font_method_with_partial_config(self, mock_pygame_patches, mocker):
+    def test_font_method_with_partial_config(self, mocker):
         """Test font method with partial configuration."""
-        # Set up OPTIONS
         FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
 
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', return_value=mock_font)
+        system_font = bundled_freetype_font(size=14)
+        mocker.patch('pygame.freetype.SysFont', return_value=system_font)
 
         # Test with partial config (missing font_size)
         result = FontManager.font({'font_name': 'times'})
 
-        assert result == mock_font
-        assert 'times_14' in FontManager._font_cache  # Uses default size from OPTIONS
+        assert result is system_font
+        assert 'times_14' in FontManager._font_cache  # The hard-coded default size, 14
 
-    def test_font_method_with_missing_font_name_config(self, mock_pygame_patches, mocker):
-        """Test font method with missing font name in config."""
-        # Set up OPTIONS
+    def test_font_method_with_missing_font_name_config(self):
+        """A config without a font name loads the default font, the bundled Vera (BUGS.md #156)."""
         FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
 
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', return_value=mock_font)
-
-        # Test with config missing font_name
+        # Test with config missing font_name: the hard-coded default name, not OPTIONS'
         result = FontManager.font({'font_size': 20})
 
-        assert result == mock_font
-        assert 'arial_20' in FontManager._font_cache
+        assert isinstance(result, pygame.freetype.Font)
+        assert Path(result.path).name == 'Vera.ttf'
+        assert result.size == 20
+        assert FontManager._font_cache['Vera_20'] is result
 
-    def test_font_method_cache_hit(self, mock_pygame_patches, mocker):
+    def test_font_method_cache_hit(self):
         """Test font method cache hit behavior."""
-        # Pre-populate cache
-        mock_cached_font = mocker.Mock()
-        FontManager._font_cache['arial_14'] = mock_cached_font
+        cached_font = bundled_freetype_font(size=14)
+        FontManager._font_cache['arial_14'] = cached_font
 
         config = {'font_name': 'arial', 'font_size': 14}
 
         result = FontManager.font(config)
 
-        # Verify cache hit
-        assert result == mock_cached_font
+        assert result is cached_font

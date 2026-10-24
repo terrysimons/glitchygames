@@ -143,6 +143,31 @@ class TestTrainingExampleFormatting:
         assert 'namespace = "walk"' in result
         assert '[[animation.frame]]' in result
 
+    def test_animated_example_with_a_pixels_summary_stays_animated(self):
+        """An animated example that also carries a 'pixels' summary is rebuilt as animated."""
+        example = {
+            'name': 'selected_strip',
+            'sprite_type': 'animated',
+            'pixels': 'AB\n\nBA',
+            'animations': [
+                {
+                    'namespace': 'blink',
+                    'frame_interval': 0.5,
+                    'loop': True,
+                    'frame': [
+                        {'frame_index': 0, 'pixels': 'AB'},
+                        {'frame_index': 1, 'pixels': 'BA'},
+                    ],
+                },
+            ],
+            'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
+        }
+
+        result = format_training_example(example, include_raw=False)
+
+        assert result.count('[[animation.frame]]') == 2
+        assert 'pixels = "BA"' in result
+
     def test_alpha_sprite_formatting(self):
         """Test formatting includes alpha flag."""
         example = {
@@ -503,6 +528,27 @@ class TestRefinementMessages:
         assert '32x32' in last_message
         assert last_sprite in last_message
 
+    def test_refinement_without_a_size_adds_no_size_instruction(self):
+        """A refinement request naming no size gets no exact-size instruction."""
+        messages = build_refinement_messages(
+            user_request='Make it brighter',
+            last_sprite_content='[sprite]\nname = "test"\npixels = "X"',
+            include_size_hint=True,
+        )
+
+        assert 'Generate sprite at exactly' not in messages[-1]['content']
+
+    def test_refinement_with_size_hints_off_adds_no_size_instruction(self):
+        """With size hints off, even a sized request gets no exact-size instruction."""
+        messages = build_refinement_messages(
+            user_request='Make it 32x32',
+            last_sprite_content='[sprite]\nname = "test"\npixels = "X"',
+            include_size_hint=False,
+        )
+
+        assert 'Generate sprite at exactly' not in messages[-1]['content']
+        assert '32x32' in messages[-1]['content']
+
     def test_animation_hint_in_refinement(self):
         """Test that refinement requests include the user's animation request."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
@@ -653,6 +699,14 @@ class TestFormatTrainingExample:
         result = format_training_example(example, include_raw=False)
         assert 'test' in result
 
+    def test_example_whose_data_cannot_be_formatted_becomes_a_formatting_error_comment(self):
+        """Pixels that are not text make the rebuild fail; the example is named, not raised."""
+        example = {'name': 'broken_pixels', 'pixels': 5, 'colors': {}}
+
+        result = format_training_example(example, include_raw=False)
+
+        assert result == '# Example: broken_pixels (formatting error)'
+
 
 class TestReconstructStaticSprite:
     """Test _reconstruct_static_sprite."""
@@ -675,6 +729,15 @@ class TestReconstructStaticSprite:
         }
         result = _reconstruct_static_sprite(example)
         assert '"""' in result
+
+    def test_non_dict_color_entry_keeps_only_its_section_header(self):
+        """A color that is not a table gets its header but no channel lines."""
+        example = {'name': 'test', 'pixels': 'A', 'colors': {'A': 'not_a_table'}}
+
+        result = _reconstruct_static_sprite(example)
+
+        assert '[colors."A"]' in result
+        assert 'red =' not in result
 
     def test_with_alpha(self):
         example = {
@@ -728,6 +791,31 @@ class TestReconstructAnimatedSprite:
         }
         result = _reconstruct_animated_sprite(example)
         assert '[[animation]]' not in result
+
+    def test_translucent_color_writes_its_alpha(self):
+        """An animated sprite's color with alpha below 255 keeps its alpha line."""
+        example = {
+            'name': 'test',
+            'animations': [{'namespace': 'idle', 'frame': [{'frame_index': 0, 'pixels': 'A'}]}],
+            'colors': {'A': {'red': 1, 'green': 2, 'blue': 3, 'alpha': 128}},
+        }
+
+        result = _reconstruct_animated_sprite(example)
+
+        assert 'alpha = 128' in result
+
+    def test_non_dict_color_entry_keeps_only_its_section_header(self):
+        """An animated sprite's color that is not a table gets its header but no channels."""
+        example = {
+            'name': 'test',
+            'animations': [{'namespace': 'idle', 'frame': [{'frame_index': 0, 'pixels': 'A'}]}],
+            'colors': {'A': 'not_a_table'},
+        }
+
+        result = _reconstruct_animated_sprite(example)
+
+        assert '[colors."A"]' in result
+        assert 'red =' not in result
 
     def test_skips_non_dict_frames(self):
         example = {
@@ -798,6 +886,25 @@ class TestCheckTruncatedPixelData:
         is_valid, msg = _check_truncated_pixel_data(content)
         assert is_valid is False
         assert 'truncated' in msg.lower()
+
+    def test_unclosed_block_with_short_last_line_is_truncated(self):
+        """A last line not under a quarter of the previous one but under 16 chars is cut off."""
+        content = 'pixels = """\nABCDEFGH\nABCDEFG'
+
+        is_valid, message = _check_truncated_pixel_data(content)
+
+        assert is_valid is False
+        assert 'truncated' in message.lower()
+
+    def test_unclosed_block_with_one_line_is_not_judged(self):
+        """With no previous line to compare, a single unclosed line is not called truncated."""
+        assert _check_truncated_pixel_data('pixels = """AB') == (True, '')
+
+    def test_unclosed_block_with_full_lines_is_not_truncated(self):
+        """An unclosed block whose last line is a full pixel row passes."""
+        content = 'pixels = """\nABCDEFGHIJKLMNOP\nABCDEFGHIJKLMNOP'
+
+        assert _check_truncated_pixel_data(content) == (True, '')
 
 
 class TestCheckMixedFormat:
@@ -888,6 +995,16 @@ class TestCleanAiResponse:
         content = '[sprite]\nname = "test"'
         result = clean_ai_response(content)
         assert result == content
+
+    def test_response_without_any_section_is_only_stripped(self):
+        """A response with no [section] line keeps all its text."""
+        assert clean_ai_response('  no sections here\nat all  ') == 'no sections here\nat all'
+
+    def test_opening_fence_without_closing_fence_is_removed(self):
+        """A response cut off before its closing fence loses only the opening one."""
+        content = '```toml\n[sprite]\nname = "test"'
+
+        assert clean_ai_response(content) == '[sprite]\nname = "test"'
 
 
 class TestGetSpriteSizeHint:

@@ -26,7 +26,7 @@ try:
     import speech_recognition as sr
 
     SPEECH_RECOGNITION_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - speech_recognition is an optional package
     sr = None
     SPEECH_RECOGNITION_AVAILABLE = False  # pyright: ignore[reportConstantRedefinition]
 
@@ -56,6 +56,9 @@ class VoiceEventManager(ResourceManager):
 
     class VoiceEventProxy(ResourceManager):
         """Proxy for voice manager operations (consistency with other managers)."""
+
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
 
         log: ClassVar[logging.Logger] = LOG
 

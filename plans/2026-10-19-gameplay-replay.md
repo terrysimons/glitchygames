@@ -3,7 +3,7 @@
 - **Date:** 2026-10-19
 - **Branch:** `feature/gameplay-replay` (from `feature/engine-world-space`, which added `--record-trace`)
 - **Status:** Implemented on `feature/gameplay-replay` (Parts 1-3; final whole-branch review
-  clean 2026-10-20; not yet pushed). Design approved in conversation. Amended 2026-10-19 (core Task 15) to match what
+  clean 2026-10-20; merged 2026-10-22 as PR #95, `bb51239d`). Design approved in conversation. Amended 2026-10-19 (core Task 15) to match what
   Part 1 (the replay core) built: sections 1, 1.1, 1.3, 1.4, 3.1, 3.2, 3.4, 3.5, 6 and 7 carry
   the amendments, each marked "Amended". User docs: `docs/architecture/gameplay_replay.md`
 - **Builds on:** `glitchygames/recording.py` (`--record-trace`), `glitchygames/tracing.py` (trace

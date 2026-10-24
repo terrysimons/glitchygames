@@ -12,8 +12,19 @@ session again, and every frame's sprites are compared with the recorded frame. T
    ``ExitCode.MISSING_INPUT`` for a missing one;
    glitchygames/exit_codes.py), warns once about a different engine version, applies the
    recorded options (all but ``REPLAY_LOCAL_OPTIONS``) and seeds the random streams with the
-   recorded seed. The engine installs the sources before the first frame; while installed they
-   own the internal-post tracker (glitchygames/recording.py).
+   recorded seed. Games read the display's size, so the window opens at the header's
+   ``screen_size`` (the size the recorded display had, which a window manager may have made
+   other than the recorded ``--resolution``): ``apply_recorded_screen_size`` sets the
+   ``resolution`` option to it, and the engine's normal display set-up opens it (headless or
+   watched). A window that still opens at another size is refused (``display_size_refusal``:
+   the engine logs ``Cannot replay PATH: it was recorded on a 800x600 display, but the window
+   opened at 800x480 ...`` and exits with ``ExitCode.UNUSABLE_INPUT``); a ``screen_size`` that is
+   not two positive integers is a malformed header (``UNUSABLE_INPUT``). A header without one
+   (not written by the engine's recorder, which always writes it, format 2 included) keeps the
+   recorded ``--resolution``, with a warning. A size that changes during the recorded run is
+   not recorded, so a game that reads the live size every frame can still diverge. The engine
+   installs the sources before the first frame; while installed they own the internal-post
+   tracker (glitchygames/recording.py).
 2. Pump: the real queue is drained (through the live doors' pump) and each event classified
    with the internal-post tracker. From the first drain on, real input, device and window
    events are blocked at SDL (``REAL_INPUT_EVENT_TYPES``, glitchygames/replay/input_blocking.py),
@@ -244,6 +255,7 @@ from glitchygames.recording import (
     SAVES_OPENED_FIELD,
     WINDOW_REFERENCE,
     RecordedReference,
+    RecordingSources,
     UnrepresentableValue,
     event_from_record,
     event_to_record,
@@ -309,6 +321,7 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
+    from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
 
 LOG = logging.getLogger('game.replay')
@@ -340,7 +353,7 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'windows_timer_1ms',
     'perf_trim_percent',
     'fps_histogram',
-    # Derived from log_level: whether events are logged, not what the game does
+    # --debug-events: whether unhandled events are logged, not what the game does
     'debug_events',
 })
 
@@ -395,6 +408,9 @@ SCRIPT_MODULE_NAME = '__main__'
 RANDOM_SEED_HEADER_FIELD = 'random_seed'
 ENGINE_VERSION_HEADER_FIELD = 'engine_version'
 OPTIONS_HEADER_FIELD = 'options'
+# The (width, height) of the display the recorded run had (GameEngine.trace_recording_header);
+# the replay opens its window at it (rule 1)
+SCREEN_SIZE_HEADER_FIELD = 'screen_size'
 
 # The viewer's keys: left unblocked at SDL during a watched replay and handed to its controls
 # (rule 14), never to the game
@@ -545,6 +561,11 @@ class RecordedFrames:
     def frame_count(self: Self) -> int:
         """How many complete frames the recording holds."""
         return len(self._frames)
+
+    @property
+    def frames(self: Self) -> Sequence[dict[str, Any]]:
+        """Every complete frame, decoded (a rebaseline summarises the earlier runs from them)."""
+        return self._frames
 
     def frame(self: Self, *, frame_index: int) -> dict[str, Any] | None:
         """Return a recorded frame, or None past the end of the recording.
@@ -987,6 +1008,35 @@ def _recorded_paced(*, header: dict[str, Any]) -> bool | None:
     """
     run = latest_measurement_run(header=header)
     return None if run is None else run.processing_paced
+
+
+def recorded_screen_size(*, header: Mapping[str, Any]) -> tuple[int, int] | None:
+    """Return the header's ``screen_size`` as (width, height), or None when it holds none.
+
+    The engine's recorder always writes it; a header without one was made some other way (by
+    hand, by a test).
+
+    Raises:
+        TraceFormatError: If the header's ``screen_size`` is not two positive integers.
+
+    """
+    screen_size: object = header.get(SCREEN_SIZE_HEADER_FIELD)
+    if screen_size is None:
+        return None
+    match screen_size:
+        case [int() as width, int() as height] if (
+            not isinstance(width, bool)
+            and not isinstance(height, bool)
+            and width > 0
+            and height > 0
+        ):
+            return (width, height)
+        case _:
+            message = (
+                f'The recording header screen_size is not a positive [width, height] '
+                f'(found {screen_size!r})'
+            )
+            raise TraceFormatError(message)
 
 
 def _recorded_seed(*, header: dict[str, Any]) -> int:
@@ -1588,8 +1638,9 @@ class ReplaySources:
         """
         del frame_number
         frame = self._current_frame()
-        if frame is None:
-            return []
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         return [
             ControlEvent.from_json(record)
             for record in frame.get(CONTROL_EVENTS_FIELD, [])
@@ -1619,8 +1670,11 @@ class ReplaySources:
         # dt is the recorded one by construction
         del dt
         frame = self._current_frame()
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         # Compared until the replay ended (a watched replay may run on after its end, rule 14)
-        if frame is not None and self.result.end_reason == RUNNING_END_REASON:
+        if self.result.end_reason == RUNNING_END_REASON:
             # Sampled exactly as the recorder samples a recorded frame
             replayed = sample_scene_frame(
                 frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
@@ -1668,7 +1722,7 @@ class ReplaySources:
                 or self.controls.paused
                 or self._stop_requested
             ):
-                self._finish_rebuild()
+                self._finish_rebuild(rebuild=self._rebuild)
         self._begin_frame()
 
     def finish_run(self: Self) -> None:
@@ -1900,8 +1954,8 @@ class ReplaySources:
             live_internal_events: The events the replayed code posted, in queue order.
 
         Returns:
-            The batch and each event's origin. Past the end of the recording, or on a pump the
-            frame did not record, the live internal events alone.
+            The batch and each event's origin. On a pump the frame did not record, the live
+            internal events alone.
 
         """
         uncompared_event_types: frozenset[int] = (
@@ -1909,8 +1963,9 @@ class ReplaySources:
         )
         live_origins = [INTERNAL_ORIGIN] * len(live_internal_events)
         frame = self._current_frame()
-        if frame is None:
-            return list(live_internal_events), live_origins
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         batches = frame.get(EVENT_BATCHES_FIELD, [])
         if self._pump_index >= len(batches):
             self._note_frame_divergence(
@@ -2036,8 +2091,9 @@ class ReplaySources:
 
         """
         frame = self._current_frame()
-        if frame is None:
-            return [], [], live_internal_events
+        # Frames run only while the recording has one: a headless replay stops after its last
+        # frame, a watched one holds there (rules 8 and 14)
+        assert frame is not None
         unmatched = [
             (event, event_to_record(event=event, origin=INTERNAL_ORIGIN))
             for event in live_internal_events
@@ -2287,10 +2343,14 @@ class ReplaySources:
             )
         )
 
-    def _finish_rebuild(self: Self) -> None:
-        """End a restarted replay's rebuild: pause it where it is, its music resumed (rule 15)."""
-        if self._rebuild is not None:
-            self._rebuild.finish()
+    def _finish_rebuild(self: Self, *, rebuild: Rebuild) -> None:
+        """End a restarted replay's rebuild: pause it where it is, its music resumed (rule 15).
+
+        Args:
+            rebuild: The rebuild in progress (``self._rebuild``).
+
+        """
+        rebuild.finish()
         self._rebuild = None
         self.controls.rebuild_target_frame = None
         self.controls.paused = True
@@ -2348,6 +2408,31 @@ class ReplaySources:
         if self.result.end_reason == RUNNING_END_REASON:
             self.result.end_reason = end_reason
         self._stop_requested = True
+
+
+def replayed_batch_origins(*, doors: EngineSources) -> list[str] | None:
+    """Return each event's origin in the doors' last batch, when a replay's merge knows them.
+
+    A recorder over a replay (``--rebaseline``) takes them from the replay, and so does the
+    instant-replay journal (glitchygames/instant_replay.py, rule 4): a watched replay's held
+    frames drain the real queue between pumps, so the posts pending before a pump do not tell
+    them. So does a playback scope over a replay of the session
+    (glitchygames/replay/playback.py, rule 5): the replay's pump has consumed the posts, and a
+    recorded external event of a type SDL never generates (a live supervisor's input post) is
+    told from the replayed code's posts only by its recorded origin.
+
+    Args:
+        doors: The doors that pumped (the run's installed ones, or a recording around them).
+
+    Returns:
+        The origins, in the batch's order, or None when the doors are not a replay's.
+
+    """
+    while isinstance(doors, RecordingSources):
+        doors = doors.inner
+    if isinstance(doors, ReplaySources):
+        return doors.last_batch_origins()
+    return None
 
 
 def _ids_given_before_start(*, frames: Sequence[dict[str, Any]], start_frame: int) -> set[str]:
@@ -2689,6 +2774,57 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
             options[name] = value_from_json(value)
 
 
+def apply_recorded_screen_size(
+    *, options: dict[str, Any], screen_size: tuple[int, int] | None
+) -> None:
+    """Open the replay's window at the size the recorded display had (rule 1).
+
+    Games read the display's size, so the replay asks for the recorded ``screen_size``, not
+    the recorded ``--resolution``: a window manager may have given the recorded window another
+    size than it asked for. A header without one keeps the recorded ``--resolution``, with a
+    warning.
+
+    Args:
+        options: The run's options, the recorded ones already in place; ``resolution`` is set.
+        screen_size: The header's (width, height), or None when it holds none.
+
+    """
+    if screen_size is None:
+        LOG.warning(
+            'The recording does not hold the size of the display it was made on (no screen_size '
+            'in its header); the replay opens its window at the recorded --resolution %s and '
+            'diverges if the recorded window had another size',
+            options.get('resolution'),
+        )
+        return
+    width, height = screen_size
+    options['resolution'] = f'{width}x{height}'
+
+
+def display_size_refusal(*, header: Mapping[str, Any], display_size: tuple[int, int]) -> str | None:
+    """Say why the replay is refused when its window did not open at the recorded size.
+
+    Args:
+        header: The recording's header fields (its ``screen_size``).
+        display_size: The size the replay's display has, once opened.
+
+    Returns:
+        The refusal's message (one line, naming both sizes), or None when the sizes match or
+        the recording holds no size.
+
+    """
+    recorded_size = recorded_screen_size(header=header)
+    if recorded_size is None or display_size == recorded_size:
+        return None
+    recorded_width, recorded_height = recorded_size
+    display_width, display_height = display_size
+    return (
+        f'it was recorded on a {recorded_width}x{recorded_height} display, but the window '
+        f'opened at {display_width}x{display_height} (the window manager chose another size); '
+        f'refusing to replay it'
+    )
+
+
 def start_replay(
     *,
     path: Path,
@@ -2773,6 +2909,9 @@ def start_replay(
             installed_version,
         )
     apply_recorded_options(options=options, recorded=sources.header.get(OPTIONS_HEADER_FIELD, {}))
+    apply_recorded_screen_size(
+        options=options, screen_size=recorded_screen_size(header=sources.header)
+    )
     seed_engine_random(seed=sources.random_seed)
     if replay_options.fps_source == REAL_REPLAY_FPS:
         LOG.warning(REAL_REPLAY_FPS_NOTICE)

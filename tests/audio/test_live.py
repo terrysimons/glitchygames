@@ -1,6 +1,7 @@
 """Tests for real-time synth voices."""
 
 import numpy as np
+import pygame
 import pytest
 
 from glitchygames.audio import live
@@ -62,6 +63,11 @@ def _voice(channel, **overrides):
 class TestPoolReservation:
     """Mixer channel pool reservation."""
 
+    @pytest.fixture(autouse=True)
+    def no_remembered_pool(self, mocker):
+        """Start each test as if no engine had reserved a pool in this process."""
+        mocker.patch.dict(live._pool_grown_mixer_channel_counts, clear=True)
+
     def test_grows_mixer_and_reserves_low_channels(self, mocker):
         mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
         mocker.patch('pygame.mixer.get_num_channels', return_value=8)
@@ -77,6 +83,45 @@ class TestPoolReservation:
     def test_negative_pool_raises(self):
         with pytest.raises(ValueError, match='pool_size'):
             reserve_live_voice_pool(-1)
+
+    def test_reserving_again_on_the_same_mixer_reuses_the_pool(self):
+        """A second engine in one process reuses the pool instead of growing the mixer again.
+
+        Each set_num_channels reallocates pygame's channel table while the audio thread may
+        still be finishing a sound on it; growing it per engine (once per engine test) took the
+        test run's mixer to ~1500 channels and corrupted the heap (BUGS.md #145).
+        """
+        channels_before = pygame.mixer.get_num_channels()
+        try:
+            first = reserve_live_voice_pool(4)
+            channels_after_first = pygame.mixer.get_num_channels()
+
+            second = reserve_live_voice_pool(4)
+
+            assert second == first == (0, 1, 2, 3)
+            assert pygame.mixer.get_num_channels() == channels_after_first
+            assert channels_after_first == channels_before + 4
+        finally:
+            pygame.mixer.set_reserved(0)
+            pygame.mixer.set_num_channels(channels_before)
+
+    def test_a_restarted_mixer_gets_its_pool_again(self):
+        """After the mixer restarts (its channel count back to the default), it grows again."""
+        mixer_settings = pygame.mixer.get_init()
+        assert mixer_settings is not None
+        frequency, size, output_channels = mixer_settings
+        channels_before = pygame.mixer.get_num_channels()
+        try:
+            reserve_live_voice_pool(4)
+            pygame.mixer.quit()
+            pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
+            restarted_count = pygame.mixer.get_num_channels()
+
+            assert reserve_live_voice_pool(4) == (0, 1, 2, 3)
+            assert pygame.mixer.get_num_channels() == restarted_count + 4
+        finally:
+            pygame.mixer.set_reserved(0)
+            pygame.mixer.set_num_channels(channels_before)
 
 
 class TestLiveVoiceRandomSource:
@@ -198,6 +243,48 @@ class TestLiveVoiceStopping:
         voice.frequency = 999.0
         voice.update()
         assert len(rendered_chunks) == 1
+
+    def test_parameters_read_back_and_changes_after_stopping_are_ignored(
+        self, channel, rendered_chunks
+    ):
+        voice = _voice(channel, low_pass_cutoff=2000.0)
+        voice.volume = 0.25
+        voice.low_pass_cutoff = 1000.0
+        voice.tremolo = Tremolo(rate_hz=5.0, depth=0.5)
+        assert voice.frequency == 220.0
+        assert voice.volume == 0.25
+        assert voice.low_pass_cutoff == 1000.0
+        assert voice.tremolo == Tremolo(rate_hz=5.0, depth=0.5)
+
+        voice.start()
+        voice.stop_now()
+        voice.volume = 0.9
+        voice.low_pass_cutoff = None
+        voice.tremolo = None
+
+        assert voice.volume == 0.25
+        assert voice.low_pass_cutoff == 1000.0
+        assert voice.tremolo == Tremolo(rate_hz=5.0, depth=0.5)
+
+    def test_stop_before_start_does_nothing(self, channel, rendered_chunks):
+        voice = _voice(channel)
+        voice.stop(fade_out=0.1)
+        assert voice.state is VoiceState.IDLE
+        voice.start()
+        assert voice.state is VoiceState.PLAYING
+
+    def test_fade_longer_than_a_chunk_keeps_fading(self, channel, rendered_chunks):
+        voice = _voice(channel, volume=1.0)
+        voice.start()
+        voice.stop(fade_out=0.25)
+        voice.update()
+        assert voice.state is VoiceState.FADING
+        assert abs(rendered_chunks[-1][-1]) > 0.0  # Not silent yet
+        channel.get_queue.return_value = None
+        voice.update()
+        voice.update()
+        assert voice.state is VoiceState.DRAINING
+        assert abs(rendered_chunks[-1][-1]) < 1e-9
 
     def test_underrun_recovers(self, channel, rendered_chunks, mocker):
         """Review focus 5: a long hitch drains the channel; the voice restarts."""
@@ -348,3 +435,11 @@ class TestLiveAudio:
         )
         voice.start()
         assert not voice.is_playing
+
+    def test_no_mixer_warning_is_logged_once(self, mocker):
+        mocker.patch('pygame.mixer.get_init', return_value=None)
+        warning = mocker.patch.object(live.log, 'warning')
+        audio = LiveAudio(channel_indices=())
+        for _ in range(2):
+            audio.create_voice(owner='scene', waveform=Waveform.SINE, frequency=100.0)
+        warning.assert_called_once_with('Audio unavailable; live voices are silent')

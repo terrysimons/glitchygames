@@ -99,8 +99,22 @@ Demos and instant replays run inside a playback scope, not a new engine run
      event handlers make while the scope plays (``recording.live_game_posts``: ``post_event``
      marks them while ``SceneManager`` runs live code in a scope, rule 4; the played
      recording never held them) are held apart (``held_live_game_posts``) and posted again as
-     the scope ends (rule 4), input posts (``recording.post_input_event``) as input again;
-     the live game's input posts made before the scope are held with the external origin.
+     the scope ends (rule 4). The live game's input posts (``recording.post_input_event``: a
+     supervisor or tool standing in for the player) of an SDL type (below ``USEREVENT``),
+     made during the scope or before it, are the player's input (BUGS.md #196): a press
+     reaches the exit check (it ends a demo), releases, device and window events are held
+     with the player's (``held_live_events``, external), and the rest reach nothing. A replay
+     of the session runs without the poster and serves those events from the recording as
+     the player's, so the two agree. Its input posts of a type SDL never generates (no player
+     makes one: a game event, a menu event, any ``custom_type()``) are held as its other
+     posts are, and posted (or redelivered) as input again after the scope. A replay of the
+     session serves those from the recording too (external), and the scope holds a served
+     event of such a type that matches no post the same way, told by its recorded origin
+     (``replayed_batch_origins``: the type alone would call it internal), so it reaches the
+     live game after the scope there as well. The rule: a supervisor may post any event
+     (``post_input_event``); input of an SDL type during a scope counts as the player's;
+     everything else reaches the game (after the scope if one is playing), live and replayed
+     alike.
      The scope's code's own input posts (a supervisor the played scene added again) are
      dropped: the recording holds them as external and the replay serves them, so each
      arrives once. External events reach only the exit check, never the
@@ -111,7 +125,8 @@ Demos and instant replays run inside a playback scope, not a new engine run
      records the player's polled input; it is kept as ``last_base_snapshot``), the replay's is
      returned.
    - ``frame_seconds``: the replay's (the recording's dt; past its end, the installed doors'
-     measurement), asked after the installed doors were asked as always.
+     measurement), asked after the installed doors were asked as always. Their answer is kept
+     (``installed_frame_seconds``) for their ``end_frame``.
    - ``saves``, ``devices``, ``wall_clock_time``, ``random_seed``,
      ``opened_save_namespaces``: the replay's (saves are a sandbox seeded from the scene
      start's save view: real saves are never touched).
@@ -121,8 +136,13 @@ Demos and instant replays run inside a playback scope, not a new engine run
      never compared (glitchygames/replay/driver.py, rule 8).
    - ``end_frame`` is ``compare_frame`` (the replay compares the frame, its ``playback``
      marker left out: the recording never holds it), then the installed doors' ``end_frame``
-     (a recording of the session writes it; glitchygames/recording.py, Playback scopes). The
-     scene manager calls the two itself, so only the comparison's errors end the scope.
+     (a recording of the session writes it; glitchygames/recording.py, Playback scopes) with
+     their own frame time (``installed_frame_seconds``), not the played recording's dt the
+     frame ran with: the scope's first frame's time was read as the live frame before it
+     ended, on the installed doors, and advanced the live frame clock and FPS event timer
+     there, so a replay of the session must be served that time as that frame ends (BUGS.md
+     #196). The scene manager calls the two itself, so only the comparison's errors end the
+     scope.
    - ``captures_scene_starts`` is True; ``stop_requested``, pacing, holding, presenting and
      the overlay are the installed doors' (the scope never stops the run), except while
      fast-forwarding (rule 6).
@@ -169,9 +189,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    play on after it (``LiveAudio.update``'s ``paused_owners``), even when the playback's own
    scene switches change ``previous_scene``; the playback scene's own voices end with it.
 
-Limits: a ``--replay-trace`` replay of a session whose live supervisor posted during a scope
-(``post_event`` or ``post_input_event``) diverges unless the replay adds that supervisor too:
-the served event reaches the scope's pump, which can no longer tell it from a scope post.
+Limits: a live supervisor that posts with ``post_event`` (the game's own posts, which a
+replay expects the replayed code to make again) during a scope makes a session that a
+``--replay-trace`` replay without that supervisor cannot match. Supervisors post with
+``post_input_event``, which replays without them, whatever the event's type (rule 5).
 A scope that fast-forwards inside a restarted replay's rebuild silences on top of the
 rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
 pauses it again after the next frame). A scene must be rebuildable from its start
@@ -226,6 +247,7 @@ from glitchygames.replay.driver import (
     SOURCE_TRUNCATED_HEADER_FIELD,
     is_cut_off,
     playback_replay_sources,
+    replayed_batch_origins,
 )
 from glitchygames.replay.silence import FrameSilencer
 from glitchygames.scene_start import FirstLogicFrame, SceneStart
@@ -333,6 +355,35 @@ def _is_one_of(
     return post is not None and any(post is candidate for candidate in posts)
 
 
+def _is_sdl_event_type(*, event_type: int) -> bool:
+    """Report whether SDL can generate events of ``event_type`` (below ``pygame.USEREVENT``).
+
+    Returns:
+        True for a type the player's devices, the window or the OS can send.
+
+    """
+    return event_type < pygame.USEREVENT
+
+
+def _is_served_live_input_post(*, event: pygame.event.Event, origin: str) -> bool:
+    """Report whether a replay of the session served the live game's input post (rule 5).
+
+    A recorded external event of a type SDL never generates is an input post
+    (``recording.post_input_event``: no player makes one). Inside a scope, the scope's code's
+    input posts are matched before this is asked, so an unmatched one is the live game's
+    (a supervisor's), which the replay runs without.
+
+    Args:
+        event: The served event, matched to no post.
+        origin: Its recorded origin (``ReplaySources.last_batch_origins``).
+
+    Returns:
+        True when the scope must hold it for the live game, as the live run did.
+
+    """
+    return origin == EXTERNAL_ORIGIN and not _is_sdl_event_type(event_type=event.type)
+
+
 def _add_scope_post(
     *, event: pygame.event.Event, is_input: bool, internal_events: list[pygame.event.Event]
 ) -> None:
@@ -379,14 +430,16 @@ class PlaybackSources:
         held_live_events: The live game's events the scope's pumps drained and held, each
             with its origin, in pump order: its own posts made before the scope (internal) and
             the player's releases, device and window events (external,
-            ``PLAYBACK_HELD_EVENT_TYPES``). Delivered before the first pump after the scope.
+            ``PLAYBACK_HELD_EVENT_TYPES``; the live game's input posts of those types among
+            them). Delivered before the first pump after the scope.
         input_posts_at_pump: The pending posts that were input posts
             (``recording.post_input_event``) as the current pump began, noted before the
             installed doors pump: a replay's pump (a session replayed) forgets the tracker's
             posts, their input marks included, once it has sorted its batch.
         held_live_game_posts: The posts the live game's own supervisors and handlers made
             during the scope (``recording.live_game_posts``) that the scope's pumps drained, in
-            pump order, each with whether it was an input post (``recording.post_input_event``).
+            pump order, each with whether it was an input post (``recording.post_input_event``;
+            only of a type SDL never generates: an SDL type's is the player's input, rule 5).
             Posted again as the scope ends, as they were posted (``SceneManager._exit_playback``).
         live_posts_before_scope: The live game's posts no pump had returned yet as the scope
             began (its first pump holds them; rule 5).
@@ -394,6 +447,10 @@ class PlaybackSources:
             is the scope's own (``SceneManager._exit_playback`` drops those as it ends), but
             for the live game's supervisors' and handlers' (``recording.live_game_posts``,
             posted again as it ends).
+        installed_frame_seconds: The installed doors' answer to the last ``frame_seconds``
+            call (the live measurement, or the session's recorded dt when it is replayed), or
+            None before the first: the frame time the installed doors' ``end_frame`` gets
+            (rule 5), not the played recording's that the frame runs with.
 
     """
 
@@ -436,6 +493,7 @@ class PlaybackSources:
         self.input_posts_at_pump: list[tuple[int, dict[str, Any]]] = []
         self.live_posts_before_scope: list[tuple[int, dict[str, Any]]] = []
         self.has_pumped = False
+        self.installed_frame_seconds: float | None = None
 
     def _note_end(self: Self, *, reason: PlaybackEndReason) -> None:
         """Keep why the scope should end; the first reason found wins (``end_reason``)."""
@@ -553,7 +611,9 @@ class PlaybackSources:
         """
         internal_events: list[pygame.event.Event] = []
         quit_events: list[pygame.event.Event] = []
-        for event in base_events:
+        # A replay of the session knows each served event's recorded origin (None live)
+        served_origins = replayed_batch_origins(doors=self.base)
+        for index, event in enumerate(base_events):
             scope_post = (
                 take_matching_post(event=event, pending=scope_posts)
                 if event.type == pygame.QUIT
@@ -571,7 +631,7 @@ class PlaybackSources:
                     is_input=_is_one_of(post=scope_post, posts=self.input_posts_at_pump),
                     internal_events=internal_events,
                 )
-            elif self._hold_live_post(
+            elif self._sort_live_post(
                 event=event,
                 live_posts=live_posts,
                 live_game_posts=live_game_posts,
@@ -583,18 +643,42 @@ class PlaybackSources:
                     is_input=_is_one_of(post=scope_post, posts=self.input_posts_at_pump),
                     internal_events=internal_events,
                 )
+            elif served_origins is not None and _is_served_live_input_post(
+                event=event, origin=served_origins[index]
+            ):
+                # The live game's input post the replay serves without its poster: held as
+                # the live run held it (_sort_live_post)
+                if is_first_pump:
+                    self.held_live_events.append((event, EXTERNAL_ORIGIN))
+                else:
+                    self.held_live_game_posts.append((event, True))
             elif event_origin(event=event, pending=[]) == INTERNAL_ORIGIN:
                 # Internal by type alone: on the first pump, posted before the scope began
                 if is_first_pump:
                     self.held_live_events.append((event, INTERNAL_ORIGIN))
                 else:
                     internal_events.append(event)
-            elif event.type in PLAYBACK_HELD_EVENT_TYPES:
-                self.held_live_events.append((event, EXTERNAL_ORIGIN))
-            elif self.exit_on_input and event.type in PLAYBACK_EXIT_EVENT_TYPES:
-                self.exit_requested = True
-                self._note_end(reason='exit_input')
+            else:
+                self._sort_player_event(event=event)
         return internal_events, quit_events
+
+    def _sort_player_event(self: Self, *, event: pygame.event.Event) -> None:
+        """Sort the player's input (``_sort_base_events``): held, an exit press, or dropped.
+
+        Releases, device and window events are held for the live game
+        (``PLAYBACK_HELD_EVENT_TYPES``); a press ends a scope that exits on input
+        (``PLAYBACK_EXIT_EVENT_TYPES``); anything else (a press without exit on input, motion)
+        reaches nothing. A live input post of an SDL type is sorted here too (rule 5).
+
+        Args:
+            event: The external event.
+
+        """
+        if event.type in PLAYBACK_HELD_EVENT_TYPES:
+            self.held_live_events.append((event, EXTERNAL_ORIGIN))
+        elif self.exit_on_input and event.type in PLAYBACK_EXIT_EVENT_TYPES:
+            self.exit_requested = True
+            self._note_end(reason='exit_input')
 
     @staticmethod
     def _take_live_post(
@@ -613,46 +697,57 @@ class PlaybackSources:
             event=event, pending=live_game_posts
         )
 
-    def _hold_live_post(
+    def _sort_live_post(
         self: Self,
         *,
         event: pygame.event.Event,
         live_posts: list[tuple[int, dict[str, Any]]],
         live_game_posts: list[tuple[int, dict[str, Any]]],
     ) -> bool:
-        """Hold ``event`` for the live game if it is one of its posts (``_sort_base_events``).
+        """Sort ``event`` if it is one of the live game's posts (``_sort_base_events``, rule 5).
 
-        One made before the scope joins ``held_live_events`` (redelivered as the scope ends);
-        one its supervisors and handlers made during it joins ``held_live_game_posts`` (posted
-        again as the scope ends).
+        An input post (``recording.post_input_event``) of an SDL type stands in for the player
+        (BUGS.md #196): it is sorted as the player's input (``_sort_player_event``), so a press
+        ends a demo, as it does in a replay of the session, which serves it from the recording
+        without the poster. Any other post is held: one made before the scope joins
+        ``held_live_events`` (redelivered as the scope ends; an input post of a type SDL never
+        generates as external, as recorded); one the live game's supervisors and handlers made
+        during it joins ``held_live_game_posts`` (posted again as the scope ends).
 
         Returns:
-            True when it was held.
+            True when it was one of the live game's posts (sorted or held).
 
         """
         live_post = take_matching_post(event=event, pending=live_posts)
-        if live_post is not None:
-            # An input post is input to the live game: redelivered as external, as recorded
-            is_input = _is_one_of(post=live_post, posts=self.input_posts_at_pump)
+        live_game_post = (
+            None
+            if live_post is not None
+            else take_matching_post(event=event, pending=live_game_posts)
+        )
+        if live_post is None and live_game_post is None:
+            return False
+        matched_post = live_post if live_post is not None else live_game_post
+        is_input = _is_one_of(post=matched_post, posts=self.input_posts_at_pump)
+        if is_input and _is_sdl_event_type(event_type=event.type):
+            self._sort_player_event(event=event)
+        elif live_post is not None:
             self.held_live_events.append((event, EXTERNAL_ORIGIN if is_input else INTERNAL_ORIGIN))
-            return True
-        live_game_post = take_matching_post(event=event, pending=live_game_posts)
-        if live_game_post is not None:
-            self.held_live_game_posts.append((
-                event,
-                _is_one_of(post=live_game_post, posts=self.input_posts_at_pump),
-            ))
-            return True
-        return False
+        else:
+            self.held_live_game_posts.append((event, is_input))
+        return True
 
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Return the recording's dt, after asking the installed doors as always.
+
+        The installed doors' answer is kept (``installed_frame_seconds``) for their
+        ``end_frame``.
 
         Returns:
             Seconds (past the recording's end, the installed doors' answer).
 
         """
-        return self.replay.frame_seconds(measured=self.base.frame_seconds(measured=measured))
+        self.installed_frame_seconds = self.base.frame_seconds(measured=measured)
+        return self.replay.frame_seconds(measured=self.installed_frame_seconds)
 
     def performance_frame_seconds(self: Self, *, measured: float, frame_seconds: float) -> float:
         """Return the installed doors' frame time for FPS events and the statistics.
@@ -1197,7 +1292,9 @@ def _start_instant_replay(*, manager: SceneManager) -> bool:
         return False
     # The scene itself, or the pause screen presenting it: the scope returns to what is shown
     then = manager.active_scene
-    if then is None:
+    # A kept journal's scene was presented at the end of the last frame, so a scene is active
+    # unless this frame switched to None (terminate() ends the journal first)
+    if then is None:  # pragma: no cover - only after a switch_to_scene(None) this frame
         LOG.info('No instant replay: no scene is active')
         return False
     recording = journal.as_recording()

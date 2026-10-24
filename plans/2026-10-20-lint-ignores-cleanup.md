@@ -7,11 +7,14 @@
   shared with basedpyright, which reads only `# pyright:`/`# type:` comments; ty now reports
   nothing). Phase 2: `S311` moved to per-file ignores for `glitchygames/randomness.py` and
   `tests/**`; the 34 measured sites were all in those two places, so no engine code changed.
-  Phase 3 in progress (go-ahead 2026-10-21): the 36 sites outside Bitmappy are narrowed (engine
-  `start()` and the thread/HTTP boundaries keep their broad catch around one helper call; the
-  dead `StopIteration` guards in `pixels/pixel.py` removed); Bitmappy's 62 (`glitchygames/bitmappy/`,
-  `sprites/bitmappy_sprite.py`, `tests/tools/`) remain, then the ignore goes. Phases 4-5 still
-  need the user's go-ahead (standing rule for lint configuration changes).
+  Phase 3 done 2026-10-22: the 36 sites outside Bitmappy narrowed on 2026-10-21, the last 60 in
+  Bitmappy on 2026-10-22, and the `PLW0717` ignore removed (BUGS.md #19 resolved; the bugs it
+  found are #175, fixed, and #176-#178). Phase 4 in progress (the user's go-ahead 2026-10-22, as
+  part of the post-replay cleanup): 128 of 152 sites typed; the 24 left are listed under Phase 4.
+  Phase 4 done 2026-10-22: the global `ANN401` ignore is gone; the one `Any` left
+  (`HashableEvent.__getattr__`, custom events' fields) has a per-file ignore with its reason.
+  Phase 5 done 2026-10-22 (the user's choice: convert all): every logging f-string is lazy
+  `%`-style and the `G004` ignore is removed; measurements under Phase 5.
 - **Why:** several global ignores in `pyproject.toml` are dead, mislabelled or broader than needed,
   and some suppression comments no longer suppress anything. Tightening them makes the linters catch
   real problems again (broad try blocks hide bugs; a stray `random` call would break replay
@@ -85,11 +88,56 @@
 3. Do it area by area; remove the global ignore when the remaining sites are covered by per-file
    ignores with reasons.
 
+Progress (2026-10-22): 128 of 152 typed; 151 of 152 after the Bitmappy and joystick demo sites
+(below), the last one `events/base.py`'s `__getattr__`. New shared types: `tracing.JsonValue` (recursive JSON
+alias, reused by `recording.py`), `supervision.FrozenJsonValue`/`JsonShapedValue`,
+`input.devices.OpenedJoystick`/`OpenedController` (live or replay device), the collision
+`RectSprite`/`WorldRectSprite` Protocols, `debug.protocols.InspectedScene`, a generic
+`Tween[TargetT]`, minimal Protocols for the untyped aisuite client (`services/` and
+`bitmappy/ai_worker.py`). Left, each waiting on a decision:
+- ~~`examples/joystick_demo.py` (12)~~ done 2026-10-22: rewritten on one `InputDevice` per
+  physical device (`plans/2026-10-22-unified-input-devices.md`); it lists every device with no
+  mode and no `Any`. The package's last ANN401 site is `events/base.py`'s `__getattr__` (below).
+- `events/base.py` `HashableEvent.__getattr__` (1), done 2026-10-22 (the user approved finishing
+  phase 4 this way): the typed per-type event classes exist (`plans/2026-10-22-typed-events.md`),
+  so every handler's fields are typed; `__getattr__ -> Any` stays on the base for custom and
+  unknown events' fields (pygame's own is `Any`; `object` gave 292 caller errors). The global
+  `ANN401` ignore is removed from `pyproject.toml`; a per-file ignore for
+  `glitchygames/events/base.py`, with that reason, covers the one site.
+- Bitmappy (11), done 2026-10-22 (the user's choices: public APIs; the editor required):
+  `AnimatedSprite.animation_data`/`pause()`, `FilmStripWidget.refresh(recalculate_layout=...)`,
+  `EditorContext.applying_undo_redo`; the trackers require `editor`; the dead aisuite
+  `_providers` timeout setup removed (timeouts go in the client config; BUGS.md #183). Before:
+  4 in `history/commands.py` and 3 in `ai_worker.py` reach protected members
+  (`AnimatedSprite._animations`, `FilmStripWidget._calculate_layout`, aisuite's
+  `client._providers`); typed, every access is a `reportPrivateUsage` error, so they need public
+  APIs (and test stand-ins that set them). 4 in `history/operations.py`: the trackers' `editor`
+  defaults to `None`; either the editor becomes required or the commands accept `None`.
+
 ## Phase 5 — `G004`: decide (optional)
 
 1,123 f-strings in logging calls. Lazy `%` formatting avoids building messages for disabled log
 levels, but the gain is small and the churn large. Measure the cost on a hot path (e.g. per-frame
 debug logging) first; convert only hot paths, or the whole codebase if the user wants consistency.
+
+Measured 2026-10-22 (1,099 sites): a disabled `log.debug(f'...')` costs 106-713 ns against 61-88 ns
+lazy (two plain values ~200 vs 63 ns; PaddleSlap's six-float ball message 713 vs 88 ns; Bitmappy's
+mouse-drag message, which formats two events and the sprite, 1.8 us vs 75 ns). Disabled calls made
+inside frames (counted by wrapping `logging.Logger`'s methods over each golden replay, and over 600
+Bitmappy frames of mouse motion and drags): Bitmappy 27.2 per frame (~26 us saved per frame, 0.16%
+of a 60 FPS frame; 20 us of it the drag message), PaddleSlap 9.3 (~5.5 us), Brave Adventurer
+Papyrus 9.3 (~0.5 us), Brave Adventurer and Clockwork Keep ~0. Enabled calls (0.2-0.3 per frame)
+save nothing. Lazy formatting still evaluates the arguments; only removing a per-frame debug line
+or guarding it with `isEnabledFor` saves that. Decision (the user, 2026-10-22): convert all of
+them, then remove the ignore.
+
+Done 2026-10-22: 1,096 sites converted by a script (each string piece converted on its own, so
+implicit concatenation keeps its line breaks; `%`-specs where `%` formats identically, otherwise
+`format(value, spec)` as the argument: 11 sites, the `,` thousands separator), one by hand (a
+computed width, `%*s`). Typing the arguments exposed 22 basedpyright errors that f-strings had
+hidden (untyped values, suppressions left on the wrong line); fixed at the source, which also
+removed 7 `# type: ignore` comments. Tests that read a mocked logger's raw format string now
+format it as logging does (`tests/logged_messages.py`) or read `caplog` records.
 
 ## Order and dependencies
 

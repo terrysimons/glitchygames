@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests for film strip operation tracking."""
 
+import pytest
+
 from glitchygames.bitmappy.history.operations import FilmStripOperationTracker
 from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
@@ -8,10 +10,11 @@ from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 class TestFilmStripOperationTracker:
     """Test film strip operation tracking."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
+    @pytest.fixture(autouse=True)
+    def set_up_tracker(self, bitmap_editor):
+        """Set up a tracker for a real editor, on its own undo/redo manager."""
         self.manager = UndoRedoManager()
-        self.tracker = FilmStripOperationTracker(self.manager)
+        self.tracker = FilmStripOperationTracker(self.manager, editor=bitmap_editor)
 
     def test_add_frame_added(self):
         """Test tracking frame addition."""

@@ -68,7 +68,19 @@ from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+    )
+    from glitchygames.examples.brave_adventurer.terrain import GroundSegment, StoneWall
+    from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+        PapyrusCobra,
+        PapyrusScarab,
+        PapyrusScorpion,
+    )
+    from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 
 log = logging.getLogger('game')
 
@@ -182,27 +194,41 @@ class PapyrusBraveAdventurerScene(Scene):
         self.hud_font: pygame.font.Font | None = None
 
         # Input action mapping (unifies keyboard + controller)
-        self.actions = ActionMap(input_mode=self.options.get('input_mode', 'joystick'))
+        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
+
+    @staticmethod
+    def _create_action_map(*, input_mode: str) -> ActionMap:
+        """Bind the controls: arrows, SPACE, ESC and Q by position; a gamepad's D-pad and A.
+
+        Args:
+            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+
+        Returns:
+            The action map (the golden replays' controls check reads it too).
+
+        """
+        actions = ActionMap(input_mode=input_mode)
         # Every control binds a physical key position (a scancode: the same place on every
         # keyboard layout), pause and quit included (ActionMap module docstring)
-        self.actions.bind(
+        actions.bind(
             'move_right',
             scancode=pygame.KSCAN_RIGHT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
         )
-        self.actions.bind(
+        actions.bind(
             'move_left',
             scancode=pygame.KSCAN_LEFT,
             controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
         )
-        self.actions.bind(
+        actions.bind(
             'jump',
             scancode=pygame.KSCAN_SPACE,
             controller_button=pygame.CONTROLLER_BUTTON_A,
         )
-        self.actions.bind('jump', scancode=pygame.KSCAN_UP)
-        self.actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
-        self.actions.bind('quit', scancode=pygame.KSCAN_Q)
+        actions.bind('jump', scancode=pygame.KSCAN_UP)
+        actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
+        actions.bind('quit', scancode=pygame.KSCAN_Q)
+        return actions
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -212,10 +238,12 @@ class PapyrusBraveAdventurerScene(Scene):
             parser: The argument parser to add arguments to.
 
         """
+        # argparse prints the version and exits as it parses (before the game starts)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
 
@@ -280,13 +308,15 @@ class PapyrusBraveAdventurerScene(Scene):
         # 8. Collectible pickup
         self._check_collectible_collisions()
 
-        # 9. Update distance score (the engine aims the camera and places the sprites after
+        # 9. Update the score (the engine aims the camera and places the sprites after
         # this tick)
+        # The score is the distance score plus every gold scarab's bonus (BUGS.md #204)
         self.player.max_distance = max(self.player.max_distance, self.player.world_x)
-        self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+        distance_score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+        self.player.score = distance_score + self.player.bonus_points
 
     @staticmethod
-    def _snapped_terrain_left(terrain_sprite: Any) -> int:
+    def _snapped_terrain_left(terrain_sprite: GroundSegment | StoneWall) -> int:
         """Return a ground segment's or wall's left edge in world pixels, snapped as it is drawn.
 
         Uses the engine's snapping (the scene's PIXEL_SNAP_MODE, or the sprite's own mode), so
@@ -568,7 +598,9 @@ class PapyrusBraveAdventurerScene(Scene):
             callback=self._on_player_enemy_collision,
         )
 
-    def _on_player_enemy_collision(self: Self, _player: Any, _enemy: Any) -> None:
+    def _on_player_enemy_collision(
+        self: Self, _player: PapyrusPlayer, _enemy: PapyrusCobra | PapyrusScarab | PapyrusScorpion
+    ) -> None:
         """Handle player-enemy collision by triggering death, once per collision pass.
 
         Touching two enemies at once must cost one life and one respawn, and a player
@@ -591,9 +623,11 @@ class PapyrusBraveAdventurerScene(Scene):
             callback=self._on_player_collect,
         )
 
-    def _on_player_collect(self: Self, _player: Any, collectible: Any) -> None:
-        """Handle player-collectible collision by awarding points."""
-        self.player.score += COLLECTIBLE_SCORE_BONUS
+    def _on_player_collect(
+        self: Self, _player: PapyrusPlayer, collectible: PapyrusGoldScarab
+    ) -> None:
+        """Handle player-collectible collision by awarding bonus points (kept in the score)."""
+        self.player.bonus_points += COLLECTIBLE_SCORE_BONUS
         self.sounds.play_collect()
         collectible.kill()
         self.collectible_sprites.remove(collectible)
@@ -660,6 +694,9 @@ class PapyrusBraveAdventurerScene(Scene):
         self.player.is_respawning = True
         self.player.velocity_x = 0.0
         self.player.velocity_y = 0.0
+        # Clear the walk target too: movement input is skipped while respawning, so the
+        # player would walk on during the fade (BUGS.md #206)
+        self.player.stop_horizontal()
 
         respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)
 
@@ -716,7 +753,7 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.stop_horizontal()
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle keyboard key presses via ActionMap.
 
         Movement is handled frame-driven in dt_tick via is_held().
@@ -735,12 +772,14 @@ class PapyrusBraveAdventurerScene(Scene):
         elif action == 'pause':
             self._pause_game()
         elif action == 'quit':
-            self.next_scene = None
+            # A QUIT event ends the run (next_scene = None does not: the scene manager reads it
+            # as no switch pending)
+            self.scene_manager.quit()
         elif action is None:
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle keyboard key releases.
 
         Args:
@@ -750,7 +789,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button presses via ActionMap.
 
         Args:
@@ -765,7 +804,7 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.jump()
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button releases.
 
         Args:
@@ -775,7 +814,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button presses (pygame-ce uses joystick API).
 
         Args:
@@ -790,7 +829,7 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.jump()
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button releases.
 
         Args:
@@ -800,7 +839,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Handle joystick axis motion.
 
         Args:
@@ -824,21 +863,29 @@ class PapyrusBraveAdventurerScene(Scene):
         screen.fill(SKY_COLOR)
         self.all_sprites.clear(screen, self.background)
         self.rects = self.all_sprites.draw(screen)
-        self._draw_pits(screen)
-        # Re-draw player on top of pits so they're visible when falling in
+        pit_rects = self._draw_pits(screen)
+        # Re-draw enemies in a pit and the player on top of the pits, so they're visible when
+        # they fall in (the pit fill is drawn after the sprites)
+        for enemy in self.enemy_sprites:
+            if enemy.visible and enemy.rect.collidelist(pit_rects) != -1:
+                screen.blit(enemy.image, enemy.rect)
         screen.blit(self.player.image, self.player.rect)
         self._draw_hud(screen)
         self.rects = None
 
-    def _draw_pits(self: Self, screen: pygame.Surface) -> None:
+    def _draw_pits(self: Self, screen: pygame.Surface) -> list[pygame.Rect]:
         """Draw dark pits in gaps between ground segments.
 
         Args:
             screen: The display surface to draw on.
 
+        Returns:
+            The screen rect of each pit drawn.
+
         """
+        pit_rects: list[pygame.Rect] = []
         if not self.ground_sprites:
-            return
+            return pit_rects
 
         sorted_segments = sorted(self.ground_sprites, key=lambda segment: segment.world_x)
 
@@ -863,6 +910,7 @@ class PapyrusBraveAdventurerScene(Scene):
                 continue
 
             pit_depth = SCREEN_HEIGHT - GROUND_Y
+            pit_rects.append(pygame.Rect(gap_left_screen, GROUND_Y, gap_width, pit_depth))
 
             # Dark fill
             pygame.draw.rect(
@@ -893,6 +941,8 @@ class PapyrusBraveAdventurerScene(Scene):
                 PIT_FLOOR_COLOR,
                 (gap_left_screen, SCREEN_HEIGHT - 4, gap_width, 4),
             )
+
+        return pit_rects
 
     def _draw_hud(self: Self, screen: pygame.Surface) -> None:
         """Draw the heads-up display showing score and lives.

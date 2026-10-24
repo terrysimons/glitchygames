@@ -47,7 +47,7 @@ Nice to have, not needed by current games: sprite-sheet import, localization, pa
 ## Recommended order (one branch each)
 
 1. ~~**Engine world space** (#6)~~ — **Done** (`feature/engine-world-space`, with #15).
-2. **Expressions phase 2** (#2) — small; removes three copies of `_FallingCondition`.
+2. ~~**Expressions phase 2** (#2) — small; removes three copies of `_FallingCondition`.~~ — **Done** (see the table).
 3. **Solid collision** (#1) together with **balls on CollisionManager** (#7) — one collision design.
 4. Remaining items as small independent branches.
 

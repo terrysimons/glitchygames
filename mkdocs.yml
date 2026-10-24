@@ -1,39 +1,72 @@
 site_name: GlitchyGames
-site_url: https://glitchygames.github.io
+# Where GitHub Pages serves the gh-pages branch (nox -s docs-deploy)
+site_url: https://terrysimons.github.io/glitchygames/
 repo_url: https://github.com/terrysimons/glitchygames
 repo_name: glitchygames
 
 nav:
   - GlitchyGames Getting Started: "index.md"
-  - glitchygames API Reference:
-    - "glitchygames/index.md"
-    - glitchygames.api: "glitchygames/api/index.md"
-    - glitchygames.color: "glitchygames/color/index.md"
-    - glitchygames.engine: "glitchygames/engine/index.md"
-    - glitchygames.events: "glitchygames/events/index.md"
-    - glitchygames.examples: "glitchygames/examples/index.md"
-    - glitchygames.font: "glitchygames/fonts/index.md"
-    - glitchygames.game_objects: "glitchygames/game_objects/index.md"
-    - glitchygames.interfaces: "glitchygames/interfaces/index.md"
-    - glitchygames.movement: "glitchygames/movement/index.md"
-    - glitchygames.pixels: "glitchygames/pixels/index.md"
-    - glitchygames.sprites: "glitchygames/sprites/index.md"
-    - glitchygames.scenes: "glitchygames/scenes/index.md"
-    - glitchygames.templates: "glitchygames/templates/index.md"
-    - glitchygames.tools: "glitchygames/tools/index.md"
-    - glitchygames.ui: "glitchygames/ui/index.md"
   - Documentation:
     - Bitmappy Architecture: "architecture/bitmappy.md"
+    - Games:
+      - PaddleSlap Architecture: "games/paddleslap.md"
+      - Brave Adventurer Architecture: "games/brave_adventurer.md"
+      - Clockwork Keep Architecture: "games/clockwork_keep.md"
+      - Mr. Muncher Architecture: "games/mr_muncher.md"
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
+    - Replay Performance: "quality/performance.md"
+    - Driver Comparison: "quality/driver_comparison.md"
+    - Upstream Issues: "quality/upstream_issues.md"
     - Galimore Survey: "galimore.md"
+  - glitchygames API Reference:
+    - "glitchygames/index.md"
+    - glitchygames.api: "glitchygames/api/index.md"
+    - glitchygames.audio: "glitchygames/audio/index.md"
+    - glitchygames.collision: "glitchygames/collision/index.md"
+    - glitchygames.color: "glitchygames/color/index.md"
+    - glitchygames.effects: "glitchygames/effects/index.md"
+    - glitchygames.engine: "glitchygames/engine/index.md"
+    - glitchygames.events: "glitchygames/events/index.md"
+    - glitchygames.examples: "glitchygames/examples/index.md"
+    - glitchygames.font: "glitchygames/fonts/index.md"
+    - glitchygames.game_objects: "glitchygames/game_objects/index.md"
+    - glitchygames.input: "glitchygames/input/index.md"
+    - glitchygames.interfaces: "glitchygames/interfaces/index.md"
+    - glitchygames.movement: "glitchygames/movement/index.md"
+    - glitchygames.physics: "glitchygames/physics/index.md"
+    - glitchygames.pixels: "glitchygames/pixels/index.md"
+    - glitchygames.replay: "glitchygames/replay/index.md"
+    - glitchygames.scenes: "glitchygames/scenes/index.md"
+    - glitchygames.sprites: "glitchygames/sprites/index.md"
+    - glitchygames.state: "glitchygames/state/index.md"
+    - glitchygames.templates: "glitchygames/templates/index.md"
+    - glitchygames.tools: "glitchygames/tools/index.md"
+    - glitchygames.transitions: "glitchygames/transitions/index.md"
+    - glitchygames.ui: "glitchygames/ui/index.md"
+
+extra_css:
+  - css/full-width.css
 
 extra_javascript:
-  - https://unpkg.com/mermaid/dist/mermaid.min.js
+  # Pinned: an unversioned URL took every new Mermaid release unannounced
+  - https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js
   - js/mermaid-init.js
+
+# The complexity and performance graphs' snippets, which quality/complexity.md and
+# quality/performance.md include (pymdownx.snippets), are not pages of their own
+# (scripts/generate_complexity_graphs.py, scripts/generate_performance_graphs.py)
+exclude_docs: |
+  /quality/graphs/*.md
+  /quality/metrics/*.md
+
+# Every build (build, serve, gh-deploy) first generates the complexity graphs when they are
+# missing or were made from another commit, then the performance graphs (scripts/mkdocs_hooks.py)
+hooks:
+  - scripts/mkdocs_hooks.py
 
 validation:
   omitted_files: warn

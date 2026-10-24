@@ -29,7 +29,7 @@ dependencies = [
   "miniaudio",
   "speechrecognition",
   "bokeh",
-  "backoff",
+  "tenacity>=9.1",
   "fastapi",
   "uvicorn",
   "pydantic",
@@ -53,6 +53,7 @@ brave-adventurer = "glitchygames.examples.brave_adventurer:main"
 brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
 paddleslap = "glitchygames.examples.paddleslap:main"
 clockwork-keep = "glitchygames.examples.clockwork_keep:main"
+mr-muncher = "glitchygames.examples.mr_muncher:main"
 
 [project.optional-dependencies]
 docs = [
@@ -89,9 +90,16 @@ dev = [
   "hypothesis>=6.151.9",
   "taplo>=0.9.3",
   "yamllint>=1.38.0",
-  "wily>=1.25.0",
+  # wily 2 is an alpha (2.0.0a1) that drops radon; the complexity graphs run both
+  "wily>=1.25.0,<2",
+  "radon>=5.1.0",
 ]
 api = []
+
+[tool.hatch.build]
+# The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
+# build-binary write it before building (glitchygames/build_info.py)
+artifacts = ["glitchygames/_build_info.json"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["glitchygames"]
@@ -112,7 +120,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov-fail-under=80 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "-n auto --cov=glitchygames --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -130,7 +138,6 @@ branch = true
 parallel = true
 omit = [
   "*/tests/*",
-  "*/examples/*",
   "*/build/*",
   "*/dist/*",
   "*/__pycache__/*",
@@ -139,6 +146,9 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
+# fail_under compares the total rounded to this many digits: at 0 (the default) a 98.71% total
+# passed the 99% gate (2026-10-22)
+precision = 2
 
 exclude_lines = [
   "pragma: no cover",
@@ -184,16 +194,11 @@ ignore = [
   "D213",    # Multi-line summary second line (conflicts with D212)
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
   "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
-  "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
   "PLR6301", # Method could be a function/staticmethod
-  "G004",    # Logging statement uses f-string
   # --- Added with ruff 0.17 ---
   # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
   # e.g. conftest's singleton reset and pygame mocks must apply to every test.
   "pytest-fixture-autouse",
-  # TEMPORARY: 102 existing violations to refactor (narrow each try block to the
-  # statements that can raise). Tracked in BUGS.md bug #19; remove when done.
-  "PLW0717",
 ]
 fixable = ["ALL"]
 
@@ -217,6 +222,9 @@ fixable = ["ALL"]
   "B002",    # False positive on double-negation test: -(-speed)
   "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
   "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+"glitchygames/events/base.py" = [
+  "ANN401", # HashableEvent.__getattr__ returns Any: custom and unknown events' fields (pygame's own Event.__getattr__ is Any); the per-type classes declare theirs
 ]
 "glitchygames/randomness.py" = [
   "S311", # The engine's seeded random streams are deliberately non-cryptographic (replayable)
@@ -344,8 +352,10 @@ package_module_name_map = { "pygame-ce" = "pygame" }
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
 # Dev/build/lint/docs tools are invoked via CLI, not imported in Python code
+# bokeh is kept deliberately for future plotting tools (the user, 2026-10-22); nothing imports it yet
 DEP002 = [
   "numpy",
+  "bokeh",
   "deptry",
   "mkdocs",
   "mkdocstrings",
@@ -373,6 +383,7 @@ DEP002 = [
   "taplo",
   "yamllint",
   "wily",
+  "radon",
 ]
 
 [tool.uv]

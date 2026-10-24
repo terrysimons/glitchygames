@@ -36,6 +36,7 @@ from scripts.record_golden_traces import (
 from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
+from glitchygames.events.controller import ControllerEventManager
 from glitchygames.examples import paddleslap
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input import devices as devices_module
@@ -367,14 +368,34 @@ def engine_run_environment(mocker) -> Generator[FakePerfCounter]:
     mocker.patch.object(scene_module, 'time', types.SimpleNamespace(perf_counter=fake_perf_counter))
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch.object(pygame, 'quit')
-    mocker.patch.object(pygame.display, 'quit')
+    real_display_quit = pygame.display.quit
+    display_quit = mocker.patch.object(pygame.display, 'quit')
+    # ...but --headless's restart of a display on a real video driver (SDL_VIDEODRIVER=cocoa)
+    # must really close it, or the run stays on that driver
+    enter_headless_mode = game_engine_module.GameEngine._enter_headless_mode
+
+    def enter_headless_mode_closing_the_display(engine: game_engine_module.GameEngine) -> None:
+        display_quit.side_effect = real_display_quit
+        try:
+            enter_headless_mode(engine)
+        finally:
+            display_quit.side_effect = None
+
+    mocker.patch.object(
+        game_engine_module.GameEngine,
+        '_enter_headless_mode',
+        enter_headless_mode_closing_the_display,
+    )
     # --headless sets the SDL driver variables; the test's own values come back afterwards
     mocker.patch.dict(os.environ)
     GoldenTraceSceneManager.install()
     try:
         yield fake_perf_counter
     finally:
-        pygame.event.clear()
+        # A refused --headless run on a real video driver closed the display and opened none:
+        # no video system, no queued events (the next test's autouse fixture opens a display)
+        if pygame.display.get_init():
+            pygame.event.clear()
         GoldenTraceSceneManager.uninstall()
 
 
@@ -894,11 +915,29 @@ class TestRecordingThroughTheEngine:
             'get_button.return_value': False,
             'get_hat.return_value': (0, 1),
         })
-        mocker.patch.object(devices_module.pygame.joystick, 'Joystick', return_value=fake_device)
+        # Only the scripted open gets the fake: a pad attached to this machine (a DualSense on the
+        # developer's Mac) is opened at startup from SDL's added event, and would otherwise be
+        # recorded as the fake in frame 0; it fails as an absent device instead
+        scripted_open = {'now': False}
+
+        def joystick(device_index):
+            if not scripted_open['now']:
+                message = f'Invalid joystick device number {device_index}'
+                raise pygame.error(message)
+            return fake_device
+
+        def open_the_fake():
+            scripted_open['now'] = True
+            try:
+                return active_sources().devices().open_joystick(device_index=0)
+            finally:
+                scripted_open['now'] = False
+
+        mocker.patch.object(devices_module.pygame.joystick, 'Joystick', side_effect=joystick)
         recording_path = tmp_path / 'session.jsonl.gz'
         with engine_run_environment(mocker):
             Script.action_frame = 1
-            Script.action = lambda: active_sources().devices().open_joystick(device_index=0)
+            Script.action = open_the_fake
             _schedule_quit_in_arrival()
             run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
         frames = read_trace_result(path=recording_path).trace['frames']
@@ -1049,6 +1088,29 @@ class TestRecordingEdgeCases:
             pass
         assert 'SDL may own SIGINT and SIGTERM' in caplog.text
 
+    def test_controller_input_mode_runs_with_a_controller_manager(self, mocker):
+        """--input-mode controller: SDL's Game Controller API, its events left unblocked."""
+        controller_events_blocked: list[bool] = []
+
+        def note_blocked_state() -> None:
+            controller_events_blocked.append(pygame.event.get_blocked(pygame.CONTROLLERBUTTONDOWN))
+
+        with engine_run_environment(mocker):
+            Script.action, Script.action_frame = note_blocked_state, 1
+            _schedule_quit_in_arrival()
+            engine = run_engine('--input-mode', 'controller')
+
+        assert isinstance(engine.controller_manager, ControllerEventManager)
+        assert controller_events_blocked == [False]
+
+    def test_pygame_not_yet_initialized_is_not_warned_about(self, mocker, caplog):
+        """The engine initializes pygame itself: SDL then installs no signal handlers."""
+        mocker.patch.object(game_engine_module.pygame, 'get_init', return_value=False)
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
+        assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '1'
+
     @SKIP_WITHOUT_A_DELIVERABLE_SIGTERM
     def test_a_real_sigterm_ends_a_live_run_as_terminated_not_as_a_quit(self, tmp_path):
         """End to end, without recording: the engine's handler, not SDL's QUIT, ends the run."""
@@ -1098,7 +1160,7 @@ class TestRecordingEdgeCases:
     def test_header_without_installed_package_metadata(self, mocker):
         """Running from a source tree without package metadata records engine_version null."""
         mocker.patch.object(
-            game_engine_module.importlib.metadata,
+            importlib.metadata,
             'version',
             side_effect=importlib.metadata.PackageNotFoundError('glitchygames'),
         )

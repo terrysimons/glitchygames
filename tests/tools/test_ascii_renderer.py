@@ -180,6 +180,17 @@ class TestExtractPixelsFromTOML:
         pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels is None
 
+    def test_extract_returns_none_when_first_frame_has_no_pixels(self):
+        """Only the first frame is read; without pixels there, later frames are not used."""
+        renderer = ASCIIRenderer()
+        toml_data = {
+            'animation': [
+                {'namespace': 'walk', 'frame': [{'frame_index': 0}, {'pixels': 'EF\nGH'}]},
+            ],
+        }
+        pixels = renderer.extract_pixels_from_toml(toml_data)
+        assert pixels is None
+
 
 class TestColorizePixels:
     """Test ASCIIRenderer.colorize_pixels method."""

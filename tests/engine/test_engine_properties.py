@@ -1,152 +1,122 @@
 """Tests for GameEngine properties.
 
-This module tests GameEngine properties like joysticks, scene_manager, game, etc.
+This module tests GameEngine properties like input_devices, scene_manager, game, etc., on a real
+engine: real pygame, the real display and real event managers. Only the joystick hardware is
+stood in for (no test machine has joysticks attached).
 """
 
+import os
 import sys
 from pathlib import Path
+
+import pygame
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.engine import GameEngine
-from glitchygames.scenes import Scene
-from tests.mocks import MockFactory
+from scripts.record_golden_traces import GoldenTraceEngine
 
-# Constants for magic values
-TEST_JOYSTICK_COUNT_2 = 2
+from glitchygames.events.joystick import JoystickEventManager
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.scenes import Scene, SceneManager
+from tests.input.stand_in_devices import install_stand_in_devices
+
+# GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
+# 800x600 test display back after the test), no frame pacing, quiet logs
+ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
 
 
-class MockGame(Scene):
-    """Simple mock game scene for testing."""
+class PropertiesTestGame(Scene):
+    """The game scene the engines here are built with."""
 
-    NAME = 'MockGame'
+    NAME = 'PropertiesTestGame'
     VERSION = '1.0'
-    TARGET_FPS = None
-
-    def __init__(self, options=None, groups=None):
-        """Initialize mock game scene."""
-        if options is None:
-            options = {}
-        if groups is None:
-            groups = MockFactory.create_pygame_sprite_group_mock()
-        super().__init__(options=options, groups=groups)
-        self.fps = 60
-        self.background_color = (0, 0, 0)
-        self.next_scene = self
-
-    @classmethod
-    def args(cls, parser):
-        """Add mock game arguments.
-
-        Returns:
-            object: The result.
-
-        """
-        parser.add_argument('--test-flag', action='store_true', help='Test flag')
-        return parser
-
-    def update(self):
-        """Mock update method."""
 
 
-class MockGameWithArgs(MockGame):
-    """Mock game that properly handles command line arguments."""
+def stand_in_joystick(*, device_index: int) -> DeviceDescriptor:
+    """Describe a stand-in joystick (the replay's, which needs no hardware) at a device index.
 
-    @classmethod
-    def args(cls, parser):
-        """Add mock game arguments.
+    Returns:
+        DeviceDescriptor: A joystick whose instance id is its device index.
 
-        Returns:
-            object: The result.
+    """
+    return DeviceDescriptor(
+        kind=JOYSTICK_KIND,
+        device_index=device_index,
+        instance_id=device_index,
+        name=f'Stand-in joystick {device_index}',
+        guid=None,
+        axis_count=2,
+        button_count=4,
+        hat_count=1,
+        ball_count=0,
+    )
 
-        """
-        parser.add_argument('--test-flag', action='store_true', help='Test flag')
-        return parser
+
+@pytest.fixture
+def real_engine(mocker):
+    """Construct a real engine for PropertiesTestGame, leaving pygame as the test found it.
+
+    The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
+    plain window, because SDL's dummy video driver warns "no fast renderer available" for
+    GameEngine's SCALED window, an error under pytest's filterwarnings.
+
+    Yields:
+        GoldenTraceEngine: The engine, constructed (not started).
+
+    """
+    mocker.patch.object(sys, 'argv', ['test_engine_properties', *ENGINE_ARGUMENTS])
+    # The engine writes SDL hints to the environment; the test's own values come back after
+    mocker.patch.dict(os.environ)
+    blocked_before = [
+        pygame.event.get_blocked(event_type) for event_type in range(pygame.NUMEVENTS)
+    ]
+    yield GoldenTraceEngine(game=PropertiesTestGame)
+    pygame.event.clear()
+    # The event managers and the scene block and allow event types: put them back
+    for event_type, was_blocked in enumerate(blocked_before):
+        if was_blocked:
+            pygame.event.set_blocked(event_type)
+        else:
+            pygame.event.set_allowed(event_type)
 
 
 class TestEngineProperties:
     """Test GameEngine properties."""
 
-    def _create_mock_game(self):
-        """Create a mock game using MockFactory.
+    def test_game_engine_game_property(self, real_engine):
+        """Before start(), the engine's game is the game class it was built with."""
+        assert real_engine.game is PropertiesTestGame
+        assert PropertiesTestGame.options is not None
 
-        Returns:
-            object: The result.
+    def test_game_engine_scene_manager_property(self, real_engine):
+        """The engine adopts the SceneManager singleton, with its screen on the real display."""
+        assert real_engine.scene_manager is SceneManager()
+        assert real_engine.scene_manager.screen is pygame.display.get_surface()
+        assert real_engine.scene_manager.screen.get_size() == real_engine.screen.get_size()
 
-        """
-        return MockFactory.create_game_mock()
+    def test_game_engine_input_devices_before_start(self, real_engine):
+        """Before the event managers start, the engine sees no devices."""
+        assert list(real_engine.input_devices) == []
 
-    def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine game property."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
+    def test_game_engine_input_devices_property(self, real_engine):
+        """Starting the event managers finds the attached joysticks, one device each."""
+        # Hardware: two joysticks attached (stand-ins, through the devices door)
+        install_stand_in_devices(
+            descriptors=[stand_in_joystick(device_index=index) for index in range(2)]
+        )
 
-        # Create GameEngine instance with mock game
-        mock_game = self._create_mock_game()
+        real_engine.install_game(scene_class=PropertiesTestGame)
 
-        engine = GameEngine(game=mock_game)
-
-        # Test that game property exists
-        assert engine.game is not None
-        assert engine.game == mock_game
-
-    def test_game_engine_scene_manager_property(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine scene_manager property."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create GameEngine instance with mock game
-        mock_game = self._create_mock_game()
-
-        engine = GameEngine(game=mock_game)
-
-        # Test that scene_manager property exists
-        assert engine.scene_manager is not None
-
-    def test_game_engine_joystick_count_property(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine joystick_count property."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create GameEngine instance with mock game
-        mock_game = self._create_mock_game()
-
-        engine = GameEngine(game=mock_game)
-
-        # Set joystick attributes directly (simulating what start() would do)
-        engine.joysticks = [
-            MockFactory.create_pygame_joystick_mock(),
-            MockFactory.create_pygame_joystick_mock(),
-        ]  # 2 joysticks
-        engine.joystick_count = len(engine.joysticks)
-
-        # Test that joystick_count property exists
-        assert engine.joystick_count is not None
-        assert engine.joystick_count == TEST_JOYSTICK_COUNT_2
-
-    def test_game_engine_joysticks_property(self, mock_pygame_patches, mock_game_args, mocker):
-        """Test GameEngine joysticks property."""
-        # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
-        mock_parse_args.return_value = mock_game_args
-
-        # Create GameEngine instance with mock game
-        mock_game = self._create_mock_game()
-
-        engine = GameEngine(game=mock_game)
-
-        # Set joystick attributes directly (simulating what start() would do)
-        mock_joysticks = [
-            MockFactory.create_pygame_joystick_mock(),
-            MockFactory.create_pygame_joystick_mock(),
-        ]  # 2 joysticks
-        engine.joysticks = mock_joysticks
-        engine.joystick_count = len(engine.joysticks)
-
-        # Test that joysticks property exists
-        assert engine.joysticks is not None
-        assert len(engine.joysticks) == TEST_JOYSTICK_COUNT_2
+        assert [device.name for device in real_engine.input_devices] == [
+            'Stand-in joystick 0',
+            'Stand-in joystick 1',
+        ]
+        assert all(
+            isinstance(proxy, JoystickEventManager.JoystickEventProxy)
+            for proxy in real_engine.joystick_manager.joysticks.values()
+        )
+        assert sorted(real_engine.joystick_manager.joysticks) == [0, 1]
+        # Scenes read the same registry
+        assert real_engine.scene_manager.input_devices is real_engine.input_devices

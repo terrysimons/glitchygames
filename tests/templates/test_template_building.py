@@ -1,4 +1,9 @@
-"""Template building functionality tests."""
+"""Template building functionality tests.
+
+Every test builds from real template directories under ``tmp_path`` (or the bundled ones), so
+``build()`` really opens (or fails to open) each ``.repo`` file. Only cookiecutter itself is
+patched: a real one would download a remote template or prompt for its variables.
+"""
 
 import sys
 from pathlib import Path
@@ -9,255 +14,98 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
-from tests.mocks.test_mock_factory import create_template_path_mock, create_template_repo_file_mock
+
+REMOTE_TEMPLATE_URL = 'https://github.com/user/repo.git'
 
 
 class TestTemplateBuilding:
-    """Test template building functionality."""
+    """build() takes the template location from a .repo file, else the template directory."""
 
-    def _normalize_mock_path(self, path_str: str) -> str:
-        return path_str.replace('\\', '/')
+    def test_build_local_template(self, make_template, cookiecutter):
+        """A template without a .repo file is built from its own directory."""
+        template_directory = make_template(name='local_template')
 
-    def test_build_local_template(self, mocker):
-        """Test build with local template (no .repo file)."""
-        template_name = 'test_template'
+        build('local_template')
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+        cookiecutter.assert_called_once_with(str(template_directory))
 
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+    def test_build_remote_template(self, make_template, cookiecutter):
+        """A .repo file's location is used without its line's newline (BUGS.md #107)."""
+        make_template(name='remote_template', repo_contents=f'{REMOTE_TEMPLATE_URL}\n')
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
+        build('remote_template')
 
-        # Verify cookiecutter was called
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
+        cookiecutter.assert_called_once_with(REMOTE_TEMPLATE_URL)
 
-    def test_build_remote_template(self, mocker):
-        """Test build with remote template (.repo file exists)."""
-        template_name = 'remote_template'
-        repo_url = 'https://github.com/user/repo.git'
+    def test_build_remote_template_without_a_trailing_newline(self, make_template, cookiecutter):
+        """A .repo file whose only line has no newline names the location as written."""
+        make_template(name='remote_template', repo_contents=REMOTE_TEMPLATE_URL)
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+        build('remote_template')
 
-        # Mock .repo file exists with URL
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock(repo_url)
-        mock_repo_path.open.return_value = mock_repo_file
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+        cookiecutter.assert_called_once_with(REMOTE_TEMPLATE_URL)
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
+    def test_build_template_with_empty_repo_file(self, make_template, cookiecutter):
+        """An empty .repo file still wins over the directory: cookiecutter gets ''."""
+        make_template(name='empty_repo_template', repo_contents='')
 
-        # Verify cookiecutter was called with repo URL
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
+        build('empty_repo_template')
 
-    def test_build_template_with_empty_repo_file(self, mocker):
-        """Test build with empty .repo file."""
-        template_name = 'empty_repo_template'
+        cookiecutter.assert_called_once_with('')
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+    def test_build_template_with_whitespace_repo_file(self, make_template, cookiecutter):
+        """A whitespace-only .repo file strips to ''."""
+        make_template(name='whitespace_repo_template', repo_contents='   \n')
 
-        # Mock .repo file exists but is empty
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock('')  # Empty string
-        mock_repo_path.open.return_value = mock_repo_file
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+        build('whitespace_repo_template')
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
+        cookiecutter.assert_called_once_with('')
 
-        # Should still call cookiecutter with empty string
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
+    def test_build_template_with_multiple_lines_in_repo(self, make_template, cookiecutter):
+        """Only the .repo file's first line names the location."""
+        make_template(
+            name='multi_line_repo_template',
+            repo_contents=f'{REMOTE_TEMPLATE_URL}\nhttps://github.com/other/ignored.git\n',
+        )
 
-    def test_build_template_with_whitespace_repo_file(self, mocker):
-        """Test build with whitespace-only .repo file."""
-        template_name = 'whitespace_repo_template'
+        build('multi_line_repo_template')
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+        cookiecutter.assert_called_once_with(REMOTE_TEMPLATE_URL)
 
-        # Mock .repo file with whitespace
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock('   \n')  # Whitespace
-        mock_repo_path.open.return_value = mock_repo_file
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+    def test_build_template_with_stripped_whitespace(self, make_template, cookiecutter):
+        """Whitespace around the .repo file's location is stripped."""
+        make_template(
+            name='stripped_whitespace_template',
+            repo_contents=f'  {REMOTE_TEMPLATE_URL}  \n',
+        )
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
+        build('stripped_whitespace_template')
 
-        # Should call cookiecutter with whitespace string
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
+        cookiecutter.assert_called_once_with(REMOTE_TEMPLATE_URL)
 
-    def test_build_template_with_multiple_lines_in_repo(self, mocker):
-        """Test build with .repo file containing multiple lines."""
-        template_name = 'multi_line_repo_template'
-        repo_url = 'https://github.com/user/repo.git'
+    def test_build_template_path_is_under_the_templates_directory(
+        self, make_template, cookiecutter, monkeypatch, tmp_path_factory
+    ):
+        """The template is looked up in the templates directory, not the working directory."""
+        template_directory = make_template(name='path_test_template')
+        # A same-named template with a .repo file in the working directory must not be used
+        working_directory = tmp_path_factory.mktemp('working_directory')
+        (working_directory / 'path_test_template').mkdir()
+        (working_directory / 'path_test_template' / '.repo').write_text(REMOTE_TEMPLATE_URL)
+        monkeypatch.chdir(working_directory)
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+        build('path_test_template')
 
-        # Mock .repo file with multiple lines
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock(repo_url)
-        mock_repo_path.open.return_value = mock_repo_file
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+        cookiecutter.assert_called_once_with(str(template_directory))
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
+    def test_build_bundled_pong_template(self, cookiecutter):
+        """The bundled pong template names its remote repository in its .repo file."""
+        build('pong')
 
-        # Should use first line only
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
-
-    def test_build_template_with_stripped_whitespace(self, mocker):
-        """Test build with .repo file containing whitespace that gets stripped."""
-        template_name = 'stripped_whitespace_template'
-        repo_url = 'https://github.com/user/repo.git'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file with leading/trailing whitespace
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock(f'  {repo_url}  \n')  # Whitespace
-        mock_repo_path.open.return_value = mock_repo_file
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
-
-        # Should use the string as-is (no automatic stripping)
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
-
-    def test_build_template_path_operations(self, mocker):
-        """Test build template path operations."""
-        template_name = 'path_test_template'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
-
-        # Verify that the build function completed successfully
-        # and that cookiecutter was called with the expected path
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
-
-    def test_build_empty_repo_file(self, mocker):
-        """Test build with empty .repo file."""
-        template_name = 'empty_repo_template'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file exists but is empty
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock('')  # Empty string
-        mock_repo_path.open.return_value = mock_repo_file
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
-
-        # Should call cookiecutter with empty string
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = self._normalize_mock_path(call_args[0])
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
+        cookiecutter.assert_called_once_with(
+            'https://github.com/sabadam32/cookiecutter-glitchygames-pong'
+        )
 
 
 if __name__ == '__main__':
     pytest.main([__file__])
-
-
-class TestTemplateBuildingOnDisk:
-    """build() against real template directories (only cookiecutter, the boundary, is stubbed).
-
-    The mocked-path tests above never reach the .repo branch: build() opens the file with
-    ``Path.open(...)``, not the mock's ``open``, so every one of them falls back to the local path.
-    """
-
-    def test_repo_file_names_the_remote_template(self, mocker, tmp_path):
-        """A template directory with a .repo file builds from the location written in it."""
-        remote_template_directory = tmp_path / 'remote_template'
-        remote_template_directory.mkdir()
-        (remote_template_directory / '.repo').write_text('gh:user/repo')
-        mocker.patch('glitchygames.templates.game.path', tmp_path)
-        cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-
-        build('remote_template')
-
-        cookiecutter.assert_called_once_with('gh:user/repo')
-
-    def test_without_a_repo_file_the_local_directory_is_built(self, mocker, tmp_path):
-        """A template directory without a .repo file builds from the directory itself."""
-        (tmp_path / 'local_template').mkdir()
-        mocker.patch('glitchygames.templates.game.path', tmp_path)
-        cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-
-        build('local_template')
-
-        cookiecutter.assert_called_once_with(str(tmp_path / 'local_template'))

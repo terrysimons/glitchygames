@@ -65,8 +65,8 @@ class PapyrusCobra(AnimatedSprite):
 
         # State machine auto-loaded from cobra.toml [[transition]] sections.
         # Timer-based idle → strike → idle cycle defined entirely in TOML.
-        if self.state_machine is not None:
-            self.state_machine.set_state('idle')
+        assert self.state_machine is not None, 'cobra.toml declares the [[transition]]s'
+        self.state_machine.set_state('idle')
 
     def dt_tick(self: Self, dt: float) -> None:
         """Advance state machine and animation frames.
@@ -78,8 +78,8 @@ class PapyrusCobra(AnimatedSprite):
         self.dt = dt
 
         # State machine handles idle/strike transitions via timer
-        if self.state_machine is not None:
-            self.state_machine.evaluate({}, dt)
+        assert self.state_machine is not None, 'cobra.toml declares the [[transition]]s'
+        self.state_machine.evaluate({}, dt)
 
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)

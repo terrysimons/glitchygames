@@ -65,16 +65,12 @@ def convert_pixels_to_rgb_if_possible(
     """
     # Check if we need alpha
     if not needs_alpha_channel(pixels):
-        # Convert RGBA to RGB, keeping only opaque pixels
+        # Convert RGBA to RGB (every RGBA pixel is opaque: needs_alpha_channel said so)
         rgb_pixels: list[tuple[int, ...]] = []
         for pixel in pixels:
             if len(pixel) == RGBA_COMPONENT_COUNT:
-                r, g, b, a = pixel
-                if a == MAX_COLOR_CHANNEL_VALUE:  # Only keep fully opaque pixels
-                    rgb_pixels.append((r, g, b))
-                else:
-                    # Use magenta for transparent pixels
-                    rgb_pixels.append(MAGENTA_TRANSPARENCY_KEY)
+                r, g, b, _alpha = pixel
+                rgb_pixels.append((r, g, b))
             else:
                 rgb_pixels.append(pixel)
         return rgb_pixels

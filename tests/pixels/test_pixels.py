@@ -19,7 +19,6 @@ from glitchygames.pixels import (
     rgb_565_triplet_generator,
     rgb_triplet_generator,
 )
-from tests.mocks import MockFactory
 
 # Constants for magic values
 RGB_COMPONENTS_PER_PIXEL = 3
@@ -29,32 +28,19 @@ RGB_BYTES_PER_PIXEL = 3
 TWO_PIXEL_BYTES = 6
 
 
+def _rgb_rows(image):
+    """Return an image's RGB pixels, row by row.
+
+    Returns:
+        list[list[tuple[int, int, int]]]: ``rows[y][x]``.
+
+    """
+    rows = pygame.surfarray.array3d(image).transpose(1, 0, 2).tolist()
+    return [[tuple(pixel) for pixel in row] for row in rows]
+
+
 class TestPixelsCoverage:
     """Test coverage for Pixels module."""
-
-    def _create_mock_surface(self):
-        """Create a mock surface using MockFactory.
-
-        Returns:
-            object: The result.
-
-        """
-        mock_surface = MockFactory.create_pygame_surface_mock_object()
-        mock_surface.get_width.return_value = 8
-        mock_surface.get_height.return_value = 8
-        mock_surface.get_size.return_value = (8, 8)
-        return mock_surface
-
-    def _create_mock_pixel_array(self):
-        """Create a mock pixel array using MockFactory.
-
-        Returns:
-            object: The result.
-
-        """
-        mock_pixel_array = MockFactory.create_pygame_surface_mock_object()
-        mock_pixel_array.make_surface.return_value = self._create_mock_surface()
-        return mock_pixel_array
 
     def test_indexed_rgb_triplet_generator(self):
         """Test indexed_rgb_triplet_generator function."""
@@ -146,28 +132,21 @@ class TestPixelsCoverage:
         assert len(result) == 1
         assert result[0] == (128, 64, 32)
 
-    def test_image_from_pixels(self, mocker):
-        """Test image_from_pixels function."""
-        mock_surface = mocker.patch('pygame.Surface')
-        # Mock the surface
-        mock_surface_instance = self._create_mock_surface()
-        mock_surface.return_value = mock_surface_instance
-
-        # Test with valid pixel data
+    def test_image_from_pixels(self):
+        """image_from_pixels draws the pixels left to right, then top to bottom."""
         pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
         width, height = 2, 2
 
-        image_from_pixels(pixels, width, height)
+        image = image_from_pixels(pixels, width, height)
 
-        # Verify pygame.Surface was called with correct parameters
-        mock_surface.assert_called_once_with((width, height))
+        assert image.get_size() == (width, height)
+        assert _rgb_rows(image) == [
+            [(255, 0, 0), (0, 255, 0)],
+            [(0, 0, 255), (255, 255, 255)],
+        ]
 
-        # Verify image.fill was called for each pixel
-        assert mock_surface_instance.fill.call_count == len(pixels)
-
-        # Test with empty pixels
-        image_from_pixels([], 0, 0)
-        mock_surface.assert_called_with((0, 0))
+        # Test with empty pixels: an empty surface
+        assert image_from_pixels([], 0, 0).get_size() == (0, 0)
 
     def test_pixels_from_data(self):
         """Test pixels_from_data function."""
@@ -194,25 +173,24 @@ class TestPixelsCoverage:
         with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
-    def test_pixels_from_path(self, mocker):
+    def test_pixels_from_path(self, tmp_path):
         """Test pixels_from_path function."""
-        mocker.patch(
-            'pathlib.Path.open',
-            mocker.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00\x00\x00\xff'),
-        )
+        pixel_file = tmp_path / 'test_file.txt'
+        pixel_file.write_bytes(b'\xff\x00\x00\x00\xff\x00\x00\x00\xff')
         # Test with valid file path
-        result = pixels_from_path('test_file.txt')
+        result = pixels_from_path(str(pixel_file))
         assert len(result) == RGB_COMPONENTS_PER_PIXEL
         assert result[0] == (255, 0, 0)
         assert result[1] == (0, 255, 0)
         assert result[2] == (0, 0, 255)
 
-    def test_pixels_from_path_empty_file(self, mocker):
+    def test_pixels_from_path_empty_file(self, tmp_path):
         """Test pixels_from_path with empty file."""
         # Test with empty file - should raise ValueError
-        mocker.patch('pathlib.Path.open', mocker.mock_open(read_data=b''))
+        pixel_file = tmp_path / 'empty_file.txt'
+        pixel_file.write_bytes(b'')
         with pytest.raises(ValueError, match='Empty pixel data'):
-            pixels_from_path('empty_file.txt')
+            pixels_from_path(str(pixel_file))
 
     def test_edge_cases(self):
         """Test edge cases for all functions."""
@@ -237,17 +215,11 @@ class TestPixelsCoverage:
         with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             list(rgb_triplet_generator(pixel_data))
 
-    def test_edge_cases_image_from_pixels(self, mocker):
-        """Test image_from_pixels with zero dimensions."""
-        mock_surface = mocker.patch('pygame.Surface')
-        mock_pixel_array = mocker.patch('pygame.PixelArray')
-        mock_surface_instance = self._create_mock_surface()
-        mock_surface.return_value = mock_surface_instance
-        mock_pixel_array_instance = self._create_mock_pixel_array()
-        mock_pixel_array.return_value = mock_pixel_array_instance
-
-        image_from_pixels([], 0, 0)
-        mock_surface.assert_called_with((0, 0))
+    def test_edge_cases_image_from_pixels(self):
+        """image_from_pixels with zero dimensions returns an empty surface."""
+        image = image_from_pixels([], 0, 0)
+        assert isinstance(image, pygame.Surface)
+        assert image.get_size() == (0, 0)
 
     def test_rgb_555_edge_cases(self):
         """Test rgb_555_triplet_generator edge cases."""
@@ -304,20 +276,20 @@ class TestPixelsCoverage:
         with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
-    def test_pixels_from_path_edge_cases(self, mocker):
+    def test_pixels_from_path_edge_cases(self, tmp_path):
         """Test pixels_from_path edge cases."""
         # Test with file containing invalid data (not divisible by 3)
-        mocker.patch('pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00'))
-        mocker.patch('pathlib.Path.exists', return_value=True)
+        pixel_file = tmp_path / 'invalid_file.txt'
+        pixel_file.write_bytes(b'\xff\x00')
         with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
-            pixels_from_path('invalid_file.txt')
+            pixels_from_path(str(pixel_file))
 
-    def test_pixels_from_path_edge_cases_valid(self, mocker):
+    def test_pixels_from_path_edge_cases_valid(self, tmp_path):
         """Test pixels_from_path edge cases with valid data."""
         # Test with file containing valid data
-        mocker.patch('pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00'))
-        mocker.patch('pathlib.Path.exists', return_value=True)
-        result = pixels_from_path('valid_file.txt')
+        pixel_file = tmp_path / 'valid_file.txt'
+        pixel_file.write_bytes(b'\xff\x00\x00\x00\xff\x00')
+        result = pixels_from_path(str(pixel_file))
         assert len(result) == TWO_PIXEL_BYTES // RGB_BYTES_PER_PIXEL
         assert result[0] == (255, 0, 0)
         assert result[1] == (0, 255, 0)
@@ -454,18 +426,25 @@ class TestImageFromPixels:
         surface = image_from_pixels(pixels, width=2, height=2)
         assert isinstance(surface, pygame.Surface)
         assert surface.get_size() == (2, 2)
+        assert _rgb_rows(surface) == [
+            [(255, 0, 0), (0, 255, 0)],
+            [(0, 0, 255), (255, 255, 0)],
+        ]
 
     def test_1x1(self):
         pixels = [(128, 64, 32)]
         surface = image_from_pixels(pixels, width=1, height=1)
         assert surface.get_size() == (1, 1)
+        assert _rgb_rows(surface) == [[(128, 64, 32)]]
 
     def test_3x1(self):
         pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         surface = image_from_pixels(pixels, width=3, height=1)
         assert surface.get_size() == (3, 1)
+        assert _rgb_rows(surface) == [[(255, 0, 0), (0, 255, 0), (0, 0, 255)]]
 
     def test_1x3(self):
         pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         surface = image_from_pixels(pixels, width=1, height=3)
         assert surface.get_size() == (1, 3)
+        assert _rgb_rows(surface) == [[(255, 0, 0)], [(0, 255, 0)], [(0, 0, 255)]]

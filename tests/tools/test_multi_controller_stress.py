@@ -4,7 +4,6 @@ This module provides stress tests and performance benchmarks for the
 multi-controller system under extreme conditions.
 """
 
-import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -14,8 +13,6 @@ import pytest
 from glitchygames.bitmappy.controllers.manager import MultiControllerManager
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
-
-LOG = logging.getLogger(__name__)
 
 IS_CI = os.environ.get('CI') == 'true'
 CI_TIME_MULTIPLIER = 50.0 if IS_CI else 1.0
@@ -308,26 +305,28 @@ class TestMultiControllerStress:
         assert collision_end - collision_start < COLLISION_UPDATE_TIME_LIMIT
 
     def test_error_recovery_stress(self):
-        """Test error recovery under stress conditions."""
-        # Test with invalid operations
+        """Operations on an unknown controller answer "not found" and change nothing, every time.
+
+        Each call must neither raise nor create state for the unknown id (a swallowing try here
+        used to let any exception pass as "handled gracefully").
+        """
+        unknown_id = 999
         for _ in range(1000):
-            try:
-                # Invalid controller operations
-                self.manager.is_controller_active(999)
-                self.manager.get_controller_info(999)
-                self.manager.activate_controller(999)
+            # Invalid controller operations
+            assert self.manager.is_controller_active(unknown_id) is False
+            assert self.manager.get_controller_info(unknown_id) is None
+            assert self.manager.activate_controller(unknown_id) is False
 
-                # Invalid visual operations
-                self.visual_manager.get_final_position(999)
-                self.visual_manager.remove_controller_indicator(999)
-                self.visual_manager.update_controller_position(999, (0, 0))
+            # Invalid visual operations
+            assert self.visual_manager.get_final_position(unknown_id) == (0, 0)
+            self.visual_manager.remove_controller_indicator(unknown_id)
+            self.visual_manager.update_controller_position(unknown_id, (0, 0))
 
-            except KeyError, AttributeError, ValueError:
-                # Should handle errors gracefully
-                LOG.debug('Invalid controller operation handled gracefully')
-
-        # System should still be functional
-        assert True  # If we get here, error handling worked
+        # System should still be functional: nothing was created for the unknown id
+        assert unknown_id not in self.manager.controllers
+        assert unknown_id not in self.manager.assigned_controllers
+        assert self.visual_manager.get_controller_indicator(unknown_id) is None
+        assert self.visual_manager.get_all_indicators() == []
 
     def test_mixed_workload_stress(self):
         """Test mixed workload under stress."""

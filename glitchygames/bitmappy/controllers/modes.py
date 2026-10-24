@@ -143,7 +143,7 @@ class ControllerModeState:
             ControllerMode.B_SLIDER,
         }:
             return LocationType.SLIDER
-        return LocationType.FILM_STRIP
+        return LocationType.FILM_STRIP  # pragma: no cover - every ControllerMode is matched above
 
 
 class TriggerDetector:
@@ -363,13 +363,13 @@ class ModeSwitcher:
             return None
 
         if l2_pressed:  # L2 cycle: film strip -> canvas -> R -> G -> B
-            if current_mode not in self.l2_cycle:
+            if current_mode not in self.l2_cycle:  # pragma: no cover - the cycle has every mode
                 return None
             current_index = self.l2_cycle.index(current_mode)
             new_index = (current_index + 1) % len(self.l2_cycle)
             new_mode = self.l2_cycle[new_index]
         else:  # R2 cycle: B -> G -> R -> canvas -> film strip
-            if current_mode not in self.r2_cycle:
+            if current_mode not in self.r2_cycle:  # pragma: no cover - the cycle has every mode
                 return None
             current_index = self.r2_cycle.index(current_mode)
             new_index = (current_index + 1) % len(self.r2_cycle)

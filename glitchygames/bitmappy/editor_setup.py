@@ -12,12 +12,10 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-# Try to import voice recognition, but don't fail if it's not available
-try:
-    from glitchygames.events.voice import VoiceEventManager
-except ImportError:
-    VoiceEventManager = None
-
+# glitchygames.events.voice guards its own optional speech_recognition import,
+# so this import always succeeds
+from glitchygames.events.voice import VoiceEventManager
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.ui import (
     MenuBar,
@@ -167,7 +165,7 @@ class EditorSetup:
         self._create_canvas_sprite(animated_sprite, pixels_across, pixels_tall, pixel_size)
 
         # Finalize setup and start animation
-        self._finalize_canvas_setup(animated_sprite, options)
+        self._finalize_canvas_setup(animated_sprite)
 
     def _calculate_canvas_dimensions(
         self,
@@ -309,30 +307,28 @@ class EditorSetup:
 
         # Debug: Log canvas position and size
         self.editor.log.info(
-            'AnimatedCanvasSprite created at position '
-            f'({self.editor.canvas.rect.x}, {self.editor.canvas.rect.y}) '
-            f'with size {self.editor.canvas.rect.size}',
+            'AnimatedCanvasSprite created at position (%s, %s) with size %s',
+            self.editor.canvas.rect.x,
+            self.editor.canvas.rect.y,
+            self.editor.canvas.rect.size,
         )
-        self.editor.log.info(f'AnimatedCanvasSprite groups: {self.editor.canvas.groups}')
-        self.editor.log.info(f'AnimatedCanvasSprite dirty: {self.editor.canvas.dirty}')
+        self.editor.log.info('AnimatedCanvasSprite groups: %s', self.editor.canvas.groups)
+        self.editor.log.info('AnimatedCanvasSprite dirty: %s', self.editor.canvas.dirty)
 
     @staticmethod
-    def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict[str, Any]) -> None:
+    def _finalize_canvas_setup(animated_sprite: AnimatedSprite) -> None:
         """Finalize canvas setup and start animation.
+
+        The canvas's size lives on the canvas itself (pixels_across / pixels_tall); this no
+        longer sets the class-wide AnimatedCanvasSprite.WIDTH / HEIGHT, which every canvas
+        shared and nothing read (BUGS.md #110 item 2).
 
         Args:
             animated_sprite: The animated sprite to finalize
-            options: Dictionary containing canvas configuration
 
         """
         # Start the animation after everything is set up
         animated_sprite.play()
-
-        size_str = options.get('size')
-        assert size_str is not None
-        width, height = size_str.split('x')
-        AnimatedCanvasSprite.WIDTH = int(width)  # ty: ignore[unresolved-attribute]
-        AnimatedCanvasSprite.HEIGHT = int(height)  # ty: ignore[unresolved-attribute]
 
     # ------------------------------------------------------------------
     # Debug text box / AI label
@@ -418,8 +414,9 @@ class EditorSetup:
 
         **STATUS: DISABLED BY DEFAULT**
 
-        This functionality is implemented but currently disabled in the setup() method
-        (see line 6413-6414). Voice recognition requires:
+        This functionality is implemented but nothing calls it: BitmapEditorScene.__init__
+        (glitchygames/bitmappy/editor.py) leaves it out where its "Voice recognition is
+        currently disabled" comment stands. Voice recognition requires:
         - A microphone to be connected and available
         - The glitchygames.events.voice module to be importable
         - Proper audio system configuration
@@ -443,8 +440,9 @@ class EditorSetup:
         All commands trigger the clear_ai_sprite_box() callback.
 
         **To Enable:**
-        1. Uncomment the call to setup_voice_recognition() in __init__
-        2. Ensure VoiceEventManager is available (imports at lines 37-41)
+        1. Call setup_voice_recognition() from BitmapEditorScene.__init__, at its "Voice
+           recognition is currently disabled" comment
+        2. Ensure speech_recognition is installed (VoiceEventManager.is_available())
         3. Test microphone access and speech recognition accuracy
         4. Verify no performance issues or crashes
 
@@ -459,57 +457,60 @@ class EditorSetup:
         release microphone resources and stop background threads.
 
         """
+        # Voice recognition is optional hardware: any failure to start it leaves it off
         try:
-            if VoiceEventManager is None:
-                self.editor.log.info('Voice recognition not available')
-                self.editor.voice_manager = None
-                return
-            self.editor.voice_manager = VoiceEventManager(logger=self.editor.log)
-
-            if self.editor.voice_manager.is_available():
-                # Register voice commands
-                self.editor.voice_manager.register_command(
-                    'clear the ai sprite box',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai sprite box',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai box',
-                    self.editor.clear_ai_sprite_box,
-                )
-                # Add commands for what speech recognition actually hears
-                self.editor.voice_manager.register_command(
-                    'clear the ai sprite',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai sprite',
-                    self.editor.clear_ai_sprite_box,
-                )
-                # Add command for "window" variation
-                self.editor.voice_manager.register_command(
-                    'clear the ai sprite window',
-                    self.editor.clear_ai_sprite_box,
-                )
-                self.editor.voice_manager.register_command(
-                    'clear ai sprite window',
-                    self.editor.clear_ai_sprite_box,
-                )
-
-                # Start listening for voice commands
-                self.editor.voice_manager.start_listening()
-                self.editor.log.info('Voice recognition initialized and started')
-            else:
-                self.editor.log.warning(
-                    'Voice recognition not available - microphone not found',
-                )
-                self.editor.voice_manager = None
-
+            self._start_voice_recognition()
         except ImportError, OSError, AttributeError, RuntimeError:
             self.editor.log.exception('Failed to initialize voice recognition')
+            self.editor.voice_manager = None
+
+    def _start_voice_recognition(self) -> None:
+        """Create the voice manager, register the voice commands and start listening.
+
+        Sets the editor's ``voice_manager`` to None when no microphone is available.
+        """
+        self.editor.voice_manager = VoiceEventManager(logger=self.editor.log)
+
+        if self.editor.voice_manager.is_available():
+            # Register voice commands
+            self.editor.voice_manager.register_command(
+                'clear the ai sprite box',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai sprite box',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai box',
+                self.editor.clear_ai_sprite_box,
+            )
+            # Add commands for what speech recognition actually hears
+            self.editor.voice_manager.register_command(
+                'clear the ai sprite',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai sprite',
+                self.editor.clear_ai_sprite_box,
+            )
+            # Add command for "window" variation
+            self.editor.voice_manager.register_command(
+                'clear the ai sprite window',
+                self.editor.clear_ai_sprite_box,
+            )
+            self.editor.voice_manager.register_command(
+                'clear ai sprite window',
+                self.editor.clear_ai_sprite_box,
+            )
+
+            # Start listening for voice commands
+            self.editor.voice_manager.start_listening()
+            self.editor.log.info('Voice recognition initialized and started')
+        else:
+            self.editor.log.warning(
+                'Voice recognition not available - microphone not found',
+            )
             self.editor.voice_manager = None
 
     # ------------------------------------------------------------------
@@ -546,13 +547,14 @@ class EditorSetup:
         self.editor.current_pixel_changes = []
         self.editor._is_drag_operation = False  # pyright: ignore[reportPrivateUsage]
         self.editor.pixel_change_timer = None
-        self.editor._applying_undo_redo = False  # pyright: ignore[reportPrivateUsage]
+        self.editor.applying_undo_redo = False
 
         # These are set up in the GameEngine class.
         if not hasattr(self.editor, '_initialized'):
-            self.editor.log.info(f'Game Options: {self.editor.options}')
+            self.editor.log.info('Game Options: %s', self.editor.options)
 
-            # Override font to use a cleaner system font
-            self.editor.options['font_name'] = 'arial'
-            self.editor.log.info(f'Font overridden to: {self.editor.options["font_name"]}')
+            # The bundled Vera: the same on every machine, with no system font scan (which
+            # warns without fontconfig or when it times out: BUGS.md #156)
+            self.editor.options['font_name'] = DEFAULT_FONT_NAME
+            self.editor.log.info('Font overridden to: %s', self.editor.options['font_name'])
             self.editor._initialized = True  # pyright: ignore[reportPrivateUsage]

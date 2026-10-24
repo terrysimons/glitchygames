@@ -109,7 +109,8 @@ class TestRestartCommand:
             ((), True),
             (('--debug-overlay',), False),
             (('--no-debug-overlay',), True),
-            (('--debug',), False),  # an abbreviation argparse accepts
+            # An abbreviation argparse accepts (--debug alone is ambiguous since --debug-events)
+            (('--debug-o',), False),
         ],
         ids=['shown', 'hidden', 'shown_after_hidden', 'abbreviated'],
     )

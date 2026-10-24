@@ -5,6 +5,7 @@ AnimatedSprite and SpriteFrame objects, so each test checks the editor state
 the coordinator leaves behind (selection, scroll offset, frames, strips).
 """
 
+import logging
 from types import SimpleNamespace
 
 import pygame
@@ -13,6 +14,7 @@ import pytest
 from glitchygames.bitmappy.film_strip_coordinator import FilmStripCoordinator
 from glitchygames.bitmappy.history.operations import FilmStripOperationTracker
 from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
+from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 FRAME_WIDTH = 4
@@ -27,7 +29,7 @@ def _display_surface():
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +128,8 @@ class _ControllerHandlerStandIn:
 
     def __init__(self):
         self.reinitialized_with = []
+        # The film strips read this when they render (no controller in film strip mode)
+        self.film_strip_controller_selections = {}
 
     def reinitialize_multi_controller_system(self, preserved_selections):
         """Remember each reinitialization."""
@@ -673,6 +677,9 @@ class TestDeleteAnimation:
         assert list(editor.film_strips) == ['idle']
         assert ('idle', 1) in editor.canvas.shown_frames
         assert editor.undo_redo_manager.undo_stack[-1].animation_name == 'walk'
+        # BUGS.md #99: rebuilding the strips reset the selection to frame 0 afterwards
+        assert editor.selected_frame == 1
+        assert (editor.canvas.current_animation, editor.canvas.current_frame) == ('idle', 1)
 
     def test_confirmed_delete_without_history_still_deletes(self):
         """An editor with no undo tracker still deletes the animation."""
@@ -693,6 +700,8 @@ class TestDeleteAnimation:
         coordinator._select_animation_after_deletion(['idle'], 'walk')
 
         assert ('idle', 1) in editor.canvas.shown_frames
+        assert editor.selected_frame == 1
+        assert (editor.canvas.current_animation, editor.canvas.current_frame) == ('idle', 1)
 
 
 class TestHandleNoRemainingAnimations:
@@ -741,17 +750,6 @@ class TestHandleNoRemainingAnimations:
 # ---------------------------------------------------------------------------
 
 
-class _SceneManagerStandIn:
-    """Scene manager stand-in that remembers the scene switched to."""
-
-    def __init__(self):
-        self.switched_to = []
-
-    def switch_to_scene(self, scene):
-        """Remember the scene."""
-        self.switched_to.append(scene)
-
-
 def _captured_dialog_callbacks(dialog_class_mock):
     """Return the confirm and cancel callbacks a dialog was built with.
 
@@ -763,58 +761,57 @@ def _captured_dialog_callbacks(dialog_class_mock):
     return keyword_arguments['on_confirm_callback'], keyword_arguments['on_cancel_callback']
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AttributeError,
-    reason=(
-        'BUG: FilmStripCoordinator._show_delete_animation_confirmation and '
-        '_show_delete_frame_confirmation switch scenes through self.game_engine, which the '
-        'coordinator never sets, so opening either dialog raises AttributeError'
-    ),
-)
 def test_delete_animation_dialog_opens_from_a_new_coordinator(mocker):
-    """An unconfirmed delete on a freshly built coordinator opens the dialog."""
-    mocker.patch('glitchygames.ui.dialogs.DeleteAnimationDialogScene')
-    _editor, coordinator = _editor_with_real_film_strips(frame_counts={'idle': 1, 'walk': 1})
+    """An unconfirmed delete on a freshly built coordinator opens the dialog (BUGS.md #90)."""
+    dialog_class_mock = mocker.patch('glitchygames.ui.dialogs.DeleteAnimationDialogScene')
+    editor, coordinator = _editor_with_real_film_strips(frame_counts={'idle': 1, 'walk': 1})
 
     coordinator._delete_animation('walk')
 
+    assert editor.next_scene is dialog_class_mock.return_value
+    assert list(editor.canvas.animated_sprite._animations) == ['idle', 'walk']
+
+
+def test_delete_frame_dialog_opens_from_a_new_coordinator(mocker):
+    """Asking to delete a frame on a freshly built coordinator opens the dialog (BUGS.md #90)."""
+    dialog_class_mock = mocker.patch('glitchygames.ui.dialogs.DeleteFrameDialogScene')
+    editor, coordinator = _editor_with_real_film_strips(frame_counts={'walk': 2})
+
+    coordinator._show_delete_frame_confirmation('walk', 1)
+
+    assert editor.next_scene is dialog_class_mock.return_value
+    assert len(editor.canvas.animated_sprite._animations['walk']) == 2
+
 
 class TestDeleteAnimationConfirmation:
-    """The delete animation dialog deletes on confirm and resets tabs on cancel.
-
-    The coordinator never sets game_engine (see the xfail test above), so these
-    tests give it one to reach the dialog's callbacks.
-    """
+    """The delete animation dialog deletes on confirm and resets tabs on cancel."""
 
     def _open_dialog(self, mocker):
         """Open the dialog on an editor with two animations.
 
         Returns:
-            tuple: (editor, scene manager, dialog class mock).
+            tuple: (editor, dialog class mock).
 
         """
         dialog_class_mock = mocker.patch('glitchygames.ui.dialogs.DeleteAnimationDialogScene')
         editor, coordinator = _editor_with_real_film_strips(frame_counts={'idle': 1, 'walk': 1})
         editor.screenshot = pygame.Surface((8, 8))
-        scene_manager = _SceneManagerStandIn()
-        coordinator.game_engine = SimpleNamespace(scene_manager=scene_manager)
 
         coordinator._show_delete_animation_confirmation('walk')
 
-        return editor, scene_manager, dialog_class_mock
+        return editor, dialog_class_mock
 
     def test_dialog_is_shown_over_the_screenshot(self, mocker):
-        """The dialog names the animation, uses the screenshot and is switched to."""
-        editor, scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        """The dialog names the animation, uses the screenshot and is the editor's next scene."""
+        editor, dialog_class_mock = self._open_dialog(mocker)
 
         assert dialog_class_mock.call_args.kwargs['animation_name'] == 'walk'
-        assert scene_manager.switched_to == [dialog_class_mock.return_value]
+        assert editor.next_scene is dialog_class_mock.return_value
         assert dialog_class_mock.return_value.background is editor.screenshot
 
     def test_confirm_deletes_the_animation(self, mocker):
         """Confirming deletes the animation."""
-        editor, _scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        editor, dialog_class_mock = self._open_dialog(mocker)
         on_confirm, _on_cancel = _captured_dialog_callbacks(dialog_class_mock)
 
         on_confirm()
@@ -823,7 +820,7 @@ class TestDeleteAnimationConfirmation:
 
     def test_cancel_resets_the_tab_states(self, mocker):
         """Cancelling keeps the animation and resets every strip's tabs."""
-        editor, _scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        editor, dialog_class_mock = self._open_dialog(mocker)
         _on_confirm, on_cancel = _captured_dialog_callbacks(dialog_class_mock)
         widget = _StripWidgetStandIn()
         editor.film_strip_sprites = {
@@ -840,40 +837,34 @@ class TestDeleteAnimationConfirmation:
 
 
 class TestDeleteFrameConfirmation:
-    """The delete frame dialog removes the frame on confirm and clears hover on cancel.
-
-    The coordinator never sets game_engine (see the xfail test above), so these
-    tests give it one to reach the dialog's callbacks.
-    """
+    """The delete frame dialog removes the frame on confirm and clears hover on cancel."""
 
     def _open_dialog(self, mocker):
         """Open the dialog for walk[1].
 
         Returns:
-            tuple: (editor, strip widget, scene manager, dialog class mock).
+            tuple: (editor, strip widget, dialog class mock).
 
         """
         dialog_class_mock = mocker.patch('glitchygames.ui.dialogs.DeleteFrameDialogScene')
         editor = _editor_with_strip_stand_ins(frame_counts={'walk': 2})
         editor.film_strip_sprites['other'] = _strip_sprite(widget=None)
         coordinator = FilmStripCoordinator(editor)
-        scene_manager = _SceneManagerStandIn()
-        coordinator.game_engine = SimpleNamespace(scene_manager=scene_manager)
 
         coordinator._show_delete_frame_confirmation('walk', 1)
 
-        return editor, editor.film_strips['walk'], scene_manager, dialog_class_mock
+        return editor, editor.film_strips['walk'], dialog_class_mock
 
     def test_dialog_is_shown(self, mocker):
-        """The dialog names the frame and is switched to."""
-        _editor, _widget, scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        """The dialog names the frame and is the editor's next scene."""
+        editor, _widget, dialog_class_mock = self._open_dialog(mocker)
 
         assert dialog_class_mock.call_args.kwargs['frame_index'] == 1
-        assert scene_manager.switched_to == [dialog_class_mock.return_value]
+        assert editor.next_scene is dialog_class_mock.return_value
 
     def test_confirm_removes_the_frame(self, mocker):
         """Confirming asks the strip widget to remove the frame."""
-        _editor, widget, _scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        _editor, widget, dialog_class_mock = self._open_dialog(mocker)
         on_confirm, _on_cancel = _captured_dialog_callbacks(dialog_class_mock)
 
         on_confirm()
@@ -882,7 +873,7 @@ class TestDeleteFrameConfirmation:
 
     def test_cancel_clears_the_removal_hover(self, mocker):
         """Cancelling clears the hovered removal button and redraws the strip."""
-        editor, widget, _scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        editor, widget, dialog_class_mock = self._open_dialog(mocker)
         _on_confirm, on_cancel = _captured_dialog_callbacks(dialog_class_mock)
         widget.hovered_removal_button = 1
 
@@ -894,7 +885,7 @@ class TestDeleteFrameConfirmation:
 
     def test_callbacks_do_nothing_for_a_strip_without_a_widget(self, mocker):
         """With the strip's widget gone, confirm and cancel change nothing."""
-        editor, widget, _scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        editor, widget, dialog_class_mock = self._open_dialog(mocker)
         on_confirm, on_cancel = _captured_dialog_callbacks(dialog_class_mock)
         editor.film_strip_sprites['walk'].film_strip_widget = None
         widget.hovered_removal_button = 1
@@ -907,7 +898,7 @@ class TestDeleteFrameConfirmation:
 
     def test_callbacks_do_nothing_for_a_removed_strip(self, mocker):
         """With the strip gone, confirm and cancel change nothing."""
-        editor, widget, _scene_manager, dialog_class_mock = self._open_dialog(mocker)
+        editor, widget, dialog_class_mock = self._open_dialog(mocker)
         on_confirm, on_cancel = _captured_dialog_callbacks(dialog_class_mock)
         del editor.film_strip_sprites['walk']
 
@@ -1133,7 +1124,10 @@ class TestOnAnimationRename:
             animated_sprite=_make_animated_sprite(frame_counts={'other': 1}),
         )
         frames = [_make_frame()]
-        unordered_sprite = SimpleNamespace(_animations={'walk': frames})
+        # Never loaded from a file: it keeps no animation order of its own
+        unordered_sprite = AnimatedSprite()
+        unordered_sprite.add_animation('walk', frames)
+        assert not unordered_sprite.has_own_animation_order
         unordered_widget = _StripWidgetStandIn(animated_sprite=unordered_sprite)
         other_current_sprite = _make_animated_sprite(frame_counts={'idle': 1, 'walk': 1})
         other_current_widget = _StripWidgetStandIn(animated_sprite=other_current_sprite)
@@ -1144,6 +1138,7 @@ class TestOnAnimationRename:
 
         assert list(unrelated_widget.animated_sprite._animations) == ['other']
         assert unordered_sprite._animations == {'stroll': frames}
+        assert not unordered_sprite.has_own_animation_order
         assert other_current_sprite.frame_manager.current_animation == 'idle'
 
     def test_layout_failure_after_rename_is_logged(self):
@@ -1914,8 +1909,6 @@ class TestCancelWithoutStripSprites:
         dialog_class_mock = mocker.patch('glitchygames.ui.dialogs.DeleteAnimationDialogScene')
         editor = _EditorStandIn(animated_sprite=_make_animated_sprite(frame_counts={'a': 1}))
         coordinator = FilmStripCoordinator(editor)
-        # The coordinator never sets game_engine (see the xfail test above)
-        coordinator.game_engine = SimpleNamespace(scene_manager=_SceneManagerStandIn())
         coordinator._show_delete_animation_confirmation('a')
         _on_confirm, on_cancel = _captured_dialog_callbacks(dialog_class_mock)
         del editor.film_strip_sprites
@@ -2127,3 +2120,38 @@ class TestCallsWithoutStrips:
 
         assert editor.film_strips == {}
         assert editor.selected_animation is None
+
+
+class TestLogFilmStripDebugState:
+    """_log_film_strip_debug_state reports what the canvas offers for film strip creation."""
+
+    def test_sprite_without_animations_attribute_logs_no_animations(self, caplog):
+        """A canvas sprite with no _animations attribute is reported, but its animations are not."""
+        editor = _EditorStandIn()
+        editor.canvas = SimpleNamespace(animated_sprite=SimpleNamespace())
+        coordinator = FilmStripCoordinator(editor)
+
+        with caplog.at_level(logging.DEBUG, logger='game.tools.bitmappy'):
+            coordinator._log_film_strip_debug_state()
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert (
+            "DEBUG: hasattr(self.editor.canvas.animated_sprite, '_animations'): False" in messages
+        )
+        assert not any(
+            message.startswith('DEBUG: self.editor.canvas.animated_sprite._animations:')
+            for message in messages
+        )
+
+    def test_sprite_with_animations_logs_them(self, caplog):
+        """A canvas sprite with animations has them logged."""
+        editor = _EditorStandIn(animated_sprite=_make_animated_sprite(frame_counts={'walk': 1}))
+        coordinator = FilmStripCoordinator(editor)
+
+        with caplog.at_level(logging.DEBUG, logger='game.tools.bitmappy'):
+            coordinator._log_film_strip_debug_state()
+
+        assert any(
+            record.getMessage().startswith('DEBUG: self.editor.canvas.animated_sprite._animations:')
+            for record in caplog.records
+        )

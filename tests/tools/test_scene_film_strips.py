@@ -1,71 +1,50 @@
 """Tests for scene-based film strip system."""
 
 from glitchygames.bitmappy import editor as bitmappy
-from glitchygames.bitmappy.editor_setup import EditorSetup
-from tests.mocks import MockFactory
+from glitchygames.bitmappy.film_strip import FilmStripWidget
+from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
+from tests.tools.test_film_strip_base import make_real_animated_sprite
 
-# Test constants to avoid magic values
-ANIMATION_COUNT = 3
+
+def build_editor_with_sprite(*, frame_counts):
+    """Build a real editor scene on the real display and load a sprite into it.
+
+    Returns:
+        tuple: The scene and the loaded sprite.
+
+    """
+    animated_sprite = make_real_animated_sprite(frame_counts=frame_counts)
+    scene = bitmappy.BitmapEditorScene(
+        options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
+    )
+    scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
+    return scene, animated_sprite
 
 
 class TestSceneFilmStrips:
     """Test the new scene-based film strip system."""
 
-    def test_scene_film_strips_creation(self, mock_pygame_patches, mocker):
-        """Test that scene creates film strips correctly."""
-        # Create mock animated sprite
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+    def test_scene_film_strips_creation(self):
+        """Test that the scene creates a film strip and its sprite for the animation."""
+        scene, _animated_sprite = build_editor_with_sprite(frame_counts={'idle': 5})
 
-        # Mock _setup_menu_bar to avoid real pygame sprite group operations
-        # which are not safe under parallel test execution
-        mocker.patch.object(EditorSetup, 'setup_menu_bar')
+        assert set(scene.film_strips) == {'idle'}
+        assert set(scene.film_strip_sprites) == {'idle'}
 
-        # Create scene with mock sprite (using centralized mocks)
-        scene = bitmappy.BitmapEditorScene(
-            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
+        film_strip = scene.film_strips['idle']
+        film_strip_sprite = scene.film_strip_sprites['idle']
+        assert isinstance(film_strip, FilmStripWidget)
+        assert isinstance(film_strip_sprite, FilmStripSprite)
+        assert film_strip_sprite.film_strip_widget is film_strip
+        assert len(film_strip.animated_sprite.animations['idle']) == 5
+
+    def test_scene_film_strips_multiple_animations(self):
+        """Test that each animation gets its own film strip."""
+        scene, _animated_sprite = build_editor_with_sprite(
+            frame_counts={'idle': 5, 'walk': 5, 'jump': 5},
         )
 
-        # Load the sprite
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
-
-        # Test that film strips are created using the new dictionary-based system
-        assert hasattr(scene, 'film_strips')
-        assert hasattr(scene, 'film_strip_sprites')
-        assert len(scene.film_strips) > 0
-        assert len(scene.film_strip_sprites) > 0
-
-        # Test that film strips are properly accessible
-        # Each animation should have its own film strip
-        for anim_name in scene.film_strips:
-            assert anim_name in scene.film_strip_sprites
-            assert scene.film_strips[anim_name] is not None
-            assert scene.film_strip_sprites[anim_name] is not None
-
-    def test_scene_film_strips_multiple_animations(self, mock_pygame_patches, mocker):
-        """Test scene with multiple animations."""
-        # Create mock sprite with multiple animations
-        mock_sprite = MockFactory.create_animated_sprite_mock()
-        mock_sprite._animations['walk'] = mock_sprite._animations['idle'].copy()
-        mock_sprite._animations['jump'] = mock_sprite._animations['idle'].copy()
-
-        # Mock _setup_menu_bar to avoid real pygame sprite group operations
-        # which are not safe under parallel test execution
-        mocker.patch.object(EditorSetup, 'setup_menu_bar')
-
-        # Create scene (using centralized mocks)
-        scene = bitmappy.BitmapEditorScene(
-            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
-        )
-
-        # Load the sprite
-        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
-
-        # Test that multiple film strips are created
-        # Check for at least the animations we added (mock may create others)
-        assert len(scene.film_strips) >= ANIMATION_COUNT  # At least idle, walk, jump
-        assert len(scene.film_strip_sprites) >= ANIMATION_COUNT
-
-        # Test that each animation we added has its own film strip
-        for anim_name in ['idle', 'walk', 'jump']:
-            assert anim_name in scene.film_strips
-            assert anim_name in scene.film_strip_sprites
+        assert set(scene.film_strips) == {'idle', 'walk', 'jump'}
+        assert set(scene.film_strip_sprites) == {'idle', 'walk', 'jump'}
+        for animation_name, film_strip in scene.film_strips.items():
+            assert film_strip.current_animation == animation_name

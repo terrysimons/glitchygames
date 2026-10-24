@@ -103,6 +103,27 @@ class TestTransitionLifecycle:
         # ease_in_quad at 0.5 = 0.25 (not 0.5)
         assert transition.eased_progress < transition.progress
 
+    def test_update_after_completion_reports_done_without_advancing(
+        self, surfaces: tuple, mocker
+    ) -> None:
+        """A completed transition stays complete and no longer calls on_update."""
+        old, new, _screen = surfaces
+        on_update = mocker.Mock()
+        transition = Transition(duration=0.5, on_update=on_update)
+        transition.start(old, new)
+        assert transition.update(0.5) is True
+        on_update.reset_mock()
+        assert transition.update(0.5) is True
+        assert transition.state == TransitionState.COMPLETE
+        on_update.assert_not_called()
+
+    def test_update_before_start_reports_done(self) -> None:
+        """An idle transition has nothing to run, so update reports it finished."""
+        transition = Transition(duration=1.0)
+        assert transition.update(0.1) is True
+        assert transition.state == TransitionState.IDLE
+        assert transition.progress == 0.0
+
     def test_render_does_not_crash_before_start(self, surfaces: tuple) -> None:
         """Render before start is a no-op (no crash)."""
         _old, _new, screen = surfaces
@@ -185,6 +206,23 @@ class TestSlideTransition:
         slide.start(old, new)
         assert slide.update(0.9) is True
 
+    def test_unknown_direction_draws_nothing(self, surfaces: tuple) -> None:
+        """A direction the slide does not know leaves the screen untouched.
+
+        Unlike WipeTransition (which falls back to a full reveal), SlideTransition draws
+        neither scene for an unknown direction.
+        """
+        old, new, screen = surfaces
+        old.fill((255, 0, 0))
+        new.fill((0, 0, 255))
+        screen.fill((0, 255, 0))
+        slide = SlideTransition(direction='diagonal', duration=1.0, easing='linear')
+        slide.start(old, new)
+        slide.update(0.25)
+        slide.render(screen)
+        for corner in ((0, 0), (199, 0), (0, 149), (199, 149)):
+            assert screen.get_at(corner)[:3] == (0, 255, 0)
+
     def test_slide_up_for_elevator(self, surfaces: tuple) -> None:
         """Slide up (elevator transition) works without error."""
         old, new, screen = surfaces
@@ -206,6 +244,19 @@ class TestWipeTransition:
             wipe.start(old, new)
             wipe.update(0.25)
             wipe.render(screen)
+
+    def test_unknown_direction_reveals_the_whole_new_scene(self, surfaces: tuple) -> None:
+        """A direction the wipe does not know shows the new scene in full at once."""
+        old, new, screen = surfaces
+        old.fill((255, 0, 0))
+        new.fill((0, 0, 255))
+        screen.fill((0, 255, 0))
+        wipe = WipeTransition(direction='diagonal', duration=1.0, easing='linear')
+        wipe.start(old, new)
+        wipe.update(0.25)
+        wipe.render(screen)
+        for corner in ((0, 0), (199, 0), (0, 149), (199, 149)):
+            assert screen.get_at(corner)[:3] == (0, 0, 255)
 
     def test_completes_in_duration(self, surfaces: tuple) -> None:
         """Wipe completes after the specified duration."""
@@ -316,3 +367,65 @@ class TestElevatorTransitionClamp:
             area = screen.blit_areas[0]
             assert 0 <= area.top <= transition._total_scroll
             screen.blit_areas.clear()
+
+
+# A 32-bit format with an alpha mask: cocoa's display format (glitchygames/opacity.py). Its
+# screenshots carry it, so the elevator's surfaces made in their format carry alpha as on macOS
+PER_PIXEL_ALPHA_MASKS = (0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000)
+OLD_FLOOR_COLOR = (110, 75, 45)
+NEW_FLOOR_COLOR = (30, 30, 35)
+
+
+def per_pixel_alpha_surface(
+    *, size: tuple[int, int], color: tuple[int, int, int]
+) -> pygame.Surface:
+    """Return an opaque surface in cocoa's display format, as its screenshots are.
+
+    Returns:
+        The surface, filled with the colour at alpha 255.
+
+    """
+    surface = pygame.Surface(size, pygame.SRCALPHA, depth=32, masks=PER_PIXEL_ALPHA_MASKS)
+    surface.fill((*color, 255))
+    return surface
+
+
+class TestElevatorTransitionOnPerPixelAlphaDisplays:
+    """The ride on a display whose pixels carry alpha (macOS): no black box around the player.
+
+    The composite was a plain Surface: on cocoa it takes the display's format (an alpha mask
+    without SRCALPHA), and blending the screenshots onto it left alpha 0 (BUGS.md #142). The
+    display then held alpha 0 under the player, where pygame's blit copies a source pixel
+    outright, so the player's transparent pixels were drawn as black.
+    """
+
+    def test_the_player_shows_the_floor_through_its_transparent_pixels(self):
+        """Around the player's one opaque pixel the old floor shows, opaque."""
+        old = per_pixel_alpha_surface(size=(200, 150), color=OLD_FLOOR_COLOR)
+        new = per_pixel_alpha_surface(size=(200, 150), color=NEW_FLOOR_COLOR)
+        player = pygame.Surface((10, 20), pygame.SRCALPHA)
+        player.set_at((5, 10), (200, 0, 0, 255))
+        screen = per_pixel_alpha_surface(size=(200, 150), color=(0, 0, 0))
+        transition = ElevatorTransition(duration=1.0, player_surface=player)
+        transition.start(old, new)
+
+        transition.render(screen)
+
+        # The platform is centred, a third of the height up; the player stands on it, centred
+        player_left = (200 - 60) // 2 + (60 - 10) // 2
+        player_top = 150 - 150 // 3 - 20
+        assert screen.get_at((player_left, player_top)) == (*OLD_FLOOR_COLOR, 255)
+        assert screen.get_at((player_left + 5, player_top + 10)) == (200, 0, 0, 255)
+
+    def test_the_composite_is_opaque_in_the_screenshots_format(self):
+        """Every composite pixel has alpha 255, in the format the screenshots came in."""
+        old = per_pixel_alpha_surface(size=(200, 150), color=OLD_FLOOR_COLOR)
+        new = per_pixel_alpha_surface(size=(200, 150), color=NEW_FLOOR_COLOR)
+        transition = ElevatorTransition(duration=1.0, shaft_height=40)
+        transition.start(old, new)
+
+        composite = transition._composite
+        assert composite is not None
+        assert composite.get_masks() == PER_PIXEL_ALPHA_MASKS
+        alpha_values = pygame.image.tobytes(composite, 'RGBA')[3::4]
+        assert set(alpha_values) == {255}

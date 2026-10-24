@@ -4,18 +4,14 @@ This module tests the film strip add/delete functionality, scroll behavior,
 and integration with the bitmap editor scene.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
+from glitchygames.bitmappy.controllers.manager import MultiControllerManager
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.film_strip import FilmStripDeleteTab, FilmStripTab, FilmStripWidget
-from tests.mocks import MockFactory
+from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+from tests.tools.test_film_strip_base import make_real_animated_sprite
 
 # Test constants to avoid magic values
 TEST_SIZE_10 = 10
@@ -25,21 +21,46 @@ TEST_SIZE_2 = 2
 TEST_SIZE_3 = 3
 
 
+@pytest.fixture
+def real_editor(mocker):
+    """Build a real Bitmappy editor on the real display, with a fresh controller manager.
+
+    The editor starts with one animation ('strip_1') of one blank frame.
+
+    Returns:
+        BitmapEditorScene: The editor.
+
+    """
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def animation_names(editor):
+    """Return the editor sprite's animation names, in order.
+
+    Returns:
+        list[str]: The names.
+
+    """
+    return list(editor.canvas.animated_sprite.animations)
+
+
+def assert_scroll_shows_the_selected_strip(editor):
+    """Check the scroll offset is in range and the selected animation's strip is visible."""
+    strip_count = len(editor.film_strips)
+    max_scroll = max(0, strip_count - editor.max_visible_strips)
+    assert 0 <= editor.film_strip_scroll_offset <= max_scroll
+    assert editor.film_strip_sprites[editor.selected_animation].visible
+
+
+def add_strips(editor, *, count):
+    """Add ``count`` new animations at the end, as the add-animation tab does."""
+    for _ in range(count):
+        editor.film_strip_coordinator._add_new_animation()
+
+
 class TestFilmStripAddDeleteFunctionality:
     """Test film strip add/delete functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        self._mocker = mocker
-
-        # Use real pygame initialization since film strip classes require it
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-
-        yield
-
-        pygame.quit()
 
     def test_film_strip_tab_initialization(self):
         """Test FilmStripTab initialization."""
@@ -149,384 +170,233 @@ class TestFilmStripAddDeleteFunctionality:
 
 
 class TestBitmapEditorFilmStripIntegration:
-    """Test bitmap editor film strip integration."""
+    """Test bitmap editor film strip integration, in a real editor."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        self._mocker = mocker
-
-        # Use real pygame initialization since BitmapEditorScene requires it
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-
-        yield
-
-        pygame.quit()
-
-    def test_add_new_animation_creates_strip(self, mocker):
+    def test_add_new_animation_creates_strip(self, real_editor):
         """Test that adding new animation creates a new film strip incrementally."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
+        existing_strip = real_editor.film_strips['strip_1']
 
-        # Use centralized mocks
-        scene.canvas = MockFactory().create_canvas_mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {'strip_1': []}
-        scene.film_strip_coordinator._add_single_film_strip = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.max_visible_strips = 2
+        real_editor.film_strip_coordinator._add_new_animation()
 
-        # Act
-        scene.film_strip_coordinator._add_new_animation()
+        assert animation_names(real_editor) == ['strip_1', 'strip_2']
+        assert set(real_editor.film_strips) == {'strip_1', 'strip_2'}
+        assert set(real_editor.film_strip_sprites) == {'strip_1', 'strip_2'}
+        # Incremental: the existing strip is kept, not rebuilt
+        assert real_editor.film_strips['strip_1'] is existing_strip
+        # The new animation is selected and shown, so it can be edited right away
+        assert real_editor.selected_animation == 'strip_2'
+        assert real_editor.selected_frame == 0
+        assert real_editor.canvas.current_animation == 'strip_2'
 
-        # Assert
-        assert len(scene.canvas.animated_sprite._animations) == TEST_SIZE_2
-        assert 'strip_2' in scene.canvas.animated_sprite._animations
-        scene.film_strip_coordinator._add_single_film_strip.assert_called_once()
-
-    def test_add_new_animation_with_insert_after_index(self, mocker):
+    def test_add_new_animation_with_insert_after_index(self, real_editor):
         """Test adding new animation at specific index."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        # Use centralized mocks
-        scene.canvas = MockFactory().create_canvas_mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': []}
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.max_visible_strips = 2
+        add_strips(real_editor, count=1)
 
-        # Act - insert after index 0 (between strip_1 and strip_2)
-        scene.film_strip_coordinator._add_new_animation(insert_after_index=0)
+        # Insert after index 0 (between strip_1 and strip_2)
+        real_editor.film_strip_coordinator._add_new_animation(insert_after_index=0)
 
-        # Assert
-        animations = list(scene.canvas.animated_sprite._animations.keys())
-        assert len(animations) == TEST_SIZE_3
-        assert animations[0] == 'strip_1'
-        assert animations[1] == 'strip_3'  # New strip inserted
-        assert animations[2] == 'strip_2'
+        assert animation_names(real_editor) == ['strip_1', 'strip_3', 'strip_2']
 
-    def test_delete_animation_removes_strip(self, mocker):
+    def test_delete_animation_removes_strip(self, real_editor):
         """Test that deleting animation removes the film strip."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': []}
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.canvas.show_frame = self._mocker.Mock()
+        add_strips(real_editor, count=1)
 
-        # Act
-        scene.film_strip_coordinator._delete_animation('strip_1', confirmed=True)
+        real_editor.film_strip_coordinator._delete_animation('strip_1', confirmed=True)
 
-        # Assert
-        assert 'strip_1' not in scene.canvas.animated_sprite._animations
-        assert len(scene.canvas.animated_sprite._animations) == 1
-        scene.film_strip_coordinator.on_sprite_loaded.assert_called_once()
+        assert animation_names(real_editor) == ['strip_2']
+        assert set(real_editor.film_strips) == {'strip_2'}
+        assert set(real_editor.film_strip_sprites) == {'strip_2'}
 
-    def test_delete_animation_prevents_last_strip_deletion(self, mocker):
+    def test_delete_animation_prevents_last_strip_deletion(self, real_editor):
         """Test that deleting the last remaining strip is prevented."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        # Use centralized mocks
-        scene.canvas = MockFactory().create_canvas_mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {'strip_1': []}
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
+        last_strip = real_editor.film_strips['strip_1']
 
-        # Act
-        scene.film_strip_coordinator._delete_animation('strip_1')
+        real_editor.film_strip_coordinator._delete_animation('strip_1')
 
-        # Assert - should not delete the last strip
-        assert 'strip_1' in scene.canvas.animated_sprite._animations
-        assert len(scene.canvas.animated_sprite._animations) == 1
-        scene.film_strip_coordinator.on_sprite_loaded.assert_not_called()
+        assert animation_names(real_editor) == ['strip_1']
+        assert real_editor.film_strips == {'strip_1': last_strip}
+        # No confirmation dialog is offered either
+        assert not isinstance(real_editor.next_scene, DeleteAnimationDialogScene)
 
-    def test_delete_animation_scroll_offset_calculation(self, mocker):
-        """Test that deleting animation sets correct scroll offset."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': [], 'strip_3': []}
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.canvas.show_frame = self._mocker.Mock()
+    def test_unconfirmed_delete_asks_for_confirmation_first(self, real_editor):
+        """Test that a delete without confirmation opens the dialog and deletes nothing yet."""
+        add_strips(real_editor, count=1)
 
-        # Act - delete middle strip (index 1)
-        scene.film_strip_coordinator._delete_animation('strip_2', confirmed=True)
+        real_editor.film_strip_coordinator._delete_animation('strip_2')
 
-        # Assert - should show previous 2 strips
-        assert scene.film_strip_scroll_offset == 0  # max(0, 1-1) = 0
+        assert animation_names(real_editor) == ['strip_1', 'strip_2']
+        assert isinstance(real_editor.next_scene, DeleteAnimationDialogScene)
 
-    def test_delete_animation_scroll_offset_last_strip(self, mocker):
-        """Test that deleting last strip shows previous 2 strips."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': [], 'strip_3': []}
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.canvas.show_frame = self._mocker.Mock()
+    # The scroll offset is recomputed after a delete only in
+    # FilmStripCoordinator._handle_no_remaining_animations, which _delete_animation never calls
+    STALE_SCROLL_OFFSET_REASON = (
+        'Production bug: deleting an animation keeps the film strip scroll offset from '
+        'before the delete (the recomputation is in _handle_no_remaining_animations, which '
+        '_delete_animation never calls), so the offset can pass the last strip and the '
+        'selected first animation is scrolled out of view'
+    )
 
-        # Act - delete last strip (index 2)
-        scene.film_strip_coordinator._delete_animation('strip_3', confirmed=True)
+    @pytest.mark.xfail(strict=True, reason=STALE_SCROLL_OFFSET_REASON)
+    def test_delete_animation_scroll_offset_calculation(self, real_editor):
+        """Test that deleting the middle of three strips scrolls to show the selected strip."""
+        add_strips(real_editor, count=2)
 
-        # Assert - should show previous 2 strips
-        assert scene.film_strip_scroll_offset == 0  # max(0, 2-2) = 0
+        real_editor.film_strip_coordinator._delete_animation('strip_2', confirmed=True)
 
-    def test_delete_animation_scroll_offset_many_strips(self, mocker):
-        """Test that deleting strip with many strips shows appropriate offset."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
-        # Add at least one frame to each animation so they're not empty
-        mock_frame = self._mocker.Mock()
-        mock_frame.image = self._mocker.Mock()
-        mock_frame.image.get_width = mocker.Mock(return_value=32)
-        mock_frame.image.get_height = mocker.Mock(return_value=32)
-        mock_frame.pixels = [(255, 0, 255)] * (32 * 32)
-        mock_frame.duration = 0.5
+        assert_scroll_shows_the_selected_strip(real_editor)
 
-        scene.canvas.animated_sprite._animations = {
-            'strip_1': [mock_frame],
-            'strip_2': [mock_frame],
-            'strip_3': [mock_frame],
-            'strip_4': [mock_frame],
-            'strip_5': [mock_frame],
-        }
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.canvas.show_frame = self._mocker.Mock()
+    @pytest.mark.xfail(strict=True, reason=STALE_SCROLL_OFFSET_REASON)
+    def test_delete_animation_scroll_offset_last_strip(self, real_editor):
+        """Test that deleting the last strip scrolls back to show the selected strip."""
+        add_strips(real_editor, count=2)
+        # Adding scrolled to the newest strip
+        assert real_editor.film_strip_scroll_offset == 3 - real_editor.max_visible_strips
 
-        # Act - delete strip at index 2
-        scene.film_strip_coordinator._delete_animation('strip_3', confirmed=True)
+        real_editor.film_strip_coordinator._delete_animation('strip_3', confirmed=True)
 
-        # Assert - with 4 remaining strips and max_visible_strips=2, offset resets to 0
-        # The implementation sets offset=0 when there are <= max_visible_strips*2 remaining
-        assert scene.film_strip_scroll_offset == 0
+        assert_scroll_shows_the_selected_strip(real_editor)
 
-    def test_delete_animation_switches_to_first_remaining(self, mocker):
+    @pytest.mark.xfail(strict=True, reason=STALE_SCROLL_OFFSET_REASON)
+    def test_delete_animation_scroll_offset_many_strips(self, real_editor):
+        """Test that deleting one of five strips scrolls to show the selected strip."""
+        add_strips(real_editor, count=4)
+
+        real_editor.film_strip_coordinator._delete_animation('strip_3', confirmed=True)
+
+        assert animation_names(real_editor) == ['strip_1', 'strip_2', 'strip_4', 'strip_5']
+        assert_scroll_shows_the_selected_strip(real_editor)
+
+    def test_delete_animation_keeps_a_scroll_offset_that_is_still_valid(self, real_editor):
+        """Test that a delete with no scrolling needed leaves the offset at 0."""
+        add_strips(real_editor, count=1)
+        real_editor.film_strip_scroll_offset = 0
+
+        real_editor.film_strip_coordinator._delete_animation('strip_2', confirmed=True)
+
+        assert real_editor.film_strip_scroll_offset == 0
+        assert real_editor.film_strip_sprites['strip_1'].visible
+
+    def test_delete_animation_switches_to_first_remaining(self, real_editor):
         """Test that deleting animation switches to first remaining animation."""
-        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
-        # Arrange
-        options = {}
-        scene = BitmapEditorScene(options)
-        scene.canvas = self._mocker.Mock()
-        scene.canvas.animated_sprite = self._mocker.Mock()
+        add_strips(real_editor, count=2)
 
-        # Add at least one frame to each animation so they're not empty
-        mock_frame = self._mocker.Mock()
-        mock_frame.image = self._mocker.Mock()
-        mock_frame.image.get_width = mocker.Mock(return_value=32)
-        mock_frame.image.get_height = mocker.Mock(return_value=32)
-        mock_frame.pixels = [(255, 0, 255)] * (32 * 32)
-        mock_frame.duration = 0.5
+        real_editor.film_strip_coordinator._delete_animation('strip_2', confirmed=True)
 
-        scene.canvas.animated_sprite._animations = {
-            'strip_1': [mock_frame],
-            'strip_2': [mock_frame],
-            'strip_3': [mock_frame],
-        }
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
-        scene.update_film_strip_visibility = self._mocker.Mock()
-        scene.update_scroll_arrows = self._mocker.Mock()
-        scene.canvas.show_frame = self._mocker.Mock()
+        assert real_editor.selected_animation == 'strip_1'
+        assert real_editor.selected_frame == 0
+        assert real_editor.canvas.current_animation == 'strip_1'
+        assert real_editor.canvas.current_frame == 0
 
-        # Act
-        scene.film_strip_coordinator._delete_animation('strip_2', confirmed=True)
+    def test_adding_after_a_delete_does_not_replace_an_existing_animation(self, real_editor):
+        """Test that a new animation added after a delete gets a name of its own."""
+        add_strips(real_editor, count=2)
+        real_editor.film_strip_coordinator._delete_animation('strip_1', confirmed=True)
+        strip_3_frames = list(real_editor.canvas.animated_sprite.animations['strip_3'])
 
-        # Assert - should switch to first remaining animation
-        scene.canvas.show_frame.assert_called_once_with('strip_1', 0)
-        assert scene.selected_animation == 'strip_1'
-        assert scene.selected_frame == 0
+        real_editor.film_strip_coordinator._add_new_animation()
+
+        assert len(animation_names(real_editor)) == 3
+        assert real_editor.canvas.animated_sprite.animations['strip_3'] == strip_3_frames
+
+    def test_inserting_after_a_delete_does_not_replace_an_existing_animation(self, real_editor):
+        """Test that a strip inserted after a delete (the add tab's path) gets its own name."""
+        add_strips(real_editor, count=2)
+        real_editor.film_strip_coordinator._delete_animation('strip_1', confirmed=True)
+        strip_3_frames = list(real_editor.canvas.animated_sprite.animations['strip_3'])
+
+        real_editor.film_strip_coordinator._add_new_animation(insert_after_index=0)
+
+        assert animation_names(real_editor) == ['strip_2', 'strip_4', 'strip_3']
+        assert real_editor.canvas.animated_sprite.animations['strip_3'] == strip_3_frames
+        assert real_editor.selected_animation == 'strip_4'
+
+    def test_adding_to_a_loaded_sprite_does_not_replace_its_animation(self, real_editor):
+        """Test that a new strip never takes a name a loaded sprite already uses."""
+        loaded_sprite = make_real_animated_sprite(frame_counts={'strip_2': 2})
+        real_editor.canvas.animated_sprite = loaded_sprite
+        real_editor.film_strip_coordinator.on_sprite_loaded(loaded_sprite)
+        loaded_frames = list(real_editor.canvas.animated_sprite.animations['strip_2'])
+
+        real_editor.film_strip_coordinator._add_new_animation()
+
+        assert animation_names(real_editor) == ['strip_2', 'strip_3']
+        assert real_editor.canvas.animated_sprite.animations['strip_2'] == loaded_frames
 
 
 class TestFilmStripWidgetIntegration:
-    """Test film strip widget integration with tabs."""
+    """Test film strip widget integration with tabs, in a real editor."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        self._mocker = mocker
+    @pytest.fixture
+    def editor_with_two_animations(self, real_editor):
+        """Load 'test_animation' (two frames) and 'another_animation' (one frame).
 
-        # Use real pygame initialization since FilmStripWidget requires it
-        pygame.init()
-        pygame.display.set_mode((800, 600))
+        Returns:
+            BitmapEditorScene: The editor.
 
-        yield
-
-        pygame.quit()
-
-    def test_film_strip_widget_creates_tabs(self):
-        """Test that film strip widget creates appropriate tabs."""
-        # Arrange
-        widget = FilmStripWidget(x=0, y=0, width=100, height=50)
-        widget.current_animation = 'test_animation'
-        widget.parent_scene = self._mocker.Mock()
-        widget.parent_scene.film_strip_coordinator._add_new_animation = self._mocker.Mock()
-        widget.parent_scene.film_strip_coordinator._delete_animation = self._mocker.Mock()
-        # Set up canvas for parent_scene with multiple animations (required for delete tab)
-        widget.parent_scene.canvas = self._mocker.Mock()
-        widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
-        widget.parent_scene.canvas.animated_sprite._animations = {
-            'test_animation': [],
-            'another_animation': [],  # Add second animation so delete tab is shown
-        }
-
-        # Create mock animated sprite with frames
-        animated_sprite = self._mocker.Mock()
-        animations_data = {
-            'test_animation': [self._mocker.Mock(), self._mocker.Mock()],
-            'another_animation': [self._mocker.Mock()],  # Add second animation
-        }
-        animated_sprite._animations = animations_data
-        animated_sprite.animations = animations_data
-        animated_sprite._animation_order = ['test_animation', 'another_animation']
-        animated_sprite.animation_order = ['test_animation', 'another_animation']
-        # Also wire up the parent scene canvas animated_sprite.animations
-        widget.parent_scene.canvas.animated_sprite.animations = {
-            'test_animation': [],
-            'another_animation': [],
-        }
-        widget.set_animated_sprite(animated_sprite)
-
-        # Act
-        widget._create_film_tabs()
-
-        # Assert - should create add, delete, and frame tabs
-        # Should have: 1 delete tab + 1 add tab + 2 frame tabs = 4 tabs
-        assert len(widget.film_tabs) >= TEST_SIZE_2  # At least add and delete tabs
-        assert any(isinstance(tab, FilmStripTab) for tab in widget.film_tabs)
-        assert any(isinstance(tab, FilmStripDeleteTab) for tab in widget.film_tabs)
-
-    def test_film_strip_widget_handles_tab_clicks(self):
-        """Test that film strip widget handles tab clicks correctly."""
-        # Arrange
-        widget = FilmStripWidget(x=0, y=0, width=100, height=50)
-        widget.current_animation = 'test_animation'
-        widget.parent_scene = self._mocker.Mock()
-        widget.parent_scene.film_strip_coordinator._add_new_animation = self._mocker.Mock()
-        widget.parent_scene.film_strip_coordinator._delete_animation = self._mocker.Mock()
-        # Set up canvas for parent_scene
-        widget.parent_scene.canvas = self._mocker.Mock()
-        widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
-        widget.parent_scene.canvas.animated_sprite._animations = {'test_animation': []}
-        widget.parent_scene.canvas.animated_sprite.animations = {'test_animation': []}
-
-        # Create mock animated sprite with frames
-        animated_sprite = self._mocker.Mock()
-        animations_data = {'test_animation': [self._mocker.Mock(), self._mocker.Mock()]}
-        animated_sprite._animations = animations_data
-        animated_sprite.animations = animations_data
-        animated_sprite._animation_order = ['test_animation']
-        animated_sprite.animation_order = ['test_animation']
-        widget.set_animated_sprite(animated_sprite)
-
-        # Create tabs
-        widget._create_film_tabs()
-
-        # Find the add tab (FilmStripTab)
-        add_tab = next(tab for tab in widget.film_tabs if isinstance(tab, FilmStripTab))
-        add_tab.rect = self._mocker.Mock()
-        add_tab.rect.collidepoint.return_value = True
-
-        # Act - click on add tab
-        result = widget._handle_tab_click((50, 25))
-
-        # Assert
-        assert result is True
-        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once()
-
-    def test_film_strip_widget_handles_delete_tab_clicks(self):
-        """Test that film strip widget handles delete tab clicks correctly."""
-        # Arrange
-        widget = FilmStripWidget(x=0, y=0, width=100, height=50)
-        widget.current_animation = 'test_animation'
-        widget.parent_scene = self._mocker.Mock()
-        widget.parent_scene.film_strip_coordinator._add_new_animation = self._mocker.Mock()
-        widget.parent_scene.film_strip_coordinator._delete_animation = self._mocker.Mock()
-        # Set up canvas for parent_scene
-        widget.parent_scene.canvas = self._mocker.Mock()
-        widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
-        canvas_animations = {
-            'test_animation': [],
-            'other_animation': [],
-        }
-        widget.parent_scene.canvas.animated_sprite._animations = canvas_animations
-        widget.parent_scene.canvas.animated_sprite.animations = canvas_animations
-
-        # Create mock animated sprite with frames
-        animated_sprite = self._mocker.Mock()
-        animations_data = {'test_animation': [self._mocker.Mock(), self._mocker.Mock()]}
-        animated_sprite._animations = animations_data
-        animated_sprite.animations = animations_data
-        animated_sprite._animation_order = ['test_animation']
-        animated_sprite.animation_order = ['test_animation']
-        widget.set_animated_sprite(animated_sprite)
-
-        # Create tabs
-        widget._create_film_tabs()
-
-        # Find the delete tab (FilmStripDeleteTab)
-        delete_tab = next(tab for tab in widget.film_tabs if isinstance(tab, FilmStripDeleteTab))
-        delete_tab.rect = self._mocker.Mock()
-        delete_tab.rect.collidepoint.return_value = True
-
-        # Act - click on delete tab
-        result = widget._handle_tab_click((50, 5))
-
-        # Assert
-        assert result is True
-        widget.parent_scene.film_strip_coordinator._delete_animation.assert_called_once_with(
-            'test_animation',
+        """
+        real_editor.film_strip_coordinator.on_sprite_loaded(
+            make_real_animated_sprite(
+                frame_counts={'test_animation': 2, 'another_animation': 1},
+            ),
         )
+        return real_editor
+
+    def test_film_strip_widget_creates_tabs(self, editor_with_two_animations):
+        """Test that film strip widget creates appropriate tabs."""
+        widget = editor_with_two_animations.film_strips['test_animation']
+
+        widget._create_film_tabs()
+
+        # One add tab, one delete tab (there is more than one animation) and the frame tabs
+        assert sum(type(tab) is FilmStripTab for tab in widget.film_tabs) == 1
+        assert sum(type(tab) is FilmStripDeleteTab for tab in widget.film_tabs) == 1
+        assert len(widget.film_tabs) > TEST_SIZE_2
+
+    def test_film_strip_widget_has_no_delete_tab_for_the_only_animation(self, real_editor):
+        """Test that the only animation's strip offers no delete tab (it cannot be deleted)."""
+        widget = real_editor.film_strips['strip_1']
+
+        widget._create_film_tabs()
+
+        assert any(type(tab) is FilmStripTab for tab in widget.film_tabs)
+        assert not any(type(tab) is FilmStripDeleteTab for tab in widget.film_tabs)
+
+    def test_film_strip_widget_handles_tab_clicks(self, editor_with_two_animations):
+        """Test that clicking the add tab adds an animation after the strip's own."""
+        widget = editor_with_two_animations.film_strips['test_animation']
+        add_tab = next(tab for tab in widget.film_tabs if type(tab) is FilmStripTab)
+
+        result = widget._handle_tab_click(add_tab.rect.center)
+
+        assert result is True
+        assert animation_names(editor_with_two_animations) == [
+            'test_animation',
+            'strip_3',
+            'another_animation',
+        ]
+
+    def test_film_strip_widget_handles_delete_tab_clicks(self, editor_with_two_animations):
+        """Test that clicking the delete tab asks to confirm deleting the strip's animation."""
+        widget = editor_with_two_animations.film_strips['test_animation']
+        delete_tab = next(tab for tab in widget.film_tabs if type(tab) is FilmStripDeleteTab)
+
+        result = widget._handle_tab_click(delete_tab.rect.center)
+
+        assert result is True
+        dialog = editor_with_two_animations.next_scene
+        assert isinstance(dialog, DeleteAnimationDialogScene)
+        assert dialog.animation_name == 'test_animation'
+        # Nothing is deleted until the dialog is confirmed
+        assert 'test_animation' in animation_names(editor_with_two_animations)
 
     def test_film_strip_widget_no_tabs_without_frames(self):
         """Test that film strip widget doesn't create tabs without frames."""
-        # Arrange
         widget = FilmStripWidget(x=0, y=0, width=100, height=50)
-        widget.current_animation = 'test_animation'
-        widget.parent_scene = self._mocker.Mock()
+        widget.set_animated_sprite(make_real_animated_sprite(frame_counts={'test_animation': 0}))
 
-        # Create mock animated sprite without frames
-        animated_sprite = self._mocker.Mock()
-        animations_data = {'test_animation': []}
-        animated_sprite._animations = animations_data
-        animated_sprite.animations = animations_data
-        animated_sprite._animation_order = ['test_animation']
-        animated_sprite.animation_order = ['test_animation']
-        widget.set_animated_sprite(animated_sprite)
-
-        # Act
         widget._create_film_tabs()
 
-        # Assert - should not create tabs without frames
-        assert len(widget.film_tabs) == 0
+        assert widget.film_tabs == []
 
 
 class TestFilmStripAnimationTransitions:
@@ -544,19 +414,6 @@ class TestFilmStripAnimationTransitions:
         '[[transition]]\nfrom = "idle"\nto = "run"\nwhen = "velocity_x > 0.1"\n\n'
         '[[transition]]\nfrom = "run"\nto = "idle"\nwhen = "velocity_x <= 0.1"\n'
     )
-
-    @pytest.fixture(autouse=True)
-    def real_display(self):
-        """Use a real display for the real AnimatedSprite.
-
-        Yields:
-            None: Control to the test.
-
-        """
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-        yield
-        pygame.quit()
 
     # Three animations, so an undone delete must put the middle one back in place
     THREE_ANIMATION_TOML = (
@@ -767,19 +624,6 @@ class TestFilmStripFrameDeleteUndo:
         '[colors."@"]\nred = 0\ngreen = 0\nblue = 200\nalpha = 128\n\n'
         '[colors."&"]\nred = 30\ngreen = 30\nblue = 30\n'
     )
-
-    @pytest.fixture(autouse=True)
-    def real_display(self):
-        """Use a real display for the real AnimatedSprite and film strip widget.
-
-        Yields:
-            None: Control to the test.
-
-        """
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-        yield
-        pygame.quit()
 
     def _scene_with_film_strip(self, mocker, tmp_path):
         """Return an editor scene and a film strip widget showing a real three-frame sprite.

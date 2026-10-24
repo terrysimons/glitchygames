@@ -1,99 +1,327 @@
-"""Coverage tests for glitchygames/fonts/font_manager.py.
+"""Tests for glitchygames/fonts/font_manager.py.
 
-This module targets uncovered areas of FontManager including:
-- get_font method with different font_system values
-- set_font_system method
-- get_font_system method
-- compare_font_systems method
-- pygame_font cache hit
-- font method with FileNotFoundError fallback
-- get_font with freetype fallback on error
+Every test loads real fonts and renders onto real surfaces. The engine's default font is the
+bundled Bitstream Vera, loaded from its file; only a font a game names goes through pygame's
+system font lookup (SysFont). Tests that need a system font register one in pygame's own font
+table (the fake_system_fonts fixture), so they never depend on the fonts this machine has.
 """
 
 import argparse
 import sys
+import types
+import warnings
 from pathlib import Path
 
+import pygame
+import pygame.font
+import pygame.freetype
+import pygame.sysfont
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import (
+    BUNDLED_FONT_DIRECTORY,
+    DEFAULT_FONT_NAME,
+    bundled_font_path,
+)
+from glitchygames.ui import InputBox
+
+# A system font name no machine has: the fake_system_fonts fixture registers it in pygame's
+# system font table, pointing at the bundled bold Vera so the tests can tell it apart from the
+# default (regular) Vera.
+FAKE_SYSTEM_FONT_NAME = 'glitchytestsystemfont'
+FAKE_SYSTEM_FONT_FILE = BUNDLED_FONT_DIRECTORY / 'VeraBd.ttf'
+DEFAULT_FONT_FILE = BUNDLED_FONT_DIRECTORY / 'Vera.ttf'
+SAMPLE_TEXT = 'Glitchy Games 123'
+
+
+@pytest.fixture(autouse=True)
+def font_manager_state():
+    """Start and end every test with pygame's font modules up and FontManager's caches empty.
+
+    Yields:
+        None: Control to the test.
+
+    """
+    pygame.font.init()
+    pygame.freetype.init()
+    FontManager._font_cache.clear()
+    FontManager.OPTIONS.clear()
+    yield
+    FontManager._font_cache.clear()
+    FontManager.OPTIONS.clear()
+
+
+@pytest.fixture
+def fake_system_fonts(mocker):
+    """Give pygame a system font table holding only FAKE_SYSTEM_FONT_NAME.
+
+    pygame.sysfont scans the machine's fonts once (initsysfonts) and keeps them in Sysfonts and
+    Sysalias. Marking the scan done and replacing both tables makes SysFont find exactly the
+    fake font, whatever this machine has installed.
+
+    Args:
+        mocker: The pytest-mock fixture.
+
+    """
+    mocker.patch.object(pygame.sysfont, 'is_init', new=True)
+    mocker.patch.dict(
+        pygame.sysfont.Sysfonts,
+        {FAKE_SYSTEM_FONT_NAME: {(False, False): str(FAKE_SYSTEM_FONT_FILE)}},
+        clear=True,
+    )
+    mocker.patch.dict(pygame.sysfont.Sysalias, {}, clear=True)
+
+
+@pytest.fixture
+def fontconfig_unavailable(mocker):
+    """Make pygame's system font scan fail as it does on a machine without fontconfig.
+
+    pygame warns "'fc-list' is missing, system fonts cannot be loaded on your platform" when
+    the scan cannot run (and a similar warning when it times out under load). The scan runs on
+    the first SysFont call, so the fixture marks it not yet done, empties the font tables it
+    would fill, and replaces it with one that only warns.
+
+    Args:
+        mocker: The pytest-mock fixture.
+
+    Returns:
+        The replaced scan, to check whether anything asked for system fonts.
+
+    """
+
+    def scan_without_fontconfig() -> None:
+        warnings.warn(
+            "'fc-list' is missing, system fonts cannot be loaded on your platform",
+            stacklevel=2,
+        )
+
+    mocker.patch.object(pygame.sysfont, 'is_init', new=False)
+    mocker.patch.dict(pygame.sysfont.Sysfonts, {}, clear=True)
+    mocker.patch.dict(pygame.sysfont.Sysalias, {}, clear=True)
+    return mocker.patch.object(
+        pygame.sysfont,
+        'initsysfonts',
+        side_effect=scan_without_fontconfig,
+    )
+
+
+def rendered_size(*, font_file: Path, size: int, text: str = SAMPLE_TEXT) -> tuple[int, int]:
+    """Return the size of text rendered with pygame.font from a font file.
+
+    Args:
+        font_file: The font file.
+        size: The point size.
+        text: The text to measure.
+
+    Returns:
+        The rendered text's (width, height).
+
+    """
+    return pygame.font.Font(font_file, size).size(text)
+
+
+class TestBundledFontPath:
+    """bundled_font_path names the bundled Bitstream Vera files."""
+
+    def test_the_default_font_name_is_the_bundled_vera(self):
+        assert bundled_font_path(font_name=DEFAULT_FONT_NAME) == DEFAULT_FONT_FILE
+        assert DEFAULT_FONT_FILE.is_file()
+
+    @pytest.mark.parametrize(
+        ('font_name', 'file_name'),
+        [
+            ('Vera', 'Vera.ttf'),
+            ('VeraBd', 'VeraBd.ttf'),
+            ('VeraIt', 'VeraIt.ttf'),
+            ('VeraBI', 'VeraBI.ttf'),
+            ('vera', 'Vera.ttf'),
+            ('VERABD', 'VeraBd.ttf'),
+        ],
+    )
+    def test_each_bundled_variant_is_nameable_in_any_case(self, font_name, file_name):
+        font_path = bundled_font_path(font_name=font_name)
+
+        assert font_path == BUNDLED_FONT_DIRECTORY / file_name
+        assert font_path is not None
+        assert font_path.is_file()
+
+    @pytest.mark.parametrize('font_name', ['arial', 'Times', 'Courier', FAKE_SYSTEM_FONT_NAME])
+    def test_other_names_are_not_bundled(self, font_name):
+        assert bundled_font_path(font_name=font_name) is None
+
+
+class TestDefaultFontWithoutFontconfig:
+    """The default font loads from its file: no system font scan, so no warning (BUGS.md #156)."""
+
+    @pytest.mark.parametrize('font_system', ['freetype', 'pygame'])
+    def test_the_default_font_loads_without_a_system_font_scan(
+        self, fontconfig_unavailable, font_system
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            loaded_font = FontManager.get_font(font_system=font_system, font_config={})
+
+        fontconfig_unavailable.assert_not_called()
+        if font_system == 'freetype':
+            assert isinstance(loaded_font, pygame.freetype.Font)
+            assert loaded_font.get_rect(SAMPLE_TEXT).width > 0
+        else:
+            assert isinstance(loaded_font, pygame.font.Font)
+            assert loaded_font.size(SAMPLE_TEXT)[0] > 0
+
+    def test_the_freetype_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
+        loaded_font = FontManager.font({})
+
+        assert isinstance(loaded_font, pygame.freetype.Font)
+        assert Path(loaded_font.path) == DEFAULT_FONT_FILE
+        assert loaded_font.size == 14
+        assert FontManager._font_cache[f'{DEFAULT_FONT_NAME}_14'] is loaded_font
+
+    def test_the_pygame_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
+        loaded_font = FontManager.pygame_font({})
+
+        assert isinstance(loaded_font, pygame.font.Font)
+        assert loaded_font.size(SAMPLE_TEXT) == rendered_size(font_file=DEFAULT_FONT_FILE, size=14)
+        assert FontManager._font_cache[f'pygame_{DEFAULT_FONT_NAME}_14'] is loaded_font
+
+    def test_the_engine_options_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
+        parser = FontManager.args(argparse.ArgumentParser())
+        engine_options = vars(parser.parse_args([]))
+        FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            loaded_font = FontManager.get_font()
+
+        assert FontManager.OPTIONS['font_name'] == DEFAULT_FONT_NAME
+        assert isinstance(loaded_font, pygame.freetype.Font)
+        assert Path(loaded_font.path) == DEFAULT_FONT_FILE
+
+    def test_a_bundled_variant_by_name_loads_its_file(self, fontconfig_unavailable):
+        loaded_font = FontManager.font({'font_name': 'VeraBd', 'font_size': 20})
+
+        fontconfig_unavailable.assert_not_called()
+        assert Path(loaded_font.path) == BUNDLED_FONT_DIRECTORY / 'VeraBd.ttf'
+        assert loaded_font.size == 20
+
+
+class TestNamedSystemFont:
+    """A font a game names that is not bundled still goes through pygame's SysFont."""
+
+    def test_freetype_loads_a_named_system_font_through_sysfont(self, fake_system_fonts, mocker):
+        system_font = mocker.spy(pygame.freetype, 'SysFont')
+
+        loaded_font = FontManager.font({'font_name': FAKE_SYSTEM_FONT_NAME, 'font_size': 18})
+
+        system_font.assert_called_once_with(name=FAKE_SYSTEM_FONT_NAME, size=18)
+        assert isinstance(loaded_font, pygame.freetype.Font)
+        assert Path(loaded_font.path) == FAKE_SYSTEM_FONT_FILE
+
+    def test_pygame_loads_a_named_system_font_through_sysfont(self, fake_system_fonts, mocker):
+        system_font = mocker.spy(pygame.font, 'SysFont')
+
+        loaded_font = FontManager.pygame_font({'font_name': FAKE_SYSTEM_FONT_NAME, 'font_size': 18})
+
+        system_font.assert_called_once_with(FAKE_SYSTEM_FONT_NAME, 18)
+        assert isinstance(loaded_font, pygame.font.Font)
+        assert loaded_font.size(SAMPLE_TEXT) == rendered_size(
+            font_file=FAKE_SYSTEM_FONT_FILE, size=18
+        )
+
+    def test_a_named_system_font_without_fontconfig_warns(self, fontconfig_unavailable):
+        """Naming a system font still asks the system: pygame's warnings are not hidden.
+
+        Without fontconfig pygame warns that it cannot scan, then that the named font is missing.
+        """
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter('always')
+            FontManager.pygame_font({'font_name': 'arial', 'font_size': 14})
+
+        fontconfig_unavailable.assert_called_once()
+        messages = [str(caught_warning.message) for caught_warning in caught_warnings]
+        assert any('system fonts cannot be loaded' in message for message in messages)
+        assert any("The system font 'arial' couldn't be found" in message for message in messages)
+
+    def test_pygame_font_without_a_size_uses_14(self, fake_system_fonts, mocker):
+        """A configuration naming only the font gets the default size."""
+        system_font = mocker.spy(pygame.font, 'SysFont')
+
+        loaded_font = FontManager.pygame_font({'font_name': FAKE_SYSTEM_FONT_NAME})
+
+        system_font.assert_called_once_with(FAKE_SYSTEM_FONT_NAME, 14)
+        assert FontManager._font_cache[f'pygame_{FAKE_SYSTEM_FONT_NAME}_14'] is loaded_font
+
+
+class TestFontCache:
+    """Each font is loaded once per name and size."""
+
+    @pytest.mark.parametrize('font_system', ['freetype', 'pygame'])
+    def test_the_same_name_and_size_returns_the_cached_font(self, font_system, mocker):
+        file_font = mocker.spy(pygame.freetype, 'Font')
+        pygame_file_font = mocker.spy(pygame.font, 'Font')
+        font_config = {'font_name': DEFAULT_FONT_NAME, 'font_size': 15}
+
+        first_font = FontManager.get_font(font_system=font_system, font_config=dict(font_config))
+        second_font = FontManager.get_font(font_system=font_system, font_config=dict(font_config))
+
+        assert second_font is first_font
+        assert file_font.call_count + pygame_file_font.call_count == 1
+
+    def test_another_size_loads_another_font(self):
+        small_font = FontManager.font({'font_name': DEFAULT_FONT_NAME, 'font_size': 10})
+        large_font = FontManager.font({'font_name': DEFAULT_FONT_NAME, 'font_size': 30})
+
+        assert small_font is not large_font
+        assert small_font.size == 10
+        assert large_font.size == 30
+
+    def test_freetype_and_pygame_fonts_are_cached_apart(self):
+        freetype_font = FontManager.get_font(font_system='freetype', font_config={})
+        pygame_font = FontManager.get_font(font_system='pygame', font_config={})
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert isinstance(pygame_font, pygame.font.Font)
 
 
 class TestFontManagerGetFont:
-    """Test FontManager.get_font method branches."""
+    """FontManager.get_font chooses the font system."""
 
-    @pytest.fixture(autouse=True)
-    def clear_caches(self):
-        """Clear font caches before each test."""
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-        yield
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
+    def test_get_font_explicit_freetype(self):
+        loaded_font = FontManager.get_font(font_system='freetype')
 
-    def test_get_font_explicit_freetype(self, mocker):
-        """Test get_font with explicit freetype system calls font()."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', return_value=mock_font)
+        assert isinstance(loaded_font, pygame.freetype.Font)
 
-        result = FontManager.get_font(font_system='freetype')
-        assert result == mock_font
+    def test_get_font_explicit_pygame(self):
+        loaded_font = FontManager.get_font(font_system='pygame')
 
-    def test_get_font_explicit_pygame(self, mocker):
-        """Test get_font with explicit pygame system calls pygame_font()."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.SysFont', return_value=mock_font)
+        assert isinstance(loaded_font, pygame.font.Font)
 
-        config = {'font_name': 'uniquefont_pg', 'font_size': 99}
-        result = FontManager.get_font(font_system='pygame', font_config=config)
-        assert result == mock_font
-
-    def test_get_font_default_uses_options(self, mocker):
-        """Test get_font with None font_system uses OPTIONS default."""
+    def test_get_font_default_uses_options(self):
         FontManager.OPTIONS['use_freetype'] = False
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.SysFont', return_value=mock_font)
 
-        config = {'font_name': 'uniquefont_opt', 'font_size': 88}
-        result = FontManager.get_font(font_system=None, font_config=config)
-        assert result == mock_font
+        loaded_font = FontManager.get_font(font_system=None, font_config={'font_size': 22})
+
+        assert isinstance(loaded_font, pygame.font.Font)
+        assert loaded_font.size(SAMPLE_TEXT) == rendered_size(font_file=DEFAULT_FONT_FILE, size=22)
 
     def test_get_font_freetype_fallback_on_error(self, mocker):
-        """Test get_font falls back to pygame when freetype fails."""
-        mocker.patch('pygame.freetype.SysFont', side_effect=TypeError('no freetype'))
-        mocker.patch('pygame.freetype.Font', side_effect=OSError('no font'))
-        mock_pygame_font = mocker.Mock()
-        mocker.patch('pygame.font.SysFont', return_value=mock_pygame_font)
+        """When freetype cannot load the font, get_font falls back to pygame.font."""
+        mocker.patch.object(pygame.freetype, 'Font', side_effect=OSError('unreadable font'))
 
         FontManager.OPTIONS['use_freetype'] = True
-        config = {'font_name': 'uniquefont_fb', 'font_size': 77}
-        result = FontManager.get_font(font_system=None, font_config=config)
-        assert result == mock_pygame_font
+        loaded_font = FontManager.get_font(font_system=None, font_config={'font_size': 17})
 
-    def test_get_font_with_custom_config(self, mocker):
-        """Test get_font passes custom font_config."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.SysFont', return_value=mock_font)
-
-        config = {'font_name': 'uniquefont_cc', 'font_size': 66}
-        result = FontManager.get_font(font_system='pygame', font_config=config)
-        assert result == mock_font
+        assert isinstance(loaded_font, pygame.font.Font)
+        assert loaded_font.size(SAMPLE_TEXT) == rendered_size(font_file=DEFAULT_FONT_FILE, size=17)
 
 
 class TestFontManagerSetGetFontSystem:
     """Test FontManager.set_font_system and get_font_system methods."""
-
-    @pytest.fixture(autouse=True)
-    def clear_caches(self):
-        """Clear font caches before each test."""
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-        yield
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
 
     def test_set_font_system_freetype(self):
         """Test set_font_system with 'freetype'."""
@@ -121,141 +349,89 @@ class TestFontManagerSetGetFontSystem:
 
 
 class TestFontManagerCompareFontSystems:
-    """Test FontManager.compare_font_systems method."""
+    """FontManager.compare_font_systems renders the same text with both systems."""
 
-    @pytest.fixture(autouse=True)
-    def clear_caches(self):
-        """Clear font caches before each test."""
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-        yield
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
+    def test_compare_font_systems_renders_with_both(self):
+        comparison = FontManager.compare_font_systems(text='Test', size=55)
 
-    def test_compare_font_systems_returns_dict(self, mocker):
-        """Test compare_font_systems returns a dict with both systems."""
-        mock_pygame_font = mocker.Mock()
-        mock_surface = mocker.Mock()
-        mock_surface.get_size.return_value = (100, 24)
-        mock_pygame_font.render.return_value = mock_surface
-        mocker.patch('pygame.font.SysFont', return_value=mock_pygame_font)
-
-        mock_ft_font = mocker.Mock()
-        # freetype render returns (surface, rect) tuple
-        mock_ft_surface = mocker.Mock()
-        mock_ft_surface.get_size.return_value = (100, 24)
-        mock_ft_font.render.return_value = (mock_ft_surface, mocker.Mock())
-        mock_ft_font.render_to = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', return_value=mock_ft_font)
-
-        result = FontManager.compare_font_systems(text='Test', size=55)
-        assert 'pygame' in result
-        assert 'freetype' in result
-        assert result['pygame']['type'] == 'pygame.font.Font'
-        assert result['freetype']['type'] == 'pygame.freetype.Font'
-        assert 'font' in result['pygame']
-        assert 'surface' in result['pygame']
-        assert 'size' in result['pygame']
+        assert comparison['pygame']['type'] == 'pygame.font.Font'
+        assert comparison['freetype']['type'] == 'pygame.freetype.Font'
+        assert isinstance(comparison['pygame']['font'], pygame.font.Font)
+        assert isinstance(comparison['freetype']['font'], pygame.freetype.Font)
+        for system in ('pygame', 'freetype'):
+            surface = comparison[system]['surface']
+            assert isinstance(surface, pygame.Surface)
+            assert comparison[system]['size'] == surface.get_size()
+            assert surface.get_width() > 0
 
 
-class TestFontManagerPygameFontCacheHit:
-    """Test FontManager.pygame_font cache hit behavior."""
+class TestFontManagerPygameFontFallback:
+    """FontManager.pygame_font falls back to pygame's own font when SysFont fails."""
 
-    @pytest.fixture(autouse=True)
-    def clear_caches(self):
-        """Clear font caches before each test."""
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-        yield
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
+    @pytest.mark.parametrize('system_font_error', [TypeError, FileNotFoundError])
+    def test_pygame_font_fallback_to_default(self, mocker, system_font_error):
+        real_font_class = pygame.font.Font
+        mocker.patch.object(pygame.font, 'SysFont', side_effect=system_font_error('no font'))
+        file_font = mocker.spy(pygame.font, 'Font')
 
-    def test_pygame_font_cache_hit(self, mock_pygame_patches, mocker):
-        """Test pygame_font returns cached font on cache hit."""
-        mock_cached_font = mocker.Mock()
-        FontManager._font_cache['pygame_arial_14'] = mock_cached_font
+        loaded_font = FontManager.pygame_font({'font_name': 'nonexistent_font', 'font_size': 16})
 
-        config = {'font_name': 'arial', 'font_size': 14}
-        result = FontManager.pygame_font(config)
-        assert result == mock_cached_font
-
-    def test_pygame_font_fallback_to_default(self, mock_pygame_patches, mocker):
-        """Test pygame_font falls back to Font(None, size) on error."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.font.SysFont', side_effect=TypeError('font not found'))
-        mocker.patch('pygame.font.Font', return_value=mock_font)
-
-        config = {'font_name': 'nonexistent_font', 'font_size': 16}
-        result = FontManager.pygame_font(config)
-        assert result == mock_font
+        file_font.assert_called_once_with(None, 16)
+        assert isinstance(loaded_font, real_font_class)
 
 
-class TestFontManagerFontMethodBranches:
-    """Test FontManager.font method additional branches."""
+class TestFontProxy:
+    """FontManager.FontProxy forwards font events to the game."""
 
-    @pytest.fixture(autouse=True)
-    def clear_caches(self):
-        """Clear font caches before each test."""
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-        yield
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
+    def test_font_changed_event_reaches_the_game(self, mocker):
+        game = mocker.Mock()
+        proxy = FontManager.FontProxy(game=game)
+        event = mocker.Mock(name='font_changed_event')
 
-    def test_font_method_file_not_found_fallback(self, mock_pygame_patches, mocker):
-        """Test font method falls back to built-in on FileNotFoundError."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', side_effect=FileNotFoundError('no font'))
-        mocker.patch('pygame.freetype.Font', return_value=mock_font)
+        proxy.on_font_changed_event(event)
 
-        config = {'font_name': 'missing_font', 'font_size': 16}
-        result = FontManager.font(config)
-        assert result == mock_font
+        game.on_font_changed_event.assert_called_once_with(event)
 
-    def test_font_method_empty_config_uses_defaults(self, mock_pygame_patches, mocker):
-        """Test font method provides default config values when empty dict passed."""
-        mock_font = mocker.Mock()
-        mocker.patch('pygame.freetype.SysFont', return_value=mock_font)
 
-        result = FontManager.font({})
-        assert result == mock_font
-        # Should have used default font_name 'arial' and font_size 14
-        assert 'arial_14' in FontManager._font_cache
+class TestFontManagerInit:
+    """FontManager copies the engine's font options."""
+
+    @pytest.mark.parametrize(
+        ('font_system', 'use_freetype'), [('freetype', True), ('pygame', False)]
+    )
+    def test_options_are_copied_from_the_game(self, font_system, use_freetype):
+        parser = FontManager.args(argparse.ArgumentParser())
+        engine_options = vars(
+            parser.parse_args(['--font-name', 'courier', '--font-system', font_system])
+        )
+
+        manager = FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+
+        assert FontManager.OPTIONS['font_name'] == 'courier'
+        assert FontManager.OPTIONS['font_size'] == 14
+        assert FontManager.OPTIONS['use_freetype'] is use_freetype
+        assert pygame.freetype in manager.proxies
 
 
 class TestFontManagerBuiltInFallback:
     """The built-in fallback (used by PyInstaller-packaged games) loads the bundled Vera.ttf."""
 
-    @pytest.fixture(autouse=True)
-    def clear_caches(self):
-        """Clear font caches before and after each test.
-
-        Yields:
-            None: Control to the test.
-
-        """
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-        yield
-        FontManager._font_cache.clear()
-        FontManager.OPTIONS.clear()
-
     @pytest.mark.parametrize('system_font_error', [TypeError, FileNotFoundError])
     def test_fallback_loads_the_bundled_font(self, mocker, system_font_error):
-        """When SysFont fails, a real freetype font is loaded from a file that exists."""
-        import pygame.freetype
-
-        pygame.freetype.init()
-        real_font_class = pygame.freetype.Font
-        mocker.patch('pygame.freetype.SysFont', side_effect=system_font_error('no font'))
-        font_spy = mocker.spy(pygame.freetype, 'Font')
+        """When SysFont fails, a real freetype font is loaded from the bundled file."""
+        mocker.patch.object(pygame.freetype, 'SysFont', side_effect=system_font_error('no font'))
 
         loaded_font = FontManager.font({'font_name': 'missing_font', 'font_size': 16})
 
-        font_path = Path(font_spy.call_args.kwargs['file'])
-        assert font_path.is_file()
-        assert font_path.name == 'Vera.ttf'
-        assert isinstance(loaded_font, real_font_class)
+        assert isinstance(loaded_font, pygame.freetype.Font)
+        assert Path(loaded_font.path) == DEFAULT_FONT_FILE
+
+    def test_fallback_keeps_the_requested_size(self, mocker):
+        mocker.patch.object(pygame.freetype, 'SysFont', side_effect=TypeError('no font'))
+
+        loaded_font = FontManager.font({'font_name': 'missing_font', 'font_size': 16})
+
+        assert loaded_font.size == 16
 
 
 class TestFontManagerArgs:
@@ -281,3 +457,90 @@ class TestFontManagerArgs:
 
         args = result.parse_args(['--font-dpi', '96'])
         assert args.font_dpi == 96
+
+    def test_every_font_option_has_help(self):
+        """No font option is listed bare in --help."""
+        parser = FontManager.args(argparse.ArgumentParser())
+
+        options_without_help = [
+            action.option_strings for action in parser._actions if not action.help
+        ]
+
+        assert options_without_help == []
+
+    @pytest.mark.parametrize(('destination', 'default'), [('font_size', 14), ('font_dpi', 72)])
+    def test_the_size_and_dpi_help_name_their_defaults(self, destination, default):
+        parser = FontManager.args(argparse.ArgumentParser())
+        option = next(action for action in parser._actions if action.dest == destination)
+
+        assert option.default == default
+        assert str(option.help).endswith('(default: %(default)s)')
+
+    @pytest.mark.parametrize('destination', ['font_bold', 'font_italic', 'font_antialias'])
+    def test_the_unread_style_flags_say_they_are_not_used(self, destination):
+        """--font-bold, --font-italic and --font-antialias are stored but no font reads them."""
+        parser = FontManager.args(argparse.ArgumentParser())
+        style_flag = next(action for action in parser._actions if action.dest == destination)
+
+        assert str(style_flag.help).startswith('not used yet')
+
+    def test_font_name_defaults_to_the_bundled_vera(self):
+        parser = FontManager.args(argparse.ArgumentParser())
+
+        assert parser.parse_args([]).font_name == DEFAULT_FONT_NAME
+        assert parser.parse_args(['--font-name', 'arial']).font_name == 'arial'
+
+
+class TestInputBoxFont:
+    """ui.inputs.InputBox draws its text with the bundled Vera, not a system font."""
+
+    @pytest.fixture
+    def display(self):
+        """A real display surface (InputBox converts its image for the display).
+
+        Returns:
+            The display surface.
+
+        """
+        if not pygame.get_init():
+            pygame.init()
+        return set_display_mode(size=(320, 240))
+
+    def test_input_box_loads_no_system_font(self, display, fontconfig_unavailable):
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            input_box = InputBox(x=10, y=20, width=200, height=30, text=SAMPLE_TEXT)
+
+        fontconfig_unavailable.assert_not_called()
+        assert input_box.text_image.get_size() == rendered_size(
+            font_file=DEFAULT_FONT_FILE, size=14
+        )
+
+    def test_input_box_font_comes_from_the_font_manager(self, display):
+        input_box = InputBox(x=10, y=20, width=200, height=30)
+
+        assert input_box.font is FontManager._font_cache[f'pygame_{DEFAULT_FONT_NAME}_14']
+        assert isinstance(input_box.font, pygame.font.Font)
+
+
+class TestBitmappyFonts:
+    """The Bitmappy editor draws its text with the bundled Vera, not system fonts."""
+
+    def test_building_the_editor_scans_no_system_fonts(self, mocker, fontconfig_unavailable):
+        """Its options and slider labels named 'arial' and 'Courier', so it scanned them.
+
+        On a machine without fontconfig (or a busy one where the scan times out) the scan's
+        warning failed every editor test (BUGS.md #156).
+        """
+        from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+        from glitchygames.bitmappy.editor import BitmapEditorScene
+
+        mocker.patch.object(MultiControllerManager, '_instance', None)
+        mocker.patch.dict(FontManager._font_cache, {}, clear=True)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            editor = BitmapEditorScene(options={})
+
+        fontconfig_unavailable.assert_not_called()
+        assert editor.options['font_name'] == DEFAULT_FONT_NAME

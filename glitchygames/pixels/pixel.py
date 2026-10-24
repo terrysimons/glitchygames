@@ -167,16 +167,9 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
     # Convert bytes to integers
     pixels = [int(b) for b in pixel_data]
 
-    # Yield RGB triplets
+    # Yield RGB triplets (the length is a multiple of 3, checked above, so each is whole)
     for i in range(0, len(pixels), 3):
-        try:
-            r = pixels[i]
-            g = pixels[i + 1]
-            b = pixels[i + 2]
-            yield (r, g, b)
-        except IndexError as e:
-            message = f'Not enough data for RGB triplet at index {i}'
-            raise ValueError(message) from e
+        yield (pixels[i], pixels[i + 1], pixels[i + 2])
 
 
 def image_from_pixels(

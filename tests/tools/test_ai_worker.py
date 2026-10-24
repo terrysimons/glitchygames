@@ -1,7 +1,9 @@
 """Tests for glitchygames.bitmappy.ai_worker.
 
-The AI client is always a local fake standing in for aisuite's client (the network boundary):
-no test sends a real AI request or opens a connection.
+The AI client that answers requests is always a local fake standing in for aisuite's client
+(the network boundary); the timeout tests build a real aisuite Client and its providers, which
+connect to nothing until a request is sent. No test sends a real AI request or opens a
+connection.
 """
 
 import inspect
@@ -10,7 +12,10 @@ import queue
 from http import HTTPStatus
 from types import SimpleNamespace
 
+import aisuite
+import aisuite.provider
 import pytest
+from aisuite.provider import ProviderFactory
 
 from glitchygames.bitmappy import ai_worker
 from glitchygames.bitmappy.constants import AI_MODEL_DOWNLOAD_TIMEOUT, AI_TIMEOUT
@@ -18,6 +23,18 @@ from glitchygames.bitmappy.models import AIRequest, AIResponse
 
 LOG = logging.getLogger('test.ai_worker')
 OLLAMA_MODEL = 'ollama:tiny-model'
+
+
+@pytest.fixture(autouse=True)
+def isolate_the_ai_worker_logger(mocker):
+    """Keep the stderr handler a worker run adds to 'game.ai' out of later tests.
+
+    run_ai_worker is a child process's entry point and adds its own stderr handler to the
+    'game.ai' logger (_setup_ai_worker_logging). Run in the test process, that handler would
+    outlive the test and print every later 'game.ai' record past pytest's log capture.
+    """
+    worker_logger = logging.getLogger('game.ai')
+    mocker.patch.object(worker_logger, 'handlers', new=[])
 
 
 def _response_with_content(content: str | None) -> SimpleNamespace:
@@ -92,89 +109,94 @@ def _request(request_id: str = 'request-1') -> AIRequest:
     return AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
 
 
-class TestConfigureOllamaProvider:
-    """Test _configure_ollama_provider."""
+def _initialize_real_client() -> aisuite.Client:
+    """Run _initialize_ai_client, which builds a real aisuite Client (sending nothing).
 
-    def test_only_ollama_providers_get_the_download_timeout(self, mocker):
-        """Ollama providers and their HTTP clients get the long timeout; others are untouched."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        ollama_client = SimpleNamespace(
-            timeout=1,
-            request_timeout=1,
-            read_timeout=1,
-            connect_timeout=1,
-        )
-        ollama_provider = SimpleNamespace(timeout=1, client=ollama_client)
-        other_provider = SimpleNamespace(timeout=1, client=SimpleNamespace(timeout=1))
-        client = SimpleNamespace(_providers={'Ollama': ollama_provider, 'openai': other_provider})
+    Returns:
+        The client.
 
-        ai_worker._configure_ollama_provider(LOG, client)
+    """
+    client = ai_worker._initialize_ai_client(LOG)
+    assert isinstance(client, aisuite.Client)
+    return client
 
-        assert ollama_provider.timeout == AI_MODEL_DOWNLOAD_TIMEOUT
-        assert vars(ollama_client) == dict.fromkeys(
-            ['timeout', 'request_timeout', 'read_timeout', 'connect_timeout'],
-            AI_MODEL_DOWNLOAD_TIMEOUT,
-        )
-        assert other_provider.timeout == 1
-        assert other_provider.client.timeout == 1
 
-    def test_providers_without_timeouts_are_left_without_them(self, mocker):
-        """A provider or client that has no timeout attributes does not gain any."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        bare_client = SimpleNamespace()
-        provider_with_bare_client = SimpleNamespace(client=bare_client)
-        provider_without_client = SimpleNamespace()
-        client = SimpleNamespace(
-            _providers={'ollama': provider_with_bare_client, 'ollama2': provider_without_client},
-        )
+def _provider_created_from(client: aisuite.Client, provider_key: str) -> aisuite.provider.Provider:
+    """Create the provider a real aisuite Client would create for its first request.
 
-        ai_worker._configure_ollama_provider(LOG, client)
+    aisuite creates a provider lazily, on the first request that names it, from the client's
+    ``provider_configs`` entry (``aisuite.client.Completions``); this does the same without
+    sending a request.
 
-        assert vars(provider_with_bare_client) == {'client': bare_client}
-        assert vars(bare_client) == {}
-        assert vars(provider_without_client) == {}
+    Returns:
+        The aisuite provider, holding the vendor SDK client as ``client``.
 
-    def test_non_ollama_model_changes_nothing(self, mocker):
-        """With a hosted model, ollama providers are not reconfigured."""
+    """
+    return ProviderFactory.create_provider(
+        provider_key, dict(client.provider_configs[provider_key])
+    )
+
+
+class TestProviderTimeouts:
+    """The real aisuite Client _initialize_ai_client builds gives its providers the timeouts.
+
+    No request is sent: the providers are created offline, as aisuite creates them for the
+    first request.
+    """
+
+    @pytest.fixture(autouse=True)
+    def restore_the_environment(self, mocker):
+        """Keep the OLLAMA_TIMEOUT that _initialize_ai_client sets for ollama out of later tests."""
+        mocker.patch.dict('os.environ')
+
+    def test_no_provider_exists_before_the_first_request(self, mocker):
+        """The client creates providers lazily, so only its configuration can carry a timeout."""
         mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        provider = SimpleNamespace(timeout=1)
 
-        ai_worker._configure_ollama_provider(LOG, SimpleNamespace(_providers={'ollama': provider}))
+        client = _initialize_real_client()
 
-        assert provider.timeout == 1
+        assert client.providers == {}
 
-
-class TestConfigureProviderClientTimeout:
-    """Test _configure_provider_client_timeout."""
-
-    def test_inner_http_client_gets_the_timeout(self, mocker):
-        """A client without its own timeout passes it to its inner _client."""
+    def test_anthropic_client_gets_the_timeout(self, mocker):
+        """The Anthropic SDK client aisuite creates has the AI timeout, and no ollama is set up."""
         mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        inner_client = SimpleNamespace(timeout=5)
-        provider = SimpleNamespace(client=SimpleNamespace(_client=inner_client))
+        mocker.patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'offline-test-key'})
 
-        ai_worker._configure_provider_client_timeout(LOG, 'anthropic', provider, 42)
+        client = _initialize_real_client()
+        provider = _provider_created_from(client, 'anthropic')
 
-        assert inner_client.timeout == 42
+        assert provider.client.timeout == AI_TIMEOUT
+        assert 'ollama' not in client.provider_configs
 
-    def test_client_without_any_timeout_is_unchanged(self, mocker):
-        """A client with neither a timeout nor an inner client gains nothing."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        provider = SimpleNamespace(client=SimpleNamespace())
+    @pytest.mark.parametrize(
+        ('downloaded', 'expected_timeout'),
+        [(True, AI_TIMEOUT), (False, AI_MODEL_DOWNLOAD_TIMEOUT)],
+    )
+    def test_ollama_client_gets_the_timeout_for_the_model_status(
+        self,
+        mocker,
+        downloaded,
+        expected_timeout,
+    ):
+        """The ollama provider can be created, and its HTTP client has the timeout.
 
-        ai_worker._configure_provider_client_timeout(LOG, 'anthropic', provider, 42)
-
-        assert vars(provider.client) == {}
-
-    def test_ollama_sets_request_and_read_timeouts_present_on_the_client(self, mocker):
-        """For ollama, request_timeout and read_timeout are set where the client has them."""
+        A model that must be downloaded first gets the longer download timeout. The provider
+        passes its configuration to openai.OpenAI, which once raised TypeError on the
+        request_timeout and read_timeout keys the configuration held, so every ollama request
+        failed.
+        """
         mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        provider_client = SimpleNamespace(timeout=1, read_timeout=1)
-        provider = SimpleNamespace(client=provider_client)
+        mocker.patch.object(
+            ai_worker,
+            '_check_ollama_model_status',
+            return_value={'downloaded': downloaded},
+        )
 
-        ai_worker._configure_provider_client_timeout(LOG, 'ollama', provider, 42)
+        client = _initialize_real_client()
+        ollama_provider = _provider_created_from(client, 'ollama')
 
-        assert vars(provider_client) == {'timeout': 42, 'read_timeout': AI_TIMEOUT}
+        assert ollama_provider.client.timeout == expected_timeout
+        assert client.provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
 
 
 class TestQueryModelCapabilities:
@@ -210,6 +232,29 @@ class TestQueryModelCapabilities:
 
         assert ai_worker._query_model_capabilities(LOG, _client_with(completions)) == {
             'max_tokens': None,
+        }
+
+    def test_message_without_content_has_unknown_max_tokens(self):
+        """A choice whose message has no content (aisuite's Message.content is None) is no answer.
+
+        It used to reach _parse_capabilities_response, which raised AttributeError on None.
+        """
+        completions = FakeCompletions(response=_response_with_content(None))
+
+        assert ai_worker._query_model_capabilities(LOG, _client_with(completions)) == {
+            'max_tokens': None,
+        }
+
+
+class TestParseCapabilitiesResponse:
+    """Test ai_worker._parse_capabilities_response's unparseable answers."""
+
+    @pytest.mark.parametrize('content', ['65536,8192,1', 'lots,8192', '8192,', ''])
+    def test_anything_but_one_or_two_numbers_cannot_be_parsed(self, content):
+        """Three numbers, a word or an empty part give no max tokens and keep the answer."""
+        assert ai_worker._parse_capabilities_response(LOG, content) == {
+            'max_tokens': None,
+            'raw_response': content,
         }
 
 
@@ -313,6 +358,19 @@ class TestMakeAiApiCall:
             },
         ]
 
+    def test_the_api_call_arguments_are_logged_at_debug_level(self, mocker, caplog):
+        """The request's arguments (the whole prompt) are diagnostics, not a critical event."""
+        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
+        completions = FakeCompletions(response=_response_with_content('[sprite]'))
+
+        with caplog.at_level(logging.DEBUG, logger=LOG.name):
+            ai_worker._make_ai_api_call(_request(), _client_with(completions), LOG)
+
+        argument_records = [
+            record for record in caplog.records if record.getMessage().startswith('API call kwargs')
+        ]
+        assert [record.levelno for record in argument_records] == [logging.DEBUG]
+
     def test_ollama_gets_the_download_timeout(self, mocker):
         """Ollama models get the long timeout, since the first call may download the model."""
         mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
@@ -344,32 +402,76 @@ class TestMakeAiApiCall:
             ai_worker._make_ai_api_call(_request(), _client_with(SimpleNamespace()), LOG)
 
 
-@pytest.fixture
-def without_backoff(mocker):
-    """Run AI calls without the backoff package (the worker's no-retry fallback).
+class RetryableError(Exception):
+    """An error the retry decorator retries (a server error, by status code)."""
 
-    backoff's decorator calls asyncio.iscoroutinefunction, which Python 3.14 deprecates, and
-    the suite turns warnings into errors, so calls are made through the no-op decorator.
+    status_code = HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def _retrying(*, outcomes: list[object]) -> tuple[object, list[float], list[int]]:
+    """Decorate a call that answers ``outcomes`` in turn (raising the exceptions among them).
+
+    Returns:
+        The decorated call, the waits it would sleep (recorded, not slept) and its call count.
+
     """
-    mocker.patch.object(ai_worker, 'backoff', None)
+    waits: list[float] = []
+    calls: list[int] = []
+
+    def api_call() -> object:
+        calls.append(len(calls) + 1)
+        outcome = outcomes[len(calls) - 1]
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    decorated = ai_worker._create_ai_retry_decorator(LOG)(api_call)
+    decorated.retry.sleep = waits.append  # type: ignore[attr-defined]
+    return decorated, waits, calls
 
 
 class TestCreateAiRetryDecorator:
-    """Test _create_ai_retry_decorator."""
+    """Test _create_ai_retry_decorator: exponential retries of retryable AI errors."""
 
-    def test_without_backoff_the_function_is_returned_unchanged(self, without_backoff):
-        """With backoff unavailable, the decorator is a no-op."""
+    def test_a_retryable_error_is_retried_with_exponential_waits(self):
+        """Server errors are retried after AI_BASE_DELAY, then twice that, and so on."""
+        decorated, waits, calls = _retrying(
+            outcomes=[RetryableError('busy'), RetryableError('busy'), 'answer']
+        )
 
-        def api_call() -> str:
-            return 'answer'
+        assert decorated() == 'answer'
+        assert len(calls) == 3
+        assert waits == [ai_worker.AI_BASE_DELAY, 2 * ai_worker.AI_BASE_DELAY]
 
-        assert ai_worker._create_ai_retry_decorator(LOG)(api_call) is api_call
+    def test_it_gives_up_after_the_last_attempt_and_reraises(self, caplog):
+        """After AI_MAX_RETRIES attempts the last error is raised and the give-up is logged."""
+        decorated, waits, calls = _retrying(
+            outcomes=[RetryableError(f'busy {index}') for index in range(ai_worker.AI_MAX_RETRIES)]
+        )
+
+        with caplog.at_level(logging.ERROR, logger=LOG.name), pytest.raises(RetryableError):
+            decorated()
+
+        assert len(calls) == ai_worker.AI_MAX_RETRIES
+        assert len(waits) == ai_worker.AI_MAX_RETRIES - 1
+        assert all(wait <= ai_worker.AI_MAX_DELAY for wait in waits)
+        assert 'failed permanently' in caplog.text
+
+    def test_a_non_retryable_error_is_not_retried(self):
+        """A client error (bad request) is raised at once, with no wait."""
+        decorated, waits, calls = _retrying(outcomes=[ValueError('bad request')])
+
+        with pytest.raises(ValueError, match='bad request'):
+            decorated()
+
+        assert len(calls) == 1
+        assert waits == []
 
 
 class TestProcessAiRequest:
     """Test _process_ai_request."""
 
-    def test_successful_call_returns_the_content(self, without_backoff):
+    def test_successful_call_returns_the_content(self):
         """The first choice's content is returned."""
         completions = FakeCompletions(response=_response_with_content('[sprite]\nname = "x"'))
 
@@ -377,7 +479,7 @@ class TestProcessAiRequest:
 
         assert response == AIResponse(content='[sprite]\nname = "x"')
 
-    def test_api_error_becomes_an_error_response(self, without_backoff):
+    def test_api_error_becomes_an_error_response(self):
         """An error from the API is reported back as an error response, not raised."""
         completions = FakeCompletions(error=ValueError('bad request'))
 
@@ -410,7 +512,7 @@ class TestExtractExampleSizeBranches:
 class TestRunAiWorker:
     """Test the worker loop, run in-process with thread queues."""
 
-    def test_requests_are_answered_until_the_shutdown_message(self, mocker, without_backoff):
+    def test_requests_are_answered_until_the_shutdown_message(self, mocker):
         """Each request gets a response tagged with its id; None stops the loop."""
         completions = FakeCompletions(response=_response_with_content('[sprite]'))
         mocker.patch.object(
@@ -467,6 +569,39 @@ class TestRunAiWorker:
 
         ai_worker.run_ai_worker(FailingOnceQueue(), response_queue)  # type: ignore[arg-type]
 
+        assert response_queue.empty()
+
+    def test_queue_error_after_a_request_does_not_answer_it_again(self, mocker):
+        """A failed read after an answered request sends that request nothing more.
+
+        The request read before the failure used to be answered a second time, with the
+        queue's error.
+        """
+        mocker.patch.object(ai_worker, '_initialize_ai_client', return_value=None)
+
+        class FailingSecondReadQueue:
+            """A request queue that gives one request, fails once, then asks for shutdown."""
+
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def get(self) -> AIRequest | None:
+                self.reads += 1
+                if self.reads == 1:
+                    return _request('first')
+                if self.reads == 2:
+                    msg = 'queue broken'
+                    raise OSError(msg)
+                return None
+
+        response_queue: queue.Queue = queue.Queue()
+
+        ai_worker.run_ai_worker(FailingSecondReadQueue(), response_queue)  # type: ignore[arg-type]
+
+        assert response_queue.get_nowait() == (
+            'first',
+            AIResponse(content='AI features not available'),
+        )
         assert response_queue.empty()
 
     def test_client_initialization_failure_is_fatal(self, mocker):

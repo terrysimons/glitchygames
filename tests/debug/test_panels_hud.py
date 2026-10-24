@@ -8,6 +8,7 @@ import pytest
 from glitchygames.camera import Camera2D
 from glitchygames.collision.layers import CollisionManager
 from glitchygames.debug import overlay as overlay_module
+from glitchygames.debug import panels as panels_module
 from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 from glitchygames.debug.panels import (
     BOUNDS_COLOR,
@@ -576,6 +577,17 @@ class TestOverlayDraw:
         draw_overlay(overlay=overlay, surface=surface, scene=scene)
         assert scene.debug_calls == []
         assert hooked.debug_calls == []
+
+    @pytest.mark.parametrize('panel', [DebugPanel.COLLISION, DebugPanel.PHYSICS, DebugPanel.CAMERA])
+    def test_single_panel_mode_skips_the_performance_panel(self, surface, camera, mocker, panel):
+        """A mode other than ALL or PERFORMANCE draws no performance panel, but the mode line."""
+        performance_panel = mocker.spy(panels_module, 'draw_performance_panel')
+        mode_line = mocker.spy(panels_module, 'draw_mode_line')
+        overlay = DebugOverlay(visible=True)
+        overlay.panel = panel
+        draw_overlay(overlay=overlay, surface=surface, scene=HookScene(camera=camera))
+        performance_panel.assert_not_called()
+        mode_line.assert_called_once()
 
     def test_raising_hook_logged_once_and_disabled(self, surface, camera, mocker):
         """A hook that raises is logged once, disabled, and the draw keeps going."""

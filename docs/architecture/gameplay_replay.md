@@ -174,7 +174,14 @@ the same time are listed by name, so `list_slots()` gives the same order everywh
   recorded as external input, whatever its type, so `--replay-trace`, instant replays and demos
   serve it whether or not they run the poster again (a copy the replayed code posts is
   dropped). A supervisor that posts with `post_event` is taken for the game itself, and a
-  replay that does not run it diverges.
+  replay that does not run it diverges. While a demo or instant replay plays, its input posts
+  of SDL types (keys, buttons, device and window events) are the player's input: a press ends
+  a demo, a release is held for the live game, exactly as a replay of the session without the
+  supervisor serves them.
+- A supervisor may post any event this way, game events (`GAMEEVENT`, `MENUEVENT`, any
+  `pygame.event.custom_type()`) included. The rule: input of an SDL type posted during a demo
+  or instant replay counts as the player's; everything else reaches the game (after the
+  demo or instant replay, if one is playing), live and replayed alike.
 - Draw random numbers from the seeded named streams in `glitchygames/randomness.py`
   (`random_stream('name')`, `numpy_stream('name')`), never from the global `random` functions,
   `secrets` or an unseeded numpy generator.
@@ -247,7 +254,19 @@ streams with its seed. It refuses, logging the reason and exiting with one of th
   has an unsupported format version: `UNUSABLE_INPUT` (65);
 - the file does not exist: `MISSING_INPUT` (66);
 - `--record-trace` is given too: `OPTIONS_REFUSED` (64). Recording over a replay is what
-  [`--rebaseline`](#rebaselining-rebaseline-new) does, and only it.
+  [`--rebaseline`](#rebaselining-rebaseline-new) does, and only it;
+- its window does not open at the recorded display size: `UNUSABLE_INPUT` (65), with one line
+  naming both sizes (`Cannot replay PATH: it was recorded on a 800x600 display, but the window
+  opened at 800x480 (the window manager chose another size); refusing to replay it`).
+
+Games read the display's size (PaddleSlap places its paddles at half the screen height), so the
+replay opens its window at the size the recorded display had (the header's `screen_size`), not
+at the recorded `--resolution`: a window manager may have given the recorded window another size
+than it asked for. A headless replay always gets that size; a watched one gets it unless the
+window manager refuses, and then the replay is refused as above. A recording whose header holds
+no `screen_size` (the engine's recorder always writes one; a hand-made header may not) replays at
+its recorded `--resolution` with a warning. A window resized during the recorded run is not
+recorded, so a game that reads the live size every frame can still diverge.
 
 A recording made by a different engine version replays with one warning. A version-2 recording
 replays with one warning too: it has no input snapshots, so polled input reads as idle.
@@ -412,7 +431,9 @@ that draw the FPS value may then diverge. Logic always receives the recorded `dt
 `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` as soon as the options are read, before
 pygame starts its display and mixer. If pygame was already started before the engine (by code
 run at import), a display or mixer on another driver is restarted on the dummy one, with a
-warning.
+warning. When the run ends, after the engine has shut pygame down, both variables are put back as
+they were (one that was not set is removed), so a program that goes on after a headless run
+starts pygame on its own drivers again.
 
 A live headless run is paced to the target FPS as usual (an unpaced live frame would last about
 a millisecond of game time) and ends however the game ends. A headless replay is not paced at
@@ -569,9 +590,15 @@ baselines in the repository keep: behaviour (hashes) and speed (processing times
 ## Golden replays
 
 `tests/fixtures/replays/<game>/golden.jsonl.gz` holds a recorded session of each example game
-(PaddleSlap, Clockwork Keep and both Brave Adventurer editions).
+(PaddleSlap, Clockwork Keep, both Brave Adventurer editions and Mr. Muncher).
 `scripts/record_scripted_session.py` recorded them through the real engine loop, with a
-supervisor posting each game's golden input script. Each recording is a test item of its own:
+supervisor posting each game's golden input script, then the game's controls tail: input that
+presses the controls the script does not, pauses and resumes, and ends with the game's own quit
+control, so every golden replay ends on a QUIT the game posted and diverges when a control stops
+working. `tests/replay/test_golden_replays.py` enforces it: every control the game binds (its
+ActionMaps, plus the keys the engine's pause screen hard-codes) must be pressed in its golden
+replay, or be listed in `UNEXERCISED_CONTROLS` with the reason (gamepad controls: no scripted
+session has a gamepad). Each recording is a test item of its own:
 the pytest plugin `glitchygames/testing/replays.py` (loaded by the root `conftest.py`) collects
 every `.../fixtures/replays/<console-script>/<name>.jsonl.gz` as `<console-script>/<name>`,
 replays it headless in a child process through the console script's entry point
@@ -660,7 +687,12 @@ playback scene's own events still queued when it ends (posted in `update()` or a
 after its last pump: the live game never receives them, so a goal posted there cannot start a
 second instant replay). What the live game's own supervisors and handlers post while it plays
 stays the live game's: a supervisor that calls `end_playback()` and then posts an event has it
-delivered to the live game after the scope. A playback never rumbles the player's controllers,
+delivered to the live game after the scope. Their `post_input_event` posts of SDL types are the
+exception: those stand in for the player, so they reach the scope's exit check as the player's
+presses do (a scripted key ends a demo) and their releases are held with the player's. Their
+`post_input_event` posts of other types (a game event) are held and delivered to the live game
+after the scope, and a replay of the session without the supervisor delivers them at the same
+frame. A playback never rumbles the player's controllers,
 and the live scene's synth voices (and those of the game behind a pause screen the instant
 replay began from) pause behind it and play on after. Inside a scope, a replay of the session still
 applies the session's breakpoints (a bookmark on a frame a demo played pauses there); the
@@ -680,8 +712,9 @@ end, at the player's first press (consumed: it never reaches `then`), at the rec
 quit, or at a divergence (logged at WARNING as `demo diverged: ...`, then back to `then`). A
 recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
 at WARNING and nothing starts. Record a demo with
-`scripts/record_scripted_session.py --output PATH` (it runs `--record-trace`, so its first
-frame holds the scene start).
+`scripts/record_scripted_session.py --script-only --output PATH` (it runs `--record-trace`, so
+its first frame holds the scene start; `--script-only` leaves out the controls tail, whose quit
+would end the demo).
 
 Bundled demos are recordings shipped in the game's package,
 `glitchygames/examples/<game>_demos/<name>.jsonl.gz`. PaddleSlap's game-over screen plays

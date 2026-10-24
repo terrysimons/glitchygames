@@ -6,8 +6,14 @@ This module consolidates tests from:
 - test_dialogs_deeper_coverage.py: Deeper coverage tests for dialogs module
 - test_confirm_dialog_coverage.py: ConfirmDialog coverage tests
 - test_input_dialog_coverage.py: InputDialog coverage tests
+
+Every dialog here is real: real scenes on the real display, real sprite groups, real fonts
+(through FontManager) and real pygame events. Drawing is checked by reading the pixels drawn.
+The previous scene is a real Scene; only its canvas (the Bitmappy editor's, which these
+dialogs hand file names to) is a small recording stand-in.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -17,13 +23,13 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-# Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
-_RealLayeredDirty = pygame.sprite.LayeredDirty
-
-from glitchygames.events.base import HashableEvent  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.scenes import Scene  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.ui import ConfirmDialog, InputDialog  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.ui.dialogs import (  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.events.base import HashableEvent
+from glitchygames.input.state import InputSnapshot, set_current_input
+from glitchygames.scenes import Scene
+from glitchygames.ui import ConfirmDialog, InputDialog
+from glitchygames.ui.dialogs import (
+    DeleteAnimationDialogScene,
+    DeleteFrameDialogScene,
     InputConfirmationDialogScene,
     LoadDialogScene,
     NewCanvasDialogScene,
@@ -33,7 +39,6 @@ from glitchygames.ui.dialogs import (  # ruff: ignore[module-import-not-at-top-o
     _get_save_path,
     _process_example_filename,
 )
-from tests.mocks import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
 
 # Test constants from test_confirm_dialog_coverage.py
 TEST_CONFIRM_DIALOG_X = 50
@@ -44,11 +49,147 @@ CONFIRM_BUTTON_WIDTH = 80
 CONFIRM_BUTTON_HEIGHT = 30
 BUTTON_SPACING = 20
 
+# ConfirmDialog.render's colours
+CONFIRM_BACKGROUND_COLOR = (40, 40, 40)
+CONFIRM_BORDER_COLOR = (100, 100, 100)
+YES_BUTTON_COLOR = (40, 100, 40)
+YES_BUTTON_HOVER_COLOR = (60, 120, 60)
+YES_BUTTON_BORDER_COLOR = (80, 140, 80)
+NO_BUTTON_COLOR = (100, 40, 40)
+NO_BUTTON_HOVER_COLOR = (120, 60, 60)
+NO_BUTTON_BORDER_COLOR = (140, 80, 80)
+
 # Test constants from test_input_dialog_coverage.py
 TEST_INPUT_DIALOG_X = 100
 TEST_INPUT_DIALOG_Y = 100
 TEST_INPUT_DIALOG_WIDTH = 400
 TEST_INPUT_DIALOG_HEIGHT = 200
+
+# InputDialog.update's colours
+INPUT_DIALOG_BACKGROUND_COLOR = (0, 0, 0)
+INPUT_DIALOG_BORDER_COLOR = (128, 128, 128)
+
+# A colour no widget draws, filled in first so a test can tell what was drawn over it
+MARKER_COLOR = (1, 2, 3)
+
+# Text pixels: every channel above this (white text, antialiased edges excluded)
+TEXT_CHANNEL_THRESHOLD = 200
+
+
+class _RecordingCanvas:
+    """Stands in for the Bitmappy canvas: records the paths the dialogs hand it."""
+
+    def __init__(self):
+        self.loaded_paths = []
+        self.saved_paths = []
+
+    def on_load_file_event(self, path):
+        self.loaded_paths.append(path)
+
+    def on_save_file_event(self, path):
+        self.saved_paths.append(path)
+
+
+class _PreviousScene(Scene):
+    """A real scene for the dialogs to return to, with a recording canvas."""
+
+    NAME = 'PreviousScene'
+
+    def __init__(self, options=None, groups=None):
+        super().__init__(options=options, groups=groups)
+        self.canvas = _RecordingCanvas()
+        self.new_file_dimensions = []
+
+    def on_new_file_event(self, dimensions):
+        self.new_file_dimensions.append(dimensions)
+
+
+@pytest.fixture(autouse=True)
+def restore_key_repeat():
+    """InputBox.on_key_up_event calls pygame.key.set_repeat; put the real setting back."""
+    delay, interval = pygame.key.get_repeat()
+    yield
+    pygame.key.set_repeat(delay, interval)
+
+
+@pytest.fixture
+def previous_scene():
+    """A real previous scene with one sprite in its group.
+
+    Returns:
+        _PreviousScene: The scene.
+    """
+    scene = _PreviousScene(groups=pygame.sprite.LayeredDirty())
+    sprite = pygame.sprite.DirtySprite(scene.all_sprites)
+    sprite.image = pygame.Surface((4, 4))
+    sprite.rect = sprite.image.get_rect()
+    sprite.dirty = 0
+    return scene
+
+
+def _key_down(key, unicode='', mod=0):
+    """Build a real key down event.
+
+    Returns:
+        HashableEvent: The event.
+    """
+    return HashableEvent(pygame.KEYDOWN, key=key, unicode=unicode, mod=mod)
+
+
+def _key_up(key, mod=0):
+    """Build a real key up event.
+
+    Returns:
+        HashableEvent: The event.
+    """
+    return HashableEvent(pygame.KEYUP, key=key, mod=mod)
+
+
+def _mouse_up(position):
+    """Build a real left mouse button up event.
+
+    Returns:
+        HashableEvent: The event.
+    """
+    return HashableEvent(pygame.MOUSEBUTTONUP, pos=position, button=1)
+
+
+def _type_text(scene, text):
+    """Type text into a scene, one real key-down per character."""
+    for character in text:
+        scene.on_key_down_event(_key_down(key=ord(character.lower()), unicode=character))
+
+
+def _install_mouse_position(position):
+    """Make this frame's polled mouse position (current_input()) the given one."""
+    set_current_input(
+        snapshot=InputSnapshot(
+            pressed_scancodes=frozenset(),
+            modifiers=0,
+            mouse_position=position,
+            mouse_buttons=(False, False, False),
+            mouse_focused=True,
+        ),
+    )
+
+
+def _rgb_at(surface, position):
+    """Return the RGB colour of one pixel (the alpha is not the point here).
+
+    Returns:
+        tuple: The (red, green, blue) colour.
+    """
+    return tuple(surface.get_at(position))[:3]
+
+
+def _text_pixel_count(surface, area):
+    """Count the near-white (text) pixels inside an area of a surface.
+
+    Returns:
+        int: The number of text pixels.
+    """
+    rgb_pixels = pygame.surfarray.array3d(surface.subsurface(area))
+    return int((rgb_pixels > TEXT_CHANNEL_THRESHOLD).all(axis=2).sum())
 
 
 # ============================================================================
@@ -59,291 +200,185 @@ TEST_INPUT_DIALOG_HEIGHT = 200
 class TestInputConfirmationDialogScene:
     """Test InputConfirmationDialogScene functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
+    def test_input_confirmation_dialog_scene_init(self, previous_scene):
+        """The scene builds a real InputDialog, half the screen's size, centred on it."""
+        scene = InputConfirmationDialogScene(previous_scene=previous_scene)
 
-    def test_input_confirmation_dialog_scene_init(self, mocker):
-        """Test InputConfirmationDialogScene initialization."""
-        # Mock the screen and groups
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        mock_input_dialog = mocker.patch('glitchygames.ui.dialogs.InputDialog')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        screen_rect = pygame.display.get_surface().get_rect()
+        assert isinstance(scene.dialog, InputDialog)
+        assert scene.dialog.rect.size == (screen_rect.width // 2, screen_rect.height // 2)
+        assert scene.dialog.rect.center == screen_rect.center
+        assert scene.dialog.dialog_text_sprite.text_box.text == scene.DIALOG_TEXT
+        assert scene.dialog.dialog_text_sprite.border_width == 0
+        assert scene.dialog.cancel_button.name == scene.CANCEL_TEXT
+        assert scene.dialog.confirm_button.name == scene.CONFIRMATION_TEXT
+        assert scene.dialog.input_box in scene.all_sprites
 
-        # Create mock dialog
-        mock_dialog = mocker.Mock()
-        mock_dialog.dialog_text_sprite = mocker.Mock()
-        mock_input_dialog.return_value = mock_dialog
+    def test_input_confirmation_dialog_text_submission(self, previous_scene, caplog):
+        """A text submission is logged and leaves the dialog open."""
+        scene = InputConfirmationDialogScene(previous_scene=previous_scene)
 
-        # Act
-        scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        with caplog.at_level(logging.INFO):
+            scene.on_text_submit_event('Submitted Text')
 
-        # Assert
-        assert scene is not None
-        mock_input_dialog.assert_called_once()
+        assert "Text submitted: 'Submitted Text'" in caplog.text
+        assert scene.next_scene is None
 
-    def test_input_confirmation_dialog_text_submission(self, mocker):
-        """Test InputConfirmationDialogScene text submission."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        mock_input_dialog = mocker.patch('glitchygames.ui.dialogs.InputDialog')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+    def test_input_confirmation_dialog_cancellation(self, previous_scene):
+        """Releasing Escape in the active input box deactivates it; the dialog stays open."""
+        scene = InputConfirmationDialogScene(previous_scene=previous_scene)
+        assert scene.dialog.input_box.is_active is True
 
-        # Create mock dialog
-        mock_dialog = mocker.Mock()
-        mock_dialog.dialog_text_sprite = mocker.Mock()
-        mock_input_dialog.return_value = mock_dialog
+        scene.on_key_up_event(_key_up(pygame.K_ESCAPE))
 
-        scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        assert scene.dialog.input_box.is_active is False
+        assert scene.next_scene is None
 
-        # Act: simulate text submission
-        scene.on_text_submit_event('Submitted Text')
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "InputBox.on_key_down_event appends a key-down's unicode for every key but Return, "
+            "Backspace and Shift+;: Escape's key-down (unicode '\\x1b', as pygame delivers it) "
+            'adds an invisible escape character to the typed file name'
+        ),
+    )
+    def test_escape_key_down_types_nothing(self, previous_scene):
+        """Pressing Escape in the input box must not add a character to it."""
+        scene = InputConfirmationDialogScene(previous_scene=previous_scene)
 
-        # Assert: should handle text submission
-        assert scene is not None
+        scene.on_key_down_event(_key_down(pygame.K_ESCAPE, unicode='\x1b'))
 
-    def test_input_confirmation_dialog_cancellation(self, mocker):
-        """Test InputConfirmationDialogScene cancellation."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        mock_input_dialog = mocker.patch('glitchygames.ui.dialogs.InputDialog')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        assert not scene.dialog.input_box.text
 
-        # Create mock dialog
-        mock_dialog = mocker.Mock()
-        mock_dialog.dialog_text_sprite = mocker.Mock()
-        mock_input_dialog.return_value = mock_dialog
+    def test_dialog_scene_draws_its_dialog_on_the_display(self, previous_scene):
+        """Drawing the scene's sprites puts the dialog's border at its rect on the display."""
+        scene = InputConfirmationDialogScene(previous_scene=previous_scene)
+        scene.setup()
+        screen = pygame.display.get_surface()
+        # LayeredDirty's first draw paints its background over the whole screen
+        background = pygame.Surface(screen.get_size())
+        background.fill(MARKER_COLOR)
 
-        scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        scene.all_sprites.update()
+        scene.all_sprites.draw(screen, bgd=background)
 
-        # Act: simulate cancellation via key down event
-        event = mocker.Mock()
-        event.key = pygame.K_ESCAPE
-        scene.on_key_down_event(event)
-
-        # Assert: should handle cancellation
-        assert scene is not None
+        dialog_rect = scene.dialog.rect
+        assert _rgb_at(screen, dialog_rect.topleft) == INPUT_DIALOG_BORDER_COLOR
+        assert _rgb_at(screen, (dialog_rect.left + 2, dialog_rect.top + 2)) == (
+            INPUT_DIALOG_BACKGROUND_COLOR
+        )
+        # Nothing is drawn outside the dialog
+        assert _rgb_at(screen, (dialog_rect.left - 1, dialog_rect.top)) == MARKER_COLOR
+        assert _rgb_at(screen, (dialog_rect.right, dialog_rect.bottom)) == MARKER_COLOR
 
 
 class TestLoadDialogScene:
     """Test LoadDialogScene functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-
-    def test_load_dialog_scene_init(self, mocker):
+    def test_load_dialog_scene_init(self, previous_scene):
         """Test LoadDialogScene initialization."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        scene = LoadDialogScene(previous_scene=previous_scene)
 
-        # Act
-        scene = LoadDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        assert scene.previous_scene is previous_scene
+        assert scene.dialog.dialog_text_sprite.text_box.text == 'Enter filename to load:'
+        assert scene.dialog.confirm_button.name == 'Load'
 
-        # Assert
-        assert scene is not None
-
-    def test_load_dialog_file_selection(self, mocker):
-        """Test LoadDialogScene file selection."""
-        # Create mock groups using centralized mocks
-        mock_groups = mocker.Mock()
-        mock_groups.__iter__ = mocker.Mock(return_value=iter([]))  # Make it iterable
-
-        # Create mock previous scene with iterable all_sprites
-        mock_previous_scene = mocker.Mock()
-        mock_previous_scene.all_sprites = []  # Empty list is iterable
-
-        scene = LoadDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
-
-        # Act: simulate file selection via confirm event
-        event = mocker.Mock()
+    def test_load_dialog_file_selection(self, previous_scene):
+        """Confirming hands the typed file name to the canvas and returns to the scene."""
+        scene = LoadDialogScene(previous_scene=previous_scene)
         scene.dialog.input_box.text = 'test_file.toml'
-        scene.on_confirm_event(event, mocker.Mock())
 
-        # Assert: should handle file selection
-        assert scene is not None
+        scene.on_confirm_event(_mouse_up((0, 0)), scene.dialog.confirm_button)
 
-    def test_load_dialog_cancellation(self, mocker):
-        """Test LoadDialogScene cancellation."""
-        # Create mock groups using centralized mocks
-        mock_groups = mocker.Mock()
-        mock_groups.__iter__ = mocker.Mock(return_value=iter([]))  # Make it iterable
+        assert previous_scene.canvas.loaded_paths == ['test_file.toml']
+        assert scene.next_scene is previous_scene
 
-        # Create mock previous scene with iterable all_sprites
-        mock_previous_scene = mocker.Mock()
-        mock_previous_scene.all_sprites = []  # Empty list is iterable
+    def test_load_dialog_cancellation(self, previous_scene):
+        """Releasing Escape deactivates the input box without loading anything."""
+        scene = LoadDialogScene(previous_scene=previous_scene)
 
-        scene = LoadDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
+        scene.on_key_up_event(_key_up(pygame.K_ESCAPE))
 
-        # Act: simulate cancellation via key down event
-        event = mocker.Mock()
-        event.key = pygame.K_ESCAPE
-        event.unicode = ''  # Add unicode attribute
-        scene.on_key_down_event(event)
-
-        # Assert: should handle cancellation
-        assert scene is not None
+        assert scene.dialog.input_box.is_active is False
+        assert previous_scene.canvas.loaded_paths == []
 
 
 class TestSaveDialogScene:
     """Test SaveDialogScene functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-
-    def test_save_dialog_scene_init(self, mocker):
+    def test_save_dialog_scene_init(self, previous_scene):
         """Test SaveDialogScene initialization."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        scene = SaveDialogScene(previous_scene=previous_scene)
 
-        # Act
-        scene = SaveDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        assert scene.previous_scene is previous_scene
+        assert scene.dialog.dialog_text_sprite.text_box.text == 'Enter filename to save:'
+        assert scene.dialog.confirm_button.name == 'Save'
 
-        # Assert
-        assert scene is not None
+    def test_save_dialog_filename_input(self, previous_scene):
+        """A file name typed as key-downs lands in the input box."""
+        scene = SaveDialogScene(previous_scene=previous_scene)
 
-    def test_save_dialog_filename_input(self, mocker):
-        """Test SaveDialogScene filename input."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        _type_text(scene, 'new_file')
 
-        scene = SaveDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        assert scene.dialog.input_box.text == 'new_file'
 
-        # Act: simulate filename input
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='n'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='e'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='w'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='_'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='f'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='i'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='l'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='e'))
+    def test_save_dialog_ignores_text_input_events(self, previous_scene):
+        """TEXTINPUT events type nothing (the input box takes text from key-downs)."""
+        scene = SaveDialogScene(previous_scene=previous_scene)
 
-        # Assert: should handle filename input
-        assert scene is not None
+        for character in 'new_file':
+            scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text=character))
 
-    def test_save_dialog_save_confirmation(self, mocker):
-        """Test SaveDialogScene save confirmation."""
-        # Create mock groups using centralized mocks
-        mock_groups = mocker.Mock()
-        mock_groups.__iter__ = mocker.Mock(return_value=iter([]))  # Make it iterable
+        assert not scene.dialog.input_box.text
 
-        # Create mock previous scene with iterable all_sprites
-        mock_previous_scene = mocker.Mock()
-        mock_previous_scene.all_sprites = []  # Empty list is iterable
-
-        scene = SaveDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
-
-        # Act: simulate save confirmation via confirm event
-        event = mocker.Mock()
+    def test_save_dialog_save_confirmation(self, previous_scene):
+        """Confirming hands the typed file name to the canvas and returns to the scene."""
+        scene = SaveDialogScene(previous_scene=previous_scene)
         scene.dialog.input_box.text = 'test_file.toml'
-        scene.on_confirm_event(event, mocker.Mock())
 
-        # Assert: should handle save confirmation
-        assert scene is not None
+        scene.on_confirm_event(_mouse_up((0, 0)), scene.dialog.confirm_button)
+
+        assert previous_scene.canvas.saved_paths == ['test_file.toml']
+        assert scene.next_scene is previous_scene
 
 
 class TestNewCanvasDialogScene:
     """Test NewCanvasDialogScene functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-
-    def test_new_canvas_dialog_scene_init(self, mocker):
+    def test_new_canvas_dialog_scene_init(self, previous_scene):
         """Test NewCanvasDialogScene initialization."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        scene = NewCanvasDialogScene(previous_scene=previous_scene)
 
-        # Act
-        scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        assert scene.previous_scene is previous_scene
+        assert scene.dialog.dialog_text_sprite.text_box.text == 'Enter canvas size (WxH):'
+        assert scene.dialog.confirm_button.name == 'Create'
 
-        # Assert
-        assert scene is not None
+    def test_new_canvas_dialog_dimension_input(self, previous_scene):
+        """Dimensions typed as key-downs land in the input box."""
+        scene = NewCanvasDialogScene(previous_scene=previous_scene)
 
-    def test_new_canvas_dialog_dimension_input(self, mocker):
-        """Test NewCanvasDialogScene dimension input."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
+        _type_text(scene, '1024')
 
-        scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
+        assert scene.dialog.input_box.text == '1024'
 
-        # Act: simulate dimension input
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='1'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='0'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='2'))
-        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='4'))
-
-        # Assert: should handle dimension input
-        assert scene is not None
-
-    def test_new_canvas_dialog_creation_confirmation(self, mocker):
-        """Test NewCanvasDialogScene creation confirmation."""
-        # Create mock groups using centralized mocks
-        mock_groups = mocker.Mock()
-        mock_groups.__iter__ = mocker.Mock(return_value=iter([]))  # Make it iterable
-
-        # Create mock previous scene with iterable all_sprites
-        mock_previous_scene = mocker.Mock()
-        mock_previous_scene.all_sprites = []  # Empty list is iterable
-
-        scene = NewCanvasDialogScene(previous_scene=mock_previous_scene, groups=mock_groups)
-
-        # Act: simulate creation confirmation via confirm event
-        event = mocker.Mock()
-        scene.dialog.input_box.text = '1024x768'
-        scene.on_confirm_event(event, mocker.Mock())
-
-        # Assert: should handle creation confirmation
-        assert scene is not None
-
-    def test_new_canvas_dialog_dimension_validation(self, mocker):
-        """Test NewCanvasDialogScene dimension validation."""
-        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
-        # Create mock groups
-        mock_groups = mocker.Mock()
-        mock_layered_dirty.return_value = mock_groups
-
-        scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
-
-        # Act: test valid dimensions by setting input box text
+    def test_new_canvas_dialog_creation_confirmation(self, previous_scene):
+        """Confirming hands the dimensions to the previous scene and returns to it."""
+        scene = NewCanvasDialogScene(previous_scene=previous_scene)
         scene.dialog.input_box.text = '1024x768'
 
-        # Assert: should accept valid dimensions
-        assert scene.dialog.input_box.text == '1024x768'
+        scene.on_confirm_event(_mouse_up((0, 0)), scene.dialog.confirm_button)
 
-        # Act: test invalid dimensions (should be handled by input validation)
+        assert previous_scene.new_file_dimensions == ['1024x768']
+        assert scene.next_scene is previous_scene
+
+    def test_new_canvas_dialog_dimension_validation(self, previous_scene):
+        """The dialog passes the text through as typed; the canvas validates it."""
+        scene = NewCanvasDialogScene(previous_scene=previous_scene)
         scene.dialog.input_box.text = 'invalid'
 
-        # Assert: should handle invalid input
-        assert scene.dialog.input_box.text == 'invalid'
+        scene.on_confirm_event(_mouse_up((0, 0)), scene.dialog.confirm_button)
+
+        assert previous_scene.new_file_dimensions == ['invalid']
 
 
 # ============================================================================
@@ -448,499 +483,380 @@ class TestGetLoadPath:
 class TestDialogSceneSetupCleanupDismiss:
     """Test dialog scene lifecycle methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_input_confirmation_dialog_setup(self, mocker):
+    def test_input_confirmation_dialog_setup(self, previous_scene):
         """Test InputConfirmationDialogScene setup configures button callbacks."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
         scene.setup()
 
-        # Verify button callbacks were set
-        assert scene.dialog.cancel_button.callbacks is not None
-        assert scene.dialog.confirm_button.callbacks is not None
-        assert 'on_left_mouse_button_up_event' in scene.dialog.cancel_button.callbacks
-        assert 'on_left_mouse_button_up_event' in scene.dialog.confirm_button.callbacks
+        assert scene.dialog.cancel_button.callbacks == {
+            'on_left_mouse_button_up_event': scene.on_cancel_event,
+        }
+        assert scene.dialog.confirm_button.callbacks == {
+            'on_left_mouse_button_up_event': scene.on_confirm_event,
+        }
+        assert scene.dialog in scene.all_sprites
 
-    def test_input_confirmation_dialog_cleanup(self, mocker):
+    def test_input_confirmation_dialog_cleanup(self, previous_scene):
         """Test InputConfirmationDialogScene cleanup sets next_scene to self."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
+        scene.next_scene = previous_scene
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
         scene.cleanup()
 
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
-    def test_input_confirmation_dialog_dismiss(self, mocker):
-        """Test InputConfirmationDialogScene dismiss returns to previous scene."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+    def test_input_confirmation_dialog_dismiss(self, previous_scene):
+        """Dismiss returns to the previous scene and empties the dialog's sprites."""
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
+        previous_scene.next_scene = None
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
         scene.dismiss()
 
-        assert scene.next_scene is mock_previous
-        assert mock_previous.next_scene is mock_previous
+        assert scene.next_scene is previous_scene
+        assert previous_scene.next_scene is None
+        assert len(scene.all_sprites) == 0
 
-    def test_input_confirmation_dialog_cancel_event(self, mocker):
+    def test_input_confirmation_dialog_cancel_event(self, previous_scene):
         """Test InputConfirmationDialogScene on_cancel_event dismisses dialog."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        scene.on_cancel_event(event, trigger)
+        scene.on_cancel_event(_mouse_up((0, 0)), scene.dialog.cancel_button)
 
-        assert scene.next_scene is mock_previous
+        assert scene.next_scene is previous_scene
 
-    def test_input_confirmation_dialog_on_input_box_submit(self, mocker):
-        """Test InputConfirmationDialogScene on_input_box_submit_event."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+    def test_input_confirmation_dialog_on_input_box_submit(self, previous_scene, caplog):
+        """A submit from the input box is logged with the box's name and text."""
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
+        input_box = scene.dialog.input_box
+        input_box.name = 'TestInput'
+        input_box.text = 'test value'
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        control = mocker.Mock()
-        control.name = 'TestInput'
-        control.text = 'test value'
-        # Should not raise
-        scene.on_input_box_submit_event(control)
+        with caplog.at_level(logging.INFO, logger='game.ui.dialogs'):
+            scene.on_input_box_submit_event(input_box)
 
-    def test_input_confirmation_dialog_mouse_button_up(self, mocker):
+        assert 'Got text input from: TestInput: test value' in caplog.text
+        assert scene.next_scene is None
+
+    def test_input_confirmation_dialog_mouse_button_up(self, previous_scene):
         """Test InputConfirmationDialogScene on_mouse_button_up_event activates input."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
+        scene.dialog.input_box.deactivate()
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        event = mocker.Mock()
-        # The input_box is a real InputBox, so we check its state after calling
-        scene.on_mouse_button_up_event(event)
+        scene.on_mouse_button_up_event(_mouse_up((0, 0)))
+
         assert scene.dialog.input_box.is_active is True
 
-    def test_input_confirmation_dialog_key_up_tab_activates(self, mocker):
+    def test_input_confirmation_dialog_key_up_tab_activates(self, previous_scene):
         """Test InputConfirmationDialogScene on_key_up_event with Tab activates input."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
         scene.dialog.input_box.is_active = False
-        event = mocker.Mock()
-        event.key = pygame.K_TAB
-        scene.on_key_up_event(event)
+
+        scene.on_key_up_event(_key_up(pygame.K_TAB))
+
         assert scene.dialog.input_box.is_active is True
 
-    def test_input_confirmation_dialog_key_up_active_input(self, mocker):
-        """Test InputConfirmationDialogScene on_key_up_event when input is active."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
+    def test_input_confirmation_dialog_key_up_active_input(self, previous_scene):
+        """A key-up while the input box is active goes to the dialog's input box."""
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
         scene.dialog.input_box.is_active = True
-        # Mock the dialog's on_key_up_event since it's the one being delegated to
-        scene.dialog.on_key_up_event = mocker.Mock()
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        scene.on_key_up_event(event)
-        scene.dialog.on_key_up_event.assert_called_once_with(event)
 
-    def test_input_confirmation_dialog_key_down_active_input(self, mocker):
-        """Test InputConfirmationDialogScene on_key_down_event when input is active."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+        # The input box deactivates on Escape's release: proof the key-up reached it
+        scene.on_key_up_event(_key_up(pygame.K_ESCAPE))
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
+        assert scene.dialog.input_box.is_active is False
+
+    def test_input_confirmation_dialog_key_down_active_input(self, previous_scene):
+        """A key-down while the input box is active types into the dialog's input box."""
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
         scene.dialog.input_box.is_active = True
-        # Mock the dialog's on_key_down_event since it's the one being delegated to
-        scene.dialog.on_key_down_event = mocker.Mock()
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        scene.on_key_down_event(event)
-        scene.dialog.on_key_down_event.assert_called_once_with(event)
 
-    def test_input_confirmation_dialog_key_down_inactive_input(self, mocker):
-        """Test InputConfirmationDialogScene on_key_down_event when input is inactive."""
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
+        scene.on_key_down_event(_key_down(pygame.K_a, unicode='a'))
 
-        scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
+        assert scene.dialog.input_box.text == 'a'
+
+    def test_input_confirmation_dialog_key_down_inactive_input(self, previous_scene):
+        """BUGS.md #41: an unhandled key-down reaches the base key-down handler, not key-up.
+
+        The base key-down handler acts on no key (Q quits on its release, BUGS.md #203); the
+        base key-up handler quits (posts QUIT) only on the release of a recorded press.
+        """
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
         scene.dialog.input_box.is_active = False
-        scene.all_sprites = _RealLayeredDirty()
-        # BUGS.md #41: an unhandled key-down must reach the base key-down
-        # handler, not the key-up one.
-        base_key_down_handler = mocker.patch.object(Scene, 'on_key_down_event', autospec=True)
-        base_key_up_handler = mocker.patch.object(Scene, 'on_key_up_event', autospec=True)
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        scene.on_key_down_event(event)
-        base_key_down_handler.assert_called_once_with(scene, event)
-        base_key_up_handler.assert_not_called()
+        pygame.event.clear(eventtype=pygame.QUIT)
+
+        scene.on_key_down_event(_key_down(pygame.K_q, unicode='q'))
+
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
+        assert not scene.dialog.input_box.text
 
 
 class TestDeleteAnimationDialogScene:
     """Test DeleteAnimationDialogScene."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_delete_animation_dialog_initialization(self, mocker):
+    def test_delete_animation_dialog_initialization(self, previous_scene):
         """Test DeleteAnimationDialogScene initialization."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+        calls = []
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        confirm_callback = mocker.Mock()
-        cancel_callback = mocker.Mock()
+        def confirm_callback():
+            calls.append('confirm')
+
+        def cancel_callback():
+            calls.append('cancel')
 
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
             on_confirm_callback=confirm_callback,
             on_cancel_callback=cancel_callback,
-            groups=mock_groups,
+            groups=pygame.sprite.LayeredDirty(),
         )
         assert dialog.animation_name == 'idle'
         assert dialog.on_confirm_callback is confirm_callback
         assert dialog.on_cancel_callback is cancel_callback
+        message = "Type 'idle' to confirm deletion:"
+        assert dialog.dialog.dialog_text_sprite.text_box.text == message
+        assert dialog.dialog.rect.size == (500, 200)
+        assert dialog.dialog.rect.center == pygame.display.get_surface().get_rect().center
+        assert calls == []
 
-    def test_delete_animation_confirm_matching_name(self, mocker):
-        """Test confirm with matching animation name calls callback."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        confirm_callback = mocker.Mock()
-
+    def test_delete_animation_confirm_matching_name(self, previous_scene):
+        """Typing the animation's name and confirming deletes it and returns to the scene."""
+        calls = []
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=confirm_callback,
-            groups=mock_groups,
+            on_confirm_callback=lambda: calls.append('confirm'),
+            groups=pygame.sprite.LayeredDirty(),
         )
-        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         dialog.dialog.input_box.text = 'idle'
-        event = mocker.Mock()
-        dialog.on_confirm_event(event)
-        confirm_callback.assert_called_once()
 
-    def test_delete_animation_confirm_non_matching_name(self, mocker):
+        dialog.on_confirm_event(_mouse_up((0, 0)))
+
+        assert calls == ['confirm']
+        assert dialog.scene_manager.active_scene is previous_scene
+
+    def test_delete_animation_confirm_non_matching_name(self, previous_scene):
         """Test confirm with non-matching name clears input."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        confirm_callback = mocker.Mock()
-
+        calls = []
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=confirm_callback,
-            groups=mock_groups,
+            on_confirm_callback=lambda: calls.append('confirm'),
+            groups=pygame.sprite.LayeredDirty(),
         )
         dialog.dialog.input_box.text = 'wrong'
-        event = mocker.Mock()
-        dialog.on_confirm_event(event)
-        confirm_callback.assert_not_called()
+
+        dialog.on_confirm_event(_mouse_up((0, 0)))
+
+        assert calls == []
         assert not dialog.dialog.input_box.text
+        assert dialog.scene_manager.active_scene is not previous_scene
 
-    def test_delete_animation_cancel_with_callback(self, mocker):
+    def test_delete_animation_cancel_with_callback(self, previous_scene):
         """Test cancel event calls cancel callback."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        cancel_callback = mocker.Mock()
-
+        calls = []
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=mocker.Mock(),
-            on_cancel_callback=cancel_callback,
-            groups=mock_groups,
+            on_confirm_callback=lambda: calls.append('confirm'),
+            on_cancel_callback=lambda: calls.append('cancel'),
+            groups=pygame.sprite.LayeredDirty(),
         )
-        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
-        event = mocker.Mock()
-        dialog.on_cancel_event(event)
-        cancel_callback.assert_called_once()
 
-    def test_delete_animation_cancel_without_callback(self, mocker):
-        """Test cancel event without callback doesn't raise."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+        dialog.on_cancel_event(_mouse_up((0, 0)))
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
+        assert calls == ['cancel']
+        assert dialog.scene_manager.active_scene is previous_scene
 
+    def test_delete_animation_cancel_without_callback(self, previous_scene):
+        """Cancelling without a cancel callback still returns to the previous scene."""
+        calls = []
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=mocker.Mock(),
+            on_confirm_callback=lambda: calls.append('confirm'),
             on_cancel_callback=None,
-            groups=mock_groups,
+            groups=pygame.sprite.LayeredDirty(),
         )
-        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
-        event = mocker.Mock()
-        dialog.on_cancel_event(event)
 
-    def test_delete_animation_key_down_active_input(self, mocker):
-        """Test DeleteAnimationDialogScene key down when input is active."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+        dialog.on_cancel_event(_mouse_up((0, 0)))
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
+        assert calls == []
+        assert dialog.scene_manager.active_scene is previous_scene
 
+    def test_delete_animation_key_down_active_input(self, previous_scene):
+        """A key-down while the input box is active types into it."""
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+            on_confirm_callback=lambda: None,
+            groups=pygame.sprite.LayeredDirty(),
         )
-
-        # Mock the dialog's on_key_down_event
-        dialog.dialog.on_key_down_event = mocker.Mock()
         dialog.dialog.input_box.is_active = True
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        dialog.on_key_down_event(event)
-        dialog.dialog.on_key_down_event.assert_called_once_with(event)
 
-    def test_delete_animation_key_up_active_input(self, mocker):
-        """Test DeleteAnimationDialogScene key up when input is active."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+        dialog.on_key_down_event(_key_down(pygame.K_a, unicode='a'))
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
+        assert dialog.dialog.input_box.text == 'a'
 
+    def test_delete_animation_key_up_active_input(self, previous_scene):
+        """A key-up while the input box is active reaches it (Escape deactivates it)."""
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+            on_confirm_callback=lambda: None,
+            groups=pygame.sprite.LayeredDirty(),
         )
-
-        dialog.dialog.on_key_up_event = mocker.Mock()
         dialog.dialog.input_box.is_active = True
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        dialog.on_key_up_event(event)
-        dialog.dialog.on_key_up_event.assert_called_once_with(event)
 
-    def test_delete_animation_key_up_tab_activates(self, mocker):
+        dialog.on_key_up_event(_key_up(pygame.K_ESCAPE))
+
+        assert dialog.dialog.input_box.is_active is False
+
+    def test_delete_animation_key_up_tab_activates(self, previous_scene):
         """Test DeleteAnimationDialogScene key up with Tab activates input."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+            on_confirm_callback=lambda: None,
+            groups=pygame.sprite.LayeredDirty(),
         )
-
         dialog.dialog.input_box.is_active = False
-        tab_event = mocker.Mock()
-        tab_event.key = pygame.K_TAB
-        dialog.on_key_up_event(tab_event)
+
+        dialog.on_key_up_event(_key_up(pygame.K_TAB))
+
         assert dialog.dialog.input_box.is_active is True
+
+
+def _create_delete_frame_dialog(previous_scene, *, confirm_callback, cancel_callback=None):
+    """Create a DeleteFrameDialogScene for frame 0 of 'idle'.
+
+    Returns:
+        DeleteFrameDialogScene: The dialog scene.
+    """
+    return DeleteFrameDialogScene(
+        previous_scene=previous_scene,
+        animation_name='idle',
+        frame_index=0,
+        on_confirm_callback=confirm_callback,
+        on_cancel_callback=cancel_callback,
+        groups=pygame.sprite.LayeredDirty(),
+    )
 
 
 class TestDeleteFrameDialogScene:
     """Test DeleteFrameDialogScene."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_delete_frame_dialog_initialization(self, previous_scene):
+        """The dialog asks about the frame and adds a second label below the first."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
 
-    def test_delete_frame_dialog_initialization(self, mocker):
-        """Test DeleteFrameDialogScene initialization."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
-        )
         assert dialog.animation_name == 'idle'
         assert dialog.frame_index == 0
+        first_label = dialog.dialog.dialog_text_sprite
+        assert first_label.text_box.text == "Delete this frame from 'idle'?"
+        assert dialog.second_label.text == "Type 'YES' to confirm:"
+        assert dialog.second_label.rect.x == first_label.rect.x
+        assert dialog.second_label.rect.y == first_label.rect.y + 30
+        assert dialog.second_label.background_color == first_label.background_color
+        assert dialog.second_label in dialog.all_sprites
 
-    def test_delete_frame_confirm_yes(self, mocker):
-        """Test confirm with 'YES' calls callback."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
+    def test_delete_frame_second_label_draws_its_text(self, previous_scene):
+        """The second label renders its prompt with the real font."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
+        label = dialog.second_label
 
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
+        label.update()
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        confirm_callback = mocker.Mock()
+        rgb_pixels = pygame.surfarray.array3d(label.image)
+        background = rgb_pixels[0, 0]
+        assert (rgb_pixels != background).any(axis=2).sum() > 0
 
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=confirm_callback,
-            groups=mock_groups,
+    def test_delete_frame_confirm_yes(self, previous_scene):
+        """Typing YES and confirming deletes the frame and returns to the scene."""
+        calls = []
+        dialog = _create_delete_frame_dialog(
+            previous_scene, confirm_callback=lambda: calls.append('confirm')
         )
-        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         dialog.dialog.input_box.text = 'YES'
-        event = mocker.Mock()
-        dialog.on_confirm_event(event)
-        confirm_callback.assert_called_once()
 
-    def test_delete_frame_confirm_wrong_text(self, mocker):
+        dialog.on_confirm_event(_mouse_up((0, 0)))
+
+        assert calls == ['confirm']
+        assert dialog.scene_manager.active_scene is previous_scene
+
+    def test_delete_frame_confirm_wrong_text(self, previous_scene):
         """Test confirm with wrong text clears input."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        confirm_callback = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=confirm_callback,
-            groups=mock_groups,
+        calls = []
+        dialog = _create_delete_frame_dialog(
+            previous_scene, confirm_callback=lambda: calls.append('confirm')
         )
         dialog.dialog.input_box.text = 'no'
-        event = mocker.Mock()
-        dialog.on_confirm_event(event)
-        confirm_callback.assert_not_called()
+
+        dialog.on_confirm_event(_mouse_up((0, 0)))
+
+        assert calls == []
         assert not dialog.dialog.input_box.text
+        assert dialog.scene_manager.active_scene is not previous_scene
 
-    def test_delete_frame_cancel(self, mocker):
+    def test_delete_frame_cancel(self, previous_scene):
         """Test cancel event on delete frame dialog."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        cancel_callback = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            on_cancel_callback=cancel_callback,
-            groups=mock_groups,
-        )
-        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
-        event = mocker.Mock()
-        dialog.on_cancel_event(event)
-        cancel_callback.assert_called_once()
-
-    def test_delete_frame_key_down_active(self, mocker):
-        """Test DeleteFrameDialogScene key down when input is active."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+        calls = []
+        dialog = _create_delete_frame_dialog(
+            previous_scene,
+            confirm_callback=lambda: calls.append('confirm'),
+            cancel_callback=lambda: calls.append('cancel'),
         )
 
-        dialog.dialog.on_key_down_event = mocker.Mock()
+        dialog.on_cancel_event(_mouse_up((0, 0)))
+
+        assert calls == ['cancel']
+        assert dialog.scene_manager.active_scene is previous_scene
+
+    def test_delete_frame_key_down_active(self, previous_scene):
+        """A key-down while the input box is active types into it."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = True
-        event = mocker.Mock()
-        event.key = pygame.K_y
-        dialog.on_key_down_event(event)
-        dialog.dialog.on_key_down_event.assert_called_once_with(event)
 
-    def test_delete_frame_key_up_active(self, mocker):
-        """Test DeleteFrameDialogScene key up when input is active."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
+        dialog.on_key_down_event(_key_down(pygame.K_y, unicode='Y', mod=pygame.KMOD_LSHIFT))
 
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
+        assert dialog.dialog.input_box.text == 'Y'
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
-        )
-
-        dialog.dialog.on_key_up_event = mocker.Mock()
+    def test_delete_frame_key_up_active(self, previous_scene):
+        """A key-up while the input box is active reaches it (Escape deactivates it)."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = True
-        event = mocker.Mock()
-        event.key = pygame.K_y
-        dialog.on_key_up_event(event)
-        dialog.dialog.on_key_up_event.assert_called_once_with(event)
 
-    def test_delete_frame_key_up_tab_inactive(self, mocker):
+        dialog.on_key_up_event(_key_up(pygame.K_ESCAPE))
+
+        assert dialog.dialog.input_box.is_active is False
+
+    def test_delete_frame_key_up_tab_inactive(self, previous_scene):
         """Test DeleteFrameDialogScene key up with Tab when inactive."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
-        )
-
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = False
-        tab_event = mocker.Mock()
-        tab_event.key = pygame.K_TAB
-        dialog.on_key_up_event(tab_event)
+
+        dialog.on_key_up_event(_key_up(pygame.K_TAB))
+
         assert dialog.dialog.input_box.is_active is True
 
 
@@ -952,481 +868,276 @@ class TestDeleteFrameDialogScene:
 class TestNewCanvasDialogConfirm:
     """Test NewCanvasDialogScene.on_confirm_event."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_confirm_calls_on_new_file_event(self, mocker):
+    def test_confirm_calls_on_new_file_event(self, previous_scene):
         """Test confirm event calls previous scene's on_new_file_event."""
-        from glitchygames.ui.dialogs import NewCanvasDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
         dialog = NewCanvasDialogScene(
-            previous_scene=mock_previous,
-            groups=mock_groups,
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
         )
         dialog.dialog.input_box.text = '16x16'
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        dialog.on_confirm_event(event, trigger)
 
-        mock_previous.on_new_file_event.assert_called_once_with('16x16')
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.new_file_dimensions == ['16x16']
 
 
 class TestLoadDialogConfirm:
     """Test LoadDialogScene.on_confirm_event."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_confirm_calls_on_load_file_event(self, mocker):
+    def test_confirm_calls_on_load_file_event(self, previous_scene):
         """Test confirm event calls canvas on_load_file_event."""
-        from glitchygames.ui.dialogs import LoadDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        mock_previous.canvas = mocker.Mock()
-
-        dialog = LoadDialogScene(
-            previous_scene=mock_previous,
-            groups=mock_groups,
-        )
+        dialog = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'test.toml'
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        dialog.on_confirm_event(event, trigger)
 
-        mock_previous.canvas.on_load_file_event.assert_called_once()
-        # Should have been called with the processed path
-        call_args = mock_previous.canvas.on_load_file_event.call_args[0][0]
-        assert 'test.toml' in call_args
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-    def test_confirm_with_example_prefix(self, mocker):
+        assert previous_scene.canvas.loaded_paths == ['test.toml']
+
+    def test_confirm_with_example_prefix(self, previous_scene):
         """Test confirm event processes example: prefix correctly."""
-        from glitchygames.ui.dialogs import LoadDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        mock_previous.canvas = mocker.Mock()
-
-        dialog = LoadDialogScene(
-            previous_scene=mock_previous,
-            groups=mock_groups,
-        )
+        dialog = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'example:heart.toml'
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        dialog.on_confirm_event(event, trigger)
 
-        mock_previous.canvas.on_load_file_event.assert_called_once()
-        call_args = mock_previous.canvas.on_load_file_event.call_args[0][0]
-        assert 'heart.toml' in call_args
-        assert 'examples' in call_args
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.loaded_paths == [str(_get_examples_dir() / 'heart.toml')]
 
 
 class TestSaveDialogConfirm:
     """Test SaveDialogScene.on_confirm_event."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_confirm_calls_on_save_file_event(self, mocker):
+    def test_confirm_calls_on_save_file_event(self, previous_scene):
         """Test confirm event calls canvas on_save_file_event."""
-        from glitchygames.ui.dialogs import SaveDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        mock_previous.canvas = mocker.Mock()
-
-        dialog = SaveDialogScene(
-            previous_scene=mock_previous,
-            groups=mock_groups,
-        )
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'output.toml'
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        dialog.on_confirm_event(event, trigger)
 
-        mock_previous.canvas.on_save_file_event.assert_called_once()
-        call_args = mock_previous.canvas.on_save_file_event.call_args[0][0]
-        assert 'output.toml' in call_args
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-    def test_confirm_with_example_prefix(self, mocker):
+        assert previous_scene.canvas.saved_paths == ['output.toml']
+
+    def test_confirm_with_example_prefix(self, previous_scene):
         """Test confirm event processes example: prefix for save."""
-        from glitchygames.ui.dialogs import SaveDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        mock_previous.canvas = mocker.Mock()
-
-        dialog = SaveDialogScene(
-            previous_scene=mock_previous,
-            groups=mock_groups,
-        )
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'example:star.toml'
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        dialog.on_confirm_event(event, trigger)
 
-        mock_previous.canvas.on_save_file_event.assert_called_once()
-        call_args = mock_previous.canvas.on_save_file_event.call_args[0][0]
-        assert 'star.toml' in call_args
-        assert 'examples' in call_args
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.saved_paths == [str(_get_examples_dir() / 'star.toml')]
 
 
 class TestDeleteAnimationDialogSetup:
     """Test DeleteAnimationDialogScene.setup method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_setup_configures_buttons_and_activates_input(self, mocker):
+    def test_setup_configures_buttons_and_activates_input(self, previous_scene):
         """Test setup configures button callbacks and activates input box."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='walk',
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+            on_confirm_callback=lambda: None,
+            groups=pygame.sprite.LayeredDirty(),
         )
+        dialog.dialog.input_box.deactivate()
+
         dialog.setup()
 
-        assert dialog.dialog.cancel_button.callbacks is not None
-        assert 'on_left_mouse_button_up_event' in dialog.dialog.cancel_button.callbacks
-        assert dialog.dialog.confirm_button.callbacks is not None
-        assert 'on_left_mouse_button_up_event' in dialog.dialog.confirm_button.callbacks
+        assert dialog.dialog.cancel_button.callbacks == {
+            'on_left_mouse_button_up_event': dialog.on_cancel_event,
+        }
+        assert dialog.dialog.confirm_button.callbacks == {
+            'on_left_mouse_button_up_event': dialog.on_confirm_event,
+        }
+        assert dialog.dialog in dialog.all_sprites
         assert dialog.dialog.input_box.is_active is True
 
-    def test_key_down_inactive_calls_super(self, mocker):
-        """Test key down when input inactive delegates to super."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
+    def test_key_down_inactive_calls_super(self, previous_scene):
+        """A key-down with the input box inactive reaches the base handler (no quit on press)."""
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='walk',
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+            on_confirm_callback=lambda: None,
+            groups=pygame.sprite.LayeredDirty(),
         )
         dialog.dialog.input_box.is_active = False
-        dialog.all_sprites = _RealLayeredDirty()
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        # Should call super, not raise
-        dialog.on_key_down_event(event)
+        pygame.event.clear(eventtype=pygame.QUIT)
 
-    def test_key_up_non_tab_inactive_calls_super(self, mocker):
-        """Test key up with non-Tab key when inactive delegates to super."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
+        dialog.on_key_down_event(_key_down(pygame.K_q, unicode='q'))
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
+        # Q quits on its release (BUGS.md #203: its press set a flag nothing read)
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
+        assert not dialog.dialog.input_box.text
 
+    def test_key_up_non_tab_inactive_calls_super(self, previous_scene):
+        """A non-Tab key-up with the input box inactive reaches the base handler.
+
+        The base handler consumes the key's recorded press and leaves the input box inactive.
+        """
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='walk',
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
+            on_confirm_callback=lambda: None,
+            groups=pygame.sprite.LayeredDirty(),
         )
         dialog.dialog.input_box.is_active = False
-        dialog.all_sprites = _RealLayeredDirty()
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        # Should call super, not raise
-        dialog.on_key_up_event(event)
+        dialog.record_key_press(key=pygame.K_a)
+
+        dialog.on_key_up_event(_key_up(pygame.K_a))
+
+        assert pygame.K_a not in dialog._keys_pressed_in_scene
+        assert dialog.dialog.input_box.is_active is False
 
 
 class TestDeleteFrameDialogSetup:
     """Test DeleteFrameDialogScene.setup method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_setup_configures_buttons_and_activates_input(self, mocker):
+    def test_setup_configures_buttons_and_activates_input(self, previous_scene):
         """Test setup configures button callbacks and activates input box."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
+        dialog.dialog.input_box.deactivate()
 
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
-        )
         dialog.setup()
 
-        assert dialog.dialog.cancel_button.callbacks is not None
-        assert 'on_left_mouse_button_up_event' in dialog.dialog.cancel_button.callbacks
-        assert dialog.dialog.confirm_button.callbacks is not None
-        assert 'on_left_mouse_button_up_event' in dialog.dialog.confirm_button.callbacks
+        assert dialog.dialog.cancel_button.callbacks == {
+            'on_left_mouse_button_up_event': dialog.on_cancel_event,
+        }
+        assert dialog.dialog.confirm_button.callbacks == {
+            'on_left_mouse_button_up_event': dialog.on_confirm_event,
+        }
+        assert dialog.dialog in dialog.all_sprites
         assert dialog.dialog.input_box.is_active is True
 
-    def test_cancel_without_callback(self, mocker):
-        """Test cancel event without callback does not raise."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
+    def test_cancel_without_callback(self, previous_scene):
+        """Cancelling without a cancel callback still returns to the previous scene."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
 
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
+        dialog.on_cancel_event(_mouse_up((0, 0)))
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
+        assert dialog.scene_manager.active_scene is previous_scene
 
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            on_cancel_callback=None,
-            groups=mock_groups,
-        )
-        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
-        event = mocker.Mock()
-        dialog.on_cancel_event(event)  # Should not raise
-
-    def test_key_down_inactive_calls_super(self, mocker):
-        """Test key down when input inactive delegates to super."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
-        )
+    def test_key_down_inactive_calls_super(self, previous_scene):
+        """A key-down with the input box inactive reaches the base handler (no quit on press)."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = False
-        dialog.all_sprites = _RealLayeredDirty()
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        dialog.on_key_down_event(event)  # Should not raise
+        pygame.event.clear(eventtype=pygame.QUIT)
 
-    def test_key_up_non_tab_inactive_calls_super(self, mocker):
-        """Test key up with non-Tab key when inactive delegates to super."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
+        dialog.on_key_down_event(_key_down(pygame.K_q, unicode='q'))
 
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
+        # Q quits on its release (BUGS.md #203: its press set a flag nothing read)
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
+        assert not dialog.dialog.input_box.text
 
-        mock_groups = _RealLayeredDirty()
-        mock_previous = mocker.Mock()
-
-        dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
-            animation_name='idle',
-            frame_index=0,
-            on_confirm_callback=mocker.Mock(),
-            groups=mock_groups,
-        )
+    def test_key_up_non_tab_inactive_calls_super(self, previous_scene):
+        """A non-Tab key-up with the input box inactive reaches the base handler."""
+        dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = False
-        dialog.all_sprites = _RealLayeredDirty()
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        dialog.on_key_up_event(event)  # Should not raise
+        dialog.record_key_press(key=pygame.K_a)
+
+        dialog.on_key_up_event(_key_up(pygame.K_a))
+
+        assert pygame.K_a not in dialog._keys_pressed_in_scene
+        assert dialog.dialog.input_box.is_active is False
 
 
 class TestInputConfirmationDialogGroupsNone:
     """Test InputConfirmationDialogScene with groups=None (line 156)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_groups_none_creates_default_layered_dirty(self, mocker):
+    def test_groups_none_creates_default_layered_dirty(self, previous_scene):
         """Test InputConfirmationDialogScene creates LayeredDirty when groups=None."""
-        from glitchygames.ui.dialogs import InputConfirmationDialogScene
+        dialog = InputConfirmationDialogScene(previous_scene=previous_scene, groups=None)
 
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
-        dialog = InputConfirmationDialogScene(
-            previous_scene=mock_previous,
-            groups=None,
-        )
-        assert dialog.all_sprites is not None
+        assert isinstance(dialog.all_sprites, pygame.sprite.LayeredDirty)
+        assert dialog.dialog.input_box in dialog.all_sprites
 
 
 class TestDismissWithPreviousSceneSprites:
     """Test dismiss() iterating previous_scene.all_sprites (line 226)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_dismiss_marks_previous_scene_sprites_dirty(self, mocker):
+    def test_dismiss_marks_previous_scene_sprites_dirty(self, previous_scene):
         """Test dismiss forces redraw on previous scene sprites."""
-        from glitchygames.ui.dialogs import InputConfirmationDialogScene
-
-        mock_sprite = mocker.Mock()
-        mock_sprite.dirty = 0
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = [mock_sprite]
-
+        (sprite,) = previous_scene.all_sprites.sprites()
+        assert sprite.dirty == 0
         dialog = InputConfirmationDialogScene(
-            previous_scene=mock_previous,
-            groups=_RealLayeredDirty(),
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
         )
+
         dialog.dismiss()
-        assert mock_sprite.dirty == 1
+
+        assert sprite.dirty == 1
 
 
 class TestBaseOnConfirmEventIsinstance:
     """Test InputConfirmationDialogScene.on_confirm_event isinstance branches (lines 242-254)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_base_confirm_event_no_subclass_match(self, mocker):
-        """Test on_confirm_event on base class does not trigger subclass-specific code."""
-        from glitchygames.ui.dialogs import InputConfirmationDialogScene
-
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
+    def test_base_confirm_event_no_subclass_match(self, previous_scene):
+        """The base dialog's confirm only dismisses: it hands nothing to the canvas."""
         dialog = InputConfirmationDialogScene(
-            previous_scene=mock_previous,
-            groups=_RealLayeredDirty(),
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
         )
         dialog.dialog.input_box.text = 'test.toml'
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-        # Should not raise; base class is not a subclass dialog type
-        dialog.on_confirm_event(event, trigger)
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert dialog.next_scene is previous_scene
+        assert previous_scene.canvas.loaded_paths == []
+        assert previous_scene.canvas.saved_paths == []
+        assert previous_scene.new_file_dimensions == []
 
 
 class TestDialogKeyUpElseBranch:
     """Test InputConfirmationDialogScene.on_key_up_event else branch (line 289)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_key_up_non_tab_inactive_calls_super(self, mocker):
-        """Test on_key_up_event with non-tab key when input is inactive calls super."""
-        from glitchygames.ui.dialogs import InputConfirmationDialogScene
-
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-
+    def test_key_up_non_tab_inactive_calls_super(self, previous_scene):
+        """A non-Tab key-up with the input box inactive reaches the base handler."""
         dialog = InputConfirmationDialogScene(
-            previous_scene=mock_previous,
-            groups=_RealLayeredDirty(),
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
         )
         dialog.dialog.input_box.is_active = False
-        dialog.all_sprites = _RealLayeredDirty()
-        event = mocker.Mock()
-        event.key = pygame.K_a  # Not TAB
-        # Should call super().on_key_up_event, not raise
-        dialog.on_key_up_event(event)
+        dialog.record_key_press(key=pygame.K_a)
+
+        dialog.on_key_up_event(_key_up(pygame.K_a))
+
+        assert pygame.K_a not in dialog._keys_pressed_in_scene
+        assert dialog.dialog.input_box.is_active is False
 
 
 class TestDialogSubclassGroupsNone:
     """Test groups=None branches in dialog subclasses (lines 331, 380, 431, 482, 600)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_new_canvas_dialog_groups_none(self, mocker):
+    def test_new_canvas_dialog_groups_none(self, previous_scene):
         """Test NewCanvasDialogScene creates LayeredDirty when groups=None (line 331)."""
-        from glitchygames.ui.dialogs import NewCanvasDialogScene
+        dialog = NewCanvasDialogScene(previous_scene=previous_scene, groups=None)
+        assert isinstance(dialog.all_sprites, pygame.sprite.LayeredDirty)
 
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        dialog = NewCanvasDialogScene(previous_scene=mock_previous, groups=None)
-        assert dialog.all_sprites is not None
-
-    def test_load_dialog_groups_none(self, mocker):
+    def test_load_dialog_groups_none(self, previous_scene):
         """Test LoadDialogScene creates LayeredDirty when groups=None (line 380)."""
-        from glitchygames.ui.dialogs import LoadDialogScene
+        dialog = LoadDialogScene(previous_scene=previous_scene, groups=None)
+        assert isinstance(dialog.all_sprites, pygame.sprite.LayeredDirty)
 
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        dialog = LoadDialogScene(previous_scene=mock_previous, groups=None)
-        assert dialog.all_sprites is not None
-
-    def test_save_dialog_groups_none(self, mocker):
+    def test_save_dialog_groups_none(self, previous_scene):
         """Test SaveDialogScene creates LayeredDirty when groups=None (line 431)."""
-        from glitchygames.ui.dialogs import SaveDialogScene
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=None)
+        assert isinstance(dialog.all_sprites, pygame.sprite.LayeredDirty)
 
-        mock_previous = mocker.Mock()
-        mock_previous.all_sprites = []
-        dialog = SaveDialogScene(previous_scene=mock_previous, groups=None)
-        assert dialog.all_sprites is not None
-
-    def test_delete_animation_dialog_groups_none(self, mocker):
+    def test_delete_animation_dialog_groups_none(self, previous_scene):
         """Test DeleteAnimationDialogScene creates LayeredDirty when groups=None (line 482)."""
-        from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-
-        mock_previous = mocker.Mock()
         dialog = DeleteAnimationDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='walk',
-            on_confirm_callback=mocker.Mock(),
+            on_confirm_callback=lambda: None,
             groups=None,
         )
-        assert dialog.all_sprites is not None
+        assert isinstance(dialog.all_sprites, pygame.sprite.LayeredDirty)
+        assert dialog.dialog.input_box in dialog.all_sprites
 
-    def test_delete_frame_dialog_groups_none(self, mocker):
+    def test_delete_frame_dialog_groups_none(self, previous_scene):
         """Test DeleteFrameDialogScene creates LayeredDirty when groups=None (line 600)."""
-        from glitchygames.ui.dialogs import DeleteFrameDialogScene
-
-        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
-        font = MockFactory.create_pygame_font_mock()
-        mock_get_font.return_value = font
-
-        mock_previous = mocker.Mock()
         dialog = DeleteFrameDialogScene(
-            previous_scene=mock_previous,
+            previous_scene=previous_scene,
             animation_name='idle',
             frame_index=0,
-            on_confirm_callback=mocker.Mock(),
+            on_confirm_callback=lambda: None,
             groups=None,
         )
-        assert dialog.all_sprites is not None
+        assert isinstance(dialog.all_sprites, pygame.sprite.LayeredDirty)
+        assert dialog.second_label in dialog.all_sprites
 
 
 # ============================================================================
@@ -1434,13 +1145,12 @@ class TestDialogSubclassGroupsNone:
 # ============================================================================
 
 
-def _create_confirm_dialog(mocker, confirm_callback=None, cancel_callback=None):
+def _create_confirm_dialog(confirm_callback=None, cancel_callback=None, groups=None):
     """Create a ConfirmDialog with standard test configuration.
 
     Returns:
         A ConfirmDialog instance configured for testing.
     """
-    groups = mocker.Mock()
     return ConfirmDialog(
         text='Are you sure?',
         confirm_callback=confirm_callback,
@@ -1449,30 +1159,37 @@ def _create_confirm_dialog(mocker, confirm_callback=None, cancel_callback=None):
         y=TEST_CONFIRM_DIALOG_Y,
         width=TEST_CONFIRM_DIALOG_WIDTH,
         height=TEST_CONFIRM_DIALOG_HEIGHT,
-        groups=groups,
+        groups=groups if groups is not None else pygame.sprite.LayeredDirty(),
     )
+
+
+def _inside_corner(rect):
+    """Return a point just inside a button, past its 2-pixel border and clear of its label.
+
+    Returns:
+        tuple: The (x, y) point.
+    """
+    return (rect.x + 4, rect.y + 4)
 
 
 class TestConfirmDialogInitialization:
     """Test ConfirmDialog initialization and button positioning."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_dialog_stores_text(self, mocker):
+    def test_dialog_stores_text(self):
         """Test dialog stores the confirmation text."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
         assert dialog.text == 'Are you sure?'
 
-    def test_dialog_stores_callbacks(self, mocker):
+    def test_dialog_stores_callbacks(self):
         """Test dialog stores confirm and cancel callbacks."""
-        confirm_callback = mocker.Mock()
-        cancel_callback = mocker.Mock()
+
+        def confirm_callback():
+            pass
+
+        def cancel_callback():
+            pass
 
         dialog = _create_confirm_dialog(
-            mocker,
             confirm_callback=confirm_callback,
             cancel_callback=cancel_callback,
         )
@@ -1480,23 +1197,23 @@ class TestConfirmDialogInitialization:
         assert dialog.confirm_callback is confirm_callback
         assert dialog.cancel_callback is cancel_callback
 
-    def test_yes_button_rect_is_positioned(self, mocker):
+    def test_yes_button_rect_is_positioned(self):
         """Test yes button rect has correct dimensions."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
 
         assert dialog.yes_button_rect.width == CONFIRM_BUTTON_WIDTH
         assert dialog.yes_button_rect.height == CONFIRM_BUTTON_HEIGHT
 
-    def test_no_button_rect_is_positioned(self, mocker):
+    def test_no_button_rect_is_positioned(self):
         """Test no button rect has correct dimensions."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
 
         assert dialog.no_button_rect.width == CONFIRM_BUTTON_WIDTH
         assert dialog.no_button_rect.height == CONFIRM_BUTTON_HEIGHT
 
-    def test_buttons_are_centered(self, mocker):
+    def test_buttons_are_centered(self):
         """Test buttons are horizontally centered within dialog."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
 
         total_button_width = (CONFIRM_BUTTON_WIDTH * 2) + BUTTON_SPACING
         expected_start_x = (TEST_CONFIRM_DIALOG_WIDTH - total_button_width) // 2
@@ -1504,297 +1221,266 @@ class TestConfirmDialogInitialization:
         assert dialog.yes_button_rect.x == expected_start_x
         assert dialog.no_button_rect.x == expected_start_x + CONFIRM_BUTTON_WIDTH + BUTTON_SPACING
 
-    def test_buttons_vertical_position(self, mocker):
+    def test_buttons_vertical_position(self):
         """Test buttons are positioned near the bottom of the dialog."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
 
         expected_button_y = TEST_CONFIRM_DIALOG_HEIGHT - CONFIRM_BUTTON_HEIGHT - 10
 
         assert dialog.yes_button_rect.y == expected_button_y
         assert dialog.no_button_rect.y == expected_button_y
 
-    def test_initial_hover_is_none(self, mocker):
+    def test_initial_hover_is_none(self):
         """Test hover_button is initially None."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
         assert dialog.hover_button is None
 
-    def test_initial_dirty_is_2(self, mocker):
+    def test_initial_dirty_is_2(self):
         """Test dirty flag is initially 2 (continuous updates)."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
         assert dialog.dirty == 2
 
 
 class TestConfirmDialogRender:
-    """Test ConfirmDialog.render() drawing."""
+    """Test ConfirmDialog.render() drawing, on its real image."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_render_fills_background(self, mocker):
+    def test_render_fills_background(self):
         """Test render fills the image with dark gray."""
-        dialog = _create_confirm_dialog(mocker)
-
-        # dialog.image must return ints for get_width/get_height and a real Rect
-        dialog.image = mocker.Mock()
-        dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
-        dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
-        dialog.image.get_rect.return_value = pygame.Rect(
-            0,
-            0,
-            TEST_CONFIRM_DIALOG_WIDTH,
-            TEST_CONFIRM_DIALOG_HEIGHT,
-        )
-
-        mocker.patch('pygame.draw.rect')
-
-        # Mock the font render to return a surface with get_rect
-        mock_font = mocker.Mock()
-        mock_surface = mocker.Mock()
-        mock_rect = pygame.Rect(0, 0, 50, 14)
-        mock_surface.get_rect.return_value = mock_rect
-        mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
+        dialog = _create_confirm_dialog()
+        dialog.image.fill(MARKER_COLOR)
 
         dialog.render()
 
-        dialog.image.fill.assert_called_once_with((40, 40, 40))
+        # Between the border and the text, and between the buttons
+        assert _rgb_at(dialog.image, (5, 5)) == CONFIRM_BACKGROUND_COLOR
+        between_buttons = (dialog.yes_button_rect.right + 5, dialog.yes_button_rect.centery)
+        assert _rgb_at(dialog.image, between_buttons) == CONFIRM_BACKGROUND_COLOR
 
-    def test_render_draws_border(self, mocker):
-        """Test render draws a border rectangle."""
-        dialog = _create_confirm_dialog(mocker)
-
-        dialog.image = mocker.Mock()
-        dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
-        dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
-        dialog.image.get_rect.return_value = pygame.Rect(
-            0,
-            0,
-            TEST_CONFIRM_DIALOG_WIDTH,
-            TEST_CONFIRM_DIALOG_HEIGHT,
-        )
-
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
-
-        mock_font = mocker.Mock()
-        mock_surface = mocker.Mock()
-        mock_rect = pygame.Rect(0, 0, 50, 14)
-        mock_surface.get_rect.return_value = mock_rect
-        mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
+    def test_render_draws_border(self):
+        """Test render draws a 2-pixel border around the dialog, and around each button."""
+        dialog = _create_confirm_dialog()
+        dialog.image.fill(MARKER_COLOR)
 
         dialog.render()
 
-        # Should have calls for border, yes button bg, yes button border,
-        # no button bg, no button border
-        assert mock_draw_rect.call_count >= 5
+        last_x = TEST_CONFIRM_DIALOG_WIDTH - 1
+        last_y = TEST_CONFIRM_DIALOG_HEIGHT - 1
+        for corner in [(0, 0), (1, 1), (last_x, 0), (0, last_y), (last_x, last_y)]:
+            assert _rgb_at(dialog.image, corner) == CONFIRM_BORDER_COLOR
+        assert _rgb_at(dialog.image, (2, 2)) == CONFIRM_BACKGROUND_COLOR
+        assert _rgb_at(dialog.image, dialog.yes_button_rect.topleft) == YES_BUTTON_BORDER_COLOR
+        assert _rgb_at(dialog.image, dialog.no_button_rect.topleft) == NO_BUTTON_BORDER_COLOR
 
-    def test_render_sets_dirty_to_zero(self, mocker):
+    def test_render_draws_buttons_and_text(self):
+        """Render draws both buttons in their normal colours, with the message and labels."""
+        dialog = _create_confirm_dialog()
+
+        dialog.render()
+
+        yes_rect = dialog.yes_button_rect
+        no_rect = dialog.no_button_rect
+        assert _rgb_at(dialog.image, _inside_corner(yes_rect)) == YES_BUTTON_COLOR
+        assert _rgb_at(dialog.image, _inside_corner(no_rect)) == NO_BUTTON_COLOR
+        # The message (centred, from y=20 down) and each button's label are white text
+        message_area = pygame.Rect(0, 20, TEST_CONFIRM_DIALOG_WIDTH, yes_rect.top - 20)
+        assert _text_pixel_count(dialog.image, message_area) > 0
+        assert _text_pixel_count(dialog.image, yes_rect.inflate(-4, -4)) > 0
+        assert _text_pixel_count(dialog.image, no_rect.inflate(-4, -4)) > 0
+        # The message is centred: its text pixels sit on both sides of the middle
+        middle = TEST_CONFIRM_DIALOG_WIDTH // 2
+        left_half = pygame.Rect(0, 20, middle, yes_rect.top - 20)
+        right_half = pygame.Rect(middle, 20, middle, yes_rect.top - 20)
+        assert _text_pixel_count(dialog.image, left_half) > 0
+        assert _text_pixel_count(dialog.image, right_half) > 0
+
+    def test_render_sets_dirty_to_zero(self):
         """Test render sets dirty to 0 after rendering."""
-        dialog = _create_confirm_dialog(mocker)
-
-        dialog.image = mocker.Mock()
-        dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
-        dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
-        dialog.image.get_rect.return_value = pygame.Rect(
-            0,
-            0,
-            TEST_CONFIRM_DIALOG_WIDTH,
-            TEST_CONFIRM_DIALOG_HEIGHT,
-        )
-
-        mocker.patch('pygame.draw.rect')
-
-        mock_font = mocker.Mock()
-        mock_surface = mocker.Mock()
-        mock_rect = pygame.Rect(0, 0, 50, 14)
-        mock_surface.get_rect.return_value = mock_rect
-        mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
+        dialog = _create_confirm_dialog()
 
         dialog.render()
 
         assert dialog.dirty == 0
 
-    def test_render_hover_yes_changes_color(self, mocker):
+    def test_render_hover_yes_changes_color(self):
         """Test render uses highlight color when yes button is hovered."""
-        dialog = _create_confirm_dialog(mocker)
+        dialog = _create_confirm_dialog()
         dialog.hover_button = 'yes'
-
-        dialog.image = mocker.Mock()
-        dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
-        dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
-        dialog.image.get_rect.return_value = pygame.Rect(
-            0,
-            0,
-            TEST_CONFIRM_DIALOG_WIDTH,
-            TEST_CONFIRM_DIALOG_HEIGHT,
-        )
-
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
-
-        mock_font = mocker.Mock()
-        mock_surface = mocker.Mock()
-        mock_rect = pygame.Rect(0, 0, 50, 14)
-        mock_surface.get_rect.return_value = mock_rect
-        mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
 
         dialog.render()
 
-        # Verify Yes button was drawn with highlight color (60, 120, 60)
-        draw_calls = mock_draw_rect.call_args_list
-        yes_button_colors = [call.args[1] for call in draw_calls if len(call.args) >= 2]
-        assert (60, 120, 60) in yes_button_colors
+        assert _rgb_at(dialog.image, _inside_corner(dialog.yes_button_rect)) == (
+            YES_BUTTON_HOVER_COLOR
+        )
+        assert _rgb_at(dialog.image, _inside_corner(dialog.no_button_rect)) == NO_BUTTON_COLOR
+
+    def test_render_hover_no_changes_color(self):
+        """Render uses the highlight colour for the No button when it is hovered."""
+        dialog = _create_confirm_dialog()
+        dialog.hover_button = 'no'
+
+        dialog.render()
+
+        assert _rgb_at(dialog.image, _inside_corner(dialog.yes_button_rect)) == YES_BUTTON_COLOR
+        assert _rgb_at(dialog.image, _inside_corner(dialog.no_button_rect)) == (
+            NO_BUTTON_HOVER_COLOR
+        )
 
 
 class TestConfirmDialogHandleMouseDown:
     """Test ConfirmDialog.handle_mouse_down()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_click_yes_invokes_confirm_callback(self, mocker):
+    def test_click_yes_invokes_confirm_callback(self):
         """Test clicking Yes button invokes confirm_callback."""
-        confirm_callback = mocker.Mock()
-        dialog = _create_confirm_dialog(mocker, confirm_callback=confirm_callback)
-
-        mock_kill = mocker.patch.object(dialog, 'kill')
+        calls = []
+        group = pygame.sprite.LayeredDirty()
+        dialog = _create_confirm_dialog(confirm_callback=lambda: calls.append('yes'), groups=group)
 
         click_pos = (dialog.yes_button_rect.centerx, dialog.yes_button_rect.centery)
         result = dialog.handle_mouse_down(click_pos)
 
         assert result is True
-        confirm_callback.assert_called_once()
-        mock_kill.assert_called_once()
+        assert calls == ['yes']
+        assert not dialog.alive()
 
-    def test_click_no_invokes_cancel_callback(self, mocker):
+    def test_click_no_invokes_cancel_callback(self):
         """Test clicking No button invokes cancel_callback."""
-        cancel_callback = mocker.Mock()
-        dialog = _create_confirm_dialog(mocker, cancel_callback=cancel_callback)
-
-        mock_kill = mocker.patch.object(dialog, 'kill')
+        calls = []
+        group = pygame.sprite.LayeredDirty()
+        dialog = _create_confirm_dialog(cancel_callback=lambda: calls.append('no'), groups=group)
 
         click_pos = (dialog.no_button_rect.centerx, dialog.no_button_rect.centery)
         result = dialog.handle_mouse_down(click_pos)
 
         assert result is True
-        cancel_callback.assert_called_once()
-        mock_kill.assert_called_once()
+        assert calls == ['no']
+        assert not dialog.alive()
 
-    def test_click_yes_without_callback(self, mocker):
+    def test_click_yes_without_callback(self):
         """Test clicking Yes without callback still kills dialog."""
-        dialog = _create_confirm_dialog(mocker, confirm_callback=None)
-        mock_kill = mocker.patch.object(dialog, 'kill')
+        dialog = _create_confirm_dialog(confirm_callback=None)
 
         click_pos = (dialog.yes_button_rect.centerx, dialog.yes_button_rect.centery)
         result = dialog.handle_mouse_down(click_pos)
 
         assert result is True
-        mock_kill.assert_called_once()
+        assert not dialog.alive()
 
-    def test_click_no_without_callback(self, mocker):
+    def test_click_no_without_callback(self):
         """Test clicking No without callback still kills dialog."""
-        dialog = _create_confirm_dialog(mocker, cancel_callback=None)
-        mock_kill = mocker.patch.object(dialog, 'kill')
+        dialog = _create_confirm_dialog(cancel_callback=None)
 
         click_pos = (dialog.no_button_rect.centerx, dialog.no_button_rect.centery)
         result = dialog.handle_mouse_down(click_pos)
 
         assert result is True
-        mock_kill.assert_called_once()
+        assert not dialog.alive()
 
-    def test_click_outside_buttons_returns_false(self, mocker):
+    def test_click_outside_buttons_returns_false(self):
         """Test clicking outside both buttons returns False."""
-        dialog = _create_confirm_dialog(mocker)
+        calls = []
+        dialog = _create_confirm_dialog(
+            confirm_callback=lambda: calls.append('yes'),
+            cancel_callback=lambda: calls.append('no'),
+        )
 
         # Click in the middle of the dialog, above the buttons
         click_pos = (TEST_CONFIRM_DIALOG_WIDTH // 2, 10)
         result = dialog.handle_mouse_down(click_pos)
 
         assert result is False
+        assert calls == []
+        assert dialog.alive()
 
-    def test_click_yes_removes_dialog(self, mocker):
-        """Test clicking Yes calls kill() to remove dialog from groups."""
-        confirm_callback = mocker.Mock()
-        dialog = _create_confirm_dialog(mocker, confirm_callback=confirm_callback)
-
-        mock_kill = mocker.patch.object(dialog, 'kill')
+    def test_click_yes_removes_dialog(self):
+        """Test clicking Yes removes the dialog from its groups."""
+        group = pygame.sprite.LayeredDirty()
+        dialog = _create_confirm_dialog(confirm_callback=lambda: None, groups=group)
+        assert dialog in group
 
         click_pos = (dialog.yes_button_rect.centerx, dialog.yes_button_rect.centery)
         dialog.handle_mouse_down(click_pos)
 
-        mock_kill.assert_called_once()
+        assert dialog not in group
 
 
 class TestConfirmDialogUpdate:
     """Test ConfirmDialog.update() hover tracking."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_update_detects_yes_hover(self, mocker):
-        """Test update detects mouse hovering over Yes button."""
-        dialog = _create_confirm_dialog(mocker)
+    def test_update_detects_yes_hover(self):
+        """Test update detects mouse hovering over Yes button, and redraws it highlighted."""
+        dialog = _create_confirm_dialog()
 
         # The frame's mouse position is over the yes button (relative to dialog)
         assert dialog.rect is not None
         yes_center_x = dialog.yes_button_rect.centerx + dialog.rect.x
         yes_center_y = dialog.yes_button_rect.centery + dialog.rect.y
-        MockFactory.install_frame_input(mouse_position=(yes_center_x, yes_center_y))
-
-        # Mock render to avoid full rendering
-        mocker.patch.object(dialog, 'render')
+        _install_mouse_position((yes_center_x, yes_center_y))
 
         dialog.update()
 
         assert dialog.hover_button == 'yes'
+        assert _rgb_at(dialog.image, _inside_corner(dialog.yes_button_rect)) == (
+            YES_BUTTON_HOVER_COLOR
+        )
 
-    def test_update_detects_no_hover(self, mocker):
-        """Test update detects mouse hovering over No button."""
-        dialog = _create_confirm_dialog(mocker)
+    def test_update_detects_no_hover(self):
+        """Test update detects mouse hovering over No button, and redraws it highlighted."""
+        dialog = _create_confirm_dialog()
 
         assert dialog.rect is not None
         no_center_x = dialog.no_button_rect.centerx + dialog.rect.x
         no_center_y = dialog.no_button_rect.centery + dialog.rect.y
-        MockFactory.install_frame_input(mouse_position=(no_center_x, no_center_y))
-
-        mocker.patch.object(dialog, 'render')
+        _install_mouse_position((no_center_x, no_center_y))
 
         dialog.update()
 
         assert dialog.hover_button == 'no'
+        assert _rgb_at(dialog.image, _inside_corner(dialog.no_button_rect)) == (
+            NO_BUTTON_HOVER_COLOR
+        )
 
-    def test_update_clears_hover_when_outside(self, mocker):
-        """Test update clears hover when mouse is outside buttons."""
-        dialog = _create_confirm_dialog(mocker)
+    def test_update_clears_hover_when_outside(self):
+        """Test update clears hover when mouse is outside buttons, and redraws unhighlighted."""
+        dialog = _create_confirm_dialog()
+        dialog.render()
         dialog.hover_button = 'yes'
 
         # Mouse far from both buttons
-        MockFactory.install_frame_input(mouse_position=(0, 0))
-
-        mocker.patch.object(dialog, 'render')
+        _install_mouse_position((0, 0))
 
         dialog.update()
 
         assert dialog.hover_button is None
+        assert _rgb_at(dialog.image, _inside_corner(dialog.yes_button_rect)) == YES_BUTTON_COLOR
+        assert dialog.dirty == 0
 
-    def test_update_calls_render_when_dirty(self, mocker):
-        """Test update calls render when dialog is dirty."""
-        dialog = _create_confirm_dialog(mocker)
-        dialog.dirty = 2
-
-        MockFactory.install_frame_input(mouse_position=(0, 0))
-        mock_render = mocker.patch.object(dialog, 'render')
+    def test_update_skips_render_when_clean_and_hover_unchanged(self):
+        """With no hover change and nothing dirty, update draws nothing."""
+        dialog = _create_confirm_dialog()
+        dialog.hover_button = None
+        dialog.dirty = 0
+        dialog.image.fill(MARKER_COLOR)
+        _install_mouse_position((0, 0))
 
         dialog.update()
 
-        mock_render.assert_called_once()
+        assert _rgb_at(dialog.image, (5, 5)) == MARKER_COLOR
+        assert _rgb_at(dialog.image, _inside_corner(dialog.yes_button_rect)) == MARKER_COLOR
+        assert dialog.dirty == 0
+
+    def test_update_calls_render_when_dirty(self):
+        """Test update renders the dialog when it is dirty."""
+        dialog = _create_confirm_dialog()
+        dialog.dirty = 2
+        dialog.image.fill(MARKER_COLOR)
+
+        _install_mouse_position((0, 0))
+
+        dialog.update()
+
+        assert _rgb_at(dialog.image, (5, 5)) == CONFIRM_BACKGROUND_COLOR
+        assert _rgb_at(dialog.image, _inside_corner(dialog.yes_button_rect)) == YES_BUTTON_COLOR
+        assert dialog.dirty == 0
 
 
 # ============================================================================
@@ -1802,13 +1488,12 @@ class TestConfirmDialogUpdate:
 # ============================================================================
 
 
-def _create_input_dialog(mocker, parent=None):
+def _create_input_dialog(parent=None):
     """Create an InputDialog with standard test configuration.
 
     Returns:
         An InputDialog instance configured for testing.
     """
-    groups = mocker.Mock()
     return InputDialog(
         x=TEST_INPUT_DIALOG_X,
         y=TEST_INPUT_DIALOG_Y,
@@ -1819,62 +1504,87 @@ def _create_input_dialog(mocker, parent=None):
         confirm_text='OK',
         cancel_text='Cancel',
         parent=parent,
-        groups=groups,
+        groups=pygame.sprite.LayeredDirty(),
     )
 
 
+def _dialog_scene_with_input_dialog(previous_scene):
+    """Create a real dialog scene and an InputDialog whose parent is that scene.
+
+    Returns:
+        tuple: (the scene, the InputDialog).
+    """
+    scene = InputConfirmationDialogScene(
+        previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+    )
+    return scene, _create_input_dialog(parent=scene)
+
+
+def _local_center(dialog, component):
+    """Return a component's centre in the dialog image's coordinates.
+
+    Returns:
+        tuple: The (x, y) point.
+    """
+    return (component.rect.centerx - dialog.rect.x, component.rect.centery - dialog.rect.y)
+
+
 class TestInputDialogUpdate:
-    """Test InputDialog.update() rendering."""
+    """Test InputDialog.update() rendering, on its real image."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_update_fills_background(self, mocker):
+    def test_update_fills_background(self):
         """Test that update fills the image with black background."""
-        dialog = _create_input_dialog(mocker)
+        dialog = _create_input_dialog()
         assert dialog.image is not None
-        mock_fill = mocker.patch.object(dialog.image, 'fill')
-        mock_blit = mocker.patch.object(dialog.image, 'blit')
-        mocker.patch('pygame.draw.rect')
+        dialog.image.fill(MARKER_COLOR)
 
         dialog.update()
 
-        mock_fill.assert_called_once_with((0, 0, 0))
+        # Inside the border, above the dialog text (which starts 20 px down)
+        assert _rgb_at(dialog.image, (5, 5)) == INPUT_DIALOG_BACKGROUND_COLOR
+        assert _rgb_at(dialog.image, (TEST_INPUT_DIALOG_WIDTH - 5, 5)) == (
+            INPUT_DIALOG_BACKGROUND_COLOR
+        )
 
-    def test_update_draws_border(self, mocker):
-        """Test that update draws a gray border rectangle."""
-        dialog = _create_input_dialog(mocker)
+    def test_update_draws_border(self):
+        """Test that update draws a 1-pixel gray border rectangle."""
+        dialog = _create_input_dialog()
         assert dialog.image is not None
-        mocker.patch.object(dialog.image, 'fill')
-        mocker.patch.object(dialog.image, 'blit')
-        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        dialog.image.fill(MARKER_COLOR)
 
         dialog.update()
 
-        mock_draw_rect.assert_called_once()
+        last_x = TEST_INPUT_DIALOG_WIDTH - 1
+        last_y = TEST_INPUT_DIALOG_HEIGHT - 1
+        for corner in [(0, 0), (last_x, 0), (0, last_y), (last_x, last_y)]:
+            assert _rgb_at(dialog.image, corner) == INPUT_DIALOG_BORDER_COLOR
+        assert _rgb_at(dialog.image, (1, 1)) == INPUT_DIALOG_BACKGROUND_COLOR
 
-    def test_update_blits_all_components(self, mocker):
-        """Test that update blits all nested components to the image."""
-        dialog = _create_input_dialog(mocker)
+    def test_update_blits_all_components(self):
+        """Test that update draws every nested component at its place in the dialog."""
+        dialog = _create_input_dialog()
         assert dialog.image is not None
-        mocker.patch.object(dialog.image, 'fill')
-        mock_blit = mocker.patch.object(dialog.image, 'blit')
-        mocker.patch('pygame.draw.rect')
+        component_colors = {
+            'dialog_text_sprite': (200, 10, 10),
+            'cancel_button': (10, 200, 10),
+            'confirm_button': (10, 10, 200),
+            'input_box': (200, 200, 10),
+        }
+        for component_name, color in component_colors.items():
+            getattr(dialog, component_name).image.fill(color)
 
         dialog.update()
 
-        # Should blit dialog_text_sprite, cancel_button, confirm_button, input_box
-        assert mock_blit.call_count == 4
+        for component_name, color in component_colors.items():
+            component = getattr(dialog, component_name)
+            assert _rgb_at(dialog.image, _local_center(dialog, component)) == color, component_name
 
-    def test_update_marks_components_dirty(self, mocker):
+    def test_update_marks_components_dirty(self):
         """Test that update sets dirty=1 on nested components."""
-        dialog = _create_input_dialog(mocker)
-        assert dialog.image is not None
-        mocker.patch.object(dialog.image, 'fill')
-        mocker.patch.object(dialog.image, 'blit')
-        mocker.patch('pygame.draw.rect')
+        dialog = _create_input_dialog()
+        dialog.dialog_text_sprite.dirty = 0
+        dialog.cancel_button.dirty = 0
+        dialog.confirm_button.dirty = 0
 
         dialog.update()
 
@@ -1886,143 +1596,98 @@ class TestInputDialogUpdate:
 class TestInputDialogConfirmEvent:
     """Test InputDialog.on_confirm_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_confirm_event_delegates_to_parent(self, previous_scene):
+        """The confirm reaches the parent dialog scene, which returns to the previous scene."""
+        scene, dialog = _dialog_scene_with_input_dialog(previous_scene)
 
-    def test_confirm_event_delegates_to_parent(self, mocker):
-        """Test on_confirm_event delegates to parent when parent exists."""
-        parent = mocker.Mock()
-        dialog = _create_input_dialog(mocker, parent=parent)
+        dialog.on_confirm_event(event=_mouse_up((0, 0)), trigger=dialog.confirm_button)
 
-        event = mocker.Mock()
-        trigger = mocker.Mock()
+        assert scene.next_scene is previous_scene
 
-        dialog.on_confirm_event(event=event, trigger=trigger)
+    def test_confirm_event_without_parent(self, caplog):
+        """With no parent, a confirm is only logged."""
+        dialog = _create_input_dialog(parent=None)
 
-        parent.on_confirm_event.assert_called_once_with(event=event, trigger=trigger)
+        with caplog.at_level(logging.INFO, logger='game.ui'):
+            dialog.on_confirm_event(event=_mouse_up((0, 0)), trigger=dialog.confirm_button)
 
-    def test_confirm_event_without_parent(self, mocker):
-        """Test on_confirm_event does not raise when no parent."""
-        dialog = _create_input_dialog(mocker, parent=None)
-
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-
-        # Should not raise
-        dialog.on_confirm_event(event=event, trigger=trigger)
+        assert 'test_input_dialog: Got confirm event!' in caplog.text
 
 
 class TestInputDialogCancelEvent:
     """Test InputDialog.on_cancel_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_cancel_event_delegates_to_parent(self, previous_scene):
+        """The cancel reaches the parent dialog scene, which returns to the previous scene."""
+        scene, dialog = _dialog_scene_with_input_dialog(previous_scene)
 
-    def test_cancel_event_delegates_to_parent(self, mocker):
-        """Test on_cancel_event delegates to parent when parent exists."""
-        parent = mocker.Mock()
-        dialog = _create_input_dialog(mocker, parent=parent)
+        dialog.on_cancel_event(event=_mouse_up((0, 0)), trigger=dialog.cancel_button)
 
-        event = mocker.Mock()
-        trigger = mocker.Mock()
+        assert scene.next_scene is previous_scene
 
-        dialog.on_cancel_event(event=event, trigger=trigger)
+    def test_cancel_event_without_parent(self, caplog):
+        """With no parent, a cancel is only logged."""
+        dialog = _create_input_dialog(parent=None)
 
-        parent.on_cancel_event.assert_called_once_with(event=event, trigger=trigger)
+        with caplog.at_level(logging.INFO, logger='game.ui'):
+            dialog.on_cancel_event(event=_mouse_up((0, 0)), trigger=dialog.cancel_button)
 
-    def test_cancel_event_without_parent(self, mocker):
-        """Test on_cancel_event does not raise when no parent."""
-        dialog = _create_input_dialog(mocker, parent=None)
-
-        event = mocker.Mock()
-        trigger = mocker.Mock()
-
-        # Should not raise
-        dialog.on_cancel_event(event=event, trigger=trigger)
+        assert 'test_input_dialog: Got cancel event!' in caplog.text
 
 
 class TestInputDialogInputBoxSubmitEvent:
     """Test InputDialog.on_input_box_submit_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_input_box_submit_calls_confirm_event(self, previous_scene):
+        """A submit from the input box confirms: a load dialog hands its text to the canvas."""
+        scene = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        input_box = scene.dialog.input_box
+        input_box.name = 'test_input'
+        input_box.text = 'hello world'
 
-    def test_input_box_submit_calls_confirm_event(self, mocker):
-        """Test on_input_box_submit_event calls on_confirm_event."""
-        parent = mocker.Mock()
-        dialog = _create_input_dialog(mocker, parent=parent)
+        scene.dialog.on_input_box_submit_event(event=input_box)
 
-        event = mocker.Mock()
-        event.name = 'test_input'
-        event.text = 'hello world'
-
-        dialog.on_input_box_submit_event(event=event)
-
-        parent.on_confirm_event.assert_called_once_with(event=event, trigger=event)
+        assert previous_scene.canvas.loaded_paths == ['hello world']
+        assert scene.next_scene is previous_scene
 
 
 class TestInputDialogInputBoxCancelEvent:
     """Test InputDialog.on_input_box_cancel_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    def test_input_box_cancel_calls_cancel_event(self, previous_scene):
+        """A cancel from the input box cancels: nothing is loaded, the dialog is dismissed."""
+        scene = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        input_box = scene.dialog.input_box
+        input_box.name = 'test_input'
+        input_box.text = 'hello world'
 
-    def test_input_box_cancel_calls_cancel_event(self, mocker):
-        """Test on_input_box_cancel_event calls on_cancel_event."""
-        parent = mocker.Mock()
-        dialog = _create_input_dialog(mocker, parent=parent)
+        scene.dialog.on_input_box_cancel_event(control=input_box)
 
-        control = mocker.Mock()
-        control.name = 'test_input'
-        control.text = 'hello world'
-
-        dialog.on_input_box_cancel_event(control=control)
-
-        parent.on_cancel_event.assert_called_once_with(event=control, trigger=control)
+        assert previous_scene.canvas.loaded_paths == []
+        assert scene.next_scene is previous_scene
 
 
 class TestInputDialogMouseButtonUpEvent:
     """Test InputDialog.on_mouse_button_up_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_click_within_input_box_activates(self, mocker):
+    def test_click_within_input_box_activates(self):
         """Test clicking within input box bounds activates it."""
-        dialog = _create_input_dialog(mocker)
+        dialog = _create_input_dialog()
+        dialog.input_box.deactivate()
 
         # Position within the input box rect
         assert dialog.input_box.rect is not None
-        input_box_center_x = dialog.input_box.rect.centerx
-        input_box_center_y = dialog.input_box.rect.centery
-
-        event = mocker.Mock()
-        event.pos = (input_box_center_x, input_box_center_y)
-
-        dialog.on_mouse_button_up_event(event)
+        dialog.on_mouse_button_up_event(_mouse_up(dialog.input_box.rect.center))
 
         assert dialog.input_box.is_active is True
 
-    def test_click_outside_input_box_deactivates(self, mocker):
+    def test_click_outside_input_box_deactivates(self):
         """Test clicking outside input box bounds deactivates it."""
-        dialog = _create_input_dialog(mocker)
+        dialog = _create_input_dialog()
         dialog.input_box.activate()
 
-        event = mocker.Mock()
         # Position far outside the input box
-        event.pos = (0, 0)
-
-        dialog.on_mouse_button_up_event(event)
+        dialog.on_mouse_button_up_event(_mouse_up((0, 0)))
 
         assert dialog.input_box.is_active is False
 
@@ -2030,94 +1695,65 @@ class TestInputDialogMouseButtonUpEvent:
 class TestInputDialogKeyUpEvent:
     """Test InputDialog.on_key_up_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_key_up_routes_to_active_input_box(self, mocker):
-        """Test key up routes to input box when active."""
-        dialog = _create_input_dialog(mocker)
+    def test_key_up_routes_to_active_input_box(self):
+        """A key-up reaches the active input box (Escape's release deactivates it)."""
+        dialog = _create_input_dialog()
         dialog.input_box.is_active = True
 
-        mock_input_box_key_up = mocker.patch.object(dialog.input_box, 'on_key_up_event')
+        dialog.on_key_up_event(_key_up(pygame.K_ESCAPE))
 
-        event = mocker.Mock()
-        event.key = pygame.K_a
+        assert dialog.input_box.is_active is False
 
-        dialog.on_key_up_event(event)
-
-        mock_input_box_key_up.assert_called_once_with(event)
-
-    def test_key_up_tab_activates_input_box(self, mocker):
+    def test_key_up_tab_activates_input_box(self):
         """Test Tab key activates the input box when it is inactive."""
-        dialog = _create_input_dialog(mocker)
+        dialog = _create_input_dialog()
         dialog.input_box.is_active = False
 
-        event = mocker.Mock()
-        event.key = pygame.K_TAB
-
-        dialog.on_key_up_event(event)
+        dialog.on_key_up_event(_key_up(pygame.K_TAB))
 
         assert dialog.input_box.is_active is True
 
-    def test_key_up_non_tab_when_inactive_calls_super(self, mocker):
-        """Test non-Tab key when input box is inactive calls super handler."""
-        dialog = _create_input_dialog(mocker)
+    def test_key_up_non_tab_when_inactive_calls_super(self):
+        """A non-Tab key-up with the input box inactive changes nothing."""
+        dialog = _create_input_dialog()
         dialog.input_box.is_active = False
 
-        event = mocker.Mock()
-        event.key = pygame.K_ESCAPE
+        dialog.on_key_up_event(_key_up(pygame.K_ESCAPE))
 
-        # Should not raise - calls super's on_key_up_event
-        dialog.on_key_up_event(event)
+        assert dialog.input_box.is_active is False
+        assert not dialog.input_box.text
 
 
 class TestInputDialogKeyDownEvent:
     """Test InputDialog.on_key_down_event()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_key_down_tab_activates_input_box(self, mocker):
-        """Test Tab key activates the input box."""
-        dialog = _create_input_dialog(mocker)
+    def test_key_down_tab_activates_input_box(self):
+        """Test Tab key activates the input box (and types no tab)."""
+        dialog = _create_input_dialog()
         dialog.input_box.is_active = False
 
-        event = mocker.Mock()
-        event.key = pygame.K_TAB
-
-        dialog.on_key_down_event(event)
+        dialog.on_key_down_event(_key_down(pygame.K_TAB, unicode='\t'))
 
         assert dialog.input_box.is_active is True
+        assert not dialog.input_box.text
 
-    def test_key_down_routes_to_input_box(self, mocker):
-        """Test non-Tab key routes to input box on_key_down_event."""
-        dialog = _create_input_dialog(mocker)
+    def test_key_down_routes_to_input_box(self):
+        """A non-Tab key-down types into the input box, which redraws its text."""
+        dialog = _create_input_dialog()
+        empty_text_width = dialog.input_box.text_image.get_width()
 
-        mock_input_box_key_down = mocker.patch.object(dialog.input_box, 'on_key_down_event')
+        dialog.on_key_down_event(_key_down(pygame.K_a, unicode='a'))
 
-        event = mocker.Mock()
-        event.key = pygame.K_a
-
-        dialog.on_key_down_event(event)
-
-        mock_input_box_key_down.assert_called_once_with(event)
+        assert dialog.input_box.text == 'a'
+        assert dialog.input_box.text_image.get_width() > empty_text_width
 
 
 class TestInputDialogUpdateNestedSprites:
     """Test InputDialog.update_nested_sprites()."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker, mock_pygame_patches):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_update_nested_sprites_syncs_dirty(self, mocker):
+    def test_update_nested_sprites_syncs_dirty(self):
         """Test update_nested_sprites syncs dirty flag to buttons."""
-        dialog = _create_input_dialog(mocker)
+        dialog = _create_input_dialog()
         dialog.dirty = 2
 
         dialog.update_nested_sprites()

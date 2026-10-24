@@ -48,9 +48,11 @@ CONTROLLER_ACCEL_JUMP_LEVEL3 = 8
 # Joystick mappings
 HAT_INPUT_MAGNITUDE_THRESHOLD = 0.5  # Joystick hat dead zone
 JOYSTICK_LEFT_SHOULDER_BUTTON = 9  # Joystick button mapping for left shoulder
-JOYSTICK_HAT_RIGHT = 2  # Joystick hat bitmask for right direction
-JOYSTICK_HAT_DOWN = 4  # Joystick hat bitmask for down direction
-JOYSTICK_HAT_LEFT = 8  # Joystick hat bitmask for left direction
+# Joystick hat positions: pygame reports a hat as an (x, y) tuple, never a bitmask
+JOYSTICK_HAT_UP = (0, 1)
+JOYSTICK_HAT_RIGHT = (1, 0)
+JOYSTICK_HAT_DOWN = (0, -1)
+JOYSTICK_HAT_LEFT = (-1, 0)
 
 # AI training
 AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT = 2  # Threshold for single-frame sprite shortcut

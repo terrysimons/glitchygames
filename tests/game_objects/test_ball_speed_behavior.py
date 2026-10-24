@@ -7,6 +7,7 @@ import math
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import (
     BallSprite,
     SpeedUpAxes,
@@ -15,6 +16,7 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
 )
 from glitchygames.movement import Speed
+from tests.game_objects.ball_helpers import place_visible_edge_past_wall
 
 # Positions on the 800x600 test screen well away from every wall
 SCREEN_CENTER_X = 400.0
@@ -78,7 +80,7 @@ class TestBallSpeedBehavior:
     def setup_method(self):
         """Set up test fixtures."""
         pygame.init()
-        self.screen = pygame.display.set_mode((800, 600))
+        self.screen = set_display_mode(size=(800, 600))
 
     def teardown_method(self):
         """Clean up after tests."""
@@ -173,7 +175,8 @@ class TestBallSpeedBehavior:
         # Set controlled initial speed and position to avoid random interactions
         ball.speed = Speed(100.0, -50.0)
         ball.world_x = SCREEN_CENTER_X
-        ball.world_y = 0.0
+        # The visible circle (its collision rect) touches the top wall
+        place_visible_edge_past_wall(ball, wall='top', overshoot=0.0)
         # Game time passing must not matter for walls (CONTINUOUS is not a trigger)
         ball._advance_continuous_speed_up(1_000.0)
         assert ball.speed_up_count == 0

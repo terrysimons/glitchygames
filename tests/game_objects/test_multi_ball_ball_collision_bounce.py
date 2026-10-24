@@ -14,6 +14,7 @@ import random
 
 import pygame
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite
 from tests.game_objects.ball_helpers import drawn_position
 
@@ -225,7 +226,7 @@ def test_multi_ball_ball_collision_bounce():
     """
     random.seed(42)
     pygame.init()
-    pygame.display.set_mode((800, 600))
+    set_display_mode(size=(800, 600))
 
     num_balls = 5
     balls = _create_random_balls(num_balls)

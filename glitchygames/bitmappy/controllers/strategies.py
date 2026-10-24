@@ -296,26 +296,34 @@ class CanvasModeStrategy:
         if fill_direction == 'HORIZONTAL':
             if a_button_held:
                 handler.log.debug(
-                    f'Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels'
-                    f' {"left" if is_left else "right"}',
+                    'Controller %s: %s SHOULDER + A - paint 8 pixels %s',
+                    controller_id,
+                    direction_label,
+                    'left' if is_left else 'right',
                 )
                 handler.canvas_paint_horizontal_line(controller_id, distance)
             else:
                 handler.log.debug(
-                    f'Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels'
-                    f' {"left" if is_left else "right"}',
+                    'Controller %s: %s SHOULDER - jump 8 pixels %s',
+                    controller_id,
+                    direction_label,
+                    'left' if is_left else 'right',
                 )
                 handler.canvas_jump_horizontal(controller_id, distance)
         elif a_button_held:
             handler.log.debug(
-                f'Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels'
-                f' {"up" if is_left else "down"}',
+                'Controller %s: %s SHOULDER + A - paint 8 pixels %s',
+                controller_id,
+                direction_label,
+                'up' if is_left else 'down',
             )
             handler.canvas_paint_vertical_line(controller_id, distance)
         else:
             handler.log.debug(
-                f'Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels'
-                f' {"up" if is_left else "down"}',
+                'Controller %s: %s SHOULDER - jump 8 pixels %s',
+                controller_id,
+                direction_label,
+                'up' if is_left else 'down',
             )
             handler.canvas_jump_vertical(controller_id, distance)
 
@@ -397,8 +405,8 @@ class SliderModeStrategy:
     def handle_button_up(self, controller_id: int, button: int) -> None:
         """Handle a controller button release in slider mode.
 
-        Stops continuous slider adjustment on D-pad/shoulder release and
-        updates the color well.
+        Stops continuous slider adjustment on D-pad/shoulder release (each adjustment
+        already updated the color well, through on_slider_event).
         """
         handler = self.handler
 
@@ -409,4 +417,3 @@ class SliderModeStrategy:
             pygame.CONTROLLER_BUTTON_RIGHTSHOULDER,
         }:
             handler.stop_slider_continuous_adjustment(controller_id)
-            handler.editor.update_color_well_from_sliders()

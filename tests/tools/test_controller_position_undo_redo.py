@@ -25,7 +25,7 @@ class TestControllerPositionUndoRedo:
         """
         scene = mocker.Mock()
         scene.undo_redo_manager = UndoRedoManager()
-        scene._applying_undo_redo = False
+        scene.applying_undo_redo = False
 
         # Create the tracker with editor=scene so commands can reference the editor
         scene.controller_position_operation_tracker = ControllerPositionOperationTracker(

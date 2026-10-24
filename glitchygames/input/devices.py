@@ -39,6 +39,8 @@ from glitchygames.sources import notify_device_answer
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pygame.typing import ColorLike
+
 LOG = logging.getLogger('game.input.devices')
 LOG.addHandler(logging.NullHandler())
 
@@ -53,6 +55,11 @@ OPEN_JOYSTICK_CALL = 'open_joystick'
 OPEN_CONTROLLER_CALL = 'open_controller'
 
 type EnumerationValue = int | bool | str | None
+
+# What the door hands out: real pygame devices live, the recorded stand-ins in a replay (their
+# methods share pygame's signatures, so callers use the methods both have)
+type OpenedJoystick = pygame.joystick.JoystickType | ReplayJoystick
+type OpenedController = pygame._sdl2.controller.Controller | ReplayController
 
 
 @dataclasses.dataclass(frozen=True)
@@ -194,7 +201,7 @@ class DeviceRegistry(Protocol):
         """
         ...
 
-    def open_joystick(self, *, device_index: int) -> Any:
+    def open_joystick(self, *, device_index: int) -> OpenedJoystick:
         """Open the joystick at ``device_index``.
 
         Args:
@@ -203,7 +210,7 @@ class DeviceRegistry(Protocol):
         """
         ...
 
-    def open_controller(self, *, device_index: int) -> Any:
+    def open_controller(self, *, device_index: int) -> OpenedController:
         """Open the game controller at ``device_index``.
 
         Args:
@@ -212,8 +219,19 @@ class DeviceRegistry(Protocol):
         """
         ...
 
-    def joystick_for_instance(self, *, instance_id: int) -> Any | None:
+    def joystick_for_instance(self, *, instance_id: int) -> OpenedJoystick | None:
         """Return an opened device's joystick view by instance id, or None.
+
+        Args:
+            instance_id: The SDL instance id.
+
+        """
+        ...
+
+    def descriptor_for_instance(self, *, instance_id: int) -> DeviceDescriptor | None:
+        """Return the descriptor of an opened device by instance id, or None.
+
+        A game controller opened on both layers keeps its controller descriptor.
 
         Args:
             instance_id: The SDL instance id.
@@ -239,7 +257,7 @@ class DeviceRegistry(Protocol):
         ...
 
 
-def _describe(*, kind: str, device_index: int, device: Any) -> DeviceDescriptor:
+def _describe(*, kind: str, device_index: int, device: OpenedJoystick) -> DeviceDescriptor:
     """Return the descriptor of an opened device (its joystick view).
 
     Returns:
@@ -263,8 +281,22 @@ def _describe(*, kind: str, device_index: int, device: Any) -> DeviceDescriptor:
     )
 
 
+def _remember_descriptor(
+    *, descriptors_by_instance: dict[int, DeviceDescriptor], descriptor: DeviceDescriptor
+) -> None:
+    """Remember an opened device's descriptor by instance id.
+
+    A game controller is opened on both layers (the controller manager opens it as a
+    controller, the joystick manager as a joystick, in either order): its controller descriptor
+    is kept, so the descriptor says the device is a game controller.
+    """
+    known = descriptors_by_instance.get(descriptor.instance_id)
+    if known is None or known.kind != CONTROLLER_KIND:
+        descriptors_by_instance[descriptor.instance_id] = descriptor
+
+
 def _poll_joystick_layer(
-    *, device: Any
+    *, device: OpenedJoystick
 ) -> tuple[tuple[float, ...], tuple[bool, ...], tuple[tuple[int, int], ...]]:
     """Read a device's joystick-layer axes, buttons and hats.
 
@@ -281,7 +313,9 @@ def _poll_joystick_layer(
     return axes, buttons, hats
 
 
-def _poll_controller_layer(*, controller: Any) -> tuple[tuple[int, ...], tuple[bool, ...]]:
+def _poll_controller_layer(
+    *, controller: OpenedController
+) -> tuple[tuple[int, ...], tuple[bool, ...]]:
     """Read a game controller's axes and buttons by every CONTROLLER_AXIS_*/BUTTON_* id.
 
     Returns:
@@ -301,8 +335,9 @@ class LiveDeviceRegistry:
     def __init__(self: Self) -> None:
         """Start with no devices opened and nothing asked."""
         # Joystick views by instance id (a controller's is its as_joystick())
-        self._devices_by_instance: dict[int, Any] = {}
-        self._controllers_by_instance: dict[int, Any] = {}
+        self._devices_by_instance: dict[int, pygame.joystick.JoystickType] = {}
+        self._controllers_by_instance: dict[int, pygame._sdl2.controller.Controller] = {}
+        self._descriptors_by_instance: dict[int, DeviceDescriptor] = {}
         self._new_descriptors: list[DeviceDescriptor] = []
         self._new_answers: list[EnumerationAnswer] = []
 
@@ -391,7 +426,7 @@ class LiveDeviceRegistry:
         self._remember_answer(call=NAME_FOR_INDEX_CALL, device_index=device_index, value=name)
         return name
 
-    def open_joystick(self: Self, *, device_index: int) -> Any:
+    def open_joystick(self: Self, *, device_index: int) -> pygame.joystick.JoystickType:
         """Open the joystick at ``device_index`` and remember it.
 
         Args:
@@ -418,7 +453,7 @@ class LiveDeviceRegistry:
         )
         return joystick
 
-    def open_controller(self: Self, *, device_index: int) -> Any:
+    def open_controller(self: Self, *, device_index: int) -> pygame._sdl2.controller.Controller:
         """Open the game controller at ``device_index`` and remember it.
 
         Its joystick view is described and polled on the joystick layer, and the controller
@@ -461,7 +496,9 @@ class LiveDeviceRegistry:
         )
         return controller
 
-    def joystick_for_instance(self: Self, *, instance_id: int) -> Any | None:
+    def joystick_for_instance(
+        self: Self, *, instance_id: int
+    ) -> pygame.joystick.JoystickType | None:
         """Return an opened device's joystick view by instance id, or None.
 
         Args:
@@ -472,6 +509,18 @@ class LiveDeviceRegistry:
 
         """
         return self._devices_by_instance.get(instance_id)
+
+    def descriptor_for_instance(self: Self, *, instance_id: int) -> DeviceDescriptor | None:
+        """Return the descriptor of an opened device by instance id, or None.
+
+        Args:
+            instance_id: The SDL instance id.
+
+        Returns:
+            The descriptor recorded when it was opened (a game controller's controller one).
+
+        """
+        return self._descriptors_by_instance.get(instance_id)
 
     def forget_device(self: Self, *, instance_id: int) -> None:
         """Stop polling and handing out a removed (or vanished) device.
@@ -486,6 +535,7 @@ class LiveDeviceRegistry:
         """
         self._devices_by_instance.pop(instance_id, None)
         self._controllers_by_instance.pop(instance_id, None)
+        self._descriptors_by_instance.pop(instance_id, None)
 
     def discard_untaken(self: Self) -> None:
         """Drop the answers and descriptors nobody took this frame (``LiveSources.end_frame``).
@@ -593,12 +643,15 @@ class LiveDeviceRegistry:
         *,
         call: str,
         descriptor: DeviceDescriptor,
-        joystick_view: Any,
-        controller: Any | None,
+        joystick_view: pygame.joystick.JoystickType,
+        controller: pygame._sdl2.controller.Controller | None,
     ) -> None:
         self._devices_by_instance[descriptor.instance_id] = joystick_view
         if controller is not None:
             self._controllers_by_instance[descriptor.instance_id] = controller
+        _remember_descriptor(
+            descriptors_by_instance=self._descriptors_by_instance, descriptor=descriptor
+        )
         self._new_descriptors.append(descriptor)
         self._remember_answer(
             call=call,
@@ -624,7 +677,9 @@ class ReplayJoystick:
 
         """
         self._descriptor = descriptor
-        self._initialized = False
+        # Initialized on creation, as pygame-ce's devices are (its docs: "opened immediately on
+        # creation"), so get_init() answers as live play does before any init() call
+        self._initialized = True
 
     def init(self: Self) -> None:
         """Mark initialized (no hardware)."""
@@ -635,10 +690,10 @@ class ReplayJoystick:
         self._initialized = False
 
     def get_init(self: Self) -> bool:
-        """Return whether init() was called.
+        """Return whether the stand-in is initialized (from creation until quit()).
 
         Returns:
-            True after init().
+            True from creation, or after init(); False after quit().
 
         """
         return self._initialized
@@ -791,7 +846,7 @@ class ReplayJoystick:
     def stop_rumble(self: Self) -> None:
         """Nothing to stop."""
 
-    def set_led(self: Self, color: Any, /) -> bool:
+    def set_led(self: Self, color: ColorLike, /) -> bool:
         """Ignore an LED colour (positional-only: pygame's signature; no hardware).
 
         Args:
@@ -823,7 +878,9 @@ class ReplayController:
         """
         self._descriptor = descriptor
         self._joystick_view = ReplayJoystick(descriptor=descriptor)
-        self._initialized = False
+        # Initialized on creation, as pygame-ce's devices are (its docs: "opened immediately on
+        # creation"), so get_init() answers as live play does before any init() call
+        self._initialized = True
 
     def init(self: Self) -> None:
         """Mark initialized (no hardware)."""
@@ -834,10 +891,10 @@ class ReplayController:
         self._initialized = False
 
     def get_init(self: Self) -> bool:
-        """Return whether init() was called.
+        """Return whether the stand-in is initialized (from creation until quit()).
 
         Returns:
-            True after init().
+            True from creation, or after init(); False after quit().
 
         """
         return self._initialized
@@ -923,7 +980,7 @@ class ReplayController:
     def stop_rumble(self: Self) -> None:
         """Nothing to stop."""
 
-    def set_led(self: Self, color: Any, /) -> bool:
+    def set_led(self: Self, color: ColorLike, /) -> bool:
         """Ignore an LED colour (positional-only: pygame's signature; no hardware).
 
         Args:
@@ -959,6 +1016,7 @@ class ReplayDeviceRegistry:
         self._descriptors_by_instance: dict[int, DeviceDescriptor] = {}
         self._opened_instances: set[int] = set()
         self._opened_by_instance: dict[int, ReplayJoystick] = {}
+        self._opened_descriptors_by_instance: dict[int, DeviceDescriptor] = {}
         self._answers: dict[tuple[str, int | None], collections.deque[EnumerationAnswer]] = {}
         self._last_answers: dict[tuple[str, int | None], EnumerationAnswer] = {}
         self._learned_descriptors: list[DeviceDescriptor] = []
@@ -1062,6 +1120,9 @@ class ReplayDeviceRegistry:
         )
         joystick = ReplayJoystick(descriptor=descriptor)
         self._opened_by_instance[descriptor.instance_id] = joystick
+        _remember_descriptor(
+            descriptors_by_instance=self._opened_descriptors_by_instance, descriptor=descriptor
+        )
         return joystick
 
     def open_controller(self: Self, *, device_index: int) -> ReplayController:
@@ -1080,6 +1141,9 @@ class ReplayDeviceRegistry:
         controller = ReplayController(descriptor=descriptor)
         # Live play hands back a controller's joystick view by instance id; so does a replay
         self._opened_by_instance[descriptor.instance_id] = controller.as_joystick()
+        _remember_descriptor(
+            descriptors_by_instance=self._opened_descriptors_by_instance, descriptor=descriptor
+        )
         return controller
 
     def joystick_for_instance(self: Self, *, instance_id: int) -> ReplayJoystick | None:
@@ -1094,6 +1158,18 @@ class ReplayDeviceRegistry:
         """
         return self._opened_by_instance.get(instance_id)
 
+    def descriptor_for_instance(self: Self, *, instance_id: int) -> DeviceDescriptor | None:
+        """Return the recorded descriptor of an opened stand-in by instance id, or None.
+
+        Args:
+            instance_id: The recorded SDL instance id.
+
+        Returns:
+            The descriptor it was opened with (a game controller's controller one).
+
+        """
+        return self._opened_descriptors_by_instance.get(instance_id)
+
     def forget_device(self: Self, *, instance_id: int) -> None:
         """Forget a removed stand-in, as live play forgets the device (replayed removal events).
 
@@ -1102,6 +1178,7 @@ class ReplayDeviceRegistry:
 
         """
         self._opened_by_instance.pop(instance_id, None)
+        self._opened_descriptors_by_instance.pop(instance_id, None)
 
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
         """Return the descriptors learned from the recording since the last call, once each.

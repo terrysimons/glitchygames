@@ -7,7 +7,7 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
-from typing import TYPE_CHECKING, NamedTuple, Self, override
+from typing import TYPE_CHECKING, NamedTuple, Self, assert_never, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -267,6 +267,8 @@ def speed_up_step_ratio(curve: SpeedUpCurve, multiplier: float, completed_steps:
             return (1.0 + growth * math.log1p(completed_steps + 1)) / (
                 1.0 + growth * math.log1p(completed_steps)
             )
+        case _:  # pragma: no cover - every SpeedUpCurve is matched above
+            assert_never(curve)
 
 
 # The engine random stream every serve draws from (position, side, angle), so a run's seed
@@ -431,8 +433,10 @@ class BallSprite(Sprite):
         # Collision tracking (set by callers like PaddleSlap)
         self.collision_cooldowns: dict[str, float] = {}
         self.on_paddle_collision: Callable[[BallSprite], None] | None = None
+        # Called with the ball after each wall bounce (one call per bounce, corners included)
+        self.on_wall_bounce: Callable[[BallSprite], None] | None = None
 
-        # Debug trajectory tracking (used for trajectory analysis)
+        # Debug trajectory tracking (PaddleSlap fills it only while DEBUG logging is on)
         self._debug_positions: list[tuple[float, float, float, float]] = []
 
         self.reset()
@@ -490,9 +494,6 @@ class BallSprite(Sprite):
     @property
     def color(self: Self) -> tuple[int, int, int]:
         """The color of the ball.
-
-        Args:
-            None
 
         Returns:
             tuple[int, int, int]: The color of the ball.
@@ -617,6 +618,8 @@ class BallSprite(Sprite):
             case SpeedUpAxes.Y_ONLY:
                 if abs(self.speed.y) > settings.max_speed:
                     self.speed.y = math.copysign(settings.max_speed, self.speed.y)
+            case _:  # pragma: no cover - every SpeedUpAxes is matched above
+                assert_never(settings.axes)
 
     def _advance_continuous_speed_up(self: Self, dt: float) -> None:
         """Advance the CONTINUOUS speed-up timer by dt seconds of game time.
@@ -645,6 +648,8 @@ class BallSprite(Sprite):
             case SpeedUpSchedule.MINIMUM_GAP:
                 self.speed_up()
                 self._continuous_elapsed_time = 0.0
+            case _:  # pragma: no cover - every SpeedUpSchedule is matched above
+                assert_never(settings.schedule)
         # The tolerance can leave a tiny negative remainder
         self._continuous_elapsed_time = max(self._continuous_elapsed_time, 0.0)
 
@@ -659,12 +664,7 @@ class BallSprite(Sprite):
             self.speed_up()
 
     def on_paddle_bounce(self: Self) -> None:
-        """Speed up for a paddle hit if PADDLE_BOUNCE is a configured trigger.
-
-        Args:
-            None
-
-        """
+        """Speed up for a paddle hit if PADDLE_BOUNCE is a configured trigger."""
         self._apply_triggered_speed_up(SpeedUpTrigger.PADDLE_BOUNCE)
 
     @override
@@ -688,7 +688,8 @@ class BallSprite(Sprite):
         self.dirty = 1
 
         # Paddle hits are found by the game's CollisionManager after the balls move and
-        # resolved by handle_paddle_collision() (see PaddleSlap's update()).
+        # resolved by handle_paddle_collision() (see PaddleSlap's Game.dt_tick, which resolves
+        # them after every sprite moved).
 
         self._do_bounce()
 
@@ -704,29 +705,29 @@ class BallSprite(Sprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the ball.
-
-        Args:
-            None
-
-        """
+        """Update the ball."""
         # Movement is now handled in dt_tick() for frame-rate independence
         # This method is kept for compatibility but no longer moves the ball
 
     def _do_bounce(self: Self) -> None:
-        """Enhanced ball boundary physics with improved collision response.
-
-        Args:
-            None
-
-        """
-        log.debug(
-            f'BALL BOUNCE CHECK: pos=({self.world_x:.1f},{self.world_y:.1f}) '
-            f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
-            f'screen=({self.screen_width},{self.screen_height}) '
-            f'bounce_top_bottom={self.bounce_top_bottom} '
-            f'bounce_left_right={self.bounce_left_right}',
-        )
+        """Enhanced ball boundary physics with improved collision response."""
+        # Every ball checks every frame: read the eight arguments only when DEBUG is on
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(
+                'BALL BOUNCE CHECK: pos=(%.1f,%.1f) '
+                'speed=(%.3f,%.3f) '
+                'screen=(%s,%s) '
+                'bounce_top_bottom=%s '
+                'bounce_left_right=%s',
+                self.world_x,
+                self.world_y,
+                self.speed.x,
+                self.speed.y,
+                self.screen_width,
+                self.screen_height,
+                self.bounce_top_bottom,
+                self.bounce_left_right,
+            )
 
         # Enhanced boundary checking with proper physics
         self._handle_boundary_collisions(log)
@@ -735,8 +736,9 @@ class BallSprite(Sprite):
         """Bounce off any wall the ball is touching while moving toward it.
 
         A frame that hits one wall, or two at a corner, is a single bounce: one sound
-        and at most one WALL_BOUNCE speed-up. A ball touching a wall while already
-        moving away from it (e.g. the frame after a bounce) does not bounce again.
+        and at most one WALL_BOUNCE speed-up, then one on_wall_bounce call. A ball
+        touching a wall while already moving away from it (e.g. the frame after a bounce)
+        does not bounce again.
 
         Args:
             log (logging.Logger): Logger instance for debug output
@@ -768,11 +770,17 @@ class BallSprite(Sprite):
             self._handle_corner_collision(log)
 
         if hit_horizontal_wall or hit_vertical_wall:
-            if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
-                self.snd.play()
-            self._apply_triggered_speed_up(SpeedUpTrigger.WALL_BOUNCE)
+            self._finish_wall_bounce()
 
         self._keep_inside_playfield()
+
+    def _finish_wall_bounce(self: Self) -> None:
+        """Play the bounce sound, apply any WALL_BOUNCE speed-up, then call on_wall_bounce."""
+        if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
+            self.snd.play()
+        self._apply_triggered_speed_up(SpeedUpTrigger.WALL_BOUNCE)
+        if self.on_wall_bounce is not None:
+            self.on_wall_bounce(self)
 
     def _keep_inside_playfield(self: Self) -> None:
         """Mirror any overshoot past a bouncing wall back inside the playfield.
@@ -915,8 +923,10 @@ class BallSprite(Sprite):
 
         # For now, we'll add debug logging and prepare for future visual effects
         log.debug(
-            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at '
-            f'({self.world_x:.1f}, {self.world_y:.1f})',
+            'BALL COLLISION VISUAL FEEDBACK: %s at (%.1f, %.1f)',
+            collision_type,
+            self.world_x,
+            self.world_y,
         )
 
         # Future implementation could include:

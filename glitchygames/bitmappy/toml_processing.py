@@ -226,25 +226,27 @@ def _handle_key_value(
     log: logging.Logger,
 ) -> None:
     """Handle key = value pairs, including multi-line triple-quoted strings."""
+    # The caller sends only lines holding '=', so the split always gives a key and a value
+    key, value = line.split('=', 1)
+    key = key.strip()
+    value = _strip_inline_comment(value.strip())
+
+    # Handle multi-line triple-quoted strings
+    if value == '"""' or (value.startswith('"""') and not value.endswith('"""')):
+        value = _read_multiline_string(state, value)
+        parsed_value: str | bool | int | float | list[Any] = value
+    else:
+        parsed_value = _parse_toml_value(value)
+
+    # Remove quotes from key
+    if key.startswith('"') and key.endswith('"'):
+        key = key[1:-1]
+
+    # The current section's path can run into a value that is not a table (a key reused as a
+    # section name): that line is skipped
     try:
-        key, value = line.split('=', 1)
-        key = key.strip()
-        value = _strip_inline_comment(value.strip())
-
-        # Handle multi-line triple-quoted strings
-        if value == '"""' or (value.startswith('"""') and not value.endswith('"""')):
-            value = _read_multiline_string(state, value)
-            parsed_value: str | bool | int | float | list[Any] = value
-        else:
-            parsed_value = _parse_toml_value(value)
-
-        # Remove quotes from key
-        if key.startswith('"') and key.endswith('"'):
-            key = key[1:-1]
-
         state.get_target_dict()[key] = parsed_value
-
-    except (ValueError, TypeError, KeyError) as e:
+    except (TypeError, KeyError) as e:
         log.warning('Failed to parse line %s: %s - %s', line_num, line, e)
 
 
@@ -459,24 +461,8 @@ def _fix_comma_separated_color_field(
 
     """
     try:
-        values = [int(x.strip()) for x in field_value.split(',')]
-
-        if field_name == 'red' and len(values) >= 1:
-            fixed_color['red'] = values[0]
-            if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_GREEN:
-                fixed_color['green'] = values[1]
-            if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
-                fixed_color['blue'] = values[2]
-            log.warning(
-                "Fixed comma-separated color format for '%s': %s -> separate fields",
-                color_key,
-                field_value,
-            )
-        elif field_name == 'green' and len(values) >= 1:
-            fixed_color['green'] = values[0]
-        elif field_name == 'blue' and len(values) >= 1:
-            fixed_color['blue'] = values[0]
-    except (ValueError, IndexError) as e:
+        values = [int(value.strip()) for value in field_value.split(',')]
+    except ValueError as e:
         log.warning(
             "Failed to parse comma-separated color value '%s' for '%s': %s",
             field_value,
@@ -484,6 +470,24 @@ def _fix_comma_separated_color_field(
             e,
         )
         fixed_color[field_name] = field_value
+        return
+
+    # Each index is read only after its length check, so none can be out of range
+    if field_name == 'red' and len(values) >= 1:
+        fixed_color['red'] = values[0]
+        if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_GREEN:
+            fixed_color['green'] = values[1]
+        if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
+            fixed_color['blue'] = values[2]
+        log.warning(
+            "Fixed comma-separated color format for '%s': %s -> separate fields",
+            color_key,
+            field_value,
+        )
+    elif field_name == 'green' and len(values) >= 1:
+        fixed_color['green'] = values[0]
+    elif field_name == 'blue' and len(values) >= 1:
+        fixed_color['blue'] = values[0]
 
 
 def _fix_list_color_field(
@@ -625,24 +629,32 @@ def normalize_toml_data(config_data: dict[str, Any]) -> dict[str, Any]:
         Normalized TOML data with proper string formatting
 
     """
+    # Malformed data (a sprite or animation that is not a table) is returned as it came
     try:
         normalized_data = config_data.copy()
-
-        # Handle sprite pixels
-        if 'sprite' in normalized_data and 'pixels' in normalized_data['sprite']:
-            pixels = normalized_data['sprite']['pixels']
-            if isinstance(pixels, str):
-                normalized_data['sprite']['pixels'] = _normalize_escaped_newlines(pixels)
-
-        # Handle animation frame pixels
-        if 'animation' in normalized_data:
-            _normalize_animation_pixels(normalized_data['animation'])
-
+        _normalize_pixel_strings(normalized_data)
     except (AttributeError, KeyError, TypeError) as e:
         LOG.warning(f'Error normalizing TOML data: {e}')
         return config_data
-    else:
-        return normalized_data
+    return normalized_data
+
+
+def _normalize_pixel_strings(config_data: dict[str, Any]) -> None:
+    """Normalize the escaped newlines in the sprite's and the animation frames' pixels in place.
+
+    Args:
+        config_data: TOML data whose pixel strings are normalized.
+
+    """
+    # Handle sprite pixels
+    if 'sprite' in config_data and 'pixels' in config_data['sprite']:
+        pixels = config_data['sprite']['pixels']
+        if isinstance(pixels, str):
+            config_data['sprite']['pixels'] = _normalize_escaped_newlines(pixels)
+
+    # Handle animation frame pixels
+    if 'animation' in config_data:
+        _normalize_animation_pixels(config_data['animation'])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -683,6 +695,10 @@ def quantize_colors_if_needed(
     Returns:
         Possibly reduced set of unique colors.
 
+    Raises:
+        ValueError: When colors must be quantized but ``max_colors`` leaves no slot for them
+            (all of it reserved for transparency); grouping would have no group to join.
+
     """
     if log is None:
         log = LOG
@@ -692,6 +708,14 @@ def quantize_colors_if_needed(
 
     if len(unique_colors) <= available_colors:
         return unique_colors
+
+    # With no slot, the first color would join a group that does not exist (BUGS.md #109)
+    if available_colors < 1:
+        message = (
+            f'max_colors={max_colors} leaves no palette slot for colors'
+            f' ({reserved_for_transparency} reserved for transparency)'
+        )
+        raise ValueError(message)
 
     log.info('Too many colors detected, using color quantization...')
     color_groups: dict[tuple[int, int, int], list[tuple[int, int, int]]] = {}
@@ -718,8 +742,8 @@ def quantize_colors_if_needed(
     # Create representative colors for each group
     representative_colors = [group_color for group_color, colors in color_groups.items() if colors]
     result = set(representative_colors)
-    log.info(f'Quantized to {len(result)} representative colors')
-    log.info(f'Available colors: {available_colors}, Color groups created: {len(color_groups)}')
+    log.info('Quantized to %s representative colors', len(result))
+    log.info('Available colors: %s, Color groups created: %s', available_colors, len(color_groups))
     return result
 
 
@@ -751,8 +775,9 @@ def build_color_to_glyph_mapping(
     available_color_count = len(available_glyphs) - reserved_for_transparency
 
     log.info(
-        f'Mapping colors: {len(unique_colors)} unique colors to {available_color_count}'
-        f' available glyphs',
+        'Mapping colors: %s unique colors to %s available glyphs',
+        len(unique_colors),
+        available_color_count,
     )
     if has_transparency:
         log.info('Reserved 1 glyph for transparency')
@@ -781,7 +806,7 @@ def build_color_to_glyph_mapping(
             )
             color_mapping[color] = color_mapping[closest_color]
 
-    log.info(f'Final color mapping: {len(color_mapping)} colors mapped to glyphs')
+    log.info('Final color mapping: %s colors mapped to glyphs', len(color_mapping))
     return color_mapping
 
 
@@ -884,24 +909,23 @@ def generate_toml_content(
 
     # Add color definitions - collect unique glyphs first
     unique_glyphs = set(color_mapping.values())
-    log.info(f'Unique glyphs to define: {sorted(unique_glyphs)}')
+    log.info('Unique glyphs to define: %s', sorted(unique_glyphs))
 
     for glyph in sorted(unique_glyphs):
-        # Find the first color that maps to this glyph
-        for color, mapped_glyph in color_mapping.items():
-            if mapped_glyph == glyph:
-                r, g, b = color
-                # Quote the glyph to handle special characters like '.'
-                toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
-                log.info('Defined color %s: RGB(%s, %s, %s)', glyph, r, g, b)
-                break
+        # Find the first color that maps to this glyph (there is one: the glyph is a mapped value)
+        r, g, b = next(
+            color for color, mapped_glyph in color_mapping.items() if mapped_glyph == glyph
+        )
+        # Quote the glyph to handle special characters like '.'
+        toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+        log.info('Defined color %s: RGB(%s, %s, %s)', glyph, r, g, b)
 
     if not unique_glyphs:
         log.error('No colors to define - this will cause display issues!')
         msg = 'No colors found in the converted sprite'
         raise ValueError(msg)
 
-    log.info(f'Generated {len(unique_glyphs)} color definitions')
+    log.info('Generated %s color definitions', len(unique_glyphs))
     return toml_content
 
 

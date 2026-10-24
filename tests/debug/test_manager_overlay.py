@@ -1,20 +1,23 @@
 """Tests for the debug overlay's SceneManager integration (keys, flag, frame history, present)."""
 
 import argparse
-import types
+from typing import Self, override
 
 import pygame
 import pytest
 
-from glitchygames.camera import Camera2D
 from glitchygames.debug import DebugFrameInfo
 from glitchygames.debug.overlay import DebugOverlay, DebugPanel
+from glitchygames.display_mode import set_display_mode
 from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from tests.display_canvas import show_canvas_on_new_display
 
-SCREEN_SIZE = (64, 48)
+# Wider than a window manager's smallest window: XQuartz's widens a 64-pixel window to 72, so a
+# real x11 display (nox -s compare-drivers' x11 configurations) would not be the size asked for
+SCREEN_SIZE = (96, 64)
 BACKGROUND_COLOR = (0, 0, 0)
 MARKER_COLOR = (255, 255, 255)
 MARKER_POSITION = (10, 20)
@@ -27,33 +30,72 @@ def initialized_pygame():
     pygame.init()
 
 
-@pytest.fixture
-def scene(mocker):
-    """A minimal scene with a real camera, no sprites and a recording key handler.
+class InspectableScene(Scene):
+    """A real scene whose debug_subject a test can point at another scene."""
+
+    NAME = 'InspectableScene'
+
+    def __init__(self: Self) -> None:
+        """Make the scene; it inspects itself until a test says otherwise."""
+        super().__init__(options={})
+        self.inspected_scene: Scene = self
+
+    @property
+    @override
+    def debug_subject(self: Self) -> Scene:
+        """The scene the test points the overlay at (this scene by default).
+
+        Returns:
+            The inspected scene.
+
+        """
+        return self.inspected_scene
+
+
+class PausedGameplayScene(Scene):
+    """The named gameplay scene a pause-like scene presents."""
+
+    NAME = 'Clockwork Keep'
+
+
+def focused_sprite(*, is_active: bool) -> pygame.sprite.DirtySprite:
+    """Return a sprite whose keyboard focus (is_active) is as given.
+
+    Args:
+        is_active: Whether the sprite has keyboard focus.
 
     Returns:
-        A SimpleNamespace standing in for the active scene.
+        The sprite.
 
     """
-    fake_scene = types.SimpleNamespace(
-        camera=Camera2D(*SCREEN_SIZE),
-        all_sprites=[],
-        on_key_down_event=mocker.Mock(),
-        NAME='FakeScene',
-    )
-    fake_scene.debug_subject = fake_scene  # a normal scene inspects itself
-    return fake_scene
+    sprite = pygame.sprite.DirtySprite()
+    sprite.is_active = is_active  # type: ignore[attr-defined]
+    return sprite
+
+
+@pytest.fixture
+def scene(mocker):
+    """A real scene on a 96x64 display, with no sprites and a recording key handler.
+
+    Returns:
+        The scene, made on a fresh SceneManager singleton (the manager fixture's).
+
+    """
+    SceneManager._reset()
+    set_display_mode(size=SCREEN_SIZE)
+    real_scene = InspectableScene()
+    mocker.patch.object(real_scene, 'on_key_down_event')
+    return real_scene
 
 
 @pytest.fixture
 def manager(scene):
-    """A fresh SceneManager with a real 64x48 screen and the fake scene active.
+    """The SceneManager the scene was made on, with a real 96x64 screen and the scene active.
 
     Yields:
         The SceneManager singleton.
 
     """
-    SceneManager._reset()
     scene_manager = SceneManager()
     scene_manager.screen = pygame.Surface(SCREEN_SIZE)
     scene_manager.screen.set_at(MARKER_POSITION, MARKER_COLOR)
@@ -167,16 +209,18 @@ class TestOverlayKeys:
         scene.on_key_down_event.assert_not_called()
 
     def test_other_keys_are_forwarded_unchanged(self, manager, scene):
-        """Test any other key reaches the active scene as the same event."""
+        """Test any other key reaches the active scene as the same event, its press recorded."""
         event = key_down(pygame.K_a)
         manager.on_key_down_event(event)
         scene.on_key_down_event.assert_called_once_with(event)
+        # Recorded before dispatch, so a release of this key may quit the scene
+        assert pygame.K_a in scene._keys_pressed_in_scene
         assert manager.debug_overlay.is_visible is False
         assert manager.debug_overlay.panel is DebugPanel.ALL
 
     def test_f3_reaches_a_focused_sprite_and_does_not_toggle(self, manager, scene):
         """Test F3 is forwarded, not intercepted, while a sprite has keyboard focus."""
-        scene.all_sprites.append(types.SimpleNamespace(is_active=True))
+        scene.all_sprites.add(focused_sprite(is_active=True))
         event = key_down(pygame.K_F3)
         manager.on_key_down_event(event)
         scene.on_key_down_event.assert_called_once_with(event)
@@ -184,7 +228,7 @@ class TestOverlayKeys:
 
     def test_f4_reaches_a_focused_sprite_and_does_not_cycle(self, manager, scene):
         """Test F4 is forwarded while a sprite has keyboard focus."""
-        scene.all_sprites.append(types.SimpleNamespace(is_active=True))
+        scene.all_sprites.add(focused_sprite(is_active=True))
         event = key_down(pygame.K_F4)
         manager.on_key_down_event(event)
         scene.on_key_down_event.assert_called_once_with(event)
@@ -192,7 +236,7 @@ class TestOverlayKeys:
 
     def test_unfocused_sprites_do_not_block_f3(self, manager, scene):
         """Test sprites without focus (or without is_active) do not block the toggle."""
-        scene.all_sprites.extend([types.SimpleNamespace(is_active=False), types.SimpleNamespace()])
+        scene.all_sprites.add(focused_sprite(is_active=False), pygame.sprite.DirtySprite())
         manager.on_key_down_event(key_down(pygame.K_F3))
         assert manager.debug_overlay.is_visible is True
 
@@ -400,7 +444,7 @@ class TestPausedSceneInspection:
 
     def test_pause_scene_inspects_the_scene_it_paused(self, mocker):
         """After setup, PauseScene.debug_subject is the scene that was active before the pause."""
-        pygame.display.set_mode(SCREEN_SIZE)
+        show_canvas_on_new_display(size=SCREEN_SIZE)
         SceneManager._reset()
         scene_manager = SceneManager()
         gameplay_scene = Scene(options={})
@@ -426,10 +470,8 @@ class TestPausedSceneInspection:
     def test_draw_receives_the_debug_subject_and_a_label(self, manager, scene, mocker):
         """A pause-like active scene hands the overlay its subject and names it in frame_info."""
         capture_at_flip(mocker, manager)
-        paused_gameplay = types.SimpleNamespace(
-            camera=Camera2D(*SCREEN_SIZE), all_sprites=[], NAME='Clockwork Keep'
-        )
-        scene.debug_subject = paused_gameplay
+        paused_gameplay = PausedGameplayScene(options={})
+        scene.inspected_scene = paused_gameplay
         draw = mocker.patch.object(manager.debug_overlay, 'draw')
         manager.debug_overlay.is_visible = True
         manager._present_frame(full_update=False)

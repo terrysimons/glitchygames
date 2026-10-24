@@ -70,6 +70,18 @@ class TestRender:
         expected = synth.normalize(synth.mix(first, (second, 0.05), sample_rate=RATE), peak=0.9)
         np.testing.assert_allclose(recipe.render(sample_rate=RATE), expected)
 
+    def test_to_sound_wraps_the_render_at_the_mixer_rate_with_the_recipe_volume(self, mocker):
+        mocker.patch('glitchygames.audio.recipes.mixer_sample_rate', return_value=RATE)
+        to_sound = mocker.patch('glitchygames.audio.recipes.to_sound')
+        recipe = _two_tone_recipe()
+
+        sound = recipe.to_sound()
+
+        assert sound is to_sound.return_value
+        (samples,) = to_sound.call_args.args
+        np.testing.assert_array_equal(samples, recipe.render(sample_rate=RATE))
+        assert to_sound.call_args.kwargs == {'volume': recipe.volume}
+
     def test_noise_is_repeatable(self):
         recipe = SoundRecipe(
             name='hiss',
@@ -128,6 +140,14 @@ class TestValidationAndSerialization:
         data = _two_tone_recipe().to_dict()
         data['tones'][1][field] = value
         with pytest.raises(SoundRecipeError, match=match):
+            SoundRecipe.from_dict('ting', data)
+
+    @pytest.mark.parametrize(('field', 'value'), [('volume', 'loud'), ('peak', [0.9])])
+    def test_from_dict_reports_bad_recipe_fields(self, field, value):
+        """A recipe-level value that is not a number names the recipe."""
+        data = _two_tone_recipe().to_dict()
+        data[field] = value
+        with pytest.raises(SoundRecipeError, match=r'^ting: '):
             SoundRecipe.from_dict('ting', data)
 
     def test_cutoff_at_nyquist_rejected_at_render(self):

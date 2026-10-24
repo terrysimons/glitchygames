@@ -1,6 +1,7 @@
 # AI Sprite Generation Integration Guide
 
-This document explains how to integrate the new `glitchygames.ai` module into Bitmappy.
+This document explains how the `glitchygames.ai` module is integrated into Bitmappy. The migration from
+Bitmappy's old inline prompts is complete; the "before" examples below are historical.
 
 ## Quick Start
 
@@ -18,11 +19,11 @@ messages = build_sprite_generation_messages(
     max_examples=3
 )
 
-# Send to AI API (aisuite)
+# Send to AI API (aisuite); Bitmappy's worker passes the output limit
 response = client.chat.completions.create(
     model=AI_MODEL,
     messages=messages,
-    max_tokens=AI_MAX_INPUT_TOKENS
+    max_tokens=AI_MAX_OUTPUT_TOKENS
 )
 
 # Extract content
@@ -41,7 +42,7 @@ else:
 
 ## Changes from Old System
 
-### Before (bitmappy.py lines 7788-7847)
+### Before (inline prompts in the former `glitchygames/tools/bitmappy.py`)
 
 ```python
 # 60+ lines of inline prompt construction
@@ -120,14 +121,15 @@ ABC
 
 Removes:
 - Markdown code blocks (```toml, ```)
-- Explanatory text before TOML
-- Trailing explanations
+- Explanatory text before the first line starting with `[`
 
 ### 4. Response Validation (validate_ai_response)
 
 Checks for:
 - Empty responses
 - Error/apology messages
+- Uncleaned markdown
+- Truncated pixel data
 - Missing required sections
 - Format mistakes (mixed static/animated)
 - Comma-separated color values
@@ -146,80 +148,31 @@ is_animated = detect_animation_request("animated walking character")
 # Returns: True
 ```
 
-## Integration Steps
+## Integration Points
 
-### Step 1: Replace message building in bitmappy.py
+All AI code in Bitmappy lives in `glitchygames/bitmappy/ai_manager.py` (`AIManager`, in the editor
+process) and `glitchygames/bitmappy/ai_worker.py` (the worker process that calls aisuite).
 
-**Location:** `glitchygames/tools/bitmappy.py:7788-7847`
+| Step | Where |
+|------|-------|
+| Build messages | `AIManager.on_text_submit_event()`: `build_refinement_messages` when the canvas holds a sprite to refine, else `build_sprite_generation_messages(max_examples=3)` |
+| Retry on an invalid answer | `AIManager._process_ai_response()`: rebuilds generation messages from `ai_worker.build_retry_prompt()`, up to `AI_VALIDATION_MAX_RETRIES` (2) retries |
+| Clean the response | `AIManager._clean_ai_response()` calls `clean_ai_response` |
+| Validate the response | `AIManager._validate_ai_content()` (used by `_is_ai_error_message()`) calls `validate_ai_response` on the raw answer, then on the cleaned one |
+| Training examples | `AIManager._load_temp_toml_as_example()` / `_training_example_from_toml()` build the example dicts; an animated example carries the file as `raw_content`, which `format_training_example` sends as is |
+| Size hint | `ai_worker.py` uses `get_sprite_size_hint` |
 
-**Replace:**
-```python
-messages: list[dict[str, str]] = [
-    # ... 60 lines of prompt construction
-]
-```
-
-**With:**
-```python
-from glitchygames.ai import build_sprite_generation_messages
-
-messages = build_sprite_generation_messages(
-    user_request=text,
-    training_examples=relevant_examples,
-    max_examples=3
-)
-```
-
-### Step 2: Update response cleaning
-
-**Location:** `glitchygames/tools/bitmappy.py:8642` (_clean_ai_response)
-
-**Replace with:**
-```python
-from glitchygames.ai import clean_ai_response
-
-def _clean_ai_response(self, content: str) -> str:
-    """Clean up markdown formatting from AI response."""
-    return clean_ai_response(content)
-```
-
-### Step 3: Add response validation
-
-**Location:** `glitchygames/tools/bitmappy.py:8491` (_is_ai_error_message)
-
-**Enhance with:**
-```python
-from glitchygames.ai import validate_ai_response
-
-def _is_ai_error_message(self, content: str) -> bool:
-    """Check if AI response is an error message."""
-    is_valid, error_msg = validate_ai_response(content)
-    if not is_valid:
-        self.log.warning(f"AI response validation failed: {error_msg}")
-        return True
-    return False
-```
-
-### Step 4: Update training example formatting
-
-**Location:** `glitchygames/tools/bitmappy.py:8430` (_load_temp_toml_as_example)
-
-**Add to result dict:**
-```python
-from glitchygames.ai import format_training_example
-
-# After loading example dict
-example["raw_content"] = Path(temp_toml_path).read_text()
-```
+`SpriteGenerationService` (`glitchygames/services/sprite_generation_service.py`, used by the API
+server) builds, cleans and validates through the same functions.
 
 ## Testing
 
 ```bash
-# Run tests for new AI module
+# Run tests for the AI module
 pytest tests/ai/test_sprite_generator.py -v
 
-# Test integration
-pytest tests/tools/test_bitmappy_ai_integration.py -v
+# Test the Bitmappy integration
+pytest tests/tools/test_ai_manager.py tests/tools/test_ai_worker.py tests/tools/test_bitmappy_ai_strip_integration.py -v
 ```
 
 ## Performance Improvements
@@ -248,23 +201,12 @@ pytest tests/tools/test_bitmappy_ai_integration.py -v
 - Automatic cleaning and validation
 - Consistent format enforcement
 
-## Backwards Compatibility
-
-The old system in bitmappy.py continues to work. The new module is **additive**, not breaking.
-
-You can migrate gradually:
-1. Keep old prompts running
-2. Add new module alongside
-3. A/B test both approaches
-4. Switch when confident
-
 ## Future Enhancements
 
 1. **Semantic example selection** - Use embeddings to find most relevant examples
 2. **Style transfer** - "Make it like sprite X but Y"
-3. **Multi-turn refinement** - "Make it bigger", "Add more frames"
-4. **Sprite variations** - Generate multiple options
-5. **Animation preview** - Show before generating full sprite
+3. **Sprite variations** - Generate multiple options
+4. **Animation preview** - Show before generating full sprite
 
 ## Summary
 
@@ -273,7 +215,6 @@ The new `glitchygames.ai` module provides:
 - ✅ Cleaner, testable code
 - ✅ Better error handling
 - ✅ Smart hints (size, animation)
+- ✅ Refinement of the current sprite
 - ✅ Consistent formatting
 - ✅ Easy to extend
-
-Migration is simple and non-breaking.

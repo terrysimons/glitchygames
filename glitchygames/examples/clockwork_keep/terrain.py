@@ -101,13 +101,18 @@ class Elevator(Sprite):
 class MovingGear(Sprite):
     """A gear-shaped platform that moves on a sine path.
 
+    A floor builds its gears from its level data (FloorData.moving_gears) and supports the
+    player on them like a platform; a player standing on one is carried by moved_x and
+    moved_y, how far the gear's last dt_tick moved it (ClockworkKeepScene._ride_moving_gear).
+
     Args:
         world_x: Center X of the movement range.
         world_y: Center Y of the movement range.
         move_range_x: Horizontal movement amplitude in pixels.
         move_range_y: Vertical movement amplitude in pixels.
         speed: Movement speed (radians/sec).
-        size: Gear diameter in pixels.
+        size: The gear bar's width in pixels (its height is a quarter of it: a toothed bar,
+            not a round gear).
         groups: Sprite group to add to.
 
     """
@@ -144,6 +149,9 @@ class MovingGear(Sprite):
         self._timer: float = 0.0
         self.world_x = world_x
         self.world_y = world_y
+        # How far the last dt_tick moved the gear: the floor carries a standing rider by it
+        self.moved_x: float = 0.0
+        self.moved_y: float = 0.0
 
         self.image = pygame.Surface((size, size // 4), pygame.SRCALPHA)
         self.image.fill((140, 130, 110))
@@ -154,7 +162,7 @@ class MovingGear(Sprite):
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Move the gear along its path.
+        """Move the gear along its path, keeping how far it moved (moved_x, moved_y).
 
         Args:
             dt: Delta time in seconds.
@@ -162,5 +170,9 @@ class MovingGear(Sprite):
         """
         super().dt_tick(dt)
         self._timer += dt
+        previous_world_x = self.world_x
+        previous_world_y = self.world_y
         self.world_x = self._center_x + self._move_range_x * math.sin(self._timer * self._speed)
         self.world_y = self._center_y + self._move_range_y * math.sin(self._timer * self._speed)
+        self.moved_x = self.world_x - previous_world_x
+        self.moved_y = self.world_y - previous_world_y

@@ -14,12 +14,14 @@ Usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, TypeIs
 
 from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import (
+    WorldRectSprite,
     check_aabb_overlap,
     get_collision_rect,
+    is_world_rect_sprite,
     snapped_world_position,
 )
 
@@ -45,7 +47,7 @@ class CollisionLayer:
         self.name = name
         self._sprites: list[Any] = []
 
-    def add(self, sprite: Any) -> None:
+    def add(self, sprite: object) -> None:
         """Add a sprite to this layer.
 
         Args:
@@ -55,7 +57,7 @@ class CollisionLayer:
         if sprite not in self._sprites:
             self._sprites.append(sprite)
 
-    def remove(self, sprite: Any) -> None:
+    def remove(self, sprite: object) -> None:
         """Remove a sprite from this layer.
 
         Args:
@@ -186,7 +188,7 @@ class CollisionManager:
 
     def check_single(
         self,
-        sprite: Any,
+        sprite: object,
         layer_name: str,
         callback: Callable[[Any, Any], None],
     ) -> None:
@@ -215,7 +217,33 @@ class CollisionManager:
         return list(self._layers.keys())
 
 
-def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
+class ScreenRectSprite(Protocol):
+    """A sprite with only a rect (UI elements), as get_sprite_collision_rect reads it.
+
+    The rect is typed pygame.Rect because get_sprite_collision_rect returns it unchanged as
+    its pygame.Rect result; a sprite whose rect is an FRect gets that FRect back.
+    """
+
+    @property
+    def rect(self) -> pygame.Rect | None:
+        """The sprite's screen rect, or None before it has one."""
+        ...
+
+
+def _has_rect(sprite: object) -> TypeIs[ScreenRectSprite]:
+    """Whether a sprite has a rect attribute (which may still be None).
+
+    Args:
+        sprite: Any object; only the presence of rect is checked.
+
+    Returns:
+        True if the sprite has a rect attribute.
+
+    """
+    return hasattr(sprite, 'rect')
+
+
+def get_sprite_collision_rect(sprite: object) -> pygame.Rect:
     """Extract a collision rect from a sprite.
 
     Handles sprites with world_x/world_y (game objects) and
@@ -232,10 +260,10 @@ def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
     """
     import pygame
 
-    if hasattr(sprite, 'world_x') and hasattr(sprite, 'world_y'):
+    if is_world_rect_sprite(sprite):
         return get_collision_rect(sprite, sprite.world_x, sprite.world_y)
 
-    if hasattr(sprite, 'rect') and sprite.rect is not None:
+    if _has_rect(sprite) and sprite.rect is not None:
         image = getattr(sprite, 'image', None)
         if image is not None and trims_transparent_hitbox(sprite):
             visible_bounds = opaque_bounds(image)
@@ -250,7 +278,7 @@ def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
     return pygame.Rect(0, 0, 0, 0)
 
 
-def collision_rect_offset(sprite: Any) -> tuple[int, int]:
+def collision_rect_offset(sprite: WorldRectSprite) -> tuple[int, int]:
     """Return the offset of a world sprite's collision rect from its snapped world position.
 
     Terrain code uses it to place a sprite so its collision rect (not its whole image) is
@@ -259,7 +287,7 @@ def collision_rect_offset(sprite: Any) -> tuple[int, int]:
     ``wall_right``.
 
     Args:
-        sprite (Any): A sprite with world_x and world_y.
+        sprite (WorldRectSprite): A sprite with world_x and world_y.
 
     Returns:
         tuple[int, int]: (offset_x, offset_y) of the collision rect's top-left.

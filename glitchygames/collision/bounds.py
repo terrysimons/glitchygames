@@ -13,7 +13,7 @@ do not change, cache their bounds per frame (see SpriteFrame.opaque_bounds).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import pygame
@@ -40,17 +40,18 @@ def opaque_bounds(image: pygame.Surface) -> pygame.Rect:
     return visible_bounds
 
 
-def trims_transparent_hitbox(sprite: Any) -> bool:
+def trims_transparent_hitbox(sprite: object) -> bool:
     """Whether a sprite's default hitbox is trimmed to its image's visible pixels.
 
     Reads the sprite's ``TRIM_TRANSPARENT_HITBOX`` attribute (instance or class); a sprite
     without it trims.
 
     Args:
-        sprite (Any): The sprite.
+        sprite (object): The sprite (only its attribute is read).
 
     Returns:
         bool: True unless the sprite opts out.
 
     """
+    # Looked up by name: the opt-out is optional on any sprite, of any class
     return bool(getattr(sprite, 'TRIM_TRANSPARENT_HITBOX', True))

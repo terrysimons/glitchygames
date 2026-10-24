@@ -14,12 +14,14 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 import shutil
-import subprocess  # ruff: ignore[suspicious-subprocess-import] — used for macOS 'say' command only
 import sys
 import tempfile
 from pathlib import Path
 from typing import Protocol
+
+from glitchygames.process import TimeoutExpired, run_command
 
 log: logging.Logger = logging.getLogger('game.audio.tts')
 
@@ -88,9 +90,11 @@ class MacOSTTS:
                 output_path = Path(temp_fd.name)
 
         say_path = self._say_path or 'say'
+        # run_command is the engine's one child-process launcher (glitchygames/process.py): an
+        # argument list, never a shell; 'say' is a trusted macOS system command
         try:
-            subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — 'say' is a trusted macOS system command
-                [
+            completed = run_command(
+                command=[
                     say_path,
                     '-v',
                     self.voice,
@@ -101,16 +105,25 @@ class MacOSTTS:
                     '--data-format=LEI16@48000',
                     text,
                 ],
-                check=True,
+                environment=os.environ,
+                timeout_seconds=30,
                 capture_output=True,
-                timeout=30,
             )
-        except subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError:
+        except TimeoutExpired, OSError:
             log.exception('TTS generation failed')
             return None
-        else:
-            log.info('TTS generated: %s (%d chars)', output_path.name, len(text))
-            return output_path
+
+        if completed.returncode != 0:
+            # run_command captures standard output and error together in stdout
+            log.error(
+                'TTS generation failed (exit %d): %s',
+                completed.returncode,
+                (completed.stdout or '').strip(),
+            )
+            return None
+
+        log.info('TTS generated: %s (%d chars)', output_path.name, len(text))
+        return output_path
 
 
 def get_tts_backend() -> TTSBackend | None:

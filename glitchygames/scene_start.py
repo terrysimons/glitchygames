@@ -258,8 +258,7 @@ class SceneStartCapture:
             opened: The descriptor of the device an open opened, else None.
 
         """
-        if self.start is not None:
-            return
+        # Only while pending: complete() stops observing before it sets the start
         self.device_answers.append(answer)
         if opened is not None:
             self.opened_devices.append(opened)

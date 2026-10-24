@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, override
 
 import pygame
 
+from glitchygames.opacity import make_opaque
 from glitchygames.transitions.base import Transition
 
 if TYPE_CHECKING:
@@ -81,22 +82,28 @@ class ElevatorTransition(Transition):
         screen_width = old_surface.get_width()
         screen_height = old_surface.get_height()
 
-        # Build composite: new on top, shaft in middle, old on bottom
+        # Build composite: new on top, shaft in middle, old on bottom. Both are made in the
+        # screenshots' format (the display's), so on a display with per-pixel alpha (cocoa's)
+        # they carry an alpha channel without SRCALPHA: blending the screenshots onto the
+        # composite leaves alpha 0 there (BUGS.md #142). It is made opaque once built, or the
+        # display would take that alpha 0, and the player blitted onto it would copy its
+        # transparent pixels as black (a black box around the player; glitchygames/opacity.py)
         composite_height = screen_height + self._shaft_height + screen_height
-        self._composite = pygame.Surface((screen_width, composite_height))
+        self._composite = pygame.Surface((screen_width, composite_height), 0, old_surface)
         self._composite.fill((0, 0, 0))
 
         # New floor at top
         self._composite.blit(new_surface, (0, 0))
 
         # Shaft in middle — draw tower walls
-        shaft_surface = pygame.Surface((screen_width, self._shaft_height))
+        shaft_surface = pygame.Surface((screen_width, self._shaft_height), 0, old_surface)
         shaft_surface.fill((20, 15, 10))
         self._draw_shaft_walls(shaft_surface)
         self._composite.blit(shaft_surface, (0, screen_height))
 
         # Old floor at bottom
         self._composite.blit(old_surface, (0, screen_height + self._shaft_height))
+        make_opaque(surface=self._composite)
 
         # Total distance to scroll: from old floor visible to new floor visible
         self._total_scroll = screen_height + self._shaft_height
@@ -133,8 +140,9 @@ class ElevatorTransition(Transition):
             new_surface: Unused (composite replaces it).
 
         """
-        if self._composite is None:
-            return
+        # start() made the composite and the platform; render() draws only after start()
+        assert self._composite is not None
+        assert self._elevator_surface is not None
 
         screen_height = screen.get_height()
         screen_width = screen.get_width()
@@ -153,19 +161,18 @@ class ElevatorTransition(Transition):
         screen.blit(self._composite, (0, 0), area=source_rect)
 
         # Draw elevator platform pinned at center-bottom of screen
-        if self._elevator_surface is not None:
-            elevator_x = (screen_width - self._elevator_surface.get_width()) // 2
-            elevator_y = screen_height - screen_height // 3
-            screen.blit(self._elevator_surface, (elevator_x, elevator_y))
+        elevator_x = (screen_width - self._elevator_surface.get_width()) // 2
+        elevator_y = screen_height - screen_height // 3
+        screen.blit(self._elevator_surface, (elevator_x, elevator_y))
 
-            # Draw the Tinker standing on the elevator
-            if self._player_surface is not None:
-                player_x = (
-                    elevator_x
-                    + (self._elevator_surface.get_width() - self._player_surface.get_width()) // 2
-                )
-                player_y = elevator_y - self._player_surface.get_height()
-                screen.blit(self._player_surface, (player_x, player_y))
+        # Draw the Tinker standing on the elevator
+        if self._player_surface is not None:
+            player_x = (
+                elevator_x
+                + (self._elevator_surface.get_width() - self._player_surface.get_width()) // 2
+            )
+            player_y = elevator_y - self._player_surface.get_height()
+            screen.blit(self._player_surface, (player_x, player_y))
 
     def _draw_shaft_walls(self, surface: pygame.Surface) -> None:
         """Draw tower walls for the shaft section between floors.

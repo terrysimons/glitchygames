@@ -26,31 +26,16 @@ class Speed:
         self.increment = increment
 
     def speed_up(self: Self) -> None:
-        """Speed up.
-
-        Args:
-            None
-
-        """
+        """Speed up."""
         self.speed_up_horizontal()
         self.speed_up_vertical()
 
     def speed_up_horizontal(self: Self) -> None:
-        """Speed up horizontally.
-
-        Args:
-            None
-
-        """
+        """Speed up horizontally."""
         self.x += self.increment if self.x >= 0 else self.increment * -1
 
     def speed_up_vertical(self: Self) -> None:
-        """Speed up vertically.
-
-        Args:
-            None
-
-        """
+        """Speed up vertically."""
         self.y += self.increment if self.y >= 0 else self.increment * -1
 
     def __imul__(self: Self, scalar: float) -> Self:

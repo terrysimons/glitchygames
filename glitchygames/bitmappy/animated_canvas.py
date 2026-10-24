@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Self, cast, override
 
 import pygame
 
@@ -21,10 +21,13 @@ from .constants import (
     LOG,
     MIN_PIXEL_DISPLAY_SIZE,
 )
+from .panning import PanSession, can_pan_to, shift_pixels
 from .pixel_sprite import BitmapPixelSprite
 from .utils import detect_file_format
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from glitchygames import events
     from glitchygames.bitmappy.editor import BitmapEditorScene
 
@@ -80,8 +83,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Initialize pixel arrays and color settings
         self._initialize_pixel_arrays()
 
-        # Initialize panning system
-        self._initialize_simple_panning()
+        # No pan gesture in progress yet
+        self._initialize_panning()
 
         # Initialize canvas surface and UI components
         self._initialize_canvas_surface(x, y, width, height, groups)  # type: ignore[arg-type]
@@ -138,8 +141,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Sync the canvas frame with the animated sprite's current frame
         self.current_frame = animated_sprite.current_frame
         self.log.debug(
-            'Canvas initialized - animated_sprite.current_frame='
-            f'{animated_sprite.current_frame}, canvas.current_frame={self.current_frame}',
+            'Canvas initialized - animated_sprite.current_frame=%s, canvas.current_frame=%s',
+            animated_sprite.current_frame,
+            self.current_frame,
         )
 
         # Initialize manual frame selection flag to allow automatic animation updates
@@ -186,177 +190,142 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if old_border_thickness != self.border_thickness:
             BitmapPixelSprite.PIXEL_CACHE.clear()
             self.log.info(
-                f'Cleared pixel cache due to border thickness change ({old_border_thickness} ->'
-                f' {self.border_thickness})',
+                'Cleared pixel cache due to border thickness change (%s -> %s)',
+                old_border_thickness,
+                self.border_thickness,
             )
 
         self.log.info(
-            f'Border thickness set to {self.border_thickness} (pixel size:'
-            f' {self.pixel_width}x{self.pixel_height}, sprite size:'
-            f' {self.pixels_across}x{self.pixels_tall})',
+            'Border thickness set to %s (pixel size: %sx%s, sprite size: %sx%s)',
+            self.border_thickness,
+            self.pixel_width,
+            self.pixel_height,
+            self.pixels_across,
+            self.pixels_tall,
         )
 
-    def _compute_panned_pixels(self, frame_pixels: list[tuple[int, ...]]) -> list[tuple[int, ...]]:
-        """Compute panned pixel data by shifting source coordinates.
+    def _initialize_panning(self) -> None:
+        """Start with no pan in progress (see glitchygames/bitmappy/panning.py)."""
+        self.pan_session: PanSession | None = None
 
-        Args:
-            frame_pixels: Original pixel data from the frame.
+    def _current_sprite_frame(self) -> SpriteFrame | None:
+        """Return the frame the canvas shows, or None when it shows no frame.
 
         Returns:
-            New pixel list with panning offsets applied.
+            The frame, or None.
 
         """
-        frame_width = len(frame_pixels) // self.pixels_tall if self.pixels_tall > 0 else 0
-        transparent = (255, 0, 255)
-        panned_pixels: list[tuple[int, ...]] = []
+        frames = self.animated_sprite.animations
+        if self.current_animation in frames and 0 <= self.current_frame < len(
+            frames[self.current_animation],
+        ):
+            return frames[self.current_animation][self.current_frame]
+        return None
 
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                source_x = x - self.pan_offset_x
-                source_y = y - self.pan_offset_y
+    def pan_canvas(self, delta_x: int, delta_y: int) -> None:
+        """Move the shown frame's pixels one step, as part of the pan gesture in progress.
 
-                if not (0 <= source_x < frame_width and 0 <= source_y < self.pixels_tall):
-                    panned_pixels.append(transparent)
-                    continue
+        The first step of a gesture (or the first on another frame) starts a new
+        PanSession from the frame's pixels. If the frame changed since the last step (an
+        edit made during the gesture), the gesture continues from the edited pixels, so
+        the edit is kept. A step that would move the gesture's source pixels more than
+        MAX_PAN_DISTANCE is ignored. The moved pixels are written into the frame.
 
-                source_index = source_y * frame_width + source_x
-                if source_index < len(frame_pixels):
-                    panned_pixels.append(frame_pixels[source_index])
-                else:
-                    panned_pixels.append(transparent)
+        Args:
+            delta_x: Horizontal step (-1 left, 0, or 1 right).
+            delta_y: Vertical step (-1 up, 0, or 1 down).
 
-        return panned_pixels
-
-    def _pan_frame_data(self) -> None:
-        """Pan the frame data directly by shifting pixels within the frame."""
-        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
-            return
-
-        current_animation = self.current_animation
-        current_frame = self.current_frame
-
-        if current_animation not in self.animated_sprite.frames:
-            return
-        if current_frame >= len(self.animated_sprite.frames[current_animation]):
-            return
-
-        frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-        if not (hasattr(frame, 'get_pixel_data') and hasattr(frame, 'set_pixel_data')):
+        """
+        frame = self._current_sprite_frame()
+        if frame is None:
+            self.log.debug('No frame shown - nothing to pan')
             return
 
         frame_pixels = frame.get_pixel_data()
-        panned_pixels = self._compute_panned_pixels(frame_pixels)
+        session = self.pan_session
+        if session is None or not session.is_for(
+            animation=self.current_animation,
+            frame_index=self.current_frame,
+        ):
+            session = PanSession.starting_from(
+                animation=self.current_animation,
+                frame_index=self.current_frame,
+                pixels=frame_pixels,
+            )
+        elif tuple(frame_pixels) != session.panned_pixels:
+            session = session.rebased_on(pixels=frame_pixels)
 
-        frame.set_pixel_data(panned_pixels)
-        self.pixels = panned_pixels.copy()
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        # Clear surface cache
-        if hasattr(self.animated_sprite, '_surface_cache'):
-            cache_key = f'{current_animation}_{current_frame}'
-            if cache_key in self.animated_sprite._surface_cache:  # type: ignore[reportPrivateUsage]
-                del self.animated_sprite._surface_cache[cache_key]  # type: ignore[reportPrivateUsage]
-
-        self.log.debug(f'Frame data panned: offset=({self.pan_offset_x}, {self.pan_offset_y})')
-
-    def _initialize_simple_panning(self) -> None:
-        """Initialize the simple panning system for the canvas."""
-        # Frame-specific panning state - each frame has its own panning
-        # Format: {frame_key: {'pan_x': int, 'pan_y': int,
-        #          'original_pixels': list, 'active': bool}}
-        self._frame_panning: dict[str, dict[str, Any]] = {}
-
-        self.log.debug('Simple panning system initialized with frame-specific state')
-
-    def _get_current_frame_key(self) -> str:
-        """Get a unique key for the current frame.
-
-        Returns:
-            str: The current frame key.
-
-        """
-        return f'{self.current_animation}_{self.current_frame}'
-
-    def _store_original_frame_data_for_frame(self, frame_key: str) -> None:
-        """Store the original frame data for a specific frame."""
-        if hasattr(self, 'pixels') and self.pixels:
-            self._frame_panning[frame_key]['original_pixels'] = list(self.pixels)
-            self.log.debug('Stored original frame data for %s', frame_key)
-
-    def _apply_panning_view_for_frame(self, frame_key: str) -> None:
-        """Apply panning transformation for a specific frame."""
-        frame_state = self._frame_panning[frame_key]
-        if frame_state['original_pixels'] is None:
+        new_offset_x = session.offset_x + delta_x
+        new_offset_y = session.offset_y + delta_y
+        if not can_pan_to(offset_x=new_offset_x, offset_y=new_offset_y):
+            self.log.debug('Cannot pan to (%s, %s) - out of bounds.', new_offset_x, new_offset_y)
+            self.pan_session = session
             return
 
-        # Create panned view by shifting pixels
-        panned_pixels: list[tuple[int, ...]] = []
-
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                # Calculate source coordinates (where to read from in original)
-                source_x = x - frame_state['pan_x']
-                source_y = y - frame_state['pan_y']
-
-                # Check if source is within bounds
-                if 0 <= source_x < self.pixels_across and 0 <= source_y < self.pixels_tall:
-                    source_index = source_y * self.pixels_across + source_x
-                    if source_index < len(frame_state['original_pixels']):
-                        panned_pixels.append(frame_state['original_pixels'][source_index])
-                    else:
-                        panned_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    panned_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with panned view
-        self.pixels = panned_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        self.log.debug(
-            f'Applied panning view for {frame_key}: offset=({frame_state["pan_x"]},'
-            f' {frame_state["pan_y"]})',
+        frame_width, frame_height = frame.get_size()
+        panned_pixels = shift_pixels(
+            pixels=session.source_pixels,
+            width=frame_width,
+            height=frame_height,
+            offset_x=new_offset_x,
+            offset_y=new_offset_y,
+        )
+        self.pan_session = session.moved_to(
+            offset_x=new_offset_x,
+            offset_y=new_offset_y,
+            panned_pixels=panned_pixels,
+        )
+        self.replace_frame_pixels(
+            animation=self.current_animation,
+            frame_index=self.current_frame,
+            pixels=panned_pixels,
         )
 
-    def reset_panning(self) -> None:
-        """Reset panning for the current frame."""
-        frame_key = self._get_current_frame_key()
-
-        # Clear panning state for current frame
-        if frame_key in self._frame_panning:
-            self._frame_panning[frame_key] = {
-                'pan_x': 0,
-                'pan_y': 0,
-                'original_pixels': None,
-                'active': False,
-            }
-
-        # Reload the original frame data
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            current_animation = self.current_animation
-            current_frame = self.current_frame
-
-            if current_animation in self.animated_sprite.frames and current_frame < len(
-                self.animated_sprite.frames[current_animation],
-            ):
-                frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-                if hasattr(frame, 'get_pixel_data'):
-                    self.pixels = frame.get_pixel_data().copy()
-                    self.dirty_pixels = [True] * len(self.pixels)
-                    self.dirty = 1
-
-        self.log.debug('Panning reset for frame %s', frame_key)
-
-    def is_panning_active(self) -> bool:
-        """Check if panning is active for the current frame.
+    def end_panning(self) -> PanSession | None:
+        """End the pan gesture in progress, leaving the frame as the gesture left it.
 
         Returns:
-            bool: True if is panning active, False otherwise.
+            The finished gesture (for undo), or None if none was in progress.
 
         """
-        frame_key = self._get_current_frame_key()
-        if frame_key in self._frame_panning:
-            return self._frame_panning[frame_key]['active']
-        return False
+        finished_session = self.pan_session
+        self.pan_session = None
+        return finished_session
+
+    def replace_frame_pixels(
+        self,
+        *,
+        animation: str,
+        frame_index: int,
+        pixels: Sequence[tuple[int, ...]],
+    ) -> bool:
+        """Replace all of a frame's pixels, keeping the canvas and film strips in step.
+
+        Args:
+            animation: The frame's animation.
+            frame_index: The frame's index.
+            pixels: The new pixels, row by row.
+
+        Returns:
+            True if the frame exists and was changed, False otherwise.
+
+        """
+        frames = self.animated_sprite.animations
+        if animation not in frames or not 0 <= frame_index < len(frames[animation]):
+            self.log.warning('Frame %s[%s] not found - pixels not replaced', animation, frame_index)
+            return False
+
+        frames[animation][frame_index].set_pixel_data(pixels)
+        self.animated_sprite.clear_surface_cache()
+
+        if animation == self.current_animation and frame_index == self.current_frame:
+            self.pixels = list(pixels)
+            self.dirty_pixels = [True] * len(self.pixels)
+            self.dirty = 1
+
+        if self.parent_scene:
+            self.parent_scene.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
+        return True
 
     def _initialize_canvas_surface(
         self,
@@ -409,164 +378,171 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """
         pixels = []
 
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            # Check if this is a static sprite (no frames)
-            if (
-                not hasattr(self.animated_sprite, '_animations')
-                or not self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            ):
-                # Static sprite - get pixels directly
-                if hasattr(self.animated_sprite, 'get_pixel_data'):
-                    pixels = self.animated_sprite.get_pixel_data()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
-                    self.log.debug(
-                        f'Got pixels from animated_sprite.get_pixel_data(): {len(pixels)} pixels, '  # type: ignore[arg-type]
-                        f'first few: {pixels[:5]}',
-                    )
-                elif hasattr(self.animated_sprite, 'pixels'):
-                    pixels = self.animated_sprite.pixels.copy()  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
-                    self.log.debug(
-                        f'Got pixels from animated_sprite.pixels: {len(pixels)} pixels, '  # type: ignore[arg-type]
-                        f'first few: {pixels[:5]}',
-                    )
+        # Check if this is a static sprite (no frames)
+        if (
+            not hasattr(self.animated_sprite, '_animations') or not self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
+        ):
+            # Static sprite - get pixels directly
+            if hasattr(self.animated_sprite, 'get_pixel_data'):
+                pixels = cast(
+                    'list[tuple[int, ...]]',
+                    self.animated_sprite.get_pixel_data(),  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                )
+                self.log.debug(
+                    'Got pixels from animated_sprite.get_pixel_data(): %s pixels, first few: %s',
+                    len(pixels),
+                    pixels[:5],
+                )
+            elif hasattr(self.animated_sprite, 'pixels'):
+                pixels = cast(
+                    'list[tuple[int, ...]]',
+                    self.animated_sprite.pixels.copy(),  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+                )
+                self.log.debug(
+                    'Got pixels from animated_sprite.pixels: %s pixels, first few: %s',
+                    len(pixels),
+                    pixels[:5],
+                )
 
-            # Animated sprite with frames
-            current_animation = self.current_animation
-            current_frame = self.current_frame
-            self.log.debug(
-                "Getting frame pixels for animation '%s', frame %s",
+        # Animated sprite with frames
+        current_animation = self.current_animation
+        current_frame = self.current_frame
+        self.log.debug(
+            "Getting frame pixels for animation '%s', frame %s",
+            current_animation,
+            current_frame,
+        )
+
+        if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
+            self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
+        ):
+            frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
+            if hasattr(frame, 'get_pixel_data'):
+                pixels = frame.get_pixel_data()
+                self.log.debug(
+                    'Got pixels from frame.get_pixel_data(): %s pixels, first few: %s',
+                    len(pixels),
+                    pixels[:5],
+                )
+            else:
+                self.log.warning('Frame has no get_pixel_data method')
+        else:
+            self.log.warning(
+                "Animation '%s' or frame %s not found",
                 current_animation,
                 current_frame,
             )
-
-            if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
-                self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
-            ):
-                frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-                if hasattr(frame, 'get_pixel_data'):
-                    pixels = frame.get_pixel_data()
-                    self.log.debug(
-                        f'Got pixels from frame.get_pixel_data(): {len(pixels)} pixels, '
-                        f'first few: {pixels[:5]}',
-                    )
-                else:
-                    self.log.warning('Frame has no get_pixel_data method')
-            else:
-                self.log.warning(
-                    "Animation '%s' or frame %s not found",
-                    current_animation,
-                    current_frame,
-                )
 
         # Fallback to static pixels
         if not pixels:
             pixels = self.pixels.copy()
             self.log.debug(
-                f'Using fallback canvas pixels: {len(pixels)} pixels, first few: {pixels[:5]}',
+                'Using fallback canvas pixels: %s pixels, first few: %s',
+                len(pixels),
+                pixels[:5],
             )
 
         # Ensure all pixels are RGBA format
         rgba_pixels: list[tuple[int, int, int, int]] = []
-        for pixel in pixels:  # type: ignore[union-attr]
-            if len(pixel) == RGBA_COMPONENT_COUNT:  # type: ignore[arg-type]
-                rgba_pixels.append((pixel[0], pixel[1], pixel[2], pixel[3]))  # type: ignore[index]
+        for pixel in pixels:
+            if len(pixel) == RGBA_COMPONENT_COUNT:
+                rgba_pixels.append((pixel[0], pixel[1], pixel[2], pixel[3]))
             else:
                 # Convert RGB to RGBA with full opacity
-                rgba_pixels.append((pixel[0], pixel[1], pixel[2], 255))  # type: ignore[index]
+                rgba_pixels.append((pixel[0], pixel[1], pixel[2], 255))
 
         return rgba_pixels
 
     def _update_canvas_from_current_frame(self) -> None:
         """Update the canvas pixels with the current frame data."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            # Use the canvas's current animation and frame (not the animated sprite's)
-            current_animation = self.current_animation
-            current_frame = self.current_frame
+        # Use the canvas's current animation and frame (not the animated sprite's)
+        current_animation = self.current_animation
+        current_frame = self.current_frame
+        self.log.info(
+            'DEBUG: Syncing canvas with frame %s[%s]',
+            current_animation,
+            current_frame,
+        )
+        if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
+            self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
+        ):
+            frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
+            frame_pixels = frame.get_pixel_data()
             self.log.info(
-                'DEBUG: Syncing canvas with frame %s[%s]',
+                'DEBUG: Frame pixels: %s pixels, first few: %s',
+                len(frame_pixels),
+                frame_pixels[:5],
+            )
+            self.log.info(
+                'DEBUG: Frame pixel types: %s',
+                [type(p) for p in frame_pixels[:3]],
+            )
+            self.log.info(
+                'DEBUG: All frame pixels same color: %s',
+                len(set(frame_pixels)) == 1,
+            )
+            self.pixels = frame_pixels
+            self.dirty_pixels = [True] * len(self.pixels)
+            self.log.info('Updated canvas pixels from frame %s', current_frame)
+            # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
+            self.dirty = 1
+        else:
+            self.log.info(
+                "DEBUG: Animation '%s' or frame %s not found",
                 current_animation,
                 current_frame,
             )
-            if current_animation in self.animated_sprite._animations and current_frame < len(  # type: ignore[reportPrivateUsage]
-                self.animated_sprite._animations[current_animation],  # type: ignore[reportPrivateUsage]
-            ):
-                frame = self.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-                if hasattr(frame, 'get_pixel_data'):
-                    frame_pixels = frame.get_pixel_data()
-                    self.log.info(
-                        f'DEBUG: Frame pixels: {len(frame_pixels)} pixels, first few:'
-                        f' {frame_pixels[:5]}',
-                    )
-                    self.log.info(
-                        f'DEBUG: Frame pixel types: {[type(p) for p in frame_pixels[:3]]}',
-                    )
-                    self.log.info(
-                        f'DEBUG: All frame pixels same color: {len(set(frame_pixels)) == 1}',
-                    )
-                    self.pixels = frame_pixels
-                    self.dirty_pixels = [True] * len(self.pixels)
-                    self.log.info('Updated canvas pixels from frame %s', current_frame)
-                    # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
-                    self.dirty = 1
-                else:
-                    self.log.info('DEBUG: Frame has no get_pixel_data method')
-            else:
-                self.log.info(
-                    "DEBUG: Animation '%s' or frame %s not found",
-                    current_animation,
-                    current_frame,
-                )
-        else:
-            self.log.info('DEBUG: No animated_sprite available for canvas sync')
 
     def set_frame(self, frame_index: int) -> None:
         """Set the current frame index for the current animation."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            if self.current_animation in frames and 0 <= frame_index < len(
-                frames[self.current_animation],
+        frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
+        if self.current_animation in frames and 0 <= frame_index < len(
+            frames[self.current_animation],
+        ):
+            # Store the current playing state
+            was_playing = self.animated_sprite.is_playing
+
+            # Pause the animation when manually selecting frames
+            self.animated_sprite.pause()
+
+            self.current_frame = frame_index
+            self.animated_sprite.set_frame(frame_index)
+
+            # Mark that user manually selected a frame
+            self._manual_frame_selected = True
+
+            # Update the canvas interface
+            self.canvas_interface.set_current_frame(self.current_animation, frame_index)
+
+            # Update the undo/redo manager with the current frame for frame-specific operations
+            if (
+                hasattr(self, 'parent_scene')
+                and self.parent_scene
+                and hasattr(self.parent_scene, 'undo_redo_manager')
             ):
-                # Store the current playing state
-                was_playing = self.animated_sprite.is_playing
-
-                # Pause the animation when manually selecting frames
-                self.animated_sprite.pause()
-
-                self.current_frame = frame_index
-                self.animated_sprite.set_frame(frame_index)
-
-                # Mark that user manually selected a frame
-                self._manual_frame_selected = True
-
-                # Update the canvas interface
-                self.canvas_interface.set_current_frame(self.current_animation, frame_index)
-
-                # Update the undo/redo manager with the current frame for frame-specific operations
-                if (
-                    hasattr(self, 'parent_scene')
-                    and self.parent_scene
-                    and hasattr(self.parent_scene, 'undo_redo_manager')
-                ):
-                    self.parent_scene.undo_redo_manager.set_current_frame(
-                        self.current_animation,
-                        frame_index,
-                    )
-
-                # Only restart animation if it was playing before
-                if was_playing:
-                    self.animated_sprite.play()
-                    self._manual_frame_selected = False
-                else:
-                    # Keep it paused if it was already paused
-                    self.log.debug(
-                        'Animation was paused, keeping it paused at frame %s',
-                        frame_index,
-                    )
-
-                self.dirty = 1
-                self.log.debug(
-                    f'Set frame to {frame_index} for animation '
-                    f"'{self.current_animation}' (was_playing: {was_playing})",
+                self.parent_scene.undo_redo_manager.set_current_frame(
+                    self.current_animation,
+                    frame_index,
                 )
+
+            # Only restart animation if it was playing before
+            if was_playing:
+                self.animated_sprite.play()
+                self._manual_frame_selected = False
+            else:
+                # Keep it paused if it was already paused
+                self.log.debug(
+                    'Animation was paused, keeping it paused at frame %s',
+                    frame_index,
+                )
+
+            self.dirty = 1
+            self.log.debug(
+                "Set frame to %s for animation '%s' (was_playing: %s)",
+                frame_index,
+                self.current_animation,
+                was_playing,
+            )
 
     def _should_track_frame_selection(self) -> bool:
         """Check if frame selection changes should be tracked for undo/redo.
@@ -581,7 +557,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if not hasattr(parent, 'undo_redo_manager'):
             return False
         return not (
-            getattr(parent, '_applying_undo_redo', False)
+            getattr(parent, 'applying_undo_redo', False)
             or getattr(parent, '_creating_frame', False)
             or getattr(parent, '_creating_animation', False)
         )
@@ -594,8 +570,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             self.current_animation = animation
             self.current_frame = frame
             self.log.debug(
-                f'Canvas updated: current_animation={self.current_animation},'
-                f' current_frame={self.current_frame}',
+                'Canvas updated: current_animation=%s, current_frame=%s',
+                self.current_animation,
+                self.current_frame,
             )
 
             # Update the animated sprite to the new animation and frame
@@ -668,8 +645,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             # Notify the parent scene about the frame change
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.log.debug(
-                    'Notifying parent scene about frame change:'
-                    f' {self.current_animation}[{self.current_frame}]',
+                    'Notifying parent scene about frame change: %s[%s]',
+                    self.current_animation,
+                    self.current_frame,
                 )
                 self.parent_scene.film_strip_coordinator.switch_to_film_strip(
                     self.current_animation,
@@ -687,8 +665,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             # Notify the parent scene about the frame change
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.log.debug(
-                    'Notifying parent scene about frame change:'
-                    f' {self.current_animation}[{self.current_frame}]',
+                    'Notifying parent scene about frame change: %s[%s]',
+                    self.current_animation,
+                    self.current_frame,
                 )
                 self.parent_scene.film_strip_coordinator.switch_to_film_strip(
                     self.current_animation,
@@ -697,7 +676,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def next_animation(self) -> None:
         """Move to the next animation."""
-        self.log.debug(f'next_animation called, current_animation={self.current_animation}')
+        self.log.debug('next_animation called, current_animation=%s', self.current_animation)
         frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
         animations = list(frames.keys())
         self.log.debug('Available animations: %s', animations)
@@ -715,13 +694,18 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             else:
                 preserved_frame = 0
             self.log.debug(
-                f'Moving from animation {self.current_animation} (index {current_index}) to'
-                f' {next_animation} (index {next_index}), preserving frame {preserved_frame}',
+                'Moving from animation %s (index %s) to %s (index %s), preserving frame %s',
+                self.current_animation,
+                current_index,
+                next_animation,
+                next_index,
+                preserved_frame,
             )
             self.show_frame(next_animation, preserved_frame)
             self.log.debug(
-                f'After show_frame: current_animation={self.current_animation},'
-                f' current_frame={self.current_frame}',
+                'After show_frame: current_animation=%s, current_frame=%s',
+                self.current_animation,
+                self.current_frame,
             )
 
             # Notify the parent scene to switch film strips
@@ -734,7 +718,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def previous_animation(self) -> None:
         """Move to the previous animation."""
-        self.log.debug(f'previous_animation called, current_animation={self.current_animation}')
+        self.log.debug('previous_animation called, current_animation=%s', self.current_animation)
         frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
         animations = list(frames.keys())
         self.log.debug('Available animations: %s', animations)
@@ -752,13 +736,18 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             else:
                 preserved_frame = 0
             self.log.debug(
-                f'Moving from animation {self.current_animation} (index {current_index}) to'
-                f' {prev_animation} (index {prev_index}), preserving frame {preserved_frame}',
+                'Moving from animation %s (index %s) to %s (index %s), preserving frame %s',
+                self.current_animation,
+                current_index,
+                prev_animation,
+                prev_index,
+                preserved_frame,
             )
             self.show_frame(prev_animation, preserved_frame)
             self.log.debug(
-                f'After show_frame: current_animation={self.current_animation},'
-                f' current_frame={self.current_frame}',
+                'After show_frame: current_animation=%s, current_frame=%s',
+                self.current_animation,
+                self.current_frame,
             )
 
             # Notify the parent scene to switch film strips
@@ -793,19 +782,18 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         elif key == pygame.K_SPACE:
             # Toggle animation play/pause
             self.log.debug('SPACE key pressed')
-            if hasattr(self, 'animated_sprite') and self.animated_sprite:
-                current_state = self.animated_sprite.is_playing
-                self.log.debug('Current animation state: is_playing=%s', current_state)
-                if self.animated_sprite.is_playing:
-                    self.animated_sprite.pause()
-                    self.log.debug('Animation paused')
-                else:
-                    # Restart animation from current frame
-                    self.animated_sprite.play()
-                    self.log.debug('Animation restarted')
-                self.log.debug(f'New animation state: is_playing={self.animated_sprite.is_playing}')
+            current_state = self.animated_sprite.is_playing
+            self.log.debug('Current animation state: is_playing=%s', current_state)
+            if self.animated_sprite.is_playing:
+                self.animated_sprite.pause()
+                self.log.debug('Animation paused')
+            else:
+                # Restart animation from current frame
+                self.animated_sprite.play()
+                self.log.debug('Animation restarted')
+            self.log.debug('New animation state: is_playing=%s', self.animated_sprite.is_playing)
 
-                # Note: Live preview functionality is now integrated into the film strip
+            # Note: Live preview functionality is now integrated into the film strip
         else:
             self.log.debug('Unhandled key: %s', key)
 
@@ -880,8 +868,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def update_animation(self, dt: float) -> None:
         """Update the animated sprite with delta time."""
-        if hasattr(self, 'animated_sprite') and self.animated_sprite:
-            self.animated_sprite.update(dt)
+        self.animated_sprite.update(dt)
 
     @override
     def update(self) -> None:
@@ -899,11 +886,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.image = self.canvas_renderer.force_redraw(self)
 
     @override
-    def on_left_mouse_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button down event."""
         if self.rect.collidepoint(event.pos):
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            x = int((event.pos[0] - self.rect.x) // self.pixel_width)
+            y = int((event.pos[1] - self.rect.y) // self.pixel_height)
 
             # Mark that we're starting a potential drag operation
             self._drag_active = False  # Will be set to True on first drag event
@@ -939,7 +926,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             # Note: Live preview functionality is now integrated into the film strip
         else:
             self.log.debug(
-                f'AnimatedCanvasSprite click missed - pos {event.pos} not in rect {self.rect}',
+                'AnimatedCanvasSprite click missed - pos %s not in rect %s',
+                event.pos,
+                self.rect,
             )
 
     def _cache_drag_frame(self) -> None:
@@ -1033,7 +1022,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             del frame._image_stale  # type: ignore[reportPrivateUsage]
 
     @override
-    def on_left_mouse_drag_event(self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(self, event: events.MouseMotionEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Optimized path that updates visuals but defers expensive ops.
@@ -1041,8 +1030,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if not self.rect.collidepoint(event.pos):
             return
 
-        x = (event.pos[0] - self.rect.x) // self.pixel_width
-        y = (event.pos[1] - self.rect.y) // self.pixel_height
+        x = int((event.pos[0] - self.rect.x) // self.pixel_width)
+        y = int((event.pos[1] - self.rect.y) // self.pixel_height)
 
         if not (0 <= x < self.pixels_across and 0 <= y < self.pixels_tall):
             return
@@ -1121,17 +1110,25 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             hasattr(self, 'parent_scene')
             and self.parent_scene
             and hasattr(self.parent_scene, 'canvas_operation_tracker')
-            and not getattr(self.parent_scene, '_applying_undo_redo', False)
+            and not getattr(self.parent_scene, 'applying_undo_redo', False)
         ):
             return
 
-        pixel_changes = list(self._drag_pixels.values())
-        if not pixel_changes:
+        if not self._drag_pixels:
             return
 
-        if not hasattr(self.parent_scene, 'current_pixel_changes'):
-            self.parent_scene.current_pixel_changes = []
-        self.parent_scene.current_pixel_changes.extend(pixel_changes)  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]
+        # Merge into the pending changes dict the click's pixel went into (through
+        # canvas_interface.set_pixel_at), keeping each pixel's first old colour, so the click
+        # and the drag become one stroke. The scene's submit takes the dict and drops the list
+        # when the dict holds anything, so changes added to the list were lost (BUGS.md #101)
+        if not hasattr(self.parent_scene, 'current_pixel_changes_dict'):
+            self.parent_scene.current_pixel_changes_dict = {}
+        pending_changes = self.parent_scene.current_pixel_changes_dict
+        for pixel_key, (x, y, drag_old_color, new_color) in self._drag_pixels.items():
+            first_old_color = (
+                pending_changes[pixel_key][2] if pixel_key in pending_changes else drag_old_color
+            )
+            pending_changes[pixel_key] = (x, y, first_old_color, new_color)
 
         if hasattr(self.parent_scene, '_submit_pixel_changes_if_ready'):
             self.parent_scene._submit_pixel_changes_if_ready()  # type: ignore[reportPrivateUsage]
@@ -1144,25 +1141,25 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             del self._drag_redraw_counter
         if hasattr(self, '_drag_frame'):
             if self._drag_frame is not None:
+                # The rebuild clears the frame's _image_stale flag
                 self._rebuild_frame_image_from_pixels(self._drag_frame)
-            if hasattr(self._drag_frame, '_image_stale'):
-                del self._drag_frame._image_stale  # type: ignore[reportPrivateUsage]
             del self._drag_frame
 
     @override
-    def on_left_mouse_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self, event: events.MouseButtonEvent) -> None:
         """Handle mouse button up - flush batched drag updates."""
         if not (hasattr(self, '_drag_active') and self._drag_active):
             return
 
         if hasattr(self, '_drag_pixels') and self._drag_pixels:
             self._flush_batched_drag_pixels()
+            # The stroke goes to undo here; it used to be submitted only from the branch
+            # below, where there are no drag pixels to submit (BUGS.md #101)
+            self._submit_drag_pixel_changes_to_undo()
         else:
             self._sync_drag_frame_surface()
-            self._submit_drag_pixel_changes_to_undo()
 
-            if hasattr(self, 'animated_sprite'):
-                self._update_animated_sprite_frame()
+            self._update_animated_sprite_frame()
 
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
@@ -1171,7 +1168,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.dirty = 1
 
     @override
-    def on_mouse_motion_event(self, event: events.HashableEvent) -> None:
+    def on_mouse_motion_event(self, event: events.MouseMotionEvent) -> None:
         """Handle mouse motion events."""
         if self.rect.collidepoint(event.pos):
             # Mouse is over canvas - set hover state
@@ -1182,8 +1179,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 pygame.mouse.set_visible(False)
 
             # Convert mouse position to pixel coordinates
-            x = (event.pos[0] - self.rect.x) // self.pixel_width
-            y = (event.pos[1] - self.rect.y) // self.pixel_height
+            x = int((event.pos[0] - self.rect.x) // self.pixel_width)
+            y = int((event.pos[1] - self.rect.y) // self.pixel_height)
 
             # Check if the coordinates are within valid range
             if 0 <= x < self.pixels_across and 0 <= y < self.pixels_tall:
@@ -1222,8 +1219,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
 
             # Update the animated sprite's frame data
-            if hasattr(self, 'animated_sprite'):
-                self._update_animated_sprite_frame()
+            self._update_animated_sprite_frame()
 
     def on_mouse_leave_window_event(self, event: events.HashableEvent) -> None:
         """Handle mouse leaving window event."""
@@ -1246,33 +1242,41 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         CRITICAL: If ANY frame has alpha pixels, normalize ALL frames to RGBA format
         to ensure consistent color map matching during save.
         """
-        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
-            return
-
         try:
             # Sync frames using ONLY the raw pixel data in memory
             # Don't extract from _image - just use frame.pixels if it exists
             # set_pixel_data() will update _image to match pixels
             for frames in self.animated_sprite._animations.values():  # type: ignore[reportPrivateUsage]
                 for frame in frames:
-                    try:
-                        # Only sync if frame already has pixels in memory
-                        # Don't extract from _image - use the raw pixel data we have
-                        if hasattr(frame, 'pixels') and frame.pixels:
-                            # Just sync pixels to surface - set_pixel_data updates _image to match
-                            # pixels
-                            # This ensures _image matches what's in frame.pixels
-                            frame.set_pixel_data(list(frame.pixels))
-                        # If frame doesn't have pixels, leave it alone.
-                        # It will extract from _image via get_pixel_data() when needed,
-                        # preserving original indexed colors.
-                    except (AttributeError, TypeError, ValueError) as frame_sync_error:
-                        # Best-effort sync; continue if frame cannot be updated
-                        LOG.debug(f'Best-effort frame sync failed: {frame_sync_error}')
-                        continue
+                    self._sync_frame_pixel_data(frame)
         except (AttributeError, KeyError, TypeError) as sync_error:
             # Best-effort sync; continue even if some frames fail
             LOG.debug(f'Best-effort pixel-to-surface sync failed: {sync_error}')
+
+    @staticmethod
+    def _sync_frame_pixel_data(frame: SpriteFrame) -> None:
+        """Sync one frame's in-memory pixels to its surface, best-effort.
+
+        A frame that cannot be updated is logged and skipped, so the other frames still sync.
+
+        Args:
+            frame: The frame to sync.
+
+        """
+        try:
+            # Only sync if frame already has pixels in memory
+            # Don't extract from _image - use the raw pixel data we have
+            if hasattr(frame, 'pixels') and frame.pixels:
+                # Just sync pixels to surface - set_pixel_data updates _image to match
+                # pixels
+                # This ensures _image matches what's in frame.pixels
+                frame.set_pixel_data(list(frame.pixels))
+            # If frame doesn't have pixels, leave it alone.
+            # It will extract from _image via get_pixel_data() when needed,
+            # preserving original indexed colors.
+        except (AttributeError, TypeError, ValueError) as frame_sync_error:
+            # Best-effort sync; continue if frame cannot be updated
+            LOG.debug(f'Best-effort frame sync failed: {frame_sync_error}')
 
     def on_save_file_event(self, filename: str) -> None:
         """Handle save file events.
@@ -1284,30 +1288,40 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         """
         self.log.info('Starting save to file: %s', filename)
+        # Every save failure is logged here, then re-raised for the caller to report
         try:
-            # CRITICAL: Sync all frame pixel data before saving
-            # This ensures that any direct modifications to frame.pixels during drag
-            # are properly reflected in the frame surface, which get_pixel_data() may read from
-            self._sync_all_frames_pixel_data()
-
-            # Detect file format from extension
-            file_format = detect_file_format(filename)
-            self.log.info('Detected file format: %s', file_format)
-
-            # Check if this is a single-frame animation (converted from static sprite)
-            if self._is_single_frame_animation():
-                self.log.info('Detected single-frame animation, saving as static sprite')
-                self._save_as_static_sprite(filename, file_format)
-            else:
-                # Use the interface-based save method for multi-frame animations
-                self.sprite_serializer.save(
-                    self.animated_sprite,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-                    filename=filename,
-                    file_format=file_format,
-                )
+            self._save_to_file(filename)
         except OSError, ValueError, KeyError:
             self.log.exception('Error saving file')
             raise
+
+    def _save_to_file(self, filename: str) -> None:
+        """Save the animated sprite to a file, as a static sprite when it has one frame.
+
+        Args:
+            filename: The file to save to; its extension picks the format.
+
+        """
+        # CRITICAL: Sync all frame pixel data before saving
+        # This ensures that any direct modifications to frame.pixels during drag
+        # are properly reflected in the frame surface, which get_pixel_data() may read from
+        self._sync_all_frames_pixel_data()
+
+        # Detect file format from extension
+        file_format = detect_file_format(filename)
+        self.log.info('Detected file format: %s', file_format)
+
+        # Check if this is a single-frame animation (converted from static sprite)
+        if self._is_single_frame_animation():
+            self.log.info('Detected single-frame animation, saving as static sprite')
+            self._save_as_static_sprite(filename, file_format)
+        else:
+            # Use the interface-based save method for multi-frame animations
+            self.sprite_serializer.save(
+                self.animated_sprite,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                filename=filename,
+                file_format=file_format,
+            )
 
     def get_canvas_interface(self) -> AnimatedCanvasInterface:
         """Get the canvas interface for external access.
@@ -1340,16 +1354,41 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """Handle load file event for animated sprites."""
         self.log.debug('=== Starting on_load_file_event for animated sprite ===')
         LOG.debug(f'DEBUG: Canvas on_load_file_event called with event: {event}')
+        # A load is a file boundary: any failure is shown to the user instead of crashing
         try:
-            filename = event if isinstance(event, str) else event.text
-            LOG.debug(f'DEBUG: Loading sprite from filename: {filename}')
+            self._load_file_into_canvas(event)
+        except FileNotFoundError as e:
+            self.log.exception('File not found')
+            # Show user-friendly error message instead of crashing
+            self._show_load_message(f'Error: File not found - {e}')
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, pygame.error) as e:
+            self.log.exception('Error in on_load_file_event for animated sprite')
+            self.log.exception('Exception type: %s', type(e).__name__)
+            import traceback
 
-            # Load the sprite from file
-            loaded_sprite = self._load_sprite_from_file(filename)
+            self.log.exception('Traceback: %s', traceback.format_exc())
+            # Show user-friendly error message instead of crashing
+            self._show_load_message(f'Error loading sprite: {e}')
 
-            # Set the loaded sprite as the current animated sprite
-            self.animated_sprite = loaded_sprite
+    def _load_file_into_canvas(self, event: events.HashableEvent | str) -> None:
+        """Load a sprite file and make it the canvas's animated sprite.
 
+        Args:
+            event: The load event (its ``text`` is the filename), or the filename itself.
+
+        """
+        filename = event if isinstance(event, str) else event.text
+        LOG.debug(f'DEBUG: Loading sprite from filename: {filename}')
+
+        # Load the sprite from file
+        loaded_sprite = self._load_sprite_from_file(filename)
+
+        # Set the loaded sprite as the current animated sprite. A pan gesture of the
+        # previous sprite must not carry over: its frames are gone.
+        self.animated_sprite = loaded_sprite
+        self.end_panning()
+
+        try:
             # Check if canvas needs resizing and resize if necessary
             self._check_and_resize_canvas(loaded_sprite)
 
@@ -1361,21 +1400,27 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
             # Finalize the loading process
             self._finalize_sprite_loading(loaded_sprite, filename)
+        finally:
+            # The undo history belongs to the previous sprite: its steps (keyed by animation
+            # name and frame index) would be applied to the loaded one (BUGS.md #150). It is
+            # cleared once the load is done, so the frame selections the load itself recorded
+            # go too, and whenever the sprite was replaced, even if a later step failed.
+            if self.parent_scene:
+                self.parent_scene.start_new_undo_history()
 
-        except FileNotFoundError as e:
-            self.log.exception('File not found')
-            # Show user-friendly error message instead of crashing
-            if hasattr(self, 'parent') and hasattr(self.parent, 'debug_text'):
-                self.parent.debug_text.text = f'Error: File not found - {e}'
-        except (OSError, ValueError, KeyError, TypeError, AttributeError, pygame.error) as e:
-            self.log.exception('Error in on_load_file_event for animated sprite')
-            self.log.exception(f'Exception type: {type(e).__name__}')
-            import traceback
+    def _show_load_message(self, message: str) -> None:
+        """Show a load message in the editor's debug text box, where a successful load reports.
 
-            self.log.exception(f'Traceback: {traceback.format_exc()}')
-            # Show user-friendly error message instead of crashing
-            if hasattr(self, 'parent') and hasattr(self.parent, 'debug_text'):
-                self.parent.debug_text.text = f'Error loading sprite: {e}'
+        Load errors used to go to ``self.parent``, which the editor never sets, so they were
+        never shown (BUGS.md #110 item 1).
+
+        Args:
+            message: The message to show.
+
+        """
+        parent_scene = getattr(self, 'parent_scene', None)
+        if parent_scene is not None and hasattr(parent_scene, 'debug_text'):
+            parent_scene.debug_text.text = message
 
     def _load_sprite_from_file(self, filename: str) -> AnimatedSprite:
         """Load an animated sprite from a file.
@@ -1395,28 +1440,33 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Check if this is a PNG file and convert it first
         if filename.lower().endswith('.png'):
             self.log.info('PNG file detected - converting to bitmappy format first')
-            converted_toml_path = self._convert_png_to_bitmappy(filename)  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+            # The conversion lives on the editor's file I/O delegate, not the canvas
+            # (BUGS.md #89: the canvas called a method it never had)
+            parent_scene = getattr(self, 'parent_scene', None)
+            if parent_scene is None:
+                msg = 'Cannot convert a PNG: the canvas has no editor to convert it with'
+                raise ValueError(msg)
+            converted_toml_path = parent_scene._file_io._convert_png_to_bitmappy(filename)
             if converted_toml_path:
-                filename = converted_toml_path  # type: ignore[assignment]
-                self.log.info('Using converted TOML file: %s', filename)  # type: ignore[reportUnknownArgumentType]
+                filename = converted_toml_path
+                self.log.info('Using converted TOML file: %s', filename)
             else:
                 msg = 'Failed to convert PNG to bitmappy format'
                 raise ValueError(msg)
 
         # Detect file format and load the sprite
-        file_format = detect_file_format(filename)  # type: ignore[arg-type]
+        file_format = detect_file_format(filename)
         self.log.debug('Detected file format: %s', file_format)
 
         # Create a new animated sprite and load it
         loaded_sprite = AnimatedSprite()
-        loaded_sprite.load(filename)  # type: ignore[arg-type]
+        loaded_sprite.load(filename)
 
         # Debug: Check what was loaded
-        self.log.debug(f'Loaded sprite has _animations: {hasattr(loaded_sprite, "_animations")}')
-        if hasattr(loaded_sprite, '_animations'):
-            self.log.debug(f'Loaded sprite _animations: {list(loaded_sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
-            self.log.debug(f'Loaded sprite current_animation: {loaded_sprite.current_animation}')
-            self.log.debug(f'Loaded sprite is_playing: {loaded_sprite.is_playing}')
+        self.log.debug('Loaded sprite has _animations: %s', hasattr(loaded_sprite, '_animations'))
+        self.log.debug('Loaded sprite _animations: %s', list(loaded_sprite._animations.keys()))  # type: ignore[reportPrivateUsage]
+        self.log.debug('Loaded sprite current_animation: %s', loaded_sprite.current_animation)
+        self.log.debug('Loaded sprite is_playing: %s', loaded_sprite.is_playing)
 
         return loaded_sprite
 
@@ -1435,13 +1485,16 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             first_frame = loaded_sprite._animations[loaded_sprite.current_animation][0]  # type: ignore[reportPrivateUsage]
             sprite_width, sprite_height = first_frame.get_size()
             self.log.debug('Loaded sprite dimensions: %sx%s', sprite_width, sprite_height)
-            self.log.debug(f'Canvas dimensions: {self.pixels_across}x{self.pixels_tall}')
+            self.log.debug('Canvas dimensions: %sx%s', self.pixels_across, self.pixels_tall)
 
             # If sprite has different dimensions than canvas, resize canvas to match
             if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
                 self.log.info(
-                    f'Resizing canvas from {self.pixels_across}x{self.pixels_tall} to '
-                    f'{sprite_width}x{sprite_height}',
+                    'Resizing canvas from %sx%s to %sx%s',
+                    self.pixels_across,
+                    self.pixels_tall,
+                    sprite_width,
+                    sprite_height,
                 )
                 self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
         else:
@@ -1450,17 +1503,24 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
             # Check if we need to resize the canvas
             if hasattr(loaded_sprite, 'get_size'):
-                sprite_width, sprite_height = loaded_sprite.get_size()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
-                self.log.debug('Static sprite dimensions: %sx%s', sprite_width, sprite_height)  # type: ignore[reportUnknownArgumentType]
-                self.log.debug(f'Canvas dimensions: {self.pixels_across}x{self.pixels_tall}')
+                sprite_size = cast(
+                    'tuple[int, int]',
+                    loaded_sprite.get_size(),  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+                )
+                sprite_width, sprite_height = sprite_size
+                self.log.debug('Static sprite dimensions: %sx%s', sprite_width, sprite_height)
+                self.log.debug('Canvas dimensions: %sx%s', self.pixels_across, self.pixels_tall)
 
                 # If sprite has different dimensions than canvas, resize canvas to match
                 if sprite_width != self.pixels_across or sprite_height != self.pixels_tall:
                     self.log.info(
-                        f'Resizing canvas from {self.pixels_across}x{self.pixels_tall} to '
-                        f'{sprite_width}x{sprite_height}',
+                        'Resizing canvas from %sx%s to %sx%s',
+                        self.pixels_across,
+                        self.pixels_tall,
+                        sprite_width,
+                        sprite_height,
                     )
-                    self._resize_canvas_to_sprite_size(sprite_width, sprite_height)  # type: ignore[arg-type]
+                    self._resize_canvas_to_sprite_size(sprite_width, sprite_height)
 
     def _update_ui_components(self, loaded_sprite: AnimatedSprite) -> None:
         """Update UI components after loading a sprite.
@@ -1469,10 +1529,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             loaded_sprite: The loaded sprite to update UI components with
 
         """
-        self._mark_film_strips_dirty()
-        self._clear_existing_film_strips()
-
-        # Film strips will be created by the parent scene
+        # The film strips are rebuilt by the parent scene's film strip coordinator
+        # (on_sprite_loaded below)
 
         # Notify parent scene about sprite load
         LOG.debug(
@@ -1495,25 +1553,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             )
             self.log.debug('No parent scene or callback found')
 
-    def _mark_film_strips_dirty(self) -> None:
-        """Mark all film strips and sprites as dirty for redraw."""
-        if hasattr(self, 'film_strips') and self.film_strips:  # type: ignore[attr-defined]
-            for film_strip in self.film_strips.values():  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                film_strip.mark_dirty()  # type: ignore[union-attr]
-        if hasattr(self, 'film_strip_sprites') and self.film_strip_sprites:  # type: ignore[attr-defined]
-            for film_strip_sprite in self.film_strip_sprites.values():  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                film_strip_sprite.dirty = 1
-
-    def _clear_existing_film_strips(self) -> None:
-        """Clear existing film strips and remove their sprites from groups."""
-        if hasattr(self, 'film_strips') and self.film_strips:  # type: ignore[attr-defined]
-            for film_strip_sprite in self.film_strip_sprites.values():  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                if hasattr(film_strip_sprite, 'groups') and film_strip_sprite.groups():  # type: ignore[union-attr]
-                    for group in film_strip_sprite.groups():  # type: ignore[union-attr]
-                        group.remove(film_strip_sprite)  # type: ignore[union-attr]
-            self.film_strips.clear()  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-            self.film_strip_sprites.clear()  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-
     def _setup_animation_state(self, loaded_sprite: AnimatedSprite) -> None:
         """Set up animation state after loading a sprite.
 
@@ -1523,14 +1562,14 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """
         # Update the canvas sprite's current animation to match the loaded sprite
         self.current_animation = loaded_sprite.current_animation
-        self.log.debug(f'Updated canvas animation to: {self.current_animation}')
+        self.log.debug('Updated canvas animation to: %s', self.current_animation)
 
         # Debug: Print available animations
         available_animations = (
             list(loaded_sprite._animations.keys()) if hasattr(loaded_sprite, '_animations') else []  # type: ignore[reportPrivateUsage]
         )
         self.log.info('AVAILABLE ANIMATIONS: %s', available_animations)
-        self.log.info(f"CURRENT CANVAS ANIMATION: '{self.current_animation}'")
+        self.log.info("CURRENT CANVAS ANIMATION: '%s'", self.current_animation)
 
         # Start the animation after loading
         if loaded_sprite.current_animation:
@@ -1538,13 +1577,15 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             loaded_sprite._is_looping = True  # type: ignore[reportPrivateUsage]
             loaded_sprite.play()
             self.log.debug(
-                f"Started animation '{loaded_sprite.current_animation}' using play() method",
+                "Started animation '%s' using play() method",
+                loaded_sprite.current_animation,
             )
             # Verify animation state immediately after starting
             self.log.debug(
-                f'Animation state after play(): is_playing={loaded_sprite.is_playing}, '
-                f'is_looping={loaded_sprite._is_looping}, '  # type: ignore[reportPrivateUsage]
-                f'current_frame={loaded_sprite.current_frame}',
+                'Animation state after play(): is_playing=%s, is_looping=%s, current_frame=%s',
+                loaded_sprite.is_playing,
+                loaded_sprite.is_looping,
+                loaded_sprite.current_frame,
             )
 
     def _finalize_sprite_loading(self, loaded_sprite: AnimatedSprite, filename: str) -> None:
@@ -1568,20 +1609,22 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Update AI textbox with sprite description or default prompt
         self.log.debug('Checking parent and debug_text access...')
-        self.log.debug(f"hasattr(self, 'parent_scene'): {hasattr(self, 'parent_scene')}")
+        self.log.debug("hasattr(self, 'parent_scene'): %s", hasattr(self, 'parent_scene'))
         if hasattr(self, 'parent_scene'):
             self.log.debug(
-                "hasattr(self.parent_scene, 'debug_text'):"
-                f' {hasattr(self.parent_scene, "debug_text")}',
+                "hasattr(self.parent_scene, 'debug_text'): %s",
+                hasattr(self.parent_scene, 'debug_text'),
             )
-            self.log.debug(f'self.parent_scene type: {type(self.parent_scene)}')
+            self.log.debug('self.parent_scene type: %s', type(self.parent_scene))
 
         if hasattr(self, 'parent_scene') and hasattr(self.parent_scene, 'debug_text'):
             assert self.parent_scene is not None
             # Get description from loaded sprite, or use default prompt if empty
             description = getattr(loaded_sprite, 'description', '')
             self.log.debug("Loaded sprite description: '%s'", description)
-            self.log.debug(f'Description is not empty: {bool(description and description.strip())}')
+            self.log.debug(
+                'Description is not empty: %s', bool(description and description.strip())
+            )
             if description and description.strip():
                 self.log.info("Setting AI textbox to description: '%s'", description)
                 self.parent_scene.debug_text.text = description
@@ -1657,13 +1700,13 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         LOG.debug('===== END DEBUG =====\n')
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
-        # Update class dimensions
+        # The new size is this canvas's own (pixels_across / pixels_tall, set above); a resize
+        # no longer sets the class-wide AnimatedCanvasSprite.WIDTH / HEIGHT, which every canvas
+        # shared and nothing read (BUGS.md #110 item 2).
 
         # Update AI sprite positioning after canvas resize
         if hasattr(self, 'parent_scene') and self.parent_scene:
             self.parent_scene._update_ai_sprite_position()  # type: ignore[reportPrivateUsage]
-        AnimatedCanvasSprite.WIDTH = sprite_width  # ty: ignore[unresolved-attribute]
-        AnimatedCanvasSprite.HEIGHT = sprite_height  # ty: ignore[unresolved-attribute]
 
         self.log.info(
             'Canvas resized to %sx%s with pixel size %s',
@@ -1689,25 +1732,30 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Get pixel data from static sprite
         if hasattr(static_sprite, 'get_pixel_data'):
-            pixel_data = static_sprite.get_pixel_data()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+            pixel_data = cast(
+                'list[tuple[int, ...]]',
+                static_sprite.get_pixel_data(),  # type: ignore[union-attr] # ty: ignore[call-non-callable]
+            )
             self.log.debug(
-                f'Got pixel data from get_pixel_data(): {len(pixel_data)} pixels, '  # type: ignore[arg-type]
-                f'first few: {pixel_data[:5]}',
+                'Got pixel data from get_pixel_data(): %s pixels, first few: %s',
+                len(pixel_data),
+                pixel_data[:5],
             )
         elif hasattr(static_sprite, 'pixels'):
             pixel_data = static_sprite.pixels.copy()
             self.log.debug(
-                f'Got pixel data from pixels attribute: {len(pixel_data)} pixels, '
-                f'first few: {pixel_data[:5]}',
+                'Got pixel data from pixels attribute: %s pixels, first few: %s',
+                len(pixel_data),
+                pixel_data[:5],
             )
         else:
             # Fallback - create magenta pixels
             pixel_data = [(255, 0, 255)] * (width * height)
-            self.log.debug(f'Using fallback magenta pixels: {len(pixel_data)} pixels')
+            self.log.debug('Using fallback magenta pixels: %s pixels', len(pixel_data))
 
         # Create a single frame with the static sprite data
         frame = SpriteFrame(surface=pygame.Surface((width, height), pygame.SRCALPHA))
-        frame.set_pixel_data(pixel_data)  # type: ignore[arg-type]
+        frame.set_pixel_data(pixel_data)
 
         # Get the animation name from the static sprite if available
         animation_name = 'idle'  # Default fallback
@@ -1725,21 +1773,23 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Debug: Verify the conversion worked
         self.log.debug(
-            f'Converted static sprite to animated format with 1 frame: {len(pixel_data)} pixels',  # type: ignore[arg-type]
+            'Converted static sprite to animated format with 1 frame: %s pixels',
+            len(pixel_data),
         )
-        self.log.debug(f'Animated sprite has frames: {hasattr(animated_sprite, "frames")}')
-        if hasattr(animated_sprite, 'frames'):
-            self.log.debug(f'Available animations: {list(animated_sprite._animations.keys())}')  # type: ignore[reportPrivateUsage]
-            if 'idle' in animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-                self.log.debug(
-                    f'Idle animation has {len(animated_sprite._animations["idle"])} frames',  # type: ignore[reportPrivateUsage]
-                )
-                if animated_sprite._animations['idle']:  # type: ignore[reportPrivateUsage]
-                    frame_pixels = animated_sprite._animations['idle'][0].get_pixel_data()  # type: ignore[reportPrivateUsage]
-                    self.log.debug(
-                        f'First frame pixels: {len(frame_pixels)} pixels, '
-                        f'first few: {frame_pixels[:5]}',
-                    )
+        self.log.debug('Animated sprite has frames: %s', hasattr(animated_sprite, 'frames'))
+        self.log.debug('Available animations: %s', list(animated_sprite._animations.keys()))  # type: ignore[reportPrivateUsage]
+        if 'idle' in animated_sprite._animations:  # type: ignore[reportPrivateUsage]
+            self.log.debug(
+                'Idle animation has %s frames',
+                len(animated_sprite._animations['idle']),  # type: ignore[reportPrivateUsage]
+            )
+            # 'idle' exists only when the frame added above went into it, so it has a frame
+            frame_pixels = animated_sprite._animations['idle'][0].get_pixel_data()  # type: ignore[reportPrivateUsage]
+            self.log.debug(
+                'First frame pixels: %s pixels, first few: %s',
+                len(frame_pixels),
+                frame_pixels[:5],
+            )
 
         return animated_sprite
 
@@ -1810,9 +1860,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def _copy_sprite_to_canvas(self) -> None:
         """Copy the current frame of the animated sprite to the canvas."""
-        if not hasattr(self, 'animated_sprite') or not self.animated_sprite:
-            return
-
         # Get the current frame pixels from the animated sprite
         current_frame_pixels = self._get_current_frame_pixels()
         if current_frame_pixels:
@@ -1820,9 +1867,10 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             self.pixels = current_frame_pixels.copy()  # ty: ignore[invalid-assignment]
             self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1  # Mark canvas as dirty for redraw
-            self.log.debug(f'Copied {len(current_frame_pixels)} pixels to canvas')
+            self.log.debug('Copied %s pixels to canvas', len(current_frame_pixels))
             self.log.debug(
-                f'Canvas pixels after copy: {self.pixels[:5] if self.pixels else "None"}',
+                'Canvas pixels after copy: %s',
+                self.pixels[:5] if self.pixels else 'None',
             )
         else:
             self.log.warning('No current frame pixels to copy to canvas')
@@ -1851,13 +1899,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
     def _update_animated_sprite_frame(self) -> None:
         """Update the animated sprite's current frame with canvas data."""
-        if not (
-            hasattr(self, 'animated_sprite')
-            and hasattr(self, 'current_animation')
-            and hasattr(self, 'current_frame')
-        ):
-            return
-
         current_anim = self.current_animation
         current_frame = self.current_frame
 
@@ -1953,178 +1994,3 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 ])
 
         self.log.info('Flood fill completed: filled %s pixels', filled_pixels)
-
-    def _initialize_panning_system(self) -> None:
-        """Initialize the panning system for the canvas."""
-        # Panning state
-        self.pan_offset_x = 0  # Horizontal pan offset in pixels
-        self.pan_offset_y = 0  # Vertical pan offset in pixels
-
-        # Buffer dimensions (larger than canvas to allow panning)
-        # Add extra space around the canvas for panning
-        self.buffer_width = self.pixels_across + 20  # Extra 10 pixels on each side
-        self.buffer_height = self.pixels_tall + 20  # Extra 10 pixels on each side
-
-        # Viewport dimensions (same as canvas dimensions)
-        self.viewport_width = self.pixels_across
-        self.viewport_height = self.pixels_tall
-
-        # Panning state flag
-        self._panning_active = False
-
-        # Initialize buffer with transparent pixels
-        self._buffer_pixels = [
-            (255, 0, 255, 255) for _ in range(self.buffer_width * self.buffer_height)
-        ]
-
-        # Copy current canvas pixels to center of buffer
-        if hasattr(self, 'pixels') and self.pixels:
-            buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-            buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-
-            for y in range(self.pixels_tall):
-                for x in range(self.pixels_across):
-                    buffer_x = buffer_center_x + x
-                    buffer_y = buffer_center_y + y
-                    buffer_index = buffer_y * self.buffer_width + buffer_x
-                    canvas_index = y * self.pixels_across + x
-
-                    if buffer_index < len(self._buffer_pixels) and canvas_index < len(self.pixels):
-                        self._buffer_pixels[buffer_index] = self.pixels[canvas_index]  # type: ignore[index] # ty: ignore[invalid-assignment]
-
-        self.log.debug(
-            f'Panning system initialized: buffer={self.buffer_width}x{self.buffer_height},'
-            f' viewport={self.viewport_width}x{self.viewport_height}',
-        )
-
-    def pan_canvas(self, delta_x: int, delta_y: int) -> None:
-        """Pan the canvas by the given delta values.
-
-        Args:
-            delta_x: Horizontal panning delta (-1, 0, or 1)
-            delta_y: Vertical panning delta (-1, 0, or 1)
-
-        """
-        # Get current frame key
-        frame_key = self._get_current_frame_key()
-
-        # Get current pan offset from frame state (or default to 0, 0)
-        if frame_key in self._frame_panning:
-            current_pan_x = self._frame_panning[frame_key]['pan_x']
-            current_pan_y = self._frame_panning[frame_key]['pan_y']
-        else:
-            current_pan_x = 0
-            current_pan_y = 0
-
-        # Calculate new pan offset
-        new_pan_x = current_pan_x + delta_x
-        new_pan_y = current_pan_y + delta_y
-
-        # Check if panning is within bounds
-        if self._can_pan(new_pan_x, new_pan_y):
-            # Initialize frame panning state if needed
-            if frame_key not in self._frame_panning:
-                self._frame_panning[frame_key] = {
-                    'pan_x': 0,
-                    'pan_y': 0,
-                    'original_pixels': None,
-                    'active': False,
-                }
-
-            frame_state = self._frame_panning[frame_key]
-            frame_state['pan_x'] = new_pan_x
-            frame_state['pan_y'] = new_pan_y
-            frame_state['active'] = True
-
-            # Store original frame data if this is the first pan for this frame
-            if frame_state['original_pixels'] is None:
-                self._store_original_frame_data_for_frame(frame_key)
-
-            # Apply panning transformation to show panned view
-            self._apply_panning_view_for_frame(frame_key)
-            self.dirty = 1
-        else:
-            self.log.debug('Cannot pan to (%s, %s) - out of bounds.', new_pan_x, new_pan_y)
-
-    def _store_original_frame_data(self) -> None:
-        """Store the original frame data before any panning."""
-        if hasattr(self, 'pixels') and self.pixels:
-            self._original_frame_pixels = list(self.pixels)
-            self.log.debug('Stored original frame data for panning')
-
-    def _apply_panning_view(self) -> None:
-        """Apply panning transformation to show the panned view."""
-        if not hasattr(self, '_original_frame_pixels'):
-            return
-
-        # Create panned view by shifting pixels
-        panned_pixels: list[tuple[int, ...]] = []
-
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                # Calculate source coordinates (where to read from in original)
-                source_x = x - self.pan_offset_x
-                source_y = y - self.pan_offset_y
-
-                # Check if source is within bounds
-                if 0 <= source_x < self.pixels_across and 0 <= source_y < self.pixels_tall:
-                    source_index = source_y * self.pixels_across + source_x
-                    if source_index < len(self._original_frame_pixels):
-                        panned_pixels.append(self._original_frame_pixels[source_index])
-                    else:
-                        panned_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    panned_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with panned view
-        self.pixels = panned_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        self.log.debug(f'Applied panning view: offset=({self.pan_offset_x}, {self.pan_offset_y})')
-
-    def _can_pan(self, new_pan_x: int, new_pan_y: int) -> bool:
-        """Check if the new pan offset is within the allowed bounds.
-
-        Returns:
-            bool: True if the condition is met, False otherwise.
-
-        """
-        # For now, allow panning within reasonable bounds
-        # Later we can add more sophisticated bounds checking
-        max_pan = 10  # Maximum pan distance
-        return abs(new_pan_x) <= max_pan and abs(new_pan_y) <= max_pan
-
-    def _update_viewport_pixels(self) -> None:
-        """Update the viewport pixels based on current panning offset."""
-        if not self._panning_active:
-            return
-
-        # Clear viewport pixels
-        viewport_pixels: list[tuple[int, ...]] = []
-
-        # Calculate buffer center offset
-        buffer_center_x = (self.buffer_width - self.pixels_across) // 2
-        buffer_center_y = (self.buffer_height - self.pixels_tall) // 2
-
-        # Fill viewport with pixels from buffer at pan offset
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                buffer_x = buffer_center_x + x + self.pan_offset_x
-                buffer_y = buffer_center_y + y + self.pan_offset_y
-
-                # Check if buffer coordinates are within bounds
-                if 0 <= buffer_x < self.buffer_width and 0 <= buffer_y < self.buffer_height:
-                    pixel_index = buffer_y * self.buffer_width + buffer_x
-                    if pixel_index < len(self._buffer_pixels):
-                        viewport_pixels.append(self._buffer_pixels[pixel_index])
-                    else:
-                        viewport_pixels.append((255, 0, 255))  # Transparent
-                else:
-                    viewport_pixels.append((255, 0, 255))  # Transparent
-
-        # Update canvas pixels with viewport data
-        self.pixels = viewport_pixels
-        self.dirty_pixels = [True] * len(self.pixels)
-
-        # Force redraw to update the visual display including borders
-        self.force_redraw()

@@ -30,16 +30,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from typing import TYPE_CHECKING, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from glitchygames.build_info import (
+    SourceRevision,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.source_revision at runtime
+)
+from glitchygames.machine_state import (
+    MachineState,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.machine_state at runtime
+)
 from glitchygames.timing import (
     PacingTimer,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.pacing_timer at runtime
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
 
 # Frame fields that hold histories, and the header field of the runs' provenance
 PROCESSING_SECONDS_FIELD = 'processing_seconds'
@@ -220,6 +227,198 @@ def add_frame_histories(
     )
 
 
+# A frame took longer than its budget times this to count as late (a missed frame at 60 FPS)
+LATE_FRAME_BUDGET_FACTOR = 1.5
+RUN_SUMMARY_FIELD = 'summary'
+
+
+class FrameTimeSummary(BaseModel):
+    """How steady a live run's frame times (its frames' recorded ``dt``) were.
+
+    Only the run that recorded the frames live measured them: a rebaseline replays the recorded
+    ``dt``, so its runs have none.
+
+    Attributes:
+        p50_seconds: The median frame time.
+        p99_seconds: The 99th percentile frame time.
+        max_seconds: The longest frame.
+        late_frames: Frames longer than ``LATE_FRAME_BUDGET_FACTOR`` budgets, or None without a
+            budget (an uncapped run).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    p50_seconds: float
+    p99_seconds: float
+    max_seconds: float
+    late_frames: int | None
+
+
+class RunSummary(BaseModel):
+    """One run's processing times at a glance, so tools need not read every frame.
+
+    Attributes:
+        measured_frames: Frames with a processing time for this run.
+        total_processing_seconds: Their sum.
+        p50_processing_seconds: The median.
+        p95_processing_seconds: The 95th percentile.
+        p99_processing_seconds: The 99th percentile.
+        max_processing_seconds: The slowest frame's time.
+        worst_frame: The slowest frame's index (the first, on a tie).
+        worst_frame_scene: Its scene, or None when the frame names none.
+        budget_seconds: One frame's budget (1 / the recording's target FPS), or None when
+            uncapped.
+        frames_over_budget: Frames whose processing took longer than the budget, or None
+            without one.
+        frame_time: The live run's frame times, or None (a rebaseline's run, or no ``dt``).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    measured_frames: int
+    total_processing_seconds: float
+    p50_processing_seconds: float
+    p95_processing_seconds: float
+    p99_processing_seconds: float
+    max_processing_seconds: float
+    worst_frame: int
+    worst_frame_scene: str | None
+    budget_seconds: float | None
+    frames_over_budget: int | None
+    frame_time: FrameTimeSummary | None
+
+
+def _percentile(*, sorted_values: Sequence[float], percent: float) -> float:
+    """Return a nearest-rank percentile of sorted values.
+
+    Args:
+        sorted_values: The values, ascending (at least one).
+        percent: The percentile, 0 to 100.
+
+    Returns:
+        The smallest value with at least ``percent`` of the values at or below it.
+
+    """
+    rank = max(1, math.ceil(percent / 100 * len(sorted_values)))
+    return sorted_values[rank - 1]
+
+
+def _rounded(seconds: float) -> float:
+    return round(seconds, PROCESSING_SECONDS_DIGITS)
+
+
+def frame_time_summary(
+    *, frames: Sequence[Mapping[str, Any]], budget_seconds: float | None
+) -> FrameTimeSummary | None:
+    """Summarise a recording's frame times (each frame's ``dt``).
+
+    Args:
+        frames: The decoded frames.
+        budget_seconds: One frame's budget, or None when uncapped.
+
+    Returns:
+        The summary, or None when no frame has a numeric ``dt``.
+
+    """
+    frame_seconds = sorted(
+        float(frame['dt'])
+        for frame in frames
+        if isinstance(frame.get('dt'), int | float) and not isinstance(frame.get('dt'), bool)
+    )
+    if not frame_seconds:
+        return None
+    late_frames = (
+        None
+        if budget_seconds is None
+        else sum(
+            1 for seconds in frame_seconds if seconds > budget_seconds * LATE_FRAME_BUDGET_FACTOR
+        )
+    )
+    return FrameTimeSummary(
+        p50_seconds=_rounded(_percentile(sorted_values=frame_seconds, percent=50)),
+        p99_seconds=_rounded(_percentile(sorted_values=frame_seconds, percent=99)),
+        max_seconds=_rounded(frame_seconds[-1]),
+        late_frames=late_frames,
+    )
+
+
+def run_summary(
+    *,
+    frames: Sequence[Mapping[str, Any]],
+    run_index: int,
+    budget_seconds: float | None,
+    live_run: bool,
+) -> RunSummary | None:
+    """Summarise one run's processing times from its recording's frames.
+
+    Args:
+        frames: The decoded frames (each with its ``processing_seconds`` history).
+        run_index: The run's index in the histories (0 = the newest).
+        budget_seconds: One frame's budget, or None when uncapped.
+        live_run: True for the run that recorded the frames live (it measured their ``dt``).
+
+    Returns:
+        The summary, or None when no frame holds a time for the run.
+
+    """
+    timed_frames: list[tuple[float, int, Mapping[str, Any]]] = []
+    for index, frame in enumerate(frames):
+        history = frame.get(PROCESSING_SECONDS_FIELD)
+        if not isinstance(history, list):
+            continue
+        run_times = cast('list[Any]', history)
+        if len(run_times) <= run_index:
+            continue
+        seconds = run_times[run_index]
+        if isinstance(seconds, int | float) and not isinstance(seconds, bool):
+            timed_frames.append((float(seconds), index, frame))
+    if not timed_frames:
+        return None
+    times = sorted(seconds for seconds, _, _ in timed_frames)
+    worst_seconds, worst_index, worst = max(timed_frames, key=lambda timed: (timed[0], -timed[1]))
+    scene = worst.get('scene')
+    return RunSummary(
+        measured_frames=len(times),
+        total_processing_seconds=_rounded(math.fsum(times)),
+        p50_processing_seconds=_rounded(_percentile(sorted_values=times, percent=50)),
+        p95_processing_seconds=_rounded(_percentile(sorted_values=times, percent=95)),
+        p99_processing_seconds=_rounded(_percentile(sorted_values=times, percent=99)),
+        max_processing_seconds=_rounded(worst_seconds),
+        worst_frame=int(worst.get('frame', worst_index)),
+        worst_frame_scene=scene if isinstance(scene, str) else None,
+        budget_seconds=budget_seconds,
+        frames_over_budget=(
+            None
+            if budget_seconds is None
+            else sum(1 for seconds in times if seconds > budget_seconds)
+        ),
+        frame_time=(
+            frame_time_summary(frames=frames, budget_seconds=budget_seconds) if live_run else None
+        ),
+    )
+
+
+def budget_seconds_for(*, header: Mapping[str, Any]) -> float | None:
+    """Return one frame's budget from a recording's target FPS (its header's options).
+
+    Args:
+        header: The recording's header fields.
+
+    Returns:
+        1 / target FPS, or None when uncapped (0) or not recorded.
+
+    """
+    options = header.get('options')
+    target_fps = (
+        cast('dict[str, Any]', options).get('target_fps') if isinstance(options, dict) else None
+    )
+    if isinstance(target_fps, int | float) and not isinstance(target_fps, bool) and target_fps > 0:
+        return 1.0 / float(target_fps)
+    return None
+
+
 class MeasurementRun(BaseModel):
     """One run's provenance: what measured a recording's processing times and drew its frames.
 
@@ -240,6 +439,16 @@ class MeasurementRun(BaseModel):
         frame_count: How many frames the run wrote, filled in when the next run stacks onto
             its recording (``stacked_measurement_runs``); None for the newest run, whose count
             is its file's frames.
+        source_revision: The engine's source revision (glitchygames/build_info.py: the commit,
+            whether the checkout had uncommitted changes, and how that is known); None only for
+            a run from before this field.
+        machine_state: The machine's state as the run started (glitchygames/machine_state.py:
+            CPU, memory, mains or battery, thermal report, continuous integration); None only
+            for a run from before this field.
+        summary: The run's processing times at a glance (``RunSummary``), filled in when the
+            next run stacks onto its recording (its header is written before its frames); None
+            for the newest run (``recording_run_summaries`` computes it) and runs from before
+            this field.
 
     """
 
@@ -255,6 +464,9 @@ class MeasurementRun(BaseModel):
     hash_scheme: int
     frame_count: int | None = None
     pacing_timer: PacingTimer | None = None
+    source_revision: SourceRevision | None = None
+    machine_state: MachineState | None = None
+    summary: RunSummary | None = None
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return the run as the header stores it.
@@ -267,18 +479,27 @@ class MeasurementRun(BaseModel):
 
 
 def stacked_measurement_runs(
-    *, newest: MeasurementRun, previous: object, previous_frame_count: int | None
+    *,
+    newest: MeasurementRun,
+    previous: object,
+    previous_frame_count: int | None,
+    previous_frames: Sequence[Mapping[str, Any]] = (),
+    budget_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
     """Return the header's runs with ``newest`` in front, cut to ``MEASUREMENT_RUNS_HISTORY_DEPTH``.
 
     Earlier entries are kept as they are (an unreadable one keeps its place, so indexes stay
     aligned with the frames' histories), but the run before gets its ``frame_count``: only now,
     with its recording read, is it known (a run's own header is written before its frames).
+    Likewise every earlier run without a ``summary`` gets one from the earlier frames (its own
+    index in their ``processing_seconds`` histories), when they hold any of its times.
 
     Args:
         newest: This run.
         previous: The earlier ``measurement_runs`` (anything but a list counts as none).
         previous_frame_count: How many complete frames the earlier recording holds, or None.
+        previous_frames: The earlier recording's decoded frames (none: no summaries added).
+        budget_seconds: One frame's budget (``budget_seconds_for``), or None when uncapped.
 
     Returns:
         The runs, newest first.
@@ -287,9 +508,63 @@ def stacked_measurement_runs(
     earlier = list(cast('list[Any]', previous)) if isinstance(previous, list) else []
     if earlier and isinstance(earlier[0], dict) and previous_frame_count is not None:
         earlier[0] = {**cast('dict[str, Any]', earlier[0]), 'frame_count': previous_frame_count}
+    for run_index, run in enumerate(earlier):
+        if not isinstance(run, dict):
+            continue
+        run_fields = cast('dict[str, Any]', run)
+        if run_fields.get(RUN_SUMMARY_FIELD) is not None:
+            continue
+        summary = run_summary(
+            frames=previous_frames,
+            run_index=run_index,
+            budget_seconds=budget_seconds,
+            live_run=run_fields.get('rebaselined_from') is None,
+        )
+        if summary is not None:
+            earlier[run_index] = {**run_fields, RUN_SUMMARY_FIELD: summary.model_dump(mode='json')}
     return stacked_history(
         newest=newest.to_json(), previous=earlier, depth=MEASUREMENT_RUNS_HISTORY_DEPTH
     )
+
+
+def recording_run_summaries(
+    *, header: Mapping[str, Any], frames: Sequence[Mapping[str, Any]]
+) -> list[RunSummary | None]:
+    """Return every run's summary: the stored one, else computed from the frames.
+
+    The newest run never has one stored (see ``MeasurementRun.summary``); runs from before
+    summaries existed have none either.
+
+    Args:
+        header: The recording's header fields.
+        frames: Its decoded frames.
+
+    Returns:
+        One entry per ``measurement_runs`` entry, newest first (None when neither the header
+        nor the frames give one).
+
+    """
+    runs = header.get(MEASUREMENT_RUNS_HEADER_FIELD)
+    if not isinstance(runs, list):
+        return []
+    budget_seconds = budget_seconds_for(header=header)
+    summaries: list[RunSummary | None] = []
+    for run_index, run in enumerate(cast('list[Any]', runs)):
+        run_fields = cast('dict[str, Any]', run) if isinstance(run, dict) else {}
+        try:
+            stored = RunSummary.model_validate(run_fields[RUN_SUMMARY_FIELD])
+        except KeyError, ValidationError:
+            stored = None
+        summaries.append(
+            stored
+            or run_summary(
+                frames=frames,
+                run_index=run_index,
+                budget_seconds=budget_seconds,
+                live_run=run_fields.get('rebaselined_from') is None,
+            )
+        )
+    return summaries
 
 
 def latest_measurement_run(*, header: Mapping[str, Any]) -> MeasurementRun | None:
@@ -303,15 +578,48 @@ def latest_measurement_run(*, header: Mapping[str, Any]) -> MeasurementRun | Non
 
     """
     runs = header.get(MEASUREMENT_RUNS_HEADER_FIELD)
-    if not isinstance(runs, list) or not runs or not isinstance(runs[0], dict):
+    if not isinstance(runs, list) or not runs:
         return None
-    # Read leniently: a newer run's extra fields (a git commit, say) must not hide what this
-    # reader knows of it; writing stays strict (extra='forbid')
-    latest = cast('dict[str, Any]', runs[0])
+    return measurement_run_from(run=cast('list[Any]', runs)[0])
+
+
+def measurement_run_from(*, run: object) -> MeasurementRun | None:
+    """Read one ``measurement_runs`` entry leniently.
+
+    A newer run's extra fields (one this reader does not know) must not hide what this reader
+    knows of it, so unknown fields are dropped; writing stays strict (extra='forbid').
+
+    Args:
+        run: The entry, as the header holds it.
+
+    Returns:
+        The run, or None when it is not a mapping or its known fields are unreadable.
+
+    """
+    if not isinstance(run, dict):
+        return None
+    run_fields = cast('dict[str, Any]', run)
     known_fields = {
-        name: value for name, value in latest.items() if name in MeasurementRun.model_fields
+        name: value for name, value in run_fields.items() if name in MeasurementRun.model_fields
     }
     try:
         return MeasurementRun.model_validate(known_fields)
     except ValidationError:
         return None
+
+
+def recorded_measurement_runs(*, header: Mapping[str, Any]) -> list[MeasurementRun | None]:
+    """Return every run a header names, newest first, each read leniently.
+
+    Args:
+        header: A recording's header fields.
+
+    Returns:
+        One entry per ``measurement_runs`` entry (None for an unreadable one, so indexes stay
+        aligned with the frames' histories); empty when the header has none.
+
+    """
+    runs = header.get(MEASUREMENT_RUNS_HEADER_FIELD)
+    if not isinstance(runs, list):
+        return []
+    return [measurement_run_from(run=run) for run in cast('list[Any]', runs)]

@@ -270,7 +270,7 @@ def generate_sprite(  # ruff: ignore[too-many-arguments]
         payload['model'] = model
 
     LOG.debug('Sending request to %s', url)
-    LOG.debug(f'Payload: {json.dumps(payload, indent=2)}')
+    LOG.debug('Payload: %s', json.dumps(payload, indent=2))
 
     with httpx.Client(timeout=300.0) as client:
         response = client.post(url, json=payload)
@@ -640,17 +640,17 @@ def _exit_code_for_server_error(
 
     """
     if isinstance(error, (httpx.InvalidURL, httpx.UnsupportedProtocol)):
-        LOG.error(f'Cannot use the server URL {server_url!r}: {error}')
+        LOG.error('Cannot use the server URL %r: %s', server_url, error)
         return ExitCode.OPTIONS_REFUSED
     if isinstance(error, httpx.ConnectError):
-        LOG.error(f'Could not connect to server at {server_url}')
+        LOG.error('Could not connect to server at %s', server_url)
         LOG.error('Is the server running? Start it with: glitchygames-server')
         return ExitCode.SERVICE_UNAVAILABLE
     if isinstance(error, httpx.TransportError):
-        LOG.error(f'The server at {server_url} did not answer: {error!r}')
+        LOG.error('The server at %s did not answer: %r', server_url, error)
         return ExitCode.SERVICE_UNAVAILABLE
     if isinstance(error, httpx.HTTPStatusError):
-        LOG.error(f'HTTP error: {error.response.status_code} - {error.response.text}')
+        LOG.error('HTTP error: %s - %s', error.response.status_code, error.response.text)
         if error.response.status_code == HTTP_SERVICE_UNAVAILABLE:
             return ExitCode.SERVICE_UNAVAILABLE
         return rejected_exit_code
@@ -721,14 +721,14 @@ def _log_extraction_metadata(response: dict[str, Any]) -> None:
         response: The extraction response dictionary
 
     """
-    LOG.info(f'Extracted {response.get("frame_count")} frames')
+    LOG.info('Extracted %s frames', response.get('frame_count'))
     if response.get('width') and response.get('height'):
-        LOG.info(f'  Canvas size: {response.get("width")}x{response.get("height")} pixels')
+        LOG.info('  Canvas size: %sx%s pixels', response.get('width'), response.get('height'))
     if response.get('total_duration_ms'):
-        LOG.info(f'  Total duration: {response.get("total_duration_ms")}ms')
+        LOG.info('  Total duration: %sms', response.get('total_duration_ms'))
     if response.get('loop_count') is not None:
         loops: int | None = response.get('loop_count')
-        LOG.info(f'  Loop count: {"infinite" if loops == 0 else loops}')
+        LOG.info('  Loop count: %s', 'infinite' if loops == 0 else loops)
 
 
 def _save_apng_extracted_frames(response: dict[str, Any], output_path: str, apng_path: str) -> None:
@@ -753,7 +753,7 @@ def _save_apng_extracted_frames(response: dict[str, Any], output_path: str, apng
         saved_files.append(str(frame_path))
         LOG.debug('Saved frame: %s', frame_path)
 
-    LOG.info(f'Saved {len(saved_files)} frames to {output_dir}')
+    LOG.info('Saved %s frames to %s', len(saved_files), output_dir)
 
 
 def _process_extraction_response(
@@ -774,7 +774,7 @@ def _process_extraction_response(
 
     """
     if not response.get('success'):
-        LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
+        LOG.error('Extraction failed: %s', response.get('error', 'Unknown error'))
         return ExitCode.EXTRACTION_REJECTED
 
     _log_extraction_metadata(response)
@@ -833,11 +833,11 @@ def _log_generation_results(response: dict[str, Any]) -> None:
         response: The generation API response
 
     """
-    LOG.info(f'Generated sprite: {response.get("sprite_name")}')
+    LOG.info('Generated sprite: %s', response.get('sprite_name'))
     if response.get('is_animated'):
-        LOG.info(f'  Animated: {response.get("frame_count")} frames')
+        LOG.info('  Animated: %s frames', response.get('frame_count'))
     if response.get('width') and response.get('height'):
-        LOG.info(f'  Size: {response.get("width")}x{response.get("height")} pixels')
+        LOG.info('  Size: %sx%s pixels', response.get('width'), response.get('height'))
 
     # Display colorized ASCII preview of the sprite
     if response.get('toml_content'):
@@ -856,9 +856,9 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         the server says the generation failed.
 
     """
-    LOG.info(f'Generating sprite: {parsed_args.prompt}')
+    LOG.info('Generating sprite: %s', parsed_args.prompt)
     if parsed_args.animation_language_model:
-        LOG.info(f'Using model: {parsed_args.animation_language_model}')
+        LOG.info('Using model: %s', parsed_args.animation_language_model)
     try:
         response = generate_sprite(
             server_url=parsed_args.server_url,
@@ -881,7 +881,7 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         )
 
     if not response.get('success'):
-        LOG.error(f'Generation failed: {response.get("error", "Unknown error")}')
+        LOG.error('Generation failed: %s', response.get('error', 'Unknown error'))
         return ExitCode.GENERATION_REJECTED
 
     try:
@@ -965,7 +965,7 @@ def main(args: list[str] | None = None) -> int:
         # The handlers map every error they expect, so anything else is a client bug
         LOG.exception('Unexpected error in the sprite client')
         exit_code = ExitCode.INTERNAL_ERROR
-    LOG.info(f'Exiting with {ExitCode(exit_code).describe()}')
+    LOG.info('Exiting with %s', ExitCode(exit_code).describe())
     return ExitCode(exit_code)
 
 

@@ -39,14 +39,14 @@ def run_high_density_tests():
     all_results = []
 
     for scenario_name, enable_collisions, enable_bouncing in scenarios:
-        LOG.debug(f'\n{"=" * 80}')
-        LOG.debug(f'SCENARIO: {scenario_name}')
-        LOG.debug(f'{"=" * 80}')
+        LOG.debug('\n%s', '=' * 80)
+        LOG.debug('SCENARIO: %s', scenario_name)
+        LOG.debug('%s', '=' * 80)
 
         scenario_results = []
 
         for num_balls, fps, duration, test_name in test_configs:
-            LOG.debug(f'\n--- {test_name} ---')
+            LOG.debug('\n--- %s ---', test_name)
 
             # Create test instance
             test = MultiBallTestBase(
@@ -77,38 +77,44 @@ def run_high_density_tests():
 
             # Print summary
             LOG.debug(
-                f'\n📊 SUMMARY: {alive}/{num_balls} balls alive,'
-                f' {wall_bounces} wall bounces,'
-                f' {ball_collisions} ball collisions',
+                '\n📊 SUMMARY: %s/%s balls alive, %s wall bounces, %s ball collisions',
+                alive,
+                num_balls,
+                wall_bounces,
+                ball_collisions,
             )
-            LOG.debug(f'⏱️  Test completed in {test_time:.2f} seconds')
-            LOG.debug(f'🎯 Performance: {num_balls / test_time:.1f} balls/second')
+            LOG.debug('⏱️  Test completed in %.2f seconds', test_time)
+            LOG.debug('🎯 Performance: %.1f balls/second', num_balls / test_time)
 
         # Print scenario summary
-        LOG.debug(f'\n📈 {scenario_name} Results Summary:')
+        LOG.debug('\n📈 %s Results Summary:', scenario_name)
         for result in scenario_results:
             LOG.debug(
-                f'  {result["num_balls"]} balls:'
-                f' {result["alive"]}/{result["num_balls"]} alive,'
-                f' {result["wall_bounces"]} wall bounces,'
-                f' {result["ball_collisions"]} ball collisions',
+                '  %s balls: %s/%s alive, %s wall bounces, %s ball collisions',
+                result['num_balls'],
+                result['alive'],
+                result['num_balls'],
+                result['wall_bounces'],
+                result['ball_collisions'],
             )
 
     # Print overall summary
-    LOG.debug(f'\n{"=" * 80}')
+    LOG.debug('\n%s', '=' * 80)
     LOG.debug('OVERALL HIGH-DENSITY RESULTS SUMMARY')
-    LOG.debug(f'{"=" * 80}')
+    LOG.debug('%s', '=' * 80)
 
     for scenario_name, _, _ in scenarios:
-        LOG.debug(f'\n{scenario_name}:')
+        LOG.debug('\n%s:', scenario_name)
         scenario_data = [r for r in all_results if r['scenario'] == scenario_name]
 
         for result in scenario_data:
             LOG.debug(
-                f'  {result["num_balls"]} balls:'
-                f' {result["alive"]}/{result["num_balls"]} alive,'
-                f' {result["wall_bounces"]} wall bounces,'
-                f' {result["ball_collisions"]} ball collisions',
+                '  %s balls: %s/%s alive, %s wall bounces, %s ball collisions',
+                result['num_balls'],
+                result['alive'],
+                result['num_balls'],
+                result['wall_bounces'],
+                result['ball_collisions'],
             )
 
     return all_results
@@ -119,18 +125,19 @@ if __name__ == '__main__':
 
     # Final analysis
     LOG.debug('\n🎯 FINAL HIGH-DENSITY ANALYSIS:')
-    LOG.debug(f'Total tests run: {len(results)}')
+    LOG.debug('Total tests run: %s', len(results))
 
     # Check for any failures
     failures = [r for r in results if r['alive'] < r['num_balls']]
     if failures:
-        LOG.debug(f'⚠️  {len(failures)} tests had ball deaths')
+        LOG.debug('⚠️  %s tests had ball deaths', len(failures))
         for failure in failures:
             LOG.debug(
-                f'  - {failure["scenario"]} with'
-                f' {failure["num_balls"]} balls:'
-                f' {failure["alive"]}/{failure["num_balls"]}'
-                f' balls alive',
+                '  - %s with %s balls: %s/%s balls alive',
+                failure['scenario'],
+                failure['num_balls'],
+                failure['alive'],
+                failure['num_balls'],
             )
     else:
         LOG.info('✅ All tests passed - all balls survived in all scenarios!')
@@ -144,11 +151,13 @@ if __name__ == '__main__':
     ]
     for scenario_name, _, _ in scenarios:
         scenario_data = [r for r in results if r['scenario'] == scenario_name]
-        LOG.debug(f'\n{scenario_name}:')
+        LOG.debug('\n%s:', scenario_name)
         for result in scenario_data:
             balls_per_second = result['num_balls'] / result['test_time']
             LOG.debug(
-                f'  {result["num_balls"]} balls: {balls_per_second:.1f} balls/second processing',
+                '  %s balls: %.1f balls/second processing',
+                result['num_balls'],
+                balls_per_second,
             )
 
     LOG.info('\n🏁 High-density testing completed!')

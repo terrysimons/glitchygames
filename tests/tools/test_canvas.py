@@ -3,9 +3,9 @@
 from typing import cast
 
 import pygame
-import pytest
 
 from glitchygames.bitmappy import canvas_interfaces
+from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.canvas_interfaces import (
     AnimatedCanvasInterface,
     StaticCanvasInterface,
@@ -14,128 +14,6 @@ from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
 )
-from tests.mocks.test_mock_factory import MockFactory
-
-
-class TestCanvasInterfaces:
-    """Test canvas interfaces functionality."""
-
-    def _create_mock_sprite(self):
-        """Create a mock sprite using MockFactory.
-
-        Returns:
-            object: The result.
-
-        """
-        return MockFactory.create_animated_sprite_mock()
-
-    def test_canvas_interface_protocol(self, mock_pygame_patches):
-        """Test canvas interface protocol."""
-        # Test that CanvasInterface protocol is defined
-        assert hasattr(canvas_interfaces, 'CanvasInterface')
-
-        # Test protocol methods exist
-        protocol = canvas_interfaces.CanvasInterface
-        assert hasattr(protocol, '__abstractmethods__')
-
-    def test_sprite_serializer_abstract_base(self, mock_pygame_patches):
-        """Test sprite serializer abstract base."""
-        # Test that SpriteSerializer is defined
-        assert hasattr(canvas_interfaces, 'SpriteSerializer')
-
-        # Test abstract methods exist
-        serializer = canvas_interfaces.SpriteSerializer
-        assert hasattr(serializer, '__abstractmethods__')
-
-    def test_animated_canvas_interface_protocol(self, mock_pygame_patches):
-        """Test animated canvas interface protocol."""
-        # Test that AnimatedCanvasInterface protocol is defined
-        assert hasattr(canvas_interfaces, 'AnimatedCanvasInterface')
-
-        # Test that it's a class (not necessarily abstract)
-        protocol = canvas_interfaces.AnimatedCanvasInterface
-        assert callable(protocol)
-
-    def test_animated_canvas_renderer_protocol(self, mock_pygame_patches):
-        """Test animated canvas renderer protocol."""
-        # Test that AnimatedCanvasRenderer protocol is defined
-        assert hasattr(canvas_interfaces, 'AnimatedCanvasRenderer')
-
-        # Test protocol methods exist
-        protocol = canvas_interfaces.AnimatedCanvasRenderer
-        assert hasattr(protocol, '__abstractmethods__')
-
-    def test_animated_sprite_serializer_protocol(self, mock_pygame_patches):
-        """Test animated sprite serializer protocol."""
-        # Test that AnimatedSpriteSerializer protocol is defined
-        assert hasattr(canvas_interfaces, 'AnimatedSpriteSerializer')
-
-        # Test protocol methods exist
-        protocol = canvas_interfaces.AnimatedSpriteSerializer
-        assert hasattr(protocol, '__abstractmethods__')
-
-    def test_static_canvas_interface_initialization(self, mock_pygame_patches):
-        """Test static canvas interface initialization."""
-        # Test StaticCanvasInterface initialization - requires canvas_sprite parameter
-        mock_sprite = self._create_mock_sprite()
-        interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
-
-        # Test basic properties
-        assert hasattr(interface, 'canvas_sprite')
-        assert interface.canvas_sprite == mock_sprite
-
-    def test_static_canvas_interface_pixel_operations(self, mock_pygame_patches):
-        """Test static canvas interface pixel operations."""
-        mock_sprite = self._create_mock_sprite()
-        interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
-
-        # Test that interface has expected methods
-        assert hasattr(interface, 'get_pixel_data')
-        assert hasattr(interface, 'set_pixel_data')
-        assert hasattr(interface, 'get_dimensions')
-        assert callable(interface.get_pixel_data)
-        assert callable(interface.set_pixel_data)
-        assert callable(interface.get_dimensions)
-
-    def test_animated_canvas_interface_initialization(self, mock_pygame_patches, mocker):
-        """Test animated canvas interface initialization."""
-        # Test AnimatedCanvasInterface initialization - requires properly mocked canvas_sprite
-        mock_sprite = self._create_mock_sprite()
-        mock_animated_sprite = mocker.Mock()
-        mock_animated_sprite._animation_order = ['idle']
-        mock_animated_sprite.animation_order = ['idle']
-        mock_animated_sprite._animations = {'idle': [mocker.Mock()]}
-        mock_animated_sprite.animations = {'idle': [mocker.Mock()]}
-        mock_sprite.animated_sprite = mock_animated_sprite
-
-        interface = canvas_interfaces.AnimatedCanvasInterface(mock_sprite)
-
-        # Test basic properties
-        assert hasattr(interface, 'canvas_sprite')
-        assert interface.canvas_sprite == mock_sprite
-
-    def test_static_canvas_interface_comprehensive(self, mock_pygame_patches):
-        """Test comprehensive static canvas interface functionality."""
-        mock_sprite = self._create_mock_sprite()
-        interface = canvas_interfaces.StaticCanvasInterface(mock_sprite)
-
-        # Test that interface has expected methods
-        assert hasattr(interface, 'get_pixel_data')
-        assert hasattr(interface, 'set_pixel_data')
-        assert hasattr(interface, 'get_dimensions')
-        assert callable(interface.get_pixel_data)
-        assert callable(interface.set_pixel_data)
-        assert callable(interface.get_dimensions)
-
-    def test_static_sprite_serializer(self, mock_pygame_patches):
-        """Test static sprite serializer functionality."""
-        # Test StaticSpriteSerializer initialization - takes no arguments
-        serializer = canvas_interfaces.StaticSpriteSerializer()
-
-        # Test basic properties - StaticSpriteSerializer doesn't have canvas_sprite attribute
-        # It's an abstract base class, so we just verify it can be instantiated
-        assert serializer is not None
-
 
 CANVAS_SIZE = 4
 PIXEL_COUNT = 16
@@ -146,13 +24,135 @@ BLUE = (0, 0, 255, 255)
 RED_RGB = (255, 0, 0)
 
 
+class TestCanvasInterfaces:
+    """Test canvas interfaces functionality."""
+
+    def _create_canvas_sprite(self):
+        """Create a real 4x4 AnimatedCanvasSprite showing one red 'idle' frame.
+
+        Returns:
+            AnimatedCanvasSprite: The canvas.
+
+        """
+        animated_sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((CANVAS_SIZE, CANVAS_SIZE)))
+        frame.set_pixel_data(cast('list[tuple[int, ...]]', [RED] * PIXEL_COUNT))
+        animated_sprite.add_animation('idle', [frame])
+        return AnimatedCanvasSprite(
+            animated_sprite=animated_sprite,
+            name='Interface Canvas',
+            x=0,
+            y=0,
+            pixels_across=CANVAS_SIZE,
+            pixels_tall=CANVAS_SIZE,
+            pixel_width=8,
+            pixel_height=8,
+        )
+
+    def test_canvas_interface_protocol(self):
+        """Test canvas interface protocol."""
+        # Test that CanvasInterface protocol is defined
+        assert hasattr(canvas_interfaces, 'CanvasInterface')
+
+        # Test protocol methods exist
+        protocol = canvas_interfaces.CanvasInterface
+        assert hasattr(protocol, '__abstractmethods__')
+
+    def test_sprite_serializer_abstract_base(self):
+        """Test sprite serializer abstract base."""
+        # Test that SpriteSerializer is defined
+        assert hasattr(canvas_interfaces, 'SpriteSerializer')
+
+        # Test abstract methods exist
+        serializer = canvas_interfaces.SpriteSerializer
+        assert hasattr(serializer, '__abstractmethods__')
+
+    def test_animated_canvas_interface_protocol(self):
+        """Test animated canvas interface protocol."""
+        # Test that AnimatedCanvasInterface protocol is defined
+        assert hasattr(canvas_interfaces, 'AnimatedCanvasInterface')
+
+        # Test that it's a class (not necessarily abstract)
+        protocol = canvas_interfaces.AnimatedCanvasInterface
+        assert callable(protocol)
+
+    def test_animated_canvas_renderer_protocol(self):
+        """Test animated canvas renderer protocol."""
+        # Test that AnimatedCanvasRenderer protocol is defined
+        assert hasattr(canvas_interfaces, 'AnimatedCanvasRenderer')
+
+        # Test protocol methods exist
+        protocol = canvas_interfaces.AnimatedCanvasRenderer
+        assert hasattr(protocol, '__abstractmethods__')
+
+    def test_animated_sprite_serializer_protocol(self):
+        """Test animated sprite serializer protocol."""
+        # Test that AnimatedSpriteSerializer protocol is defined
+        assert hasattr(canvas_interfaces, 'AnimatedSpriteSerializer')
+
+        # Test protocol methods exist
+        protocol = canvas_interfaces.AnimatedSpriteSerializer
+        assert hasattr(protocol, '__abstractmethods__')
+
+    def test_static_canvas_interface_initialization(self):
+        """Test static canvas interface initialization."""
+        # Test StaticCanvasInterface initialization - requires canvas_sprite parameter
+        canvas_sprite = self._create_canvas_sprite()
+        interface = canvas_interfaces.StaticCanvasInterface(canvas_sprite)
+
+        # Test basic properties
+        assert interface.canvas_sprite is canvas_sprite
+        assert interface.get_dimensions() == (CANVAS_SIZE, CANVAS_SIZE)
+
+    def test_static_canvas_interface_pixel_operations(self):
+        """Test static canvas interface pixel operations."""
+        canvas_sprite = self._create_canvas_sprite()
+        interface = canvas_interfaces.StaticCanvasInterface(canvas_sprite)
+
+        # Test that interface has expected methods
+        assert hasattr(interface, 'get_pixel_data')
+        assert hasattr(interface, 'set_pixel_data')
+        assert hasattr(interface, 'get_dimensions')
+        assert callable(interface.get_pixel_data)
+        assert callable(interface.set_pixel_data)
+        assert callable(interface.get_dimensions)
+
+    def test_animated_canvas_interface_initialization(self):
+        """Test animated canvas interface initialization."""
+        canvas_sprite = self._create_canvas_sprite()
+
+        interface = canvas_interfaces.AnimatedCanvasInterface(canvas_sprite)
+
+        assert interface.canvas_sprite is canvas_sprite
+        assert interface.current_animation == 'idle'
+        assert interface.current_frame == 0
+        assert interface.get_pixel_at(0, 0) == RED
+
+    def test_static_canvas_interface_comprehensive(self):
+        """Test comprehensive static canvas interface functionality."""
+        canvas_sprite = self._create_canvas_sprite()
+        interface = canvas_interfaces.StaticCanvasInterface(canvas_sprite)
+
+        # Test that interface has expected methods
+        assert hasattr(interface, 'get_pixel_data')
+        assert hasattr(interface, 'set_pixel_data')
+        assert hasattr(interface, 'get_dimensions')
+        assert callable(interface.get_pixel_data)
+        assert callable(interface.set_pixel_data)
+        assert callable(interface.get_dimensions)
+
+    def test_static_sprite_serializer(self):
+        """Test static sprite serializer functionality."""
+        # Test StaticSpriteSerializer initialization - takes no arguments
+        serializer = canvas_interfaces.StaticSpriteSerializer()
+
+        # Test basic properties - StaticSpriteSerializer doesn't have canvas_sprite attribute
+        # It's an abstract base class, so we just verify it can be instantiated
+        assert serializer is not None
+
+
 class TestAnimatedCanvasInterfaceGetPixelAtWithAnimatedSprite:
     """Test AnimatedCanvasInterface.get_pixel_at with actual animated sprite data."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_pixel_at_from_animated_sprite_frame(self, mocker):
         """Test get_pixel_at retrieves pixel from animated sprite frame."""
@@ -204,11 +204,6 @@ class TestAnimatedCanvasInterfaceGetPixelAtWithAnimatedSprite:
 
 class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
     """Test AnimatedCanvasInterface.set_pixel_at with full undo tracking path."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_set_pixel_at_with_animated_sprite(self, mocker):
         """Test set_pixel_at updates pixel in animated sprite frame."""
@@ -324,11 +319,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
 class TestAnimatedCanvasInterfaceGetOldPixelColor:
     """Test AnimatedCanvasInterface._get_old_pixel_color method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_old_pixel_from_animated_sprite(self, mocker):
         """Test _get_old_pixel_color retrieves from animated sprite frame."""
         canvas_sprite = mocker.Mock()
@@ -374,17 +364,12 @@ class TestAnimatedCanvasInterfaceGetOldPixelColor:
 class TestAnimatedCanvasInterfaceShouldTrackColorChangeDeeper:
     """Test AnimatedCanvasInterface._should_track_color_change with tracker present."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_tracks_when_tracker_present_and_not_applying_undo(self, mocker):
         """Test color change is tracked when canvas_operation_tracker exists."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = False
+        canvas_sprite.parent_scene.applying_undo_redo = False
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)
@@ -396,7 +381,7 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChangeDeeper:
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene = mocker.Mock()
         canvas_sprite.parent_scene.canvas_operation_tracker = mocker.Mock()
-        canvas_sprite.parent_scene._applying_undo_redo = True
+        canvas_sprite.parent_scene.applying_undo_redo = True
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)
@@ -416,11 +401,6 @@ class TestAnimatedCanvasInterfaceShouldTrackColorChangeDeeper:
 
 class TestAnimatedCanvasInterfaceCollectPixelChange:
     """Test AnimatedCanvasInterface._collect_pixel_change method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_collect_first_pixel_change(self, mocker):
         """Test collecting the first pixel change creates tracking structures."""
@@ -454,11 +434,6 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
 
 class TestStaticCanvasInterfaceSetPixelAtDeeper:
     """Test StaticCanvasInterface set_pixel_at edge cases."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_set_pixel_at_high_y_coordinate(self, mocker):
         """Test set_pixel_at with high y coordinate is out of bounds."""
@@ -495,11 +470,6 @@ class TestStaticCanvasInterfaceSetPixelAtDeeper:
 
 class TestAnimatedCanvasInterfaceControllerDragActiveDeeper:
     """Test _is_controller_drag_active with multiple controllers."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_multiple_controllers_one_active(self, mocker):
         """Test returns True when one of multiple controllers has active drag."""

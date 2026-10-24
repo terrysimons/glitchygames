@@ -24,6 +24,7 @@ from glitchygames.bitmappy.constants import (
     JOYSTICK_HAT_DOWN,
     JOYSTICK_HAT_LEFT,
     JOYSTICK_HAT_RIGHT,
+    JOYSTICK_HAT_UP,
     JOYSTICK_LEFT_SHOULDER_BUTTON,
 )
 from glitchygames.bitmappy.controllers.canvas_operations import CanvasOperations
@@ -38,8 +39,17 @@ from glitchygames.clock import elapsed_seconds
 from glitchygames.input.state import current_input
 
 if TYPE_CHECKING:
+    from glitchygames.bitmappy.controllers.manager import ControllerInfo
     from glitchygames.bitmappy.protocols import EditorContext
     from glitchygames.sprites import BitmappySprite
+
+# The hat positions that name a direction (diagonals name none)
+HAT_DIRECTION_NAMES: dict[tuple[int, int], str] = {
+    JOYSTICK_HAT_UP: 'up',
+    JOYSTICK_HAT_RIGHT: 'right',
+    JOYSTICK_HAT_DOWN: 'down',
+    JOYSTICK_HAT_LEFT: 'left',
+}
 
 
 class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
@@ -237,11 +247,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     # Core controller event dispatch
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_controller_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_down_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button down events for multi-controller system.
 
         Args:
-            event (pygame.event.Event): The controller button down event.
+            event (ControllerButtonEvent): The controller button down event.
 
         """
         # Scan for controllers and update manager
@@ -254,17 +264,18 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         if not controller_info:
             return
 
-        self.log.debug(f'Controller button down: {event.button}')
+        self.log.debug('Controller button down: %s', event.button)
 
         # Handle controller assignment on first button press
         if controller_info.status.value == 'connected':
             controller_id = self.editor.multi_controller_manager.assign_controller(instance_id)
-            if controller_id is not None:
-                # Create controller selection for this controller
-                self.editor.controller_selections[controller_id] = ControllerSelection(
-                    controller_id,
-                    instance_id,
-                )
+            # A known, connected controller is always assigned
+            assert controller_id is not None
+            # Create controller selection for this controller
+            self.editor.controller_selections[controller_id] = ControllerSelection(
+                controller_id,
+                instance_id,
+            )
 
         # Get controller ID for this instance
         controller_id = self.editor.multi_controller_manager.get_controller_id(instance_id)
@@ -292,13 +303,13 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             strategy.handle_button_down(controller_id, event.button)
         else:
             # Fallback for controllers without a registered mode
-            self.log.debug(f'Controller {controller_id}: no strategy found, skipping button press')
+            self.log.debug('Controller %s: no strategy found, skipping button press', controller_id)
 
-    def on_controller_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_up_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The controller button up event.
+            event (ControllerButtonEvent): The controller button up event.
 
         """
         instance_id = event.instance_id
@@ -317,11 +328,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     # Joystick event handling
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_joy_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_down_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button down events (for controllers detected as joysticks).
 
         Args:
-            event (pygame.event.Event): The joystick button down event.
+            event (JoyButtonEvent): The joystick button down event.
 
         """
         # Map joystick buttons to controller actions
@@ -339,85 +350,75 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             # Unknown joystick button - not handled
             pass
 
-    def on_joy_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_up_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button up events.
 
         Args:
-            event (pygame.event.Event): The joystick button up event.
+            event (JoyButtonEvent): The joystick button up event.
 
         """
 
-    def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_hat_motion_event(self, event: events.JoyHatEvent) -> None:
         """Handle joystick hat motion events - requires threshold to prevent jittery behavior.
 
         Args:
-            event (pygame.event.Event): The joystick hat motion event.
+            event (JoyHatEvent): The joystick hat motion event.
 
         """
-        self.log.debug(f'DEBUG: Joystick hat motion: hat={event.hat}, value={event.value}')
+        self.log.debug('DEBUG: Joystick hat motion: hat=%s, value=%s', event.hat, event.value)
 
-        # Only respond to strong hat inputs (threshold > 0.5)
-        # Hat values can be either:
-        # - Integer bitmask: 0=center, 1=up, 2=right, 4=down, 8=left, etc.
-        # - Tuple (x, y): (0,0)=center, (0,1)=up, (1,0)=right, (0,-1)=down, (-1,0)=left
-        if isinstance(event.value, tuple):
-            # For tuple, calculate magnitude
-            hat_magnitude: float = (event.value[0] ** 2 + event.value[1] ** 2) ** 0.5  # type: ignore[index]
-            if hat_magnitude < HAT_INPUT_MAGNITUDE_THRESHOLD:
-                self.log.debug('DEBUG: Joystick hat motion below threshold, ignoring')
-                return
-        # For integer bitmask, use abs
-        elif abs(event.value) < HAT_INPUT_MAGNITUDE_THRESHOLD:
+        # Only respond to strong hat inputs (threshold > 0.5). pygame reports a hat's position
+        # as an (x, y) tuple: (0, 0) centered, (0, 1) up, (1, 0) right, (0, -1) down, (-1, 0)
+        # left (the directions were compared with integer bitmasks, which never matched)
+        hat_x, hat_y = event.value
+        hat_magnitude = (hat_x**2 + hat_y**2) ** 0.5
+        if hat_magnitude < HAT_INPUT_MAGNITUDE_THRESHOLD:
             self.log.debug('DEBUG: Joystick hat motion below threshold, ignoring')
             return
 
-        # Map hat directions to controller actions
-        if event.value == 1:  # type: ignore[comparison-overlap]  # Up
-            self.log.debug('DEBUG: Joystick hat up - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
-        if event.value == JOYSTICK_HAT_RIGHT:  # type: ignore[comparison-overlap]  # Right
-            self.log.debug('DEBUG: Joystick hat right - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
-        if event.value == JOYSTICK_HAT_DOWN:  # type: ignore[comparison-overlap]  # Down
-            self.log.debug('DEBUG: Joystick hat down - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
-        if event.value == JOYSTICK_HAT_LEFT:  # type: ignore[comparison-overlap]  # Left
-            self.log.debug('DEBUG: Joystick hat left - DISABLED (use multi-controller system)')
-            # OLD SYSTEM DISABLED - Use multi-controller system instead
-            return
+        # Map hat directions to controller actions: each is disabled (the multi-controller
+        # system handles them); a diagonal matches no direction
+        direction = HAT_DIRECTION_NAMES.get(event.value)
+        if direction is not None:
+            self.log.debug(
+                'DEBUG: Joystick hat %s - DISABLED (use multi-controller system)', direction
+            )
 
-    def on_joy_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_axis_motion_event(self, event: events.JoyAxisEvent) -> None:
         """Handle joystick axis motion events - disabled to prevent jittery behavior.
 
         Args:
-            event (pygame.event.Event): The joystick axis motion event.
+            event (JoyAxisEvent): The joystick axis motion event.
 
         """
         # Handle trigger axis motion for mode switching (axes 4 and 5)
         if event.axis in {4, 5}:  # TRIGGERLEFT and TRIGGERRIGHT
             self.log.debug(
-                f'DEBUG: Trigger axis motion detected: axis={event.axis}, value={event.value}',
+                'DEBUG: Trigger axis motion detected: axis=%s, value=%s',
+                event.axis,
+                event.value,
             )
             self._handle_trigger_axis_motion(event)
             return
 
         self.log.debug(
-            f'DEBUG: Joystick axis motion (DISABLED): axis={event.axis}, value={event.value}',
+            'DEBUG: Joystick axis motion (DISABLED): axis=%s, value=%s',
+            event.axis,
+            event.value,
         )
         # Disabled to prevent jittery behavior
 
-    def on_joy_ball_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_ball_motion_event(self, event: events.JoyBallEvent) -> None:
         """Handle joystick ball motion events - disabled to prevent jittery behavior.
 
         Args:
-            event (pygame.event.Event): The joystick ball motion event.
+            event (JoyBallEvent): The joystick ball motion event.
 
         """
         self.log.debug(
-            f'DEBUG: Joystick ball motion (DISABLED): ball={event.ball}, rel={event.rel}',
+            'DEBUG: Joystick ball motion (DISABLED): ball=%s, rel=%s',
+            event.ball,
+            event.rel,
         )
         # Disabled to prevent jittery behavior
 
@@ -425,11 +426,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     # Controller axis motion
     # ──────────────────────────────────────────────────────────────────────
 
-    def on_controller_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_controller_axis_motion_event(self, event: events.ControllerAxisEvent) -> None:
         """Handle controller axis motion events.
 
         Args:
-            event (pygame.event.Event): The controller axis motion event.
+            event (ControllerAxisEvent): The controller axis motion event.
 
         """
         # Handle trigger axis motion for mode switching
@@ -448,14 +449,14 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             event (pygame.event.Event): The controller axis motion event.
 
         """
-        self.log.debug(f'DEBUG: Controller axis motion: axis={event.axis}, value={event.value}')
-        self.log.debug(f'DEBUG: LEFT_X axis constant: {pygame.CONTROLLER_AXIS_LEFTX}')
-        self.log.debug(f'DEBUG: LEFT_Y axis constant: {pygame.CONTROLLER_AXIS_LEFTY}')
-        self.log.debug(f'DEBUG: RIGHT_X axis constant: {pygame.CONTROLLER_AXIS_RIGHTX}')
-        self.log.debug(f'DEBUG: RIGHT_Y axis constant: {pygame.CONTROLLER_AXIS_RIGHTY}')
+        self.log.debug('DEBUG: Controller axis motion: axis=%s, value=%s', event.axis, event.value)
+        self.log.debug('DEBUG: LEFT_X axis constant: %s', pygame.CONTROLLER_AXIS_LEFTX)
+        self.log.debug('DEBUG: LEFT_Y axis constant: %s', pygame.CONTROLLER_AXIS_LEFTY)
+        self.log.debug('DEBUG: RIGHT_X axis constant: %s', pygame.CONTROLLER_AXIS_RIGHTX)
+        self.log.debug('DEBUG: RIGHT_Y axis constant: %s', pygame.CONTROLLER_AXIS_RIGHTY)
         self.log.debug(
-            'DEBUG: Controller selection active:'
-            f' {getattr(self, "controller_selection_active", False)}',
+            'DEBUG: Controller selection active: %s',
+            getattr(self, 'controller_selection_active', False),
         )
 
         # Left stick for fine frame navigation (only if controller selection is active)
@@ -568,11 +569,15 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         # Register controller with mode switcher if not already registered
         if controller_id not in self.editor.mode_switcher.controller_modes:
             self.editor.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
-            self.log.debug(f'DEBUG: Registered controller {controller_id} with mode switcher')
+            self.log.debug('DEBUG: Registered controller %s with mode switcher', controller_id)
 
         current_time = elapsed_seconds()
 
         l2_value, r2_value = self._read_trigger_values(event, controller_id)
+
+        # Read the mode before handle_trigger_input switches it, so undo can restore it
+        # (BUGS.md #95)
+        old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
 
         # Handle mode switching
         new_mode = self.editor.mode_switcher.handle_trigger_input(
@@ -583,13 +588,17 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         )
 
         if new_mode:
-            self.log.debug(f'DEBUG: Controller {controller_id} switched to mode: {new_mode.value}')
-            self._track_controller_mode_change(controller_id, new_mode)
+            self.log.debug(
+                'DEBUG: Controller %s switched to mode: %s', controller_id, new_mode.value
+            )
+            self._track_controller_mode_change(controller_id, new_mode, old_mode=old_mode)
             self.indicators.update_controller_visual_indicator_for_mode(controller_id, new_mode)
         else:
             self.log.debug(
-                f'DEBUG: No mode switch for controller {controller_id} - L2: {l2_value:.2f}, R2:'
-                f' {r2_value:.2f}',
+                'DEBUG: No mode switch for controller %s - L2: %.2f, R2: %.2f',
+                controller_id,
+                l2_value,
+                r2_value,
             )
 
     def _get_controller_id_from_event(self, event: events.HashableEvent) -> int | None:
@@ -606,16 +615,18 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             instance_id = event.instance_id
             controller_id = self.editor.multi_controller_manager.get_controller_id(instance_id)
             self.log.debug(
-                f'DEBUG: Controller event - instance_id={instance_id},'
-                f' controller_id={controller_id}',
+                'DEBUG: Controller event - instance_id=%s, controller_id=%s',
+                instance_id,
+                controller_id,
             )
             return controller_id
 
         # Joystick event - use device index directly
         device_index = event.joy
         self.log.debug(
-            f'DEBUG: Joystick event - using device index {device_index} as controller ID'
-            f' {device_index}',
+            'DEBUG: Joystick event - using device index %s as controller ID %s',
+            device_index,
+            device_index,
         )
         return device_index
 
@@ -660,11 +671,12 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             event.instance_id,
         )
         self.log.debug(
-            f'DEBUG: Controller info lookup - instance_id={event.instance_id},'
-            f' controller_info={controller_info}',
+            'DEBUG: Controller info lookup - instance_id=%s, controller_info=%s',
+            event.instance_id,
+            controller_info,
         )
         if not controller_info:
-            self.log.debug(f'DEBUG: No controller info found for instance_id={event.instance_id}')
+            self.log.debug('DEBUG: No controller info found for instance_id=%s', event.instance_id)
             return 0.0, 0.0
 
         # The frame's input snapshot (glitchygames/input/state.py) holds the joystick-layer
@@ -680,7 +692,10 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         l2_value = (l2_raw + 1.0) / 2.0
         r2_value = (r2_raw + 1.0) / 2.0
         self.log.debug(
-            f'DEBUG: Controller {controller_id} triggers - L2: {l2_value:.2f}, R2: {r2_value:.2f}',
+            'DEBUG: Controller %s triggers - L2: %.2f, R2: %.2f',
+            controller_id,
+            l2_value,
+            r2_value,
         )
         return l2_value, r2_value
 
@@ -732,20 +747,30 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         )
         return l2_value, r2_value
 
-    def _track_controller_mode_change(self, controller_id: int, new_mode: ControllerMode) -> None:
+    def _track_controller_mode_change(
+        self,
+        controller_id: int,
+        new_mode: ControllerMode,
+        *,
+        old_mode: ControllerMode | None = None,
+    ) -> None:
         """Track a controller mode change for undo/redo.
 
         Args:
             controller_id: The controller ID.
             new_mode: The new ControllerMode.
+            old_mode: The mode switched from. A caller that has already switched the mode
+                must pass it (BUGS.md #95); when None, the controller's current mode is read,
+                which is right only before the switch.
 
         """
-        if getattr(self, '_applying_undo_redo', False):
+        if getattr(self, 'applying_undo_redo', False):
             return
         if not hasattr(self.editor, 'controller_position_operation_tracker'):
             return
 
-        old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
+        if old_mode is None:
+            old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
         if old_mode:
             self.editor.controller_position_operation_tracker.add_controller_mode_change(
                 controller_id,
@@ -777,7 +802,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             return False
         return current_input().button(device_id=controller_info.instance_id, button=button)
 
-    def find_controller_info(self, controller_id: int) -> Any:
+    def find_controller_info(self, controller_id: int) -> ControllerInfo | None:
         """Find controller info by controller ID.
 
         This method is public because it is used by composition delegates

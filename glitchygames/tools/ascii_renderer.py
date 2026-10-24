@@ -270,10 +270,10 @@ class ASCIIRenderer:
             if 'name' in sprite_section:
                 output_lines.append(f'name = "{sprite_section["name"]}"')
 
-            if pixels:
-                output_lines.append('pixels = """')
-                colorized_pixels = self.colorize_pixels(pixels, colors)
-                output_lines.extend((colorized_pixels, '"""'))
+            # pixels is not empty: an empty one returned above
+            output_lines.append('pixels = """')
+            colorized_pixels = self.colorize_pixels(pixels, colors)
+            output_lines.extend((colorized_pixels, '"""'))
 
         # Skip colors section - just show the colorized pixels
 

@@ -6,6 +6,7 @@ This module tests sound loading, SFX constants, and sound-related functionality.
 import sys
 from pathlib import Path
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -13,68 +14,49 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects import load_sound
 from glitchygames.game_objects.sounds import SFX
-from tests.mocks.test_mock_factory import MockFactory
+
+# The mixer stores volume in 1/128 steps, so a volume reads back to within one step
+MIXER_VOLUME_STEP = 1 / 128
 
 
 class TestGameObjectsSounds:
-    """Test game objects sound functionality."""
+    """Test game objects sound functionality on the real mixer."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    @pytest.mark.parametrize('sound_name', [SFX.BOUNCE, SFX.SLAP])
+    def test_load_sound_function(self, sound_name):
+        """load_sound loads the bundled file as a real Sound at the given volume."""
+        result = load_sound(sound_name, 0.5)
 
-    def test_load_sound_function(self, mocker):
-        """Test load_sound function."""
-        mock_sound = mocker.Mock()
-        mock_sound_class = mocker.patch(
-            'glitchygames.game_objects.sounds.pygame.mixer.Sound',
-            return_value=mock_sound,
-        )
+        assert isinstance(result, pygame.mixer.Sound)
+        assert result.get_length() > 0
+        assert result.get_volume() == pytest.approx(0.5, abs=MIXER_VOLUME_STEP)
 
-        result = load_sound('test.wav', 0.5)
-
-        # Verify the sound was created with correct path
-        expected_path = (
+    def test_load_sound_reads_the_bundled_file(self):
+        """The Sound holds the bundled file's samples: loading it directly gives the same bytes."""
+        bundled_path = (
             Path(__file__).parent.parent.parent
             / 'glitchygames'
             / 'game_objects'
             / 'snd_files'
-            / 'test.wav'
+            / SFX.BOUNCE
         )
-        mock_sound_class.assert_called_once_with(expected_path)
 
-        # Verify volume was set
-        mock_sound.set_volume.assert_called_once_with(0.5)
+        result = load_sound(SFX.BOUNCE)
 
-        # Verify return value
-        assert result == mock_sound
+        assert result.get_raw() == pygame.mixer.Sound(bundled_path).get_raw()
 
-    def test_load_sound_default_volume(self, mocker):
+    def test_load_sound_default_volume(self):
         """Test load_sound function with default volume."""
-        mock_sound = mocker.Mock()
-        mocker.patch(
-            'glitchygames.game_objects.sounds.pygame.mixer.Sound',
-            return_value=mock_sound,
-        )
+        result = load_sound(SFX.BOUNCE)
 
-        result = load_sound('test.wav')
-
-        # Verify default volume was used
-        mock_sound.set_volume.assert_called_once_with(0.25)
-        assert result == mock_sound
+        assert result.get_volume() == pytest.approx(0.25, abs=MIXER_VOLUME_STEP)
 
     def test_sfx_constants(self):
         """Test SFX constants."""
         assert SFX.BOUNCE == 'sfx_bounce.wav'
         assert SFX.SLAP == 'sfx_slap.wav'
 
-    def test_load_sound_with_nonexistent_file(self, mocker):
-        """Test load_sound with nonexistent file."""
-        mocker.patch(
-            'glitchygames.game_objects.sounds.pygame.mixer.Sound',
-            side_effect=FileNotFoundError('File not found'),
-        )
-
-        with pytest.raises(FileNotFoundError):
+    def test_load_sound_with_nonexistent_file(self):
+        """A missing sound file raises FileNotFoundError from the real mixer."""
+        with pytest.raises(FileNotFoundError, match=r'nonexistent\.wav'):
             load_sound('nonexistent.wav')

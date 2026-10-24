@@ -6,7 +6,6 @@ from typing import Any, Self, override
 
 import pygame
 
-# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     GRAVITY,
@@ -81,6 +80,11 @@ class PapyrusPlayer(AnimatedSprite):
         # GroundConstraint, so we build the body manually without one.
         # World left edge: refitted to the hitbox every tick (see _fit_world_edge_to_hitbox)
         self._world_edge_bounds = BoundsConstraint(min_x=0.0)
+        # Kept so the move methods set its target directly (the body always has it)
+        self._acceleration_behavior = AccelerationBehavior(
+            acceleration=PLAYER_ACCELERATION,
+            deceleration=PLAYER_DECELERATION,
+        )
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
@@ -89,10 +93,7 @@ class PapyrusPlayer(AnimatedSprite):
                     strength=GRAVITY,
                     terminal_velocity=MAX_FALL_SPEED,
                 ),
-                AccelerationBehavior(
-                    acceleration=PLAYER_ACCELERATION,
-                    deceleration=PLAYER_DECELERATION,
-                ),
+                self._acceleration_behavior,
             ],
             constraints=[self._world_edge_bounds],
         )
@@ -107,6 +108,8 @@ class PapyrusPlayer(AnimatedSprite):
         # Game state
         self.lives: int = STARTING_LIVES
         self.score: int = 0
+        # Gold scarab bonuses collected; the score is the distance score plus these
+        self.bonus_points: int = 0
         self.max_distance: float = 0.0
 
         # Visual effects
@@ -120,8 +123,8 @@ class PapyrusPlayer(AnimatedSprite):
 
         # State machine is auto-loaded from TOML [[transition]] sections
         # (including the falling transitions; see sprites/player.toml).
-        if self.state_machine is not None:
-            self.state_machine.set_state(self.IDLE)
+        assert self.state_machine is not None, 'player.toml declares the [[transition]]s'
+        self.state_machine.set_state(self.IDLE)
 
     # --- Property delegates to PhysicsBody ---
 
@@ -204,10 +207,10 @@ class PapyrusPlayer(AnimatedSprite):
         self._fit_world_edge_to_hitbox()
         self.physics.tick(dt)
 
-        # State machine evaluates transitions from TOML + code overrides
-        if self.state_machine is not None:
-            context = self.physics.get_animation_context()
-            self.state_machine.evaluate(context, dt)
+        # State machine evaluates the transitions player.toml declares
+        assert self.state_machine is not None, 'player.toml declares the [[transition]]s'
+        context = self.physics.get_animation_context()
+        self.state_machine.evaluate(context, dt)
 
         # Advance TOML animation frames and fix transparency
         AnimatedSprite.update(self, dt)
@@ -234,23 +237,17 @@ class PapyrusPlayer(AnimatedSprite):
 
     def move_right(self) -> None:
         """Start moving right with smooth acceleration."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = PLAYER_RUN_SPEED
+        self._acceleration_behavior.target_velocity_x = PLAYER_RUN_SPEED
         self.facing_right = True
 
     def move_left(self) -> None:
         """Start moving left with smooth acceleration."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = -PLAYER_RUN_SPEED
+        self._acceleration_behavior.target_velocity_x = -PLAYER_RUN_SPEED
         self.facing_right = False
 
     def stop_horizontal(self) -> None:
         """Smoothly decelerate to a stop."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = 0.0
+        self._acceleration_behavior.target_velocity_x = 0.0
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

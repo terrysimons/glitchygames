@@ -30,6 +30,7 @@ from scripts.record_golden_traces import (
 
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.input import ActionMap
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.scenes.scene import (
@@ -37,6 +38,7 @@ from glitchygames.scenes.scene import (
     is_discarded_during_transition,
 )
 from glitchygames.transitions import FadeTransition
+from tests.input.stand_in_devices import install_stand_in_devices
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -58,6 +60,18 @@ STICK_ACTION_THRESHOLD = 0.3
 STICK_FULL_RIGHT = 1.0
 STICK_CENTRED = 0.05  # Inside DEFAULT_DEADZONE (0.15): a stick at rest
 TEST_JOYSTICK_INSTANCE_ID = 3
+# The stand-in joystick the stick and hat tests connect (unmapped: its joystick events dispatch)
+TEST_JOYSTICK = DeviceDescriptor(
+    kind=JOYSTICK_KIND,
+    device_index=0,
+    instance_id=TEST_JOYSTICK_INSTANCE_ID,
+    name='Transition Test Stick',
+    guid=None,
+    axis_count=2,
+    button_count=2,
+    hat_count=1,
+    ball_count=0,
+)
 
 
 def new_shared_actions() -> ActionMap:
@@ -142,11 +156,15 @@ class EscapePausingScene(DepartureScene):
 
 
 @contextlib.contextmanager
-def running_game(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]:
+def running_game(
+    scene_class: type[Scene], *, with_joystick: bool = False
+) -> Generator[GoldenTraceSceneManager]:
     """Start a game headless in the harness's deterministic environment.
 
     Args:
         scene_class: The game's scene class.
+        with_joystick: Connect TEST_JOYSTICK (a stand-in, through the devices door) at start,
+            so its events reach the active scene.
 
     Yields:
         The scene manager with the game scene active.
@@ -173,6 +191,8 @@ def running_game(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]
                 str(RANDOM_SEED),
             ]):
                 engine = GoldenTraceEngine(game=scene_class)
+            if with_joystick:
+                install_stand_in_devices(descriptors=[TEST_JOYSTICK])
             engine.install_game(scene_class=scene_class)
             yield manager
         finally:
@@ -211,35 +231,6 @@ def step_until_transition_ends(manager: GoldenTraceSceneManager) -> None:
             return
         step(manager)
     pytest.fail('The transition never ended')
-
-
-class ForwardingJoystick:
-    """Stands in for a connected joystick: forwards its motion to the scene manager."""
-
-    def __init__(self, *, manager: GoldenTraceSceneManager) -> None:
-        """Forward to this scene manager."""
-        self.manager = manager
-
-    def on_joy_axis_motion_event(self, event: Any) -> None:
-        """Forward axis motion."""
-        self.manager.on_joy_axis_motion_event(event)
-
-    def on_joy_hat_motion_event(self, event: Any) -> None:
-        """Forward hat motion."""
-        self.manager.on_joy_hat_motion_event(event)
-
-
-def connect_test_joystick(manager: GoldenTraceSceneManager) -> None:
-    """Register a stand-in joystick, so its events reach the active scene.
-
-    Args:
-        manager: The running scene manager.
-
-    """
-    assert manager.game_engine is not None
-    manager.game_engine.joystick_manager.joysticks[TEST_JOYSTICK_INSTANCE_ID] = ForwardingJoystick(
-        manager=manager
-    )
 
 
 def stick_x(value: float) -> pygame.event.Event:
@@ -406,8 +397,7 @@ def test_controller_disconnect_during_transition_is_processed(mocker):
 
 def test_stick_pushed_before_transition_and_centred_during_it_is_not_held_after():
     """A stick back inside the deadzone mid-transition is a release: it is delivered."""
-    with running_game(DepartureScene) as manager:
-        connect_test_joystick(manager)
+    with running_game(DepartureScene, with_joystick=True) as manager:
         step(manager, stick_x(STICK_FULL_RIGHT))
         assert ArrivalScene.shared_actions.is_held('move_right')
 
@@ -420,8 +410,7 @@ def test_stick_pushed_before_transition_and_centred_during_it_is_not_held_after(
 
 def test_stick_pushed_during_transition_is_discarded():
     """A stick pushed outside the deadzone mid-transition is a press: it is discarded."""
-    with running_game(DepartureScene) as manager:
-        connect_test_joystick(manager)
+    with running_game(DepartureScene, with_joystick=True) as manager:
         start_departure(manager)
         step(manager, stick_x(STICK_FULL_RIGHT))
         step_until_transition_ends(manager)
@@ -432,8 +421,7 @@ def test_stick_pushed_during_transition_is_discarded():
 
 def test_hat_centred_during_transition_is_delivered_and_pushed_hat_discarded():
     """A hat back at (0, 0) mid-transition is delivered; a pushed hat is not."""
-    with running_game(DepartureScene) as manager:
-        connect_test_joystick(manager)
+    with running_game(DepartureScene, with_joystick=True) as manager:
         step(manager, hat((1, 0)))
         assert ArrivalScene.hat_values == {0: (1, 0)}
 

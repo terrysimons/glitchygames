@@ -119,6 +119,15 @@ class TestEncodeFrame:
         )
         assert encoded['changed'] == [{'id': 'Ball#0', 'rect': [10.1, 20, 4, 4]}]
 
+    def test_a_rect_that_is_not_a_list_is_recorded_whole(self):
+        """A rect replaced by something that is not a list (None) cannot be a delta."""
+        previous_frame = _frame(0, BALL)
+        frame = _frame(1, {**BALL, 'rect': None})
+        line_record = encode_frame(frame_record=frame, previous_frame_record=previous_frame)
+
+        assert line_record['changed'] == [{'id': 'Ball#0', 'rect': None}]
+        assert decode_frame(line_record=line_record, previous_frame_record=previous_frame) == frame
+
     def test_sprite_whose_fields_change_is_rejected(self):
         ball_with_layer = {**BALL, 'layer': 2}
         with pytest.raises(TraceFormatError, match='Ball#0'):
@@ -413,6 +422,8 @@ class TestMalformedLines:
             {'frame': 1, 'kind': 'delta', 'order': 'Ball#0'},
             {'frame': 1, 'kind': 'keyframe', 'scene': 'Level', 'sprites': None},
             {'frame': 1, 'kind': 'keyframe', 'sprites': []},
+            {'frame': 1, 'kind': 'delta', 'removed': ['Coin#0']},
+            {'frame': 1, 'kind': 'delta', 'added': [_sprite('Ball#0', [0, 0, 4, 4])]},
         ],
         ids=[
             'short-rect-delta',
@@ -423,6 +434,8 @@ class TestMalformedLines:
             'order-not-a-list',
             'keyframe-sprites-null',
             'keyframe-without-scene',
+            'removes-a-sprite-not-present',
+            'adds-a-sprite-already-present',
         ],
     )
     def test_damaged_record_raises_trace_format_error(self, line_record):
@@ -524,6 +537,36 @@ class TestTraceReader:
             with pytest.raises(ValueError, match='once'):
                 list(reader)
 
+    def test_a_frame_line_that_is_not_an_object_is_rejected(self, tmp_path):
+        """A frame line holding JSON that is not an object names its line."""
+        path = tmp_path / 'list.jsonl.gz'
+        path.write_bytes(gzip.compress(b'{"format_version":3}\n[1, 2]\n', mtime=0))
+        with (
+            TraceReader(path=path) as reader,
+            pytest.raises(TraceFormatError, match='line 2 is not a JSON object'),
+        ):
+            list(reader)
+
+    def test_data_after_the_gzip_stream_in_the_same_chunk_is_rejected(self, tmp_path):
+        """Bytes after the end of the gzip stream mean the file is not one trace."""
+        path = tmp_path / 'trailing.jsonl.gz'
+        write_trace(trace=self._moving_trace(frame_count=2), path=path)
+        path.write_bytes(path.read_bytes() + b'trailing garbage')
+        with pytest.raises(TraceFormatError, match='unexpected data after the end'):
+            read_trace(path=path)
+
+    def test_data_after_the_gzip_stream_in_a_later_chunk_is_rejected(self, tmp_path):
+        """The stream ends exactly at a chunk boundary; the extra bytes come in the next read."""
+        path = tmp_path / 'trailing.jsonl.gz'
+        write_trace(trace=self._moving_trace(frame_count=2), path=path)
+        stream_size = path.stat().st_size
+        path.write_bytes(path.read_bytes() + b'trailing garbage')
+        with (
+            TraceReader(path=path, chunk_bytes=stream_size) as reader,
+            pytest.raises(TraceFormatError, match='unexpected data after the end'),
+        ):
+            list(reader)
+
     def test_unknown_format_version_is_rejected_on_open(self, tmp_path):
         path = tmp_path / 'future.jsonl.gz'
         path.write_bytes(gzip.compress(b'{"format_version":4}\n', mtime=0))
@@ -568,6 +611,17 @@ class TestTraceWriter:
             writer.write_frame(frame_record=_frame(0, BALL))
             writer.write_frame(frame_record=_frame(1, BALL))
         assert writer.frame_count == 2
+        assert read_trace_result(path=path).is_complete is True
+
+    def test_closing_twice_does_nothing(self, tmp_path):
+        """A second close leaves the finished file as the first close wrote it."""
+        path = tmp_path / 'trace.jsonl.gz'
+        writer = TraceWriter(path=path, header={'game': 'example'})
+        writer.write_frame(frame_record=_frame(0, BALL))
+        writer.close()
+        written_bytes = path.read_bytes()
+        writer.close()
+        assert path.read_bytes() == written_bytes
         assert read_trace_result(path=path).is_complete is True
 
     def test_write_after_close_is_an_error(self, tmp_path):

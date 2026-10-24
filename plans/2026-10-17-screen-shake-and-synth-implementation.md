@@ -94,7 +94,7 @@ sweep comparison, Task 6 end-of-shake redraw).
 | `tests/audio/__init__.py`, `tests/audio/test_synth.py`, `tests/audio/test_recipes.py`, `tests/audio/test_live.py` | create | Audio layers (`tests/audio/` exists but is empty) |
 | `tests/examples/test_brave_adventurer_sounds.py` + `tests/examples/brave_adventurer_golden/*.npy` | create | Migration goldens |
 | `tests/examples/test_clockwork_keep.py` | create | Clockwork Keep behavior (no existing file) |
-| `tests/mocks/test_mock_factory.py` | modify | Mixer mock returns real-shaped channel counts |
+| `tests/mocks/test_mock_factory.py` | modify | Mixer mock returns real-shaped channel counts (`tests/mocks` has since been deleted, `6861d0c5`; tests use real pygame) |
 | `CLAUDE.md`, `BUGS.md` | modify | Docs |
 
 ---
@@ -3423,7 +3423,7 @@ class SoundBank:
   - `GameEngine.live_voice_channels: tuple[int, ...]`; `SceneManager.live_audio` (lazy property).
 
 - [ ] **Step 1: Fix the mixer mock first** (so engine/scene tests keep working once the engine
-  reserves channels). In `tests/mocks/test_mock_factory.py` after line 1606:
+  reserves channels; `tests/mocks` has since been deleted, `6861d0c5`; tests use real pygame). In `tests/mocks/test_mock_factory.py` after line 1606:
 
 ```python
         mixer_mock.get_num_channels.return_value = 8  # pygame-ce's default channel count

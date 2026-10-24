@@ -14,6 +14,7 @@ import pytest
 
 import glitchygames.game_objects.ball as ball_module
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite, ServeSettings
 from glitchygames.movement import Speed
 from glitchygames.randomness import random_stream
@@ -37,7 +38,7 @@ def real_display():
     """Give BallSprite a real display to convert its image against."""
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode(SCREEN_SIZE)
+        set_display_mode(size=SCREEN_SIZE)
 
 
 def make_bouncing_ball(*, bounce_left_right=True):

@@ -13,12 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-from glitchygames.collision.detection import snapped_world_position
+from glitchygames.collision.detection import is_world_rect_sprite, snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.debug.protocols import HasPhysicsBody
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
+    from glitchygames.collision.layers import CollisionManager
     from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 
 type Color = tuple[int, int, int]
@@ -104,7 +105,7 @@ class DebugFrameInfo:
     inspected_scene_label: str | None = None
 
 
-def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Rect:
+def screen_rect_for(*, sprite: object, screen_offset: tuple[int, int]) -> pygame.Rect:
     """Compute where a sprite's collision rect appears on the presented frame.
 
     Sprites with world_x and world_y have a world-space collision rect. Its box is placed
@@ -117,7 +118,7 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
     have screen-space rects.
 
     Args:
-        sprite (Any): The sprite to locate.
+        sprite (object): The sprite to locate.
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame (screen shake).
 
     Returns:
@@ -126,7 +127,7 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
     """
     collision_rect = get_sprite_collision_rect(sprite)
     screen_rect = collision_rect.copy()
-    if hasattr(sprite, 'world_x') and hasattr(sprite, 'world_y'):
+    if is_world_rect_sprite(sprite):
         snapped_world_x, snapped_world_y = snapped_world_position(
             sprite, sprite.world_x, sprite.world_y
         )
@@ -142,7 +143,7 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
     return screen_rect
 
 
-def _layer_membership(*, collisions: Any) -> list[tuple[str, Color, list[Any]]]:
+def _layer_membership(*, collisions: CollisionManager) -> list[tuple[str, Color, list[Any]]]:
     """List each layer with its colour and sprites, in creation order.
 
     Returns:
@@ -184,9 +185,9 @@ def _overlapping_sprite_ids(*, layers: list[tuple[str, Color, list[Any]]]) -> se
 def draw_collision_panel(
     *,
     surface: pygame.Surface,
-    scene: Any,
+    scene: object,
     screen_offset: tuple[int, int],
-    font: Any,
+    font: pygame.font.Font,
 ) -> None:
     """Draw hitbox outlines coloured by collision layer, plus a legend.
 
@@ -197,9 +198,9 @@ def draw_collision_panel(
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
-        scene (Any): The active scene.
+        scene (object): The active scene (its `all_sprites` and `collisions` are optional).
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
-        font (Any): Font used for the legend.
+        font (pygame.font.Font): Font used for the legend.
 
     """
     collisions = getattr(scene, 'collisions', None)
@@ -267,7 +268,7 @@ def blit_text(
 
 
 def _draw_legend(
-    *, surface: pygame.Surface, layers: list[tuple[str, Color, list[Any]]], font: Any
+    *, surface: pygame.Surface, layers: list[tuple[str, Color, list[Any]]], font: pygame.font.Font
 ) -> None:
     """Draw one legend row per layer along the bottom-left, last layer lowest."""
     row_bottom = surface.get_height() - LEGEND_MARGIN
@@ -309,9 +310,9 @@ def _draw_arrow(
 def draw_physics_panel(
     *,
     surface: pygame.Surface,
-    scene: Any,
+    scene: object,
     screen_offset: tuple[int, int],
-    font: Any,
+    font: pygame.font.Font,
 ) -> None:
     """Draw velocity arrows, ground state bars and velocity text for physics sprites.
 
@@ -321,9 +322,9 @@ def draw_physics_panel(
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
-        scene (Any): The active scene.
+        scene (object): The active scene (its `all_sprites` and `collisions` are optional).
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
-        font (Any): Font used for the velocity text.
+        font (pygame.font.Font): Font used for the velocity text.
 
     """
     for sprite in getattr(scene, 'all_sprites', ()):
@@ -432,7 +433,7 @@ def draw_camera_panel(
     surface: pygame.Surface,
     camera: Camera2D,
     screen_offset: tuple[int, int],
-    font: Any,
+    font: pygame.font.Font,
     frame_info: DebugFrameInfo,
 ) -> None:
     """Draw camera bounds, the lead crosshair and camera text readouts.
@@ -449,7 +450,7 @@ def draw_camera_panel(
         surface (pygame.Surface): The presented frame to draw onto.
         camera (Camera2D): The active camera.
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
-        font (Any): Font used for the text readouts.
+        font (pygame.font.Font): Font used for the text readouts.
         frame_info (DebugFrameInfo): Supplies the mouse position and SCREEN shake offset.
 
     """
@@ -485,7 +486,12 @@ def draw_camera_panel(
 
 
 def _draw_text_lines(
-    *, surface: pygame.Surface, font: Any, lines: list[str], top: int, right_aligned: bool = False
+    *,
+    surface: pygame.Surface,
+    font: pygame.font.Font,
+    lines: list[str],
+    top: int,
+    right_aligned: bool = False,
 ) -> int:
     """Draw lines of HUD text one under another.
 
@@ -592,7 +598,7 @@ def draw_performance_panel(
     *,
     surface: pygame.Surface,
     overlay: DebugOverlay,
-    font: Any,
+    font: pygame.font.Font,
     frame_info: DebugFrameInfo,
 ) -> None:
     """Draw FPS text, the 1% low, optional audio/rumble lines and a frame-time graph.
@@ -605,7 +611,7 @@ def draw_performance_panel(
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
         overlay (DebugOverlay): The overlay holding the frame history.
-        font (Any): Font used for the text.
+        font (pygame.font.Font): Font used for the text.
         frame_info (DebugFrameInfo): Supplies the target FPS, voice count and rumble levels.
 
     """
@@ -646,7 +652,7 @@ def draw_performance_panel(
 def draw_mode_line(
     *,
     surface: pygame.Surface,
-    font: Any,
+    font: pygame.font.Font,
     panel: DebugPanel,
     inspected_scene_label: str | None = None,
 ) -> None:
@@ -654,7 +660,7 @@ def draw_mode_line(
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
-        font (Any): Font used for the text.
+        font (pygame.font.Font): Font used for the text.
         panel (DebugPanel): The selected panel, named in the text.
         inspected_scene_label (str | None): The paused scene being shown, if any.
 

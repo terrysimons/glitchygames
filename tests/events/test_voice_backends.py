@@ -17,18 +17,14 @@ class TestTryImportMiniaudio:
     """Test _try_import_miniaudio function."""
 
     def test_returns_class_when_available(self, mocker):
-        """Test that the MiniaudioMicrophone class is returned when importable."""
+        """The MiniaudioMicrophone class is returned when its module imports."""
         mock_class = mocker.Mock()
         mock_module = mocker.MagicMock()
         mock_module.MiniaudioMicrophone = mock_class
 
         mocker.patch.dict('sys.modules', {'glitchygames.events.voice_miniaudio': mock_module})
 
-        result = _try_import_miniaudio()
-
-        # Since import uses from ... import, we need to check if it returns a class or None
-        # The function itself does a relative import, so mock at module level
-        assert result is not None or result is None  # Import may or may not succeed
+        assert _try_import_miniaudio() is mock_class
 
     def test_returns_none_when_import_fails(self, mocker):
         """Test that None is returned when MiniaudioMicrophone cannot be imported."""
@@ -51,6 +47,18 @@ class TestTryImportMiniaudio:
 
 class TestTryImportPortaudio:
     """Test _try_import_portaudio function."""
+
+    def test_returns_class_when_available(self, mocker):
+        """The PortAudioMicrophone class is returned when its module imports."""
+        mock_class = mocker.Mock()
+        mock_module = mocker.MagicMock()
+        mock_module.PortAudioMicrophone = mock_class
+
+        mocker.patch.dict(
+            'sys.modules', {'glitchygames.events.voice_backends.voice_portaudio': mock_module}
+        )
+
+        assert _try_import_portaudio() is mock_class
 
     def test_returns_none_when_import_fails(self, mocker):
         """Test that None is returned when PortAudioMicrophone cannot be imported."""

@@ -54,7 +54,6 @@ from glitchygames.bitmappy.toml_processing import (
     parse_toml_robustly,
 )
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
-from tests.mocks import MockFactory
 
 EXPECTED_CALLS_AFTER_ONE_RETRY = 2
 
@@ -82,17 +81,6 @@ def logger():
 
     """
     return logging.getLogger('test.bitmappy_additional')
-
-
-@pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The pygame mock objects.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +275,10 @@ class TestDetectAlphaChannelInAnimation:
         """Test list animation where frame data is not a dict."""
         animation_data = ['not_a_dict', 42]
         assert _detect_alpha_channel_in_animation(animation_data) is False
+
+    def test_animation_value_that_is_neither_table_nor_array_has_no_alpha(self):
+        """A TOML 'animation' key holding a plain string (e.g. animation = "walk") has no alpha."""
+        assert _detect_alpha_channel_in_animation('walk') is False  # type: ignore[arg-type]
 
     def test_multiple_frames_alpha_in_second(self):
         """Test that alpha is found in the second frame of a list."""
@@ -1222,7 +1214,6 @@ class TestProcessAiRequest:
         loop's caught exception types, so propagating them kills the worker process and
         the UI never receives a response.
         """
-        mocker.patch('glitchygames.bitmappy.ai_worker.backoff', None)
         client = mocker.Mock()
         client.chat.completions.create.side_effect = ProviderStatusError(
             'Your credit balance is too low to access the Anthropic API.',
@@ -1251,21 +1242,6 @@ class TestCreateAiRetryDecorator:
         decorator = _create_ai_retry_decorator(logger)
         assert callable(decorator)
 
-    def test_no_op_when_backoff_unavailable(self, logger, mocker):
-        """Test no-op decorator when backoff module is not available."""
-        mocker.patch('glitchygames.bitmappy.ai_worker.backoff', None)
-        decorator = _create_ai_retry_decorator(logger)
-
-        # The no-op decorator should return the function unchanged
-        def sample_function():
-            return 'result'
-
-        decorated = decorator(sample_function)
-        assert decorated is sample_function
-
-    @pytest.mark.filterwarnings(
-        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
-    )
     def test_does_not_retry_client_errors(self, logger, mocker):
         """Test that 4xx errors like billing/auth failures are not retried."""
         sleep = mocker.patch('time.sleep')
@@ -1284,9 +1260,6 @@ class TestCreateAiRetryDecorator:
         assert call_count == 1
         sleep.assert_not_called()
 
-    @pytest.mark.filterwarnings(
-        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
-    )
     def test_retries_rate_limit_errors(self, logger, mocker):
         """Test that 429 rate-limit errors are still retried."""
         mocker.patch('time.sleep')

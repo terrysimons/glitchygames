@@ -1,6 +1,7 @@
 """Tests for film strip tool functionality, coverage, and edge cases."""
 
 import math
+from types import SimpleNamespace
 from typing import cast
 
 import pygame
@@ -17,11 +18,15 @@ from glitchygames.bitmappy.film_strip import (
     FilmTabWidget,
 )
 from glitchygames.clock import frame_clock_milliseconds
+from glitchygames.events import HashableEvent
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
 )
-from tests.mocks.test_mock_factory import MockFactory
+from tests.tools.test_film_strip_base import (
+    frame_color_for_index,
+    make_real_animated_sprite,
+)
 
 # Constants for test values - from test_tools_film_strip.py (smaller widget)
 FUNC_WIDGET_X = 10
@@ -44,6 +49,71 @@ FRAME_DURATION_FAST = 0.25
 DT_60FPS = 0.016
 DT_LARGE = 1.0
 BACKGROUND_COLOR_COUNT = 10
+
+# A frame colour far from magenta: the film strip draws magenta pixels as transparent
+THUMBNAIL_BASE_COLOR = (200, 40, 10)
+# FilmTabWidget / FilmStripTab / FilmStripDeleteTab colours (film_strip.py)
+TAB_COLOR = (200, 200, 200)
+TAB_CLICK_COLOR = (100, 100, 100)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+# The tabs draw a 2-pixel border
+TAB_BORDER_WIDTH = 2
+
+
+def rgb_at(surface, position):
+    """Read the RGB colour of one pixel.
+
+    Returns:
+        tuple[int, int, int]: The colour, without alpha.
+
+    """
+    return tuple(surface.get_at(position))[:3]
+
+
+def key_down_event(*, key, unicode=''):
+    """Build a real KEYDOWN event with no modifiers held.
+
+    Returns:
+        HashableEvent: The event.
+
+    """
+    return HashableEvent(pygame.KEYDOWN, key=key, unicode=unicode, mod=0, scancode=0)
+
+
+def drawn_tab_colors(*, surface, tab):
+    """Read a rendered tab's fill colour (inside its border) and its border colour.
+
+    Returns:
+        tuple: The (fill, border) RGB colours.
+
+    """
+    inside_border = (tab.rect.x + TAB_BORDER_WIDTH, tab.rect.y + TAB_BORDER_WIDTH)
+    return rgb_at(surface, inside_border), rgb_at(surface, tab.rect.topleft)
+
+
+def opaque_surface(size):
+    """Create a 32-bit surface without per-pixel alpha, filled black.
+
+    Returns:
+        pygame.Surface: The surface.
+
+    """
+    surface = pygame.Surface(size, flags=0, depth=32)
+    surface.fill(BLACK)
+    return surface
+
+
+def transparent_surface(size):
+    """Create a per-pixel-alpha surface, fully transparent.
+
+    Returns:
+        pygame.Surface: The surface.
+
+    """
+    surface = pygame.Surface(size, pygame.SRCALPHA, 32)
+    surface.fill((0, 0, 0, 0))
+    return surface
 
 
 def _make_widget_with_sprite(num_frames=2, animation_name='idle'):
@@ -71,7 +141,7 @@ def _make_widget_with_sprite(num_frames=2, animation_name='idle'):
 class TestFilmStripFunctionality:
     """Test film strip module functionality."""
 
-    def test_film_strip_initialization(self, mock_pygame_patches):
+    def test_film_strip_initialization(self):
         """Test film strip initialization."""
         # Test basic initialization - FilmStripWidget requires x, y, width, height
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
@@ -87,7 +157,7 @@ class TestFilmStripFunctionality:
         assert not strip.current_animation
         assert strip.current_frame == 0
 
-    def test_film_strip_widget_properties(self, mock_pygame_patches):
+    def test_film_strip_widget_properties(self):
         """Test film strip widget properties."""
         strip = film_strip.FilmStripWidget(
             FUNC_WIDGET_X,
@@ -109,7 +179,7 @@ class TestFilmStripFunctionality:
         assert hasattr(strip, 'sprocket_width')
         assert hasattr(strip, 'frame_spacing')
 
-    def test_film_strip_widget_methods(self, mock_pygame_patches):
+    def test_film_strip_widget_methods(self):
         """Test film strip widget methods."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -125,7 +195,7 @@ class TestFilmStripFunctionality:
         assert callable(strip.get_current_preview_frame)
         assert callable(strip.get_frame_at_position)
 
-    def test_film_strip_widget_sprite_handling(self, mock_pygame_patches):
+    def test_film_strip_widget_sprite_handling(self):
         """Test film strip widget sprite handling."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -135,11 +205,11 @@ class TestFilmStripFunctionality:
         assert strip.current_frame == 0
 
         # Test setting animated sprite with proper mock using centralized mock
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        mock_sprite = make_real_animated_sprite()
         strip.set_animated_sprite(mock_sprite)
         assert strip.animated_sprite == mock_sprite
 
-    def test_film_strip_widget_hover_handling(self, mock_pygame_patches):
+    def test_film_strip_widget_hover_handling(self):
         """Test film strip widget hover handling."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -151,51 +221,48 @@ class TestFilmStripFunctionality:
         assert strip.hovered_frame is None
         assert strip.hovered_animation is None
 
-    def test_film_strip_widget_rendering(self, mock_pygame_patches):
-        """Test film strip widget rendering."""
-        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
+    def test_film_strip_widget_rendering(self):
+        """Test that render draws every laid-out frame's thumbnail in that frame's colour."""
+        strip = film_strip.FilmStripWidget(0, 0, WIDGET_WIDTH, WIDGET_HEIGHT)
+        strip.set_animated_sprite(
+            make_real_animated_sprite(frame_counts={'idle': 3}, base_color=THUMBNAIL_BASE_COLOR),
+        )
+        surface = opaque_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
 
-        # Test rendering methods exist (based on actual implementation)
-        assert hasattr(strip, 'update_layout')
-        assert hasattr(strip, 'mark_dirty')
-        assert hasattr(strip, 'set_parent_canvas')
+        strip.render(surface)
 
-        # Test methods are callable
-        assert callable(strip.update_layout)
-        assert callable(strip.mark_dirty)
-        assert callable(strip.set_parent_canvas)
+        assert sorted(strip.frame_layouts) == [('idle', 0), ('idle', 1), ('idle', 2)]
+        for (_animation_name, frame_index), frame_rect in strip.frame_layouts.items():
+            assert rgb_at(surface, frame_rect.center) == frame_color_for_index(
+                base_color=THUMBNAIL_BASE_COLOR,
+                frame_index=frame_index,
+            )
 
-    def test_film_strip_widget_interaction(self, mock_pygame_patches):
-        """Test film strip widget interaction."""
-        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
+    def test_film_strip_widget_interaction(self):
+        """Test that each laid-out frame is found at its own position, and nothing elsewhere."""
+        strip = film_strip.FilmStripWidget(0, 0, WIDGET_WIDTH, WIDGET_HEIGHT)
+        strip.set_animated_sprite(make_real_animated_sprite(frame_counts={'idle': 3}))
 
-        # Test interaction methods exist (based on actual implementation)
-        assert hasattr(strip, 'get_frame_at_position')
-        assert hasattr(strip, 'update_scroll_for_frame')
-        assert hasattr(strip, '_calculate_scroll_offset')
+        for frame_key, frame_rect in strip.frame_layouts.items():
+            assert strip.get_frame_at_position(frame_rect.center) == frame_key
+        assert strip.get_frame_at_position((WIDGET_WIDTH + 50, WIDGET_HEIGHT + 50)) is None
 
-        # Test methods are callable
-        assert callable(strip.get_frame_at_position)
-        assert callable(strip.update_scroll_for_frame)
-        assert callable(strip._calculate_scroll_offset)
-
-    def test_initialize_preview_animations_no_sprite(self, mock_pygame_patches):
+    def test_initialize_preview_animations_no_sprite(self):
         """Test _initialize_preview_animations when no animated sprite is set."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         # Should not crash when no sprite is set
         strip._initialize_preview_animations()
 
-    def test_initialize_preview_animations_frames_no_duration(self, mock_pygame_patches, mocker):
+    def test_initialize_preview_animations_frames_no_duration(self):
         """Test _initialize_preview_animations with frames that don't have duration attribute."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        mock_sprite = make_real_animated_sprite()
 
         # Create frames without duration attribute by using simple objects
         frames_without_duration = []
         for _ in range(ANIMATION_COUNT):
             frame = type('Frame', (), {})()  # Simple object with no duration attribute
-            frame.image = mocker.Mock()  # type: ignore[unresolved-attribute]
-            frame.image.get_size.return_value = (32, 32)  # type: ignore[unresolved-attribute]
+            frame.image = pygame.Surface((32, 32), pygame.SRCALPHA)  # type: ignore[unresolved-attribute]
             # No duration attribute
             frames_without_duration.append(frame)
 
@@ -206,31 +273,34 @@ class TestFilmStripFunctionality:
         expected_durations = [DEFAULT_DURATION, DEFAULT_DURATION, DEFAULT_DURATION]
         assert strip.preview_frame_durations['no_duration'] == expected_durations
 
-    def test_update_animations_no_sprite(self, mock_pygame_patches):
+    def test_update_animations_no_sprite(self):
         """Test update_animations when no animated sprite is set."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         # Should not crash when no sprite is set
         strip.update_animations(0.1)
 
-    def test_get_current_preview_frame_missing_animation(self, mock_pygame_patches):
+    def test_get_current_preview_frame_missing_animation(self):
         """Test get_current_preview_frame when animation is not in timing data."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         # Should return 0 for missing animation
         result = strip.get_current_preview_frame('nonexistent_animation')
         assert result == 0
 
-    def test_get_frame_image_no_image_with_pixel_data(self, mock_pygame_patches, mocker):
-        """Test _get_frame_image when frame has no image but has pixel data."""
-        # Create a frame without image but with pixel data
+    def test_get_frame_image_no_image_with_pixel_data(self):
+        """Test _get_frame_image builds the image from pixel data when the frame has none."""
         # Production code calls frame.get_size() after get_pixel_data(), so both are needed
         frame = type('Frame', (), {})()
-        frame.get_pixel_data = mocker.Mock(return_value=[(255, 0, 0)] * 100)  # type: ignore[unresolved-attribute]
-        frame.get_size = mocker.Mock(return_value=(10, 10))  # type: ignore[unresolved-attribute]
+        frame.get_pixel_data = lambda: [(255, 0, 0)] * 100  # type: ignore[unresolved-attribute]
+        frame.get_size = lambda: (10, 10)  # type: ignore[unresolved-attribute]
 
         result = film_strip.FilmStripWidget._get_frame_image(frame)  # type: ignore[arg-type]
-        assert result is not None  # Should return a surface
 
-    def test_get_frame_image_no_image_no_pixel_data(self, mock_pygame_patches):
+        assert result is not None
+        assert result.get_size() == (10, 10)
+        assert rgb_at(result, (0, 0)) == (255, 0, 0)
+        assert rgb_at(result, (9, 9)) == (255, 0, 0)
+
+    def test_get_frame_image_no_image_no_pixel_data(self):
         """Test _get_frame_image when frame has no image and no pixel data."""
         # Create a frame without image or pixel data
         frame = type('Frame', (), {})()
@@ -239,7 +309,7 @@ class TestFilmStripFunctionality:
         result = film_strip.FilmStripWidget._get_frame_image(frame)  # type: ignore[arg-type]
         assert result is None  # Should return None
 
-    def test_update_layout_with_parent_canvas(self, mock_pygame_patches, mocker):
+    def test_update_layout_with_parent_canvas(self, mocker):
         """Test update_layout when parent canvas exists with film strip sprite."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -249,11 +319,13 @@ class TestFilmStripFunctionality:
         mock_parent_canvas.film_strip_sprite = mock_film_strip_sprite
         strip.parent_canvas = mock_parent_canvas
 
-        # Should not crash and should mark sprite as dirty
-        strip.update_layout()
-        mock_film_strip_sprite.dirty = 1
+        mock_film_strip_sprite.dirty = 0
 
-    def test_set_parent_canvas(self, mock_pygame_patches, mocker):
+        # Should mark the parent canvas's film strip sprite dirty
+        strip.update_layout()
+        assert mock_film_strip_sprite.dirty == 1
+
+    def test_set_parent_canvas(self, mocker):
         """Test set_parent_canvas method."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_canvas = mocker.Mock()
@@ -261,33 +333,33 @@ class TestFilmStripFunctionality:
         strip.set_parent_canvas(mock_canvas)
         assert strip.parent_canvas == mock_canvas
 
-    def test_mark_dirty_basic(self, mock_pygame_patches):
+    def test_mark_dirty_basic(self):
         """Test mark_dirty method sets _force_redraw flag."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         strip.mark_dirty()
         assert strip.force_redraw is True
 
-    def test_update_scroll_for_frame_no_sprite(self, mock_pygame_patches):
+    def test_update_scroll_for_frame_no_sprite(self):
         """Test update_scroll_for_frame when no animated sprite is set."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         # Should not crash when no sprite is set
         strip.update_scroll_for_frame(0)
 
-    def test_update_scroll_for_frame_missing_animation(self, mock_pygame_patches):
+    def test_update_scroll_for_frame_missing_animation(self):
         """Test update_scroll_for_frame when animation is not in sprite."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        mock_sprite = make_real_animated_sprite()
         strip.set_animated_sprite(mock_sprite)
         strip.current_animation = 'nonexistent'
 
         # Should not crash when animation doesn't exist
         strip.update_scroll_for_frame(0)
 
-    def test_update_scroll_for_frame_invalid_index(self, mock_pygame_patches):
+    def test_update_scroll_for_frame_invalid_index(self):
         """Test update_scroll_for_frame when frame index is out of bounds."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        mock_sprite = make_real_animated_sprite()
         strip.set_animated_sprite(mock_sprite)
         strip.current_animation = 'idle'
 
@@ -298,13 +370,10 @@ class TestFilmStripFunctionality:
 class TestFilmStripLayout:
     """Test film strip layout, height updates, and background color cycling."""
 
-    def test_update_height_with_animations(self, mock_pygame_patches, mocker):
+    def test_update_height_with_animations(self):
         """Test _update_height method with multiple animations."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-        mock_sprite = MockFactory.create_animated_sprite_mock()
-        # Add more animations to test height calculation
-        mock_sprite._animations['walk'] = [mocker.Mock(), mocker.Mock(), mocker.Mock()]
-        mock_sprite._animations['jump'] = [mocker.Mock(), mocker.Mock()]
+        mock_sprite = make_real_animated_sprite(frame_counts={'idle': 5, 'walk': 3, 'jump': 2})
         strip.set_animated_sprite(mock_sprite)
 
         # Should calculate height based on number of animations
@@ -312,10 +381,10 @@ class TestFilmStripLayout:
         assert strip.rect is not None
         assert strip.rect.height > 0
 
-    def test_update_height_with_parent_canvas(self, mock_pygame_patches, mocker):
+    def test_update_height_with_parent_canvas(self, mocker):
         """Test _update_height method with parent canvas."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-        mock_sprite = MockFactory.create_animated_sprite_mock()
+        mock_sprite = make_real_animated_sprite()
         strip.set_animated_sprite(mock_sprite)
 
         # Create a mock parent canvas with film strip sprite
@@ -330,7 +399,7 @@ class TestFilmStripLayout:
         strip._update_height()
         assert mock_film_strip_sprite.dirty == 1
 
-    def test_color_cycling_default(self, mock_pygame_patches):
+    def test_color_cycling_default(self):
         """Test that the film strip starts with gray as the default background color."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -338,7 +407,7 @@ class TestFilmStripLayout:
         assert strip.background_color == (128, 128, 128, 255)
         assert strip.background_color_index == FRAME_COUNT  # Gray is at index 2
 
-    def test_color_cycling_functionality(self, mock_pygame_patches):
+    def test_color_cycling_functionality(self):
         """Test that color cycling works correctly."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -369,7 +438,7 @@ class TestFilmStripLayout:
         # Should have seen all colors
         assert len(colors_seen) == len(strip.BACKGROUND_COLORS)
 
-    def test_background_colors_list(self, mock_pygame_patches):
+    def test_background_colors_list(self):
         """Test that the background colors list contains expected colors."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
@@ -461,11 +530,6 @@ class TestFilmStripWidgetInit:
 class TestFilmStripSetAnimatedSprite:
     """Test FilmStripWidget.set_animated_sprite."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def widget(self):
         """Create a FilmStripWidget for testing.
@@ -501,8 +565,8 @@ class TestFilmStripSetAnimatedSprite:
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         frame1 = SpriteFrame(surface, duration=FRAME_DURATION)
         sprite.add_animation('walk', [frame1])
-        if hasattr(sprite, '_animation_order'):
-            del sprite._animation_order
+        # Never loaded from a file: its animation order is its animations' order
+        assert not sprite.has_own_animation_order
         return sprite
 
     def test_set_animated_sprite_with_order(self, widget, animated_sprite_with_order):
@@ -516,6 +580,18 @@ class TestFilmStripSetAnimatedSprite:
         """Test set_animated_sprite falls back to first animation key."""
         widget.set_animated_sprite(animated_sprite_without_order)
         assert widget.current_animation == 'walk'
+
+    def test_set_animated_sprite_with_an_empty_own_order(self, widget):
+        """An animation order of its own that is empty falls back to the first animation key."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
+        sprite.add_animation('jump', [SpriteFrame(surface, duration=FRAME_DURATION)])
+        sprite._animation_order = []
+        assert sprite.has_own_animation_order
+
+        widget.set_animated_sprite(sprite)
+
+        assert widget.current_animation == 'jump'
 
     def test_set_animated_sprite_empty(self, widget):
         """Test set_animated_sprite with empty animations."""
@@ -548,11 +624,6 @@ class TestFilmStripSetAnimatedSprite:
 
 class TestFilmStripInitializePreviewAnimations:
     """Test _initialize_preview_animations method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_no_animated_sprite(self):
         """Test _initialize_preview_animations with no sprite."""
@@ -621,11 +692,6 @@ class TestFilmStripInitializePreviewAnimations:
 class TestFilmStripUpdateAnimations:
     """Test update_animations method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def widget_with_sprite(self):
         """Create a widget with a loaded sprite.
@@ -653,36 +719,28 @@ class TestFilmStripUpdateAnimations:
         widget_with_sprite.update_animations(DT_60FPS)
         assert widget_with_sprite.preview_animation_times['walk'] > initial_time
 
-    def test_update_wraps_time(self, widget_with_sprite, mocker):
+    def test_update_wraps_time(self, widget_with_sprite):
         """Test update_animations wraps time when exceeding total duration."""
-        # Mock the animated sprite's update to avoid surfarray issues
-        mocker.patch.object(widget_with_sprite.animated_sprite, 'update')
         # Total duration is 1.0 (2 frames * 0.5 each)
         widget_with_sprite.preview_animation_times['walk'] = 0.9
         widget_with_sprite.update_animations(DT_LARGE)
         # Time should wrap around
         assert widget_with_sprite.preview_animation_times['walk'] < 1.0
 
-    def test_update_marks_dirty(self, widget_with_sprite, mocker):
-        """Test update_animations marks widget as dirty when frame advances."""
-        mocker.patch.object(widget_with_sprite, 'mark_dirty')
+    def test_update_marks_dirty(self, widget_with_sprite):
+        """Test update_animations marks the widget for redraw when the frame advances."""
+        widget_with_sprite.animated_sprite.play()
+        widget_with_sprite.force_redraw = False
+        assert widget_with_sprite.animated_sprite.current_frame == 0
 
-        # Mock animated_sprite.update to simulate a frame change
-        # without triggering real surfarray operations
-        def advance_frame(dt):
-            widget_with_sprite.animated_sprite.frame_manager._current_frame = 1
-
-        mocker.patch.object(
-            widget_with_sprite.animated_sprite,
-            'update',
-            side_effect=advance_frame,
-        )
+        # Each frame lasts 0.5 s, so 0.6 s advances the sprite to frame 1
         widget_with_sprite.update_animations(0.6)
-        widget_with_sprite.mark_dirty.assert_called()
 
-    def test_update_initializes_debug_timers(self, widget_with_sprite, mocker):
+        assert widget_with_sprite.animated_sprite.current_frame == 1
+        assert widget_with_sprite.force_redraw is True
+
+    def test_update_initializes_debug_timers(self, widget_with_sprite):
         """Test update_animations initializes debug timers if not present."""
-        mocker.patch.object(widget_with_sprite.animated_sprite, 'update')
         # Remove debug timers if present
         if hasattr(widget_with_sprite, 'debug_start_time'):
             del widget_with_sprite.debug_start_time
@@ -692,18 +750,16 @@ class TestFilmStripUpdateAnimations:
         assert hasattr(widget_with_sprite, 'debug_start_time')
         assert hasattr(widget_with_sprite, 'debug_last_dump_time')
 
-    def test_update_triggers_debug_dump_at_interval(self, widget_with_sprite, mocker):
+    def test_update_triggers_debug_dump_at_interval(self, widget_with_sprite):
         """Test update_animations triggers debug dump at 5-second intervals."""
-        mocker.patch.object(widget_with_sprite.animated_sprite, 'update')
         widget_with_sprite.debug_start_time = 0.0
         widget_with_sprite.debug_last_dump_time = 0.0
         # Advance enough time to trigger a dump (5 seconds)
         widget_with_sprite.update_animations(6.0)
         assert widget_with_sprite.debug_last_dump_time == widget_with_sprite.debug_start_time
 
-    def test_update_skips_animation_not_in_times(self, widget_with_sprite, mocker):
+    def test_update_skips_animation_not_in_times(self, widget_with_sprite):
         """Test update_animations skips animations not in preview_animation_times."""
-        mocker.patch.object(widget_with_sprite.animated_sprite, 'update')
         # Remove the animation from preview times
         widget_with_sprite.preview_animation_times.clear()
         # Should not raise
@@ -712,11 +768,6 @@ class TestFilmStripUpdateAnimations:
 
 class TestFilmStripGetCurrentPreviewFrame:
     """Test get_current_preview_frame method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_unknown_animation_returns_zero(self):
         """Test unknown animation name returns frame 0."""
@@ -775,11 +826,6 @@ class TestFilmStripGetCurrentPreviewFrame:
 
 class TestFilmStripCopyPaste:
     """Test copy_current_frame and paste_to_current_frame methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def widget_with_frames(self):
@@ -886,11 +932,6 @@ class TestFilmStripCopyPaste:
 class TestFilmStripFrameSelection:
     """Test frame selection methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def widget_with_sprite(self):
         """Create a widget with an animated sprite.
@@ -945,11 +986,6 @@ class TestFilmStripFrameSelection:
 
 class TestFilmStripHitTesting:
     """Test hit testing methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_frame_at_position_no_hit(self):
         """Test get_frame_at_position returns None for no hit."""
@@ -1034,11 +1070,6 @@ class TestFilmStripMarkDirty:
 
 class TestFilmStripUpdateHeight:
     """Test _update_height method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_update_height_no_sprite(self):
         """Test _update_height with no sprite does nothing."""
@@ -1131,11 +1162,6 @@ class TestFilmStripClearLayouts:
 class TestFilmStripCalculateLayout:
     """Test _calculate_layout and sub-methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_calculate_layout_no_sprite(self):
         """Test _calculate_layout with no sprite does nothing."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -1203,11 +1229,6 @@ class TestFilmStripCalculateLayout:
 class TestFilmStripScrolling:
     """Test scroll-related methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def widget_with_many_frames(self):
         """Create a widget with more frames than can be displayed.
@@ -1274,11 +1295,6 @@ class TestFilmStripScrolling:
 class TestFilmStripGetFrameImage:
     """Test _get_frame_image static method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_get_frame_image_normal(self):
         """Test _get_frame_image returns frame's image."""
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
@@ -1286,7 +1302,7 @@ class TestFilmStripGetFrameImage:
         result = FilmStripWidget._get_frame_image(frame)
         assert result is surface
 
-    def test_get_frame_image_stale_with_pixels(self, mocker):
+    def test_get_frame_image_stale_with_pixels(self):
         """Test _get_frame_image rebuilds from pixels when stale."""
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         frame = SpriteFrame(surface)
@@ -1300,19 +1316,19 @@ class TestFilmStripGetFrameImage:
         assert result is not None
         assert result.get_size() == (SURFACE_SIZE, SURFACE_SIZE)
 
-    def test_get_frame_image_no_image_with_pixel_data(self, mocker):
-        """Test _get_frame_image falls back to get_pixel_data."""
-        frame = mocker.Mock()
-        frame.image = None
-        frame._image_stale = False
-        frame.get_pixel_data.return_value = [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE)
-        frame.get_size.return_value = (SURFACE_SIZE, SURFACE_SIZE)
-        # Remove 'image' from hasattr checks
-        type(frame).image = mocker.PropertyMock(return_value=None)
+    def test_get_frame_image_no_image_with_pixel_data(self):
+        """Test _get_frame_image builds the image from get_pixel_data when there is none."""
+        frame = SimpleNamespace(
+            image=None,
+            get_pixel_data=lambda: [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE),
+            get_size=lambda: (SURFACE_SIZE, SURFACE_SIZE),
+        )
 
-        result = FilmStripWidget._get_frame_image(frame)
-        # Should create surface from pixel data or return None
-        assert result is None or isinstance(result, pygame.Surface)
+        result = FilmStripWidget._get_frame_image(frame)  # type: ignore[arg-type]
+
+        assert result is not None
+        assert result.get_size() == (SURFACE_SIZE, SURFACE_SIZE)
+        assert tuple(result.get_at((SURFACE_SIZE - 1, SURFACE_SIZE - 1))) == (255, 0, 0, 255)
 
     def test_get_frame_image_no_data_returns_none(self, mocker):
         """Test _get_frame_image returns None when no data is available."""
@@ -1323,11 +1339,6 @@ class TestFilmStripGetFrameImage:
 
 class TestFilmStripHandleClick:
     """Test handle_click method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def widget_with_sprite(self):
@@ -1381,7 +1392,7 @@ class TestFilmStripHandleClick:
         assert widget_with_sprite.editing_animation == 'idle'
         assert not widget_with_sprite.editing_text
 
-    def test_handle_click_on_strip_background(self, widget_with_sprite, mocker):
+    def test_handle_click_on_strip_background(self, widget_with_sprite):
         """Test handle_click on strip background selects strip."""
         # Click within strip rect but not on a frame, label, or preview
         assert widget_with_sprite.rect is not None
@@ -1393,11 +1404,6 @@ class TestFilmStripHandleClick:
 
 class TestFilmStripHandlePreviewClick:
     """Test handle_preview_click method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_handle_preview_click_hit(self):
         """Test handle_preview_click cycles background color on hit."""
@@ -1430,16 +1436,10 @@ class TestFilmStripHandlePreviewClick:
 class TestFilmStripHandleKeyboardInput:
     """Test handle_keyboard_input method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_keyboard_input_not_editing_returns_false(self, mocker):
+    def test_keyboard_input_not_editing_returns_false(self):
         """Test keyboard input returns False when not in editing mode."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        event = mocker.Mock()
-        event.key = pygame.K_a
+        event = key_down_event(key=pygame.K_a)
         assert widget.handle_keyboard_input(event) is False
 
     def test_keyboard_enter_commits_rename(self, mocker):
@@ -1452,48 +1452,44 @@ class TestFilmStripHandleKeyboardInput:
         parent_scene.on_animation_rename = mocker.Mock()
         widget.parent_scene = parent_scene
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
+        event = key_down_event(key=pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
         parent_scene.on_animation_rename.assert_called_once_with('idle', 'new_name')
 
-    def test_keyboard_enter_same_name_no_rename(self, mocker):
+    def test_keyboard_enter_same_name_no_rename(self):
         """Test Enter key with same name does not trigger rename."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'idle'
         widget.original_animation_name = 'idle'
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
+        event = key_down_event(key=pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
 
-    def test_keyboard_enter_empty_text_no_rename(self, mocker):
+    def test_keyboard_enter_empty_text_no_rename(self):
         """Test Enter key with empty text does not trigger rename."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = ''
         widget.original_animation_name = 'idle'
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
+        event = key_down_event(key=pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
 
-    def test_keyboard_escape_cancels_editing(self, mocker):
+    def test_keyboard_escape_cancels_editing(self):
         """Test Escape key cancels editing."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'partial'
         widget.original_animation_name = 'idle'
 
-        event = mocker.Mock()
-        event.key = pygame.K_ESCAPE
+        event = key_down_event(key=pygame.K_ESCAPE)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
@@ -1506,23 +1502,20 @@ class TestFilmStripHandleKeyboardInput:
         widget.editing_text = 'test'
         mocker.patch.object(film_strip_events, 'frame_clock_milliseconds', return_value=1000)
 
-        event = mocker.Mock()
-        event.key = pygame.K_BACKSPACE
+        event = key_down_event(key=pygame.K_BACKSPACE)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_text == 'tes'
 
-    def test_keyboard_backspace_empty_text(self, mocker):
+    def test_keyboard_backspace_empty_text(self):
         """Test Backspace key on empty text falls through to return False."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = ''
 
-        event = mocker.Mock()
-        event.key = pygame.K_BACKSPACE
         # With empty editing_text, backspace condition is False, falls through
         # unicode is empty string so printable check also fails
-        event.unicode = ''
+        event = key_down_event(key=pygame.K_BACKSPACE).with_fields(unicode='')
         result = widget.handle_keyboard_input(event)
         assert result is False
 
@@ -1533,28 +1526,24 @@ class TestFilmStripHandleKeyboardInput:
         widget.editing_text = 'te'
         mocker.patch.object(film_strip_events, 'frame_clock_milliseconds', return_value=1000)
 
-        event = mocker.Mock()
-        event.key = pygame.K_s
-        event.unicode = 's'
+        event = key_down_event(key=pygame.K_s, unicode='s')
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_text == 'tes'
 
-    def test_keyboard_max_length_prevents_overflow(self, mocker):
+    def test_keyboard_max_length_prevents_overflow(self):
         """Test text input is limited to max length."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'x' * 50  # At ANIMATION_NAME_MAX_LENGTH
 
-        event = mocker.Mock()
-        event.key = pygame.K_a
-        event.unicode = 'a'
+        event = key_down_event(key=pygame.K_a, unicode='a')
         result = widget.handle_keyboard_input(event)
         # Should not add character since at max length
         assert result is False
         assert len(widget.editing_text) == 50
 
-    def test_keyboard_enter_without_parent_scene(self, mocker):
+    def test_keyboard_enter_without_parent_scene(self):
         """Test Enter key with new name but no parent scene just clears edit mode."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
@@ -1562,8 +1551,7 @@ class TestFilmStripHandleKeyboardInput:
         widget.original_animation_name = 'idle'
         # No parent_scene
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
+        event = key_down_event(key=pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
@@ -1572,12 +1560,7 @@ class TestFilmStripHandleKeyboardInput:
 class TestFilmStripHandleHover:
     """Test handle_hover method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_handle_hover_updates_state(self, mocker):
+    def test_handle_hover_updates_state(self):
         """Test handle_hover updates hovered frame and animation state."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.frame_layouts['idle', 0] = pygame.Rect(10, 10, 64, 64)
@@ -1595,11 +1578,6 @@ class TestFilmStripHandleHover:
 
 class TestFilmStripRemoveFrame:
     """Test _remove_frame method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.fixture
     def widget_with_multi_frame_sprite(self):
@@ -1659,11 +1637,6 @@ class TestFilmStripRemoveFrame:
 class TestFilmStripHandleRemovalButtonClick:
     """Test _handle_removal_button_click method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_handle_removal_no_layouts(self):
         """Test _handle_removal_button_click with no layouts returns False."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -1683,21 +1656,17 @@ class TestFilmStripHandleRemovalButtonClick:
         )
         widget.set_animated_sprite(sprite)
         widget.removal_button_layouts = {('idle', 0): pygame.Rect(5, 20, 11, 30)}
-        parent_scene = mocker.Mock()
-        parent_scene._show_delete_frame_confirmation = mocker.Mock()
-        widget.parent_scene = parent_scene
+        film_strip_coordinator = mocker.Mock()
+        # Only the coordinator has the confirmation (BUGS.md #90): a stand-in scene with
+        # nothing but the coordinator fails if the widget asks the scene itself
+        widget.parent_scene = SimpleNamespace(film_strip_coordinator=film_strip_coordinator)
         result = widget._handle_removal_button_click((10, 30))
         assert result is True
-        parent_scene._show_delete_frame_confirmation.assert_called_once()
+        film_strip_coordinator._show_delete_frame_confirmation.assert_called_once_with('idle', 0)
 
 
 class TestFilmStripGetTotalWidth:
     """Test get_total_width and _calculate_frames_width methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_total_width_no_sprite(self):
         """Test get_total_width with no sprite returns 0."""
@@ -1716,11 +1685,6 @@ class TestFilmStripGetTotalWidth:
 
 class TestFilmStripSetFrameIndex:
     """Test set_frame_index method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_set_frame_index_no_sprite(self):
         """Test set_frame_index with no sprite does nothing."""
@@ -1749,11 +1713,6 @@ class TestFilmStripSetFrameIndex:
 
 class TestFilmStripHandleFrameClick:
     """Test handle_frame_click method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_handle_frame_click_no_sprite(self):
         """Test handle_frame_click with no sprite returns None."""
@@ -1785,11 +1744,6 @@ class TestFilmStripHandleFrameClick:
 class TestFilmStripResetTabStates:
     """Test reset_all_tab_states method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_reset_all_tab_states(self):
         """Test reset_all_tab_states resets all tab states."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -1804,11 +1758,6 @@ class TestFilmStripResetTabStates:
 
 class TestFilmTabWidget:
     """Test FilmTabWidget class."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_init(self):
         """Test FilmTabWidget initialization."""
@@ -1858,33 +1807,34 @@ class TestFilmTabWidget:
         assert tab.is_clicked is False
 
     def test_render_normal_state(self):
-        """Test render in normal state."""
+        """Test render in normal state: grey tab, black border and plus sign."""
         tab = FilmTabWidget(x=10, y=10, width=20, height=30)
-        surface = pygame.Surface((500, 200))
-        tab.render(surface)  # Should not raise
+        surface = opaque_surface((500, 200))
+        tab.render(surface)
+        assert drawn_tab_colors(surface=surface, tab=tab) == (TAB_COLOR, BLACK)
+        assert rgb_at(surface, tab.rect.center) == BLACK
 
     def test_render_hovered_state(self):
         """Test render in hovered state uses inverted colors."""
         tab = FilmTabWidget(x=10, y=10, width=20, height=30)
         tab.is_hovered = True
-        surface = pygame.Surface((500, 200))
-        tab.render(surface)  # Should not raise
+        surface = opaque_surface((500, 200))
+        surface.fill(TAB_COLOR)
+        tab.render(surface)
+        assert drawn_tab_colors(surface=surface, tab=tab) == (BLACK, WHITE)
+        assert rgb_at(surface, tab.rect.center) == WHITE
 
     def test_render_clicked_state(self):
         """Test render in clicked state."""
         tab = FilmTabWidget(x=10, y=10, width=20, height=30)
         tab.is_clicked = True
-        surface = pygame.Surface((500, 200))
-        tab.render(surface)  # Should not raise
+        surface = opaque_surface((500, 200))
+        tab.render(surface)
+        assert drawn_tab_colors(surface=surface, tab=tab) == (TAB_CLICK_COLOR, BLACK)
 
 
 class TestFilmStripDeleteTab:
     """Test FilmStripDeleteTab class."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_init(self):
         """Test FilmStripDeleteTab initialization."""
@@ -1906,26 +1856,28 @@ class TestFilmStripDeleteTab:
         assert tab.handle_click((0, 0)) is False
 
     def test_render_normal(self):
-        """Test FilmStripDeleteTab render in normal state."""
+        """Test FilmStripDeleteTab render in normal state: grey tab with a black minus sign."""
         tab = FilmStripDeleteTab(x=100, y=5, width=40, height=10)
-        surface = pygame.Surface((500, 200))
-        tab.render(surface)  # Should not raise
+        surface = opaque_surface((500, 200))
+        tab.render(surface)
+        assert drawn_tab_colors(surface=surface, tab=tab) == (TAB_COLOR, BLACK)
+        center_x, center_y = tab.rect.center
+        assert rgb_at(surface, (center_x, center_y)) == BLACK
+        # A minus sign, not a plus: nothing above the bar
+        assert rgb_at(surface, (center_x, center_y - 1)) == TAB_COLOR
 
     def test_render_hovered(self):
         """Test FilmStripDeleteTab render in hovered state."""
         tab = FilmStripDeleteTab(x=100, y=5, width=40, height=10)
         tab.is_hovered = True
-        surface = pygame.Surface((500, 200))
-        tab.render(surface)  # Should not raise
+        surface = opaque_surface((500, 200))
+        surface.fill(TAB_COLOR)
+        tab.render(surface)
+        assert drawn_tab_colors(surface=surface, tab=tab) == (BLACK, WHITE)
 
 
 class TestFilmStripHelperMethods:
     """Test various helper methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_has_valid_canvas_sprite_no_parent_scene(self):
         """Test _has_valid_canvas_sprite returns False with no parent scene."""
@@ -1976,7 +1928,7 @@ class TestFilmStripHelperMethods:
         widget.set_parent_canvas(canvas)
         assert widget.parent_canvas is canvas
 
-    def test_update_layout(self, mocker):
+    def test_update_layout(self):
         """Test update_layout recalculates layouts and creates tabs."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         sprite = AnimatedSprite()
@@ -1990,11 +1942,6 @@ class TestFilmStripHelperMethods:
 
 class TestFilmStripStopAnimationBeforeDeletion:
     """Test _stop_animation_before_deletion method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_stop_animation_no_sprite(self):
         """Test _stop_animation_before_deletion with no sprite."""
@@ -2017,11 +1964,6 @@ class TestFilmStripStopAnimationBeforeDeletion:
 
 class TestFilmStripAdjustCurrentFrameAfterDeletion:
     """Test _adjust_current_frame_after_deletion method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_adjust_frame_decrements_when_at_deleted_index(self):
         """Test current frame decrements when at the deleted frame index."""
@@ -2051,11 +1993,6 @@ class TestFilmStripAdjustCurrentFrameAfterDeletion:
 class TestFilmStripDumpAnimationDebugState:
     """Test debug state dump methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_dump_animation_debug_state(self):
         """Test _dump_animation_debug_state runs without error."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -2079,42 +2016,33 @@ class TestFilmStripDumpAnimationDebugState:
 class TestHandleKeyboardInput:
     """Test handle_keyboard_input for animation renaming."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def _make_key_event(self, mocker, key, unicode_char=''):
-        """Create a mock keyboard event with key and unicode attributes.
+    def _make_key_event(self, key, unicode_char=''):
+        """Create a real KEYDOWN event with key and unicode attributes.
 
         Args:
-            mocker: The pytest-mock mocker fixture.
             key: The pygame key constant.
             unicode_char: The unicode character string.
 
         Returns:
-            A mock event with key and unicode attributes.
+            A real KEYDOWN event.
 
         """
-        event = mocker.Mock()
-        event.key = key
-        event.unicode = unicode_char
-        return event
+        return key_down_event(key=key, unicode=unicode_char)
 
-    def test_not_editing_returns_false(self, mocker):
+    def test_not_editing_returns_false(self):
         """Test keyboard input is ignored when not in edit mode."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = None
-        event = self._make_key_event(mocker, pygame.K_a, 'a')
+        event = self._make_key_event(pygame.K_a, 'a')
         assert widget.handle_keyboard_input(event) is False
 
-    def test_escape_cancels_editing(self, mocker):
+    def test_escape_cancels_editing(self):
         """Test Escape key cancels editing mode."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'partial'
         widget.original_animation_name = 'idle'
-        event = self._make_key_event(mocker, pygame.K_ESCAPE)
+        event = self._make_key_event(pygame.K_ESCAPE)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
@@ -2129,7 +2057,7 @@ class TestHandleKeyboardInput:
         widget.original_animation_name = 'idle'
         mock_parent = mocker.Mock()
         widget.parent_scene = mock_parent
-        event = self._make_key_event(mocker, pygame.K_RETURN)
+        event = self._make_key_event(pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
@@ -2143,81 +2071,76 @@ class TestHandleKeyboardInput:
         widget.original_animation_name = 'idle'
         mock_parent = mocker.Mock()
         widget.parent_scene = mock_parent
-        event = self._make_key_event(mocker, pygame.K_RETURN)
+        event = self._make_key_event(pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         mock_parent.on_animation_rename.assert_not_called()
 
-    def test_enter_with_empty_text_does_not_rename(self, mocker):
+    def test_enter_with_empty_text_does_not_rename(self):
         """Test Enter key with empty text does not trigger rename."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = ''
         widget.original_animation_name = 'idle'
-        event = self._make_key_event(mocker, pygame.K_RETURN)
+        event = self._make_key_event(pygame.K_RETURN)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_animation is None
 
-    def test_backspace_removes_last_character(self, mocker):
+    def test_backspace_removes_last_character(self):
         """Test Backspace key removes the last character."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'abc'
-        event = self._make_key_event(mocker, pygame.K_BACKSPACE)
+        event = self._make_key_event(pygame.K_BACKSPACE)
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_text == 'ab'
 
-    def test_backspace_on_empty_text_not_handled(self, mocker):
+    def test_backspace_on_empty_text_not_handled(self):
         """Test Backspace key on empty text falls through to printable check."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = ''
         # Backspace with no unicode should fall through and not match printable
-        event = self._make_key_event(mocker, pygame.K_BACKSPACE, '')
+        event = self._make_key_event(pygame.K_BACKSPACE, '')
         result = widget.handle_keyboard_input(event)
         # Backspace condition requires self.editing_text to be truthy, so it falls through
         # Then it checks unicode which is empty, so returns False
         assert result is False
 
-    def test_printable_character_appended(self, mocker):
+    def test_printable_character_appended(self):
         """Test printable characters are appended to editing text."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'wa'
-        event = self._make_key_event(mocker, pygame.K_l, 'l')
+        event = self._make_key_event(pygame.K_l, 'l')
         result = widget.handle_keyboard_input(event)
         assert result is True
         assert widget.editing_text == 'wal'
 
-    def test_printable_character_max_length(self, mocker):
+    def test_printable_character_max_length(self):
         """Test printable characters are not added beyond max length."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'x' * ANIMATION_NAME_MAX_LENGTH
-        event = self._make_key_event(mocker, pygame.K_a, 'a')
+        event = self._make_key_event(pygame.K_a, 'a')
         result = widget.handle_keyboard_input(event)
         assert result is False
         assert len(widget.editing_text) == ANIMATION_NAME_MAX_LENGTH
 
-    def test_non_printable_character_ignored(self, mocker):
+    def test_non_printable_character_ignored(self):
         """Test non-printable characters are ignored."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'test'
-        event = self._make_key_event(mocker, pygame.K_F1, '')
+        event = self._make_key_event(pygame.K_F1, '')
         result = widget.handle_keyboard_input(event)
         assert result is False
 
 
 class TestHandleClick:
     """Test handle_click method for various click targets."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_click_on_frame_returns_animation_and_frame(self):
         """Test clicking on a frame returns the animation and frame index."""
@@ -2259,11 +2182,6 @@ class TestHandleClick:
 class TestHandleHover:
     """Test handle_hover method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_hover_updates_hovered_frame(self):
         """Test hovering over a frame updates hovered_frame."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -2288,11 +2206,6 @@ class TestHandleHover:
 
 class TestHandlePreviewClick:
     """Test handle_preview_click method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_preview_click_cycles_background_color(self):
         """Test clicking on preview area cycles background color."""
@@ -2322,11 +2235,6 @@ class TestHandlePreviewClick:
 
 class TestUpdateScrollForFrame:
     """Test update_scroll_for_frame with various scrolling scenarios."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_scroll_to_frame_beyond_view_right(self):
         """Test scrolling to a frame that is to the right of the visible area."""
@@ -2423,11 +2331,6 @@ class TestGetControllerSelectionColor:
 class TestToggleOnionSkinning:
     """Test _toggle_onion_skinning method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_toggle_sets_force_redraw(self, mocker):
         """Test toggling onion skinning sets _force_redraw."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -2463,11 +2366,6 @@ class TestToggleOnionSkinning:
 
 class TestStopAnimationBeforeDeletion:
     """Test _stop_animation_before_deletion method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_stops_animation_and_adjusts_frame(self):
         """Test stops animation and adjusts frame index downward.
@@ -2537,11 +2435,6 @@ class TestAdjustCurrentFrameAfterDeletion:
 class TestHandleRemovalButtonClick:
     """Test _handle_removal_button_click method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_no_removal_buttons_returns_false(self):
         """Test returns False when no removal buttons exist."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -2557,7 +2450,9 @@ class TestHandleRemovalButtonClick:
         widget.parent_scene = mock_parent
         result = widget._handle_removal_button_click((15, 50))
         assert result is True
-        mock_parent._show_delete_frame_confirmation.assert_called_once_with('idle', 1)
+        mock_parent.film_strip_coordinator._show_delete_frame_confirmation.assert_called_once_with(
+            'idle', 1
+        )
 
     def test_click_miss_returns_false(self):
         """Test clicking outside removal buttons returns False."""
@@ -2571,11 +2466,6 @@ class TestHandleRemovalButtonClick:
 
 class TestHandleTabClick:
     """Test _handle_tab_click method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_no_tabs_returns_false(self):
         """Test returns False when there are no tabs."""
@@ -2648,11 +2538,6 @@ class TestSetParentCanvas:
 class TestUpdateLayout:
     """Test update_layout method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_layout_recalculates(self, mocker):
         """Test update_layout triggers layout recalculation."""
         widget, _sprite = _make_widget_with_sprite(num_frames=2)
@@ -2666,11 +2551,6 @@ class TestUpdateLayout:
 class TestConvertMagentaToTransparent:
     """Test _convert_magenta_to_transparent static method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_magenta_pixels_processed(self):
         """Test magenta pixels are handled by the conversion method."""
         surface = pygame.Surface((2, 2), pygame.SRCALPHA)
@@ -2678,18 +2558,20 @@ class TestConvertMagentaToTransparent:
         result = FilmStripWidget._convert_magenta_to_transparent(surface)
         assert result is not None
         assert result.get_size() == (2, 2)
-        # The method should set magenta pixels to (255, 0, 255, 0)
-        pixel = result.get_at((0, 0))
-        assert pixel[0] == 255  # Red component
-        assert pixel[2] == 255  # Blue component
+        # Every magenta pixel becomes (255, 0, 255, 0): magenta, fully transparent
+        assert {tuple(result.get_at((x, y))) for x in range(2) for y in range(2)} == {
+            (255, 0, 255, 0),
+        }
 
     def test_non_magenta_pixels_processed(self):
         """Test non-magenta pixels are processed without error."""
-        surface = pygame.Surface((2, 2))
+        surface = pygame.Surface((2, 2), flags=0, depth=32)
         surface.fill((100, 200, 50))
         result = FilmStripWidget._convert_magenta_to_transparent(surface)
         assert result is not None
         assert result.get_size() == (2, 2)
+        # Other colours are kept, fully opaque
+        assert tuple(result.get_at((1, 1))) == (100, 200, 50, 255)
 
     def test_rgba_surface_processed(self):
         """Test RGBA surfaces are processed correctly."""
@@ -2698,51 +2580,59 @@ class TestConvertMagentaToTransparent:
         result = FilmStripWidget._convert_magenta_to_transparent(surface)
         assert result is not None
         assert result.get_size() == (2, 2)
+        # A translucent pixel keeps its alpha
+        assert tuple(result.get_at((0, 0))) == (100, 200, 50, 128)
 
 
 class TestRenderingMethods:
     """Test rendering helper methods."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_draw_placeholder(self):
-        """Test _draw_placeholder creates a placeholder surface."""
+        """Test _draw_placeholder fills all but a 4-pixel margin with copper brown."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((64, 64), pygame.SRCALPHA)
+        surface = transparent_surface((64, 64))
         widget._draw_placeholder(surface)
-        # Just verify it doesn't crash - visual output testing is limited
+        assert surface.get_bounding_rect() == pygame.Rect(4, 4, 56, 56)
+        assert rgb_at(surface, (32, 32)) == (120, 90, 70)
 
     def test_add_film_strip_styling(self):
-        """Test _add_film_strip_styling draws film strip edges."""
+        """Test _add_film_strip_styling draws the left and right film strip edges only."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((64, 64), pygame.SRCALPHA)
+        surface = transparent_surface((64, 64))
         widget._add_film_strip_styling(surface)
-        # Verify it doesn't crash
+        assert rgb_at(surface, (0, 10)) == widget.frame_border
+        assert rgb_at(surface, (63, 10)) == widget.frame_border
+        assert surface.get_at((32, 32)).a == 0
 
     def test_create_selection_border(self):
         """Test _create_selection_border creates a bordered surface."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        frame_surface = pygame.Surface((64, 64), pygame.SRCALPHA)
+        frame_surface = transparent_surface((64, 64))
+        frame_surface.fill((10, 20, 30, 255))
         result = widget._create_selection_border(frame_surface)
         assert result.get_width() == 68  # 64 + 4 border
         assert result.get_height() == 68
+        # The 2-pixel border is the selection colour; the frame sits inside it
+        assert rgb_at(result, (0, 34)) == widget.selection_color
+        assert rgb_at(result, (34, 34)) == (10, 20, 30)
 
     def test_add_hover_highlighting(self):
-        """Test _add_hover_highlighting draws hover border."""
+        """Test _add_hover_highlighting draws a 2-pixel hover border around the frame."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((64, 64), pygame.SRCALPHA)
+        surface = transparent_surface((64, 64))
         widget._add_hover_highlighting(surface)
-        # Verify it doesn't crash
+        assert rgb_at(surface, (0, 0)) == widget.hover_color
+        assert rgb_at(surface, (1, 32)) == widget.hover_color
+        assert surface.get_at((2, 32)).a == 0
 
     def test_add_3d_beveled_border(self):
-        """Test _add_3d_beveled_border draws beveled border."""
+        """Test _add_3d_beveled_border draws a 2-pixel border in the preview border colour."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((64, 64), pygame.SRCALPHA)
+        surface = transparent_surface((64, 64))
         widget._add_3d_beveled_border(surface)
-        # Verify it doesn't crash
+        assert rgb_at(surface, (63, 63)) == widget.preview_border
+        assert rgb_at(surface, (32, 1)) == widget.preview_border
+        assert surface.get_at((32, 32)).a == 0
 
     def test_render_sprocket_separator(self):
         """Test render_sprocket_separator creates a sprocket surface."""
@@ -2750,35 +2640,15 @@ class TestRenderingMethods:
         result = widget.render_sprocket_separator(0, 0, 100)
         assert result.get_width() == widget.sprocket_width
         assert result.get_height() == 100
-
-
-class TestGetActiveControllerSelections:
-    """Test _get_active_controller_selections method."""
-
-    def test_no_parent_scene_returns_empty(self):
-        """Test returns empty list when no parent scene."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.current_animation = 'idle'
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-    def test_no_controller_selections_returns_empty(self, mocker):
-        """Test returns empty list when parent has no controller_selections."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.current_animation = 'idle'
-        mock_parent = mocker.Mock(spec=['canvas'])
-        widget.parent_scene = mock_parent
-        result = widget._get_active_controller_selections()
-        assert result == []
+        # Film background, edges, and sprocket holes at x=6 and x=14 every 8 pixels from y=4
+        assert rgb_at(result, (10, 8)) == widget.film_background
+        assert rgb_at(result, (0, 50)) == widget.frame_border
+        assert rgb_at(result, (6, 4)) == widget.sprocket_color
+        assert rgb_at(result, (14, 12)) == widget.sprocket_color
 
 
 class TestDumpAnimationDebugState:
     """Test _dump_animation_debug_state and _dump_animated_sprite_debug methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_dump_animation_debug_state(self):
         """Test _dump_animation_debug_state runs without error."""
@@ -2806,11 +2676,6 @@ class TestDumpAnimationDebugState:
 
 class TestCalculateScrollOffset:
     """Test _calculate_scroll_offset edge cases."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_offset_for_last_frame_is_clamped(self):
         """Test scroll offset for last frame is clamped to max scroll."""
@@ -2859,11 +2724,6 @@ class TestGetRemovalButtonAtPosition:
 
 class TestCalculateLayoutSubMethods:
     """Test layout calculation sub-methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_calculate_sprocket_start_x(self):
         """Test _calculate_sprocket_start_x returns a valid x position."""
@@ -2949,11 +2809,6 @@ class TestAddRemovalButton:
 class TestUpdateHeightMultipleAnimations:
     """Test _update_height with boundary conditions."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_height_caps_at_five_animations(self):
         """Test height caps at 5 visible animations even with more."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -2986,11 +2841,6 @@ class TestUpdateHeightMultipleAnimations:
 class TestCreateFilmTabs:
     """Test _create_film_tabs method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_no_sprite_creates_no_tabs(self):
         """Test _create_film_tabs with no sprite creates no tabs."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3013,35 +2863,35 @@ class TestCreateFilmTabs:
 
 
 class TestDrawMultiControllerIndicatorsNew:
-    """Test _draw_multi_controller_indicators_new method."""
+    """Test FilmStripRendering.draw_multi_controller_indicators_new early returns."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_no_sprite_returns_early(self):
-        """Test returns early with no animated sprite."""
+    def test_no_sprite_draws_nothing(self, mocker):
+        """With no animated sprite no indicator is drawn."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((500, 200), pygame.SRCALPHA)
-        widget._draw_multi_controller_indicators_new(surface)  # Should not raise
+        draw_indicators = mocker.spy(widget.renderer, 'draw_multi_controller_indicators')
+        surface = transparent_surface((500, 200))
 
-    def test_no_animation_returns_early(self):
-        """Test returns early with empty current_animation."""
+        widget.renderer.draw_multi_controller_indicators_new(surface)
+
+        draw_indicators.assert_not_called()
+        assert surface.get_bounding_rect().size == (0, 0)
+
+    def test_no_animation_draws_nothing(self, mocker):
+        """With an empty current animation no indicator is drawn."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.animated_sprite = AnimatedSprite()
         widget.current_animation = ''
-        surface = pygame.Surface((500, 200), pygame.SRCALPHA)
-        widget._draw_multi_controller_indicators_new(surface)  # Should not raise
+        draw_indicators = mocker.spy(widget.renderer, 'draw_multi_controller_indicators')
+        surface = transparent_surface((500, 200))
+
+        widget.renderer.draw_multi_controller_indicators_new(surface)
+
+        draw_indicators.assert_not_called()
+        assert surface.get_bounding_rect().size == (0, 0)
 
 
 class TestGetFrameImageForRendering:
     """Test _get_frame_image_for_rendering method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_returns_frame_image_when_available(self):
         """Test returns frame's image attribute when present."""
@@ -3070,11 +2920,6 @@ class TestGetFrameImageForRendering:
 class TestFilmStripHasValidCanvasSprite:
     """Test _has_valid_canvas_sprite method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_has_valid_canvas_no_parent(self):
         """Test returns False when no parent_canvas."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3101,11 +2946,6 @@ class TestFilmStripHasValidCanvasSprite:
 class TestFilmStripHandleKeyboardInputEditMode:
     """Test handle_keyboard_input method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     @pytest.fixture
     def widget_in_edit_mode(self):
         """Create a widget in animation rename edit mode.
@@ -3125,49 +2965,44 @@ class TestFilmStripHandleKeyboardInputEditMode:
         widget.original_animation_name = 'idle'
         return widget
 
-    def _make_key_event(self, mocker, key, unicode_char=''):
-        """Create a mock keyboard event with key and unicode attributes.
+    def _make_key_event(self, key, unicode_char=''):
+        """Create a real KEYDOWN event with key and unicode attributes.
 
         Args:
-            mocker: The pytest-mock mocker fixture.
             key: The pygame key constant.
             unicode_char: The unicode character string.
 
         Returns:
-            A mock event with key and unicode attributes.
+            A real KEYDOWN event.
 
         """
-        event = mocker.Mock()
-        event.key = key
-        event.unicode = unicode_char
-        event.mod = 0
-        return event
+        return key_down_event(key=key, unicode=unicode_char)
 
-    def test_handle_escape_cancels_edit(self, mocker, widget_in_edit_mode):
+    def test_handle_escape_cancels_edit(self, widget_in_edit_mode):
         """Test Escape key cancels animation rename edit."""
-        event = self._make_key_event(mocker, pygame.K_ESCAPE)
+        event = self._make_key_event(pygame.K_ESCAPE)
         widget_in_edit_mode.handle_keyboard_input(event)
         assert widget_in_edit_mode.editing_animation is None
 
-    def test_handle_backspace_removes_char(self, mocker, widget_in_edit_mode):
+    def test_handle_backspace_removes_char(self, widget_in_edit_mode):
         """Test Backspace removes last character from editing text."""
         widget_in_edit_mode.editing_text = 'walk'
-        event = self._make_key_event(mocker, pygame.K_BACKSPACE)
+        event = self._make_key_event(pygame.K_BACKSPACE)
         widget_in_edit_mode.handle_keyboard_input(event)
         assert widget_in_edit_mode.editing_text == 'wal'
 
-    def test_handle_printable_char_appends(self, mocker, widget_in_edit_mode):
+    def test_handle_printable_char_appends(self, widget_in_edit_mode):
         """Test printable character appends to editing text."""
         widget_in_edit_mode.editing_text = 'wal'
-        event = self._make_key_event(mocker, pygame.K_k, unicode_char='k')
+        event = self._make_key_event(pygame.K_k, unicode_char='k')
         widget_in_edit_mode.handle_keyboard_input(event)
         assert widget_in_edit_mode.editing_text == 'walk'
 
-    def test_handle_non_editing_mode_does_nothing(self, mocker):
+    def test_handle_non_editing_mode_does_nothing(self):
         """Test keyboard input when not in editing mode does nothing."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = None
-        event = self._make_key_event(mocker, pygame.K_a, unicode_char='a')
+        event = self._make_key_event(pygame.K_a, unicode_char='a')
         result = widget.handle_keyboard_input(event)
         # Should return False or None (not consumed)
         assert not result
@@ -3175,11 +3010,6 @@ class TestFilmStripHandleKeyboardInputEditMode:
 
 class TestFilmStripHandlePreviewClickColorCycle:
     """Test handle_preview_click for background color cycling."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_left_click_cycles_background_forward(self):
         """Test left click on preview cycles background color forward."""
@@ -3234,11 +3064,6 @@ class TestFilmStripSetParentCanvas:
 class TestFilmStripUpdateLayout:
     """Test update_layout method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_update_layout_recalculates(self):
         """Test update_layout triggers layout recalculation."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3269,11 +3094,6 @@ class TestFilmStripUpdateLayout:
 
 class TestFilmStripDumpDebugState:
     """Test _dump_animation_debug_state and _dump_animated_sprite_debug."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_dump_debug_state_does_not_raise(self):
         """Test _dump_animation_debug_state runs without error."""
@@ -3316,11 +3136,6 @@ class TestFilmStripDumpDebugState:
 class TestFilmStripConvertMagentaToTransparent:
     """Test _convert_magenta_to_transparent method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_convert_magenta_rgb_to_transparent(self):
         """Test converts magenta RGB pixels to transparent."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3328,6 +3143,7 @@ class TestFilmStripConvertMagentaToTransparent:
         surface.fill((255, 0, 255))  # Magenta
         result = widget._convert_magenta_to_transparent(surface)
         assert isinstance(result, pygame.Surface)
+        assert result.get_at((0, 0)).a == 0
 
     def test_convert_non_magenta_unchanged(self):
         """Test non-magenta pixels remain unchanged."""
@@ -3336,15 +3152,11 @@ class TestFilmStripConvertMagentaToTransparent:
         surface.fill((255, 0, 0, 255))  # Red, not magenta
         result = widget._convert_magenta_to_transparent(surface)
         assert isinstance(result, pygame.Surface)
+        assert tuple(result.get_at((1, 0))) == (255, 0, 0, 255)
 
 
 class TestFilmStripRenderingHelpers:
     """Test rendering helper methods."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_draw_placeholder_does_not_raise(self):
         """Test _draw_placeholder renders without error.
@@ -3353,11 +3165,13 @@ class TestFilmStripRenderingHelpers:
         a placeholder into it.
         """
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        frame_surface = pygame.Surface(
-            (widget.frame_width, widget.frame_height),
-            pygame.SRCALPHA,
-        )
+        frame_surface = transparent_surface((widget.frame_width, widget.frame_height))
         widget._draw_placeholder(frame_surface)
+        assert rgb_at(frame_surface, (widget.frame_width // 2, widget.frame_height // 2)) == (
+            120,
+            90,
+            70,
+        )
 
     def test_create_selection_border_returns_surface(self):
         """Test _create_selection_border returns a valid surface.
@@ -3365,12 +3179,11 @@ class TestFilmStripRenderingHelpers:
         _create_selection_border takes a single frame_surface argument.
         """
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        frame_surface = pygame.Surface(
-            (widget.frame_width, widget.frame_height),
-            pygame.SRCALPHA,
-        )
+        frame_surface = transparent_surface((widget.frame_width, widget.frame_height))
         result = widget._create_selection_border(frame_surface)
         assert isinstance(result, pygame.Surface)
+        assert result.get_size() == (widget.frame_width + 4, widget.frame_height + 4)
+        assert rgb_at(result, (1, widget.frame_height // 2)) == widget.selection_color
 
     def test_add_hover_highlighting_does_not_raise(self):
         """Test _add_hover_highlighting renders without error.
@@ -3378,11 +3191,9 @@ class TestFilmStripRenderingHelpers:
         _add_hover_highlighting takes a single frame_surface argument.
         """
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        frame_surface = pygame.Surface(
-            (widget.frame_width, widget.frame_height),
-            pygame.SRCALPHA,
-        )
+        frame_surface = transparent_surface((widget.frame_width, widget.frame_height))
         widget._add_hover_highlighting(frame_surface)
+        assert rgb_at(frame_surface, (widget.frame_width - 1, 0)) == widget.hover_color
 
     def test_render_sprocket_separator_does_not_raise(self):
         """Test render_sprocket_separator renders without error.
@@ -3392,6 +3203,8 @@ class TestFilmStripRenderingHelpers:
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         result = widget.render_sprocket_separator(0, 50, WIDGET_HEIGHT)
         assert isinstance(result, pygame.Surface)
+        assert result.get_size() == (widget.sprocket_width, WIDGET_HEIGHT)
+        assert rgb_at(result, (widget.sprocket_width - 1, 0)) == widget.frame_border
 
 
 class TestFilmStripResetAllTabStates:
@@ -3422,11 +3235,6 @@ class TestFilmStripResetAllTabStates:
 
 class TestFilmStripToggleOnionSkinning:
     """Test _toggle_onion_skinning method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_toggle_onion_skinning_without_parent(self):
         """Test _toggle_onion_skinning without parent scene."""
@@ -3472,11 +3280,6 @@ class TestFilmStripToggleOnionSkinning:
 
 class TestFilmStripGetFrameImageStale:
     """Test _get_frame_image with stale image path (lines 499-528)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_get_frame_image_stale_with_pixels_and_image(self):
         """Test _get_frame_image returns surface from pixel data when image is stale."""
@@ -3528,11 +3331,6 @@ class TestFilmStripGetFrameImageStale:
 class TestFilmStripRenderEditingLabel:
     """Test _render_editing_label for cursor blink rendering (lines 1972-2014)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_render_editing_label_with_text_and_cursor(self):
         """Test _render_editing_label renders text with blinking cursor."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3540,10 +3338,15 @@ class TestFilmStripRenderEditingLabel:
         widget.cursor_visible = True
         widget.cursor_blink_time = 0
 
-        label_surface = pygame.Surface((100, 20), pygame.SRCALPHA)
+        label_surface = transparent_surface((100, 20))
         anim_rect = pygame.Rect(0, 0, 100, 20)
         widget._render_editing_label(label_surface, anim_rect)
-        # Should not raise
+
+        # The edit-mode border frames the label
+        assert rgb_at(label_surface, (0, 0)) == (100, 180, 220)
+        # The text is drawn in light blue somewhere inside the border
+        text_pixels = pygame.surfarray.pixels3d(label_surface)[2:-2, 2:-2]
+        assert ((text_pixels == (200, 220, 255)).all(axis=2)).any()
 
     def test_render_editing_label_empty_text_with_cursor(self):
         """Test _render_editing_label renders cursor with no text (lines 2000-2011)."""
@@ -3552,10 +3355,13 @@ class TestFilmStripRenderEditingLabel:
         widget.cursor_visible = True
         widget.cursor_blink_time = 0
 
-        label_surface = pygame.Surface((100, 20), pygame.SRCALPHA)
+        label_surface = transparent_surface((100, 20))
         anim_rect = pygame.Rect(0, 0, 100, 20)
         widget._render_editing_label(label_surface, anim_rect)
-        # Should render cursor at center without error
+
+        # The cursor is a 2-pixel light blue I-beam at the centre
+        assert rgb_at(label_surface, (50, 10)) == (200, 220, 255)
+        assert label_surface.get_at((30, 10)).a == 0
 
     def test_render_editing_label_cursor_blink_toggle(self):
         """Test _render_editing_label toggles cursor blink (lines 1972-1975)."""
@@ -3580,13 +3386,8 @@ class TestFilmStripRenderEditingLabel:
 class TestFilmStripRenderWithHover:
     """Test render method with hover effect (lines 2078-2079)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_render_with_hovering_strip(self, mocker):
-        """Test render draws hover effect when is_hovering_strip is True."""
+    def test_render_with_hovering_strip(self):
+        """Test render draws a blue hover border around the strip when is_hovering_strip."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         sprite = AnimatedSprite()
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
@@ -3594,112 +3395,57 @@ class TestFilmStripRenderWithHover:
         widget.set_animated_sprite(sprite)
         widget.is_hovering_strip = True
 
-        # Mock parent scene for multi-controller indicators
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = opaque_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget.render(render_surface)
-        # Should not raise; hover effect is drawn
+        assert rgb_at(render_surface, (0, WIDGET_HEIGHT // 2)) == (100, 100, 255)
+        assert rgb_at(render_surface, (WIDGET_WIDTH - 1, WIDGET_HEIGHT // 2)) == (100, 100, 255)
 
-
-class TestFilmStripGetActiveControllerSelections:
-    """Test _get_active_controller_selections (lines 2099-2117)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_no_parent_scene_returns_empty(self):
-        """Test returns empty list when no parent_scene."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-    def test_with_active_controller_selection(self, mocker):
-        """Test returns selections for active controllers matching animation."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        # Mock parent_scene with controller_selections
-        mock_selection = mocker.Mock()
-        mock_selection.is_active.return_value = True
-        mock_selection.get_selection.return_value = ('idle', 0)
-
-        # Mock controller info
-        mock_controller_info = mocker.Mock()
-        mock_controller_info.controller_id = 0
-        mock_controller_info.color = (255, 0, 0)
-
-        widget.parent_scene = mocker.Mock()
-        widget.parent_scene.controller_selections = {0: mock_selection}
-        widget.parent_scene.multi_controller_manager = mocker.Mock()
-        widget.parent_scene.multi_controller_manager.controllers = {0: mock_controller_info}
-
-        result = widget._get_active_controller_selections()
-        assert len(result) == 1
-        assert result[0]['controller_id'] == 0
-        assert result[0]['color'] == (255, 0, 0)
-
-    def test_with_inactive_controller_selection(self, mocker):
-        """Test skips inactive controller selections (line 2100)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        mock_selection = mocker.Mock()
-        mock_selection.is_active.return_value = False
-
-        widget.parent_scene = mocker.Mock()
-        widget.parent_scene.controller_selections = {0: mock_selection}
-
-        result = widget._get_active_controller_selections()
-        assert result == []
-
-    def test_with_wrong_animation_controller(self, mocker):
-        """Test skips controllers selecting different animation (line 2103)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        mock_selection = mocker.Mock()
-        mock_selection.is_active.return_value = True
-        mock_selection.get_selection.return_value = ('walk', 0)  # Different animation
-
-        widget.parent_scene = mocker.Mock()
-        widget.parent_scene.controller_selections = {0: mock_selection}
-
-        result = widget._get_active_controller_selections()
-        assert result == []
+        widget.is_hovering_strip = False
+        widget.render(render_surface)
+        assert rgb_at(render_surface, (0, WIDGET_HEIGHT // 2)) != (100, 100, 255)
 
 
 class TestFilmStripDrawMultiControllerIndicators:
-    """Test _draw_multi_controller_indicators color priority (lines 2218-2230, 2275-2284)."""
+    """Test FilmStripRendering.draw_multi_controller_indicators on a real surface."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+    INDICATOR_ROW_Y = 46  # 4 px above the frame at y=50
 
-    def test_controller_color_priority_sorting(self):
-        """Test controller selections are sorted by color priority."""
+    @staticmethod
+    def make_widget_with_one_frame() -> FilmStripWidget:
+        """Build a widget showing one 'idle' frame laid out at (50, 50, 64, 64).
+
+        Returns:
+            The widget.
+
+        """
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         sprite = AnimatedSprite()
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
         sprite.add_animation('idle', [SpriteFrame(surface)])
         widget.set_animated_sprite(sprite)
-
-        # Set up frame layout for the test
         widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
+        return widget
 
+    def indicator_colors(
+        self,
+        *,
+        surface: pygame.Surface,
+        centers_x: tuple[int, ...],
+    ) -> list[tuple[int, ...]]:
+        """Read the RGB colours of the indicator row at the given x positions.
+
+        Returns:
+            The colours.
+
+        """
+        return [
+            tuple(surface.get_at((center_x, self.INDICATOR_ROW_Y)))[:3] for center_x in centers_x
+        ]
+
+    def test_controller_color_priority_sorting(self):
+        """The keyboard comes first, then controllers in red, green, blue, yellow order."""
+        widget = self.make_widget_with_one_frame()
         render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
-
-        # Create controller selections with various colors
         controller_selections = [
             {'controller_id': 3, 'frame': 0, 'color': (255, 255, 0)},  # Yellow (priority 3)
             {'controller_id': 0, 'frame': 0, 'color': (255, 0, 0)},  # Red (priority 0)
@@ -3707,68 +3453,66 @@ class TestFilmStripDrawMultiControllerIndicators:
             {'controller_id': 1, 'frame': 0, 'color': (0, 255, 0)},  # Green (priority 1)
         ]
 
-        widget._draw_multi_controller_indicators(render_surface, 'idle', 0, controller_selections)
-        # Should draw all indicators without error
+        widget.renderer.draw_multi_controller_indicators(
+            render_surface, 'idle', 0, controller_selections
+        )
 
-    def test_unknown_controller_color_priority(self):
-        """Test unknown controller colors get priority 999 (lines 2227-2228)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
-
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
-
-        # Unknown color
-        controller_selections = [
-            {'controller_id': 0, 'frame': 0, 'color': (128, 128, 128)},  # Unknown color
+        # Five indicators 8 px apart, centred on the frame's centre (x=82)
+        assert self.indicator_colors(surface=render_surface, centers_x=(66, 74, 82, 90, 98)) == [
+            (255, 255, 255),
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 255, 0),
         ]
 
-        widget._draw_multi_controller_indicators(render_surface, 'idle', 0, controller_selections)
+    def test_unknown_controller_color_sorts_last(self):
+        """A colour outside the controller palette sorts after the known colours."""
+        widget = self.make_widget_with_one_frame()
+        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        controller_selections = [
+            {'controller_id': 4, 'frame': 0, 'color': (200, 100, 50)},  # Unknown colour
+            {'controller_id': 0, 'frame': 0, 'color': (255, 0, 0)},
+        ]
+
+        widget.renderer.draw_multi_controller_indicators(
+            render_surface, 'other', -1, controller_selections
+        )
+
+        assert self.indicator_colors(surface=render_surface, centers_x=(78, 86)) == [
+            (255, 0, 0),
+            (200, 100, 50),
+        ]
 
     def test_keyboard_and_controller_indicators(self):
-        """Test drawing both keyboard and controller indicators (lines 2308-2315)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
-
-        widget.frame_layouts['idle', 0] = pygame.Rect(50, 50, 64, 64)
-
+        """A keyboard and a controller on one frame sit 4 px either side of its centre."""
+        widget = self.make_widget_with_one_frame()
         render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
-
         controller_selections = [
             {'controller_id': 0, 'frame': 0, 'color': (255, 0, 0)},
         ]
 
-        # keyboard_animation matches current_animation, so keyboard indicator drawn too
-        widget._draw_multi_controller_indicators(render_surface, 'idle', 0, controller_selections)
+        widget.renderer.draw_multi_controller_indicators(
+            render_surface, 'idle', 0, controller_selections
+        )
 
-    def test_no_selections_returns_early(self):
-        """Test returns early with no selections (line 2292)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
-        sprite.add_animation('idle', [SpriteFrame(surface)])
-        widget.set_animated_sprite(sprite)
+        assert self.indicator_colors(surface=render_surface, centers_x=(78, 86)) == [
+            (255, 255, 255),
+            (255, 0, 0),
+        ]
 
+    def test_no_selections_draws_nothing(self):
+        """With no keyboard selection on this animation and no controllers, nothing is drawn."""
+        widget = self.make_widget_with_one_frame()
         render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
 
-        # No matching keyboard or controller
-        widget._draw_multi_controller_indicators(render_surface, 'other', -1, [])
+        widget.renderer.draw_multi_controller_indicators(render_surface, 'other', -1, [])
+
+        assert render_surface.get_bounding_rect().size == (0, 0)
 
 
 class TestFilmStripHandleAddDeleteAnimationTab:
     """Test _handle_add_animation_tab_click and _handle_delete_animation_tab_click."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_handle_add_animation_no_parent(self):
         """Test _handle_add_animation_tab_click without parent scene (line 2716)."""
@@ -3852,11 +3596,6 @@ class TestFilmStripHandleAddDeleteAnimationTab:
 class TestFilmStripHandleRemovalButton:
     """Test _handle_removal_button_click edge cases (lines 2895-2899)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_removal_button_shows_confirmation(self, mocker):
         """Test removal button shows confirmation dialog (lines 2895-2897)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3873,9 +3612,11 @@ class TestFilmStripHandleRemovalButton:
 
         result = widget._handle_removal_button_click((15, 25))
         assert result is True
-        widget.parent_scene._show_delete_frame_confirmation.assert_called_once_with('idle', 0)
+        widget.parent_scene.film_strip_coordinator._show_delete_frame_confirmation.assert_called_once_with(
+            'idle', 0
+        )
 
-    def test_removal_button_out_of_range(self, mocker):
+    def test_removal_button_out_of_range(self):
         """Test removal button returns False when frame index is out of range (lines 2898-2899)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         sprite = AnimatedSprite()
@@ -3894,11 +3635,6 @@ class TestFilmStripHandleRemovalButton:
 class TestFilmStripTrackFrameDeletion:
     """Test _track_frame_deletion_for_undo edge cases (line 2935)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_track_deletion_without_parent_scene(self):
         """Test _track_frame_deletion_for_undo returns early without parent_scene."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -3914,11 +3650,6 @@ class TestFilmStripTrackFrameDeletion:
 
 class TestFilmStripClampAnimatedSpriteFrame:
     """Test _clamp_animated_sprite_frame edge cases (lines 2972, 2978)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_clamp_when_frame_exceeds_remaining(self):
         """Test clamps frame when current frame exceeds remaining frames (line 2978)."""
@@ -3953,11 +3684,6 @@ class TestFilmStripClampAnimatedSpriteFrame:
 
 class TestFilmStripRemoveFrameScrollAdjust:
     """Test _remove_frame scroll adjustment (lines 3046-3048)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_remove_frame_adjusts_scroll_for_many_frames(self, mocker):
         """Test _remove_frame adjusts scroll offset when more than FRAMES_PER_VIEW remain."""
@@ -3996,11 +3722,6 @@ class TestFilmStripRemoveFrameScrollAdjust:
 class TestFilmStripRenderRemovalButton:
     """Test _render_removal_button skipping (lines 3084-3098)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_render_removal_button_no_layout(self):
         """Test _render_removal_button returns when no layout exists (lines 3084-3085)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -4012,9 +3733,10 @@ class TestFilmStripRenderRemovalButton:
         # Set up removal_button_layouts but without the frame we're rendering
         widget.removal_button_layouts = {('idle', 1): pygame.Rect(0, 0, 11, 30)}
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._render_removal_button(render_surface, 'idle', 0)
-        # Should return early without error
+        # Nothing is drawn
+        assert render_surface.get_bounding_rect().size == (0, 0)
 
     def test_render_removal_button_single_frame_skips(self):
         """Test _render_removal_button skips when animation has only 1 frame (lines 3094-3098)."""
@@ -4027,26 +3749,27 @@ class TestFilmStripRenderRemovalButton:
         # Set up a removal button layout even though there's only 1 frame
         widget.removal_button_layouts = {('idle', 0): pygame.Rect(0, 0, 11, 30)}
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._render_removal_button(render_surface, 'idle', 0)
-        # Should skip rendering since there's only 1 frame
+        # Nothing is drawn: the last frame cannot be removed
+        assert render_surface.get_bounding_rect().size == (0, 0)
+
+        # With a second frame the same layout does draw a button
+        sprite.add_animation('idle', [SpriteFrame(surface), SpriteFrame(surface)])
+        widget._render_removal_button(render_surface, 'idle', 0)
+        assert render_surface.get_bounding_rect().colliderect(pygame.Rect(0, 0, 11, 30))
 
 
 class TestFilmStripDeleteTabRender:
     """Test FilmStripDeleteTab render in clicked state (lines 3321-3322)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_render_clicked_state(self):
         """Test FilmStripDeleteTab renders in clicked state."""
         tab = FilmStripDeleteTab(x=10, y=10, width=40, height=10)
         tab.is_clicked = True
-        surface = pygame.Surface((100, 50), pygame.SRCALPHA)
+        surface = opaque_surface((100, 50))
         tab.render(surface)
-        # Should render with click_color
+        assert drawn_tab_colors(surface=surface, tab=tab) == (TAB_CLICK_COLOR, BLACK)
 
     def test_reset_click_state(self):
         """Test FilmStripDeleteTab.reset_click_state (line 3374)."""
@@ -4059,18 +3782,16 @@ class TestFilmStripDeleteTabRender:
 class TestFilmStripTabRender:
     """Test FilmStripTab render in clicked state (lines 3446-3447)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_render_clicked_state(self):
         """Test FilmStripTab renders in clicked state."""
         tab = FilmStripTab(x=10, y=10, width=40, height=10)
         tab.is_clicked = True
-        surface = pygame.Surface((100, 50), pygame.SRCALPHA)
+        surface = opaque_surface((100, 50))
         tab.render(surface)
-        # Should render with click_color
+        assert drawn_tab_colors(surface=surface, tab=tab) == (TAB_CLICK_COLOR, BLACK)
+        # A plus sign: the vertical bar crosses the horizontal one
+        center_x, center_y = tab.rect.center
+        assert rgb_at(surface, (center_x, center_y - 1)) == BLACK
 
     def test_handle_click_miss(self):
         """Test FilmStripTab.handle_click returns False on miss (line 3484)."""
@@ -4081,11 +3802,6 @@ class TestFilmStripTabRender:
 
 class TestFilmStripHandleClickEdgeCases:
     """Test handle_click with removal button and tab interactions (lines 1166-1167, 1171-1172)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_handle_click_removal_button_returns_none(self, mocker):
         """Test handle_click returns None when removal button was clicked."""
@@ -4126,11 +3842,6 @@ class TestFilmStripHandleClickEdgeCases:
 class TestFilmStripDrawPreviewTriangle:
     """Test _draw_preview_triangle fallback paths (lines 2371-2374)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_preview_triangle_no_animation_data(self):
         """Test _draw_preview_triangle centers triangle when no animation data (line 2374)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -4142,9 +3853,12 @@ class TestFilmStripDrawPreviewTriangle:
         # Create a preview rect that's NOT in preview_rects so anim_name lookup fails
         preview_rect = pygame.Rect(400, 10, 64, 64)
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._draw_preview_triangle(render_surface, preview_rect)
-        # Should use fallback center position
+        # The 5x5 triangle is centred 4 pixels below the preview
+        drawn = render_surface.get_bounding_rect()
+        assert drawn.centerx == preview_rect.centerx
+        assert drawn.top == preview_rect.bottom + 4 - 2
 
     def test_preview_triangle_single_frame_centered(self):
         """Test _draw_preview_triangle centers triangle for single-frame animation."""
@@ -4157,18 +3871,16 @@ class TestFilmStripDrawPreviewTriangle:
         preview_rect = pygame.Rect(400, 10, 64, 64)
         widget.preview_rects['idle'] = preview_rect
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._draw_preview_triangle(render_surface, preview_rect)
-        # Should center the triangle for single frame
+        # A single frame does not animate: the triangle stays centred below the preview
+        drawn = render_surface.get_bounding_rect()
+        assert drawn.centerx == preview_rect.centerx
+        assert drawn.top == preview_rect.bottom + 4 - 2
 
 
 class TestFilmStripRenderPreviewEdgeCases:
     """Test render_preview edge cases (lines 1810-1822, 1833-1840)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_render_preview_with_no_frame_image(self, mocker):
         """Test render_preview draws placeholder when frame has no image (lines 1833-1840)."""
@@ -4186,8 +3898,16 @@ class TestFilmStripRenderPreviewEdgeCases:
         mock_frame.duration = 0.5
         sprite._animations['idle'] = [mock_frame]
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = opaque_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget.render_preview(render_surface)
+
+        # A grey placeholder fills the preview inside its padding
+        preview_rect = widget.preview_rects['idle']
+        inside_placeholder = (
+            preview_rect.x + widget.preview_padding + 2,
+            preview_rect.y + widget.preview_padding + 2,
+        )
+        assert rgb_at(render_surface, inside_placeholder) == (128, 128, 128)
 
     def test_render_preview_hovered(self):
         """Test render_preview draws hover effect on preview (line 1795)."""
@@ -4198,17 +3918,17 @@ class TestFilmStripRenderPreviewEdgeCases:
         widget.set_animated_sprite(sprite)
         widget.hovered_preview = 'idle'
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = opaque_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget.render_preview(render_surface)
+
+        # An orange border marks the hovered preview
+        preview_rect = widget.preview_rects['idle']
+        assert rgb_at(render_surface, preview_rect.topleft) == (255, 165, 0)
+        assert rgb_at(render_surface, (preview_rect.x + 2, preview_rect.centery)) == (255, 165, 0)
 
 
 class TestFilmStripRenderFrameThumbnailEdgeCases:
     """Test render_frame_thumbnail edge cases (lines 1480, 1505, 1560-1562)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_render_thumbnail_no_frame_image(self, mocker):
         """Test render_frame_thumbnail draws placeholder when no image (line 1480)."""
@@ -4220,24 +3940,28 @@ class TestFilmStripRenderFrameThumbnailEdgeCases:
 
         result = widget.render_frame_thumbnail(frame)
         assert isinstance(result, pygame.Surface)
+        # The copper brown placeholder shows where the image would be
+        assert rgb_at(result, (widget.frame_width // 2, widget.frame_height // 2)) == (120, 90, 70)
 
     def test_render_thumbnail_hovered(self):
         """Test render_frame_thumbnail draws hover effect (line 1505)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE), pygame.SRCALPHA)
+        surface.fill((10, 200, 30, 255))
         frame = SpriteFrame(surface, duration=0.5)
 
         result = widget.render_frame_thumbnail(frame, is_hovered=True)
         assert isinstance(result, pygame.Surface)
+        # A cyan hover border over the frame's own picture
+        assert rgb_at(result, (0, widget.frame_height // 2)) == (0, 255, 255)
+        assert rgb_at(result, (widget.frame_width // 2, widget.frame_height // 2)) == (10, 200, 30)
+
+        not_hovered = widget.render_frame_thumbnail(frame, is_hovered=False)
+        assert rgb_at(not_hovered, (0, widget.frame_height // 2)) == widget.preview_border
 
 
 class TestFilmStripHandleKeyboardEnterKey:
     """Test handle_keyboard_input Enter key for renaming (lines 1425-1436 via rename flow)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_enter_key_commits_rename(self, mocker):
         """Test Enter key commits animation rename via parent scene."""
@@ -4252,10 +3976,7 @@ class TestFilmStripHandleKeyboardEnterKey:
         widget.original_animation_name = 'idle'
         widget.parent_scene = mocker.Mock()
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
-        event.unicode = ''
-        event.mod = 0
+        event = key_down_event(key=pygame.K_RETURN)
 
         result = widget.handle_keyboard_input(event)
         assert result is True
@@ -4275,15 +3996,13 @@ class TestFilmStripHandleKeyboardEnterKey:
         widget.original_animation_name = 'idle'
         widget.parent_scene = mocker.Mock()
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
-        event.unicode = ''
+        event = key_down_event(key=pygame.K_RETURN)
 
         result = widget.handle_keyboard_input(event)
         assert result is True
         widget.parent_scene.on_animation_rename.assert_not_called()
 
-    def test_enter_key_empty_text_no_rename(self, mocker):
+    def test_enter_key_empty_text_no_rename(self):
         """Test Enter key does not rename when text is empty."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         sprite = AnimatedSprite()
@@ -4295,9 +4014,7 @@ class TestFilmStripHandleKeyboardEnterKey:
         widget.editing_text = ''
         widget.original_animation_name = 'idle'
 
-        event = mocker.Mock()
-        event.key = pygame.K_RETURN
-        event.unicode = ''
+        event = key_down_event(key=pygame.K_RETURN)
 
         result = widget.handle_keyboard_input(event)
         assert result is True
@@ -4306,11 +4023,6 @@ class TestFilmStripHandleKeyboardEnterKey:
 
 class TestFilmStripGetControllerSelectionColor:
     """Test _get_controller_selection_color (lines 1425-1436)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_returns_controller_color_for_matching_selection(self, mocker):
         """Test returns controller color when a controller has the frame selected."""
@@ -4372,33 +4084,42 @@ class TestFilmStripGetControllerSelectionColor:
 class TestFilmStripRenderVerticalDividerAndPreviewBackground:
     """Test _render_vertical_divider and _render_preview_background (lines 1877, 1894)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_render_vertical_divider_no_sprite(self):
         """Test _render_vertical_divider returns when no animated sprite (line 1877)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._render_vertical_divider(surface)
-        # Should return without error
+        assert surface.get_bounding_rect().size == (0, 0)
+
+        # With a sprite, a 2-pixel copper divider sits left of the preview area
+        widget.set_animated_sprite(make_real_animated_sprite(frame_counts={'idle': 1}))
+        widget._render_vertical_divider(surface)
+        divider_x = WIDGET_WIDTH - widget.preview_width - 2 - 4
+        assert surface.get_bounding_rect() == pygame.Rect(divider_x, 0, 2, widget.rect.height)
+        assert rgb_at(surface, (divider_x, 0)) == (92, 58, 26)
 
     def test_render_preview_background_no_sprite(self):
         """Test _render_preview_background returns when no animated sprite (line 1894)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._render_preview_background(surface)
-        # Should return without error
+        assert surface.get_bounding_rect().size == (0, 0)
+
+        # With a sprite, the area right of the divider is filled darker
+        widget.set_animated_sprite(make_real_animated_sprite(frame_counts={'idle': 1}))
+        widget._render_preview_background(surface)
+        background_x = WIDGET_WIDTH - widget.preview_width - 2 - 4 + 2
+        assert surface.get_bounding_rect() == pygame.Rect(
+            background_x,
+            0,
+            WIDGET_WIDTH - background_x,
+            widget.rect.height,
+        )
+        assert rgb_at(surface, (WIDGET_WIDTH - 1, widget.rect.height - 1)) == (80, 50, 22)
 
 
 class TestFilmStripCalculateFramesWidth:
     """Test _calculate_frames_width (line 2543)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_calculate_frames_width_with_multiple_animations(self):
         """Test _calculate_frames_width adds sprocket width between animations (line 2543)."""
@@ -4417,11 +4138,6 @@ class TestFilmStripCalculateFramesWidth:
 
 class TestFilmStripHandleTabHover:
     """Test _handle_tab_hover (line 2752-2754)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_handle_tab_hover_returns_true_when_hovering(self):
         """Test _handle_tab_hover returns True when hovering over a tab."""
@@ -4446,11 +4162,6 @@ class TestFilmStripHandleTabHover:
 class TestFilmStripDrawFilmSprockets:
     """Test _draw_film_sprockets with label area (lines 2470-2474)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_draw_film_sprockets_with_animation_layout(self):
         """Test _draw_film_sprockets avoids label area (lines 2470-2474)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -4459,20 +4170,32 @@ class TestFilmStripDrawFilmSprockets:
         sprite.add_animation('idle', [SpriteFrame(surface)])
         widget.set_animated_sprite(sprite)
 
-        render_surface = pygame.Surface((WIDGET_WIDTH, WIDGET_HEIGHT), pygame.SRCALPHA)
+        render_surface = transparent_surface((WIDGET_WIDTH, WIDGET_HEIGHT))
         widget._draw_film_sprockets(render_surface)
-        # Should skip sprockets in the label area
+
+        # Top sprockets (6x6, at y=7..12) and bottom ones both skip the label area
+        label_rect = widget.animation_layouts['idle']
+        top_row = pygame.surfarray.pixels_alpha(render_surface)[:, 7:13]
+        top_columns_drawn = {int(x) for x in top_row.nonzero()[0]}
+        assert top_columns_drawn
+        assert not any(label_rect.left + 3 < x < label_rect.right - 3 for x in top_columns_drawn)
+        # Bottom sprockets are 6x6 at y = height - 12 .. height - 7
+        bottom_row_y = widget.rect.height - 9
+        bottom_row = pygame.surfarray.pixels_alpha(render_surface)[:, bottom_row_y]
+        bottom_columns_drawn = {int(x) for x in bottom_row.nonzero()[0]}
+        assert bottom_columns_drawn
+        assert not any(label_rect.left + 3 < x < label_rect.right - 3 for x in bottom_columns_drawn)
+        assert rgb_at(render_surface, (min(bottom_columns_drawn) + 3, bottom_row_y)) == (
+            60,
+            50,
+            40,
+        )
 
 
 class TestFilmStripHandleClickEnterEditMode:
     """Test handle_click entering animation label edit mode."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_click_animation_label_enters_edit_mode(self, mocker):
+    def test_click_animation_label_enters_edit_mode(self):
         """Test clicking animation label enters edit mode."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         sprite = AnimatedSprite()
@@ -4481,22 +4204,16 @@ class TestFilmStripHandleClickEnterEditMode:
         widget.set_animated_sprite(sprite)
 
         # Get the animation label rect and click inside it
-        label_rect = widget.animation_layouts.get('idle')
-        if label_rect:
-            click_pos = (label_rect.centerx, label_rect.centery)
-            result = widget.handle_click(click_pos)
-            assert result is None  # Should return None for label clicks
-            assert widget.editing_animation == 'idle'
-            assert not widget.editing_text
+        label_rect = widget.animation_layouts['idle']
+        click_pos = (label_rect.centerx, label_rect.centery)
+        result = widget.handle_click(click_pos)
+        assert result is None  # Should return None for label clicks
+        assert widget.editing_animation == 'idle'
+        assert not widget.editing_text
 
 
 class TestFilmStripSetFrameIndexParentCanvas:
     """Test set_frame_index with parent canvas (line 2572)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_set_frame_index_updates_parent_canvas(self, mocker):
         """Test set_frame_index updates the parent canvas interface (line 2572)."""
@@ -4517,11 +4234,6 @@ class TestFilmStripSetFrameIndexParentCanvas:
 class TestFilmStripRenderAnimationLabel:
     """Test _render_animation_label hovered state (lines 1949, 1957, 1963)."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_render_label_hovered_but_not_editing(self):
         """Test _render_animation_label adds hover highlighting (line 1963)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -4532,10 +4244,12 @@ class TestFilmStripRenderAnimationLabel:
         widget.hovered_animation = 'idle'
         widget.editing_animation = None
 
-        anim_rect = widget.animation_layouts.get('idle')
-        if anim_rect:
-            result = widget._render_animation_label('idle', anim_rect)
-            assert isinstance(result, pygame.Surface)
+        anim_rect = widget.animation_layouts['idle']
+        result = widget._render_animation_label('idle', anim_rect)
+        assert isinstance(result, pygame.Surface)
+        # A 2-pixel hover border
+        assert rgb_at(result, (0, 0)) == widget.hover_color
+        assert rgb_at(result, (anim_rect.width - 2, anim_rect.height // 2)) == widget.hover_color
 
     def test_render_label_in_edit_mode(self):
         """Test _render_animation_label calls _render_editing_label when editing (line 1949)."""
@@ -4549,7 +4263,8 @@ class TestFilmStripRenderAnimationLabel:
         widget.cursor_visible = True
         widget.cursor_blink_time = 0
 
-        anim_rect = widget.animation_layouts.get('idle')
-        if anim_rect:
-            result = widget._render_animation_label('idle', anim_rect)
-            assert isinstance(result, pygame.Surface)
+        anim_rect = widget.animation_layouts['idle']
+        result = widget._render_animation_label('idle', anim_rect)
+        assert isinstance(result, pygame.Surface)
+        # The edit-mode border, not the hover border
+        assert rgb_at(result, (0, 0)) == (100, 180, 220)

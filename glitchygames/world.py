@@ -15,11 +15,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from glitchygames.camera import Camera2D
+    from glitchygames.scenes import Scene
 
 log: logging.Logger = logging.getLogger('game.world')
 
 # Scenes already warned that the game and the engine both moved the camera (warn once each)
-_scenes_warned_about_double_update: weakref.WeakSet[object] = weakref.WeakSet()
+_scenes_warned_about_double_update: weakref.WeakSet[Scene] = weakref.WeakSet()
 
 # Sprites this far outside the screen still count as visible, so they never pop in at the edge
 CULL_MARGIN_PIXELS = 32
@@ -67,14 +68,6 @@ class WorldPositioned(Protocol):
         ...
 
 
-class _CameraTargetScene(Protocol):
-    """The scene attribute the camera aim reads (it writes nothing on the scene)."""
-
-    def camera_target(self) -> tuple[float, float] | None:
-        """Return the world point to aim the camera at, or None for a manual camera."""
-        ...
-
-
 class _PositionedSprite(Protocol):
     """The sprite attributes the positioning step writes."""
 
@@ -93,6 +86,8 @@ def is_world_positioned(sprite: object) -> bool:
         bool: True only when COORDINATE_SPACE is CoordinateSpace.WORLD.
 
     """
+    # Looked up by name: any pygame sprite may be in a scene's group (a game's own DirtySprite,
+    # GhostSprite), and one without the declaration is screen space
     return getattr(sprite, 'COORDINATE_SPACE', CoordinateSpace.SCREEN) is CoordinateSpace.WORLD
 
 
@@ -116,6 +111,8 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
             draw_offset is not whole pixels.
 
     """
+    # Looked up by name: sprite is any object (the declaration is checked at runtime only), and
+    # one without its world position gets the TypeError below
     world_x = getattr(sprite, 'world_x', None)
     world_y = getattr(sprite, 'world_y', None)
     if world_x is None or world_y is None:
@@ -128,6 +125,7 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
     # The WORLD shake offset is read, never advanced here: the camera's update or aim, or the
     # engine's still-camera step (SceneManager._advance_still_camera_shake), advances it
     shake_x, shake_y = camera.shake_effect.offset
+    # Looked up by name: only frame-anchored sprites (AnimatedSprite, GhostSprite) have one
     draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
     if not all(
         isinstance(component, int) and not isinstance(component, bool)
@@ -182,6 +180,7 @@ def position_world_sprites(
             # dirty == 2 sprites already redraw every frame; keep their mode
             if positioned_sprite.dirty != DIRTY_ALWAYS_REDRAW:
                 positioned_sprite.dirty = DIRTY_REDRAW_ONCE
+        # Looked up by name: a world sprite need not declare hidden (World Space)
         is_visible = positioned_sprite.rect.colliderect(cull_rect) and not getattr(
             sprite, 'hidden', False
         )
@@ -190,7 +189,7 @@ def position_world_sprites(
             positioned_sprite.visible = int(is_visible)
 
 
-def aim_camera(*, scene: object, camera: Camera2D, dt: float) -> None:
+def aim_camera(*, scene: Scene, camera: Camera2D, dt: float) -> None:
     """Move the camera toward the scene's camera target (the engine's camera aim step).
 
     The target comes from scene.camera_target() (an override, else the camera's follow target).
@@ -206,19 +205,19 @@ def aim_camera(*, scene: object, camera: Camera2D, dt: float) -> None:
     from an earlier frame.
 
     Args:
-        scene: The active scene (a glitchygames Scene).
+        scene: The active scene.
         camera: The scene's camera.
         dt: Delta time in seconds since the last frame.
 
     """
-    target = cast('_CameraTargetScene', scene).camera_target()
+    target = scene.camera_target()
     if target is None:
         return
     if camera.updated_by_game_this_frame and scene not in _scenes_warned_about_double_update:
         log.warning(
             'camera.update() called by the game while the engine is also aiming the camera; '
             'remove the manual call or stop following (scene %s)',
-            getattr(scene, 'NAME', type(scene).__name__),
+            scene.NAME,
         )
         _scenes_warned_about_double_update.add(scene)
     target_x, target_y = target

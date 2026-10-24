@@ -3,9 +3,38 @@
 
 from __future__ import annotations
 
+import pygame
+import pytest
+
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
-from glitchygames.scenes import SceneManager
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.scenes import Scene, SceneManager
+
+
+@pytest.fixture(autouse=True)
+def restore_scene_manager_options(mocker):
+    """Put SceneManager.OPTIONS back after each test.
+
+    Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
+    class; without this, the stand-in engines below would leave their options for later tests.
+    """
+    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
+
+
+class PacedScene(Scene):
+    """A real scene with a green background, run by the paced loop below."""
+
+    NAME = 'PacedScene'
+
+    def __init__(self):
+        """Paint the background green so a rendered frame is visible on the display."""
+        super().__init__()
+        self.background_color = (0, 255, 0)
+        self.ticks = 0
+
+    def dt_tick(self, dt):
+        """Count the logic ticks the loop ran."""
+        super().dt_tick(dt)
+        self.ticks += 1
 
 
 class FakeTimer:
@@ -78,12 +107,8 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     sm.game_engine = engine_mock
     sm.target_fps = 60
 
-    monkeypatch.setattr(sm, '_update_scene', lambda *, scene_dt: None)
+    # The stand-in engine has no event managers; every other frame step runs for real
     monkeypatch.setattr(sm, '_process_events', lambda: None)
-    monkeypatch.setattr(sm, '_aim_active_camera', lambda *, scene_dt: None)
-    monkeypatch.setattr(sm, '_position_active_world_sprites', lambda: None)
-    monkeypatch.setattr(sm, '_render_scene', lambda: None)
-    monkeypatch.setattr(sm, '_update_display', lambda: None)
 
     iterations = {'n': 0}
 
@@ -100,13 +125,18 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
 
     monkeypatch.setattr(sm, '_update_display', wrapped_update_display)
 
-    sm.active_scene = MockFactory.create_event_test_scene_mock()
-    sm.active_scene.next_scene = sm.active_scene
+    scene = PacedScene()
+    sm.switch_to_scene(scene)
+    display = pygame.display.get_surface()
+    display.fill((0, 0, 0))
     sm.start()
 
     assert fake_timer.start_calls >= 1
     assert fake_timer.compute_calls >= 1
     assert fake_timer.sleep_calls >= 1
+    # Three real frames ran: three logic ticks, and the scene's background reached the display
+    assert scene.ticks == 3
+    assert tuple(display.get_at((400, 300)))[:3] == (0, 255, 0)
 
 
 def test_scene_manager_falls_back_to_default_target_fps_when_option_missing(mocker):
@@ -134,19 +164,15 @@ def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker
     sm.game_engine = engine_mock
     sm.target_fps = 60.5
 
-    monkeypatch.setattr(sm, '_update_scene', lambda *, scene_dt: None)
+    # The stand-in engine has no event managers; every other frame step runs for real
     monkeypatch.setattr(sm, '_process_events', lambda: None)
-    monkeypatch.setattr(sm, '_aim_active_camera', lambda *, scene_dt: None)
-    monkeypatch.setattr(sm, '_position_active_world_sprites', lambda: None)
-    monkeypatch.setattr(sm, '_render_scene', lambda: None)
 
     def stop_after_first_frame():
         sm.quit_requested = True
 
     monkeypatch.setattr(sm, '_update_display', stop_after_first_frame)
 
-    sm.active_scene = MockFactory.create_event_test_scene_mock()
-    sm.active_scene.next_scene = sm.active_scene
+    sm.switch_to_scene(PacedScene())
     sm.start()
 
     assert fake_timer.start_frame_targets[0] == 60.5

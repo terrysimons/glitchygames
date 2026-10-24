@@ -1,16 +1,19 @@
 """Tests for text-to-speech backends (glitchygames/audio/tts.py).
 
 The macOS ``say`` command is never run: ``shutil.which``, ``sys.platform`` and
-``subprocess.run`` are the boundary and are mocked.
+``run_command`` (glitchygames.process, the engine's one child-process launcher) are the boundary
+and are mocked.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
 
+from glitchygames import process
 from glitchygames.audio import tts
 
 FAKE_SAY_PATH = '/usr/bin/say'
@@ -21,12 +24,16 @@ def macos_with_say(mocker):
     """Pretend to run on macOS with ``say`` on the PATH.
 
     Returns:
-        The mock standing in for subprocess.run.
+        The mock standing in for run_command (``say`` succeeds).
 
     """
     mocker.patch.object(tts.shutil, 'which', return_value=FAKE_SAY_PATH)
     mocker.patch.object(tts.sys, 'platform', 'darwin')
-    return mocker.patch.object(tts.subprocess, 'run')
+    return mocker.patch.object(
+        tts,
+        'run_command',
+        return_value=process.CompletedProcess(args=[], returncode=0, stdout=''),
+    )
 
 
 class TestMacOSTTSAvailability:
@@ -60,7 +67,7 @@ class TestMacOSTTSSpeakToFile:
     def test_unavailable_backend_returns_none_without_running_say(self, mocker):
         """An unavailable backend never starts a process."""
         mocker.patch.object(tts.shutil, 'which', return_value=None)
-        run = mocker.patch.object(tts.subprocess, 'run')
+        run = mocker.patch.object(tts, 'run_command')
 
         assert tts.MacOSTTS().speak_to_file('hello') is None
         run.assert_not_called()
@@ -74,7 +81,7 @@ class TestMacOSTTSSpeakToFile:
 
         assert result == output_path
         macos_with_say.assert_called_once_with(
-            [
+            command=[
                 FAKE_SAY_PATH,
                 '-v',
                 'Samantha',
@@ -85,9 +92,9 @@ class TestMacOSTTSSpeakToFile:
                 '--data-format=LEI16@48000',
                 'Hello, adventurer!',
             ],
-            check=True,
+            environment=os.environ,
+            timeout_seconds=30,
             capture_output=True,
-            timeout=30,
         )
 
     def test_creates_a_temporary_wav_without_a_path(self, macos_with_say):
@@ -98,21 +105,34 @@ class TestMacOSTTSSpeakToFile:
         try:
             assert result.suffix == '.wav'
             assert result.exists()
-            command = macos_with_say.call_args.args[0]
+            command = macos_with_say.call_args.kwargs['command']
             assert command[command.index('-o') + 1] == str(result)
         finally:
             result.unlink()
 
+    def test_failed_say_returns_none_and_logs_its_output(self, macos_with_say, tmp_path, caplog):
+        """A ``say`` that exits non-zero gives None and an error log with its exit and output."""
+        macos_with_say.return_value = process.CompletedProcess(
+            args=[], returncode=1, stdout='Voice not found'
+        )
+
+        with caplog.at_level(logging.ERROR, logger='game.audio.tts'):
+            result = tts.MacOSTTS().speak_to_file('oops', output_path=tmp_path / 'x.wav')
+
+        assert result is None
+        assert 'TTS generation failed' in caplog.text
+        assert 'exit 1' in caplog.text
+        assert 'Voice not found' in caplog.text
+
     @pytest.mark.parametrize(
         'failure',
         [
-            tts.subprocess.CalledProcessError(returncode=1, cmd='say'),
-            tts.subprocess.TimeoutExpired(cmd='say', timeout=30),
+            process.TimeoutExpired(cmd='say', timeout=30),
             OSError('exec format error'),
         ],
     )
     def test_failures_return_none_and_log(self, macos_with_say, tmp_path, caplog, failure):
-        """A failed, hung or unstartable ``say`` gives None and an error log."""
+        """A hung or unstartable ``say`` gives None and an error log."""
         macos_with_say.side_effect = failure
 
         with caplog.at_level(logging.ERROR, logger='game.audio.tts'):

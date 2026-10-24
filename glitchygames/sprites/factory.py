@@ -92,7 +92,7 @@ class SpriteFactory:
         """Analyze file content to determine sprite type.
 
         Currently only supports TOML format. To add new formats:
-        1. Add format detection in _detect_file_format()
+        1. Add format detection in SpriteFactory.detect_file_format()
         2. Add analysis method here (e.g., _analyze_json_file())
         3. Add save/load methods in BitmappySprite and AnimatedSprite
         4. Update tests
@@ -212,7 +212,8 @@ class SpriteFactory:
         Args:
             sprite: The sprite to save (BitmappySprite or AnimatedSprite).
             filename: Path where to save the sprite file.
-            file_format: Output format ("ini", "yaml", or "toml"). Defaults to "toml".
+            file_format: Output format. Only "toml" (the default) is supported; the sprite's
+                save raises ValueError for any other.
 
         """
         if hasattr(sprite, 'animations'):  # It's an AnimatedSprite

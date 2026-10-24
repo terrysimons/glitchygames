@@ -27,12 +27,18 @@ class TestControllerDragContinuousMovement:
 
         # Set up undo/redo manager
         scene.undo_redo_manager = UndoRedoManager()
-        scene.canvas_operation_tracker = CanvasOperationTracker(scene.undo_redo_manager)
-        scene.film_strip_operation_tracker = FilmStripOperationTracker(scene.undo_redo_manager)
+        scene.canvas_operation_tracker = CanvasOperationTracker(
+            scene.undo_redo_manager,
+            editor=scene,
+        )
+        scene.film_strip_operation_tracker = FilmStripOperationTracker(
+            scene.undo_redo_manager,
+            editor=scene,
+        )
 
         # Set up pixel change tracking
         scene.current_pixel_changes = []
-        scene._applying_undo_redo = False
+        scene.applying_undo_redo = False
 
         # Set up controller handler with drag and movement tracking
         scene.controller_handler = mocker.Mock(spec=ControllerEventHandler)

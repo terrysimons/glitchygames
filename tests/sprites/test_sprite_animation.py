@@ -1,8 +1,10 @@
 """Animated sprite functionality tests."""
 
 import sys
+import tomllib
 from pathlib import Path
 
+import numpy as np
 import pygame
 import pytest
 
@@ -16,7 +18,6 @@ from glitchygames.sprites.animated import (
     SpriteFrame,
     detect_file_format,
 )
-from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for test values
 TEST_FRAME_INDEX = 5
@@ -32,17 +33,41 @@ STATIC_TOML = str(
 )
 
 
+def _static_toml_drawn_over_white(image: pygame.Surface) -> np.ndarray:
+    """Draw an image of static.toml over opaque white and return which pixels are black.
+
+    static.toml has two colors: '.' is magenta (the transparency key) and 'a' is black. The
+    background is a 32-bit surface without per-pixel alpha, so the result does not depend on
+    the display's pixel format.
+
+    Returns:
+        np.ndarray: A (height, width) bool array, True where black shows.
+
+    """
+    background = pygame.Surface(image.get_size(), depth=32)
+    background.fill((255, 255, 255))
+    background.blit(image, (0, 0))
+    rgb_rows = pygame.surfarray.array3d(background).transpose(1, 0, 2)
+    is_white = np.all(rgb_rows == (255, 255, 255), axis=2)
+    is_black = np.all(rgb_rows == (0, 0, 0), axis=2)
+    assert np.all(is_white | is_black), 'only black and the white background should show'
+    return is_black
+
+
+def _static_toml_black_pixels() -> np.ndarray:
+    """Return where static.toml's pixel art is black ('a'), as a (height, width) bool array.
+
+    Returns:
+        np.ndarray: True where the file has an 'a'.
+
+    """
+    with Path(STATIC_TOML).open('rb') as sprite_file:
+        pixel_rows = tomllib.load(sprite_file)['sprite']['pixels'].strip().splitlines()
+    return np.array([[glyph == 'a' for glyph in row] for row in pixel_rows])
+
+
 class TestAnimatedSpriteFrameManager:
     """Test FrameManager functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_frame_manager_initialization(self, mocker):
         """Test FrameManager initialization."""
@@ -111,20 +136,10 @@ class TestAnimatedSpriteInterface:
 class TestSpriteFrame:
     """Test SpriteFrame functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_sprite_frame_initialization(self):
         """Test SpriteFrame initialization."""
-        # Create a mock surface for the frame using centralized mocks
-        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        frame = SpriteFrame(surface=mock_surface, duration=0.5)
+        surface = pygame.Surface((32, 32))
+        frame = SpriteFrame(surface=surface, duration=0.5)
 
         # SpriteFrame doesn't have direct width/height attributes, use get_size() or rect
         size = frame.get_size()
@@ -132,31 +147,33 @@ class TestSpriteFrame:
 
     def test_sprite_frame_get_size(self):
         """Test getting sprite frame size."""
-        # Create a mock surface for the frame using centralized mocks
-        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        frame = SpriteFrame(surface=mock_surface, duration=0.5)
+        surface = pygame.Surface((32, 32))
+        frame = SpriteFrame(surface=surface, duration=0.5)
         size = frame.get_size()
 
         assert size == (32, 32)
 
-    def test_sprite_frame_get_pixel_data(self, mocker):
-        """Test getting pixel data from sprite frame."""
-        # Create a mock surface for the frame using regular Mock
-        mock_surface = mocker.Mock()
-        mock_surface.get_size.return_value = (32, 32)
-        # Return a pygame.Color object instead of tuple
-        mock_color = pygame.Color(255, 0, 0, 255)
-        mock_surface.get_at.return_value = mock_color
-        frame = SpriteFrame(surface=mock_surface, duration=0.5)
+    def test_sprite_frame_get_pixel_data(self):
+        """A frame's pixel data is its surface's pixels, row by row."""
+        surface = pygame.Surface((2, 2))
+        surface.fill((255, 0, 0))
+        surface.set_at((1, 0), (0, 255, 0))
+        surface.set_at((0, 1), (0, 0, 255))
+        frame = SpriteFrame(surface=surface, duration=0.5)
         pixel_data = frame.get_pixel_data()
 
         assert isinstance(pixel_data, list)
+        assert [pixel[:3] for pixel in pixel_data] == [
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 0, 0),
+        ]
 
     def test_sprite_frame_set_pixel_data(self):
         """Test setting pixel data for sprite frame."""
-        # Create a mock surface for the frame using centralized mocks
-        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        frame = SpriteFrame(surface=mock_surface, duration=0.5)
+        surface = pygame.Surface((32, 32))
+        frame = SpriteFrame(surface=surface, duration=0.5)
         pixel_data: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0)]
 
         frame.set_pixel_data(pixel_data)
@@ -164,9 +181,8 @@ class TestSpriteFrame:
 
     def test_sprite_frame_str_representation(self):
         """Test string representation of sprite frame."""
-        # Create a mock surface for the frame using centralized mocks
-        mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        frame = SpriteFrame(surface=mock_surface, duration=0.5)
+        surface = pygame.Surface((32, 32))
+        frame = SpriteFrame(surface=surface, duration=0.5)
         str_repr = str(frame)
 
         assert 'SpriteFrame' in str_repr
@@ -175,15 +191,6 @@ class TestSpriteFrame:
 
 class TestAnimatedSprite:
     """Test AnimatedSprite functionality."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_animated_sprite_initialization(self):
         """Test AnimatedSprite initialization."""
@@ -249,10 +256,12 @@ class TestAnimatedSprite:
         """Test surface caching."""
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
-        # Test surface caching - use the image attribute instead of get_surface method
-        # AnimatedSprite has an image attribute that contains the current surface
+        # The image is the cached surface of the current frame: drawing it twice gives the
+        # same pixels, and they are the file's pixels (magenta keyed out, black drawn)
         surface = sprite.image
         assert surface is not None
+        assert surface is sprite.image
+        assert np.array_equal(_static_toml_drawn_over_white(surface), _static_toml_black_pixels())
 
     def test_animated_sprite_animation_order(self):
         """Test animation order is a read-only property."""
@@ -279,14 +288,19 @@ class TestAnimatedSprite:
         assert sprite.name == 'idle'
         assert sprite.current_animation is not None
 
-    def test_animated_sprite_save_load_functionality(self, mocker):
-        """Test save and load functionality."""
+    def test_animated_sprite_save_load_functionality(self, tmp_path):
+        """A loaded sprite saved and loaded again draws the same pixels."""
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
-        # Test save functionality
-        mock_open = mocker.patch('pathlib.Path.open')
-        sprite.save('test.toml')
-        mock_open.assert_called_once()
+        saved_path = tmp_path / 'resaved.toml'
+        sprite.save(str(saved_path))
+        assert saved_path.exists()
+
+        reloaded = AnimatedSprite(filename=str(saved_path))
+        assert reloaded.name == 'idle'
+        assert np.array_equal(
+            _static_toml_drawn_over_white(reloaded.image), _static_toml_black_pixels()
+        )
 
     def test_animated_sprite_file_format_detection(self):
         """Test file format detection."""
@@ -341,10 +355,11 @@ class TestAnimatedSprite:
         """Test surface generation."""
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
-        # Test surface generation - use the image attribute instead of generate_surface method
-        # AnimatedSprite has an image attribute that contains the current surface
+        # The generated image is 32x32 and draws the file's pixel art: black where the file
+        # has 'a', the background where it has magenta '.'
         surface = sprite.image
-        assert surface is not None
+        assert surface.get_size() == (32, 32)
+        assert np.array_equal(_static_toml_drawn_over_white(surface), _static_toml_black_pixels())
 
     def test_animated_sprite_animation_metadata(self):
         """Test animation metadata."""
@@ -387,15 +402,6 @@ class TestAnimatedSprite:
 
 class TestAnimatedSpriteConstants:
     """Test AnimatedSprite constants and basic properties."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_animated_sprite_constants(self):
         """Test sprite constants."""

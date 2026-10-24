@@ -3,21 +3,43 @@
 import argparse
 import logging
 import math
+import os
 import types
+from pathlib import Path
 
 import pygame
 import pytest
+from scripts.record_golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    _golden_game,
+    command_line,
+    press,
+    release,
+)
 
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
-from glitchygames.camera import FollowAxes
+from glitchygames.camera import FollowAxes, ParallaxLayer
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
+from glitchygames.examples.clockwork_keep import game as clockwork_game
 from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
 from glitchygames.examples.clockwork_keep.constants import (
     CLOCK_START_SECONDS,
+    COG_SILVER_POINTS,
     ELEVATOR_ASCENT_RUMBLE_LOW,
+    GRAVITY,
+    GROUND_SNAP_TOLERANCE,
+    HUD_TEXT_COLOR,
+    JUMP_VELOCITY,
+    JUMP_VELOCITY_RUNNING,
+    LAYER_TERRAIN,
+    MAX_FALL_SPEED,
+    PIT_DEATH_THRESHOLD,
+    PLAYER_WIDTH,
     PLAYFIELD_LEFT,
     PLAYFIELD_RIGHT,
 )
@@ -26,12 +48,24 @@ from glitchygames.examples.clockwork_keep.game import (
     ELEVATOR_STOP_BOUNCE,
     ELEVATOR_STOP_RATTLE,
     ClockworkKeepScene,
+    ClockworkKeepVictoryScene,
     CogCollectible,
+)
+from glitchygames.examples.clockwork_keep.levels import (
+    ALL_FLOORS,
+    FLOOR_BOILER_ROOM,
+    FLOOR_CLOCK_FACE,
+    FLOOR_GEAR_WORKS,
 )
 from glitchygames.examples.clockwork_keep.player import Tinker
 from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
+from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
+from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, position_world_sprites
 
 FRAME_TIME = 1.0 / 60.0
@@ -45,7 +79,7 @@ def clockwork_scene(mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 480))
+        set_display_mode(size=(800, 480))
     scene = ClockworkKeepScene(options={'input_mode': 'joystick'})
     mocker.patch.object(scene, 'transition_to')
     return scene
@@ -343,19 +377,52 @@ class TestFloorThreeClock:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
         scene.dt_tick(FRAME_TIME)
         surface = pygame.Surface((800, 480))
         scene.all_sprites.draw(surface)
         assert scene.floor_elapsed_time == pytest.approx(FRAME_TIME)
 
+    @pytest.mark.parametrize(('floor_index', 'shows_clock'), [(0, False), (1, False), (2, True)])
+    def test_only_the_clock_background_is_animated(self, floor_index, shows_clock):
+        """The clock layer draws game time, so it redraws every frame; the walls do not."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=(800, 480))
+        scene = ClockworkKeepScene(floor_index=floor_index, options={'input_mode': 'joystick'})
+
+        background_layers = [
+            sprite for sprite in scene.all_sprites if isinstance(sprite, ParallaxLayer)
+        ]
+
+        assert [layer.animated for layer in background_layers] == [shows_clock]
+
+    def test_clock_hands_move_on_a_still_camera(self):
+        """The clock redraws with the floor's new elapsed time though the camera stood still."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=(800, 480))
+        scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
+        (clock_layer,) = [
+            sprite for sprite in scene.all_sprites if isinstance(sprite, ParallaxLayer)
+        ]
+        scene.camera.snap_to(target_x=0.0, target_y=200.0)
+        pixels_before = pygame.image.tobytes(clock_layer.image, 'RGBA')
+
+        scene.floor_elapsed_time += 15.0  # the second hand turns a quarter
+        scene.camera.snap_to(target_x=0.0, target_y=200.0)
+
+        assert pygame.image.tobytes(clock_layer.image, 'RGBA') != pixels_before
+
     def test_floor_replay_arguments_rebuild_the_floor(self):
         """replay_arguments() are the floor's constructor arguments as it began."""
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = ClockworkKeepScene(
             floor_index=2, player_score=1450, player_lives=2, options={'input_mode': 'joystick'}
         )
@@ -378,7 +445,7 @@ class TestStartingFloor:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
 
     def test_floor_option_picks_the_first_floor(self):
         """The engine builds the first scene from options alone, so --floor must reach it."""
@@ -757,3 +824,768 @@ class TestPositionalKeys:
         actions = clockwork_scene.actions
         assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
         assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
+
+
+class TestMovingGear:
+    """The moving gear platform: drawn with teeth, moving on a sine path about its centre."""
+
+    @pytest.fixture(autouse=True)
+    def _display(self):
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=SCREEN_SIZE)
+
+    def test_gear_is_drawn_with_teeth_along_its_top_edge(self):
+        gear = MovingGear(world_x=100.0, world_y=200.0, groups=pygame.sprite.LayeredDirty())
+
+        assert gear.image.get_size() == (40, 10)
+        tooth_color = (120, 110, 90, 255)
+        body_color = (140, 130, 110, 255)
+        # A tooth every 8 px (4 px wide, 2 px tall), body color between and below them
+        assert tuple(gear.image.get_at((0, 0))) == tooth_color
+        assert tuple(gear.image.get_at((3, 1))) == tooth_color
+        assert tuple(gear.image.get_at((32, 0))) == tooth_color
+        assert tuple(gear.image.get_at((5, 0))) == body_color
+        assert tuple(gear.image.get_at((0, 2))) == body_color
+        assert (gear.world_x, gear.world_y) == (100.0, 200.0)
+
+    def test_gear_moves_on_a_sine_path_about_its_centre(self):
+        gear = MovingGear(
+            world_x=100.0,
+            world_y=200.0,
+            groups=pygame.sprite.LayeredDirty(),
+            move_range_x=30.0,
+            move_range_y=10.0,
+            speed=2.0,
+            size=24,
+        )
+        assert gear.image.get_size() == (24, 6)
+
+        assert (gear.moved_x, gear.moved_y) == (0.0, 0.0)
+
+        gear.dt_tick(0.25)
+        assert gear.world_x == pytest.approx(100.0 + 30.0 * math.sin(0.5))
+        assert gear.world_y == pytest.approx(200.0 + 10.0 * math.sin(0.5))
+        # How far this tick moved it (from its centre, where it starts)
+        assert gear.moved_x == pytest.approx(30.0 * math.sin(0.5))
+        assert gear.moved_y == pytest.approx(10.0 * math.sin(0.5))
+
+        # A quarter period after the start (timer * speed = pi / 2): the far end of the range
+        gear.dt_tick(math.pi / 4 - 0.25)
+        assert gear.world_x == pytest.approx(130.0)
+        assert gear.world_y == pytest.approx(210.0)
+        assert gear.moved_x == pytest.approx(30.0 - 30.0 * math.sin(0.5))
+
+
+def _jump_height(*, jump_velocity):
+    """Return how high a jump lifts the feet (pixels): v squared over 2g."""
+    return jump_velocity**2 / (2.0 * GRAVITY)
+
+
+def _release_key(scene, key):
+    scene.on_key_up_event(
+        HashableEvent(pygame.KEYUP, key=key, mod=0, unicode='', scancode=qwerty_scancode(key=key))
+    )
+
+
+class TestClockFaceMovingGear:
+    """The Clock Face's final approach rides a moving gear platform from the centre step."""
+
+    # Section 5 of FLOOR_CLOCK_FACE (levels.py): the centre step and the last step
+    CENTRE_STEP = (320, 470)
+    LAST_STEP = (520, 290)
+
+    @pytest.fixture
+    def clock_face_scene(self, mocker):
+        """A Clock Face scene with transition_to recorded instead of performed."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=SCREEN_SIZE)
+        scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
+        mocker.patch.object(scene, 'transition_to')
+        return scene
+
+    @pytest.fixture
+    def clock_face_played(self, clock_face_scene, mocker):
+        """Record the Clock Face's sound-bank plays without rendering audio."""
+        return mocker.patch.object(clock_face_scene.sounds, 'play')
+
+    @staticmethod
+    def _platform_at(scene, position):
+        (platform,) = [
+            platform
+            for platform in scene.platform_sprites
+            if (platform.world_x, platform.world_y) == position
+        ]
+        return platform
+
+    @staticmethod
+    def _stand_player(scene, *, hitbox_left, surface_top):
+        """Stand the drawn player at rest, hitbox left at hitbox_left, feet on surface_top."""
+        player = scene.player
+        player.dt_tick(0.0)  # draws the pose; collision rects trim to its visible pixels
+        offset_x, offset_y = collision_rect_offset(player)
+        player.world_x = float(hitbox_left - offset_x)
+        player.world_y = surface_top - (offset_y + get_sprite_collision_rect(player).height)
+        player.velocity_x = 0.0
+        player.velocity_y = 0.0
+        player.on_ground = True
+        return player
+
+    @staticmethod
+    def _feet(player):
+        return get_sprite_collision_rect(player).bottom
+
+    def test_only_the_clock_face_has_moving_gears(self):
+        """The golden recordings reach floors 0 and 1 only, so their sprites stay unchanged."""
+        assert FLOOR_BOILER_ROOM.moving_gears == []
+        assert FLOOR_GEAR_WORKS.moving_gears == []
+        assert len(FLOOR_CLOCK_FACE.moving_gears) == 1
+        assert ALL_FLOORS[2] is FLOOR_CLOCK_FACE
+
+    def test_floor_builds_its_gears_from_the_level_data(self, clock_face_scene):
+        (gear_data,) = FLOOR_CLOCK_FACE.moving_gears
+        (gear,) = clock_face_scene.moving_gear_sprites
+
+        assert isinstance(gear, MovingGear)
+        assert gear in clock_face_scene.all_sprites
+        assert clock_face_scene.all_sprites.get_layer_of_sprite(gear) == LAYER_TERRAIN
+        assert (gear.world_x, gear.world_y) == (gear_data.world_x, gear_data.world_y)
+        assert gear.image.get_size() == (gear_data.size, gear_data.size // 4)
+
+        # A quarter period in, the gear is at the right end of its sweep
+        clock_face_scene.dt_tick(math.pi / (2.0 * gear_data.speed))
+        assert gear.world_x == pytest.approx(gear_data.world_x + gear_data.move_range_x)
+        assert gear.world_y == pytest.approx(gear_data.world_y)
+
+    def test_floors_without_gears_build_none(self, clockwork_scene):
+        assert clockwork_scene.moving_gear_sprites == []
+        assert not any(isinstance(sprite, MovingGear) for sprite in clockwork_scene.all_sprites)
+
+    def test_the_route_is_within_a_walking_jump(self):
+        """Centre step to gear and gear to last step are each within a walking jump's height.
+
+        The centre step to the last step directly is beyond even a running jump, so the gear
+        is the way up; at the right end of its sweep the gear stops just short of the last step.
+        """
+        (gear_data,) = FLOOR_CLOCK_FACE.moving_gears
+        walking_jump = _jump_height(jump_velocity=JUMP_VELOCITY)
+        running_jump = _jump_height(jump_velocity=JUMP_VELOCITY_RUNNING)
+        centre_step_top = self.CENTRE_STEP[1]
+        last_step_left, last_step_top = self.LAST_STEP
+
+        assert centre_step_top - gear_data.world_y < walking_jump
+        assert gear_data.world_y - last_step_top < walking_jump
+        assert centre_step_top - last_step_top > running_jump
+        gear_right_at_its_right_end = gear_data.world_x + gear_data.move_range_x + gear_data.size
+        assert 0 < last_step_left - gear_right_at_its_right_end <= gear_data.size // 4
+        # The left end of the sweep stays clear of the wall: a rider is never carried into it
+        assert gear_data.world_x - gear_data.move_range_x - PLAYFIELD_LEFT >= PLAYER_WIDTH
+
+    def test_a_rider_is_carried_and_stays_on_the_gear(self, clock_face_scene, clock_face_played):
+        scene = clock_face_scene
+        (gear,) = scene.moving_gear_sprites
+        player = self._stand_player(
+            scene, hitbox_left=round(gear.world_x) + 20, surface_top=gear.world_y
+        )
+        scene._resolve_ground_collision()
+        assert scene.riding_gear is gear
+        player_x_from_gear = player.world_x - gear.world_x
+
+        for _ in range(60):
+            scene.dt_tick(FRAME_TIME)
+            assert player.on_ground
+            assert scene.riding_gear is gear
+            assert self._feet(player) == get_sprite_collision_rect(gear).top
+
+        # A second's ride moved the gear (and its rider with it) well to the right
+        assert gear.world_x > FLOOR_CLOCK_FACE.moving_gears[0].world_x + 100
+        assert player.world_x - gear.world_x == pytest.approx(player_x_from_gear)
+        # Never left it, so never landed again
+        assert [call.args for call in clock_face_played.call_args_list] == []
+
+    def test_jumping_off_leaves_the_gear_behind(self, clock_face_scene):
+        scene = clock_face_scene
+        (gear,) = scene.moving_gear_sprites
+        player = self._stand_player(
+            scene, hitbox_left=round(gear.world_x) + 20, surface_top=gear.world_y
+        )
+        scene._resolve_ground_collision()
+        scene.dt_tick(FRAME_TIME)
+        player_x_at_takeoff = player.world_x
+
+        _press_key(scene, pygame.K_UP)
+        scene.dt_tick(FRAME_TIME)
+
+        assert not player.on_ground
+        assert scene.riding_gear is None
+        # Standing still in the air: no horizontal input, and the gear no longer carries it
+        assert player.world_x == pytest.approx(player_x_at_takeoff)
+        assert gear.moved_x != 0.0
+
+    def test_respawning_from_the_gear_rides_nothing(self, clock_face_scene, clock_face_played):
+        scene = clock_face_scene
+        (gear,) = scene.moving_gear_sprites
+        self._stand_player(scene, hitbox_left=round(gear.world_x) + 20, surface_top=gear.world_y)
+        scene._resolve_ground_collision()
+        scene._respawn_player()
+
+        for _ in range(30):  # the 0.2 s fade out, then the move to the spawn point
+            scene.dt_tick(FRAME_TIME)
+
+        assert scene.riding_gear is None
+        assert not scene.player.is_respawning
+
+    def test_climbing_the_final_approach_on_the_gear(self, clock_face_scene, clock_face_played):
+        """Centre step, hop onto the gear, ride its sweep (the silver cog), hop to the last step."""
+        scene = clock_face_scene
+        (gear,) = scene.moving_gear_sprites
+        centre_step = self._platform_at(scene, self.CENTRE_STEP)
+        last_step = self._platform_at(scene, self.LAST_STEP)
+        player = self._stand_player(
+            scene, hitbox_left=round(centre_step.world_x) + 110, surface_top=centre_step.world_y
+        )
+        score_before = player.score
+
+        def run_until(condition, *, most_frames):
+            for _ in range(most_frames):
+                scene.dt_tick(FRAME_TIME)
+                if condition():
+                    return
+            pytest.fail('the condition never held')
+
+        # Wait for the gear to turn back at the right end of its sweep, then hop up onto it
+        run_until(lambda: gear.moved_x < 0.0, most_frames=120)
+        assert self._feet(player) == round(centre_step.world_y)
+        _press_key(scene, pygame.K_UP)
+        _release_key(scene, pygame.K_UP)
+        run_until(lambda: scene.riding_gear is gear, most_frames=60)
+
+        # Ride it to the left end and back to the right end: the silver cog is on the way
+        run_until(lambda: gear.moved_x > 0.0, most_frames=240)
+        run_until(lambda: gear.moved_x < 0.0, most_frames=240)
+        assert scene.riding_gear is gear
+        assert player.score == score_before + COG_SILVER_POINTS
+
+        # Hop right onto the last step as the gear pauses
+        _press_key(scene, pygame.K_RIGHT)
+        _press_key(scene, pygame.K_UP)
+        _release_key(scene, pygame.K_UP)
+        run_until(lambda: not player.on_ground, most_frames=5)
+        run_until(lambda: player.on_ground, most_frames=60)
+        _release_key(scene, pygame.K_RIGHT)
+
+        assert scene.riding_gear is None
+        assert self._feet(player) == round(last_step.world_y)
+        hitbox = get_sprite_collision_rect(player)
+        assert hitbox.right > last_step.world_x
+        assert hitbox.left < last_step.world_x + last_step.rect.width
+
+    def test_the_gear_is_drawn_where_the_camera_puts_it(self, clock_face_scene):
+        scene = clock_face_scene
+        (gear,) = scene.moving_gear_sprites
+        scene.dt_tick(0.5)  # off its starting point, at a sub-pixel position
+        scene.camera.snap_to(target_x=0.0, target_y=gear.world_y - 200.0)
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=SCREEN_SIZE
+        )
+        screen = pygame.Surface(SCREEN_SIZE, depth=32)
+        scene.render(screen)
+
+        gear_left = snap_to_pixel(gear.world_x, PixelSnapMode.NEAREST_HALF_UP) - snap_to_pixel(
+            scene.camera.world_x, PixelSnapMode.NEAREST_HALF_UP
+        )
+        gear_top = snap_to_pixel(gear.world_y, PixelSnapMode.NEAREST_HALF_UP) - snap_to_pixel(
+            scene.camera.world_y, PixelSnapMode.NEAREST_HALF_UP
+        )
+        assert gear.visible
+        assert gear.rect.topleft == (gear_left, gear_top)
+        body_color = (140, 130, 110)
+        tooth_color = (120, 110, 90)
+        gear_width, gear_height = gear.image.get_size()
+        # Teeth on its top edge, the body below them and between them, nothing just outside it
+        assert tuple(screen.get_at((gear_left, gear_top)))[:3] == tooth_color
+        assert tuple(screen.get_at((gear_left + 5, gear_top)))[:3] == body_color
+        assert (
+            tuple(screen.get_at((gear_left + gear_width - 1, gear_top + gear_height - 1)))[:3]
+            == body_color
+        )
+        assert tuple(screen.get_at((gear_left - 1, gear_top + 5)))[:3] != body_color
+        assert tuple(screen.get_at((gear_left, gear_top + gear_height)))[:3] != body_color
+
+
+class TestTinkerControls:
+    """Tinker's own jump and velocity controls."""
+
+    def test_an_airborne_tinker_does_not_jump_again(self, clockwork_scene):
+        player = clockwork_scene.player
+        player.on_ground = False
+        player.velocity_y = 50.0
+
+        player.jump()
+
+        assert player.velocity_y == pytest.approx(50.0)
+
+    def test_velocity_x_is_the_physics_body_velocity(self, clockwork_scene):
+        player = clockwork_scene.player
+        player.velocity_x = 123.0
+        assert player.physics.velocity_x == pytest.approx(123.0)
+
+    @pytest.mark.parametrize(('move', 'expected_sign'), [('move_right', 1.0), ('move_left', -1.0)])
+    def test_moving_accelerates_the_tinker(self, clockwork_scene, move, expected_sign):
+        player = clockwork_scene.player
+        getattr(player, move)(running=True)
+        player.physics.tick(0.1)
+        assert math.copysign(1.0, player.velocity_x) == expected_sign
+        assert player.facing_right is (expected_sign > 0)
+
+        player.stop_horizontal()
+        for _ in range(60):
+            player.physics.tick(0.1)
+        assert player.velocity_x == pytest.approx(0.0)
+
+
+def test_floor_uses_the_sprite_group_it_is_given(clockwork_scene):
+    """A floor built with a sprite group draws its sprites in that group."""
+    groups = pygame.sprite.LayeredDirty()
+    scene = ClockworkKeepScene(options={'input_mode': 'joystick'}, groups=groups)
+    assert scene.all_sprites is groups
+    assert scene.player in groups
+
+
+class TestDeathAndHighScores:
+    """Falling into the pit, game over, and the saved high scores (real files in tmp_path)."""
+
+    @pytest.fixture
+    def saving_scene(self, clockwork_scene, tmp_path):
+        clockwork_scene.saves = DiskSaveManager('clockwork-keep', save_dir=tmp_path)
+        return clockwork_scene
+
+    def test_falling_below_the_floor_costs_a_life(self, clockwork_scene, played):
+        lives_before = clockwork_scene.player.lives
+        clockwork_scene.player.world_y = float(
+            clockwork_scene.floor_data.height + PIT_DEATH_THRESHOLD + 100
+        )
+
+        clockwork_scene.dt_tick(FRAME_TIME)
+
+        assert clockwork_scene.player.lives == lives_before - 1
+        assert clockwork_scene.player.is_respawning
+        played.assert_any_call('death')
+
+    def test_dying_after_game_over_changes_nothing(self, clockwork_scene, played):
+        clockwork_scene.game_over_triggered = True
+        lives_before = clockwork_scene.player.lives
+
+        clockwork_scene._player_die()
+
+        assert clockwork_scene.player.lives == lives_before
+        played.assert_not_called()
+
+    def test_first_game_over_saves_its_score_and_shows_it(self, saving_scene, played):
+        saving_scene.player.score = 250
+        saving_scene.player.lives = 1
+
+        saving_scene._player_die()
+
+        expected_scores = [{'score': 250, 'floor': 0}]
+        assert saving_scene.saves.load('high_scores') == {'scores': expected_scores}
+        (game_over, _transition), _keywords = saving_scene.transition_to.call_args
+        assert isinstance(game_over, GameOverScene)
+        assert game_over.final_score == 250
+        assert game_over.high_scores == expected_scores
+
+    def test_game_over_keeps_the_ten_best_scores_best_first(self, saving_scene, played):
+        earlier_scores = [{'score': score, 'floor': 1} for score in range(100, 1100, 100)]
+        saving_scene.saves.save('high_scores', {'scores': earlier_scores})
+        saving_scene.player.score = 550
+        saving_scene.player.lives = 1
+
+        saving_scene._player_die()
+
+        saved_scores = saving_scene.saves.load('high_scores')['scores']
+        assert [entry['score'] for entry in saved_scores] == [
+            1000,
+            900,
+            800,
+            700,
+            600,
+            550,
+            500,
+            400,
+            300,
+            200,
+        ]
+        assert {'score': 550, 'floor': 0} in saved_scores
+
+    def test_no_saved_scores_load_as_none(self, saving_scene):
+        assert saving_scene._load_high_scores() == []
+
+
+class TestFloorInput:
+    """Pause, quit, focus loss and gamepad input on a floor."""
+
+    def test_losing_window_focus_pauses(self, clockwork_scene):
+        clockwork_scene.on_window_focus_lost_event(HashableEvent(pygame.WINDOWFOCUSLOST))
+        assert isinstance(clockwork_scene.next_scene, PauseScene)
+
+    def test_losing_window_focus_after_game_over_does_not_pause(self, clockwork_scene):
+        clockwork_scene.game_over_triggered = True
+        clockwork_scene.on_window_focus_lost_event(HashableEvent(pygame.WINDOWFOCUSLOST))
+        assert clockwork_scene.next_scene is None
+
+    def test_the_pause_key_pauses(self, clockwork_scene):
+        _press_key(clockwork_scene, pygame.K_ESCAPE)
+        assert isinstance(clockwork_scene.next_scene, PauseScene)
+
+    def test_the_quit_key_ends_the_run(self):
+        """Through the engine's frame loop (next_scene = None never ended it)."""
+        with _golden_game('clockwork_keep', random_seed=1) as manager:
+            pygame.event.post(press(pygame.K_q))
+            pygame.event.post(release(pygame.K_q))
+            for _ in range(3):
+                manager.dt = 1 / 60
+                manager.run_frame()
+            assert manager.quit_requested
+
+    def test_an_unbound_key_goes_to_the_scene_and_changes_nothing(self, clockwork_scene):
+        _press_key(clockwork_scene, pygame.K_F13)
+        assert clockwork_scene.next_scene is None
+        assert clockwork_scene.player.velocity_y == pytest.approx(0.0)
+
+    def test_joystick_interact_button_is_held_and_does_not_jump(self, clockwork_scene):
+        _stand_on_first_elevator(clockwork_scene)
+        clockwork_scene.on_joy_button_down_event(
+            HashableEvent(
+                pygame.JOYBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_Y, joy=0, instance_id=0
+            )
+        )
+        assert clockwork_scene.actions.is_held('interact')
+        assert clockwork_scene.player.velocity_y >= 0
+
+    def test_controller_interact_button_is_held_and_does_not_jump(self):
+        scene = ClockworkKeepScene(options={'input_mode': 'controller'})
+        _stand_on_first_elevator(scene)
+        scene.on_controller_button_down_event(
+            HashableEvent(
+                pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_Y, instance_id=0
+            )
+        )
+        assert scene.actions.is_held('interact')
+        assert scene.player.velocity_y >= 0
+
+    def test_interact_away_from_the_elevators_does_not_ride(self, clockwork_scene):
+        for _ in range(5):
+            clockwork_scene.dt_tick(FRAME_TIME)  # Standing at the spawn, far from any elevator
+        assert clockwork_scene.player.on_ground
+        _press_key(clockwork_scene, pygame.K_w)
+        clockwork_scene.dt_tick(FRAME_TIME)
+        clockwork_scene.transition_to.assert_not_called()
+
+    def test_joystick_button_a_jumps_and_its_release_lets_go(self, clockwork_scene, played):
+        _stand_on_first_elevator(clockwork_scene)
+        button = pygame.CONTROLLER_BUTTON_A
+
+        clockwork_scene.on_joy_button_down_event(
+            HashableEvent(pygame.JOYBUTTONDOWN, button=button, joy=0, instance_id=0)
+        )
+        assert clockwork_scene.player.velocity_y < 0
+        assert clockwork_scene.actions.is_held('jump')
+        played.assert_any_call('jump')
+
+        clockwork_scene.on_joy_button_up_event(
+            HashableEvent(pygame.JOYBUTTONUP, button=button, joy=0, instance_id=0)
+        )
+        assert not clockwork_scene.actions.is_held('jump')
+
+    def test_joystick_axis_motion_moves_nothing(self, clockwork_scene):
+        """The floor binds no stick axis: the D-pad and keys move the Tinker."""
+        clockwork_scene.on_joy_axis_motion_event(
+            HashableEvent(pygame.JOYAXISMOTION, axis=0, value=1.0, joy=0, instance_id=0)
+        )
+        clockwork_scene.dt_tick(FRAME_TIME)
+        assert not clockwork_scene.actions.is_held('move_right')
+        assert clockwork_scene.player.velocity_x == pytest.approx(0.0)
+
+    def test_controller_button_a_jumps_and_its_release_lets_go(self, mocker):
+        scene = ClockworkKeepScene(options={'input_mode': 'controller'})
+        played = mocker.patch.object(scene.sounds, 'play')
+        _stand_on_first_elevator(scene)
+        button = pygame.CONTROLLER_BUTTON_A
+
+        scene.on_controller_button_down_event(
+            HashableEvent(pygame.CONTROLLERBUTTONDOWN, button=button, instance_id=0)
+        )
+        assert scene.player.velocity_y < 0
+        assert scene.actions.is_held('jump')
+        played.assert_any_call('jump')
+
+        scene.on_controller_button_up_event(
+            HashableEvent(pygame.CONTROLLERBUTTONUP, button=button, instance_id=0)
+        )
+        assert not scene.actions.is_held('jump')
+
+
+class TestFloorRendering:
+    """The floor's frame: the world, then the HUD once setup() has loaded its font."""
+
+    # The score text's place: top left, (10, 10), one line of the 28 px font
+    SCORE_AREA = pygame.Rect(10, 10, 100, 20)
+
+    @staticmethod
+    def _hud_text_pixel_count(surface, area):
+        return sum(
+            1
+            for x in range(area.left, area.right)
+            for y in range(area.top, area.bottom)
+            if tuple(surface.get_at((x, y)))[:3] == HUD_TEXT_COLOR
+        )
+
+    def _rendered_frame(self, scene):
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=SCREEN_SIZE
+        )
+        screen = pygame.Surface(SCREEN_SIZE, depth=32)
+        scene.render(screen)
+        return screen
+
+    def test_floor_draws_the_hud_after_setup(self, clockwork_scene):
+        clockwork_scene.setup()
+        screen = self._rendered_frame(clockwork_scene)
+        assert self._hud_text_pixel_count(screen, self.SCORE_AREA) > 0
+        assert clockwork_scene.rects is None  # The whole screen is presented
+
+    def test_floor_rendered_before_setup_draws_no_hud(self, clockwork_scene):
+        screen = self._rendered_frame(clockwork_scene)
+        assert self._hud_text_pixel_count(screen, self.SCORE_AREA) == 0
+
+
+GOLDEN_REPLAY_PATH = (
+    Path(__file__).parent.parent / 'fixtures' / 'replays' / 'clockwork-keep' / 'golden.jsonl.gz'
+)
+
+
+def test_main_runs_the_game_through_the_engine(mocker, capsys):
+    """main() starts Clockwork Keep in the engine: here a headless replay of the golden run.
+
+    GoldenTraceEngine is the GameEngine without the SCALED display flag, which SDL's dummy
+    video driver cannot honour; pygame.quit is patched because later tests on this worker
+    need pygame (as tests/replay/replay_helpers.replay_through_engine does).
+    """
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    mocker.patch.dict(os.environ)  # --headless sets the SDL driver variables
+    mocker.patch.object(clockwork_game, 'GameEngine', GoldenTraceEngine)
+    GoldenTraceSceneManager.install()
+    try:
+        with (
+            command_line([
+                '--log-level',
+                'warning',
+                '--replay-trace',
+                str(GOLDEN_REPLAY_PATH),
+                '--headless',
+            ]),
+            pytest.raises(SystemExit) as exit_info,
+        ):
+            clockwork_game.main()
+    finally:
+        pygame.event.clear()
+        GoldenTraceSceneManager.uninstall()
+
+    assert exit_info.value.code == ExitCode.SUCCESS
+    assert 'Replay matched' in capsys.readouterr().out
+
+
+def _drop_onto(scene, *, surface_left, surface_top, feet_above, fall_speed):
+    """Put the drawn Tinker over a surface, its feet feet_above px above it, falling.
+
+    Returns:
+        The player.
+
+    """
+    player = scene.player
+    player.dt_tick(0.0)  # draws the pose; collision rects trim to its visible pixels
+    offset_x, offset_y = collision_rect_offset(player)
+    player.world_x = float(surface_left + 10 - offset_x)
+    player.world_y = (
+        surface_top - feet_above - (offset_y + get_sprite_collision_rect(player).height)
+    )
+    player.velocity_x = 0.0
+    player.velocity_y = fall_speed
+    player.on_ground = False
+    return player
+
+
+class TestNoFallThroughAfterASlowFrame:
+    """BUGS.md #205: a long tick at terminal speed lands on the support it crossed.
+
+    At 800 px/s a 50 ms tick (MAX_FRAME_SECONDS) moves the feet 40 px, past the 20 px a
+    support used to catch them in; the fall is now swept from where the feet were.
+    """
+
+    SLOW_FRAME_SECONDS = ClockworkKeepScene.MAX_FRAME_SECONDS
+
+    def test_a_slow_frame_lands_on_the_platform_it_crossed(self, clockwork_scene, played):
+        platform = clockwork_scene.platform_sprites[0]
+        player = _drop_onto(
+            clockwork_scene,
+            surface_left=platform.world_x,
+            surface_top=platform.world_y,
+            feet_above=5.0,
+            fall_speed=MAX_FALL_SPEED,
+        )
+
+        clockwork_scene.dt_tick(self.SLOW_FRAME_SECONDS)
+
+        assert player.on_ground
+        assert get_sprite_collision_rect(player).bottom == round(platform.world_y)
+
+    def test_a_slow_frame_lands_on_the_elevator_it_crossed(self, clockwork_scene, played):
+        elevator = clockwork_scene.elevator_sprites[0]
+        player = _drop_onto(
+            clockwork_scene,
+            surface_left=elevator.world_x,
+            surface_top=elevator.world_y,
+            feet_above=5.0,
+            fall_speed=MAX_FALL_SPEED,
+        )
+
+        clockwork_scene.dt_tick(self.SLOW_FRAME_SECONDS)
+
+        assert player.on_ground
+        assert get_sprite_collision_rect(player).bottom == round(elevator.world_y)
+
+    def test_feet_already_below_the_catch_band_fall_on(self, clockwork_scene, played):
+        """A support catches only feet that were above its top plus GROUND_SNAP_TOLERANCE."""
+        platform = clockwork_scene.platform_sprites[0]
+        player = _drop_onto(
+            clockwork_scene,
+            surface_left=platform.world_x,
+            surface_top=platform.world_y,
+            feet_above=-(GROUND_SNAP_TOLERANCE + 5.0),
+            fall_speed=MAX_FALL_SPEED,
+        )
+
+        clockwork_scene.dt_tick(FRAME_TIME)
+
+        assert not player.on_ground
+
+
+class TestClockFaceVictory:
+    """Reaching the Clock Face's top platform wins the game (BUGS.md #209 item 8)."""
+
+    @pytest.fixture
+    def clock_face_scene(self, mocker, tmp_path):
+        """The Clock Face, saving to tmp_path, with transition_to recorded instead of performed."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=SCREEN_SIZE)
+        scene = ClockworkKeepScene(
+            floor_index=2, player_score=300, options={'input_mode': 'joystick'}
+        )
+        scene.saves = DiskSaveManager('clockwork-keep', save_dir=tmp_path)
+        mocker.patch.object(scene, 'transition_to')
+        mocker.patch.object(scene.sounds, 'play')
+        return scene
+
+    @staticmethod
+    def _top_platform(scene):
+        return min(scene.platform_sprites, key=lambda platform: platform.world_y)
+
+    def test_landing_on_the_top_platform_shows_the_victory_screen(self, clock_face_scene):
+        top_platform = self._top_platform(clock_face_scene)
+        _drop_onto(
+            clock_face_scene,
+            surface_left=top_platform.world_x + 100,
+            surface_top=top_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clock_face_scene.dt_tick(FRAME_TIME)
+
+        assert clock_face_scene.game_over_triggered
+        (victory, transition), _keywords = clock_face_scene.transition_to.call_args
+        assert isinstance(victory, ClockworkKeepVictoryScene)
+        assert isinstance(transition, FadeTransition)
+        assert victory.final_score == clock_face_scene.player.score
+        expected_scores = [{'score': clock_face_scene.player.score, 'floor': 2}]
+        assert clock_face_scene.saves.load('high_scores') == {'scores': expected_scores}
+        assert victory.high_scores == expected_scores
+        assert clock_face_scene.camera.follow_target is None
+
+    def test_the_victory_plays_its_own_fanfare(self, clock_face_scene):
+        """The win plays the victory chime once, not a borrowed sound such as the elevator's."""
+        top_platform = self._top_platform(clock_face_scene)
+        _drop_onto(
+            clock_face_scene,
+            surface_left=top_platform.world_x + 100,
+            surface_top=top_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clock_face_scene.dt_tick(FRAME_TIME)
+
+        played = [call.args[0] for call in clock_face_scene.sounds.play.call_args_list]
+        assert played.count('victory') == 1
+        assert 'elevator_clank' not in played
+
+    def test_standing_on_a_lower_platform_is_no_victory(self, clock_face_scene):
+        top_platform = self._top_platform(clock_face_scene)
+        lower_platform = next(
+            platform
+            for platform in clock_face_scene.platform_sprites
+            if platform is not top_platform
+        )
+        _drop_onto(
+            clock_face_scene,
+            surface_left=lower_platform.world_x,
+            surface_top=lower_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clock_face_scene.dt_tick(FRAME_TIME)
+
+        assert clock_face_scene.player.on_ground
+        assert not clock_face_scene.game_over_triggered
+        clock_face_scene.transition_to.assert_not_called()
+
+    def test_the_top_of_a_lower_floor_is_no_victory(self, clockwork_scene, played):
+        """Floors with an elevator go on upward: only the Clock Face's top wins."""
+        top_platform = min(clockwork_scene.platform_sprites, key=lambda platform: platform.world_y)
+        _drop_onto(
+            clockwork_scene,
+            surface_left=top_platform.world_x,
+            surface_top=top_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clockwork_scene.dt_tick(FRAME_TIME)
+
+        assert not clockwork_scene.game_over_triggered
+
+    def test_the_victory_screen_reads_victory(self):
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=SCREEN_SIZE)
+        victory = ClockworkKeepVictoryScene(final_score=420, high_scores=[], options={})
+
+        victory.setup()
+
+        antialias = True
+        title_size = pygame.font.Font(None, 48).render('VICTORY!', antialias, (0, 0, 0)).get_size()
+        assert victory.text_sprite is not None
+        assert victory.text_sprite.image.get_size() == title_size
+        assert victory.text_sprite in victory.all_sprites
+        assert (
+            len([sprite for sprite in victory.all_sprites if sprite.rect.width == title_size[0]])
+            == 1
+        )

@@ -38,6 +38,13 @@ class TestTweenBasics:
         tween.update(0.5)
         assert target.value == pytest.approx(50.0)
 
+    def test_reports_its_target_and_property_name(self):
+        """A tween exposes the object and the property it drives."""
+        target = SimpleTarget(value=0.0)
+        tween = Tween(target=target, property_name='value', end_value=1.0, duration=1.0)
+        assert tween.target is target
+        assert tween.property_name == 'value'
+
     def test_completes_at_duration(self):
         """Tween reaches end value and reports complete after duration."""
         target = SimpleTarget(value=0.0)

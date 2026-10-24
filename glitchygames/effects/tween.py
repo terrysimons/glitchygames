@@ -27,7 +27,7 @@ class HasDirtyFlag(Protocol):
     dirty: int
 
 
-class Tween:
+class Tween[TargetT]:
     """Interpolates a single numeric property on a target object.
 
     Uses easing functions to smoothly transition a property from
@@ -51,7 +51,7 @@ class Tween:
 
     def __init__(
         self,
-        target: Any,
+        target: TargetT,
         property_name: str,
         end_value: float,
         duration: float,
@@ -64,7 +64,7 @@ class Tween:
         ping_pong: bool = False,
     ) -> None:
         """Initialize the tween."""
-        self._target = target
+        self._target: TargetT = target
         self._property_name = property_name
         self._end_value = end_value
         self._duration = max(duration, 0.0001)  # Prevent division by zero
@@ -183,7 +183,7 @@ class Tween:
         return not self._is_complete and not self._is_cancelled
 
     @property
-    def target(self) -> Any:
+    def target(self) -> TargetT:
         """The object being tweened."""
         return self._target
 
@@ -204,9 +204,9 @@ class TweenSequence:
 
     """
 
-    def __init__(self, *tweens: Tween) -> None:
+    def __init__(self, *tweens: Tween[object]) -> None:
         """Initialize the sequence with tweens to run serially."""
-        self._tweens: list[Tween] = list(tweens)
+        self._tweens: list[Tween[object]] = list(tweens)
         self._current_index: int = 0
         self._is_complete: bool = len(self._tweens) == 0
 
@@ -260,9 +260,9 @@ class TweenGroup:
 
     """
 
-    def __init__(self, *tweens: Tween) -> None:
+    def __init__(self, *tweens: Tween[object]) -> None:
         """Initialize the group with tweens to run in parallel."""
-        self._tweens: list[Tween] = list(tweens)
+        self._tweens: list[Tween[object]] = list(tweens)
         self._is_complete: bool = len(self._tweens) == 0
 
     def update(self, dt: float) -> bool:
@@ -314,7 +314,7 @@ class TweenManager:
 
     def __init__(self) -> None:
         """Initialize the tween manager with an empty active list."""
-        self._active: list[Tween | TweenSequence | TweenGroup] = []
+        self._active: list[Tween[object] | TweenSequence | TweenGroup] = []
 
     def update(self, dt: float) -> None:
         """Update all active tweens and remove completed ones.
@@ -327,14 +327,14 @@ class TweenManager:
             tweened_item for tweened_item in self._active if not tweened_item.update(dt)
         ]
 
-    def tween(
+    def tween[TargetT](
         self,
-        target: Any,
+        target: TargetT,
         property_name: str,
         end_value: float,
         duration: float,
         **kwargs: Any,
-    ) -> Tween:
+    ) -> Tween[TargetT]:
         """Create and register a new tween.
 
         Args:
@@ -359,7 +359,7 @@ class TweenManager:
         self._active.append(new_tween)
         return new_tween
 
-    def sequence(self, *tweens: Tween) -> TweenSequence:
+    def sequence(self, *tweens: Tween[object]) -> TweenSequence:
         """Create and register a tween sequence (serial execution).
 
         Args:
@@ -373,7 +373,7 @@ class TweenManager:
         self._active.append(new_sequence)
         return new_sequence
 
-    def group(self, *tweens: Tween) -> TweenGroup:
+    def group(self, *tweens: Tween[object]) -> TweenGroup:
         """Create and register a tween group (parallel execution).
 
         Args:
@@ -387,7 +387,7 @@ class TweenManager:
         self._active.append(new_group)
         return new_group
 
-    def cancel_all(self, target: Any | None = None) -> None:
+    def cancel_all(self, target: object = None) -> None:
         """Cancel tweens.
 
         If target is specified, only cancel tweens on that target.

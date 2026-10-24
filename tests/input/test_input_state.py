@@ -150,15 +150,22 @@ class TestLiveCapture:
         )
         assert capture_live_snapshot().pressed_scancodes == frozenset()
 
-    @pytest.mark.usefixtures('mock_pygame_patches')
-    def test_the_centralized_get_pressed_mock_refuses_iteration_like_pygame_ce(self):
-        """The shared mock behaves like ScancodeWrapper, so iterating code fails under it too."""
+    def test_real_get_pressed_refuses_iteration(self):
+        """pygame-ce's real get_pressed() is a ScancodeWrapper that refuses iteration.
+
+        capture_live_snapshot must find held keys by index (as the tests above check with a
+        real ScancodeWrapper); iterating it would raise.
+        """
         pressed = pygame.key.get_pressed()
+        assert isinstance(pressed, pygame.key.ScancodeWrapper)
         assert isinstance(pressed, tuple)
         assert len(pressed) == SCANCODE_COUNT
         with pytest.raises(TypeError, match='Iterating over key states is not supported'):
             iter(pressed)
-        assert pressed.count(True) == 0
+        # Whatever the real keyboard holds, indexing agrees with the tuple's own count
+        assert pressed.count(True) == sum(
+            1 for scancode in range(SCANCODE_COUNT) if pressed[scancode]
+        )
 
 
 class TestFreezing:
@@ -222,6 +229,12 @@ class TestFreezing:
         )
         assert hash(resting) == hash(snapshot_with(controller_axes={3: [0]}))
         assert hash(resting) != hash(pressed)
+
+    def test_a_snapshot_never_equals_another_type(self):
+        """Comparing with a non-snapshot is NotImplemented, so Python falls back to identity."""
+        snapshot = snapshot_with()
+        assert snapshot.__eq__(object()) is NotImplemented
+        assert snapshot != {'pressed_scancodes': frozenset()}
 
 
 class TestCurrentInput:
@@ -319,6 +332,14 @@ class TestChanges:
         live = snapshot_with(pressed_scancodes=frozenset({LEFT_ARROW_SCANCODE}))
         assert live.held_key_codes is None
         assert held_key_codes(snapshot=live) == frozenset({pygame.K_LEFT})
+
+    def test_recorded_key_codes_win_over_this_keymap(self):
+        """A snapshot rebuilt from a recording answers with the recording machine's key codes."""
+        replayed = snapshot_with(
+            pressed_scancodes=frozenset({LEFT_ARROW_SCANCODE}),
+            held_key_codes=frozenset({pygame.K_a}),
+        )
+        assert held_key_codes(snapshot=replayed) == frozenset({pygame.K_a})
 
     def test_a_removed_device_is_recorded_and_removed(self):
         """A device that disappears is recorded as None and removed on rebuild."""

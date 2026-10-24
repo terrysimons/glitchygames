@@ -6,16 +6,81 @@ This module tests scene event handling including:
 - Event filtering and routing
 - Scene-specific event handling
 - Event manager integration
+
+Real scenes and the real SceneManager handle real events; QUIT posts go to pygame's real
+event queue and are read back from it.
 """
 
 import sys
 from pathlib import Path
 
+import pygame
+import pytest
+
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames import events
+from glitchygames.events.base import FPSEVENT, GAMEEVENT
 from glitchygames.scenes import Scene, SceneManager
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.testing.keys import qwerty_scancode
+
+
+class RecordingScene(Scene):
+    """A real scene that records the events its handlers receive, in order."""
+
+    def __init__(self):
+        """Start with no events handled."""
+        super().__init__()
+        self.handled_events: list[tuple[str, events.HashableEvent]] = []
+
+    def on_key_down_event(self, event):
+        """Record the key-down, then let the base scene handle it."""
+        self.handled_events.append(('key_down', event))
+        super().on_key_down_event(event)
+
+    def on_mouse_motion_event(self, event):
+        """Record the mouse motion."""
+        self.handled_events.append(('mouse_motion', event))
+
+    def on_fps_event(self, event):
+        """Record the FPS event, then let the base scene store its FPS."""
+        self.handled_events.append(('fps', event))
+        super().on_fps_event(event)
+
+
+def _key_down(key: int) -> events.HashableEvent:
+    """Return a real KEYDOWN event for the key, with its US QWERTY scancode.
+
+    Returns:
+        events.HashableEvent: The event.
+
+    """
+    return events.HashableEvent(
+        pygame.KEYDOWN, key=key, scancode=qwerty_scancode(key=key), mod=pygame.KMOD_NONE
+    )
+
+
+def _key_up(key: int) -> events.HashableEvent:
+    """Return a real KEYUP event for the key, with its US QWERTY scancode.
+
+    Returns:
+        events.HashableEvent: The event.
+
+    """
+    return events.HashableEvent(
+        pygame.KEYUP, key=key, scancode=qwerty_scancode(key=key), mod=pygame.KMOD_NONE
+    )
+
+
+def _take_quit_events() -> list[pygame.event.Event]:
+    """Remove and return the QUIT events waiting in pygame's real event queue.
+
+    Returns:
+        list[pygame.event.Event]: The QUIT events.
+
+    """
+    return pygame.event.get(eventtype=pygame.QUIT)
 
 
 class TestSceneEvents:
@@ -25,216 +90,165 @@ class TestSceneEvents:
         """Set up test fixtures."""
         # Reset singleton state for clean test
         SceneManager._reset()
-
-        # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
-
-    def _create_mock_args(self, mocker):
-        """Create mock command line arguments.
-
-        Returns:
-            object: The result.
-
-        """
-        mock_args = mocker.Mock()
-        mock_args.fps = 60
-        mock_args.resolution = '800x600'
-        mock_args.windowed = True
-        mock_args.use_gfxdraw = False
-        mock_args.update_type = 'update'
-        mock_args.fps_refresh_rate = 1000
-        mock_args.profile = False
-        mock_args.test_flag = False
-        mock_args.font_name = 'Arial'
-        mock_args.font_size = 16
-        mock_args.font_bold = False
-        mock_args.font_italic = False
-        mock_args.font_antialias = True
-        mock_args.font_dpi = 72
-        mock_args.font_system = 'pygame'
-        mock_args.log_level = 'info'
-        mock_args.no_unhandled_events = False
-        return mock_args
+        _take_quit_events()
 
     def teardown_method(self):
         """Clean up test fixtures."""
         # Reset singleton state for clean test
         SceneManager._reset()
+        _take_quit_events()
 
-    def test_scene_event_handling(self, mocker):
-        """Test basic scene event handling."""
+    def test_scene_event_handling(self):
+        """A scene stores the FPS an FPS event carries."""
         scene = Scene()
 
-        # Create a mock event
-        mock_event = mocker.Mock()
-        mock_event.type = 'test_event'
+        scene.on_fps_event(events.HashableEvent(FPSEVENT, fps=59.5))
 
-        # Test that scene can handle events (Scene inherits from AllEventStubs)
-        # The scene should have event handler methods
-        assert hasattr(scene, 'on_quit_event')
-        assert hasattr(scene, 'on_fps_event')
-        assert hasattr(scene, 'on_game_event')
+        assert scene.fps == pytest.approx(59.5)
 
     def test_scene_event_processing(self):
-        """Test scene event processing."""
-        scene = Scene()
-
-        # Test that scene has event processing capabilities
-        # Scene inherits from AllEventStubs which provides event handling
-        assert hasattr(scene, 'on_quit_event')
-        assert hasattr(scene, 'on_fps_event')
-        assert hasattr(scene, 'on_game_event')
-
-    def test_scene_event_routing(self, mocker):
-        """Test scene event routing."""
+        """Q down then up, routed by the manager, quits: QUIT reaches the real queue."""
         manager = self.scene_manager
-        scene1 = Scene()
+        scene = Scene()
+        manager.switch_to_scene(scene)
 
-        # Switch to scene1
+        manager.on_key_down_event(_key_down(pygame.K_q))
+        assert _take_quit_events() == []  # the quit waits for the release
+
+        manager.on_key_up_event(_key_up(pygame.K_q))
+
+        assert len(_take_quit_events()) == 1
+
+    def test_scene_event_routing(self):
+        """The manager routes events it does not handle itself to the active scene."""
+        manager = self.scene_manager
+        scene1 = RecordingScene()
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
+        motion = events.HashableEvent(
+            pygame.MOUSEMOTION, pos=(10, 20), rel=(1, 2), buttons=(0, 0, 0)
+        )
 
-        # Create mock event
-        mock_event = mocker.Mock()
-        mock_event.type = 'test_event'
+        manager.on_mouse_motion_event(motion)
 
-        # Test that manager can handle events
-        # The manager should have event handling capabilities
-        assert hasattr(manager, 'on_quit_event')
-        assert hasattr(manager, 'on_fps_event')
-        assert hasattr(manager, 'on_game_event')
+        assert scene1.handled_events == [('mouse_motion', motion)]
 
     def test_scene_event_handling_with_manager(self):
-        """Test scene event handling with manager."""
+        """The manager forwards FPS events to the active scene, which stores the FPS."""
         manager = self.scene_manager
-        scene = Scene()
-        # Set up proper background surface for the scene
-        scene.background = MockFactory.create_pygame_surface_mock()
-
-        # Switch to scene
+        scene = RecordingScene()
         manager.switch_to_scene(scene)
         assert manager.active_scene == scene
+        fps_event = events.HashableEvent(FPSEVENT, fps=30.0)
 
-        # Test that both manager and scene have event handling capabilities
-        assert hasattr(manager, 'on_quit_event')
-        assert hasattr(scene, 'on_quit_event')
+        manager.on_fps_event(fps_event)
+
+        assert scene.handled_events == [('fps', fps_event)]
+        assert scene.fps == pytest.approx(30.0)
 
     def test_scene_event_handling_multiple_scenes(self):
-        """Test event handling with multiple scenes."""
+        """Only the active scene receives events: a scene not switched to hears nothing."""
         manager = self.scene_manager
-        scene1 = Scene()
-        # Set up proper background surface for the scene
-        scene1.background = MockFactory.create_pygame_surface_mock()
-
-        # Switch to scene1
+        scene1 = RecordingScene()
+        idle_scene = RecordingScene()
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
 
-        # Test that scene has event handling capabilities
-        assert hasattr(scene1, 'on_quit_event')
+        manager.on_key_down_event(_key_down(pygame.K_a))
+
+        assert [kind for kind, _ in scene1.handled_events] == ['key_down']
+        assert idle_scene.handled_events == []
 
     def test_scene_event_handling_scene_transition(self):
-        """Test event handling during scene transition."""
+        """After a switch, events go to the new scene and no longer to the old one."""
         manager = self.scene_manager
-        scene1 = Scene()
-        scene2 = Scene()
-        # Set up proper background surfaces for the scenes
-        scene1.background = MockFactory.create_pygame_surface_mock()
-        scene2.background = MockFactory.create_pygame_surface_mock()
-
-        # Switch to scene1
+        scene1 = RecordingScene()
+        scene2 = RecordingScene()
         manager.switch_to_scene(scene1)
+        manager.on_key_down_event(_key_down(pygame.K_a))
         assert manager.active_scene == scene1
 
-        # Transition to scene2
         manager.switch_to_scene(scene2)
+        manager.on_key_down_event(_key_down(pygame.K_b))
+
         assert manager.active_scene == scene2
+        assert [event.key for _, event in scene1.handled_events] == [pygame.K_a]
+        assert [event.key for _, event in scene2.handled_events] == [pygame.K_b]
 
-        # Test that both scenes have event handling capabilities
-        assert hasattr(scene1, 'on_quit_event')
-        assert hasattr(scene2, 'on_quit_event')
-
-    def test_scene_event_handling_with_custom_handlers(self, mocker):
-        """Test scene event handling with custom handlers."""
+    def test_scene_event_handling_with_custom_handlers(self):
+        """A scene's own on_*_event override receives the events the manager routes."""
 
         class CustomScene(Scene):
             def __init__(self):
                 super().__init__()
                 self.custom_events_handled = []
 
-            def handle_custom_event(self, event):
+            def on_mouse_wheel_event(self, event):
                 self.custom_events_handled.append(event)
 
+        manager = self.scene_manager
         scene = CustomScene()
+        manager.switch_to_scene(scene)
+        wheel = events.HashableEvent(pygame.MOUSEWHEEL, x=0, y=1, flipped=False)
 
-        # Test that custom scene has event handling capabilities
-        assert hasattr(scene, 'on_quit_event')
-        assert hasattr(scene, 'on_fps_event')
-        assert hasattr(scene, 'on_game_event')
+        manager.on_mouse_wheel_event(wheel)
 
-        # Test custom event handling
-        custom_event = mocker.Mock()
-        scene.handle_custom_event(custom_event)
-        assert len(scene.custom_events_handled) == 1
-        assert scene.custom_events_handled[0] == custom_event
+        assert scene.custom_events_handled == [wheel]
 
     def test_scene_event_handling_with_manager_integration(self):
-        """Test scene event handling with full manager integration."""
+        """A QUIT event sets the manager's quit_requested; the scene's handler only logs it."""
         manager = self.scene_manager
-
-        # Create scenes with custom event handling
-        class EventScene(Scene):
-            def __init__(self):
-                super().__init__()
-                self.events_handled = []
-
-        scene1 = EventScene()
-        scene2 = EventScene()
-        # Set up proper background surfaces for the scenes
-        scene1.background = MockFactory.create_pygame_surface_mock()
-        scene2.background = MockFactory.create_pygame_surface_mock()
-
-        # Switch to scene1
+        scene1 = RecordingScene()
+        scene2 = RecordingScene()
         manager.switch_to_scene(scene1)
-        assert manager.active_scene == scene1
-
-        # Test that both scenes have event handling capabilities
-        assert hasattr(scene1, 'on_quit_event')
-        assert hasattr(scene2, 'on_quit_event')
-
-        # Transition to scene2
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
+        assert manager.quit_requested is False
+
+        manager.on_quit_event(events.HashableEvent(pygame.QUIT))
+
+        assert manager.quit_requested is True
 
     def test_scene_event_handling_edge_cases(self):
-        """Test scene event handling edge cases."""
+        """A key release whose press the scene never saw does not quit, even for Q."""
         scene = Scene()
 
-        # Test that scene has event handling capabilities
-        assert hasattr(scene, 'on_quit_event')
-        assert hasattr(scene, 'on_fps_event')
-        assert hasattr(scene, 'on_game_event')
+        scene.on_key_up_event(_key_up(pygame.K_q))
 
-    def test_scene_event_handling_with_exceptions(self):
-        """Test scene event handling with exceptions."""
-        scene = Scene()
+        assert _take_quit_events() == []
 
-        # Test that scene has event handling capabilities
-        assert hasattr(scene, 'on_quit_event')
-        assert hasattr(scene, 'on_fps_event')
-        assert hasattr(scene, 'on_game_event')
+    def test_scene_event_handling_with_exceptions(self, caplog, mocker):
+        """A game event of an unregistered subtype is logged as an error, not raised."""
+        # Setting the manager's engine copies the engine's OPTIONS onto the SceneManager class
+        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
+        manager = self.scene_manager
+
+        class EngineWithoutGameEvents:
+            """An engine stand-in with no registered game events."""
+
+            def __init__(self):
+                """Hold the options a scene manager reads and no game events."""
+                self.OPTIONS = {
+                    'update_type': 'update',
+                    'fps_log_interval_ms': 1000,
+                    'target_fps': 60,
+                }
+                self.registered_events = {}
+
+        manager.game_engine = EngineWithoutGameEvents()
+
+        with caplog.at_level('ERROR'):
+            manager.on_game_event(events.HashableEvent(GAMEEVENT, subtype=12345))
+
+        assert 'Unregistered Event' in caplog.text
 
     def test_scene_event_handling_with_manager_exceptions(self):
-        """Test scene event handling with manager exceptions."""
+        """The manager refuses attributes other than on_*_event handlers."""
         manager = self.scene_manager
         scene = Scene()
-        # Set up proper background surface for the scene
-        scene.background = MockFactory.create_pygame_surface_mock()
-
-        # Switch to scene
         manager.switch_to_scene(scene)
         assert manager.active_scene == scene
 
-        # Test that both manager and scene have event handling capabilities
-        assert hasattr(manager, 'on_quit_event')
-        assert hasattr(scene, 'on_quit_event')
+        with pytest.raises(AttributeError, match='no attribute'):
+            _ = manager.not_an_event_handler

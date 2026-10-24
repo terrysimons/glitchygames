@@ -93,7 +93,7 @@ def main() -> int:
     assert animated_sprite.rect is not None
     animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
 
-    logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
+    logger.info('Loaded: %s (%s frames)', animated_sprite.name, animated_sprite.frame_count)
     logger.info('Scaled from %s to %s (5x upscale)', original_size, scaled_size)
     logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 

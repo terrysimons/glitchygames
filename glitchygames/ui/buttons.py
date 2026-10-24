@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Protocol
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import MouseButtonEvent
 
     class RectProtocol(Protocol):
         """Parent that exposes a rect for positioning."""
@@ -100,9 +100,6 @@ class ButtonSprite(BitmappySprite):
     def x(self: Self) -> int:
         """The x coordinate of the button sprite.
 
-        Args:
-            None
-
         Returns:
             int: The x coordinate of the button sprite.
 
@@ -124,9 +121,6 @@ class ButtonSprite(BitmappySprite):
     @property
     def y(self: Self) -> int:
         """The y coordinate of the button sprite.
-
-        Args:
-            None
 
         Returns:
             int: The y coordinate of the button sprite.
@@ -152,18 +146,15 @@ class ButtonSprite(BitmappySprite):
 
         Sets the dirty flag on the nested sprites.
 
-        Args:
-            None
-
         """
         self.text.dirty = self.dirty
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.background_color = self.active_color
@@ -171,11 +162,11 @@ class ButtonSprite(BitmappySprite):
         self.dirty = 1
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.background_color = self.inactive_color
@@ -221,12 +212,7 @@ class CheckboxSprite(ButtonSprite):
 
     @override
     def update(self: Self) -> None:
-        """Update the checkbox sprite.
-
-        Args:
-            None
-
-        """
+        """Update the checkbox sprite."""
         if not self.checked:
             self.image.fill((0, 0, 0))
 
@@ -237,20 +223,20 @@ class CheckboxSprite(ButtonSprite):
             pygame.draw.line(self.image, self.color, (0, self.height - 1), (self.width - 1, 0), 1)
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.checked = not self.checked

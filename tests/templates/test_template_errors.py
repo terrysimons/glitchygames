@@ -1,182 +1,120 @@
-"""Template error handling tests."""
+"""Template error handling tests.
 
+build() catches only a missing .repo file; every other error, from reading the .repo file or
+from cookiecutter, reaches the caller. The templates are real temporary directories. Failures
+cookiecutter cannot be made to produce here (a timeout, a missing install) come from a patched
+cookiecutter; a template it cannot find is given to the real one.
+"""
+
+import os
 import sys
 from pathlib import Path
 
 import pytest
+from cookiecutter.exceptions import RepositoryNotFound
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
-from tests.mocks.test_mock_factory import create_template_path_mock
 
 
 class TestTemplateErrors:
-    """Test template error handling."""
+    """Errors from the .repo file or cookiecutter propagate out of build()."""
 
-    def test_build_template_cookiecutter_exception(self, mocker):
-        """Test build template when cookiecutter raises an error."""
-        template_name = 'failing_template'
+    def test_build_template_cookiecutter_exception(self, make_template, cookiecutter):
+        """A cookiecutter error is not caught."""
+        make_template(name='failing_template')
+        cookiecutter.side_effect = RuntimeError('Cookiecutter failed')
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        mock_template_path = mocker.Mock(spec=Path)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise an error
-        mock_cookiecutter.side_effect = RuntimeError('Cookiecutter failed')
-
-        # Should not catch the error - let it propagate
         with pytest.raises(RuntimeError, match='Cookiecutter failed'):
-            build(template_name)
+            build('failing_template')
 
-    def test_build_exception_handling(self, mocker):
-        """Test build exception handling."""
-        template_name = 'exception_template'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        mock_template_path = mocker.Mock(spec=Path)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise a specific exception
-        mock_cookiecutter.side_effect = RuntimeError('Template not found')
+    def test_build_exception_handling(self, make_template, cookiecutter):
+        """A remote template's cookiecutter error is not caught either."""
+        make_template(name='exception_template', repo_contents='gh:user/missing\n')
+        cookiecutter.side_effect = RuntimeError('Template not found')
 
         with pytest.raises(RuntimeError, match='Template not found'):
-            build(template_name)
+            build('exception_template')
 
-    def test_build_file_not_found_error(self, mocker):
-        """Test build when .repo file is not found."""
-        template_name = 'no_repo_template'
+        cookiecutter.assert_called_once_with('gh:user/missing')
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+    def test_build_file_not_found_error(self, make_template, cookiecutter):
+        """A missing .repo file is the one error build() handles: it builds the directory."""
+        template_directory = make_template(name='no_repo_template')
 
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+        build('no_repo_template')
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        build(template_name)
+        cookiecutter.assert_called_once_with(str(template_directory))
 
-        # Should call cookiecutter with local path
-        mock_cookiecutter.assert_called_once()
-        call_args = mock_cookiecutter.call_args[0]
-        normalized_path = call_args[0].replace('\\', '/')
-        # The centralized mock returns a string representation of the mock path
-        assert normalized_path.startswith('MagicMock/path/')
-        assert template_name in normalized_path
+    def test_build_io_error_handling(self, make_template, cookiecutter):
+        """A .repo that cannot be read (here a directory) is an OSError build() does not catch."""
+        template_directory = make_template(name='io_error_template')
+        (template_directory / '.repo').mkdir()
 
-    def test_build_io_error_handling(self, mocker):
-        """Test build when .repo file causes IO error."""
-        template_name = 'io_error_template'
+        # IsADirectoryError on POSIX, PermissionError on Windows: both OSError, neither caught
+        with pytest.raises(OSError, match=r'\.repo'):
+            build('io_error_template')
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mocks
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
+        cookiecutter.assert_not_called()
 
-        # Mock .repo file causes IO error - need to mock the correct path structure
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = OSError('Permission denied')
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
+    def test_build_permission_error_handling(self, make_template, cookiecutter):
+        """An unreadable .repo file raises PermissionError instead of falling back."""
+        template_directory = make_template(
+            name='permission_error_template', repo_contents='gh:user/repo\n'
+        )
+        repo_file = template_directory / '.repo'
+        repo_file.chmod(0)
+        try:
+            if os.access(repo_file, os.R_OK):
+                pytest.skip('this user can read a file without read permission (root, Windows)')
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise an OSError
-        mock_cookiecutter.side_effect = OSError('Permission denied')
+            with pytest.raises(PermissionError):
+                build('permission_error_template')
+        finally:
+            repo_file.chmod(0o644)
 
-        # The code only catches FileNotFoundError, not OSError
-        with pytest.raises(OSError, match='Permission denied'):
-            build(template_name)
+        cookiecutter.assert_not_called()
 
-    def test_build_permission_error_handling(self, mocker):
-        """Test build when .repo file causes permission error."""
-        template_name = 'permission_error_template'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Use centralized mock factory
-        mock_template_path = create_template_path_mock(template_name)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file causes permission error
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = PermissionError('Access denied')
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise a PermissionError
-        mock_cookiecutter.side_effect = PermissionError('Access denied')
-
-        # Should not catch PermissionError - let it propagate
-        with pytest.raises(PermissionError, match='Access denied'):
-            build(template_name)
-
-    def test_build_cookiecutter_import_error(self, mocker):
-        """Test build when cookiecutter import fails."""
-        template_name = 'import_error_template'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        mock_template_path = mocker.Mock(spec=Path)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise ImportError
-        mock_cookiecutter.side_effect = ImportError('Cookiecutter not installed')
+    def test_build_cookiecutter_import_error(self, make_template, cookiecutter):
+        """An ImportError raised inside cookiecutter is not caught."""
+        make_template(name='import_error_template')
+        cookiecutter.side_effect = ImportError('Cookiecutter not installed')
 
         with pytest.raises(ImportError, match='Cookiecutter not installed'):
-            build(template_name)
+            build('import_error_template')
 
-    def test_build_template_not_found_error(self, mocker):
-        """Test build when template directory doesn't exist."""
-        template_name = 'nonexistent_template'
+    def test_build_template_not_found_error(self, templates_directory, monkeypatch):
+        """A template that does not exist reaches the real cookiecutter, which cannot find it."""
+        # cookiecutter reads ~/.cookiecutterrc: an empty home keeps the user's out of the test
+        monkeypatch.setenv('HOME', str(templates_directory))
+        monkeypatch.setenv('USERPROFILE', str(templates_directory))
+        monkeypatch.delenv('COOKIECUTTER_CONFIG', raising=False)
 
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        # Mock path operations to raise FileNotFoundError
-        mock_path.__truediv__.side_effect = FileNotFoundError('Template not found')
+        with pytest.raises(RepositoryNotFound, match='nonexistent_template'):
+            build('nonexistent_template')
 
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise a FileNotFoundError
-        mock_cookiecutter.side_effect = FileNotFoundError('Template not found')
+    def test_build_template_without_cookiecutter_json(
+        self, make_template, templates_directory, monkeypatch
+    ):
+        """A template directory that is not a cookiecutter template is refused by cookiecutter."""
+        make_template(name='not_a_cookiecutter_template')
+        monkeypatch.setenv('HOME', str(templates_directory))
+        monkeypatch.setenv('USERPROFILE', str(templates_directory))
+        monkeypatch.delenv('COOKIECUTTER_CONFIG', raising=False)
 
-        # The error will be raised by cookiecutter, not by our code
-        with pytest.raises(FileNotFoundError, match='Template not found'):
-            build(template_name)
+        with pytest.raises(RepositoryNotFound, match='not_a_cookiecutter_template'):
+            build('not_a_cookiecutter_template')
 
-    def test_build_cookiecutter_timeout_error(self, mocker):
-        """Test build when cookiecutter times out."""
-        template_name = 'timeout_template'
-
-        mock_path = mocker.patch('glitchygames.templates.game.path')
-        mock_template_path = mocker.Mock(spec=Path)
-        mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
-
-        # Mock .repo file not found
-        mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_path.open.side_effect = FileNotFoundError()
-        mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
-
-        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise timeout error
-        mock_cookiecutter.side_effect = TimeoutError('Request timed out')
+    def test_build_cookiecutter_timeout_error(self, make_template, cookiecutter):
+        """A cookiecutter timeout (e.g. cloning a remote template) is not caught."""
+        make_template(name='timeout_template', repo_contents='gh:user/slow\n')
+        cookiecutter.side_effect = TimeoutError('Request timed out')
 
         with pytest.raises(TimeoutError, match='Request timed out'):
-            build(template_name)
+            build('timeout_template')
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])

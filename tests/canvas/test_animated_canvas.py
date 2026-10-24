@@ -22,7 +22,9 @@ from glitchygames.bitmappy.canvas_interfaces import (
 from glitchygames.bitmappy.editor import AnimatedCanvasSprite
 from glitchygames.bitmappy.film_strip import FilmStripWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
+
+# The color of the canvas's grid lines between pixels
+CANVAS_GRID_COLOR = (64, 64, 64)
 
 
 class TestAnimatedCanvasSprite:
@@ -31,11 +33,8 @@ class TestAnimatedCanvasSprite:
     EXPECTED_FRAME_COUNT = 2
 
     @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
-        self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
+    def setup_canvas(self):
+        """Set up a real animated canvas (8x8 pixels, 16x16 screen pixels each)."""
         # Create a test animated sprite
         self.animated_sprite = self._create_test_animated_sprite()
 
@@ -200,14 +199,23 @@ class TestAnimatedCanvasSprite:
 
     def test_film_strip_frame_selection(self):
         """Test that clicking on film strip changes the current frame."""
-        # Simulate clicking on walk animation, frame 1
-        clicked_frame = self.canvas.film_strip.handle_click((100, 50))  # type: ignore[unresolved-attribute]
+        film_strip = self.canvas.film_strip  # type: ignore[unresolved-attribute]
 
-        if clicked_frame:
-            animation, frame_idx = clicked_frame
-            self.canvas.show_frame(animation, frame_idx)
-            assert self.canvas.current_animation == animation
-            assert self.canvas.current_frame == frame_idx
+        # Click the middle of the idle animation's frame 1 thumbnail (clicks are in the
+        # film strip's own coordinates, like its frame layouts). The editor gives each
+        # animation a film strip of its own, so a click answers with the strip's first
+        # animation: idle here
+        idle_frame_1_rect = film_strip.frame_layouts['idle', 1]
+        clicked_frame = film_strip.handle_click(idle_frame_1_rect.center)
+        assert clicked_frame == ('idle', 1)
+
+        animation, frame_idx = clicked_frame
+        self.canvas.show_frame(animation, frame_idx)
+        assert self.canvas.current_animation == 'idle'
+        assert self.canvas.current_frame == 1
+
+        # A click between thumbnails selects nothing
+        assert film_strip.handle_click((0, 0)) is None
 
     def test_keyboard_navigation(self):
         """Test keyboard navigation between frames."""
@@ -255,14 +263,41 @@ class TestAnimatedCanvasSprite:
         assert self.canvas.image is not None
         assert self.canvas.image.get_size() == (128, 128)  # 8*16 x 8*16
 
+        # Every 16x16 cell shows the current frame's color (idle frame 0: red) at its
+        # center, and nothing but that color and the grid lines is drawn
+        assert self._cell_center_colors() == {(255, 0, 0)}
+        assert self._drawn_colors() == {(255, 0, 0), CANVAS_GRID_COLOR}
+
+        # Showing another frame redraws the canvas with that frame (walk frame 1: yellow)
+        self.canvas.show_frame('walk', 1)
+        self.canvas.force_redraw()
+        assert self._cell_center_colors() == {(255, 255, 0)}
+        assert self._drawn_colors() == {(255, 255, 0), CANVAS_GRID_COLOR}
+
+    def _drawn_colors(self):
+        """Return every RGB color in the canvas image.
+
+        Returns:
+            set[tuple[int, int, int]]: The colors drawn.
+
+        """
+        pixels = pygame.surfarray.array3d(self.canvas.image).reshape(-1, 3)
+        return {tuple(int(channel) for channel in pixel) for pixel in pixels}
+
+    def _cell_center_colors(self):
+        """Return the RGB colors at the centers of the canvas's 8x8 cells.
+
+        Returns:
+            set[tuple[int, int, int]]: The colors at the cell centers.
+
+        """
+        pixels = pygame.surfarray.array3d(self.canvas.image)
+        cell_centers = pixels[8::16, 8::16].reshape(-1, 3)
+        return {tuple(int(channel) for channel in pixel) for pixel in cell_centers}
+
 
 class TestAnimatedCanvasSpriteEdgeCases:
     """Test edge cases for AnimatedCanvasSprite."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
     def test_empty_animated_sprite():
