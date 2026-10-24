@@ -55,6 +55,17 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Network performance (for multiplayer)
   - GPU utilization (if available)
 
+### 43. GlitchyGames Arcade: Showcase and Game Picker (`uv run glitchygames`) — TODO
+- **Description**: A `glitchygames` console script that opens an arcade front end. A demo reel
+  across the top plays each game's demo with sound, with the colour bars for a few seconds and
+  a beep between games. Below it, a boxed grid of the games, each tile looping its replay
+  silently; pick one to play it.
+- **Status**: TODO: design draft in `plans/2026-10-23-arcade-showcase.md`. The gallery is an
+  outer game that hosts several demo wrappers, generalising the watched replay's "game inside a
+  game". Open questions there: one engine context per wrapper in-process or child processes,
+  and timings
+- **Priority**: High (requested 2026-10-23)
+
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO
 - **Description**: Historical metrics from what recordings store (frame performance by run and
   commit, a behaviour-change map from the content hashes, pacing steadiness, machine
