@@ -407,7 +407,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low (the help text now says which are not used or not applied)
 - **Reporter**: Found by the engine-options fixes, 2026-10-23
 - **Date Reported**: 2026-10-23
-- **Details**: Each needs a decision: wire it (`--video-driver` like `--headless`: set the variable before `pygame.init()`, restore it at teardown) or remove it
+- **Details**: Each needs a decision: wire it (`--video-driver` like `--headless`: set the variable before `pygame.init()`, restore it at teardown) or remove it. `--use-gfxdraw`: to be made real (plans/future-features.md #48). Not the tests' driver choice: they set `SDL_VIDEODRIVER` themselves (`tests/conftest.py`, `tests/driver_comparison.py`)
 - **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/fonts/font_manager.py`
 
 ### 211. Smaller Findings From the Bug-Fix Round

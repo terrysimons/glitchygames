@@ -105,6 +105,21 @@ This document tracks planned future features for the GlitchyGames project. Featu
   doors and `input_devices`, so a mapping session can itself be recorded and replayed)
 - **Priority**: Medium (requested 2026-10-23)
 
+### 48. Make `--use-gfxdraw` Draw With pygame.gfxdraw — TODO
+- **Description**: `--use-gfxdraw` (Graphics Options) is parsed and stored as
+  `GameEngine.use_gfxdraw`, but nothing reads it: the ball (`game_objects/ball.py`) and paddles
+  (`game_objects/paddle.py`) set their own `use_gfxdraw = True`, which nothing reads either
+  (BUGS.md #210). Make the option real: shapes the engine draws (the balls' circles, the paddles,
+  the primitives editions' figures) use `pygame.gfxdraw`'s anti-aliased forms (`aacircle` with
+  `filled_circle`, `aapolygon` with `filled_polygon`, ...) when it is on, and `pygame.draw`
+  otherwise
+- **Status**: TODO. To settle: which shapes switch (engine game objects only, or a shared drawing
+  helper the games use too); whether anti-aliased edges change hitboxes (they are measured from
+  visible pixels, `collision/bounds.py`) and so what golden traces and replays compare; the
+  default (off keeps today's pixels); and the per-object `use_gfxdraw` attributes, which become
+  the option's value or go away
+- **Priority**: Medium (requested 2026-10-23)
+
 ## Medium Priority Features
 
 ### 4. Performance Profiling Integration
