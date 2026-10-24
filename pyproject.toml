@@ -90,7 +90,9 @@ dev = [
   "hypothesis>=6.151.9",
   "taplo>=0.9.3",
   "yamllint>=1.38.0",
-  "wily>=1.25.0",
+  # wily 2 is an alpha (2.0.0a1) that drops radon; the complexity graphs run both
+  "wily>=1.25.0,<2",
+  "radon>=5.1.0",
 ]
 api = []
 
@@ -381,6 +383,7 @@ DEP002 = [
   "taplo",
   "yamllint",
   "wily",
+  "radon",
 ]
 
 [tool.uv]
