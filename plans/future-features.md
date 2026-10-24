@@ -158,6 +158,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
     and `main` on Pyodide 314.0.3 and 314.0.7) apply the patches cleanly, build and pass in
     Chromium and WebKit; the 2.5.8 and `main` wheels are byte-identical to the macOS builds,
     and each pygame-ce version's wheel is the same on both Pyodide releases.
+  - 2026-10-24: the branch moved to 2.5.8 (`a293e2c75`, below); the matrix's base is 2.5.8, so
+    it tries 2.5.8 and `main`.
+  - Wheels with the same version but another sha256 (the matrix's 2.5.7 `16ac6c2d...` and the
+    branch's `777cfa26...`) hold byte-identical files: only the zip entries' timestamps differ,
+    which `SOURCE_DATE_EPOCH` takes from the source commit's date (the matrix commits on
+    upstream's date, the branch has its own commits).
   Open: scheduled runs publish passing pairs as pre-releases (`publish` defaults to true);
   315.x needs a Python 3.15 build venv.
 - **Priority**: Medium (experimental)
