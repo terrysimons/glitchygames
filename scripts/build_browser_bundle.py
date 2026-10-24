@@ -388,6 +388,24 @@ class BundleRequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 
+# Windows' WSAEACCES: what binding a port a listening socket holds gives there, since
+# HTTPServer binds with SO_REUSEADDR (CircleCI's Windows job, 2026-10-24); elsewhere EADDRINUSE
+WINDOWS_ACCESS_DENIED_ERROR = 10013
+
+
+def port_is_taken(error: OSError) -> bool:
+    """Return whether binding failed because another socket holds the port.
+
+    Returns:
+        True for EADDRINUSE, and on Windows for WSAEACCES (``WINDOWS_ACCESS_DENIED_ERROR``).
+
+    """
+    return (
+        error.errno == errno.EADDRINUSE
+        or getattr(error, 'winerror', None) == WINDOWS_ACCESS_DENIED_ERROR
+    )
+
+
 class PortUnavailableError(OSError):
     """No port to serve on: the one asked for, or every default one, is taken."""
 
@@ -415,7 +433,7 @@ def bind_server(*, directory: Path, port: int | None) -> ThreadingHTTPServer:
         try:
             return ThreadingHTTPServer(('127.0.0.1', candidate), handler)
         except OSError as error:
-            if error.errno != errno.EADDRINUSE:
+            if not port_is_taken(error):
                 raise
     message = (
         f'port {port} is in use (choose another with --port)'

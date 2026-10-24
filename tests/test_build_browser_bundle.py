@@ -62,7 +62,8 @@ def make_package(root: Path) -> Path:
     }.items():
         path = package / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        # Bytes, not text: write_text would write Windows line endings there
+        path.write_bytes(content.encode('utf-8'))
     return package
 
 
@@ -326,7 +327,8 @@ class TestMain:
 
 def test_the_server_sends_python_as_text_and_never_caches(tmp_path):
     """The local server gives Pyodide the MIME types it needs and turns caching off."""
-    (tmp_path / 'boot.py').write_text('print(1)\n')
+    # Bytes, not text: write_text would write Windows line endings there
+    (tmp_path / 'boot.py').write_bytes(b'print(1)\n')
     handler = functools.partial(BundleRequestHandler, directory=str(tmp_path))
     with ThreadingHTTPServer(('127.0.0.1', 0), handler) as server:
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -401,6 +403,19 @@ class TestServerPort:
         )
         with pytest.raises(PermissionError):
             bind_server(directory=tmp_path, port=80)
+
+    def test_windows_access_denied_on_a_held_port_is_a_taken_port(self, tmp_path, mocker):
+        """Windows refuses a port another socket holds with WSAEACCES, not WSAEADDRINUSE.
+
+        HTTPServer binds with SO_REUSEADDR, and Windows answers that for a port a listening
+        socket holds with WSAEACCES (CircleCI's Windows job, 2026-10-24).
+        """
+        held = PermissionError(errno.EACCES, 'forbidden')
+        held.winerror = build_browser_bundle.WINDOWS_ACCESS_DENIED_ERROR
+        mocker.patch.object(build_browser_bundle, 'ThreadingHTTPServer', side_effect=held)
+
+        with pytest.raises(PortUnavailableError, match='port 8123 is in use'):
+            bind_server(directory=tmp_path, port=8123)
 
     def test_main_reports_a_taken_port_and_exits_1(self, tmp_path, capsys):
         wheel = tmp_path / WHEEL_NAME
