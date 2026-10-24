@@ -38,7 +38,7 @@ from scripts.build_browser_bundle import (
 )
 
 COMMIT = 'a' * 40
-WHEEL_NAME = 'pygame_ce-2.5.7.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
+WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
 
 
 def make_package(root: Path) -> Path:

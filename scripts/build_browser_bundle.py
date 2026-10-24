@@ -2,7 +2,8 @@ r"""Build (and optionally serve) a browser version of one GlitchyGames game.
 
 The site runs on PyScript (Pyodide 314, Python 3.14) with GlitchyGames' own pygame-ce wheel,
 built from the ``third_party/pygame-ce`` submodule (our fork, branch ``glitchygames-wasm``:
-pygame-ce plus its WebAssembly fixes). Design: plans/2026-10-23-game-host-and-browser-runner.md.
+pygame-ce 2.5.8 plus its WebAssembly fixes).
+Design: plans/2026-10-23-game-host-and-browser-runner.md.
 
 It writes, into the output directory:
 

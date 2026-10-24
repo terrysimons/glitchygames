@@ -186,3 +186,18 @@
   (https://terrysimons.github.io/glitchygames/play/ after the next deploy). Verified: a strict
   docs build, served under /glitchygames/ with wheels as application/octet-stream, starts Mr.
   Muncher from play/ in Chromium and WebKit.
+
+## pygame-ce 2.5.8 (2026-10-24)
+
+- The fork's `glitchygames-wasm` is now pygame-ce 2.5.8 plus the three WebAssembly fixes and our
+  tooling (`a293e2c75`, version `2.5.8.post1`), rebuilt from the 2.5.8 tag: the fixes
+  cherry-picked cleanly. The branch moved forward by a merge that keeps the 2.5.7 line
+  (`e9d46a7cd`) as its second parent (`git merge -s ours`; its tree is the 2.5.8 line's), so the
+  commits GlitchyGames' history points its submodule at stay reachable and nothing was
+  force-pushed. The archive branch `glitchygames-wasm-2.5.7` also holds the old line.
+- The version matrix lists patches along first parents, so the old line's copies are not
+  listed again.
+- Verified on the 2.5.8.post1 wheel in Chromium and WebKit: all four games and Bitmappy run at
+  the display's rate with no errors, the PaddleSlap demo replays exactly, Bitmappy's file
+  picker, load and download work. The matrix had already passed pygame-ce's own browser checks
+  on 2.5.8 with the same fixes.
