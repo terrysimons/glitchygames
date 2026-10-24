@@ -14,7 +14,6 @@ chooses, made when first needed.
 
 from __future__ import annotations
 
-import importlib
 import logging
 from typing import Protocol, Self
 
@@ -74,7 +73,11 @@ class PyperclipClipboard:
 
     def __init__(self: Self) -> None:
         """Import pyperclip (ImportError where it is not installed: ``create_clipboard``)."""
-        self._pyperclip = importlib.import_module('pyperclip')
+        # Imported here, when a clipboard is made, not with the module: a build without it
+        # (a browser's) still imports the text widgets
+        import pyperclip
+
+        self._pyperclip = pyperclip
 
     def copy(self: Self, text: str) -> None:
         """Put ``text`` on the desktop's clipboard.

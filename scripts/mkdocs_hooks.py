@@ -202,5 +202,5 @@ def on_post_build(config: MkDocsConfig) -> None:
 
     """
     copy_browser_games(
-        games_directory=BROWSER_GAMES_DIRECTORY, site_directory=Path(config['site_dir'])
+        games_directory=BROWSER_GAMES_DIRECTORY, site_directory=Path(config.site_dir)
     )
