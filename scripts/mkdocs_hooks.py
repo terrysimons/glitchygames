@@ -13,11 +13,18 @@ Every ``mkdocs build``, ``mkdocs serve`` and ``mkdocs gh-deploy`` (so ``nox -s d
    measured on uncommitted changes are left out of a build that is published (``mkdocs
    gh-deploy``) and shown, labelled, in a local one (``build``, ``serve``): ``on_startup``
    learns which. Without a startup event (unknown), they are left out.
+
+After the build, ``on_post_build`` copies the browser games (build/browser/site, which
+``nox -s docs-deploy`` builds first with ``scripts/build_browser_bundle.py all``) into the site
+as play/. A build without them (``lint-docs``, ``docs-serve``) leaves play/ out: building them
+needs the pygame-ce wheel's WebAssembly toolchain.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import logging
+import shutil
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -37,6 +44,11 @@ PERFORMANCE_SCRIPT_PATH = SCRIPTS_DIRECTORY / 'generate_performance_graphs.py'
 PERFORMANCE_SCRIPT_MODULE_NAME = 'generate_performance_graphs'
 # The mkdocs commands whose site stays on this machine (gh-deploy publishes it)
 LOCAL_BUILD_COMMANDS = frozenset({'build', 'serve'})
+# The browser games' site (scripts/build_browser_bundle.py all) and where the docs serve it
+BROWSER_GAMES_DIRECTORY = SCRIPTS_DIRECTORY.parent / 'build' / 'browser' / 'site'
+PLAY_DIRECTORY_NAME = 'play'
+
+LOG = logging.getLogger('mkdocs.hooks.glitchygames')
 
 
 class BuildState:
@@ -158,3 +170,37 @@ def on_pre_build(config: MkDocsConfig) -> None:
         message = f'Could not generate the complexity graphs: {error}'
         raise PluginError(message) from error
     generate_performance_graphs()
+
+
+def copy_browser_games(*, games_directory: Path, site_directory: Path) -> bool:
+    """Copy the browser games' site into the docs site as play/, when it was built.
+
+    Args:
+        games_directory: The games' site (``scripts/build_browser_bundle.py all``).
+        site_directory: The built docs site.
+
+    Returns:
+        Whether the games were copied (False: none built).
+
+    """
+    if not (games_directory / 'index.html').is_file():
+        LOG.info(
+            'No browser games in %s: the site has no %s/', games_directory, PLAY_DIRECTORY_NAME
+        )
+        return False
+    shutil.copytree(games_directory, site_directory / PLAY_DIRECTORY_NAME, dirs_exist_ok=True)
+    return True
+
+
+def on_post_build(config: MkDocsConfig) -> None:
+    """Copy the browser games into the built site (``copy_browser_games``).
+
+    mkdocs runs this after a build, before ``gh-deploy`` publishes the site.
+
+    Args:
+        config: The mkdocs configuration (its ``site_dir``).
+
+    """
+    copy_browser_games(
+        games_directory=BROWSER_GAMES_DIRECTORY, site_directory=Path(config['site_dir'])
+    )

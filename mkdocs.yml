@@ -6,6 +6,8 @@ repo_name: glitchygames
 
 nav:
   - GlitchyGames Getting Started: "index.md"
+  # The browser games, copied into the site by scripts/mkdocs_hooks.py (nox -s docs-deploy)
+  - Play in the Browser: "https://terrysimons.github.io/glitchygames/play/"
   - Documentation:
     - Bitmappy Architecture: "architecture/bitmappy.md"
     - Games:
