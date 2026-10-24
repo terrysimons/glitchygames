@@ -30,6 +30,7 @@ from scripts.generate_complexity_graphs import (
     main,
     rank_modules,
     run_tool,
+    space_commits_evenly,
     wily_command,
 )
 
@@ -169,6 +170,29 @@ def test_load_plotly_from_jsdelivr_refuses_a_page_without_plotlys_cdn_script():
     """A page without the cdn.plot.ly script means plotly changed its output: refused."""
     with pytest.raises(ComplexityGraphError, match=r'no plotly\.js from cdn\.plot\.ly'):
         load_plotly_from_jsdelivr(html='<script>/* plotly.js inlined */</script>')
+
+
+def test_space_commits_evenly_makes_the_x_axis_one_slot_per_commit():
+    """Commits plotted by date get one evenly spaced slot each once the page loads."""
+    html = (
+        '<html><body><div class="plotly-graph-div"></div><script>/* plot */</script></body></html>'
+    )
+
+    spaced = space_commits_evenly(html=html)
+
+    script_start = spaced.index('<script>window.addEventListener')
+    assert spaced.endswith('</script></body></html>')
+    assert spaced[:script_start] == html.removesuffix('</body></html>')
+    script = spaced[script_start:]
+    assert "'xaxis.type': 'category'" in script
+    assert "'xaxis.categoryorder': 'category ascending'" in script
+    assert 'Plotly.relayout' in script
+
+
+def test_space_commits_evenly_refuses_a_page_without_a_body_end():
+    """A page with no </body> means wily changed its output: refused."""
+    with pytest.raises(ComplexityGraphError, match=r'no </body>'):
+        space_commits_evenly(html='<div class="plotly-graph-div"></div>')
 
 
 def test_graph_file_name_replaces_the_metric_dots():

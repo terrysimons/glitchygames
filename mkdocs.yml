@@ -46,7 +46,8 @@ extra_css:
   - css/full-width.css
 
 extra_javascript:
-  - https://unpkg.com/mermaid/dist/mermaid.min.js
+  # Pinned: an unversioned URL took every new Mermaid release unannounced
+  - https://unpkg.com/mermaid@12.1.0/dist/mermaid.min.js
   - js/mermaid-init.js
 
 # The complexity and performance graphs' snippets, which quality/complexity.md and

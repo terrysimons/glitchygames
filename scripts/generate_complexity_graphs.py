@@ -283,6 +283,39 @@ def load_plotly_from_jsdelivr(*, html: str) -> str:
     return rewritten
 
 
+def space_commits_evenly(*, html: str) -> str:
+    """Re-lay a graph page's x axis out with one evenly spaced slot per commit, oldest first.
+
+    wily plots each commit at its date, so a busy week is a sliver beside months of quiet. Its
+    x values are the commits' ISO 8601 timestamps, which sort as text in time order, so a
+    category axis in ascending order gives every commit the same width. Applied once the page
+    has loaded (``Plotly.relayout``), leaving the data wily wrote as it is.
+
+    Args:
+        html: A graph page wily wrote.
+
+    Returns:
+        The page, with the re-layout script before ``</body>``.
+
+    Raises:
+        ComplexityGraphError: The page has no ``</body>`` (wily changed its output).
+
+    """
+    body_end = '</body>'
+    if body_end not in html:
+        message = 'The graph page has no </body>: wily changed its output'
+        raise ComplexityGraphError(message)
+    script = (
+        "<script>window.addEventListener('load', function () {"
+        " document.querySelectorAll('.plotly-graph-div').forEach(function (graph) {"
+        " Plotly.relayout(graph, {'xaxis.type': 'category',"
+        " 'xaxis.categoryorder': 'category ascending',"
+        " 'xaxis.title.text': 'commits (evenly spaced, oldest first)'}); }); });</script>"
+    )
+    before, _, after = html.rpartition(body_end)
+    return f'{before}{script}{body_end}{after}'
+
+
 def graph_file_name(*, metric: str) -> str:
     """Return the graph page's file name for a wily metric (``raw.loc`` -> ``raw_loc.html``).
 
@@ -315,7 +348,9 @@ def graph_metric(
         timeout_seconds=TOOL_TIMEOUT_SECONDS,
     )
     html = output_path.read_text(encoding='utf-8')
-    output_path.write_text(load_plotly_from_jsdelivr(html=html), encoding='utf-8')
+    output_path.write_text(
+        space_commits_evenly(html=load_plotly_from_jsdelivr(html=html)), encoding='utf-8'
+    )
 
 
 def graphs_snippet(*, graphs: ComplexityGraphs) -> str:
