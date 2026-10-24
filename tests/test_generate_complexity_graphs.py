@@ -6,9 +6,14 @@ The end-to-end tests run the real git, radon and wily on a small repository made
 
 from __future__ import annotations
 
+import functools
+import gc
+import importlib
 import logging
 import os
 import sys
+import types
+import weakref
 from typing import TYPE_CHECKING
 
 import pytest
@@ -396,3 +401,66 @@ def test_the_mkdocs_hook_loads_the_graph_script_once(mocker):
 
     assert first is second
     assert first.__file__ == str(mkdocs_hooks.GRAPH_SCRIPT_PATH)
+
+
+class CachedArgument:
+    """An object a module cache is keyed by, as griffe's caches are keyed by a build's classes."""
+
+
+def module_with_a_filled_cache(*, name: str) -> tuple[types.ModuleType, weakref.ref]:
+    """Return a module named ``name`` with one cache entry, and a weak reference to its key.
+
+    Returns:
+        The module (already in sys.modules) and the weak reference.
+
+    """
+    module = types.ModuleType(name)
+
+    @functools.cache
+    def cached_lookup(argument: CachedArgument) -> int:
+        return id(argument)
+
+    module.cached_lookup = cached_lookup
+    sys.modules[name] = module
+    argument = CachedArgument()
+    cached_lookup(argument)
+    return module, weakref.ref(argument)
+
+
+def test_the_mkdocs_hook_frees_the_documentation_caches_after_a_build(mocker):
+    """After a build, griffe's and mkdocstrings' module caches are emptied, freeing their keys."""
+    mocker.patch.dict(sys.modules)
+    module, key = module_with_a_filled_cache(name='griffe._fake_extension')
+
+    mkdocs_hooks.on_post_build(config=MkDocsConfig())
+    gc.collect()
+
+    assert module.cached_lookup.cache_info().currsize == 0
+    assert key() is None
+
+
+def test_the_mkdocs_hook_leaves_other_modules_caches_alone(mocker):
+    """Only griffe's and mkdocstrings' caches are emptied."""
+    mocker.patch.dict(sys.modules)
+    module, key = module_with_a_filled_cache(name='unrelated_package.lookups')
+
+    mkdocs_hooks.on_post_build(config=MkDocsConfig())
+
+    assert module.cached_lookup.cache_info().currsize == 1
+    assert key() is not None
+
+
+@pytest.mark.parametrize(
+    ('module_name', 'function_name'),
+    [
+        # Keyed by a build's griffe classes: kept every build's API tree (about 430 MB each)
+        ('griffe._internal.extensions.dataclasses', '_dataclass_parameters'),
+        # Keyed by a build's Jinja environment: kept every build's Python handler
+        ('mkdocstrings_handlers.python._internal.rendering', '_test_existing_template'),
+    ],
+)
+def test_the_mkdocs_hook_finds_the_caches_that_kept_old_builds(module_name, function_name):
+    """The caches that kept every mkdocs serve rebuild alive are among those it empties."""
+    cache = getattr(importlib.import_module(module_name), function_name)
+
+    assert cache in mkdocs_hooks.documentation_caches()
