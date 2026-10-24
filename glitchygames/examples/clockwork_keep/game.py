@@ -932,7 +932,7 @@ class ClockworkKeepScene(Scene):
         log.info('Victory! Score: %d', self.player.score)
         # The floor (and its camera) stand still from here on: stop following
         self.camera.follow(target=None)
-        self.sounds.play('elevator_clank')
+        self.sounds.play('victory')
         self._save_high_score()
         # A shake still running would carry into the fade; end it first (as at game over)
         self.scene_manager.screen_shake.clear()

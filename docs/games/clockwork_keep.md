@@ -253,7 +253,7 @@ Cogs are worth 10 (bronze), 50 (silver) and 100 (gold) points. There are no enem
 floor's `victory_platform` (`_find_victory_platform`; None on the floors below). When ground
 collision stands the Tinker on it (`supporting_platform`), `dt_tick` calls `_win()` after the
 cog pickups (so the victory cog above it counts): the floor stops, the camera stops following,
-the clank plays, the high score is saved and the floor fades to `ClockworkKeepVictoryScene`, the
+the victory chime plays, the high score is saved and the floor fades to `ClockworkKeepVictoryScene`, the
 engine's `GameOverScene` (final score and high scores, Space or a gamepad's Start or A restarts, Esc or B or Back quits) with a gold
 VICTORY! title.
 
@@ -570,7 +570,7 @@ dropping through it.
 
 ## Sound
 
-`sounds.py` defines six `SoundRecipe`s (synthesized tones: oscillators, envelopes, filters,
+`sounds.py` defines seven `SoundRecipe`s (synthesized tones: oscillators, envelopes, filters,
 tremolo), played through one `SoundBank(ALL_RECIPES)` per floor. `setup()` calls
 `sounds.prerender()`, so no sound renders mid-frame (the clank would otherwise render on the slam
 frame).
@@ -583,6 +583,7 @@ frame).
 | `death` | A life is lost and lives remain |
 | `game_over` | The last life is lost |
 | `elevator_clank` | The elevator arrives (cue at progress 1.0) |
+| `victory` | The Clock Face is won (`_win`): the clock tower's chime, struck bells (each a fundamental, its octave and a 2.76x overtone) climbing C5, E5, G5, then C6 ringing over a deep C3 |
 
 The elevator's motor is not a recipe but a live voice: a low-passed sawtooth with tremolo, made
 with `scene_manager.live_audio.create_voice(owner=transition)` and retuned every frame of the

@@ -1518,6 +1518,23 @@ class TestClockFaceVictory:
         assert victory.high_scores == expected_scores
         assert clock_face_scene.camera.follow_target is None
 
+    def test_the_victory_plays_its_own_fanfare(self, clock_face_scene):
+        """The win plays the victory chime once, not a borrowed sound such as the elevator's."""
+        top_platform = self._top_platform(clock_face_scene)
+        _drop_onto(
+            clock_face_scene,
+            surface_left=top_platform.world_x + 100,
+            surface_top=top_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clock_face_scene.dt_tick(FRAME_TIME)
+
+        played = [call.args[0] for call in clock_face_scene.sounds.play.call_args_list]
+        assert played.count('victory') == 1
+        assert 'elevator_clank' not in played
+
     def test_standing_on_a_lower_platform_is_no_victory(self, clock_face_scene):
         top_platform = self._top_platform(clock_face_scene)
         lower_platform = next(

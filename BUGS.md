@@ -422,7 +422,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   3. The engine's game-over subtitle still reads "Press SPACE to restart or ESC to quit" though a gamepad now works there too (#209 item 10)
   4. Bitmappy: `FilmStripOperationTracker.add_frame_selection` (`history/operations.py`) falls back to a hard-coded `('strip_1', 0)` when no current frame is known; undoing that first selection on a sprite without `strip_1` targets an animation that does not exist (latent now that #150 keeps the current frame)
   5. Bitmappy: every load records a "Selected frame" step before #150's reset clears it (harmless now; wasted work)
-  6. Clockwork Keep's victory plays the elevator clank: there is no victory sound recipe
+  6. Fixed 2026-10-23: Clockwork Keep's victory played the elevator clank; it now plays its own `victory` chime (`sounds.py`; test `TestClockFaceVictory::test_the_victory_plays_its_own_fanfare`)
   7. `tests/examples/test_brave_adventurer_game.py`'s `_start_display()` keeps whatever display exists (not always 800x480 under pytest); the scenes size the pit floor from it, so pit tests set the display themselves
 - **Files**: see each item
 
