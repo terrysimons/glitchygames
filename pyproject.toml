@@ -348,6 +348,9 @@ confidence = "medium"
 [tool.deptry]
 # pygame-ce installs as the 'pygame' module
 package_module_name_map = { "pygame-ce" = "pygame" }
+# Not this package's code: the pygame-ce submodule (its own project), and browser/, which runs
+# in Pyodide on its runtime modules (js, pyodide) and its own files
+extend_exclude = ["third_party", "browser"]
 
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
