@@ -16,7 +16,13 @@ from glitchygames.state.exceptions import (
     SaveNotFoundError,
     SaveVersionError,
 )
-from glitchygames.state.manager import SAVE_FORMAT_VERSION, DiskSaveManager
+from glitchygames.state.manager import (
+    SAVE_FORMAT_VERSION,
+    DiskSaveManager,
+    observe_disk_save_changes,
+    stop_observing_disk_save_changes,
+)
+from glitchygames.state.sandbox import MemorySaveManager
 from glitchygames.state.serializers import TomlSerializer
 
 
@@ -401,3 +407,49 @@ class TestTomlSerializer:
         # Verify file extensions
         assert (tmp_path / 'progress.json').exists()
         assert (tmp_path / 'settings.toml').exists()
+
+
+class TestDiskSaveChangeObservers:
+    """Observers hear of each save file a DiskSaveManager writes or deletes (a browser flushes)."""
+
+    def test_a_write_and_a_delete_are_each_observed_after_they_happen(self, tmp_path):
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        observed: list[tuple[Path, bool]] = []
+
+        def observer(path: Path) -> None:
+            # Recorded with whether the file exists then: the change is complete when told
+            observed.append((path, path.exists()))
+
+        observe_disk_save_changes(observer=observer)
+        try:
+            saves.save('slot_1', {'score': 7})
+            saves.delete('slot_1')
+        finally:
+            stop_observing_disk_save_changes(observer=observer)
+
+        assert observed == [(tmp_path / 'slot_1.json', True), (tmp_path / 'slot_1.json', False)]
+
+    def test_a_stopped_observer_is_not_told(self, tmp_path):
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        observed: list[Path] = []
+        observe_disk_save_changes(observer=observed.append)
+        stop_observing_disk_save_changes(observer=observed.append)
+
+        saves.save('slot_1', {'score': 7})
+
+        assert observed == []
+
+    def test_stopping_an_observer_that_never_observed_does_nothing(self):
+        stop_observing_disk_save_changes(observer=print)
+
+    def test_memory_saves_are_never_observed(self):
+        """A replay's stores (MemorySaveManager) never touch real storage, so never notify."""
+        saves = MemorySaveManager(app_name='test-game', snapshot={})
+        observed: list[Path] = []
+        observe_disk_save_changes(observer=observed.append)
+        try:
+            saves.save('slot_1', {'score': 7})
+        finally:
+            stop_observing_disk_save_changes(observer=observed.append)
+
+        assert observed == []

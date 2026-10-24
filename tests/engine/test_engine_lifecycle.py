@@ -6,6 +6,7 @@ ends its own run in its first frame, by quitting or by raising; only failures a 
 cause (a teardown or an event manager that breaks) are simulated with targeted mocks.
 """
 
+import asyncio
 import logging
 import os
 import signal
@@ -28,7 +29,11 @@ from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.events.keyboard import KeyboardEventManager
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.exit_codes import ExitCode
+from glitchygames.host import HostSources
+from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.sources import active_sources
+from glitchygames.timing import FastTimer
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -397,3 +402,105 @@ class TestStartExitStatus:
         expected_errors = [teardown_error] if run_error is None else [run_error, teardown_error]
         assert logged_errors == expected_errors
         assert f'Exiting with {ExitCode.INTERNAL_ERROR.describe()}' in caplog.text
+
+
+# Outer ticks for start_async: 60 Hz timestamps, and a cap so a run that never ends fails
+ASYNC_TICK_SECONDS = 1 / 60
+ASYNC_TICK_LIMIT = 600
+# A paced game whose timer calibrates when made to (--timer-backend auto)
+PACED_ARGUMENTS = ('--target-fps', '60', '--timer-backend', 'auto')
+
+
+def async_ticks() -> tuple[list[float], Any]:
+    """Return a tick log and a wait_for_tick that appends 60 Hz timestamps to it.
+
+    Returns:
+        The tick timestamps so far, and the awaitable tick source.
+
+    """
+    ticks: list[float] = []
+
+    async def wait_for_tick() -> float:
+        await asyncio.sleep(0)
+        ticks.append(len(ticks) * ASYNC_TICK_SECONDS)
+        if len(ticks) > ASYNC_TICK_LIMIT:
+            message = f'the run was still going after {ASYNC_TICK_LIMIT} ticks'
+            raise AssertionError(message)
+        return ticks[-1]
+
+    return ticks, wait_for_tick
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestHostedRuns:
+    """A live run is hosted (glitchygames/host.py); start_async drives it one tick at a time."""
+
+    def test_a_live_run_reads_through_the_host_doors(self, mocker):
+        """The installed doors are the host's, around the live doors."""
+        engine = build_engine(mocker, game=first_frame_game())
+
+        assert engine.host is not None
+        assert active_sources() is engine.host.sources
+        assert isinstance(engine.host.sources, HostSources)
+        assert isinstance(engine.host.sources.inner, LiveSources)
+
+    def test_start_async_runs_the_game_until_it_quits(self, mocker):
+        """start_async builds the game, runs its frames on the ticks, and ends normally."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+        shutdown = mocker.spy(engine, '_shutdown')
+        ticks, wait_for_tick = async_ticks()
+
+        asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        assert isinstance(engine.game, game_class)
+        assert engine.game.frames_run == 1
+        assert engine.scene_manager.active_scene is None
+        assert ticks
+        shutdown.assert_called_once_with(run_ended_by=None)
+
+    def test_start_async_exits_like_start_after_an_uncaught_exception(self, mocker, caplog):
+        """The async run shares start()'s crash boundary: the same exit code and cause."""
+        run_error = RuntimeError('Test exception')
+        engine = build_engine(mocker, game=first_frame_game(run_error=run_error))
+        _, wait_for_tick = async_ticks()
+
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        assert exit_info.value.__cause__ is run_error
+
+    def test_start_async_refuses_an_unhosted_run(self, mocker):
+        """A run with neither a host nor a watched replay's viewer cannot start async."""
+        engine = build_engine(mocker, game=first_frame_game())
+        engine.host = None
+        _, wait_for_tick = async_ticks()
+
+        with pytest.raises(RuntimeError, match='runs live games and watched replays only'):
+            asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+    def test_start_calibrates_a_paced_games_timer(self, mocker):
+        """The blocking run paces with the timer, so --timer-backend auto measures it first."""
+        engine = build_engine(mocker, game=first_frame_game(), extra_arguments=PACED_ARGUMENTS)
+        calibrate = mocker.spy(FastTimer, 'calibrate')
+
+        engine.start()
+
+        # Again at its first paced frame (FastTimer.start_frame), where it does nothing
+        calibrate.assert_called()
+
+    def test_start_async_never_calibrates_the_timer(self, mocker):
+        """The async run's outer tick is its wait: the timer never paces it, so it is not measured.
+
+        The timer is still made: a recording names it (uncalibrated) in its provenance.
+        """
+        engine = build_engine(mocker, game=first_frame_game(), extra_arguments=PACED_ARGUMENTS)
+        calibrate = mocker.spy(FastTimer, 'calibrate')
+        _, wait_for_tick = async_ticks()
+
+        asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        calibrate.assert_not_called()
+        assert isinstance(engine.timer, FastTimer)
+        assert engine.timer.pacing_timer().sleep_model is None

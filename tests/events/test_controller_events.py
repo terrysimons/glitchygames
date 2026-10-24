@@ -9,12 +9,14 @@ replay stand-ins (``ReplayController``) from a ``ReplayDeviceRegistry``; everyth
 real: the event managers and proxies, real Scenes receiving the events, real events.
 """
 
+import logging
 import math
 import sys
 from pathlib import Path
 from typing import Any, Self
 
 import pygame
+import pygame._sdl2.controller
 import pytest
 
 # Add project root so direct imports work in isolated runs
@@ -32,7 +34,7 @@ from glitchygames.events import (
     HashableEvent,
     UnhandledEventError,
 )
-from glitchygames.events.controller import ControllerEventManager
+from glitchygames.events.controller import ControllerEventManager, alias_controller_module
 from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
@@ -1190,3 +1192,32 @@ class TestControllersKeyedByInstanceId:
         assert manager.controllers == {}
         assert _received(scene) == []
         assert 'Controller at device index 0 vanished before it could be opened' in caplog.text
+
+
+class TestControllerModuleUnavailable:
+    """A pygame build without pygame._sdl2.controller (stock Pyodide's pygame-ce)."""
+
+    def test_manager_starts_with_no_controllers(self, mocker, caplog):
+        """The manager skips the module's init and finds no controllers through the door."""
+        mocker.patch('glitchygames.input.devices._SDL_CONTROLLER_MODULE', None)
+        scene = ControllerRecordingScene()
+
+        with caplog.at_level(logging.INFO, logger='game.controllers'):
+            manager = ControllerEventManager(game=scene)
+
+        assert manager.controllers == {}
+        assert 'Controller Module unavailable in this pygame build' in caplog.text
+
+    def test_alias_controller_module_sets_pygame_controller(self):
+        """Where the module exists, pygame.controller names it."""
+        assert alias_controller_module() is True
+        assert pygame.controller is pygame._sdl2.controller
+
+    def test_alias_controller_module_skipped_without_the_module(self, mocker):
+        """Without the module there is nothing to alias, and pygame.controller is untouched."""
+        mocker.patch('glitchygames.input.devices._SDL_CONTROLLER_MODULE', None)
+        sentinel = object()
+        mocker.patch.object(pygame, 'controller', sentinel, create=True)
+
+        assert alias_controller_module() is False
+        assert pygame.controller is sentinel

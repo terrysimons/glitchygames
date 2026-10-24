@@ -374,27 +374,15 @@ class TestMultiLineTextBoxClipboardOperations:
         assert textbox.selection_end == len(textbox._original_text)
         assert textbox.cursor_pos == len(textbox._original_text)
 
-    def test_ctrl_c_copies_text(self, mocker):
+    def test_ctrl_c_copies_text(self, in_process_clipboard):
         """Test Ctrl+C copies the text to the clipboard."""
-        clipboard = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         textbox = _create_multiline_textbox(text='hello world')
         textbox.is_active = True
         _install_frame_input(modifiers=pygame.KMOD_CTRL)
 
         textbox.on_key_down_event(_make_key_event(pygame.K_c))
 
-        clipboard.copy.assert_called_once_with('hello world')
-        assert textbox._original_text == 'hello world'
-
-    def test_ctrl_c_without_pyperclip_does_not_raise(self, mocker):
-        """Test Ctrl+C without pyperclip leaves the text alone."""
-        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
-        textbox = _create_multiline_textbox(text='hello world')
-        textbox.is_active = True
-        _install_frame_input(modifiers=pygame.KMOD_CTRL)
-
-        textbox.on_key_down_event(_make_key_event(pygame.K_c))
-
+        assert in_process_clipboard.text == 'hello world'
         assert textbox._original_text == 'hello world'
 
     def test_shift_arrow_selects_text(self):
@@ -550,10 +538,9 @@ class TestMultiLineTextBoxRealRendering:
 class TestMultiLineTextBoxRealEvents:
     """Event handling that leaves the text box unchanged."""
 
-    def test_paste_without_pyperclip_changes_nothing(self, mocker):
+    def test_paste_from_an_empty_clipboard_changes_nothing(self):
         textbox = _real_textbox(text='keep')
         textbox.is_active = True
-        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
         _install_frame_input(modifiers=pygame.KMOD_CTRL)
 
         textbox.on_key_down_event(_make_key_event(pygame.K_v, unicode_char='\x16'))

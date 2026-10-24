@@ -1350,8 +1350,10 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """
         return self.canvas_renderer
 
-    def on_load_file_event(self, event: events.HashableEvent, _trigger: object = None) -> None:
-        """Handle load file event for animated sprites."""
+    def on_load_file_event(
+        self, event: events.HashableEvent | str, _trigger: object = None
+    ) -> None:
+        """Handle load file event for animated sprites (its ``text`` is the file, or the file)."""
         self.log.debug('=== Starting on_load_file_event for animated sprite ===')
         LOG.debug(f'DEBUG: Canvas on_load_file_event called with event: {event}')
         # A load is a file boundary: any failure is shown to the user instead of crashing

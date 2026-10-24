@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import sys
 
 import pygame
 import pytest
@@ -120,6 +121,26 @@ def test_step_back_does_nothing_while_running():
     controls.current_frame = 10
     controls.handle_key(key=pygame.K_COMMA)
     assert controls.restart_request is None
+
+
+@pytest.mark.parametrize('key', [pygame.K_COMMA, pygame.K_HOME, pygame.K_d])
+def test_restarts_are_refused_where_no_process_can_start(mocker, key):
+    """In a browser a restart (a new process) cannot run: the key says so and asks nothing."""
+    mocker.patch.object(controls_module, 'RESTARTS_AVAILABLE', new=False)
+    controls = ReplayControls(total_frames=100)
+    controls.handle_key(key=pygame.K_SPACE)
+    controls.current_frame = 50
+    controls.divergence_frame = 42
+
+    controls.handle_key(key=key)
+
+    assert controls.restart_request is None
+    assert controls.message_for_control_tick() == controls_module.RESTARTS_UNAVAILABLE_MESSAGE
+
+
+def test_restarts_are_available_but_in_a_browser():
+    """Restarting starts a new process (glitchygames/replay/rebuild.py): never in a page."""
+    assert controls_module.RESTARTS_AVAILABLE is (sys.platform != 'emscripten')
 
 
 def test_home_and_jump_to_divergence():

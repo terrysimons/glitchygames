@@ -305,7 +305,9 @@ def docs_deploy(session: nox.Session) -> None:
     when they were made from another commit: about a minute, and the performance graphs from the
     published run ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
-    removed. Run it from what should be published (usually main after a merge); a warning stops
+    removed. Before the docs, every game's browser build (``scripts/build_browser_bundle.py
+    all``: the pygame-ce wheel is built first when the submodule changed) goes into the site as
+    play/. Run it from what should be published (usually main after a merge); a warning stops
     it before anything is pushed.
 
     Usage:
@@ -325,6 +327,8 @@ def docs_deploy(session: nox.Session) -> None:
         success_codes=_GIT_FETCH_STATUSES if build_only else [0],
     )
     _replay_metrics(session, 'measure', '--skip-dirty')
+    # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
+    session.run('python', 'scripts/build_browser_bundle.py', 'all')
     if build_only:
         session.run('mkdocs', 'build', '--strict')
         return
@@ -1165,6 +1169,38 @@ def _compare_driver_configurations(
             for configuration, directory_name in reruns
         ),
         external=True,
+    )
+
+
+@nox.session(venv_backend='none', name='browser', default=False)
+def browser(session: nox.Session) -> None:
+    """Build a game for the browser (PyScript, Pyodide 314) and serve it on localhost.
+
+    scripts/build_browser_bundle.py writes build/browser/<game>: the page, the engine and our
+    pygame-ce wheel. The wheel is built from the third_party/pygame-ce submodule the first time
+    (several minutes; run ``git submodule update --init`` first) and reused while the submodule
+    stays at the same commit. The page opens in the default browser; click it to play. Design:
+    plans/2026-10-23-game-host-and-browser-runner.md.
+
+    Usage:
+        nox -s browser                                   # PaddleSlap
+        nox -s browser -- mr-muncher                     # Another game
+        nox -s browser -- clockwork-keep --port 9000     # Builder options after the game
+        nox -s browser -- paddleslap -- --target-fps 30  # The game's own options after a --
+    """
+    arguments = session.posargs or ['paddleslap']
+    session.run(
+        'uv',
+        'run',
+        '--frozen',
+        'python',
+        'scripts/build_browser_bundle.py',
+        # Before the game's own arguments, which may follow a -- that ends the builder's options
+        '--serve',
+        *arguments,
+        external=True,
+        # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
+        env={'VIRTUAL_ENV': None},
     )
 
 

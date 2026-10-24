@@ -25,6 +25,7 @@ from glitchygames.sources import advance_frame_clock
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
+from glitchygames.clipboard import ClipboardUnavailableError, install_clipboard
 from glitchygames.color import WHITE
 from glitchygames.events.base import HashableEvent
 from glitchygames.fonts import FontManager
@@ -1956,30 +1957,31 @@ def _multiline_text_box(*, x=100, y=100, width=300, height=200, text=''):
     return text_box
 
 
-class _FakeClipboard:
-    """An in-memory stand-in for pyperclip, so no test touches the machine's clipboard."""
-
-    def __init__(self, contents=''):
-        """Start holding the given contents."""
-        self.contents = contents
+class _UnavailableClipboard:
+    """A clipboard that cannot be used (a machine without a clipboard program)."""
 
     def copy(self, text):
-        """Hold the copied text."""
-        self.contents = text
+        """Fail as pyperclip's clipboard does without a clipboard program.
+
+        Raises:
+            ClipboardUnavailableError: Always.
+        """
+        raise ClipboardUnavailableError(text)
 
     def paste(self):
-        """Return the held text.
+        """Fail as pyperclip's clipboard does without a clipboard program.
 
-        Returns:
-            str: The clipboard contents.
+        Raises:
+            ClipboardUnavailableError: Always.
         """
-        return self.contents
+        raise ClipboardUnavailableError
 
 
 class TestMultiLineTextBoxClipboard:
     """Test MultiLineTextBox clipboard operations (copy, paste, cut).
 
-    pyperclip is replaced in every test: none may read or write the machine's clipboard.
+    Every test has an in-process clipboard (tests/conftest.py): none may read or write the
+    machine's clipboard.
     """
 
     @pytest.fixture
@@ -1992,22 +1994,20 @@ class TestMultiLineTextBoxClipboard:
         return _multiline_text_box(x=10, y=10, width=300, height=200, text='Hello World')
 
     @pytest.fixture
-    def clipboard(self, mocker):
-        """Replace pyperclip with an in-memory clipboard.
+    def clipboard(self, in_process_clipboard):
+        """Return the test's clipboard.
 
         Returns:
-            _FakeClipboard: The clipboard the text box now uses.
+            InProcessClipboard: The clipboard the text box uses.
         """
-        fake_clipboard = _FakeClipboard()
-        mocker.patch('glitchygames.ui.text_widgets.pyperclip', fake_clipboard)
-        return fake_clipboard
+        return in_process_clipboard
 
     def test_handle_copy_full_text(self, text_box, clipboard):
         """Test _handle_copy copies full text when no selection."""
         text_box.selection_start = None
         text_box.selection_end = None
         text_box._handle_copy()
-        assert clipboard.contents == 'Hello World'
+        assert clipboard.text == 'Hello World'
         assert text_box._original_text == 'Hello World'
 
     def test_handle_copy_selected_text(self, text_box, clipboard):
@@ -2015,18 +2015,11 @@ class TestMultiLineTextBoxClipboard:
         text_box.selection_start = 0
         text_box.selection_end = 5
         text_box._handle_copy()
-        assert clipboard.contents == 'Hello'
-
-    def test_handle_copy_import_error(self, text_box, mocker):
-        """Test _handle_copy handles ImportError gracefully."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
-        mock_pyperclip.copy.side_effect = ImportError
-        text_box._handle_copy()
-        assert text_box._original_text == 'Hello World'
+        assert clipboard.text == 'Hello'
 
     def test_handle_paste_inserts_text(self, text_box, clipboard):
         """Test _handle_paste inserts clipboard text at cursor."""
-        clipboard.contents = 'pasted'
+        clipboard.text = 'pasted'
         text_box.cursor_pos = 5
         text_box._handle_paste()
         assert text_box._original_text == 'Hellopasted World'
@@ -2041,7 +2034,7 @@ class TestMultiLineTextBoxClipboard:
     )
     def test_handle_paste_leaves_the_cursor_after_the_pasted_text(self, text_box, clipboard):
         """Pasting 'pasted' at position 5 leaves the cursor at 11, right after it."""
-        clipboard.contents = 'pasted'
+        clipboard.text = 'pasted'
         text_box.cursor_pos = 5
 
         text_box._handle_paste()
@@ -2050,24 +2043,17 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_paste_no_clipboard(self, text_box, clipboard):
         """Test _handle_paste handles empty clipboard."""
-        clipboard.contents = ''
+        clipboard.text = ''
         original_text = text_box._original_text
         text_box._handle_paste()
         assert text_box._original_text == original_text
-
-    def test_handle_paste_import_error(self, text_box, mocker):
-        """Test _handle_paste handles ImportError gracefully."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
-        mock_pyperclip.paste.side_effect = ImportError
-        text_box._handle_paste()
-        assert text_box._original_text == 'Hello World'
 
     def test_handle_cut_full_text(self, text_box, clipboard):
         """Test _handle_cut cuts all text when no selection."""
         text_box.selection_start = None
         text_box.selection_end = None
         text_box._handle_cut()
-        assert clipboard.contents == 'Hello World'
+        assert clipboard.text == 'Hello World'
         assert not text_box._original_text
         assert text_box.cursor_pos == 0
 
@@ -2076,39 +2062,15 @@ class TestMultiLineTextBoxClipboard:
         text_box.selection_start = 0
         text_box.selection_end = 5
         text_box._handle_cut()
-        assert clipboard.contents == 'Hello'
+        assert clipboard.text == 'Hello'
         assert text_box._original_text == ' World'
         assert text_box.selection_start is None
         assert text_box.selection_end is None
 
-    def test_handle_cut_import_error(self, text_box, mocker):
-        """Test _handle_cut handles ImportError gracefully: the text stays."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
-        mock_pyperclip.copy.side_effect = ImportError
-        text_box._handle_cut()
-        assert text_box._original_text == 'Hello World'
-
-    def test_handle_cut_without_pyperclip_keeps_the_text(self, text_box, mocker):
-        """No clipboard: a cut with a selection warns and leaves the text alone (no crash)."""
-        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
-        text_box.selection_start = 0
-        text_box.selection_end = 5
-        original_text = text_box._original_text
-        text_box._handle_cut()
-        assert text_box._original_text == original_text
-
     @pytest.mark.parametrize('operation', ['copy', 'paste', 'cut'])
-    def test_clipboard_without_a_copy_mechanism_keeps_the_text(self, text_box, mocker, operation):
-        """No clipboard tool (headless Linux without xclip/xsel/wl-clipboard): no crash.
-
-        pyperclip raises its own PyperclipException there, from copy() and paste().
-        """
-        import pyperclip as real_pyperclip
-
-        no_mechanism = real_pyperclip.PyperclipException('no copy/paste mechanism')
-        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
-        mock_pyperclip.copy.side_effect = no_mechanism
-        mock_pyperclip.paste.side_effect = no_mechanism
+    def test_an_unavailable_clipboard_keeps_the_text(self, text_box, operation):
+        """No clipboard program (headless Linux without xclip/xsel/wl-clipboard): no crash."""
+        install_clipboard(clipboard=_UnavailableClipboard())
         text_box.selection_start = 0
         text_box.selection_end = 5
         original_text = text_box._original_text
@@ -2119,7 +2081,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_copy_and_paste_round_trip_through_the_clipboard(self, text_box, clipboard):
         """Copy, then paste, through a clipboard (an in-memory one: never the machine's)."""
-        clipboard.contents = 'what was there before'
+        clipboard.text = 'what was there before'
         text_box.text = 'Round trip'
         text_box.selection_start = 0
         text_box.selection_end = len('Round')
@@ -2137,7 +2099,8 @@ class TestMultiLineTextBoxClipboard:
 class TestMultiLineTextBoxClipboardKeys:
     """Test the Ctrl key shortcuts MultiLineTextBox dispatches to clipboard operations.
 
-    pyperclip is replaced in every test: none may read or write the machine's clipboard.
+    Every test has an in-process clipboard (tests/conftest.py): none may read or write the
+    machine's clipboard.
     """
 
     @pytest.fixture
@@ -2150,15 +2113,13 @@ class TestMultiLineTextBoxClipboardKeys:
         return _multiline_text_box(x=10, y=10, width=300, height=200, text='Hello World')
 
     @pytest.fixture
-    def clipboard(self, mocker):
-        """Replace pyperclip with an in-memory clipboard.
+    def clipboard(self, in_process_clipboard):
+        """Return the test's clipboard.
 
         Returns:
-            _FakeClipboard: The clipboard the text box now uses.
+            InProcessClipboard: The clipboard the text box uses.
         """
-        fake_clipboard = _FakeClipboard()
-        mocker.patch('glitchygames.ui.text_widgets.pyperclip', fake_clipboard)
-        return fake_clipboard
+        return in_process_clipboard
 
     def test_clipboard_operation_copy_key(self, text_box, clipboard):
         """Test _handle_clipboard_operation dispatches Ctrl+C to copy."""
@@ -2166,11 +2127,11 @@ class TestMultiLineTextBoxClipboardKeys:
             _key_down(key=pygame.K_c, unicode='c'), is_ctrl=True
         )
         assert result is True
-        assert clipboard.contents == 'Hello World'
+        assert clipboard.text == 'Hello World'
 
     def test_clipboard_operation_paste_key(self, text_box, clipboard):
         """Test _handle_clipboard_operation dispatches Ctrl+V to paste."""
-        clipboard.contents = '!'
+        clipboard.text = '!'
         result = text_box._handle_clipboard_operation(
             _key_down(key=pygame.K_v, unicode='v'), is_ctrl=True
         )
@@ -2183,7 +2144,7 @@ class TestMultiLineTextBoxClipboardKeys:
             _key_down(key=pygame.K_x, unicode='x'), is_ctrl=True
         )
         assert result is True
-        assert clipboard.contents == 'Hello World'
+        assert clipboard.text == 'Hello World'
         assert not text_box._original_text
 
     def test_clipboard_operation_select_all(self, text_box):
@@ -2202,7 +2163,7 @@ class TestMultiLineTextBoxClipboardKeys:
             _key_down(key=pygame.K_c, unicode='c'), is_ctrl=False
         )
         assert result is False
-        assert not clipboard.contents
+        assert not clipboard.text
 
     def test_clipboard_operation_unknown_key_returns_false(self, text_box):
         """Test _handle_clipboard_operation returns False for unknown ctrl key."""

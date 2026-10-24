@@ -4,6 +4,8 @@ extends: default
 ignore:
   - .nox/
   - .venv/
+  # Submodules: other projects' files, linted by their own rules
+  - third_party/
 
 rules:
   # CircleCI config uses long lines for cache keys with template expressions

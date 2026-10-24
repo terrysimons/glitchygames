@@ -176,11 +176,44 @@ games.
   9. **Present**: debug overlay, `pygame.display.update()` or `flip()`
   10. **Finish**: `_finish_frame` (see Frame Pacing)
 - Handles scene transitions and lifecycle (`setup()`, `cleanup()`, `load_resources()`)
+- The frame loop is four steps: `begin_frames()` (the first frame's start reading and dt),
+  `should_run_frames()`, `run_frame_step(frame_start_seconds=..., paced=...)` (one frame, or a
+  held frame presented again) and `end_frames()`. `start()` runs them blocking, paced.
+  `GameHost.run_async` runs them one per outer tick with `paced=False` (no timer or clock waits:
+  the tick is the pacing, measured into the next dt)
 - The active scene is always a `Scene` (or subclass), or None: `switch_to_scene` and
   `request_transition`/`transition_to` raise `TypeError` for anything else
   (`scenes.scene.required_scene`), so the manager reads the attributes `Scene` declares
   (`camera`, `scene_start_capture`, `PIXEL_SNAP_MODE`, ...) directly. `SceneInterface`
   (`glitchygames/interfaces`) stays as the base both `SceneManager` and `Scene` implement
+
+**Game Host** (`glitchygames/host.py`; design `plans/2026-10-23-game-host-and-browser-runner.md`)
+- An outer game on top of every live run (`GameEngine.host`; None in a replay, whose viewer is
+  its outer game). It is transparent today; later it is where AI input and event/call injection
+  go without the game knowing
+- `HostSources`: doors forwarding every member to `inner`, installed around the live doors and
+  beneath the recorder: `HostSources(inner=LiveSources)`, with `--record-trace`
+  `RecordingSources(inner=HostSources(inner=LiveSources))`. Whatever the host adds or hides is
+  what a recording holds, so recordings replay exactly without the host
+- What the host hides today: a window loss given back within one event batch
+  (`without_window_recreation_bursts`: focus lost/gained, hidden/shown, leave/enter, and their
+  ACTIVEEVENTs). SDL queues those when it recreates a `SCALED` window for an OpenGL renderer
+  (once in the browser, twice on the dummy driver, never on macOS); without this a game pausing
+  on focus loss starts paused (BUGS.md #216)
+- `GameHost.run` (blocking: `SceneManager.start`) and `GameHost.run_async(scene_manager=...,
+  wait_for_tick=...)`: one awaited tick per loop, which returns the tick's timestamp in seconds
+  (a browser animation frame), so the host never reads a clock. `TickPacer` runs an inner frame
+  when its accumulator holds the frame period less half a tick (the doors' `paced_frame_seconds`,
+  else `1 / target_fps`; 0 runs every tick), re-anchors after a stall rather than catching up,
+  and measures the median tick interval (the display's refresh, logged once). A 60 FPS game runs
+  every second tick at 120 Hz
+- `GameEngine.start_async(wait_for_tick=...)` runs a live game that way inside the same crash
+  boundary as `start()` (`_crash_boundary`, a context manager both share: the same teardown and
+  exit codes). A watched replay runs through `run_watched_replay_async`
+  (`glitchygames/replay/viewer.py`: one viewer tick per awaited tick, `ticks_externally`, steps
+  until `SceneManager.last_step_was_held`); a headless replay raises RuntimeError. Replay
+  restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). `_prepare_run()` is everything up to the first
+  frame
 
 **Exit Codes** (`glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
 `glitchygames.engine`; never write the number in code or tests)
@@ -221,8 +254,9 @@ games.
   assumes sleeps wake on time) left most frames 1-2 ms late; at background priority the delay is
   a flat 85-100 ms. `--timer-backend auto` (the default) measures the model
   (`measure_sleep_model`: 10 sleeps each of 1 ms and 8 ms, 90th percentiles, about 0.1 s) as the
-  engine starts a paced live game (target FPS > 0, not a replay), else at the first paced frame
-  (uncapped runs and replays never measure), and sizes each
+  engine starts a paced live game (target FPS > 0, not a replay, not `start_async`, whose outer
+  tick is its wait), else at the first paced frame (uncapped runs, replays and async runs never
+  measure), and sizes each
   sleep so its predicted wake lands `sleep_granularity_ns` before the deadline; when even no
   sleep would (a delay longer than the wait) it spins the whole wait. Measured on macOS (60 FPS,
   4 ms of work): fast 1.5 ms late per frame at 24% CPU, auto on time at 30%; at background
@@ -315,7 +349,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Only `ALLOWED_BYPASSES` in `tests/test_engine_doors.py` may read the raw clock (or use
   `pygame.time.set_timer`/`Clock`): pacing (`timing.py`), `performance/`, `debug/`,
   `audio/diagnostics.py` and the live doors' wall clock (`live_sources.py`); by function
-  (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.start`/`_finish_frame` (and its pacing `Clock`),
+  (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.begin_frames`/`run_frame_step`/`_finish_frame`
+  (and its pacing `Clock`),
   the recording's start stamp (`GameEngine.trace_recording_header`), each run's `measured_at`
   (`GameEngine.measurement_run`) and `clock.measured_seconds`
 - A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
@@ -330,8 +365,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   else `SourcesAlreadyRunningError`), `reset_sources()` (called by `GameEngine.__init__`), and the
   frame clock. It has no engine imports, which avoids an engine/scenes import cycle. Providers:
   `LiveSources` (`glitchygames/live_sources.py`: pygame's queue, the measured dt, pygame polling,
-  real devices, `DiskSaveManager`, the real wall clock), `RecordingSources`
-  (`glitchygames/recording.py`: wraps the live doors under `--record-trace` and records what
+  real devices, `DiskSaveManager`, the real wall clock), `HostSources` (`glitchygames/host.py`:
+  the game host's forwarding layer around the live doors), `RecordingSources`
+  (`glitchygames/recording.py`: wraps the host's doors under `--record-trace` and records what
   passes through) and `ReplaySources` (`glitchygames/replay/driver.py`: serves the recording)
 - Guard: `tests/test_engine_doors.py` AST-scans the package. Raw clock reads, pygame key/mouse
   polling, `pygame.event.get`/`post` and joystick/controller enumeration or construction outside
@@ -368,7 +404,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Saves: `glitchygames.state.open_saves(app_name=...)` returns a `SaveManager` (the base class
   holds every rule of the save format): `DiskSaveManager` live, `MemorySaveManager`
   (`glitchygames/state/sandbox.py`) in a replay, seeded from the recorded snapshot
-  (`save_namespace_snapshot`). Replay writes stay in memory; real saves are never touched
+  (`save_namespace_snapshot`). Replay writes stay in memory; real saves are never touched.
+  `observe_disk_save_changes(observer=...)` (`glitchygames/state/manager.py`) calls an observer
+  with each slot file's path after a `DiskSaveManager` writes or deletes it (a browser flushes
+  IndexedDB there)
 - Supervisor hook (`glitchygames/supervision.py`): `SceneManager.add_supervisor(supervisor=...)`
   calls `on_frame(frame_number=..., scene=...)` once per frame, after logic and events and before
   frame services, camera aim and positioning. `SceneManager.record_control_event(kind=...,
@@ -801,9 +840,29 @@ Features:
 - Multi-controller support (`MultiControllerManager`)
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
-- AI integration via aisuite
+- AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
+  (`bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
+  process, which a browser cannot start). `tenacity` is imported only when an AI request is made
+  (`ai_worker._create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
+- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`).
+  There Load opens the browser's file picker and Save downloads the saved file, through the
+  installed user files (`glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
+  On the desktop nothing is installed and the dialogs ask for file names as always
+
+**Clipboard and the player's files** (`glitchygames/clipboard.py`, `glitchygames/user_files.py`)
+- Text widgets copy and paste through `system_clipboard()`: the installed clipboard, else
+  `create_clipboard()`'s choice (`PyperclipClipboard`, else `InProcessClipboard` without
+  pyperclip). A clipboard that cannot be used raises `ClipboardUnavailableError`. Tests get a
+  fresh `InProcessClipboard` each (`tests/conftest.py` `in_process_clipboard`), never the machine's
+- The browser installs `BrowserClipboard` (`browser/browser_clipboard.py`): paste takes the
+  page's paste event text (Ctrl/Cmd+V fires it before the game's frame reads the key); copy is
+  kept in the game and written with `navigator.clipboard.writeText`, which Safari refuses
+  outside the key's own handler (copied text then pastes only inside the game). pyperclip
+  installs in Pyodide but cannot work there (it runs clipboard programs)
+- `installed_user_files()` is None on the desktop; a browser installs `UserFiles` (`open_file`
+  with a file picker, `save_file` as a download). Tests start with none (`desktop_user_files`)
 
 ### Resource Management
 

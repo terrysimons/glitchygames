@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import collections
 import gzip
 import importlib.metadata
@@ -2115,6 +2116,50 @@ class TestHeadless:
             )
         assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
 
+    def test_start_async_drives_a_watched_replay_with_its_viewer(self, mocker, tmp_path):
+        """In a browser a watched replay's outer ticks are the page's (run_watched_replay_async)."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        driven: list[dict[str, Any]] = []
+
+        async def record_the_driver(**arguments: Any) -> None:
+            await asyncio.sleep(0)
+            driven.append(arguments)
+
+        async def wait_for_tick() -> float:
+            await asyncio.sleep(0)
+            message = 'the stand-in driver never waits'
+            raise AssertionError(message)
+
+        mocker.patch.object(game_engine_module, 'run_watched_replay_async', new=record_the_driver)
+        with constructed_engine('--replay-trace', str(recording_path)) as engine:
+            mocker.patch.object(engine, '_prepare_run')
+            # Ending without replaying a frame, the replay exits with its own code
+            with pytest.raises(SystemExit):
+                asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+            assert engine.replay_sources is not None
+            assert driven == [
+                {
+                    'scene_manager': engine.scene_manager,
+                    'viewer': engine.replay_sources.viewer,
+                    'wait_for_tick': wait_for_tick,
+                }
+            ]
+
+    def test_start_async_refuses_a_headless_replay(self, mocker, tmp_path):
+        """A headless replay never holds between frames, so it would never give control back."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+
+        async def wait_for_tick() -> float:
+            await asyncio.sleep(0)
+            message = 'never reached'
+            raise AssertionError(message)
+
+        with constructed_engine('--replay-trace', str(recording_path), '--headless') as engine:
+            with pytest.raises(RuntimeError, match='a headless replay never gives control back'):
+                asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+            assert engine.replay_sources is not None
+            engine.replay_sources.on_uninstalled()
+
     def test_a_recording_that_fails_to_close_still_settles_the_replay(
         self, mocker, tmp_path, capsys
     ):
@@ -3028,6 +3073,45 @@ class TestWatched:
         # Held twice after frame 0 (F3, then Space); the recorded game quits itself at its end
         assert seen_while_held == [(1, 1, False), (1, 1, True)]
         assert status_lines_while_held[0].startswith('frame 1 / ')
+        assert not sources.controls.awaiting_start
+        assert sources.result.divergence is None
+        assert sources.result.frames_replayed == sources.recording.frame_count
+        GoldenTraceSceneManager.uninstall()
+
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
+    def test_a_watched_replay_runs_on_outer_ticks_without_sleeping(self, mocker, tmp_path):
+        """The browser's driver: one viewer tick per awaited tick, the viewer never sleeping.
+
+        Space at the second tick (frame 0 ran at the first, behind the start screen) leaves the
+        start screen; each tick advances the measured clock one control tick, so the recorded
+        game runs to its end (it quits itself), exact.
+        """
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        sources = harness_replay_sources(manager=manager)
+        assert sources.controls.awaiting_start
+        sleeps: list[str] = []
+        clock = FakeMeasuredClock(mocker=mocker, on_wait=lambda: sleeps.append('slept'))
+        ticks: list[float] = []
+
+        async def wait_for_tick() -> float:
+            await asyncio.sleep(0)
+            if len(ticks) == 1:
+                pygame.event.post(_key(pygame.KEYDOWN, pygame.K_SPACE))
+                pygame.event.post(_key(pygame.KEYUP, pygame.K_SPACE))
+            clock.advance(seconds=CONTROL_TICK_SECONDS)
+            ticks.append(clock.now)
+            assert len(ticks) < sources.recording.frame_count * 4, 'the replay never ended'
+            return clock.now
+
+        asyncio.run(
+            viewer_module.run_watched_replay_async(
+                scene_manager=manager, viewer=sources.viewer, wait_for_tick=wait_for_tick
+            )
+        )
+
+        assert sources.viewer.ticks_externally
+        assert not sleeps
         assert not sources.controls.awaiting_start
         assert sources.result.divergence is None
         assert sources.result.frames_replayed == sources.recording.frame_count

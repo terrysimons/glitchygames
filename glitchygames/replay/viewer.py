@@ -51,13 +51,18 @@ from __future__ import annotations
 
 import collections
 import time
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 import pygame
 
 from glitchygames.clock import measured_seconds
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS, ControlCadence, ReplayControls
 from glitchygames.timing import FastTimer
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from glitchygames.scenes import SceneManager
 
 # The most inner frames one outer tick runs; the accumulator never owes more than this many
 MAX_INNER_FRAMES_PER_TICK = 32
@@ -114,6 +119,10 @@ class ReplayViewer:
         cadence: The outer tick's real-time cadence.
         accumulated_seconds: Inner game time owed to the inner game (real time times speed,
             consumed by each inner frame's recorded duration).
+        ticks_externally: True when something outside waits for each tick (a browser's
+            animation frames, ``run_watched_replay_async``): a tick then opens at once, never
+            sleeping or following ``cadence``, and owes the real time since the last, so the
+            replay keeps its speed at any display rate.
 
     """
 
@@ -127,6 +136,7 @@ class ReplayViewer:
         self.controls = controls
         self.cadence = ControlCadence()
         self.accumulated_seconds = 0.0
+        self.ticks_externally = False
         self._is_tick_open = False
         self._inner_frames_this_tick = 0
         self._tick_start_seconds = 0.0
@@ -209,6 +219,8 @@ class ReplayViewer:
         if self._is_tick_open:
             return None
         now = measured_seconds()
+        if self.ticks_externally:
+            return self._open_tick(now=now)
         remaining_seconds = self.cadence.next_tick_seconds(now=now) - now
         if remaining_seconds > 0:
             if is_inner_running:
@@ -217,6 +229,15 @@ class ReplayViewer:
                 sleep_coarsely(seconds=remaining_seconds)
             now = measured_seconds()
         self.cadence.tick_is_due(now=now)
+        return self._open_tick(now=now)
+
+    def _open_tick(self: Self, *, now: float) -> float:
+        """Open a tick at ``now``.
+
+        Returns:
+            ``now``.
+
+        """
         self._is_tick_open = True
         self._inner_frames_this_tick = 0
         self._tick_start_seconds = now
@@ -342,3 +363,36 @@ class ReplayViewer:
             self._recent_inner_seconds.append(self._inner_seconds_this_tick)
         self._tick_is_running = False
         return False
+
+
+async def run_watched_replay_async(
+    *,
+    scene_manager: SceneManager,
+    viewer: ReplayViewer,
+    wait_for_tick: Callable[[], Awaitable[float]],
+) -> None:
+    """Run a watched replay's frames, giving control back to the caller between outer ticks.
+
+    For a host that must not block (a browser). Each awaited ``wait_for_tick()`` is one outer
+    tick of ``viewer`` (``ticks_externally``: the viewer never sleeps): the tick's inner frames
+    run, then the viewer holds and the outer frame is presented (``SceneManager.run_frame_step``
+    steps until ``last_step_was_held``). Frames run unpaced, as the blocking loop runs them in a
+    watched replay: the viewer's accumulator decides when they run.
+
+    Args:
+        scene_manager: The replayed game's scene manager.
+        viewer: The watched replay's viewer.
+        wait_for_tick: Waits for the next outer tick (a browser animation frame).
+
+    """
+    viewer.ticks_externally = True
+    frame_start_seconds = scene_manager.begin_frames()
+    while scene_manager.should_run_frames():
+        await wait_for_tick()
+        while scene_manager.should_run_frames():
+            frame_start_seconds = scene_manager.run_frame_step(
+                frame_start_seconds=frame_start_seconds, paced=False
+            )
+            if scene_manager.last_step_was_held:
+                break
+    scene_manager.end_frames()

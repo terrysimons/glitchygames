@@ -44,6 +44,7 @@ a screenshot or a trace.
 from __future__ import annotations
 
 import bisect
+import sys
 from typing import TYPE_CHECKING, ClassVar, Self, override
 
 import pygame
@@ -71,6 +72,11 @@ TENTHS_PER_SECOND = 10
 # Each speed key doubles or halves the speed
 SPEED_STEP_FACTOR = 2.0
 BANNER_COLOR: tuple[int, int, int] = (255, 220, 0)
+
+# Restarting a watched replay (step back, Home, D) starts a new process
+# (glitchygames/replay/rebuild.py), which a browser page cannot
+RESTARTS_AVAILABLE: bool = sys.platform != 'emscripten'
+RESTARTS_UNAVAILABLE_MESSAGE = 'restarting needs a new process: not in a browser'
 
 # The controls' real-time cadence (ControlCadence)
 CONTROL_TICKS_PER_SECOND = 60
@@ -425,6 +431,9 @@ class ReplayControls:
             key: One of ``RESTART_KEYS``.
 
         """
+        if not RESTARTS_AVAILABLE:
+            self.show_message(text=RESTARTS_UNAVAILABLE_MESSAGE)
+            return
         if key == pygame.K_COMMA:
             if self.paused:
                 self._step_back()
