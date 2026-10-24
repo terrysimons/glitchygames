@@ -222,7 +222,7 @@ flowchart LR
         end
     end
 
-    subgraph Consumers["Your game: consumers"]
+    subgraph Consumers["Consumers (e.g. Your game.)"]
         FPS_H["on_fps_event()"]
         GAME_H["on_game_event()\n+ registered subtype callbacks"]
         MENU_H["on_menu_item_event()"]
