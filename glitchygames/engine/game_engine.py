@@ -131,8 +131,12 @@ LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
 
 
-PACKAGE_PATH: Path = Path(__file__).parent
-ASSET_PATH: Path = Path(__file__).parent / 'assets'
+# The glitchygames package directory, and its assets (the default window icon). This module is
+# glitchygames/engine/game_engine.py: both were Path(__file__).parent-based when the engine was
+# glitchygames/engine.py, and pointed into glitchygames/engine/ after it became a package, so
+# the default icon was never found
+PACKAGE_PATH: Path = Path(__file__).parent.parent
+ASSET_PATH: Path = PACKAGE_PATH / 'assets'
 TEST_MODE = False
 
 PYGAME_MIN_MAJOR_VERSION = 2

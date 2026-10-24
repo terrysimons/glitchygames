@@ -450,3 +450,27 @@ class TestGilSwitchInterval:
 
         assert intervals_at_pygame_init == [pytest.approx(GIL_SWITCH_INTERVAL_SECONDS)]
         assert sys.getswitchinterval() == pytest.approx(GIL_SWITCH_INTERVAL_SECONDS)
+
+
+class TestPackageAndAssetPaths:
+    """PACKAGE_PATH is the glitchygames package; ASSET_PATH holds the default window icon.
+
+    Both pointed into glitchygames/engine/ once the engine became a package, so the default
+    icon (glitchygames/assets/glitch.png) was never found and a blank surface was used.
+    """
+
+    def test_package_path_is_the_glitchygames_package(self):
+        assert engine_package.PACKAGE_PATH.name == 'glitchygames'
+        assert (engine_package.PACKAGE_PATH / 'engine' / 'game_engine.py').is_file()
+
+    def test_asset_path_is_the_package_assets_directory(self):
+        assert engine_package.PACKAGE_PATH / 'assets' == engine_package.ASSET_PATH
+        assert engine_package.ASSET_PATH.is_dir()
+
+    def test_the_default_icon_is_the_glitch_image(self):
+        """The default icon file exists, so the engine loads it rather than a blank surface."""
+        icon_path = GameEngine._icon_path
+
+        assert icon_path == engine_package.ASSET_PATH / 'glitch.png'
+        assert icon_path.is_file()
+        assert pygame.image.load(icon_path).get_size() != (32, 32)

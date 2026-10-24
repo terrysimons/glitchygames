@@ -621,6 +621,23 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Resolved**: 2026-10-23
 - **Solution**: `debug_events` is an explicit opt-in flag, `--debug-events` (Diagnostics Options, off by default): "log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)" (the user's decision). The derivation from `--log-level` (lower-cased, compared with upper-case names, so always False) is removed. It stays in `REPLAY_LOCAL_OPTIONS`, so a replay uses its own run's flag and old recordings replay unchanged. Side effect: `--debug` is no longer an accepted abbreviation of `--debug-overlay` (argparse: ambiguous with `--debug-events`); `--debug-o` is. Tests: `tests/engine/test_game_engine.py::TestGameEngineInitializeArguments`, `TestDebugEventsArgument`; the restart test's abbreviation case uses `--debug-o`
 
+### 215. The Default Window Icon Was Never Loaded (ASSET_PATH Pointed Into glitchygames/engine/)
+- **Description**: `ASSET_PATH` (and `PACKAGE_PATH`) in `glitchygames/engine/game_engine.py` were
+  `Path(__file__).parent`-based. That was right when the engine was `glitchygames/engine.py`
+  (`89093de8`, 2023-09); once it became the `glitchygames/engine/` package they pointed at
+  `glitchygames/engine/assets`, which does not exist. `GameEngine._icon_path.exists()` was False,
+  so every game without its own icon got a blank 32x32 surface instead of
+  `glitchygames/assets/glitch.png`
+- **Status**: Resolved 2026-10-23 (branch `wasm/pygame-ce-fork`): `PACKAGE_PATH` is the
+  `glitchygames` package directory and `ASSET_PATH` is `PACKAGE_PATH / 'assets'`; the default icon
+  loads (1024x1024). Tests: `tests/engine/test_engine_initialization.py`
+  `TestPackageAndAssetPaths` (they fail on the old paths)
+- **Priority**: Low
+- **Reporter**: Found building the browser bundle (plans/2026-10-23-game-host-and-browser-runner.md),
+  2026-10-23
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/engine/game_engine.py`
+
 ### 207. Unhandled-Event Warnings Turn On at Log Level ERROR and CRITICAL (Not a Bug: Duplicate of #74)
 - **Description**: Filed on the reading that `debug_events` is on for `--log-level` DEBUG, ERROR and CRITICAL. It never is: `--log-level` is lower-cased (`type=str.lower`) and compared with upper-case names, so `debug_events` is always False, which #74 already records
 - **Status**: Resolved (duplicate)
