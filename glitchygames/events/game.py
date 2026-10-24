@@ -29,6 +29,9 @@ class GameEventManager(ResourceManager, GameEvents):
     class GameEventProxy(ResourceManager):
         """Game event proxy."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         log: ClassVar[logging.Logger] = LOG
 
         def __init__(self: Self, game: object) -> None:

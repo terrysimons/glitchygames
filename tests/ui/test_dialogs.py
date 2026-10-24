@@ -595,17 +595,18 @@ class TestDialogSceneSetupCleanupDismiss:
     def test_input_confirmation_dialog_key_down_inactive_input(self, previous_scene):
         """BUGS.md #41: an unhandled key-down reaches the base key-down handler, not key-up.
 
-        The base key-down handler asks to quit on Q (quit_requested); the base key-up handler
-        never sets it, and quits (posts QUIT) only on the release of a recorded press.
+        The base key-down handler acts on no key (Q quits on its release, BUGS.md #203); the
+        base key-up handler quits (posts QUIT) only on the release of a recorded press.
         """
         scene = InputConfirmationDialogScene(
             previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
         )
         scene.dialog.input_box.is_active = False
+        pygame.event.clear(eventtype=pygame.QUIT)
 
         scene.on_key_down_event(_key_down(pygame.K_q, unicode='q'))
 
-        assert scene.quit_requested is True
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
         assert not scene.dialog.input_box.text
 
 
@@ -948,7 +949,7 @@ class TestDeleteAnimationDialogSetup:
         assert dialog.dialog.input_box.is_active is True
 
     def test_key_down_inactive_calls_super(self, previous_scene):
-        """A key-down with the input box inactive reaches the base handler (Q asks to quit)."""
+        """A key-down with the input box inactive reaches the base handler (no quit on press)."""
         dialog = DeleteAnimationDialogScene(
             previous_scene=previous_scene,
             animation_name='walk',
@@ -956,10 +957,12 @@ class TestDeleteAnimationDialogSetup:
             groups=pygame.sprite.LayeredDirty(),
         )
         dialog.dialog.input_box.is_active = False
+        pygame.event.clear(eventtype=pygame.QUIT)
 
         dialog.on_key_down_event(_key_down(pygame.K_q, unicode='q'))
 
-        assert dialog.quit_requested is True
+        # Q quits on its release (BUGS.md #203: its press set a flag nothing read)
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
         assert not dialog.dialog.input_box.text
 
     def test_key_up_non_tab_inactive_calls_super(self, previous_scene):
@@ -1010,13 +1013,15 @@ class TestDeleteFrameDialogSetup:
         assert dialog.scene_manager.active_scene is previous_scene
 
     def test_key_down_inactive_calls_super(self, previous_scene):
-        """A key-down with the input box inactive reaches the base handler (Q asks to quit)."""
+        """A key-down with the input box inactive reaches the base handler (no quit on press)."""
         dialog = _create_delete_frame_dialog(previous_scene, confirm_callback=lambda: None)
         dialog.dialog.input_box.is_active = False
+        pygame.event.clear(eventtype=pygame.QUIT)
 
         dialog.on_key_down_event(_key_down(pygame.K_q, unicode='q'))
 
-        assert dialog.quit_requested is True
+        # Q quits on its release (BUGS.md #203: its press set a flag nothing read)
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
         assert not dialog.dialog.input_box.text
 
     def test_key_up_non_tab_inactive_calls_super(self, previous_scene):

@@ -264,7 +264,8 @@ Follow-ups (not in any plan yet):
   (`ControllerEventManager` keys controllers by device index but routes events by instance id;
   resolved 2026-10-22 with #181),
   #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected), #73
-  (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False),
+  (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False;
+  resolved 2026-10-23: it is the `--debug-events` flag now),
   #75 (`pygame_needs_fastevents` compares major and minor separately).
 
 ## Headless capture to raw files and a frame/audio ready latch — groundwork for an external control API

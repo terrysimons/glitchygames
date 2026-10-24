@@ -14,7 +14,7 @@ and singletons hold the state of every frame run so far). So ``,`` (step back), 
    ``--no-debug-overlay`` (whether the overlay was shown) and ``--replay-viewer-state`` (the
    speed, the debug overlay's panel and the divergence found so far, so D works at once:
    ``ViewerState``). They are appended, the last occurrence of an option winning (an earlier
-   abbreviation such as ``--debug`` included), before any bare ``--``.
+   abbreviation such as ``--debug-o`` included), before any bare ``--``.
 3. ``relaunch_replay`` runs it, with the engine's signal handlers installed again (a SIGTERM or
    SIGHUP raises SystemExit, and ``subprocess.run`` then kills the child with SIGKILL, without
    its teardown, and reaps it: acceptable, as a replay never records). The first

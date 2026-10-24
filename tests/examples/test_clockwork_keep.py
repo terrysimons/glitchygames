@@ -32,10 +32,12 @@ from glitchygames.examples.clockwork_keep.constants import (
     COG_SILVER_POINTS,
     ELEVATOR_ASCENT_RUMBLE_LOW,
     GRAVITY,
+    GROUND_SNAP_TOLERANCE,
     HUD_TEXT_COLOR,
     JUMP_VELOCITY,
     JUMP_VELOCITY_RUNNING,
     LAYER_TERRAIN,
+    MAX_FALL_SPEED,
     PIT_DEATH_THRESHOLD,
     PLAYER_WIDTH,
     PLAYFIELD_LEFT,
@@ -46,6 +48,7 @@ from glitchygames.examples.clockwork_keep.game import (
     ELEVATOR_STOP_BOUNCE,
     ELEVATOR_STOP_RATTLE,
     ClockworkKeepScene,
+    ClockworkKeepVictoryScene,
     CogCollectible,
 )
 from glitchygames.examples.clockwork_keep.levels import (
@@ -62,6 +65,7 @@ from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
+from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, position_world_sprites
 
 FRAME_TIME = 1.0 / 60.0
@@ -1393,3 +1397,178 @@ def test_main_runs_the_game_through_the_engine(mocker, capsys):
 
     assert exit_info.value.code == ExitCode.SUCCESS
     assert 'Replay matched' in capsys.readouterr().out
+
+
+def _drop_onto(scene, *, surface_left, surface_top, feet_above, fall_speed):
+    """Put the drawn Tinker over a surface, its feet feet_above px above it, falling.
+
+    Returns:
+        The player.
+
+    """
+    player = scene.player
+    player.dt_tick(0.0)  # draws the pose; collision rects trim to its visible pixels
+    offset_x, offset_y = collision_rect_offset(player)
+    player.world_x = float(surface_left + 10 - offset_x)
+    player.world_y = (
+        surface_top - feet_above - (offset_y + get_sprite_collision_rect(player).height)
+    )
+    player.velocity_x = 0.0
+    player.velocity_y = fall_speed
+    player.on_ground = False
+    return player
+
+
+class TestNoFallThroughAfterASlowFrame:
+    """BUGS.md #205: a long tick at terminal speed lands on the support it crossed.
+
+    At 800 px/s a 50 ms tick (MAX_FRAME_SECONDS) moves the feet 40 px, past the 20 px a
+    support used to catch them in; the fall is now swept from where the feet were.
+    """
+
+    SLOW_FRAME_SECONDS = ClockworkKeepScene.MAX_FRAME_SECONDS
+
+    def test_a_slow_frame_lands_on_the_platform_it_crossed(self, clockwork_scene, played):
+        platform = clockwork_scene.platform_sprites[0]
+        player = _drop_onto(
+            clockwork_scene,
+            surface_left=platform.world_x,
+            surface_top=platform.world_y,
+            feet_above=5.0,
+            fall_speed=MAX_FALL_SPEED,
+        )
+
+        clockwork_scene.dt_tick(self.SLOW_FRAME_SECONDS)
+
+        assert player.on_ground
+        assert get_sprite_collision_rect(player).bottom == round(platform.world_y)
+
+    def test_a_slow_frame_lands_on_the_elevator_it_crossed(self, clockwork_scene, played):
+        elevator = clockwork_scene.elevator_sprites[0]
+        player = _drop_onto(
+            clockwork_scene,
+            surface_left=elevator.world_x,
+            surface_top=elevator.world_y,
+            feet_above=5.0,
+            fall_speed=MAX_FALL_SPEED,
+        )
+
+        clockwork_scene.dt_tick(self.SLOW_FRAME_SECONDS)
+
+        assert player.on_ground
+        assert get_sprite_collision_rect(player).bottom == round(elevator.world_y)
+
+    def test_feet_already_below_the_catch_band_fall_on(self, clockwork_scene, played):
+        """A support catches only feet that were above its top plus GROUND_SNAP_TOLERANCE."""
+        platform = clockwork_scene.platform_sprites[0]
+        player = _drop_onto(
+            clockwork_scene,
+            surface_left=platform.world_x,
+            surface_top=platform.world_y,
+            feet_above=-(GROUND_SNAP_TOLERANCE + 5.0),
+            fall_speed=MAX_FALL_SPEED,
+        )
+
+        clockwork_scene.dt_tick(FRAME_TIME)
+
+        assert not player.on_ground
+
+
+class TestClockFaceVictory:
+    """Reaching the Clock Face's top platform wins the game (BUGS.md #209 item 8)."""
+
+    @pytest.fixture
+    def clock_face_scene(self, mocker, tmp_path):
+        """The Clock Face, saving to tmp_path, with transition_to recorded instead of performed."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=SCREEN_SIZE)
+        scene = ClockworkKeepScene(
+            floor_index=2, player_score=300, options={'input_mode': 'joystick'}
+        )
+        scene.saves = DiskSaveManager('clockwork-keep', save_dir=tmp_path)
+        mocker.patch.object(scene, 'transition_to')
+        mocker.patch.object(scene.sounds, 'play')
+        return scene
+
+    @staticmethod
+    def _top_platform(scene):
+        return min(scene.platform_sprites, key=lambda platform: platform.world_y)
+
+    def test_landing_on_the_top_platform_shows_the_victory_screen(self, clock_face_scene):
+        top_platform = self._top_platform(clock_face_scene)
+        _drop_onto(
+            clock_face_scene,
+            surface_left=top_platform.world_x + 100,
+            surface_top=top_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clock_face_scene.dt_tick(FRAME_TIME)
+
+        assert clock_face_scene.game_over_triggered
+        (victory, transition), _keywords = clock_face_scene.transition_to.call_args
+        assert isinstance(victory, ClockworkKeepVictoryScene)
+        assert isinstance(transition, FadeTransition)
+        assert victory.final_score == clock_face_scene.player.score
+        expected_scores = [{'score': clock_face_scene.player.score, 'floor': 2}]
+        assert clock_face_scene.saves.load('high_scores') == {'scores': expected_scores}
+        assert victory.high_scores == expected_scores
+        assert clock_face_scene.camera.follow_target is None
+
+    def test_standing_on_a_lower_platform_is_no_victory(self, clock_face_scene):
+        top_platform = self._top_platform(clock_face_scene)
+        lower_platform = next(
+            platform
+            for platform in clock_face_scene.platform_sprites
+            if platform is not top_platform
+        )
+        _drop_onto(
+            clock_face_scene,
+            surface_left=lower_platform.world_x,
+            surface_top=lower_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clock_face_scene.dt_tick(FRAME_TIME)
+
+        assert clock_face_scene.player.on_ground
+        assert not clock_face_scene.game_over_triggered
+        clock_face_scene.transition_to.assert_not_called()
+
+    def test_the_top_of_a_lower_floor_is_no_victory(self, clockwork_scene, played):
+        """Floors with an elevator go on upward: only the Clock Face's top wins."""
+        top_platform = min(clockwork_scene.platform_sprites, key=lambda platform: platform.world_y)
+        _drop_onto(
+            clockwork_scene,
+            surface_left=top_platform.world_x,
+            surface_top=top_platform.world_y,
+            feet_above=2.0,
+            fall_speed=100.0,
+        )
+
+        clockwork_scene.dt_tick(FRAME_TIME)
+
+        assert not clockwork_scene.game_over_triggered
+
+    def test_the_victory_screen_reads_victory(self):
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            set_display_mode(size=SCREEN_SIZE)
+        victory = ClockworkKeepVictoryScene(final_score=420, high_scores=[], options={})
+
+        victory.setup()
+
+        antialias = True
+        title_size = pygame.font.Font(None, 48).render('VICTORY!', antialias, (0, 0, 0)).get_size()
+        assert victory.text_sprite is not None
+        assert victory.text_sprite.image.get_size() == title_size
+        assert victory.text_sprite in victory.all_sprites
+        assert (
+            len([sprite for sprite in victory.all_sprites if sprite.rect.width == title_size[0]])
+            == 1
+        )

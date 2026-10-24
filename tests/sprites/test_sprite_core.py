@@ -175,6 +175,40 @@ class TestSpriteInitialization:
         assert 'test' in sprite.break_when  # type: ignore[reportOperatorIssue]
 
 
+class TestSpriteCounters:
+    """Sprite.SPRITE_COUNT and SPRITE_COUNTERS count every sprite made (BUGS.md #201)."""
+
+    def test_every_sprite_is_counted_on_the_class(self):
+        """Each new sprite adds one to Sprite.SPRITE_COUNT, the total the teardown report logs.
+
+        `self.SPRITE_COUNT += 1` set an attribute on the new sprite, so the class's count
+        stayed 0.
+        """
+        count_before = Sprite.SPRITE_COUNT
+
+        first_sprite = Sprite(x=0, y=0, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
+        Sprite(x=0, y=0, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
+
+        sprites_counted = Sprite.SPRITE_COUNT - count_before
+        assert sprites_counted == 2
+        assert 'SPRITE_COUNT' not in vars(first_sprite)
+
+    def test_every_sprite_of_a_type_adds_its_pixels(self):
+        """A type's pixel total includes its first sprite (it was recorded as 0 pixels)."""
+
+        class CountedSprite(Sprite):
+            """A sprite type no other test makes, so its counters start empty."""
+
+        CountedSprite(x=0, y=0, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
+        CountedSprite(x=0, y=0, width=SPRITE_WIDTH_100, height=SPRITE_HEIGHT_50)
+
+        counters = Sprite.SPRITE_COUNTERS[str(CountedSprite)]
+        assert counters['count'] == 2
+        assert counters['pixels'] == (
+            SPRITE_WIDTH * SPRITE_HEIGHT + SPRITE_WIDTH_100 * SPRITE_HEIGHT_50
+        )
+
+
 class TestSpriteProperties:
     """Test Sprite properties and methods."""
 

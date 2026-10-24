@@ -9,12 +9,23 @@ from __future__ import annotations
 
 import abc
 import collections
+import functools
 import logging
 import re
 from collections.abc import Iterable, Mapping
 from collections.abc import Set as AbstractSet
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Protocol, Self, cast, override
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Concatenate,
+    NoReturn,
+    Protocol,
+    Self,
+    cast,
+    override,
+)
 
 import pygame
 
@@ -110,10 +121,15 @@ def supported_events(like: str = '.*') -> list[int]:
     return event_list
 
 
-# Pygame USEREVENTs
-FPSEVENT = pygame.USEREVENT + 1
-GAMEEVENT = pygame.USEREVENT + 2
-MENUEVENT = pygame.USEREVENT + 3
+# The engine's custom event types, allocated from pygame (BUGS.md #197: hard-coded as
+# USEREVENT + 1..3, a game's or library's pygame.event.custom_type() was given FPSEVENT's id).
+# pygame hands out ids from USEREVENT + 1 up, and this module is imported before any game
+# code runs, so they are still USEREVENT + 1..3: the values recordings hold (an FPSEVENT is
+# recorded as 32866). Something that calls custom_type() before glitchygames is imported shifts
+# them, and a recording made that way replays only in a process that imports the same way.
+FPSEVENT = pygame.event.custom_type()
+GAMEEVENT = pygame.event.custom_type()
+MENUEVENT = pygame.event.custom_type()
 
 AUDIO_EVENTS = supported_events(like='AUDIO.*?')
 APP_EVENTS = supported_events(like='APP.*?')
@@ -247,10 +263,55 @@ def unhandled_event(
         )
 
 
+# The instance attributes _initialize_once keeps (in the instance's __dict__, so __getattr__
+# never answers for them): how deep the __init__ chain running now is, and whether a shared
+# instance's construction finished
+_INITIALIZING_DEPTH_ATTRIBUTE = '_resource_manager_initializing_depth'
+_INITIALIZED_ATTRIBUTE = '_resource_manager_initialized'
+
+
+def _initialize_once[**Parameters](
+    initializer: Callable[Concatenate[ResourceManager, Parameters], None],
+) -> Callable[Concatenate[ResourceManager, Parameters], None]:
+    """Wrap a ResourceManager class's ``__init__`` so a shared instance is initialized once.
+
+    Python runs ``__init__`` on whatever ``__new__`` returns, so constructing a shared manager
+    again would re-initialize it with the new arguments (BUGS.md #198: ``MouseEventManager()``
+    rebuilt the engine's mouse manager for ``game=None``). The wrapper skips the whole chain once
+    the first construction's outermost ``__init__`` has finished; the ``super().__init__`` calls
+    inside that first chain still run.
+
+    Args:
+        initializer: The class's own ``__init__``.
+
+    Returns:
+        The wrapped ``__init__``.
+
+    """
+
+    @functools.wraps(initializer)
+    def initialize(
+        self: ResourceManager, *arguments: Parameters.args, **keyword_arguments: Parameters.kwargs
+    ) -> None:
+        instance_state: dict[str, Any] = vars(self)
+        if instance_state.get(_INITIALIZED_ATTRIBUTE):
+            return
+        depth: int = instance_state.get(_INITIALIZING_DEPTH_ATTRIBUTE, 0)
+        instance_state[_INITIALIZING_DEPTH_ATTRIBUTE] = depth + 1
+        try:
+            initializer(self, *arguments, **keyword_arguments)
+        finally:
+            instance_state[_INITIALIZING_DEPTH_ATTRIBUTE] = depth
+        if depth == 0 and type(self).SHARES_INSTANCE:
+            instance_state[_INITIALIZED_ATTRIBUTE] = True
+
+    return initialize
+
+
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
 class ResourceManager:
-    """Singleton aggregator base class for event proxies.
+    """Shared-instance aggregator base class for event proxies.
 
     A ResourceManager subclass will generally pass all
     requests through to its proxy object(s), however, for
@@ -262,45 +323,61 @@ class ResourceManager:
     Unless you're implementing a new pygame event manager,
     you probably don't need to worry about this.
 
-    ``__new__`` keeps one instance per subclass: a second
-    instantiation of MouseEventManager returns the same object
-    that the GameEngine created to process mouse events with
-    (GameEngine, an EventManager, is a ResourceManager too).
+    Shared instances (``SHARES_INSTANCE``, True for the event managers): a class has one
+    instance, the first one constructed. Constructing it again returns that instance as it
+    is, without running ``__init__`` again (BUGS.md #198), so ``MouseEventManager()`` is the
+    manager the GameEngine made to process mouse events with. Each engine run releases them
+    (``release_shared_instances``) before it makes its managers, so a second engine in one
+    process (a recording, then its replay) builds its own.
 
-    It is not a full singleton, though: Python still runs
-    ``__init__`` on the shared instance at every instantiation,
-    so constructing a manager again re-initializes it with the
-    new arguments and resets its state (BUGS.md #198). Keep a
-    reference to the manager you were given instead of
-    constructing it again.
+    A class that sets ``SHARES_INSTANCE = False`` gets a new instance at every construction:
+    the proxies (a manager owns its own, and the controller manager one per controller) and
+    ``EventManager`` (``GameEngine`` and ``SceneManager``, whose own ``__new__`` keeps its
+    singleton).
     """
 
     log: ClassVar[logging.Logger] = LOG
 
+    # False: every construction makes a new instance (see the class docstring)
+    SHARES_INSTANCE: ClassVar[bool] = True
+
     __instances__: ClassVar[dict[type, Any]] = {}
 
-    def __new__(cls: type[Self], *_args: Any, **_kwargs: Any) -> Self:
-        """Create a new instance of the class.
+    def __init_subclass__(cls, **keyword_arguments: Any) -> None:
+        """Wrap the subclass's own ``__init__`` so its shared instance is initialized once.
 
-        This method is called when a new instance of the class
+        Args:
+            **keyword_arguments: Passed on to ``object.__init_subclass__``.
+
+        """
+        super().__init_subclass__(**keyword_arguments)
+        own_initializer = cls.__dict__.get('__init__')
+        if own_initializer is not None:
+            # Through type.__setattr__: the subclass's __init__ is replaced by its wrapper, whose
+            # signature a type checker cannot match to the base __init__ it overrides
+            type.__setattr__(cls, '__init__', _initialize_once(own_initializer))
+
+    def __new__(cls: type[Self], *_args: Any, **_kwargs: Any) -> Self:
+        """Return the class's shared instance, or a new instance for an unshared class.
 
         Args:
             cls: The class.
-            *_args: The positional arguments.
-            **_kwargs: The keyword arguments.
+            *_args: The positional arguments (``__init__`` takes them).
+            **_kwargs: The keyword arguments (``__init__`` takes them).
 
         Returns:
-            The new instance of the class.
+            The shared instance (made now if there is none yet), or a new instance.
 
         """
-        if cls not in cls.__instances__:
-            cls.__instances__[cls] = object.__new__(cls)
+        if not cls.SHARES_INSTANCE:
+            return object.__new__(cls)
+        if cls not in ResourceManager.__instances__:
+            ResourceManager.__instances__[cls] = object.__new__(cls)
             LOG.debug('Created Resource Manager: %s', cls)
-            cls.__instances__[cls].args = _args
-            cls.__instances__[cls].kwargs = _kwargs
 
-        return cls.__instances__[cls]
+        return ResourceManager.__instances__[cls]
 
+    @_initialize_once
     def __init__(self: Self, game: object) -> None:  # ruff: ignore[unused-method-argument]
         """Initialize the resource manager.
 
@@ -311,8 +388,17 @@ class ResourceManager:
         super().__init__()
         self.proxies: list[Any] = []
 
+    @classmethod
+    def release_shared_instances(cls) -> None:
+        """Forget every shared instance, so the next construction of each class makes a new one.
+
+        ``GameEngine`` calls it before it makes its event managers: a new engine run builds
+        managers of its own (opening devices through its own doors), not the earlier run's.
+        """
+        ResourceManager.__instances__.clear()
+
     def __getattr__(self: Self, attr: str) -> Callable[..., Any]:
-        """Get an attribute.
+        """Get an attribute from the first proxy that has it.
 
         This method is called when an attribute is not found.
 
@@ -323,17 +409,23 @@ class ResourceManager:
             The attribute.
 
         Raises:
-            AttributeError: If the attribute is not found.
+            AttributeError: If no proxy has the attribute (or there are no proxies yet).
 
         """
-        # Try each proxy in turn
-        try:
-            for proxy in self.proxies:
-                return getattr(proxy, attr)
-        except AttributeError:
-            self.log.error('No proxies for %s.%s', type(self), attr)  # ruff: ignore[error-instead-of-exception]
-            raise
+        # The proxies themselves are an instance attribute: before __init__ sets them there are
+        # none to try (looking them up here would recurse)
+        if attr == 'proxies':
+            raise AttributeError(MISSING_ATTRIBUTE_MSG.format(cls=type(self), attr=attr))
 
+        # Try each proxy in turn (BUGS.md #198: the lookup returned or raised on the first)
+        for proxy in self.proxies:
+            try:
+                return getattr(proxy, attr)
+            except AttributeError:
+                continue
+
+        if self.proxies:
+            self.log.error('No proxies for %s.%s', type(self), attr)
         raise AttributeError(NO_PROXIES_MSG.format(cls=type(self), attr=attr))
 
 

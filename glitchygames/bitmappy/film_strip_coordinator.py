@@ -23,6 +23,8 @@ from .film_strip_sprite import FilmStripSprite
 from .scroll_arrow import ScrollArrowSprite
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from .protocols import EditorContext
 
 
@@ -585,6 +587,27 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                 self.editor.scroll_up_arrow.visible = should_show
                 self.editor.scroll_up_arrow.dirty = 1
 
+    @staticmethod
+    def _unused_animation_name(*, animation_names: Iterable[str]) -> str:
+        """Return the first ``strip_<number>`` name, from the animation count + 1 up, not in use.
+
+        Starting at the count + 1 keeps the familiar ``strip_2``, ``strip_3``, ... when nothing
+        was deleted or renamed; after a delete (or with a loaded sprite's own names) that name can
+        still be in use, so the number goes up until the name is free.
+
+        Args:
+            animation_names: The names of the sprite's animations.
+
+        Returns:
+            str: A name no animation uses.
+
+        """
+        names_in_use = set(animation_names)
+        strip_number = len(names_in_use) + 1
+        while f'strip_{strip_number}' in names_in_use:
+            strip_number += 1
+        return f'strip_{strip_number}'
+
     def _add_new_animation(self, insert_after_index: int | None = None) -> None:
         """Add a new animation (film strip) and scroll to it.
 
@@ -599,8 +622,11 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         ):
             return
 
-        # Create a new animation (film strip)
-        new_animation_name = f'strip_{len(self.editor.canvas.animated_sprite._animations) + 1}'  # type: ignore[reportPrivateUsage]
+        # Create a new animation (film strip) under a name no animation uses yet: storing it
+        # under a name in use would silently replace that animation's frames (BUGS.md #169)
+        new_animation_name = self._unused_animation_name(
+            animation_names=self.editor.canvas.animated_sprite.animation_data.keys(),
+        )
 
         # Create a blank frame for the new animation using the canonical helper
         # Get the canvas pixel dimensions (same as original canvas)

@@ -458,6 +458,32 @@ class TestFontManagerArgs:
         args = result.parse_args(['--font-dpi', '96'])
         assert args.font_dpi == 96
 
+    def test_every_font_option_has_help(self):
+        """No font option is listed bare in --help."""
+        parser = FontManager.args(argparse.ArgumentParser())
+
+        options_without_help = [
+            action.option_strings for action in parser._actions if not action.help
+        ]
+
+        assert options_without_help == []
+
+    @pytest.mark.parametrize(('destination', 'default'), [('font_size', 14), ('font_dpi', 72)])
+    def test_the_size_and_dpi_help_name_their_defaults(self, destination, default):
+        parser = FontManager.args(argparse.ArgumentParser())
+        option = next(action for action in parser._actions if action.dest == destination)
+
+        assert option.default == default
+        assert str(option.help).endswith('(default: %(default)s)')
+
+    @pytest.mark.parametrize('destination', ['font_bold', 'font_italic', 'font_antialias'])
+    def test_the_unread_style_flags_say_they_are_not_used(self, destination):
+        """--font-bold, --font-italic and --font-antialias are stored but no font reads them."""
+        parser = FontManager.args(argparse.ArgumentParser())
+        style_flag = next(action for action in parser._actions if action.dest == destination)
+
+        assert str(style_flag.help).startswith('not used yet')
+
     def test_font_name_defaults_to_the_bundled_vera(self):
         parser = FontManager.args(argparse.ArgumentParser())
 

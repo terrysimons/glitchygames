@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 if TYPE_CHECKING:  # pragma: no cover
     import argparse  # pragma: no cover
@@ -30,6 +30,9 @@ class WindowEventManager(ResourceManager):
 
     class WindowEventProxy(WindowEvents, ResourceManager):
         """Window manager event proxy."""
+
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
 
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the window manager proxy.

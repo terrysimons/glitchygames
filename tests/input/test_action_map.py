@@ -181,6 +181,36 @@ class TestStateTracking:
         actions.begin_frame()
         assert actions.just_pressed('jump') is False
 
+    def test_dt_tick_sees_a_press_when_it_reads_before_begin_frame(self) -> None:
+        """The frame order: dt_tick runs, then the frame's events (BUGS.md #209 item 11).
+
+        A press handled in frame N's event phase is seen by frame N + 1's dt_tick when that
+        dt_tick reads just_pressed first and calls begin_frame after; calling begin_frame first
+        (as the docstring used to say) clears the press before dt_tick reads it.
+        """
+
+        def frame_reading_first(actions: ActionMap, *, events_after: list) -> bool:
+            seen = actions.just_pressed('jump')
+            actions.begin_frame()
+            for event in events_after:
+                actions.handle_event(event)
+            return seen
+
+        def frame_clearing_first(actions: ActionMap, *, events_after: list) -> bool:
+            actions.begin_frame()
+            seen = actions.just_pressed('jump')
+            for event in events_after:
+                actions.handle_event(event)
+            return seen
+
+        for frame, expected in ((frame_reading_first, True), (frame_clearing_first, False)):
+            actions = ActionMap()
+            actions.bind('jump', keyboard=pygame.K_SPACE)
+            # Frame N: its dt_tick sees nothing, then its events bring the press
+            assert frame(actions, events_after=[_key_down(pygame.K_SPACE)]) is False
+            # Frame N + 1's dt_tick
+            assert frame(actions, events_after=[]) is expected
+
     def test_is_held_while_down(self) -> None:
         """is_held is True while the key is held down."""
         actions = ActionMap()

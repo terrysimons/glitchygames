@@ -541,10 +541,19 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
     # -- History management -------------------------------------------------
 
     def clear_history(self) -> None:
-        """Clear all undo/redo history."""
+        """Clear all undo/redo history: the global stacks and every frame's stacks.
+
+        The frame stacks are keyed by animation name and frame index only, so a stroke kept
+        there would be undone (or redone) into any later sprite with the same names
+        (BUGS.md #150). The current frame is kept: it is where the editor is, not a step, and
+        the next frame selection records it as the frame to go back to.
+        """
         LOG.debug('Clearing undo/redo history')
         self.undo_stack.clear()
         self.redo_stack.clear()
+        self.frame_undo_stacks.clear()
+        self.frame_redo_stacks.clear()
+        self.at_head_of_history = True
 
     def get_history_info(self) -> dict[str, Any]:
         """Get information about the current history state.

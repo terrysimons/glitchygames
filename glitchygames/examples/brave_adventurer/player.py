@@ -6,7 +6,6 @@ from typing import Self, override
 
 import pygame
 
-# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.collision.bounds import opaque_bounds
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer.constants import (
@@ -140,11 +139,15 @@ class Player(Sprite):
         falling_when = f'velocity_y > {FALLING_VELOCITY_THRESHOLD} and not on_ground'
         self.state_machine.add_transition('idle', 'falling', when=falling_when)
         self.state_machine.add_transition('jumping', 'falling', when=falling_when)
+        # Running off a ledge falls (evaluated after running's own rules, as idle's is)
+        self.state_machine.add_transition('running', 'falling', when=falling_when)
         self.state_machine.set_state(self.IDLE)
 
         # Game state
         self.lives: int = STARTING_LIVES
         self.score: int = 0
+        # Gold scarab bonuses collected; the score is the distance score plus these
+        self.bonus_points: int = 0
         self.max_distance: float = 0.0
 
         # Visual effects

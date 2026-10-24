@@ -80,21 +80,22 @@ When we run `./bitrotadventures.py` with the `-h` flag, we can see our command l
 ```sh
 $ ./bitrotadventures.py -h
 pygame-ce 2.5.8 (SDL 2.32.10, Python 3.14.8)
-usage: Bitrot Adventures version 0.0.0 [-h] [-f TARGET_FPS] [--fps-log-interval-ms FPS_LOG_INTERVAL_MS] [-w] [-r RESOLUTION]
-                                       [--use-gfxdraw] [--update-type {update,flip}] [--timer-backend {auto,fast,pygame}]
+usage: Bitrot Adventures version 0.0.0 [-h] [-f TARGET_FPS] [--fps-log-interval-ms FPS_LOG_INTERVAL_MS]
+                                       [-w | --windowed | --no-windowed] [-r RESOLUTION] [--use-gfxdraw]
+                                       [--update-type {update,flip}] [--timer-backend {auto,fast,pygame}]
                                        [--sleep-granularity-ns SLEEP_GRANULARITY_NS] [--windows-timer-1ms] [--log-timer-jitter]
                                        [--perf-trim-percent PERF_TRIM_PERCENT] [--fps-histogram {equal-range,target-relative}]
-                                       [--debug-overlay | --no-debug-overlay] [--record-trace PATH] [--replay-trace PATH]
-                                       [--replay-fps {recorded,real}] [--audit | --no-audit] [--compare-processing]
-                                       [--max-processing-slowdown PERCENT] [--replay-pause-at-frame N] [--rebaseline NEW]
-                                       [--replay-digest PATH] [--random-seed RANDOM_SEED]
+                                       [--debug-overlay | --no-debug-overlay] [--debug-events] [--record-trace PATH]
+                                       [--replay-trace PATH] [--replay-fps {recorded,real}] [--audit | --no-audit]
+                                       [--compare-processing] [--max-processing-slowdown PERCENT] [--replay-pause-at-frame N]
+                                       [--rebaseline NEW] [--replay-digest PATH] [--random-seed RANDOM_SEED]
                                        [--screen-shake-intensity SCREEN_SHAKE_INTENSITY] [--rumble-intensity RUMBLE_INTENSITY]
                                        [--live-voice-pool LIVE_VOICE_POOL] [--default-background {test-pattern,channel-3}]
-                                       [--video-driver {}] [--headless] [--input-mode {auto,joystick,controller}]
-                                       [--font-name FONT_NAME] [--font-size FONT_SIZE] [--font-bold] [--font-italic]
-                                       [--font-antialias] [--font-dpi FONT_DPI] [--font-system {pygame,freetype}]
-                                       [-l {debug,info,warning,error,critical}] [--no-unhandled-events] [-p]
-                                       [-s SOME_GAME_SPECIFIC_OPTION]
+                                       [--video-driver {cocoa,offscreen,dummy}] [--headless]
+                                       [--input-mode {auto,joystick,controller}] [--font-name FONT_NAME] [--font-size FONT_SIZE]
+                                       [--font-bold] [--font-italic] [--font-antialias] [--font-dpi FONT_DPI]
+                                       [--font-system {pygame,freetype}] [-l {debug,info,warning,error,critical}]
+                                       [--no-unhandled-events] [-p] [-s SOME_GAME_SPECIFIC_OPTION]
 
 options:
   -h, --help            show this help message and exit
@@ -104,10 +105,11 @@ Graphics Options:
                         cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
   --fps-log-interval-ms FPS_LOG_INTERVAL_MS
                         how often to log the FPS counter in ms (default: 1000)
-  -w, --windowed        run the program in windowed mode
+  -w, --windowed, --no-windowed
+                        run in a window; --no-windowed runs fullscreen (default: windowed)
   -r, --resolution RESOLUTION
-                        the resolution to use (default: 1024x768)
-  --use-gfxdraw
+                        the resolution to use (default: 800x480)
+  --use-gfxdraw         not used yet: stored, but nothing draws with pygame.gfxdraw because of it
   --update-type {update,flip}
                         update or flip (default: update)
   --timer-backend {auto,fast,pygame}
@@ -128,7 +130,8 @@ Graphics Options:
   --default-background {test-pattern,channel-3}
                         the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default:
                         test-pattern)
-  --video-driver {}
+  --video-driver {cocoa,offscreen,dummy}
+                        not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
 
 Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically
@@ -139,6 +142,8 @@ Diagnostics Options:
                         max, default) or target-relative (10% steps of the target FPS)
   --debug-overlay, --no-debug-overlay
                         show the debug overlay at startup (F3 toggles, F4 cycles panels)
+  --debug-events        log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one
+                        instead)
   --record-trace PATH   record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for
                         inspection and later replay (default: off)
   --replay-trace PATH   replay a --record-trace recording exactly through the engine, comparing every frame with it and
@@ -179,10 +184,12 @@ Font Options:
                         Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any
                         other name is looked up among the system's fonts)
   --font-size FONT_SIZE
-  --font-bold
-  --font-italic
-  --font-antialias
-  --font-dpi FONT_DPI
+                        size of the default font, used by text that asks for no font of its own (default: 14)
+  --font-bold           not used yet: stored, but no text is drawn bold because of it
+  --font-italic         not used yet: stored, but no text is drawn italic because of it
+  --font-antialias      not used yet: stored, but each text widget chooses its own antialiasing
+  --font-dpi FONT_DPI   the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default
+                        resolution); the pygame font system ignores it (default: 72)
   --font-system {pygame,freetype}
                         Font system to use: freetype (enhanced, default) or pygame (built-in)
 
@@ -204,7 +211,7 @@ The glitchygames.events module extends the pygame event subsystem by giving you 
 
 This can be especially useful for porting games to glitchygames, but there are some advantages to using glitchygames' event subsystem.
 
-The glitchygames.events subsystem detects events that your game does not handle: each type is reported once (with `debug_events`), raised as an error under `--no-unhandled-events`, and counted in a table the engine logs at shutdown. See [Event System](../architecture/event_system.md).
+The glitchygames.events subsystem detects events that your game does not handle: each type is reported once (with `--debug-events`), raised as an error under `--no-unhandled-events`, and counted in a table the engine logs at shutdown. See [Event System](../architecture/event_system.md).
 
 Note that if you bypass the glitchygames game engine event processing, you'll lose some functionality like `esc` and `q` to quit, along with  on_*_event handler support.
 

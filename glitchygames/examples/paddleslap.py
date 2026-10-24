@@ -158,7 +158,7 @@ class Game(Scene):
         )
         # Input action maps (separate per player for multi-controller)
         self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps(
-            input_mode=self.options.get('input_mode', 'joystick'),
+            input_mode=self.options.get('input_mode', 'auto'),
         )
 
         self.balls: list[BallSprite] = []
@@ -167,7 +167,6 @@ class Game(Scene):
         # Game time of the last spawn (Scene.game_time); -inf so the first spawn is never held
         # back by the cooldown, as with the old wall-clock start of 0.0
         self.last_ball_spawn_time = -math.inf
-        self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
         # when ball bounding boxes overlap across multiple consecutive frames.
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
@@ -202,8 +201,6 @@ class Game(Scene):
                 speed_up_settings=PADDLESLAP_SPEED_UP,
                 serve_settings=PADDLESLAP_SERVE,
             )
-            # Add collision cooldown tracking
-            ball.collision_cooldowns = {}
             self._connect_spawn_triggers(ball=ball)
             self.balls.append(ball)
 
@@ -228,10 +225,12 @@ class Game(Scene):
             parser (argparse.ArgumentParser): The argument parser.
 
         """
+        # argparse prints the version and exits as it parses (before the game starts)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
 
@@ -250,11 +249,6 @@ class Game(Scene):
             default='paddle_only',
             choices=['paddle_only', 'wall_only', 'ball_only', 'frequent', 'rare', 'none'],
         )
-
-    @override
-    def setup(self: Self) -> None:
-        """Set up the game."""
-        pygame.key.set_repeat(1)
 
     def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:
         """Track and log ball trajectory for debugging curving patterns.
@@ -522,8 +516,6 @@ class Game(Scene):
             new_ball.color = _random_ball_color()
         else:
             new_ball.color = WHITE
-        # Add collision cooldown tracking
-        new_ball.collision_cooldowns = {}
         self._connect_spawn_triggers(ball=new_ball)
 
         # Add to balls list, sprite group, and collision layer
@@ -926,12 +918,13 @@ class Game(Scene):
 
     @staticmethod
     def _create_action_maps(
-        input_mode: str = 'joystick',
+        input_mode: str = 'auto',
     ) -> tuple[ActionMap, ActionMap, ActionMap]:
         """Create per-player and pause ActionMaps with default bindings.
 
         Args:
-            input_mode: Gamepad event family ('joystick' or 'controller').
+            input_mode: Gamepad event family: 'auto' (the engine's --input-mode default: both
+                families), 'joystick' or 'controller'.
 
         Returns:
             Tuple of (player1_actions, player2_actions, pause_actions).

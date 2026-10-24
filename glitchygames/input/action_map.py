@@ -21,10 +21,12 @@ Usage:
     actions.handle_event(event)
     action = actions.get_action(event)
 
-    # In dt_tick:
-    actions.begin_frame()
+    # In dt_tick: read first, then begin_frame() (the frame's events come after dt_tick)
+    if actions.just_pressed('jump'):
+        player.jump()
     if actions.is_held('move_right'):
         player.move_right()
+    actions.begin_frame()
 
 Keyboard bindings come in two kinds. ``keyboard=`` binds a key code (``pygame.K_*``), which
 the keyboard layout decides: right for mnemonic keys (P for pause, I for inventory), wrong for
@@ -405,10 +407,14 @@ class ActionMap:
             self._handle_axis_event(event)
 
     def begin_frame(self) -> None:
-        """Reset per-frame transient state.
+        """Forget the presses and releases seen so far: start collecting the next frame's.
 
-        Call at the start of dt_tick() before querying just_pressed
-        or just_released.
+        Call it once per frame in dt_tick(), after reading just_pressed() and
+        just_released(). The scene manager runs dt_tick() before it processes the frame's
+        events, so the presses dt_tick() can see arrived in the previous frame's event phase;
+        calling begin_frame() before reading them clears them first, and just_pressed() is
+        then never True in dt_tick() (BUGS.md #209 item 11). is_held() and axis_value() are
+        not reset.
         """
         self._just_pressed.clear()
         self._just_released.clear()

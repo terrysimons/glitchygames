@@ -57,6 +57,9 @@ class VoiceEventManager(ResourceManager):
     class VoiceEventProxy(ResourceManager):
         """Proxy for voice manager operations (consistency with other managers)."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         log: ClassVar[logging.Logger] = LOG
 
         def __init__(self, game: VoiceEventManager) -> None:

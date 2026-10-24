@@ -148,6 +148,15 @@ DEFAULT_LIVE_VOICE_POOL = 4
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
+# src/video/SDL_video.c bootstrap[]; checked on macOS: cocoa, offscreen and dummy start, metal and
+# x11 are not drivers of pygame-ce's SDL there), then the ones SDL builds on every platform
+PLATFORM_VIDEO_DRIVERS: dict[str, tuple[str, ...]] = {
+    'Darwin': ('cocoa',),
+    'Windows': ('windows',),
+    'Linux': ('x11', 'wayland', 'kmsdrm'),
+}
+PORTABLE_VIDEO_DRIVERS = ('offscreen', 'dummy')
 
 # The signals that end a run through the normal teardown (exit_on_signal), by name:
 # SIGHUP exists only on Unix and SIGBREAK only on Windows, so each is looked up where it runs.
@@ -417,11 +426,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Supported Arguments:
             -f, --target-fps (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
             --fps-log-interval-ms
-            -w, --windowed
+            -w, --windowed, --no-windowed (default: windowed)
             -r, --resolution
             --use-gfxdraw
             --update-type
             --video-driver
+            --debug-events
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
@@ -447,11 +457,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             type=float,
             default=1000,
         )
+        # A store_true flag defaulting to True could never ask for fullscreen (BUGS.md #76):
+        # --no-windowed does, and -w/--windowed keep the command lines from before working
         group.add_argument(
             '-w',
             '--windowed',
-            help='run the program in windowed mode',
-            action='store_true',
+            help='run in a window; --no-windowed runs fullscreen (default: windowed)',
+            action=argparse.BooleanOptionalAction,
             default=True,
         )
         group.add_argument(
@@ -460,7 +472,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             help='the resolution to use (default: %(default)s)',
             default='800x480',
         )
-        group.add_argument('--use-gfxdraw', action='store_true', default=False)
+        # Kept as GameEngine.use_gfxdraw, but nothing reads it (Ball and Paddle set their own)
+        group.add_argument(
+            '--use-gfxdraw',
+            help='not used yet: stored, but nothing draws with pygame.gfxdraw because of it',
+            action='store_true',
+            default=False,
+        )
         group.add_argument(
             '--update-type',
             help='update or flip (default: update)',
@@ -518,6 +536,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '--debug-overlay',
             help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
             action=argparse.BooleanOptionalAction,
+            default=False,
+        )
+        # Read by events.unhandled_event (glitchygames/events/base.py); how this run is
+        # diagnosed, not what the game does, so a replay keeps its own (REPLAY_LOCAL_OPTIONS)
+        diagnostics_group.add_argument(
+            '--debug-events',
+            help=(
+                'log a warning the first time each unhandled event type arrives '
+                '(--no-unhandled-events raises on one instead)'
+            ),
+            action='store_true',
             default=False,
         )
         diagnostics_group.add_argument(
@@ -671,37 +700,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default=None,
         )
 
-        # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
-        default_videodriver = []
-        if platform.system() == 'Linux':
-            linux_videodriver_choices = [
-                'wayland',
-                'x11',
-                'dga',
-                'fbcon',
-                'directfb',
-                'ggi',
-                'vgl',
-                'svgalib',
-                'aalib',
-            ]
-
-            LOG.debug('Linux Video Driver Choices: %s', linux_videodriver_choices)
-
-            default_videodriver = linux_videodriver_choices
-
-        elif platform.system() == 'MacOS':
-            mac_videodriver_choices: list[str] = []
-
-            LOG.debug('Mac Video Driver Choices: %s', mac_videodriver_choices)
-            default_videodriver = mac_videodriver_choices
-        elif platform.system() == 'Windows':
-            windows_videodriver_choices = ['windib', 'directx']
-
-            LOG.debug('Windows Video Driver Choices: %s', windows_videodriver_choices)
-            default_videodriver = windows_videodriver_choices
-
-        group.add_argument('--video-driver', default=None, choices=default_videodriver)
+        # SDL 2's video drivers for this platform (SDL_VIDEODRIVER names; the old list held SDL 1's,
+        # and its macOS branch compared with 'MacOS', which platform.system() never returns:
+        # macOS is 'Darwin', BUGS.md #76). offscreen and dummy are built into SDL everywhere.
+        video_driver_choices = [
+            *PLATFORM_VIDEO_DRIVERS.get(platform.system(), ()),
+            *PORTABLE_VIDEO_DRIVERS,
+        ]
+        LOG.debug('Video Driver Choices: %s', video_driver_choices)
+        # Parsed and recorded, but never handed to SDL: nothing sets SDL_VIDEODRIVER from it
+        group.add_argument(
+            '--video-driver',
+            help=(
+                'not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER '
+                '(or --headless) instead'
+            ),
+            default=None,
+            choices=video_driver_choices,
+        )
 
         diagnostics_group.add_argument(
             '--headless',
@@ -825,12 +841,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             command_line_target_fps=GameEngine.OPTIONS.get('target_fps'),
             game=game,
         )
-
-        # Some optimizations to reduce the number of lookups
-        if GameEngine.OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}:
-            GameEngine.OPTIONS['debug_events'] = True
-        else:
-            GameEngine.OPTIONS['debug_events'] = False
 
         options: dict[str, Any] = GameEngine.OPTIONS
 
@@ -999,10 +1009,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The scene will start once .start() is called on the GameEngine
         # object
         GameEngine.game = game
-        # ResourceManager makes each engine class a singleton, so a second engine in one process
-        # (a recording and then its replay) is the same object, whose start() set self.game to
-        # the earlier run's game instance: drop it, so self.game reads this run's game above
-        vars(self).pop('game', None)
 
         # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
@@ -1431,6 +1437,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _initialize_event_managers(self: Self) -> None:
         """Initialize all event managers for the game engine."""
         self.registered_events = {}
+        # The managers are shared instances (ResourceManager): this run builds its own, opening
+        # devices through its own doors, instead of getting an earlier run's in this process
+        events.ResourceManager.release_shared_instances()
         from glitchygames.events.app import AppEventManager
 
         self.app_manager = AppEventManager(game=self.scene_manager)
@@ -3013,12 +3022,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             bool: True if the event was handled, False otherwise.
 
         """
+        # To the active scene's on_text_*_event (BUGS.md #200 item 1: both went to
+        # process_unimplemented_event, so Scene's text handlers were never called)
         if event.type == pygame.TEXTEDITING:
-            self.process_unimplemented_event(event)
+            self.scene_manager.on_text_editing_event(event)
             return True
 
         if event.type == pygame.TEXTINPUT:
-            self.process_unimplemented_event(event)
+            self.scene_manager.on_text_input_event(event)
             return True
 
         return False
@@ -3086,6 +3097,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             pygame.WINDOWLEAVE: self.window_manager.on_window_leave_event,
             pygame.WINDOWENTER: self.window_manager.on_window_enter_event,
             pygame.WINDOWSHOWN: self.window_manager.on_window_shown_event,
+            # BUGS.md #200 item 1: it had a handler but no entry, so it was never routed
+            pygame.WINDOWTAKEFOCUS: self.window_manager.on_window_take_focus_event,
         }
 
     def process_window_event(self: Self, event: events.HashableEvent) -> bool:

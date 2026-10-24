@@ -7,10 +7,9 @@ This module tests the three types of collisions:
 """
 
 import math
-import time
 
 from glitchygames.collision.layers import CollisionManager
-from glitchygames.examples.paddleslap import PADDLESLAP_SPEED_UP
+from glitchygames.examples.paddleslap import PADDLESLAP_SPEED_UP, Game
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import speed_up_step_ratio
 from glitchygames.movement import Speed
@@ -252,28 +251,31 @@ class TestBallToBallCollisions:
         assert ball2.speed.y == SPEED_0_0
 
     def test_ball_to_ball_collision_cooldown(self):
-        """Test ball-to-ball collision has cooldown period."""
-        # Setup: Two balls with collision cooldown
-        ball1 = BallSprite()
-        ball2 = BallSprite()
-        ball1.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
-        ball2.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
+        """A pair that just collided is not collided again during PaddleSlap's pair cooldown.
 
-        current_time = time.time()
-        ball1_id = id(ball1)
-        ball2_id = id(ball2)
+        The cooldown is the game's (Game._ball_collision_cooldowns, counted in frames), not
+        state on the balls.
+        """
+        game = Game.__new__(Game)
+        game._ball_collision_cooldowns = {}
+        game._ball_collision_pairs = []
+        ball1 = BallSprite(collision_sound=None)
+        ball2 = BallSprite(collision_sound=None)
+        # Overlapping (centres 10 px apart) and closing on each other
+        ball1.world_x, ball1.world_y = 100.0, 100.0
+        ball2.world_x, ball2.world_y = 110.0, 100.0
+        drawn_position(ball1)
+        drawn_position(ball2)
+        ball1.speed = Speed(SPEED_3_0, 0.0)
+        ball2.speed = Speed(SPEED_NEG_3_0, 0.0)
 
-        # Action: Set cooldown
-        ball1.collision_cooldowns[ball2_id] = current_time  # type: ignore[unresolved-attribute]
-        ball2.collision_cooldowns[ball1_id] = current_time  # type: ignore[unresolved-attribute]
+        game._on_ball_ball_collision(ball1, ball2)
+        speeds_after_collision = (ball1.speed.x, ball2.speed.x)
+        game._on_ball_ball_collision(ball2, ball1)
 
-        # Expected: Cooldown prevents immediate re-collision
-        assert ball2_id in ball1.collision_cooldowns  # type: ignore[unresolved-attribute]
-        assert ball1_id in ball2.collision_cooldowns  # type: ignore[unresolved-attribute]
-
-        # Check cooldown is active (within 2 seconds)
-        assert ball1.collision_cooldowns[ball2_id] > current_time - SPEED_2_0_SEPARATION  # type: ignore[unresolved-attribute]
-        assert ball2.collision_cooldowns[ball1_id] > current_time - SPEED_2_0_SEPARATION  # type: ignore[unresolved-attribute]
+        assert game._ball_collision_cooldowns == {(id(ball1), id(ball2)): 10}
+        assert speeds_after_collision != (SPEED_3_0, SPEED_NEG_3_0)
+        assert (ball1.speed.x, ball2.speed.x) == speeds_after_collision
 
     def test_ball_to_ball_collision_separation(self):
         """Test balls separate after collision to prevent sticking."""

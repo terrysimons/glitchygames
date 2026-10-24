@@ -6,7 +6,6 @@ from typing import Any, Self, override
 
 import pygame
 
-# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     GRAVITY,
@@ -109,6 +108,8 @@ class PapyrusPlayer(AnimatedSprite):
         # Game state
         self.lives: int = STARTING_LIVES
         self.score: int = 0
+        # Gold scarab bonuses collected; the score is the distance score plus these
+        self.bonus_points: int = 0
         self.max_distance: float = 0.0
 
         # Visual effects

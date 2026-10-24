@@ -1388,17 +1388,25 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.animated_sprite = loaded_sprite
         self.end_panning()
 
-        # Check if canvas needs resizing and resize if necessary
-        self._check_and_resize_canvas(loaded_sprite)
+        try:
+            # Check if canvas needs resizing and resize if necessary
+            self._check_and_resize_canvas(loaded_sprite)
 
-        # Set up animation state
-        self._setup_animation_state(loaded_sprite)
+            # Set up animation state
+            self._setup_animation_state(loaded_sprite)
 
-        # Update UI components
-        self._update_ui_components(loaded_sprite)
+            # Update UI components
+            self._update_ui_components(loaded_sprite)
 
-        # Finalize the loading process
-        self._finalize_sprite_loading(loaded_sprite, filename)
+            # Finalize the loading process
+            self._finalize_sprite_loading(loaded_sprite, filename)
+        finally:
+            # The undo history belongs to the previous sprite: its steps (keyed by animation
+            # name and frame index) would be applied to the loaded one (BUGS.md #150). It is
+            # cleared once the load is done, so the frame selections the load itself recorded
+            # go too, and whenever the sprite was replaced, even if a later step failed.
+            if self.parent_scene:
+                self.parent_scene.start_new_undo_history()
 
     def _show_load_message(self, message: str) -> None:
         """Show a load message in the editor's debug text box, where a successful load reports.

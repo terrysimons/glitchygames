@@ -173,11 +173,11 @@ All games built on GlitchyGames inherit these command-line options from the engi
 |------|-------------|---------|
 | `-f`, `--target-fps` | Cap the framerate (0 = uncapped) | the game's `TARGET_FPS`, else `60.01` |
 | `--fps-log-interval-ms` | How often to log the FPS counter in milliseconds | `1000` |
-| `-w`, `--windowed` | Run in windowed mode | `True` |
+| `-w`, `--windowed`, `--no-windowed` | Run in a window; `--no-windowed` runs fullscreen | windowed |
 | `-r`, `--resolution` | Display resolution (e.g. `1024x768`) | `800x480` |
-| `--use-gfxdraw` | Use pygame.gfxdraw for rendering | `False` |
+| `--use-gfxdraw` | Not used yet: stored, but nothing draws with pygame.gfxdraw because of it | `False` |
 | `--update-type` | Display update method: `update` (dirty rects) or `flip` (full screen) | `update` |
-| `--video-driver` | SDL video driver override (platform-specific) | auto |
+| `--video-driver` | Not applied yet: stored, but SDL picks its video driver from `SDL_VIDEODRIVER` (or `--headless`) | none |
 | `--random-seed` | Master seed for every engine random stream | a random 64-bit seed |
 | `--screen-shake-intensity` | Screen shake strength, 0.0 (off) to 1.0 | `1.0` |
 | `--rumble-intensity` | Controller rumble strength, 0.0 (off) to 1.0 | `1.0` |
@@ -188,9 +188,10 @@ All games built on GlitchyGames inherit these command-line options from the engi
 
 | Platform | Available Drivers |
 |----------|-------------------|
-| Linux | `wayland`, `x11`, `dga`, `fbcon`, `directfb`, `ggi`, `vgl`, `svgalib`, `aalib` |
-| Windows | `windib`, `directx` |
-| macOS | none (the option offers no choices) |
+| macOS | `cocoa`, `offscreen`, `dummy` |
+| Windows | `windows`, `offscreen`, `dummy` |
+| Linux | `x11`, `wayland`, `kmsdrm`, `offscreen`, `dummy` |
+| any other | `offscreen`, `dummy` |
 
 ### Timer / Frame Pacing Options
 
@@ -210,6 +211,7 @@ The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid 
 | `--perf-trim-percent` | Percent of frames to trim from FPS reporting (top and bottom) | `5.0` |
 | `--fps-histogram` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` | `equal-range` |
 | `--debug-overlay` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) | `False` |
+| `--debug-events` | Log a warning the first time each unhandled event type arrives | `False` |
 | `--headless` | Run on SDL's dummy video and audio drivers (no window, no sound) | `False` |
 | `--record-trace PATH` | Record the session to a gzip JSON Lines trace for later replay | off |
 | `--replay-trace PATH` | Replay a recording through the engine, comparing every frame | off |
@@ -229,7 +231,9 @@ The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--font-name` | Font to use: the bundled `Vera`, `VeraBd`, `VeraIt`, `VeraBI`, or a system font | `Vera` |
-| `--font-size`, `--font-bold`, `--font-italic`, `--font-antialias`, `--font-dpi` | Font settings | -- |
+| `--font-size` | Size of the default font (text that asks for no font of its own) | `14` |
+| `--font-dpi` | Resolution freetype font sizes are scaled at (the pygame font system ignores it) | `72` |
+| `--font-bold`, `--font-italic`, `--font-antialias` | Not used yet: stored, but no font reads them | `False` |
 | `--font-system` | `freetype` or `pygame` | `freetype` |
 
 ### Controller Options

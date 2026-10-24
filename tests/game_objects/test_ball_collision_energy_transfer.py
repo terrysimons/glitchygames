@@ -59,7 +59,6 @@ class TestBallCollisionEnergyTransfer:
         # Set the speed after creation
         ball.speed.x = speed_x
         ball.speed.y = speed_y
-        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _should_skip_separating_balls(self, ball1, ball2, distance, collision_distance):

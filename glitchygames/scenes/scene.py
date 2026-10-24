@@ -2824,7 +2824,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._background_pattern: BackgroundPattern | None = None
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
-        self.quit_requested: bool = False
         # Keys whose key-down reached this scene and are not yet released (record_key_press)
         self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
@@ -3539,7 +3538,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info('%s: Middle Mouse Drag Event: %s %s', type(self), event, trigger)
+        self.log.debug('%s: Middle Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3559,7 +3558,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info('%s: Middle Mouse Drop Event: %s %s', type(self), event, trigger)
+        self.log.debug('%s: Middle Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3577,7 +3576,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info('%s: Right Mouse Drag Event: %s %s', type(self), event, trigger)
+        self.log.debug('%s: Right Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3595,7 +3594,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             trigger (object): The event trigger.
 
         """
-        self.log.info('%s: Right Mouse Drop Event: %s %s', type(self), event, trigger)
+        self.log.debug('%s: Right Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -4065,16 +4064,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         return False
 
     def _handle_scene_key_events(self, event: events.KeyEvent) -> None:
-        """Handle scene-level key events.
+        """Handle a key press no focused sprite took: a hook for scenes; the base does nothing.
+
+        Q and ESC quit on their release (on_key_up_event), once per press. BUGS.md #203: Q's
+        press here logged "Quit requested" and set a quit_requested flag nothing read.
 
         Args:
             event: The event to handle
 
         """
-        event_key: int | None = getattr(event, 'key', None)
-        if event_key == pygame.K_q:
-            self.log.info('Quit requested')
-            self.quit_requested = True
 
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox.

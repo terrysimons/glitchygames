@@ -7,6 +7,7 @@ EventManager, ResourceManager, and utility functions.
 import copy
 import json
 import logging
+import os
 import sys
 import types
 from abc import ABC, abstractmethod
@@ -37,6 +38,8 @@ from glitchygames.events import (  # ruff: ignore[unsorted-imports]
     unhandled_event,
     UnhandledEventError,
 )
+from glitchygames.events.mouse import MouseEventManager
+from glitchygames.process import run_command
 from glitchygames.tracing import TraceFormatError
 
 
@@ -1051,6 +1054,113 @@ class TestResourceManager:
         # Test that accessing cleanup raises AttributeError when no proxies
         with pytest.raises(AttributeError):
             resource_manager.cleanup()
+
+    def test_a_lookup_falls_through_to_a_later_proxy(self):
+        """An attribute only the second proxy has is found there (BUGS.md #198)."""
+        manager = ResourceManager(game=GameWithOptions(options={}))
+        manager.proxies = [types.SimpleNamespace(), types.SimpleNamespace(found='second')]
+
+        assert manager.found == 'second'
+
+    def test_a_lookup_no_proxy_answers_raises_attribute_error(self, caplog):
+        """Missing on every proxy, the lookup raises AttributeError naming the attribute."""
+        manager = ResourceManager(game=GameWithOptions(options={}))
+        manager.proxies = [types.SimpleNamespace(), types.SimpleNamespace()]
+
+        with pytest.raises(AttributeError, match='missing_everywhere'):
+            _ = manager.missing_everywhere
+
+        assert 'No proxies for' in caplog.text
+
+    def test_a_lookup_before_init_raises_attribute_error_not_recursion(self):
+        """Before __init__ sets the proxies, a lookup raises AttributeError (no recursion)."""
+        manager = object.__new__(ResourceManager)
+
+        with pytest.raises(AttributeError, match='proxies'):
+            _ = manager.anything
+
+    def test_constructing_a_manager_again_returns_it_unchanged(self):
+        """A second construction is the same manager, not re-initialized (BUGS.md #198)."""
+        game = GameWithOptions(options={})
+        manager = MouseEventManager(game=game)
+        manager.proxies[0].mouse_dragging = True
+
+        again = MouseEventManager()
+
+        assert again is manager
+        assert again.proxies[0].game is game
+        assert again.proxies[0].mouse_dragging is True
+
+    def test_the_mouse_manager_reaches_pygame_mouse(self):
+        """mouse_manager.get_pos() falls through the proxy and the game to pygame.mouse."""
+        manager = MouseEventManager(game=GameWithOptions(options={}))
+
+        assert manager.get_pos is pygame.mouse.get_pos
+
+    def test_proxies_are_not_shared(self):
+        """Each proxy construction is a new proxy: a manager owns its proxies."""
+        first_proxy = MouseEventManager.MouseEventProxy(game=GameWithOptions(options={}))
+        second_proxy = MouseEventManager.MouseEventProxy(game=GameWithOptions(options={}))
+
+        assert first_proxy is not second_proxy
+
+    def test_releasing_the_shared_managers_lets_a_new_run_build_new_ones(self):
+        """After release_shared_instances(), constructing a manager initializes a new one."""
+        first_game = GameWithOptions(options={})
+        second_game = GameWithOptions(options={})
+        first_manager = MouseEventManager(game=first_game)
+
+        ResourceManager.release_shared_instances()
+        second_manager = MouseEventManager(game=second_game)
+
+        assert second_manager is not first_manager
+        assert second_manager.proxies[0].game is second_game
+
+
+class TestCustomEventTypes:
+    """FPSEVENT, GAMEEVENT and MENUEVENT come from pygame.event.custom_type() (BUGS.md #197)."""
+
+    @staticmethod
+    def _answer_from_a_fresh_interpreter(*, code):
+        """Run code in a new Python process (pygame's custom type counter starts afresh there).
+
+        Returns:
+            object: The JSON value the code printed on its last line.
+
+        """
+        completed = run_command(
+            command=[sys.executable, '-c', code],
+            environment=dict(os.environ),
+            timeout_seconds=120,
+            capture_output=True,
+        )
+        assert completed.returncode == 0, completed.stdout
+        return json.loads(completed.stdout.strip().splitlines()[-1])
+
+    def test_a_type_allocated_after_import_is_none_of_the_engine_types(self):
+        """A game or library's custom_type() never gets an id the engine already uses."""
+        allocated, engine_types = self._answer_from_a_fresh_interpreter(
+            code=(
+                'import json, pygame\n'
+                'from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT\n'
+                'allocated = [pygame.event.custom_type() for _ in range(3)]\n'
+                'print(json.dumps([allocated, [FPSEVENT, GAMEEVENT, MENUEVENT]]))\n'
+            )
+        )
+
+        assert set(allocated).isdisjoint(engine_types)
+
+    def test_the_engine_types_keep_their_recorded_values(self):
+        """Imported first, the types keep USEREVENT + 1..3, the values recordings hold."""
+        engine_types, user_event = self._answer_from_a_fresh_interpreter(
+            code=(
+                'import json, pygame\n'
+                'from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT\n'
+                'print(json.dumps([[FPSEVENT, GAMEEVENT, MENUEVENT], pygame.USEREVENT]))\n'
+            )
+        )
+
+        assert engine_types == [user_event + 1, user_event + 2, user_event + 3]
 
 
 class TestEventSystemUtilities:

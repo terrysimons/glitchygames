@@ -3,7 +3,8 @@
 Clockwork Keep is a steampunk tower climb, one of GlitchyGames' example games. You play the
 Tinker, a goggled mechanic, climbing three floors of a clockwork tower: jump from platform to
 platform, collect cogs for points, and ride the elevator at the top of a floor to the next one.
-The last floor has no elevator: its top platform holds the victory cog.
+The last floor has no elevator: standing on its top platform, under the victory cog, wins the
+game.
 
 Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
 game is small enough to read in one sitting (about 2,700 lines in
@@ -51,7 +52,9 @@ on every keyboard layout. The names below are the US QWERTY keys at those positi
 | `quit` | Q | none | On the press: `scene_manager.quit()` ends the run |
 
 No stick axis is bound (`test_joystick_axis_motion_moves_nothing`). On the pause screen Space
-(on its release) resumes and Esc quits; on the game-over screen Space restarts and Esc quits.
+or a gamepad's Start or A (on its release, after a press there) resumes, and Esc or a gamepad's
+B or Back (on the press) quits; on the game-over and victory screens the same buttons restart
+and quit. The engine's screens answer both gamepad event layers (controller and joystick).
 Losing window focus pauses the game too.
 
 ## Scenes and how they switch
@@ -77,6 +80,7 @@ flowchart TB
             floor0 -->|"interact on the elevator<br/>ElevatorTransition, 4 s"| floor1
             floor1 -->|"interact on the elevator<br/>ElevatorTransition, 4 s"| floor2
         end
+        victory["ClockworkKeepVictoryScene<br/>a GameOverScene titled VICTORY!"]
     end
     subgraph ENGINE_SCENES["Engine"]
         direction TB
@@ -84,12 +88,15 @@ flowchart TB
         gameOver["GameOverScene<br/>final score, high scores"]
     end
     floors -->|"Esc, or window focus lost<br/>next_scene = PauseScene"| pause
-    pause -->|"Space released, or focus<br/>regained after 0.5 s"| floors
+    pause -->|"Space, Start or A released, or focus<br/>regained after 0.5 s"| floors
     floors -->|"last life lost<br/>FadeTransition, 1 s"| gameOver
-    gameOver -->|"Space released: a new<br/>ClockworkKeepScene(options)"| first
+    floors -->|"on the Clock Face's top platform<br/>FadeTransition, 1 s"| victory
+    gameOver -->|"Space, Start or A released: a new<br/>ClockworkKeepScene(options)"| first
+    victory -->|"Space, Start or A released: a new<br/>ClockworkKeepScene(options)"| first
     floors -->|"Q"| quitRun(["run ends"])
-    pause -->|"Esc"| quitRun
-    gameOver -->|"Esc"| quitRun
+    pause -->|"Esc, B or Back"| quitRun
+    gameOver -->|"Esc, B or Back"| quitRun
+    victory -->|"Esc, B or Back"| quitRun
 ```
 
 | Switch | Code | How |
@@ -98,7 +105,8 @@ flowchart TB
 | Pause | `on_key_down_event` (`pause`), `on_window_focus_lost_event` | `self.next_scene = PauseScene(options=...)`; focus loss after game over does not pause |
 | Resume | `PauseScene.resume()` | Switches back to the paused floor, which keeps all its state |
 | Game over | `_player_die` on the last life | `transition_to(GameOverScene(final_score=..., high_scores=...), FadeTransition(duration=1.0))` |
-| Restart | `GameOverScene.resume()` | `type(previous_scene)(options=...)`: a fresh first floor (the `--floor` one), score 0, 3 lives |
+| Victory | `_win`, when the Tinker stands on `victory_platform` (the Clock Face's highest platform) | Saves the high score, then `transition_to(ClockworkKeepVictoryScene(final_score=..., high_scores=...), FadeTransition(duration=1.0))`: the engine's `GameOverScene` with its title replaced by VICTORY! |
+| Restart | `GameOverScene.resume()` (also the victory screen's) | `type(previous_scene)(options=...)`: a fresh first floor (the `--floor` one), score 0, 3 lives |
 | Quit | `scene_manager.quit()` | Posts QUIT; the run ends after teardown (BUGS.md #202) |
 
 The floor never sets `next_scene = None` to quit: the scene manager reads that as "no switch
@@ -148,11 +156,11 @@ classDiagram
         }
         class PauseScene {
             the frozen floor, dimmed
-            SPACE resumes it, ESC quits
+            SPACE or Start/A resumes it, ESC or B/Back quits
         }
         class GameOverScene {
             score and high scores
-            SPACE restarts, ESC quits
+            SPACE or Start/A restarts, ESC or B/Back quits
         }
         class Sprite
         class PhysicsBody {
@@ -172,8 +180,13 @@ classDiagram
             sounds: SoundBank
             camera: Camera2D
             saves: SaveManager
+            victory_platform
             dt_tick(dt)
             render(screen)
+        }
+        class ClockworkKeepVictoryScene {
+            the GameOverScene layout
+            titled VICTORY!
         }
         class Tinker {
             lives, score, floor
@@ -201,6 +214,7 @@ classDiagram
     Scene <|-- PauseScene
     Scene <|-- GameOverScene
     Scene <|-- ClockworkKeepScene
+    GameOverScene <|-- ClockworkKeepVictoryScene
     Sprite <|-- Tinker
     Sprite <|-- Platform
     Sprite <|-- Elevator
@@ -208,6 +222,7 @@ classDiagram
     Sprite <|-- CogCollectible
     PauseScene <.. ClockworkKeepScene : next_scene on Esc or focus lost
     GameOverScene <.. ClockworkKeepScene : after the last life
+    ClockworkKeepVictoryScene <.. ClockworkKeepScene : on the top platform
     PhysicsBody <.. Tinker : physics
     ClockworkKeepScene --> FloorData : builds its sprites from
     ClockworkKeepScene --> Tinker : player
@@ -232,8 +247,15 @@ at x 400, 60 px above the floor's bottom.
 | 1 Gear Works | 1440 (3 screens) | 19 | 5 / 3 / 1 | 300 | Elevator at the top |
 | 2 Clock Face | 1920 (4 screens) | 21 | 5 / 7 / 2 | 600 | The moving gear, then the victory platform |
 
-Cogs are worth 10 (bronze), 50 (silver) and 100 (gold) points. `FloorData` also has an `enemies`
-field, but no floor fills it and the scene builds no enemies.
+Cogs are worth 10 (bronze), 50 (silver) and 100 (gold) points. There are no enemies.
+
+**Victory.** The Clock Face (the last floor) has no elevator; its highest platform is the
+floor's `victory_platform` (`_find_victory_platform`; None on the floors below). When ground
+collision stands the Tinker on it (`supporting_platform`), `dt_tick` calls `_win()` after the
+cog pickups (so the victory cog above it counts): the floor stops, the camera stops following,
+the clank plays, the high score is saved and the floor fades to `ClockworkKeepVictoryScene`, the
+engine's `GameOverScene` (final score and high scores, Space or a gamepad's Start or A restarts, Esc or B or Back quits) with a gold
+VICTORY! title.
 
 The floor builds its sprites in `__init__`, in this order: the parallax background, platforms,
 elevators, moving gears, cogs, then the player. Sprites of one layer draw in the order they are
@@ -261,7 +283,7 @@ The HUD is not a sprite: `render()` draws the score (top left), lives (top right
 | `camera.follow(target=player, axes=FollowAxes.BOTH)` | in `setup()` | The engine aims the camera at the Tinker every frame |
 | `set_bounds(min_x=0, max_x=0, ...)` | in `__init__` | No horizontal scroll: the tower is one screen wide |
 | `set_bounds(min_y=0, max_y=height - 480)` | in `__init__` | The camera stops at the floor's top and bottom |
-| `lead_y=200` (`CAMERA_LEAD_Y`) | in `__init__` | The camera's top edge sits 200 px above the Tinker |
+| `lead_y=200` (`CAMERA_LEAD_Y`) | in `__init__` | The camera's top edge sits 200 px above the Tinker's top: a little less view above it than below it on the 480 px screen |
 | `camera.follow(target=None)` | at game over | The floor stands still during the fade |
 
 The game never calls `camera.update()` and has no camera loop (`test_scene_has_no_camera_loop`).
@@ -348,12 +370,16 @@ same layers.
 
 ### Ground collision
 
-`_resolve_ground_collision` clears `on_ground`, then stands the Tinker on the first support it
-finds, falling or at rest (`velocity_y >= 0`), with its feet between the support's top and 20 px
-below it and its hitbox overlapping it horizontally:
+`_resolve_ground_collision` clears `on_ground`, then stands the Tinker on the support it
+finds, falling or at rest (`velocity_y >= 0`), whose top its feet reached this tick and its hitbox
+overlapping it horizontally. The fall is swept (`_feet_reach_surface`): the feet must end the tick
+at or below the support's top, and have started it (before this tick's movement; a gear's ride
+is not part of the fall) no more than `GROUND_SNAP_TOLERANCE` (20 px) below it. So a long tick at
+the 800 px/s terminal speed, which moves the feet up to 40 px at the 50 ms cap, still lands on
+the platform it crossed instead of passing through it:
 
 1. Platforms (their `world_y` is their top).
-2. Elevators.
+2. Elevators (checked after the platforms, so an elevator standing on its shelf platform wins).
 3. Only if neither held it: moving gears, by the gear's collision rect top (`_land_on_moving_gear`),
    which also sets `riding_gear`.
 
@@ -366,7 +392,8 @@ leaving the gear is not carried.
 
 `ClockworkKeepScene.MAX_FRAME_SECONDS = 0.05`: after a hitch (Cmd-Tab, a slow frame) the engine
 hands `dt_tick` and the camera aim at most 50 ms, so the game advances as at 20 FPS at worst
-instead of jumping. The scene manager's own `dt` (pacing, FPS statistics, shake) stays the raw
+instead of jumping. The cap alone does not keep a fast fall out of a platform (40 px in a 50 ms
+tick); the swept ground check does. The scene manager's own `dt` (pacing, FPS statistics, shake) stays the raw
 frame time, and recordings keep the raw dt.
 
 ## One frame
@@ -537,10 +564,9 @@ While `is_respawning`, movement input is ignored and the pit check is skipped. A
 `dt_tick` returns early, so dying again changes nothing (`test_dying_after_game_over_changes_nothing`).
 
 Every floor's ground spans the playfield wall to wall and the walls stop the hitbox, so a fall
-lands on the ground: the pit check is a safety net, not a hazard the levels use. It catches a fall
-through a support: support is found only when the feet end a tick within 20 px below its top, and
-at the 800 px/s terminal speed a tick longer than 25 ms (below 40 FPS) moves the feet further than
-that (up to 40 px at the 50 ms cap).
+lands on the ground: the pit check is a safety net, not a hazard the levels use. Since the ground
+check sweeps the fall, even a slow frame at terminal speed lands on the ground rather than
+dropping through it.
 
 ## Sound
 
@@ -569,10 +595,10 @@ ride (`ELEVATOR_MOTOR_*` constants). `SoundBank.play` is a no-op when audio is u
 | `player.score`, `player.lives` | `Tinker` | Carried to the next floor through the constructor |
 | `starting_player_score`, `starting_player_lives` | `ClockworkKeepScene` | As the floor began (for `replay_arguments`) |
 | `floor_elapsed_time` | `ClockworkKeepScene` | The floor's capped game time (the clock) |
-| `game_over_triggered`, `riding_gear` | `ClockworkKeepScene` | Per floor |
+| `game_over_triggered`, `riding_gear`, `supporting_platform` | `ClockworkKeepScene` | Per floor (`game_over_triggered` is also set by victory) |
 | High scores | `open_saves(app_name='clockwork-keep')`, save `high_scores` | On disk, across runs |
 
-The game starts with 3 lives (`STARTING_LIVES`). At game over `_save_high_score` appends
+The game starts with 3 lives (`STARTING_LIVES`). At game over and at victory `_save_high_score` appends
 `{'score': ..., 'floor': ...}` to the saved `scores` list, keeps the 10 best (best first) and
 saves it; `GameOverScene` shows the list. A missing save loads as an empty list. In a replay the
 saves are a `MemorySaveManager` seeded from the recording, so a replayed game over never touches
@@ -631,7 +657,7 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 
 | File | What it pins |
 |---|---|
-| `tests/examples/test_clockwork_keep.py` | The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, `MAX_FRAME_SECONDS`, `replay_arguments`, `--floor`, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, `main()` |
+| `tests/examples/test_clockwork_keep.py` | The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, `MAX_FRAME_SECONDS`, `replay_arguments`, `--floor`, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, `main()` |
 | `tests/world/test_golden_traces.py` | The 900-frame golden trace (above) |
 | `tests/world/test_gameplay_recording.py` | Recording the 900-frame script gives the golden harness's own sprite frames, including the ride and the pause |
 | `tests/world/test_transition_input.py` | A jump pressed during the elevator ride does not jump on arrival |

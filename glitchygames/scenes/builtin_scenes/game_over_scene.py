@@ -11,7 +11,8 @@ from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import KeyEvent
+    from glitchygames.events.base import ControllerButtonEvent, JoyButtonEvent, KeyEvent
+from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
@@ -46,6 +47,8 @@ class GameOverScene(Scene):
         self.high_scores = high_scores or []
         self.text_sprite = None
         self._space_pressed = False
+        # A gamepad's Start or A restarts, B or Back quits, as SPACE and ESC do
+        self._gamepad_buttons = GamepadChoiceButtons()
         # Don't set next_scene to self - this causes infinite loops
         # The scene will stay active until user input changes it
 
@@ -153,6 +156,70 @@ class GameOverScene(Scene):
         else:
             # Let the base Scene class handle other keys
             super().on_key_up_event(event)
+
+    @override
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
+        """A mapped gamepad's B or Back quits; Start or A arms the restart (gamepad_choice.py).
+
+        Args:
+            event: The controller button down event.
+
+        """
+        self._on_gamepad_button_down(event)
+        super().on_controller_button_down_event(event)
+
+    @override
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
+        """A mapped gamepad's Start or A, released after its press here, restarts the game.
+
+        Args:
+            event: The controller button up event.
+
+        """
+        self._on_gamepad_button_up(event)
+        super().on_controller_button_up_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
+        """Any other gamepad's B or Back quits; Start or A arms the restart (gamepad_choice.py).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        self._on_gamepad_button_down(event)
+        super().on_joy_button_down_event(event)
+
+    @override
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
+        """Any other gamepad's Start or A, released after its press here, restarts the game.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        self._on_gamepad_button_up(event)
+        super().on_joy_button_up_event(event)
+
+    def _on_gamepad_button_down(self: Self, event: ControllerButtonEvent | JoyButtonEvent) -> None:
+        """Quit for B or Back, as ESC does (BUGS.md #209 item 10: no gamepad could).
+
+        Args:
+            event: The button down event, from either layer.
+
+        """
+        if self._gamepad_buttons.button_pressed(event) is GamepadChoice.QUIT:
+            self.scene_manager.quit()
+
+    def _on_gamepad_button_up(self: Self, event: ControllerButtonEvent | JoyButtonEvent) -> None:
+        """Restart the game for a Start or A pressed here, as SPACE does.
+
+        Args:
+            event: The button up event, from either layer.
+
+        """
+        if self._gamepad_buttons.button_released(event) is GamepadChoice.CONTINUE:
+            self.resume()
 
     @override
     def resume(self: Self) -> None:

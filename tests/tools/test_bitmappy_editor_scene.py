@@ -13,6 +13,7 @@ Covers uncovered regions including:
 import argparse
 import logging
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pygame
@@ -133,6 +134,7 @@ def _setup_editor_state(editor, mocker):
     editor.cross_area_operation_tracker = mocker.Mock()
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
+    editor.current_pixel_changes_dict = {}
     editor._is_drag_operation = False
     editor.applying_undo_redo = False
     editor.pixel_change_timer = None
@@ -3476,3 +3478,217 @@ class TestCanvasRedrawInTheRealEditor:
             real_editor.on_new_file_event('16x16')
 
         assert 'Invalid dimensions format' not in caplog.text
+
+
+# ===========================================================================
+# Loading another sprite or starting a new canvas starts a new undo history (BUGS.md #150)
+# ===========================================================================
+
+DARK_RGB = (0, 0, 0)
+GREEN_RGB = (0, 200, 0)
+
+
+def _write_two_animation_sprite(path, *, dark_color):
+    """Write a 2x2 sprite with animations 'idle' and 'strip_2', a dark pixel at the top left.
+
+    Args:
+        path: Where to write it.
+        dark_color: The (red, green, blue) colour of each frame's top-left pixel.
+
+    Returns:
+        The path, as a string.
+
+    """
+    red, green, blue = dark_color
+    animation_tables = ''.join(
+        f'[[animation]]\nnamespace = "{animation_name}"\n\n'
+        f'[[animation.frame]]\nnamespace = "{animation_name}"\nframe_index = 0\n'
+        'pixels = """\n#.\n..\n"""\n\n'
+        for animation_name in ('idle', 'strip_2')
+    )
+    path.write_text(
+        '[sprite]\nname = "two_by_two"\n\n'
+        f'{animation_tables}'
+        f'[colors."#"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
+        '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n',
+        encoding='utf-8',
+    )
+    return str(path)
+
+
+def _frame_pixel_data(editor):
+    """Return every frame's pixel data, by animation name and frame index.
+
+    Returns:
+        dict[str, list[list[tuple[int, ...]]]]: The pixel data.
+
+    """
+    return {
+        animation_name: [frame.get_pixel_data() for frame in frames]
+        for animation_name, frames in editor.canvas.animated_sprite.animations.items()
+    }
+
+
+class TestUndoHistoryStartsOverInTheRealEditor:
+    """A loaded sprite or a new canvas never receives the previous sprite's undo or redo."""
+
+    def test_undo_after_loading_another_sprite_leaves_it_unchanged(self, real_editor, tmp_path):
+        """Paint on A, load B with the same animation names, Ctrl+Z: B keeps its pixels.
+
+        The stroke covers the dark pixel, so undoing it onto B would write A's dark colour over
+        B's green one.
+        """
+        first_sprite = _write_two_animation_sprite(tmp_path / 'first.toml', dark_color=DARK_RGB)
+        second_sprite = _write_two_animation_sprite(
+            tmp_path / 'second.toml',
+            dark_color=GREEN_RGB,
+        )
+        real_editor.canvas.on_load_file_event(first_sprite)
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+
+        real_editor.canvas.on_load_file_event(second_sprite)
+        loaded_pixels = _frame_pixel_data(real_editor)
+        real_editor.handle_undo()
+
+        assert _frame_pixel_data(real_editor) == loaded_pixels
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_redo_after_loading_another_sprite_leaves_it_unchanged(self, real_editor, tmp_path):
+        """Paint on A and undo it, load B, Ctrl+Shift+Z: A's stroke is not redone onto B."""
+        first_sprite = _write_two_animation_sprite(tmp_path / 'first.toml', dark_color=DARK_RGB)
+        second_sprite = _write_two_animation_sprite(
+            tmp_path / 'second.toml',
+            dark_color=GREEN_RGB,
+        )
+        real_editor.canvas.on_load_file_event(first_sprite)
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+        real_editor.handle_undo()
+
+        real_editor.canvas.on_load_file_event(second_sprite)
+        loaded_pixels = _frame_pixel_data(real_editor)
+        real_editor.handle_redo()
+
+        assert _frame_pixel_data(real_editor) == loaded_pixels
+        assert not real_editor.undo_redo_manager.frame_redo_stacks
+        assert not real_editor.undo_redo_manager.can_redo()
+
+    def test_undoing_a_film_strip_change_of_the_old_sprite_is_not_applied(
+        self,
+        real_editor,
+        tmp_path,
+    ):
+        """An animation added to A is not deleted from B by Ctrl+Z after B is loaded.
+
+        A has 'idle' and 'strip_2', so the added strip is 'strip_3'; B's own 'strip_3' would
+        be the one the old 'animation added' step deleted. Adding also recorded selecting the
+        new strip (and each load records selecting its first frame), so Ctrl+Z is pressed
+        until every step A recorded would have been undone.
+        """
+        first_sprite = _write_two_animation_sprite(tmp_path / 'first.toml', dark_color=DARK_RGB)
+        real_editor.canvas.on_load_file_event(first_sprite)
+        real_editor.film_strip_coordinator._add_new_animation()
+        assert 'strip_3' in real_editor.canvas.animated_sprite.animations
+        second_sprite = tmp_path / 'second.toml'
+        second_sprite.write_text(
+            Path(first_sprite).read_text(encoding='utf-8').replace('strip_2', 'strip_3'),
+            encoding='utf-8',
+        )
+
+        steps_recorded_for_the_first_sprite = len(real_editor.undo_redo_manager.undo_stack)
+
+        real_editor.canvas.on_load_file_event(str(second_sprite))
+        for _ in range(steps_recorded_for_the_first_sprite):
+            real_editor.handle_undo()
+
+        assert list(real_editor.canvas.animated_sprite.animations) == ['idle', 'strip_3']
+
+    def test_undoing_the_first_selection_after_a_load_returns_to_the_loaded_frame(
+        self,
+        real_editor,
+        tmp_path,
+    ):
+        """The new history still knows the frame the load showed, so a selection undoes to it."""
+        real_editor.canvas.on_load_file_event(
+            _write_two_animation_sprite(tmp_path / 'loaded.toml', dark_color=GREEN_RGB),
+        )
+
+        real_editor.canvas.show_frame('strip_2', 0)
+        real_editor.handle_undo()
+
+        assert (real_editor.canvas.current_animation, real_editor.canvas.current_frame) == (
+            'idle',
+            0,
+        )
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_a_load_that_fails_keeps_the_history(self, real_editor, tmp_path):
+        """A file that cannot be loaded leaves the sprite, so its undo history stays too."""
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+
+        real_editor.canvas.on_load_file_event(str(tmp_path / 'missing.toml'))
+        real_editor.handle_undo()
+
+        real_editor.canvas.force_redraw()
+        assert _drawn_rgb_at(real_editor, x=1, y=1) == MAGENTA_RGB
+
+    def test_a_load_that_fails_after_replacing_the_sprite_still_clears_the_history(
+        self,
+        real_editor,
+        tmp_path,
+        mocker,
+    ):
+        """Once the sprite is replaced, the old history goes even if a later load step fails."""
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+        mocker.patch.object(
+            real_editor.canvas,
+            '_finalize_sprite_loading',
+            side_effect=ValueError('finalizing failed'),
+        )
+
+        real_editor.canvas.on_load_file_event(
+            _write_two_animation_sprite(tmp_path / 'second.toml', dark_color=GREEN_RGB),
+        )
+
+        assert real_editor.debug_text.text == 'Error loading sprite: finalizing failed'
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_a_stroke_unfinished_at_the_load_is_not_recorded_for_the_loaded_sprite(
+        self,
+        real_editor,
+        tmp_path,
+    ):
+        """A press on A whose release comes after B is loaded records nothing for B."""
+        second_sprite = _write_two_animation_sprite(
+            tmp_path / 'second.toml',
+            dark_color=GREEN_RGB,
+        )
+        from glitchygames import events
+
+        canvas = real_editor.canvas
+        canvas.active_color = (*PAINT_RGB, 255)
+        position = (canvas.rect.x + 1, canvas.rect.y + 1)
+        real_editor.on_left_mouse_button_down_event(
+            events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1),
+        )
+
+        real_editor.canvas.on_load_file_event(second_sprite)
+        real_editor.on_mouse_button_up_event(
+            events.HashableEvent(pygame.MOUSEBUTTONUP, pos=(0, 0), button=1),
+        )
+
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_undo_after_a_new_canvas_leaves_it_blank(self, real_editor):
+        """Paint, start a new canvas of the same size, Ctrl+Z: the new canvas stays blank."""
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+
+        real_editor.on_new_file_event('32x32')
+        new_canvas_pixels = _frame_pixel_data(real_editor)
+        real_editor.handle_undo()
+
+        assert _frame_pixel_data(real_editor) == new_canvas_pixels
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()

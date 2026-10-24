@@ -62,6 +62,7 @@ from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import non_negative_int, non_negative_percent, unit_interval
+from glitchygames.events import base as events_base
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.input_devices import InputMode
 from glitchygames.live_sources import LiveSources
@@ -278,46 +279,38 @@ class TestGameEngineInitializeArguments:
         assert result['resolution'] == '800x480'
         assert 'Game does not implement arguments' in caplog.text
 
-    @pytest.mark.parametrize('log_level', ['DEBUG', 'ERROR', 'CRITICAL'])
-    def test_upper_case_debug_levels_enable_debug_events(self, mocker, log_level):
-        """An upper-case DEBUG, ERROR or CRITICAL level in the options enables debug_events.
-
-        A real command line can never give one (--log-level lower-cases its value: see
-        test_command_line_debug_levels_enable_debug_events), so the parsed options are set
-        directly: this keeps the branch the engine compares against tested.
-        """
-        mocker.patch.object(sys, 'argv', ['test_game_engine'])
-        _override_parsed_options(mocker, {'log_level': log_level})
-
-        result = GameEngine.initialize_arguments(EngineTestGame)
-
-        assert result['debug_events'] is True
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Production bug: --log-level lower-cases its value (glitchygames/events/game.py: '
-            'type=str.lower), but GameEngine.initialize_arguments compares it with '
-            "{'DEBUG', 'CRITICAL', 'ERROR'}, so no command line ever enables debug_events"
-        ),
-    )
-    @pytest.mark.parametrize('log_level', ['debug', 'error', 'critical'])
-    def test_command_line_debug_levels_enable_debug_events(self, mocker, log_level):
-        """--log-level debug, error or critical enables debug_events."""
-        mocker.patch.object(sys, 'argv', ['test_game_engine', '--log-level', log_level])
-
-        result = GameEngine.initialize_arguments(EngineTestGame)
-
-        assert result['debug_events'] is True
-
-    @pytest.mark.parametrize('log_level', ['info', 'warning'])
-    def test_initialize_arguments_info_mode(self, mocker, log_level):
-        """--log-level info or warning leaves debug_events off."""
+    @pytest.mark.parametrize('log_level', ['debug', 'info', 'warning', 'error', 'critical'])
+    def test_debug_events_is_off_without_the_flag(self, mocker, log_level):
+        """No --log-level turns debug_events on: only --debug-events does (BUGS.md #74)."""
         mocker.patch.object(sys, 'argv', ['test_game_engine', '--log-level', log_level])
 
         result = GameEngine.initialize_arguments(EngineTestGame)
 
         assert result['debug_events'] is False
+
+    def test_an_upper_case_log_level_no_longer_enables_debug_events(self, mocker):
+        """debug_events is never derived from the log level, whatever its case (BUGS.md #74).
+
+        A real command line cannot give an upper-case level (--log-level lower-cases it), so the
+        parsed option is set directly: the old derivation compared with upper-case names.
+        """
+        mocker.patch.object(sys, 'argv', ['test_game_engine'])
+        _override_parsed_options(mocker, {'log_level': 'DEBUG'})
+
+        result = GameEngine.initialize_arguments(EngineTestGame)
+
+        assert result['debug_events'] is False
+
+    @pytest.mark.parametrize('log_level', ['info', 'error'])
+    def test_the_debug_events_flag_enables_debug_events(self, mocker, log_level):
+        """--debug-events turns debug_events on, at any log level."""
+        mocker.patch.object(
+            sys, 'argv', ['test_game_engine', '--debug-events', '--log-level', log_level]
+        )
+
+        result = GameEngine.initialize_arguments(EngineTestGame)
+
+        assert result['debug_events'] is True
 
 
 class TestGameEngineSuggestedResolution:
@@ -2347,25 +2340,30 @@ class TestProcessTextEvent:
     """Test GameEngine.process_text_event dispatcher."""
 
     def test_text_editing(self, mocker):
-        """Test process_text_event dispatches TEXTEDITING."""
+        """process_text_event passes TEXTEDITING to the scene manager (BUGS.md #200 item 1)."""
         engine = _make_engine(mocker)
+        engine.scene_manager = mocker.Mock()
         mocker.patch.object(engine, 'process_unimplemented_event')
 
         event = events.HashableEvent(pygame.TEXTEDITING)
 
         result = engine.process_text_event(event)
         assert result is True
-        engine.process_unimplemented_event.assert_called_once_with(event)
+        engine.scene_manager.on_text_editing_event.assert_called_once_with(event)
+        engine.process_unimplemented_event.assert_not_called()
 
     def test_text_input(self, mocker):
-        """Test process_text_event dispatches TEXTINPUT."""
+        """process_text_event passes TEXTINPUT to the scene manager (BUGS.md #200 item 1)."""
         engine = _make_engine(mocker)
+        engine.scene_manager = mocker.Mock()
         mocker.patch.object(engine, 'process_unimplemented_event')
 
         event = events.HashableEvent(pygame.TEXTINPUT)
 
         result = engine.process_text_event(event)
         assert result is True
+        engine.scene_manager.on_text_input_event.assert_called_once_with(event)
+        engine.process_unimplemented_event.assert_not_called()
 
 
 class TestGameEngineHandleEventDeeper:
@@ -2451,39 +2449,30 @@ class TestGetAttrAttributeError:
             engine.some_random_attr  # ruff: ignore[useless-expression]
 
 
-class TestGameEngineLinuxVideoDriverArgs:
-    """Test GameEngine platform-specific video driver args (lines 205-230)."""
+class TestVideoDriverArgument:
+    """--video-driver offers SDL 2's own drivers for the platform (BUGS.md #76)."""
 
-    @staticmethod
-    def _video_driver_choices(mocker, *, system_name: str) -> list[str] | None:
-        """Build the real argument parser as on system_name; return --video-driver's choices.
+    @pytest.mark.parametrize(
+        ('platform_name', 'expected_choices'),
+        [
+            ('Darwin', ['cocoa', 'offscreen', 'dummy']),
+            ('Windows', ['windows', 'offscreen', 'dummy']),
+            ('Linux', ['x11', 'wayland', 'kmsdrm', 'offscreen', 'dummy']),
+            ('FreeBSD', ['offscreen', 'dummy']),
+        ],
+    )
+    def test_the_choices_are_the_platforms_sdl_drivers(
+        self, mocker, platform_name, expected_choices
+    ):
+        mocker.patch.object(game_engine_module.platform, 'system', return_value=platform_name)
 
-        Returns:
-            The choices of the --video-driver option.
+        video_driver = _engine_parser_action(destination='video_driver')
 
-        """
-        mocker.patch('platform.system', return_value=system_name)
-        parser = GameEngine.args(argparse.ArgumentParser())
-        (video_driver_action,) = [
-            action for action in parser._actions if '--video-driver' in action.option_strings
-        ]
-        return video_driver_action.choices
+        assert video_driver.choices == expected_choices
+        assert video_driver.default is None
 
-    def test_linux_video_drivers(self, mocker):
-        """On Linux, --video-driver offers the Linux drivers."""
-        choices = self._video_driver_choices(mocker, system_name='Linux')
-        assert choices is not None
-        assert 'x11' in choices
-        assert 'wayland' in choices
-
-    def test_mac_video_drivers(self, mocker):
-        """The 'MacOS' branch offers no drivers (platform.system() says 'Darwin' on a Mac)."""
-        assert self._video_driver_choices(mocker, system_name='MacOS') == []
-
-    def test_windows_video_drivers(self, mocker):
-        """On Windows, --video-driver offers the Windows drivers."""
-        choices = self._video_driver_choices(mocker, system_name='Windows')
-        assert choices == ['windib', 'directx']
+    def test_the_help_says_the_option_is_not_applied(self):
+        assert 'not applied' in str(_engine_parser_action(destination='video_driver').help)
 
 
 class TestGameEngineFastEvents:
@@ -2525,11 +2514,32 @@ class TestGameEngineFastEvents:
 class TestGameEngineFullscreen:
     """Test fullscreen mode flags (line 381)."""
 
-    def test_fullscreen_mode_flags(self, mocker):
-        """Test fullscreen mode sets correct flags (line 381)."""
-        # --windowed is a store_true flag that defaults to True, so no command line reaches
-        # fullscreen: the parsed option is set directly. PlainWindowEngine never opens it
-        engine = _make_engine(mocker, option_overrides={'windowed': False})
+    def test_no_windowed_asks_for_fullscreen(self, mocker):
+        """--no-windowed asks for a fullscreen display (BUGS.md #76).
+
+        PlainWindowEngine never opens it: mode_flags keeps what the engine chose.
+        """
+        engine = _make_engine(mocker, '--no-windowed')
+
+        assert engine.windowed is False
+        assert engine.mode_flags & pygame.FULLSCREEN
+        assert engine.mode_flags & pygame.SCALED
+
+    @pytest.mark.parametrize('windowed_arguments', [(), ('--windowed',), ('-w',)])
+    def test_windowed_is_the_default_and_the_old_flags_still_ask_for_it(
+        self, mocker, windowed_arguments
+    ):
+        """No flag, --windowed and -w (the command lines from before) all ask for a window."""
+        engine = _make_engine(mocker, *windowed_arguments)
+
+        assert engine.windowed is True
+        assert not engine.mode_flags & pygame.FULLSCREEN
+        assert engine.mode_flags & pygame.SCALED
+
+    def test_the_last_windowed_flag_wins(self, mocker):
+        """--no-windowed after --windowed is fullscreen, as argparse reads flags in order."""
+        engine = _make_engine(mocker, '--windowed', '--no-windowed')
+
         assert engine.mode_flags & pygame.FULLSCREEN
 
 
@@ -2738,6 +2748,76 @@ class TestResolutionArgument:
 
         assert resolution.default == '800x480'
         assert 'default: 800x480' in parser.format_help()
+
+
+def _engine_parser_action(*, destination: str) -> argparse.Action:
+    """Return the engine parser's action for one option.
+
+    Args:
+        destination: The option's dest (its name in the options).
+
+    Returns:
+        argparse.Action: The action.
+
+    """
+    parser = GameEngine.args(argparse.ArgumentParser(prog='game'))
+    return next(action for action in parser._actions if action.dest == destination)
+
+
+class TestEveryOptionHasHelp:
+    """Every engine option says what it does in --help (none is listed bare)."""
+
+    def test_no_engine_option_is_without_help(self):
+        parser = GameEngine.args(argparse.ArgumentParser(prog='game'))
+
+        options_without_help = [
+            action.option_strings for action in parser._actions if not action.help
+        ]
+
+        assert options_without_help == []
+
+    def test_the_windowed_help_names_both_modes(self):
+        parser = GameEngine.args(argparse.ArgumentParser(prog='game'))
+
+        assert '-w, --windowed, --no-windowed' in parser.format_help()
+        assert 'fullscreen' in str(_engine_parser_action(destination='windowed').help)
+
+    def test_the_use_gfxdraw_help_says_it_is_not_used(self):
+        assert 'not used' in str(_engine_parser_action(destination='use_gfxdraw').help)
+
+
+class TestDebugEventsArgument:
+    """--debug-events is an opt-in diagnostic flag (BUGS.md #74)."""
+
+    def test_it_is_an_off_by_default_flag_in_the_diagnostics_group(self):
+        parser = GameEngine.args(argparse.ArgumentParser(prog='game'))
+        debug_events = next(action for action in parser._actions if action.dest == 'debug_events')
+        diagnostics_group = next(
+            group for group in parser._action_groups if group.title == 'Diagnostics Options'
+        )
+
+        assert debug_events.option_strings == ['--debug-events']
+        assert debug_events.default is False
+        assert debug_events in diagnostics_group._group_actions
+        assert 'unhandled event' in str(debug_events.help)
+
+    def test_the_flag_logs_each_unhandled_event_type_once(self, mocker, caplog):
+        """With --debug-events, unhandled_event() warns once per unhandled event type."""
+        mocker.patch.object(sys, 'argv', ['test_game_engine', '--debug-events'])
+        options = GameEngine.initialize_arguments(EngineTestGame)
+        scene = Scene(options=options)
+        unhandled_event = events.HashableEvent(UNMAPPED_EVENT_TYPE)
+        # Each type is logged once per process: start this test with none logged yet
+        mocker.patch.object(events_base, '_unhandled_event_types', set())
+
+        with caplog.at_level(logging.WARNING, logger=events.LOG.name):
+            events.unhandled_event(game=scene, event=unhandled_event)
+            events.unhandled_event(game=scene, event=unhandled_event)
+
+        unhandled_warnings = [
+            record for record in caplog.records if record.getMessage().startswith('Unhandled Event')
+        ]
+        assert len(unhandled_warnings) == 1
 
 
 class TestShakeAndAudioArguments:

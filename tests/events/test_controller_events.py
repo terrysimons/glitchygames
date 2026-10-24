@@ -871,6 +871,22 @@ class TestControllerEventFlow:
             ('button_up', up_event),
         ]
 
+    def test_two_controllers_have_a_proxy_each(self):
+        """Each controller gets a proxy of its own (BUGS.md #198: one shared proxy held the last).
+
+        A proxy that were one shared instance would be re-initialized for every controller, so
+        both entries would be the same object, holding the second controller.
+        """
+        _install_controllers(instance_ids_by_device_index={0: 4, 1: 7})
+        manager = ControllerEventManager(game=ControllerRecordingScene())
+
+        first_proxy = manager.controllers[4]
+        second_proxy = manager.controllers[7]
+
+        assert first_proxy is not second_proxy
+        assert (first_proxy.instance_id, second_proxy.instance_id) == (4, 7)
+        assert (first_proxy.device_index, second_proxy.device_index) == (0, 1)
+
 
 class TestControllerSensorEvent:
     """Test sensor update event routing."""

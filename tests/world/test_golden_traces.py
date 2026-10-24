@@ -30,9 +30,14 @@ import pygame
 import pytest
 from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record_trace
 
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.examples.brave_adventurer import constants as brave_constants
 from glitchygames.examples.brave_adventurer.drawing import draw_player, draw_scarab
 from glitchygames.examples.brave_adventurer.player import Player as AdventurerPlayer
+from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+    apply_transparency_and_scale,
+)
 from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
 from glitchygames.examples.clockwork_keep.drawing import draw_tinker
 from glitchygames.examples.clockwork_keep.player import Tinker
@@ -706,6 +711,276 @@ def culled_outside_margin(difference: TraceDifference, frame: FrameWorldSample) 
     )
 
 
+# Animation times sampled when measuring the primitives adventurer's poses (two seconds at
+# 50 ms covers every cycle, as the player's own common_hitbox_x_range measurement does)
+ADVENTURER_POSE_SAMPLE_TIMES = tuple(sample_index * 0.05 for sample_index in range(40))
+# The poses the old player fell into a pit in: running off the ledge, idle once a pit wall
+# stopped it (running to idle on zero speed), before idle to falling took over
+ADVENTURER_OLD_FALL_POSES = (AdventurerPlayer.RUNNING, AdventurerPlayer.IDLE)
+PAPYRUS_OLD_FALL_POSES = (PapyrusPlayer.RUNNING, PapyrusPlayer.IDLE)
+
+
+def _edge_spread(*, old_edges: set[int], falling_edges: set[int]) -> int:
+    """The largest distance between an old pose's hitbox edge and a falling pose's.
+
+    Returns:
+        The largest absolute difference between one old edge and one falling edge.
+
+    """
+    return max(
+        abs(old_edge - falling_edge) for old_edge in old_edges for falling_edge in falling_edges
+    )
+
+
+@functools.cache
+def adventurer_falling_pose_shift_pixels() -> int:
+    """How far the primitives adventurer's hitbox edges move from an old pose to falling.
+
+    Before the running to falling transition (BUGS.md #209 item 7), a player that ran off a
+    ledge fell in its running pose, went idle when a pit wall stopped it (running to idle on
+    zero speed) and only then falling (idle to falling). The pit walls stop the hitbox, so
+    falling in its falling pose the player stops up to this many pixels from the old one.
+
+    Returns:
+        The largest change of the hitbox's left or right edge from a running or idle pose to
+        a falling pose, over both facings.
+
+    """
+    image = pygame.Surface(
+        (brave_constants.PLAYER_WIDTH, brave_constants.PLAYER_HEIGHT), pygame.SRCALPHA
+    )
+    shift = 0
+    for facing_right in (True, False):
+        edges: dict[str, dict[str, set[int]]] = {}
+        for state in (*ADVENTURER_OLD_FALL_POSES, AdventurerPlayer.FALLING):
+            edges[state] = {'left': set(), 'right': set()}
+            for animation_time in ADVENTURER_POSE_SAMPLE_TIMES:
+                image.fill((0, 0, 0, 0))
+                draw_player(image, state, facing_right=facing_right, animation_timer=animation_time)
+                visible = image.get_bounding_rect()
+                edges[state]['left'].add(visible.left)
+                edges[state]['right'].add(visible.right)
+        for edge in ('left', 'right'):
+            shift = max(
+                shift,
+                _edge_spread(
+                    old_edges=set().union(
+                        *(edges[state][edge] for state in ADVENTURER_OLD_FALL_POSES)
+                    ),
+                    falling_edges=edges[AdventurerPlayer.FALLING][edge],
+                ),
+            )
+    return shift
+
+
+@functools.cache
+def papyrus_running_and_falling_poses() -> tuple[int, frozenset[int]]:
+    """The Papyrus adventurer's old fall frames and its falling frame, from player.toml.
+
+    The old player fell running, went idle when a pit wall stopped it, then falling (see
+    adventurer_falling_pose_shift_pixels).
+
+    Returns:
+        (the largest change of the hitbox's left or right edge from a running or idle frame
+        to a falling frame, over both facings; the running and idle frames' draw_offset y
+        values, where the old run drew the falling player).
+
+    """
+    player = PapyrusPlayer(world_x=0.0, world_y=0.0, groups=pygame.sprite.LayeredDirty())
+    shift = 0
+    old_draw_offsets_y: set[int] = set()
+    for facing_right in (True, False):
+        player.facing_right = facing_right
+        player.hitbox_flip_x = not facing_right
+        edges: dict[str, dict[str, set[int]]] = {}
+        for state in (*PAPYRUS_OLD_FALL_POSES, PapyrusPlayer.FALLING):
+            edges[state] = {'left': set(), 'right': set()}
+            player.set_animation(state)
+            for frame_index in range(player.current_animation_frame_count):
+                player.set_frame(frame_index)
+                apply_transparency_and_scale(player)
+                offset_x, _ = collision_rect_offset(player)
+                hitbox_width = get_sprite_collision_rect(player).width
+                edges[state]['left'].add(offset_x)
+                edges[state]['right'].add(offset_x + hitbox_width)
+                if state in PAPYRUS_OLD_FALL_POSES:
+                    old_draw_offsets_y.add(player.draw_offset[1])
+        for edge in ('left', 'right'):
+            shift = max(
+                shift,
+                _edge_spread(
+                    old_edges=set().union(
+                        *(edges[state][edge] for state in PAPYRUS_OLD_FALL_POSES)
+                    ),
+                    falling_edges=edges[PapyrusPlayer.FALLING][edge],
+                ),
+            )
+    player.kill()
+    return shift, frozenset(old_draw_offsets_y)
+
+
+def _old_camera_x_interval(
+    frame: FrameWorldSample, *, player_prefix: str, shift_pixels: int
+) -> tuple[float, float] | None:
+    """The old camera x (plus WORLD shake) that gives every non-player baseline rect's x.
+
+    Every sprite but the player stands where it stood in the old run (terrain does not move;
+    enemies and collectibles move on game time, which the pose change does not touch), so its
+    baseline x, round(world_x - camera_x - shake_x) plus its draw_offset, bounds the old camera
+    x to a 1 px window. The old camera, aimed at an old player at most shift_pixels away, is
+    within that of the sampled one. Closed intervals accept an exact rounding tie either way.
+
+    Returns:
+        (lowest, highest) old camera x, or None when no single camera explains the frame.
+
+    """
+    shake_x, _ = frame.shake_offset
+    lowest = frame.camera_x - shift_pixels - 0.5
+    highest = frame.camera_x + shift_pixels + 0.5
+    for sprite_id, sprite in frame.sprites.items():
+        baseline_rect = frame.baseline_rects.get(sprite_id)
+        if baseline_rect is None or sprite_id.startswith(player_prefix):
+            continue
+        old_offset = sprite.world_x - shake_x + sprite.draw_offset[0] - baseline_rect[0]
+        lowest = max(lowest, old_offset - 0.5)
+        highest = min(highest, old_offset + 0.5)
+    if lowest > highest:
+        return None
+    return (lowest, highest)
+
+
+@dataclass(frozen=True)
+class FallingPoseChange:
+    """What the running to falling rule needs to know about one edition.
+
+    Attributes:
+        player_prefix: The player's sprite id prefix (``'<ClassName>#'``).
+        shift_pixels: How far the player's hitbox edges move from a running to a falling pose.
+        old_draw_offsets_y: The draw_offset y values of the frames the old player fell in.
+        old_world_y_offsets: Where else (world y offsets) the old run had a sprite, by sprite
+            id prefix (the scarabs' old-culling margin), besides where it stands now.
+        other_rules: The edition's other world rules: a difference one of them explains is
+            theirs, never this rule's (each difference has exactly one cause).
+
+    """
+
+    player_prefix: str
+    shift_pixels: int
+    old_draw_offsets_y: frozenset[int]
+    old_world_y_offsets: Mapping[str, frozenset[float]]
+    other_rules: tuple[Callable[[TraceDifference, FrameWorldSample], bool], ...]
+
+
+def _fell_in_its_falling_pose(
+    difference: TraceDifference, frame: FrameWorldSample, *, change: FallingPoseChange
+) -> bool:
+    """Running to falling (BUGS.md #209 item 7): the old player fell into a pit running.
+
+    The proof: the current rect is exactly the engine's; the sprite did not change size; none
+    of the edition's other rules explains the difference; one old camera x, within
+    change.shift_pixels of the sampled one, gives every non-player sprite's baseline x
+    (_old_camera_x_interval); a non-player sprite's baseline y is the old formula's under the
+    unchanged camera y (the camera follows on x only), at today's world y or one of its
+    old_world_y_offsets; and under that camera the baseline player is drawn from an old world x
+    at most change.shift_pixels from today's, at today's world y with today's draw_offset or
+    one of an old fall frame's.
+
+    Returns:
+        True if one old camera and an old player within the shift give the baseline frame.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    if (
+        sprite is None
+        or difference.current != engine_rect(sprite, frame, mode=SPEC_SNAP_MODE)
+        or difference.baseline[2:] != difference.current[2:]
+        or _old_and_engine_formulas_give(difference, frame)
+        or any(rule(difference, frame) for rule in change.other_rules)
+    ):
+        return False
+    camera_interval = _old_camera_x_interval(
+        frame, player_prefix=change.player_prefix, shift_pixels=change.shift_pixels
+    )
+    if camera_interval is None:
+        return False
+    shake_x, shake_y = frame.shake_offset
+    draw_offset_x, draw_offset_y = sprite.draw_offset
+    baseline_x, baseline_y = difference.baseline[:2]
+    if not difference.sprite_id.startswith(change.player_prefix):
+        # Its own baseline x bounded the interval, so a non-empty interval explains its x
+        world_y_offsets = {0.0}.union(
+            *(
+                offsets
+                for prefix, offsets in change.old_world_y_offsets.items()
+                if difference.sprite_id.startswith(prefix)
+            )
+        )
+        return any(
+            baseline_y
+            == round(sprite.world_y + world_y_offset - frame.camera_y - shake_y) + draw_offset_y
+            for world_y_offset in world_y_offsets
+        )
+    old_draw_offset_y = baseline_y - round(sprite.world_y - frame.camera_y - shake_y)
+    if old_draw_offset_y not in change.old_draw_offsets_y | {draw_offset_y}:
+        return False
+    lowest_camera_x, highest_camera_x = camera_interval
+    # Old world_x - camera_x - shake_x over old world_x within shift_pixels of today's and
+    # camera_x in the interval; round() of it must reach the baseline x
+    lowest_offset = (
+        sprite.world_x - change.shift_pixels - highest_camera_x - shake_x + draw_offset_x
+    )
+    highest_offset = (
+        sprite.world_x + change.shift_pixels - lowest_camera_x - shake_x + draw_offset_x
+    )
+    return lowest_offset <= baseline_x + 0.5 and highest_offset >= baseline_x - 0.5
+
+
+def adventurer_fell_in_its_falling_pose(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> bool:
+    """Running to falling, primitives edition (see _fell_in_its_falling_pose).
+
+    Its scarabs rolled scarab_feet_margin_pixels() high in the old run (old culling, see
+    scarab_stood_on_blank_image_hitbox), which that rule explains only under today's camera.
+
+    Returns:
+        True if the old running-pose fall explains the difference.
+
+    """
+    return _fell_in_its_falling_pose(
+        difference,
+        frame,
+        change=FallingPoseChange(
+            player_prefix=f'{AdventurerPlayer.__name__}#',
+            shift_pixels=adventurer_falling_pose_shift_pixels(),
+            old_draw_offsets_y=frozenset({0}),
+            old_world_y_offsets={'Scarab#': frozenset({float(-scarab_feet_margin_pixels())})},
+            other_rules=(scarab_stood_on_blank_image_hitbox,),
+        ),
+    )
+
+
+def papyrus_fell_in_its_falling_pose(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Running to falling, Papyrus edition (see _fell_in_its_falling_pose).
+
+    Returns:
+        True if the old running-pose fall explains the difference.
+
+    """
+    shift_pixels, old_draw_offsets_y = papyrus_running_and_falling_poses()
+    return _fell_in_its_falling_pose(
+        difference,
+        frame,
+        change=FallingPoseChange(
+            player_prefix=f'{PapyrusPlayer.__name__}#',
+            shift_pixels=shift_pixels,
+            old_draw_offsets_y=old_draw_offsets_y,
+            old_world_y_offsets={},
+            other_rules=(),
+        ),
+    )
+
+
 # Filled in by later tasks of the world-space plan; every entry must say why it is expected.
 EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
     'clockwork_keep': [
@@ -830,6 +1105,19 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
                 'height'
             ),
         ),
+        ExpectedDifference(
+            frames=range(860, 900),
+            sprite_pattern='*',
+            field='rect',
+            world_rule=adventurer_fell_in_its_falling_pose,
+            reason=(
+                'Running to falling (BUGS.md #209 item 7): the script runs off a ledge into the '
+                'screen-4 pit; from frame 860 the player falls in its falling pose, whose '
+                'hitbox the pit wall stops at another x than the running (then idle) pose the '
+                'old player fell in, and the camera, following it, trails the old one by that '
+                'much'
+            ),
+        ),
     ],
     'brave_adventurer_papyrus': [
         ExpectedDifference(
@@ -866,6 +1154,19 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
                 'Spec 2.2 half-up rounding: a rolling scarab at exactly x.5 under the still '
                 'camera (x = 0 before it moves) was drawn by round(), half to even; the engine '
                 'snaps an exact half up'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(841, 900),
+            sprite_pattern='*',
+            field='rect',
+            world_rule=papyrus_fell_in_its_falling_pose,
+            reason=(
+                'Running to falling (BUGS.md #209 item 7): the script runs off a ledge on frame '
+                '841; the player now falls in its falling frame, anchored 2 px higher than the '
+                'running frames the old player fell in and 4 px lower than the idle frame it '
+                'showed once the pit wall stopped it; in the screen-4 pit its wider hitbox '
+                'stops at another x, which the camera, following it, trails'
             ),
         ),
     ],

@@ -308,6 +308,10 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
             status_code=503,
             detail=f'AI provider unavailable: {e}',
         ) from e
+    except HTTPException:
+        # An answer already chosen (a refused output_path is a 400): passed on as it is, not
+        # turned into a 500 by the handler below (BUGS.md #200 item 3)
+        raise
     except Exception as e:
         LOG.exception('Unexpected error')
         raise HTTPException(
@@ -356,6 +360,10 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
             status_code=503,
             detail=f'AI provider unavailable: {e}',
         ) from e
+    except HTTPException:
+        # An answer already chosen (a refused output_path is a 400): passed on as it is, not
+        # turned into a 500 by the handler below (BUGS.md #200 item 3)
+        raise
     except Exception as e:
         LOG.exception('Unexpected error')
         raise HTTPException(

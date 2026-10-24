@@ -77,6 +77,30 @@ def _key_event(*, event_type: int, key: int) -> events.HashableEvent:
     )
 
 
+# A gamepad's two event layers (glitchygames/input/input_devices.py, rule 1): a mapped pad's
+# buttons arrive as controller events, any other device's (or every device's in joystick mode)
+# as joystick events, by the same button numbers
+GAMEPAD_LAYERS = ('controller', 'joystick')
+
+
+def _gamepad_button(scene: Scene, *, layer: str, button: int, pressed: bool) -> None:
+    """Give the scene a real button press or release from a gamepad on one event layer."""
+    if layer == 'controller':
+        event_type = pygame.CONTROLLERBUTTONDOWN if pressed else pygame.CONTROLLERBUTTONUP
+        event = events.HashableEvent(event_type, instance_id=0, button=button)
+        if pressed:
+            scene.on_controller_button_down_event(event)
+        else:
+            scene.on_controller_button_up_event(event)
+        return
+    event_type = pygame.JOYBUTTONDOWN if pressed else pygame.JOYBUTTONUP
+    event = events.HashableEvent(event_type, instance_id=0, joy=0, button=button)
+    if pressed:
+        scene.on_joy_button_down_event(event)
+    else:
+        scene.on_joy_button_up_event(event)
+
+
 def _press_and_release(scene: Scene, key: int) -> None:
     """Send a key-down then a key-up of the key to the scene."""
     scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=key))
@@ -235,12 +259,16 @@ class TestPauseSceneBehaviour:
         _draw_the_active_scene(isolated_scene_manager)
 
     def test_other_key_down_goes_to_the_base_scene(self, isolated_scene_manager):
-        """A key other than SPACE or ESC (here Q) reaches the base scene, which requests quit."""
+        """A key other than SPACE or ESC (here Q) reaches the base scene: no quit on the press.
+
+        The base scene quits on Q's release (BUGS.md #203: its press set a dead flag).
+        """
         pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=None)
+        pygame.event.clear(eventtype=pygame.QUIT)
 
         pause_scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_q))
 
-        assert pause_scene.quit_requested is True
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
         assert pause_scene._space_pressed is False
         _draw_the_active_scene(isolated_scene_manager)
 
@@ -282,6 +310,78 @@ class TestPauseSceneBehaviour:
         pause_scene.on_window_focus_gained_event(events.HashableEvent(pygame.WINDOWFOCUSGAINED))
 
         assert isolated_scene_manager.active_scene is paused_game
+
+
+class TestPauseSceneGamepad:
+    """A gamepad resumes or quits from the pause screen (BUGS.md #209 item 10)."""
+
+    @staticmethod
+    def _pause_scene_after(scene_manager: SceneManager, previous_scene: Scene) -> PauseScene:
+        """Make the pause scene the active scene, with previous_scene as the one paused.
+
+        Returns:
+            PauseScene: The set-up pause scene.
+
+        """
+        scene_manager.game_engine = _engine_for(game=previous_scene)
+        scene_manager.switch_to_scene(previous_scene)
+        pause_scene = PauseScene()
+        scene_manager.switch_to_scene(pause_scene)
+        return pause_scene
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    @pytest.mark.parametrize('button', [pygame.CONTROLLER_BUTTON_START, pygame.CONTROLLER_BUTTON_A])
+    def test_start_or_a_released_after_its_press_resumes(
+        self, isolated_scene_manager, layer, button
+    ):
+        """Start or A, pressed and released on the pause screen, resumes the paused game."""
+        paused_game = Scene()
+        pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=paused_game)
+
+        _gamepad_button(pause_scene, layer=layer, button=button, pressed=True)
+        assert isolated_scene_manager.active_scene is pause_scene
+        _gamepad_button(pause_scene, layer=layer, button=button, pressed=False)
+
+        assert isolated_scene_manager.active_scene is paused_game
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    def test_a_release_whose_press_came_before_the_pause_does_not_resume(
+        self, isolated_scene_manager, layer
+    ):
+        """The release of the Start press that paused the game must not resume it at once."""
+        pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=Scene())
+
+        _gamepad_button(
+            pause_scene, layer=layer, button=pygame.CONTROLLER_BUTTON_START, pressed=False
+        )
+
+        assert isolated_scene_manager.active_scene is pause_scene
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    @pytest.mark.parametrize('button', [pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_BACK])
+    def test_b_or_back_quits(self, isolated_scene_manager, layer, button):
+        """B or Back quits on its press, as ESC does: one QUIT event."""
+        pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=Scene())
+        pygame.event.clear(eventtype=pygame.QUIT)
+
+        _gamepad_button(pause_scene, layer=layer, button=button, pressed=True)
+
+        assert len(pygame.event.get(eventtype=pygame.QUIT)) == 1
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    def test_another_button_does_nothing(self, isolated_scene_manager, layer):
+        """Any other button neither resumes nor quits."""
+        pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=Scene())
+        pygame.event.clear(eventtype=pygame.QUIT)
+
+        _gamepad_button(pause_scene, layer=layer, button=pygame.CONTROLLER_BUTTON_X, pressed=True)
+        _gamepad_button(pause_scene, layer=layer, button=pygame.CONTROLLER_BUTTON_X, pressed=False)
+
+        assert isolated_scene_manager.active_scene is pause_scene
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
+        _draw_the_active_scene(isolated_scene_manager)
 
 
 if __name__ == '__main__':

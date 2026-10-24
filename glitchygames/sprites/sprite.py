@@ -150,8 +150,11 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         else:
             self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
             self.SPRITE_COUNTERS[my_type]['count'] = 1
-            self.SPRITE_COUNTERS[my_type]['pixels'] = 0
-        self.SPRITE_COUNT += 1  # pyright: ignore[reportConstantRedefinition]
+            # The first sprite's pixels count too (BUGS.md #201: it was recorded as 0)
+            self.SPRITE_COUNTERS[my_type]['pixels'] = self.width * self.height
+        # On the class (BUGS.md #201: self.SPRITE_COUNT += 1 set an attribute on this sprite,
+        # so the class's count, which the teardown report logs, stayed 0)
+        Sprite.SPRITE_COUNT += 1  # pyright: ignore[reportConstantRedefinition]
 
         # None means disabled.
         if self.SPRITE_BREAKPOINTS is not None:

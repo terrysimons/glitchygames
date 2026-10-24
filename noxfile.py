@@ -1369,27 +1369,24 @@ def build_all(session: nox.Session) -> None:
 def code_complexity(session: nox.Session) -> None:
     """Analyze code complexity with wily and generate optional HTML graphs.
 
-    Tools: wily (complexity analysis), generate_complexity_graphs.py (the docs' graphs, generated
-    in a temporary worktree from the whole history into docs/quality/graphs/, which git ignores;
-    nox -s docs-deploy generates them too)
+    Tools: complexity_report.py (wily: the working tree's changes against HEAD, the history measured
+    in a temporary worktree so the working tree is never checked out over), and
+    generate_complexity_graphs.py (the docs' graphs, generated in a temporary worktree from the
+    whole history into docs/quality/graphs/, which git ignores; every mkdocs build does too)
 
     Usage:
-        nox -s code-complexity              # Build cache + show diff vs previous revision
+        nox -s code-complexity              # The working tree's changes against HEAD
         nox -s code-complexity -- --graphs  # Also generate the docs' complexity graphs
         nox -s code-complexity -- --rank    # Show files ranked by complexity
     """
     _install_from_lockfile(session)
 
-    # Build the wily cache from git history
-    session.run('wily', 'build')
-
-    # Show complexity diff against previous revision for all source directories
-    session.run('wily', 'diff', 'glitchygames/', 'scripts/', '--changes-only', success_codes=[0, 1])
+    # The working tree against HEAD, its history measured in a temporary worktree: wily build
+    # checks each revision out where it runs, which in the working tree would rewrite the files
+    # being worked on (scripts/complexity_report.py)
+    rank_arguments = ['--rank'] if '--rank' in session.posargs else []
+    session.run('python', 'scripts/complexity_report.py', *rank_arguments)
 
     # Optional: generate graphs for documentation
     if '--graphs' in session.posargs:
         session.run('python', 'scripts/generate_complexity_graphs.py')
-
-    # Optional: show file rankings
-    if '--rank' in session.posargs:
-        session.run('wily', 'rank', '--limit', '20', 'glitchygames/', 'cyclomatic.complexity')

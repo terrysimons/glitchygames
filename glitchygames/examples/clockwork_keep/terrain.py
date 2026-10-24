@@ -111,7 +111,8 @@ class MovingGear(Sprite):
         move_range_x: Horizontal movement amplitude in pixels.
         move_range_y: Vertical movement amplitude in pixels.
         speed: Movement speed (radians/sec).
-        size: Gear diameter in pixels.
+        size: The gear bar's width in pixels (its height is a quarter of it: a toothed bar,
+            not a round gear).
         groups: Sprite group to add to.
 
     """

@@ -43,6 +43,7 @@ from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
 from glitchygames.replay.driver import SPRITE_DIVERGENCE
+from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine, tamper_first_sprite_rect
@@ -265,11 +266,15 @@ GAMEPLAY_ACTION_MAPS: dict[str, tuple[type, Callable[[str], dict[str, ActionMap]
 }
 
 # The pause screen every game uses (glitchygames/scenes/builtin_scenes/pause_scene.py): SPACE
-# resumes on its release, ESC quits on its press, and Q quits on its release (the base Scene)
+# resumes on its release, ESC quits on its press, and Q quits on its release (the base Scene);
+# a gamepad's Start or A continues and B or Back quits (gamepad_choice.py)
 PAUSE_SCENE_CONTROLS: tuple[Control, ...] = (
     _key_control(scene=PauseScene, action='resume', event_type=pygame.KEYUP, key=pygame.K_SPACE),
     _key_control(scene=PauseScene, action='quit', event_type=pygame.KEYDOWN, key=pygame.K_ESCAPE),
     _key_control(scene=PauseScene, action='quit', event_type=pygame.KEYUP, key=pygame.K_q),
+    *_controls_from_action_maps(
+        scene=PauseScene, action_maps={'': GamepadChoiceButtons().action_map}
+    ),
 )
 
 # Console script -> the controls its scenes hard-code in handlers (no ActionMap): the pause
@@ -342,6 +347,11 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
     **{
         (console_script, PauseScene.__name__, 'quit', InputKind.KEYBOARD): QUITS_ONCE
         for console_script in GAMEPLAY_ACTION_MAPS
+    },
+    **{
+        (console_script, PauseScene.__name__, choice, InputKind.GAMEPAD): NO_GAMEPAD_IN_THE_SESSION
+        for console_script in GAMEPLAY_ACTION_MAPS
+        for choice in GamepadChoice
     },
 }
 

@@ -29,21 +29,30 @@ from glitchygames.examples import brave_adventurer as brave_adventurer_package
 from glitchygames.examples import brave_adventurer_papyrus as papyrus_package
 from glitchygames.examples.brave_adventurer import game as brave_adventurer_game
 from glitchygames.examples.brave_adventurer.constants import (
+    COLLECTIBLE_SCORE_BONUS,
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
     DEATH_RUMBLE_LOW,
+    DISTANCE_SCORE_DIVISOR,
     GAME_OVER_RUMBLE_DURATION,
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
     GROUND_Y,
+    PIT_EDGE_COLOR,
+    PIT_FLOOR_COLOR,
+    PIT_WALL_COLOR,
+    PIT_WALL_SHADOW,
     SCREEN_WIDTH,
     STONE_WALL_WIDTH,
 )
 from glitchygames.examples.brave_adventurer.drawing import (
+    draw_cobra,
     draw_dunes_and_oasis,
     draw_near_ground_details,
     draw_player,
     draw_pyramids,
+    draw_scarab,
+    draw_scorpion,
     draw_sky,
 )
 from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
@@ -729,7 +738,7 @@ class TestPapyrusFallingTransitions:
         falling_sources = [
             transition['from'] for transition in transitions if transition['to'] == 'falling'
         ]
-        assert falling_sources == ['idle', 'jumping']
+        assert falling_sources == ['idle', 'jumping', 'running']
         for transition in transitions:
             if transition['to'] == 'falling':
                 assert transition['when'] == expected_when
@@ -741,7 +750,7 @@ class TestPapyrusFallingTransitions:
                 assert float(threshold_text) == pytest.approx(PAPYRUS_FALLING_VELOCITY_THRESHOLD)
 
     def test_falling_comes_after_other_rules_from_same_state(self, transitions):
-        for source in ('idle', 'jumping'):
+        for source in ('idle', 'jumping', 'running'):
             targets = [
                 transition['to'] for transition in transitions if transition['from'] == source
             ]
@@ -760,7 +769,7 @@ class TestPapyrusFallingTransitions:
             for transition in state_machine._transitions
             if transition.to_state == 'falling'
         ]
-        assert len(falling_conditions) == 2
+        assert len(falling_conditions) == 3
         for condition in falling_conditions:
             assert type(condition).__module__ == 'glitchygames.animation.expressions'
 
@@ -1177,12 +1186,13 @@ class TestEngineCullingKeepsEnemiesAnimated:
         self._position(scene, camera_x=scarab.world_x - 100.0)  # back on screen
         assert scarab.visible
         assert scarab.dirty == 2
-        scene.update()
+        # The pose is drawn in dt_tick (the pose rule), which every sprite gets, culled or not
+        scarab.dt_tick(0.0)
         first_image = pygame.image.tobytes(scarab.image, 'RGBA')
 
         scarab.roll_angle = 1.2  # the wing line leans 3 px: a different picture
         self._position(scene, camera_x=scarab.world_x - 100.0)
-        scene.update()
+        scarab.dt_tick(0.0)
 
         assert scarab.dirty == 2
         assert pygame.image.tobytes(scarab.image, 'RGBA') != first_image
@@ -1718,7 +1728,8 @@ class TestJumpInput:
         assert player.on_ground
         assert player.velocity_y == 0.0
         assert jump_scene.next_scene is jump_scene
-        assert not jump_scene.quit_requested
+        # No quit either (the scene manager's flag: Scene has none, BUGS.md #203)
+        assert not jump_scene.scene_manager.quit_requested
 
 
 class TestQuitKey:
@@ -1987,3 +1998,270 @@ class TestPapyrusSpriteUtilities:
         assert sprite.image.get_size() == frame_image.get_size()
         assert _surface_bytes(sprite.image) == _surface_bytes(frame_image)
         assert sprite.hitbox_scale == 1
+
+
+class TestCollectibleBonusIsKept:
+    """A gold scarab's bonus stays in the score: score = distance score + bonus points (#204)."""
+
+    def test_collecting_a_gold_scarab_adds_its_bonus_to_the_distance_score(self, real_scene):
+        player = real_scene.player
+        collectible = next(iter(real_scene.collectible_sprites))
+        collectible.world_x = player.world_x
+        collectible.base_world_y = player.world_y + 10.0
+
+        real_scene.dt_tick(FRAME_SECONDS)
+
+        assert collectible not in real_scene.collectible_sprites
+        assert player.bonus_points == COLLECTIBLE_SCORE_BONUS
+        distance_score = round(player.max_distance / DISTANCE_SCORE_DIVISOR)
+        assert player.score == distance_score + COLLECTIBLE_SCORE_BONUS
+
+    def test_the_bonus_survives_later_frames(self, real_scene):
+        real_scene._on_player_collect(real_scene.player, next(iter(real_scene.collectible_sprites)))
+
+        for _ in range(3):
+            real_scene.dt_tick(FRAME_SECONDS)
+
+        distance_score = round(real_scene.player.max_distance / DISTANCE_SCORE_DIVISOR)
+        assert real_scene.player.score == distance_score + COLLECTIBLE_SCORE_BONUS
+
+
+class TestRespawnStopsWalking:
+    """Respawning clears the walk target, so the fading player stands still (#206)."""
+
+    def test_a_player_walking_when_it_dies_does_not_walk_on_while_it_fades(self, real_scene):
+        player = real_scene.player
+        # Walking right as it dies: movement input is skipped while respawning, so the walk
+        # target stays whatever it was
+        player.move_right()
+
+        real_scene._respawn_player()
+        position_at_death = player.world_x
+        # The fade out lasts 0.2 s: stay inside it (before the player is repositioned)
+        for _ in range(6):
+            real_scene.dt_tick(FRAME_SECONDS)
+
+        assert player.is_respawning
+        assert player.world_x == pytest.approx(position_at_death)
+
+
+class TestVoiceAssistantNeverStartsInAReplay:
+    """A replay never touches real devices: no voice assistant is discovered in one (#208)."""
+
+    def test_live_play_discovers_the_voice_assistant(self, mocker):
+        _start_display()
+        discover = mocker.patch.object(VoiceAssistant, 'discover', return_value=None)
+
+        BraveAdventurerScene(options={'input_mode': 'joystick'})
+
+        discover.assert_called_once_with()
+
+    def test_a_replay_discovers_no_voice_assistant(self, mocker):
+        discover = mocker.patch.object(VoiceAssistant, 'discover', return_value=None)
+        mocker.patch.object(brave_adventurer_game, 'GameEngine', GoldenTraceEngine)
+        # GameEngine._shutdown quits pygame; later tests on this worker still need it
+        mocker.patch('pygame.quit')
+        mocker.patch('pygame.display.quit')
+        mocker.patch.dict(os.environ)  # --headless sets the SDL driver variables
+        recording = REPLAY_FIXTURE_DIRECTORY / 'brave-adventurer' / 'golden.jsonl.gz'
+        SceneManager._reset()
+        try:
+            with (
+                command_line([
+                    '--log-level',
+                    'warning',
+                    '--replay-trace',
+                    str(recording),
+                    '--headless',
+                ]),
+                pytest.raises(SystemExit) as exit_info,
+            ):
+                brave_adventurer_game.main()
+        finally:
+            pygame.event.clear()
+            SceneManager._reset()
+
+        assert exit_info.value.code == ExitCode.SUCCESS
+        discover.assert_not_called()
+
+
+class TestScarabInAPitIsDrawn:
+    """A scarab that rolled into a pit is drawn over the pit fill, as the player is (#209.5)."""
+
+    @pytest.mark.parametrize(
+        ('scene_class', 'scarab_class'),
+        [(BraveAdventurerScene, Scarab), (PapyrusBraveAdventurerScene, PapyrusScarab)],
+    )
+    def test_a_scarab_on_the_pit_floor_is_visible(self, scene_class, scarab_class):
+        _start_display()
+        # The pit floor is the display's bottom: the game's own 800x480 display, which the
+        # scene is rendered to (and presented, as a frame)
+        screen = set_display_mode(size=SCREEN_SIZE)
+        scene = scene_class(options={'input_mode': 'joystick'})
+        scarab = next(enemy for enemy in scene.enemy_sprites if isinstance(enemy, scarab_class))
+        # Screen 4's pit runs from world x 3550 to 3650
+        scarab.world_x = 3590.0
+        scarab.roll_speed = 0.0
+        for _ in range(60):
+            scarab.dt_tick(FRAME_SECONDS)
+            scene._resolve_enemy_terrain_collisions()
+        scene.camera.world_x = 3300.0
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=(800, 480)
+        )
+        scene.all_sprites.update()
+
+        scene.render(screen)
+
+        assert scarab.visible
+        assert scarab.rect.top > GROUND_Y  # in the pit, below the ground line
+        pit_colors = {PIT_WALL_COLOR, PIT_FLOOR_COLOR, PIT_EDGE_COLOR, PIT_WALL_SHADOW}
+        scarab_pixels = {
+            tuple(screen.get_at((x, y)))[:3]
+            for x in range(scarab.rect.left, scarab.rect.right)
+            for y in range(scarab.rect.top, min(scarab.rect.bottom, SCREEN_SIZE[1]))
+        }
+        assert scarab_pixels - pit_colors
+
+
+class TestEnemyPoseIsDrawnInDtTick:
+    """Cobra, Scarab and Scorpion draw their pose in dt_tick, before collision (#209.6).
+
+    Their hitboxes are their visible pixels, so a pose drawn in update() (the render phase) was a
+    frame late for collision, and nothing at all before the first draw.
+    """
+
+    @staticmethod
+    def _drawn(draw_function, size, **arguments):
+        surface = pygame.Surface(size, pygame.SRCALPHA)
+        draw_function(surface, **arguments)
+        return _surface_bytes(surface)
+
+    def test_a_new_enemy_already_shows_its_pose(self):
+        _start_display()
+        group = pygame.sprite.LayeredDirty()
+        cobra = Cobra(100.0, group)
+        scarab = Scarab(100.0, group)
+        scorpion = Scorpion(100.0, group)
+
+        assert _surface_bytes(cobra.image) == self._drawn(
+            draw_cobra, cobra.image.get_size(), striking=False, animation_timer=0.0
+        )
+        assert _surface_bytes(scarab.image) == self._drawn(
+            draw_scarab, scarab.image.get_size(), roll_angle=0.0
+        )
+        assert _surface_bytes(scorpion.image) == self._drawn(
+            draw_scorpion, scorpion.image.get_size(), facing_right=True
+        )
+
+    def test_cobra_dt_tick_draws_the_strike(self):
+        _start_display()
+        cobra = Cobra(100.0, pygame.sprite.LayeredDirty())
+
+        cobra.dt_tick(Cobra.STRIKE_INTERVAL)
+
+        assert cobra.striking
+        expected = self._drawn(
+            draw_cobra,
+            cobra.image.get_size(),
+            striking=True,
+            animation_timer=cobra.dt_timer,
+        )
+        assert _surface_bytes(cobra.image) == expected
+
+    def test_scarab_dt_tick_draws_the_roll(self):
+        _start_display()
+        scarab = Scarab(100.0, pygame.sprite.LayeredDirty())
+
+        scarab.dt_tick(0.5)
+
+        expected = self._drawn(draw_scarab, scarab.image.get_size(), roll_angle=scarab.roll_angle)
+        assert _surface_bytes(scarab.image) == expected
+
+    def test_scorpion_dt_tick_draws_the_turn_at_its_patrol_end(self):
+        _start_display()
+        scorpion = Scorpion(100.0, pygame.sprite.LayeredDirty(), patrol_range=10.0)
+
+        scorpion.dt_tick(1.0)
+
+        assert not scorpion.facing_right
+        expected = self._drawn(draw_scorpion, scorpion.image.get_size(), facing_right=False)
+        assert _surface_bytes(scorpion.image) == expected
+
+    def test_update_leaves_the_pose_alone(self):
+        _start_display()
+        group = pygame.sprite.LayeredDirty()
+        for enemy in (Cobra(100.0, group), Scarab(100.0, group), Scorpion(100.0, group)):
+            enemy.dt_tick(0.25)
+            pose = _surface_bytes(enemy.image)
+            enemy.image.fill((0, 0, 0, 0))
+
+            enemy.update()
+
+            assert _surface_bytes(enemy.image) == _surface_bytes(
+                pygame.Surface(enemy.image.get_size(), pygame.SRCALPHA)
+            ), type(enemy).__name__
+            assert pose != _surface_bytes(enemy.image)
+
+
+# A player running right that has just left the ground and started to fall
+RUNNING_OFF_A_LEDGE_CONTEXT = {'velocity_x': 200.0, 'velocity_y': 20.0, 'on_ground': False}
+
+
+class TestRunningOffALedgeFalls:
+    """Running off a ledge shows the falling pose in both editions (#209.7)."""
+
+    def test_primitives_player_goes_from_running_to_falling(self):
+        _start_display()
+        player = Player(world_x=100.0, world_y=300.0, groups=pygame.sprite.LayeredDirty())
+        player.state_machine.set_state(Player.RUNNING)
+
+        player.state_machine.evaluate(RUNNING_OFF_A_LEDGE_CONTEXT)
+
+        assert player.state_machine.current_state == Player.FALLING
+
+    def test_papyrus_player_goes_from_running_to_falling(self):
+        _start_display()
+        player = PapyrusPlayer(world_x=100.0, world_y=300.0, groups=pygame.sprite.LayeredDirty())
+        assert player.state_machine is not None
+        player.state_machine.set_state(PapyrusPlayer.RUNNING)
+
+        player.state_machine.evaluate(RUNNING_OFF_A_LEDGE_CONTEXT)
+
+        assert player.state_machine.current_state == PapyrusPlayer.FALLING
+
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_running_on_the_ground_stays_running(self, scene_class):
+        _start_display()
+        scene = scene_class(options={'input_mode': 'joystick'})
+        _press_key(scene, pygame.K_RIGHT)
+
+        for _ in range(30):
+            scene.dt_tick(FRAME_SECONDS)
+
+        assert scene.player.state_machine.current_state == 'running'
+
+
+class TestBraveVersionFlag:
+    """-v/--version prints the edition's name and version and exits (BUGS.md #178 item 25)."""
+
+    @pytest.mark.parametrize(
+        ('game_module', 'expected_output'),
+        [
+            (brave_adventurer_game, 'Brave Adventurer 1.0\n'),
+            (papyrus_game, 'Brave Adventurer: Papyrus Edition 1.0\n'),
+        ],
+    )
+    @pytest.mark.parametrize('version_flag', ['-v', '--version'])
+    def test_version_flag_prints_the_version_and_exits(
+        self, mocker, capsys, game_module, expected_output, version_flag
+    ):
+        mocker.patch.object(game_module, 'GameEngine', GoldenTraceEngine)
+        # A game that ignored the flag would run its loop here; the flag must exit before start()
+        start = mocker.patch.object(GoldenTraceEngine, 'start')
+        with command_line([version_flag]), pytest.raises(SystemExit) as exit_info:
+            game_module.main()
+
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert capsys.readouterr().out == expected_output
+        start.assert_not_called()

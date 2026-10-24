@@ -287,14 +287,6 @@ class TestBitmapEditorFilmStripIntegration:
         assert real_editor.canvas.current_animation == 'strip_1'
         assert real_editor.canvas.current_frame == 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'Production bug: FilmStripCoordinator._add_new_animation names the new animation '
-            'strip_<count + 1>, so after a delete it can reuse a name still in use and '
-            "silently replace that animation's frames"
-        ),
-    )
     def test_adding_after_a_delete_does_not_replace_an_existing_animation(self, real_editor):
         """Test that a new animation added after a delete gets a name of its own."""
         add_strips(real_editor, count=2)
@@ -305,6 +297,30 @@ class TestBitmapEditorFilmStripIntegration:
 
         assert len(animation_names(real_editor)) == 3
         assert real_editor.canvas.animated_sprite.animations['strip_3'] == strip_3_frames
+
+    def test_inserting_after_a_delete_does_not_replace_an_existing_animation(self, real_editor):
+        """Test that a strip inserted after a delete (the add tab's path) gets its own name."""
+        add_strips(real_editor, count=2)
+        real_editor.film_strip_coordinator._delete_animation('strip_1', confirmed=True)
+        strip_3_frames = list(real_editor.canvas.animated_sprite.animations['strip_3'])
+
+        real_editor.film_strip_coordinator._add_new_animation(insert_after_index=0)
+
+        assert animation_names(real_editor) == ['strip_2', 'strip_4', 'strip_3']
+        assert real_editor.canvas.animated_sprite.animations['strip_3'] == strip_3_frames
+        assert real_editor.selected_animation == 'strip_4'
+
+    def test_adding_to_a_loaded_sprite_does_not_replace_its_animation(self, real_editor):
+        """Test that a new strip never takes a name a loaded sprite already uses."""
+        loaded_sprite = make_real_animated_sprite(frame_counts={'strip_2': 2})
+        real_editor.canvas.animated_sprite = loaded_sprite
+        real_editor.film_strip_coordinator.on_sprite_loaded(loaded_sprite)
+        loaded_frames = list(real_editor.canvas.animated_sprite.animations['strip_2'])
+
+        real_editor.film_strip_coordinator._add_new_animation()
+
+        assert animation_names(real_editor) == ['strip_2', 'strip_3']
+        assert real_editor.canvas.animated_sprite.animations['strip_2'] == loaded_frames
 
 
 class TestFilmStripWidgetIntegration:

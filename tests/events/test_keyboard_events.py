@@ -19,6 +19,7 @@ from glitchygames.events import (
     HashableEvent,
     KeyboardEvents,
     KeyboardEventStubs,
+    ResourceManager,
     UnhandledEventError,
 )
 from glitchygames.events.keyboard import KeyboardEventManager
@@ -551,7 +552,9 @@ class TestKeyboardEvents:
         ]
 
         for modifier_key, key in chord_combinations:
-            # A fresh manager per combination, so no earlier key stays tracked
+            # A fresh manager per combination, so no earlier key stays tracked (constructing
+            # the shared manager again would return it as it is: BUGS.md #198)
+            ResourceManager.release_shared_instances()
             scene = KeyboardRecordingScene()
             manager = KeyboardEventManager(game=scene)
             manager.on_key_down_event(

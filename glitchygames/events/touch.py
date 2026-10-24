@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -28,6 +28,9 @@ class TouchEventManager(ResourceManager):
 
     class TouchEventProxy(TouchEvents, ResourceManager):
         """Touch event proxy."""
+
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
 
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the finger event proxy.

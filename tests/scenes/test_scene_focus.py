@@ -5,6 +5,7 @@ on_key_down_event, _handle_focused_sprite_events, and _handle_scene_key_events.
 """
 
 import pygame
+import pytest
 
 from glitchygames import events
 from glitchygames.scenes import Scene
@@ -54,6 +55,28 @@ def _key_down(key: int) -> events.HashableEvent:
     return events.HashableEvent(
         pygame.KEYDOWN, key=key, scancode=qwerty_scancode(key=key), mod=pygame.KMOD_NONE
     )
+
+
+def _key_up(key: int) -> events.HashableEvent:
+    """Return a real KEYUP event for the key, with its US QWERTY scancode.
+
+    Returns:
+        events.HashableEvent: The event.
+
+    """
+    return events.HashableEvent(
+        pygame.KEYUP, key=key, scancode=qwerty_scancode(key=key), mod=pygame.KMOD_NONE
+    )
+
+
+def _take_quit_events() -> list[pygame.event.Event]:
+    """Remove and return the QUIT events waiting in pygame's real event queue.
+
+    Returns:
+        list[pygame.event.Event]: The QUIT events.
+
+    """
+    return pygame.event.get(eventtype=pygame.QUIT)
 
 
 class TestHandleFocusManagement:
@@ -160,28 +183,40 @@ class TestOnKeyDownEvent:
 
         # The focused sprite should handle it
         assert focused_sprite.key_down_events == [event]
-        # Scene-level handling (quit_requested) should NOT happen
-        assert not getattr(scene, 'quit_requested', False)
 
-    def test_scene_handles_q_key_when_no_focused_sprites(self):
-        """Test that Q key sets quit_requested when no sprites are focused."""
+    def test_q_quits_once_on_its_release_and_its_press_claims_nothing(self, caplog):
+        """Q's press neither quits nor says it does; its release posts one QUIT (BUGS.md #203).
+
+        The press used to log "Quit requested" and set the scene's quit_requested, which
+        nothing read: the quit comes from the release (Scene.on_key_up_event).
+        """
         scene = Scene()
+        _take_quit_events()
+        caplog.set_level('INFO')
 
-        event = _key_down(pygame.K_q)
+        # As SceneManager routes a key-down: the press is recorded, then handled
+        scene.record_key_press(key=pygame.K_q)
+        scene.on_key_down_event(_key_down(pygame.K_q))
 
-        scene.on_key_down_event(event)
+        assert _take_quit_events() == []
+        assert 'Quit requested' not in caplog.text
+        assert not hasattr(scene, 'quit_requested')
 
-        assert scene.quit_requested is True
+        scene.on_key_up_event(_key_up(pygame.K_q))
 
-    def test_non_q_key_does_not_set_quit(self):
-        """Test that non-Q keys do not set quit_requested."""
+        assert len(_take_quit_events()) == 1
+        assert 'Quit requested' in caplog.text
+
+    def test_non_q_key_does_not_quit(self):
+        """A key other than Q or ESC neither quits on its press nor on its release."""
         scene = Scene()
+        _take_quit_events()
 
-        event = _key_down(pygame.K_a)
+        scene.record_key_press(key=pygame.K_a)
+        scene.on_key_down_event(_key_down(pygame.K_a))
+        scene.on_key_up_event(_key_up(pygame.K_a))
 
-        scene.on_key_down_event(event)
-
-        assert not getattr(scene, 'quit_requested', False)
+        assert _take_quit_events() == []
 
     def test_focused_sprite_stops_event_propagation(self):
         """Test that focused sprite handling stops further key event propagation."""
@@ -190,13 +225,11 @@ class TestOnKeyDownEvent:
         focused_sprite = FocusSprite(is_active=True)
         scene.all_sprites.add(focused_sprite)
 
-        # Q would set quit_requested at scene level; the focused sprite takes it instead
+        # The focused sprite takes Q instead of the scene
         event = _key_down(pygame.K_q)
 
         scene.on_key_down_event(event)
 
-        # Scene-level key events never ran
-        assert scene.quit_requested is False
         assert focused_sprite.key_down_events == [event]
 
 
@@ -278,33 +311,12 @@ class TestHandleFocusedSpriteEvents:
 class TestHandleSceneKeyEvents:
     """Test Scene._handle_scene_key_events() behavior."""
 
-    def test_q_key_sets_quit_requested(self):
-        """Test that Q key sets quit_requested to True."""
+    @pytest.mark.parametrize('key', [pygame.K_q, pygame.K_ESCAPE, pygame.K_a])
+    def test_a_press_does_nothing_at_scene_level(self, key):
+        """The base scene acts on no key press (Q and ESC quit on release): a hook for scenes."""
         scene = Scene()
+        _take_quit_events()
 
-        event = _key_down(pygame.K_q)
+        scene._handle_scene_key_events(_key_down(key))
 
-        scene._handle_scene_key_events(event)
-
-        assert scene.quit_requested is True
-
-    def test_non_q_key_does_not_set_quit_requested(self):
-        """Test that non-Q keys do not set quit_requested."""
-        scene = Scene()
-
-        event = _key_down(pygame.K_a)
-
-        scene._handle_scene_key_events(event)
-
-        assert not getattr(scene, 'quit_requested', False)
-
-    def test_escape_key_does_not_set_quit_requested(self):
-        """Test that escape key does not set quit_requested via _handle_scene_key_events."""
-        scene = Scene()
-
-        event = _key_down(pygame.K_ESCAPE)
-
-        scene._handle_scene_key_events(event)
-
-        # Only Q key triggers quit in _handle_scene_key_events
-        assert not getattr(scene, 'quit_requested', False)
+        assert _take_quit_events() == []

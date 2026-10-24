@@ -565,6 +565,7 @@ def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
                 # Expressions phase 2 moved the falling transitions into the TOML, appended last
                 ('idle', 'falling'),
                 ('jumping', 'falling'),
+                ('running', 'falling'),
             ],
         ),
         (

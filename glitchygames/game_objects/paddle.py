@@ -170,13 +170,8 @@ class HorizontalPaddle(BasePaddle):
             collision_sound=collision_sound,
         )
 
-    @override
-    def update(self: Self) -> None:
-        """Constrain paddle position at screen boundaries.
-
-        Movement is handled in dt_tick() for frame-rate independence.
-        This method only clamps position and stops movement at edges.
-        """
+    def _clamp_to_screen(self: Self) -> None:
+        """Keep the paddle on screen, stopping it at an edge (so it does not bounce)."""
         assert self.screen is not None
         screen_rect = self.screen.get_rect()
         if self.rect.x < 0:
@@ -222,6 +217,9 @@ class HorizontalPaddle(BasePaddle):
         movement = self._move.get_movement_with_dt(dt)
         self._sub_pixel_x += movement
         self.rect.x = round(self._sub_pixel_x)
+        # Clamped here, in game logic, so the frame's collision sees the paddle on screen
+        # (update() runs in the render phase, after collision: the pose rule, CLAUDE.md)
+        self._clamp_to_screen()
         self.dirty = 1
 
 
@@ -267,11 +265,8 @@ class VerticalPaddle(BasePaddle):
             collision_sound=collision_sound,
         )
 
-    @override
-    def update(self: Self) -> None:
-        """Update the paddle."""
-        # Movement is now handled in dt_tick() for frame-rate independence
-        # Constrain position at boundaries AND stop movement to prevent bouncing
+    def _clamp_to_screen(self: Self) -> None:
+        """Keep the paddle on screen, stopping it at an edge (so it does not bounce)."""
         if self.rect.y < 0:
             self.rect.y = 0
             self._sub_pixel_y = 0.0
@@ -315,4 +310,7 @@ class VerticalPaddle(BasePaddle):
         movement = self._move.get_movement_with_dt(dt)
         self._sub_pixel_y += movement
         self.rect.y = round(self._sub_pixel_y)
+        # Clamped here, in game logic, so the frame's collision sees the paddle on screen
+        # (update() runs in the render phase, after collision: the pose rule, CLAUDE.md)
+        self._clamp_to_screen()
         self.dirty = 1

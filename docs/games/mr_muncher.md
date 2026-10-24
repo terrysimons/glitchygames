@@ -50,8 +50,8 @@ tied to a key's physical position and works the same on every keyboard layout.
 | ESC, P, or gamepad Start | Pause (not after the game is over) | `ActionMap` (`pause`) |
 | Window loses focus | Pause | `on_window_focus_lost_event` |
 | Q | Quit (on the press) | `ActionMap` (`quit`), then `scene_manager.quit()` |
-| On the pause screen: SPACE / ESC / Q | Resume (on release) / quit / quit (on release) | The engine's `PauseScene` |
-| On the game-over screen: SPACE (release), gamepad A or Start / ESC | New game / quit | `MrMuncherGameOverScene` and `GameOverScene` |
+| On the pause screen: SPACE or gamepad Start or A / ESC or gamepad B or Back / Q | Resume (on release, after a press there) / quit (on the press) / quit (on release) | The engine's `PauseScene` (both gamepad event layers) |
+| On the game-over screen: SPACE (release), gamepad A or Start / ESC or gamepad B or Back | New game / quit | `MrMuncherGameOverScene` and `GameOverScene` |
 
 Note that ESC pauses the game, but ESC on the pause screen quits. The pause and game-over
 screens are engine scenes and check key codes (`event.key`), not scancodes.
@@ -99,14 +99,14 @@ stateDiagram-v2
         Pause : PauseScene
     }
     Reel --> Pause : ESC, P, Start or focus lost<br/>next_scene = PauseScene
-    Pause --> Reel : SPACE released<br/>(setup() runs again)
+    Pause --> Reel : SPACE, Start or A released<br/>(setup() runs again)
     Reel --> NextReel : CUT! then flash<br/>next_scene = new scene
     NextReel --> Reel : the same flow
     Reel --> GameOver : THE END shown for 2.5 s<br/>transition_to(..., FadeTransition(1 s))
     GameOver --> NewGame : SPACE released, or A or Start<br/>switch_to_scene
     Reel --> [*] : Q (scene_manager.quit())
-    Pause --> [*] : ESC or Q
-    GameOver --> [*] : ESC
+    Pause --> [*] : ESC, B, Back or Q
+    GameOver --> [*] : ESC, B or Back
 ```
 
 - **Next reel**: `_go_to_next_level` sets `next_scene` to a new `MrMuncherScene` with
@@ -140,7 +140,7 @@ classDiagram
         }
         class PauseScene {
             the frozen game, dimmed
-            SPACE resumes it, ESC or Q quits
+            SPACE or Start/A resumes it, ESC, B/Back or Q quits
         }
         class GameOverScene {
             score and high scores

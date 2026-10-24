@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pause scene for paddleslap game."""
+"""The pause screen every example game shows (the engine's built-in PauseScene)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,13 @@ from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import KeyEvent, WindowEvent
+    from glitchygames.events.base import (
+        ControllerButtonEvent,
+        JoyButtonEvent,
+        KeyEvent,
+        WindowEvent,
+    )
+from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.sprites import Sprite
 from glitchygames.ui.message_screen import MessageScreen
 
@@ -61,6 +67,8 @@ class PauseScene(Scene):
         self.background_color = BLACK
         self.overlay = None
         self._space_pressed = False
+        # A gamepad's Start or A resumes, B or Back quits, as SPACE and ESC do
+        self._gamepad_buttons = GamepadChoiceButtons()
         # The gameplay scene this pause screen froze; the debug overlay inspects it instead
         self._paused_scene: Scene | None = None
 
@@ -126,6 +134,71 @@ class PauseScene(Scene):
             self.resume()
         else:
             super().on_key_up_event(event)
+
+    @override
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
+        """A mapped gamepad's B or Back quits; Start or A arms resuming (gamepad_choice.py).
+
+        Args:
+            event: The controller button down event.
+
+        """
+        self._on_gamepad_button_down(event)
+        super().on_controller_button_down_event(event)
+
+    @override
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
+        """A mapped gamepad's Start or A, released after its press here, resumes the game.
+
+        Args:
+            event: The controller button up event.
+
+        """
+        self._on_gamepad_button_up(event)
+        super().on_controller_button_up_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
+        """Any other gamepad's B or Back quits; Start or A arms resuming (gamepad_choice.py).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        self._on_gamepad_button_down(event)
+        super().on_joy_button_down_event(event)
+
+    @override
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
+        """Any other gamepad's Start or A, released after its press here, resumes the game.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        self._on_gamepad_button_up(event)
+        super().on_joy_button_up_event(event)
+
+    def _on_gamepad_button_down(self: Self, event: ControllerButtonEvent | JoyButtonEvent) -> None:
+        """Quit for B or Back, as ESC does (BUGS.md #209 item 10: no gamepad could).
+
+        Args:
+            event: The button down event, from either layer.
+
+        """
+        if self._gamepad_buttons.button_pressed(event) is GamepadChoice.QUIT:
+            self.scene_manager.quit()
+
+    def _on_gamepad_button_up(self: Self, event: ControllerButtonEvent | JoyButtonEvent) -> None:
+        """Resume the game for a Start or A pressed here, as SPACE does.
+
+        Args:
+            event: The button up event, from either layer.
+
+        """
+        if self._gamepad_buttons.button_released(event) is GamepadChoice.CONTINUE:
+            self.log.info('Resuming game...')
+            self.resume()
 
     @override
     def on_window_focus_gained_event(self: Self, event: WindowEvent) -> None:

@@ -353,7 +353,7 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'windows_timer_1ms',
     'perf_trim_percent',
     'fps_histogram',
-    # Derived from log_level: whether events are logged, not what the game does
+    # --debug-events: whether unhandled events are logged, not what the game does
     'debug_events',
 })
 

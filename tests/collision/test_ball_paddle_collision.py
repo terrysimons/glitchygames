@@ -2,8 +2,7 @@
 
 These use real pygame surfaces so the ball's visible circle (radius 5, drawn in the middle of
 its 20x20 colorkey image) gives its real collision rect: a 10x10 box offset (5, 5) from the
-drawn position. They live under tests/collision because tests/conftest.py mocks pygame (and
-pygame.draw) for every test path containing "game_objects" or "scene".
+drawn position.
 """
 
 import math

@@ -107,6 +107,18 @@ class RecordingScene(Scene):
         """Record the event."""
         self.received.append(('on_sys_wm_event', event))
 
+    def on_text_input_event(self, event: HashableEvent) -> None:
+        """Record the event."""
+        self.received.append(('on_text_input_event', event))
+
+    def on_text_editing_event(self, event: HashableEvent) -> None:
+        """Record the event."""
+        self.received.append(('on_text_editing_event', event))
+
+    def on_window_take_focus_event(self, event: HashableEvent) -> None:
+        """Record the event."""
+        self.received.append(('on_window_take_focus_event', event))
+
     def received_handler_names(self) -> list[str]:
         """Return the names of the handlers called so far, in order.
 
@@ -354,6 +366,31 @@ class TestEngineEventSystem:
         assert scene.received_handler_names() == ['on_active_event']
         _, active_event = scene.received[0]
         assert (active_event.gain, active_event.state) == (1, 1)
+
+    def test_text_events_reach_the_scenes_text_handlers(self, engine, scene):
+        """TEXTINPUT and TEXTEDITING reach on_text_input/editing_event (BUGS.md #200 item 1).
+
+        They went to process_unimplemented_event, so the scene's text handlers were never called.
+        """
+        handled = process_posted(
+            engine,
+            [
+                pygame.event.Event(pygame.TEXTEDITING, text='ka', start=0, length=2),
+                pygame.event.Event(pygame.TEXTINPUT, text='a'),
+            ],
+        )
+
+        assert handled is True
+        assert scene.received_handler_names() == ['on_text_editing_event', 'on_text_input_event']
+        assert [event.text for _, event in scene.received] == ['ka', 'a']
+        assert pygame.TEXTINPUT not in engine.unhandled_events
+
+    def test_window_take_focus_reaches_the_scenes_handler(self, engine, scene):
+        """WINDOWTAKEFOCUS reaches on_window_take_focus_event (BUGS.md #200 item 1)."""
+        handled = process_posted(engine, [pygame.event.Event(pygame.WINDOWTAKEFOCUS)])
+
+        assert handled is True
+        assert scene.received_handler_names() == ['on_window_take_focus_event']
 
     def test_game_engine_user_event_handling(self, engine, scene):
         """FPSEVENT, a registered GAMEEVENT and MENUEVENT reach their handlers."""

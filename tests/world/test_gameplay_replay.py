@@ -1252,7 +1252,7 @@ class TestReplayDoors:
         assert {'replay_trace', 'record_trace', 'log_level'} <= REPLAY_LOCAL_OPTIONS
 
     def test_debug_events_stays_local(self):
-        """debug_events follows this run's log level, never the recording's."""
+        """debug_events follows this run's --debug-events, never the recording's."""
         options = {'debug_events': True}
         apply_recorded_options(options=options, recorded={'debug_events': False})
         assert options == {'debug_events': True}
@@ -2670,6 +2670,13 @@ class TestRealInputBlocking:
         """Event managers call set_allowed when made (a scene's widgets make them mid-run)."""
         from glitchygames.events.joystick import JoystickEventManager
 
+        class MidRunJoystickEventManager(JoystickEventManager):
+            """A manager class with no instance yet, so constructing it runs its __init__.
+
+            Constructing JoystickEventManager itself would return the engine's shared
+            instance without initializing it again (BUGS.md #198).
+            """
+
         observed: dict[str, Any] = {'after_pumps': []}
         original_pump_events = ReplaySources.pump_events
 
@@ -2681,7 +2688,7 @@ class TestRealInputBlocking:
             return batch
 
         def make_event_manager() -> None:
-            JoystickEventManager(game=SceneManager().active_scene)
+            MidRunJoystickEventManager(game=SceneManager().active_scene)
             observed['right_after_manager'] = pygame.event.get_blocked(pygame.JOYAXISMOTION)
             observed['pumps_before_manager'] = len(observed['after_pumps'])
 

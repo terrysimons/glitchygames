@@ -114,7 +114,6 @@ class TestSceneEvents:
         manager.switch_to_scene(scene)
 
         manager.on_key_down_event(_key_down(pygame.K_q))
-        assert scene.quit_requested is True
         assert _take_quit_events() == []  # the quit waits for the release
 
         manager.on_key_up_event(_key_up(pygame.K_q))
@@ -210,7 +209,6 @@ class TestSceneEvents:
         manager.on_quit_event(events.HashableEvent(pygame.QUIT))
 
         assert manager.quit_requested is True
-        assert scene2.quit_requested is False
 
     def test_scene_event_handling_edge_cases(self):
         """A key release whose press the scene never saw does not quit, even for Q."""
@@ -219,7 +217,6 @@ class TestSceneEvents:
         scene.on_key_up_event(_key_up(pygame.K_q))
 
         assert _take_quit_events() == []
-        assert scene.quit_requested is False
 
     def test_scene_event_handling_with_exceptions(self, caplog, mocker):
         """A game event of an unregistered subtype is logged as an error, not raised."""

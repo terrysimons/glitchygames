@@ -89,6 +89,10 @@ class EventManager(ResourceManager):
     """Root event manager."""
 
     log: ClassVar[logging.Logger] = LOG
+    # Each construction is a new instance (ResourceManager): a GameEngine is made for each run
+    # (a recording, then its replay, in one process) and initialized for it; SceneManager's own
+    # __new__ keeps its singleton
+    SHARES_INSTANCE: ClassVar[bool] = False
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
     #

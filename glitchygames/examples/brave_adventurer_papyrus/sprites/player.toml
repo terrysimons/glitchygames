@@ -411,3 +411,9 @@ when = "velocity_y > 10.0 and not on_ground"
 from = "jumping"
 to = "falling"
 when = "velocity_y > 10.0 and not on_ground"
+
+# Running off a ledge falls
+[[transition]]
+from = "running"
+to = "falling"
+when = "velocity_y > 10.0 and not on_ground"

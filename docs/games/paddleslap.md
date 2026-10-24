@@ -27,7 +27,7 @@ The game adds these options to the engine's own (`Game.args()`; the engine's opt
 | --- | --- | --- |
 | `-b`, `--balls N` | `1` | Balls on the court when the game starts |
 | `--ball-spawn-mode MODE` | `paddle_only` | When extra balls appear: `paddle_only`, `wall_only`, `ball_only`, `frequent`, `rare`, `none` (see [Ball spawning](#ball-spawning)) |
-| `-v`, `--version` | off | Declared as "print the game version and exit", but nothing reads it: the game starts as usual |
+| `-v`, `--version` | off | Prints `Paddle Slap 1.1` and exits before the game starts (argparse's `version` action) |
 
 The game sets no `TARGET_FPS` and no `MAX_FRAME_SECONDS`, so it runs at the engine's default
 60.01 FPS and its logic gets the raw frame time.
@@ -44,11 +44,11 @@ The game sets no `TARGET_FPS` and no `MAX_FRAME_SECONDS`, so it runs at the engi
 | --- | --- | --- |
 | Game | `Space` position (on release) | Pause |
 | Game | `Q` or `Esc` (on release) | Quit (the base `Scene` posts `QUIT`) |
-| Pause | `Space` (press, then release) | Resume |
-| Pause | `Esc` (on press), `Q` (on release) | Quit |
+| Pause | `Space`, or a gamepad's Start or A (press, then release) | Resume |
+| Pause | `Esc` or a gamepad's B or Back (on press), `Q` (on release) | Quit |
 | Pause | window focus regained (after 0.5 s paused) | Resume |
-| Game over | `Space` (press, then release) | New game |
-| Game over | `Esc` (on press), `Q` (on release) | Quit |
+| Game over | `Space`, or a gamepad's Start or A (press, then release) | New game |
+| Game over | `Esc` or a gamepad's B or Back (on press), `Q` (on release) | Quit |
 | Game over | nothing for 10 s of game time | Play the attract-mode demo; any key or button ends it |
 
 The paddle and pause keys are bound by **scancode** (a physical key position, the same place on
@@ -85,15 +85,15 @@ stateDiagram-v2
 
     [*] --> Game : GameEngine(game=Game).start()
     Game --> PauseScene : Space released<br/>Scene.pause() sets next_scene
-    PauseScene --> Game : Space, or focus regained<br/>resume() switches back to the same Game
+    PauseScene --> Game : Space, Start or A, or focus regained<br/>resume() switches back to the same Game
     Game --> GameOver : last ball gone<br/>_show_game_over() sets next_scene
     GameOver --> Demo : 10 s of game time idle<br/>play_recording(then=self)
     Demo --> GameOver : any key or button,<br/>or the demo's end
-    GameOver --> NewGame : Space<br/>resume()
+    GameOver --> NewGame : Space, Start or A<br/>resume()
     NewGame --> Game
     Game --> [*] : Q or Esc
     PauseScene --> [*] : Q or Esc
-    GameOver --> [*] : Q or Esc
+    GameOver --> [*] : Q, Esc, B or Back
 ```
 
 - **Pause and game over switch at the end of the frame.** Both set `next_scene` instead of
@@ -171,11 +171,11 @@ classDiagram
         }
         class PauseScene {
             the frozen game, dimmed
-            SPACE resumes it, ESC quits
+            SPACE or Start/A resumes it, ESC or B/Back quits
         }
         class GameOverScene {
             score and high scores
-            SPACE restarts, ESC quits
+            SPACE or Start/A restarts, ESC or B/Back quits
         }
     }
     namespace PaddleSlap {
@@ -227,8 +227,7 @@ classDiagram
         }
         class VerticalPaddle {
             up() down() stop()
-            dt_tick(dt)
-            update()
+            dt_tick(dt): move, then clamp
         }
         class HorizontalPaddle
         class BallSprite {
@@ -269,7 +268,7 @@ in `Game.dt_tick`. `HorizontalPaddle` is not used by PaddleSlap; it is shown bec
 
 | Sprite | Space | Size and image | Who writes `rect` |
 | --- | --- | --- | --- |
-| `VerticalPaddle` ×2 | Screen (no `COORDINATE_SPACE`) | 20×100 white rectangle; left at x = 0, right at x = screen width − 20, vertically centred | The paddle itself: `dt_tick` rounds its float `_sub_pixel_y` into `rect.y`; `update()` clamps it to the screen |
+| `VerticalPaddle` ×2 | Screen (no `COORDINATE_SPACE`) | 20×100 white rectangle; left at x = 0, right at x = screen width − 20, vertically centred | The paddle itself: `dt_tick` rounds its float `_sub_pixel_y` into `rect.y`, then clamps it to the screen (stopping it at an edge) |
 | `BallSprite` | World (`CoordinateSpace.WORLD`) | 20×20 image with colour key 0 and a filled circle of radius 5 in the middle; colour set through the `color` property, which redraws the circle | The engine: each frame `position_world_sprites` writes `rect` from the snapped `world_x`/`world_y` |
 
 - **The camera never moves.** `Game` sets no follow target and no `camera_target()`, so the
@@ -319,7 +318,7 @@ sequenceDiagram
     SM->>G: dt_tick(dt)
     G->>G: _process_paddle_input()
     G->>P: up() / down() / stop()
-    G->>P: dt_tick(dt): move, write rect.y
+    G->>P: dt_tick(dt): move, write rect.y, clamp to the screen
     G->>B: dt_tick(dt)
     B->>B: move, wall bounce, kill() past an edge
     G->>G: _resolve_collisions()
@@ -334,7 +333,6 @@ sequenceDiagram
     SM->>G: event handlers feed the ActionMaps
     SM->>SM: position the balls
     SM->>G: update() (render phase)
-    G->>P: update(): clamp to the screen
     SM->>SM: draw, present, pace
 ```
 
@@ -347,8 +345,9 @@ sequenceDiagram
   (`test_update_resolves_no_collisions`).
 - **A dead ball stays in the `balls` layer until `_resolve_collisions` removes it**, so
   `_on_ball_paddle_collision` skips balls that are no longer `alive()`.
-- **The paddle's screen clamp runs in `update()`.** A paddle moved past the top or bottom edge in
-  `dt_tick` is clamped (and stopped) only in the render phase, after this frame's collisions.
+- **The paddle's screen clamp runs in its `dt_tick`.** A paddle moved past the top or bottom edge
+  is clamped (and stopped) in the same `dt_tick`, so this frame's collisions see it on screen
+  (the pose rule keeps `update()` for visual work; `HorizontalPaddle` clamps the same way).
 
 ### Ball versus wall
 
@@ -527,8 +526,9 @@ flowchart TB
 - **Instance ids, not player slots.** SDL numbers devices in the order they appear, so the first
   pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
   instance id and no longer matches its binding.
-- **Key repeat.** `Game.setup()` calls `pygame.key.set_repeat(1)`. Movement reads held state, so
-  repeated key-downs change nothing.
+- **Key repeat.** PaddleSlap leaves SDL's key repeat off: movement reads held state and pause
+  acts on the release, so nothing needs repeated key-downs (they would only fill event batches
+  and recordings).
 - **Polling.** PaddleSlap never polls pygame: everything it knows about input comes through
   events, which recordings hold, so a replay serves the same input.
 

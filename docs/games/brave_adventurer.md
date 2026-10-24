@@ -43,8 +43,8 @@ The built-in screens the game switches to have their own keys, by key code:
 
 | Screen | Keys |
 |---|---|
-| Pause (`PauseScene`) | Space (on release) resumes, Esc quits, Q (on release) quits; regaining window focus more than 0.5 s after pausing resumes too |
-| Game over (`GameOverScene`) | Space (on release) starts a new game, Esc quits, Q (on release) quits |
+| Pause (`PauseScene`) | Space or a gamepad's Start or A (on release, after a press there) resumes; Esc or a gamepad's B or Back (on the press) quits, Q (on release) quits; regaining window focus more than 0.5 s after pausing resumes too |
+| Game over (`GameOverScene`) | Space or a gamepad's Start or A (on release, after a press there) starts a new game; Esc or a gamepad's B or Back (on the press) quits, Q (on release) quits |
 
 The analog sticks move nothing: no axis is bound (`TestButtonsAndAxesHoldMovement` pins it).
 
@@ -55,7 +55,7 @@ The scene's `args()` adds one option of its own; everything else is the engine's
 
 | Option | Where | Effect in this game |
 |---|---|---|
-| `-v`, `--version` | `BraveAdventurerScene.args()` | Declared ("print the game version and exit"), but nothing reads it yet: the game starts normally (BUGS.md #178, item 25) |
+| `-v`, `--version` | `BraveAdventurerScene.args()` | Prints the game's name and version (`Brave Adventurer 1.0`; Papyrus: `Brave Adventurer: Papyrus Edition 1.0`) and exits before the game starts (argparse's `version` action) |
 | `--input-mode {auto,joystick,controller}` | engine | Passed to the `ActionMap`: which gamepad event family the D-pad, A and mic bindings answer |
 | `--screen-shake-intensity` | engine | Passed to `Camera2D(shake_intensity=...)`; the game itself starts no shakes |
 | `--rumble-intensity` | engine | Scales the death and game-over rumble pulses |
@@ -91,12 +91,12 @@ flowchart TB
 
     start --> play
     play -->|"Esc: _pause_game#40;#41; sets next_scene"| pause
-    pause -->|"Space released, or focus regained:<br/>resume#40;#41; switches back to the same scene"| play
+    pause -->|"Space, Start or A released, or focus regained:<br/>resume#40;#41; switches back to the same scene"| play
     play -->|"last life lost: _player_die#40;#41;<br/>saves the high score, sets next_scene"| over
-    over -->|"Space released: resume#40;#41;"| fresh
+    over -->|"Space, Start or A released: resume#40;#41;"| fresh
     play -->|"Q"| quit
-    pause -->|"Esc, or Q released"| quit
-    over -->|"Esc, or Q released"| quit
+    pause -->|"Esc, B or Back, or Q released"| quit
+    over -->|"Esc, B or Back, or Q released"| quit
 ```
 
 Resuming from the pause screen switches back to the *same* scene object, so the game picks up
@@ -202,7 +202,8 @@ There is no goal at the end of the level: past screen 19 there is no ground.
 **Pits** are the gaps between consecutive ground segments. Nothing in the world represents a
 pit; `render()` draws each one (`_draw_pits`) after the sprites, between the drawn rects of the
 two segments either side, so the pit edges always meet the ground even at a half-pixel camera
-position. The player is then blitted once more so it shows in front of the pit while falling.
+position. Every visible enemy that overlaps a pit (a scarab that rolled in) and then the
+player are blitted once more, so they show in front of the pit fill.
 Inside a pit the edges of the neighbouring segments act as walls, so the player cannot walk
 out; falling more than `PIT_DEATH_THRESHOLD` (100 px) below the screen costs a life.
 
@@ -219,8 +220,9 @@ the side it came from (see [Collision](#collision)).
 | `Scorpion` | Walks at 60 px/s between its origin and origin + `patrol_range`, turning at each end |
 | `GoldScarab` | Bobs 4 px up and down (`sin(time × 3)`); worth `COLLECTIBLE_SCORE_BONUS` |
 
-Touching any enemy costs a life. The primitives edition's enemies redraw their image in
-`update()`, the render phase (the player does not: see the pose rule below).
+Touching any enemy costs a life. The primitives edition's enemies follow the pose rule (below)
+too: each draws its first pose as it is made and redraws it at the end of its `dt_tick`, so its
+visible-pixel hitbox is this frame's when the scene checks collision.
 
 ## The player
 
@@ -239,7 +241,9 @@ that read and write the body.
 
 There is no ground constraint in the body: the scene decides whether the player stands on
 something. An `AnimationStateMachine` (rules written in code in the primitives edition) picks
-the pose from the body's animation context: idle, running, jumping or falling.
+the pose from the body's animation context: idle, running, jumping or falling. Running off a
+ledge turns to falling (`running` to `falling` when `velocity_y > 10` and not on the ground),
+as idle and jumping do.
 
 ### The pose rule
 
@@ -266,7 +270,7 @@ drawn size:
 | Wall side | Pushed out on the side the hitbox was on before this frame's move (`velocity_x × dt` back), so a dt hitch cannot carry a fast player through; if it already overlapped (a wider pose), the side of the wall's centre decides (`_entered_wall_from_left`) |
 | Snapping | Terrain edges are taken where the engine draws them (`snapped_world_position`), so collision agrees with the picture |
 | Enemies | `check_overlap('player', 'enemies')`: one death per pass even when touching two enemies; none while respawning |
-| Collectibles | `check_overlap('player', 'collectibles')`: score, sound, the scarab removed from the group, its list and its layer |
+| Collectibles | `check_overlap('player', 'collectibles')`: `bonus_points` (kept in the score), sound, the scarab removed from the group, its list and its layer |
 
 ### Death and respawn
 
@@ -279,7 +283,7 @@ flowchart TB
         direction TB
         hit["an enemy hitbox overlaps,<br/>or the player fell 100 px below the screen"]
         die["_player_die#40;#41;: lives -= 1"]
-        respawn["death sound<br/>_respawn_player#40;#41;: is_respawning = True, velocities 0"]
+        respawn["death sound<br/>_respawn_player#40;#41;: is_respawning = True,<br/>velocities 0, stop_horizontal#40;#41;"]
         place["back 200 px #40;RESPAWN_OFFSET#41;, on the ground,<br/>is_respawning = False"]
         over["game_over_triggered = True, camera stops following<br/>game-over sound, _save_high_score#40;#41;<br/>next_scene = GameOverScene#40;...#41;"]
     end
@@ -303,7 +307,8 @@ flowchart TB
 ```
 
 While `is_respawning` is set, movement input, enemy contact and the pit-death check are
-skipped. The fades are scene tweens (`self.tweens`), which `Scene.dt_tick` advances by the
+skipped. Both editions also clear the walk target (`stop_horizontal()`), so the player stands
+still while it fades instead of walking on toward its last direction. The fades are scene tweens (`self.tweens`), which `Scene.dt_tick` advances by the
 frame's dt. Once `game_over_triggered` is set, `dt_tick` returns at once, so nothing moves on
 the last frame before the switch.
 
@@ -338,10 +343,10 @@ sequenceDiagram
 | 2, every sprite's `dt_tick` | the sprites | Player physics, state machine and pose; enemy movement; collectible bobbing |
 | 2, terrain collision | the scene | Ground (then the landing sound), walls, then scarabs against ground and walls |
 | 2, deaths and pickups | the scene | The pit-death check and enemy contact (both skipped while respawning), then collectibles |
-| 2, distance score | the scene | `max_distance`, then `score = round(max_distance / 10)` |
+| 2, score | the scene | `max_distance`, then `score = round(max_distance / 10) + bonus_points` |
 | 3 | the handlers | Jump, pause, quit and the mic button (`on_*_event`) |
 | 5, 6 | the engine | Aims the camera at the player (x only), then positions and culls every world sprite |
-| 7 | `Scene.update()`, `render()` | The player's fade and the primitive enemies' redraws; then sky fill, sprites, pits, the player again, the HUD |
+| 7 | `Scene.update()`, `render()` | The player's fade; then sky fill, sprites, pits, any enemy in a pit and the player again, the HUD |
 | 9, 10 | the engine | Present the frame, pace it |
 
 (Steps 4 and 8, shake and rumble and the still-camera shake, do nothing visible here: the game
@@ -357,7 +362,7 @@ Two things follow from this order:
   the sprite was last drawn); only `_draw_pits`, in the render phase, does.
 
 `render()` replaces `Scene.render`: it fills the sky colour, draws the `LayeredDirty` group,
-draws the pits and the player on top, then the HUD (score top left, lives top right, each with
+draws the pits, then any enemy that overlaps a pit and the player on top, then the HUD (score top left, lives top right, each with
 a 1 px shadow), and sets `self.rects = None` so the whole screen is presented.
 
 ## Input
@@ -406,7 +411,10 @@ reads `self.options.get('input_mode', 'joystick')`; the engine's `--input-mode` 
 
 **Microphone (primitives edition).** `VoiceAssistant.discover()` (in `__init__`) looks for a
 controller with both a microphone and a speaker (a DualSense) and returns `None` when there is
-none. Pressing the mic button starts listening; releasing it sends the recording through
+none. It runs only when the engine's doors serve the real devices (live play, or a recording):
+in a replay (or a rebaseline or playback) the voice assistant stays `None`, so a replay never
+enumerates audio devices and a recorded mic press neither listens nor calls the AI service
+(`_discover_voice_assistant`). Pressing the mic button starts listening; releasing it sends the recording through
 speech-to-text, an AI model and text-to-speech back to the controller's speaker, and
 `dt_tick` collects finished responses (`voice_assistant.update()`). The DualSense reports its
 mic button as 15 on the controller API and 16 on the raw joystick API, so both are bound
@@ -435,7 +443,7 @@ one-shot `pygame.mixer.Sound`s: no `SoundRecipe` files and no live voices.
 | State | Where | Rule |
 |---|---|---|
 | Lives | `player.lives`, from `STARTING_LIVES` = 3 | One per death; game over at 0 |
-| Score | `player.score` | `round(max_distance / DISTANCE_SCORE_DIVISOR)`: the furthest world x reached, over 10, set at the end of every `dt_tick`. A collected scarab adds `COLLECTIBLE_SCORE_BONUS` (100) to `score`, but the distance score replaces it later in the same tick |
+| Score | `player.score` | The distance score plus the bonus points, set at the end of every `dt_tick`: `round(max_distance / DISTANCE_SCORE_DIVISOR)` (the furthest world x reached, over 10) + `player.bonus_points`, where each collected gold scarab adds `COLLECTIBLE_SCORE_BONUS` (100) to `bonus_points` |
 | High scores | `open_saves(app_name='brave-adventurer')` (Papyrus: `'brave-adventurer-papyrus'`), save `'high_scores'` | `{'scores': [{'score': n}, ...]}`, the ten best, descending; written at game over and shown (top 5) on the game-over screen |
 
 `open_saves` returns the door's `SaveManager`: a `DiskSaveManager` live, an in-memory one in a
@@ -475,7 +483,7 @@ Two kinds of golden test pin the game's behaviour frame by frame:
 | Golden | File | Made by | What it checks |
 |---|---|---|---|
 | Golden replay | `tests/fixtures/replays/brave-adventurer/golden.jsonl.gz` (and `brave-adventurer-papyrus/`) | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
-| Golden trace | `tests/world/golden/brave_adventurer.jsonl.gz` (and `brave_adventurer_papyrus.jsonl.gz`) | `scripts/record_golden_traces.py`, before the world-space change | `tests/world/test_golden_traces.py` replays the script and compares every sprite's rect and visibility with that baseline; every difference must be explained by exactly one `ExpectedDifference` rule (engine culling, separate snapping, the pose fix, scarabs resting on their drawn underside) |
+| Golden trace | `tests/world/golden/brave_adventurer.jsonl.gz` (and `brave_adventurer_papyrus.jsonl.gz`) | `scripts/record_golden_traces.py`, before the world-space change | `tests/world/test_golden_traces.py` replays the script and compares every sprite's rect and visibility with that baseline; every difference must be explained by exactly one `ExpectedDifference` rule (engine culling, separate snapping, the pose fix, scarabs resting on their drawn underside, and the player falling into the screen-4 pit in its falling pose instead of its running pose) |
 
 The golden script (`brave_adventurer_script()` in `scripts/record_golden_traces.py`) runs right
 over screens 0 and 1 jumping for the higher scarabs, pauses and resumes, then places the
@@ -487,7 +495,7 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 
 | Test file | What it pins |
 |---|---|
-| `tests/examples/test_brave_adventurer_game.py` | Both editions (most fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; Papyrus facing-left hitboxes and foot anchoring; one death per hit; Papyrus falling transitions in TOML; world space (every sprite class declares it, no module positions or culls sprites itself, the camera follows on x and stops at game over); the pose rule (`TestPoseBeforeCollision`); culled enemies keep animating; pits meet the ground at a half-pixel camera; scancode controls; parallax layer pixel digests; game over freezes the world; high scores; jump, quit, D-pad hold and mic buttons; the HUD; both `main()` entry points replaying their golden recordings |
+| `tests/examples/test_brave_adventurer_game.py` | Both editions (most fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; Papyrus facing-left hitboxes and foot anchoring; one death per hit; Papyrus falling transitions in TOML; world space (every sprite class declares it, no module positions or culls sprites itself, the camera follows on x and stops at game over); the pose rule (`TestPoseBeforeCollision`); culled enemies keep animating; pits meet the ground at a half-pixel camera; scancode controls; parallax layer pixel digests; game over freezes the world; high scores; jump, quit, D-pad hold and mic buttons; the HUD; both `main()` entry points replaying their golden recordings; the score keeping gold scarab bonuses; respawn standing still; no voice assistant in a replay; scarabs in a pit drawn over it; enemy poses drawn in `dt_tick`; running to falling; `-v/--version` |
 | `tests/examples/test_brave_adventurer_sounds.py` | The synthesized sounds against stored goldens (`tests/examples/brave_adventurer_golden/*.npy`): length, envelope and pitch; silent play without a mixer |
 | `tests/world/test_golden_traces.py` | The golden traces above |
 | `tests/replay/test_golden_replays.py` and the golden replay items | The golden replays above, and which controls they exercise |

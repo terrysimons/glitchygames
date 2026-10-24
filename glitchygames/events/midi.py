@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 import pygame.midi
@@ -25,6 +25,9 @@ class MidiEventManager(ResourceManager):
 
     class MidiEventProxy(MidiEvents, ResourceManager):
         """Proxy for MIDI events."""
+
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
 
         def __init__(self: Self, game: object) -> None:
             """Initialize the MIDI event proxy with a game object."""

@@ -114,15 +114,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Files**: `glitchygames/sprites/animated.py`
 
-### 150. Undo History Survives Loading Another Sprite
-- **Description**: Nothing clears undo history on load: paint on sprite A, load sprite B with the same animation name, press Ctrl+Z, and A's stroke is written into B
-- **Status**: Active
-- **Priority**: High
-- **Reporter**: Found by the dead-code audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Details**: Related: `UndoRedoManager.clear_history` never clears the per-frame stacks (`frame_undo_stacks`/`frame_redo_stacks`) and has no callers. Confirmed by script
-- **Files**: `glitchygames/bitmappy/history/undo_redo.py`, `editor.py`
-
 ### 151. Frame Paste Undoes Out of Order With Paint
 - **Description**: Frame paste goes on the global undo stack while paint goes on per-frame stacks; `handle_undo` tries the frame stack first, so after paint then paste, Ctrl+Z undoes the paint before the paste
 - **Status**: Active
@@ -237,15 +228,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Pinned: `test_film_strip_selection.py::test_parent_strip_click_selects_itself`, `test_clicking_a_strips_empty_area_on_screen_selects_that_strip`
 - **Files**: `glitchygames/bitmappy/film_strip_events.py`
 
-### 169. Adding an Animation After a Delete Can Replace an Existing One
-- **Description**: `FilmStripCoordinator._add_new_animation` names the new animation `strip_{count+1}`; after a delete that name can still be in use, and that animation's frames are silently replaced
-- **Status**: Active
-- **Priority**: High
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `test_bitmappy_film_strips.py::test_adding_after_a_delete_does_not_replace_an_existing_animation`
-- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py`
-
 ### 170. The Film Strip Scroll Offset Goes Stale After Deleting an Animation
 - **Description**: The recomputation lives in `_handle_no_remaining_animations`, which `_delete_animation` never calls; deleting strip_3 of 3 leaves offset 1 with strip_1 selected but scrolled out of view (the old tests passed only because `on_sprite_loaded` was a Mock)
 - **Status**: Active
@@ -336,15 +318,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected
 - **Files**: `glitchygames/examples/paddleslap.py`, `glitchygames/game_objects/paddle.py`
 
-### 74. `debug_events` Is Always False: `--log-level` Is Compared With Upper-Case Names
-- **Description**: `GameEngine.initialize_arguments` (`glitchygames/engine/game_engine.py`, around line 634) sets `OPTIONS['debug_events']` from `OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}`, but `--log-level` (`glitchygames/events/game.py`) is lower-cased by `type=str.lower` and its choices are lower case, so the test never matches and unhandled events are never logged through `debug_events`
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14)
-- **Date Reported**: 2026-10-19
-- **Details**: Not fixed here: correcting the case would turn event debug logging on for `--log-level error` and `critical` runs too, which looks unintended (the set probably meant `debug` only); the intended levels need deciding first
-- **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/events/game.py`, `glitchygames/events/base.py`
-
 ### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately
 - **Description**: `pygame_needs_fastevents()` (`glitchygames/engine/game_engine.py`, around line 107) returns `vernum[0] < 2 and vernum[1] < 2`, so it is True only when both the major and the minor version are below 2. pygame 1.9 (major 1, minor 9) gets False and would not read events with `pygame.fastevent`, although its docstring says "True for pygame < 2.2". The intended test is `(vernum[0], vernum[1]) < (PYGAME_MIN_MAJOR_VERSION, PYGAME_MIN_MINOR_VERSION)`
 - **Status**: Active
@@ -353,15 +326,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-19
 - **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
 - **Files**: `glitchygames/engine/game_engine.py`
-
-### 76. Graphics Options: `--resolution` Help, `--windowed` and the macOS Video-Driver Check Disagree With the Code
-- **Description**: In `GameEngine.args()` (`glitchygames/engine/game_engine.py`): `--resolution`'s help says "default: 1024x768" while its default is `800x480`; `-w`/`--windowed` is `store_true` with `default=True`, so the flag can never change anything (there is no way to ask for fullscreen); and the video-driver block checks `platform.system() == 'MacOS'`, which never matches (`platform.system()` returns `'Darwin'`), so the macOS branch is dead (harmless today, since it would also give no choices)
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay core, Task 15: correcting `docs/architecture/argument_system.md` against the argparse definitions)
-- **Date Reported**: 2026-10-19
-- **Details**: The help text is fixed (2026-10-23: `%(default)s`, so it names the real default; `tests/engine/test_game_engine.py::TestResolutionArgument`). Still open: `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
-- **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
 
 ### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
 - **Description**: Recordings now hold the key codes the held keys had (`held_key_codes`), so a replay on another keyboard layout answers `key_pressed(K_*)` as recorded. Only pygame's named `K_*` codes are recorded (`glitchygames.input.state.NAMED_KEY_CODES`): a key code a layout adds that pygame names no constant for (say a Unicode letter key) is never reported held in a replay, even on the recording machine
@@ -398,6 +362,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Details**: (1) `BitmappySprite.inflate` discards `image.convert()`'s result (as #143/#173.5), builds a `raw_pixels` list it never uses, and its docstring says "Raises: None" though an unknown pixel character raises KeyError. (2) The two static loaders disagree: an unknown pixel character raises KeyError through `_load_static_toml` but becomes magenta through `_inflate_toml`. (3) A static sprite's width comes from its first row: longer rows are clipped, shorter ones leave black pixels. (4) `_process_pixel_rows` writes a colour missing from the map as '.', which could collide with a real '.' glyph (unreachable today: too many colours is refused first). (5) `animated_canvas.py:1316-1332` logs one load failure three times with `log.exception`, the third adding `traceback.format_exc()` to a traceback already printed. (6) `film_strip_rendering.py:129`, `:949` create a `pygame.font.Font(None, size)` per thumbnail per draw: slow, and pygame's default font, not the bundled Vera (#156). (7) The AI worker spins logging exceptions forever if its request queue is permanently broken (`get()` always raising). (8) `_make_ai_api_call` logs every failure's traceback twice (two `log.exception` calls). (9) `_load_ai_sprite` keeps every AI response's temp file (deliberate, per its comment, for debugging): one file leaks per response. (10) `AIManager.setup` drops its two queues without `close()` when `Process.start()` fails. (11) `undo_frame`/`redo_frame` drop a command that raises from the history but put back one that returns False. (12) `InputBox` calls its parent's `on_input_box_submit_event(event=self)`, but `ui/dialogs.py:256` and `examples/text_input_demo.py:86` name the parameter `control`, so either would raise TypeError if called (latent: no InputBox has those as its parent today). (13) `examples/joystick_demo.py` (~319) built its TextSprite with `game=self`, the scene, which has no `controller_manager`, so the demo always made its own `ControllerEventManager` instead of using the engine's for hotplug events as its comment intended (fixed 2026-10-22: the demo was rewritten on `Scene.input_devices`, #185). (14) The key chord handlers are declared `keys: list[int]` (`events/input_event_interfaces.py`, `sprites/sprite.py`, `events/keyboard.py`) but receive a tuple of the held keys' KEYDOWN events (fixed 2026-10-22: they are `keys: tuple[KeyEvent, ...]`, `plans/2026-10-22-typed-events.md`). (15) The canvas's `dirty_pixels` list is set in many places but never read or cleared, and panning, frame switches, hover and onion changes don't mark it, so it can't drive a changed-pixels-only redraw (`glitchygames/bitmappy/`). (16) `examples/paddleslap.py` (~421) checks `hasattr(ball, '_debug_positions')` and carries `# type: ignore[attr-defined]` though `BallSprite` declares it (`ball.py:438`), typed `tuple[float, ...]` while PaddleSlap stores snapped ints. (17) `SliderSprite.update_slider_appearance` draws each column down to `self.height`, one row past the image (clipped, harmless; kept for identical pixels). (18) `Sprite.__init__` falls back to `self.name = type(self)` when no name is given, so `name` is not always a string. (19) `sprites/animated.py` (~1585) sorts a TOML animation's frames by `getattr(frame, 'frame_index', 0)`, but `SpriteFrame` has no `frame_index`, so the sort never reorders: a file's `frame_index` values are ignored and frames stay in file order. (20) `sprites/animated.py` (~2564): the frame-dump debug log's `hasattr(frame, 'surface')` is always False (`SpriteFrame` has no `surface`). (21) `bitmappy/film_strip_coordinator.py` (~1423-1428): a rename updates the strip sprite's `current_animation` only when the sprite has its own animation order, and sets the order to `[new_name]`, dropping its other animations. (22) `bitmappy/controllers/event_handler.py` (~774) and `controllers/canvas_operations.py` (~470) read `applying_undo_redo` from the controller handler, which never sets it, so those guards are always False (no visible effect today: controller undo/redo goes through `mode_switcher`). (23) `bitmappy/ai_worker.py` `_set_ollama_env_timeout` sets `OLLAMA_TIMEOUT`, which neither aisuite 0.2.0 nor openai reads, and queries the local ollama server's model status a second time. (24) `FilmStripWidget.refresh(recalculate_layout=True)` computes the layout twice (`update_layout` already calls `calculate_layout`). (25) `-v/--version` does nothing in any game (Brave editions, PaddleSlap, dt demo, Bitmappy; the joystick demo's is gone, #185): nothing reads `options['version']`. (26) Brave Adventurer binds `mic_toggle` with `controller_button=15, joystick_button=16`; in joystick mode `controller_button` maps to JOYBUTTON events, so raw joystick button 15 may open the mic too (unverified on hardware). (27) The engine logs its placeholder `NAME` at startup ("Game Title: Boilerplate Adventures", `engine/game_engine.py` ~364, 1272, 1389) before the scene sets the real caption. (28) `Scene._handle_scene_key_events` sets the scene's `quit_requested` on K_q, which nothing reads (only the SceneManager's is read). (29) PaddleSlap's `Game.__init__(groups=...)` replaces the given groups with its own `LayeredDirty`. (30) `ui/inputs.py`: InputBox draws its first text in the box colour (~105) but `render()` redraws it white (~179). (31) `examples/dt_demo.py` parses `-v/--version` and `-b/--balls` but never uses them; `text_input_demo` blits its box in `update()` though its group draws it, and puts it in two groups. (32) A `--headless` run still opens a SCALED window under the dummy driver ("no fast renderer available" warning, an error under pytest)
 - **Files**: see Details
+- **Progress** (2026-10-23): item 25 is fixed for PaddleSlap and both Brave Adventurer editions (`-v/--version` is argparse's version action); the dt demo and Bitmappy still declare a `--version` that does nothing
 
 ### 184. Smaller Findings From the Unified Input Devices
 - **Description**: Findings from `plans/2026-10-22-unified-input-devices.md`, none breaking a feature on its own
@@ -426,31 +391,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Replays compare sprite rects, not pixels, so they are unaffected; the clock read is inside pygame, so `tests/test_engine_doors.py` cannot see it. A fix would pin the mode (`LayeredDirty.set_timing_threshold` with a huge threshold keeps dirty-rect mode; `_use_update = False` keeps full-screen mode) wherever the engine makes its groups, after checking which mode each game relies on
 - **Files**: pygame-ce `sprite.py` (`LayeredDirty.draw`); the groups made in `glitchygames/scenes/scene.py` and the games
 
-### 197. Custom Event Ids Collide With pygame.event.custom_type()
-- **Description**: `FPSEVENT`, `GAMEEVENT` and `MENUEVENT` are hard-coded as `USEREVENT + 1..3` (`events/base.py` ~114-116) instead of being allocated with `pygame.event.custom_type()`; a game or library that calls `custom_type()` gets an id equal to `FPSEVENT` (confirmed: 32866)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the docs audit (2026-10-23)
-- **Date Reported**: 2026-10-23
-- **Details**: Allocating them with `custom_type()` changes their values, which recordings store: check the golden recordings and the recording format before changing (a remap on read may be needed)
-- **Files**: `glitchygames/events/base.py`
-
-### 198. Event Manager Proxies: Lookup Stops at the First Proxy; Re-instantiation Resets a Manager
-- **Description**: `ResourceManager.__getattr__` returns from the first proxy and never tries later ones, so e.g. `MouseEventManager().get_pos()` (on `pygame.mouse`, the second proxy) raises AttributeError; and constructing a manager again re-runs `__init__` with `game=None`, resetting the singleton's state (both reproduced)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the docs audit (2026-10-23)
-- **Date Reported**: 2026-10-23
-- **Files**: `glitchygames/events/base.py` (`ResourceManager`)
-
-### 199. Mouse Events: Wheel Directions Swapped, Some Handlers Never Called
-- **Description**: In `events/mouse.py`, wheel buttons 4 and 5 are swapped (scrolling up calls the scroll-down handler); the button-specific drop handlers and the focus/unfocus handlers are never called (found by reading; verify with tests)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the docs audit (2026-10-23)
-- **Date Reported**: 2026-10-23
-- **Files**: `glitchygames/events/mouse.py`
-
 ### 200. Smaller Findings From the Docs Audit
 - **Description**: Minor findings, none breaking a common path
 - **Status**: Active
@@ -458,63 +398,39 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: Found by the docs audit (2026-10-23)
 - **Date Reported**: 2026-10-23
 - **Details**: (1) TEXTINPUT/TEXTEDITING go to `process_unimplemented_event`; MULTIGESTURE, CLIPBOARDUPDATE, LOCALECHANGED, RENDER_* and some WINDOW* events are never routed. (2) Engine options (as #76): `--resolution` help says 1024x768 but the default is 800x480; `-w` can never change anything; the macOS video-driver check compares with 'MacOS' (it is 'Darwin'); the video-driver lists use SDL 1 names. (3) `api/routes/sprites.py`: an HTTP 400 for a bad `output_path` is caught by `except Exception` and returned as 500. (4) `AnimatedSprite._save_toml_single_frame` writes `alpha = 255` for opaque colours, magenta included. (5) `glitchygames/scenes/builtins` is a tracked symlink to `builtin_scenes` (packaging tools and griffe see two copies). (6) Two PyInstaller specs: `bitmappy.spec` and `glitchygames/bitmappy.spec` (the second ships in the wheel; maybe stale). (7) #72's title uses the old name `MultiControllerEnhancements`; `ControllerSelection.set_fill_direction` can't be reached from a controller; `GameEngine.process_window_focus_event` and probably `handle_event` are called only by tests. (8) Inaccurate docstrings: `SpriteFactory.save_sprite` lists INI/YAML; references to nonexistent `_detect_file_format()` and `AnimatedSprite._load()`; `EditorSetup.setup_voice_recognition` cites a stale line; `AIManager._is_ai_error_message` claims apology detection; `extract_apng_frames` says failures raise 400 (they return 200 with success=False); `FpsEvent` says Scene posts it (SceneManager does); `ResourceManager`'s singleton claim. Item 8 done (2026-10-23): each docstring now says what the code does (`save_sprite`: TOML only; the real detectors `SpriteFactory.detect_file_format()` and `glitchygames.bitmappy.utils.detect_file_format()`, and `AnimatedSprite.load()`; the voice setup names where `BitmapEditorScene.__init__` leaves it out; `_is_ai_error_message`: any validation failure; `extract_apng_frames`: 200 with success=False, 500 for unexpected errors; `FpsEvent`: SceneManager; `ResourceManager`: one shared instance per class, but `__init__` re-runs, #198), and the `JoystickEventManager` comments name `instance_id` (which the code reads; `joy` is only its fallback)
+- **Progress** (2026-10-23): (1) TEXTINPUT/TEXTEDITING now reach the active scene's text handlers and WINDOWTAKEFOCUS is routed; MULTIGESTURE, CLIPBOARDUPDATE, LOCALECHANGED and RENDER_* stay unrouted (no engine handler exists: new features). (2) Fixed with #76. (3) Fixed: `/generate` and `/refine` pass an HTTPException through, so a bad `output_path` is a 400 (`tests/api/test_sprite_routes.py::test_a_bad_output_path_is_a_400`). Still open, each needing a decision: (4) `alpha = 255` round-trips (writer and loader agree); changing it changes every saved file. (5) The `scenes/builtins` symlink and (6) the second PyInstaller spec need removing through git. (7) `set_fill_direction` and the unused `process_window_focus_event` (its own `set_grab` behaviour) are removal decisions
 - **Files**: see Details
 
-### 201. The Sprite Count Report Always Says 0
-- **Description**: `Sprite.__init__` does `self.SPRITE_COUNT += 1` (`glitchygames/sprites/sprite.py` ~154), which creates an attribute on each instance instead of incrementing the class counter, so `Sprite.SPRITE_COUNT` stays 0 and the engine's teardown report says `Sprite Count: 0`; the first sprite of each type also records `pixels = 0` instead of its width times height, so per-type pixel totals leave one sprite out
+### 210. Five Options Do Nothing
+- **Description**: Found writing their help text (#74/#76 round): `--video-driver` is parsed and recorded but never applied (nothing sets `SDL_VIDEODRIVER` from it); `--use-gfxdraw` reaches `GameEngine.use_gfxdraw`, which nothing reads (Ball and Paddle set their own unread `use_gfxdraw`); `--font-bold`, `--font-italic` and `--font-antialias` are copied into `FontManager.OPTIONS`, but `font()` and `pygame_font()` read only the name and size; `--font-size` sizes only the default font, and `--font-dpi` sets `pygame.freetype`'s default resolution, which `pygame.font` ignores. The font cache key ignores DPI, so a later DPI change would reuse fonts made at the old one
 - **Status**: Active
-- **Priority**: Low (diagnostics only)
-- **Reporter**: Found fixing #188 (moving the report from `GameEngine.__del__` to teardown)
+- **Priority**: Low (the help text now says which are not used or not applied)
+- **Reporter**: Found by the engine-options fixes, 2026-10-23
 - **Date Reported**: 2026-10-23
-- **Files**: `glitchygames/sprites/sprite.py`
+- **Details**: Each needs a decision: wire it (`--video-driver` like `--headless`: set the variable before `pygame.init()`, restore it at teardown) or remove it
+- **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/fonts/font_manager.py`
 
-### 203. A Scene's Q Key-Down Sets a Quit Flag Nothing Reads
-- **Description**: `Scene._handle_scene_key_events` (`glitchygames/scenes/scene.py`, reached from `Scene.on_key_down_event` for a key no focused sprite takes) logs "Quit requested" and sets the scene's own `quit_requested` on Q, but the frame loop reads only `SceneManager.quit_requested`, and nothing reads `Scene.quit_requested`. The press does nothing; a base scene quits on Q's (or ESC's) release instead (`Scene.on_key_up_event` posts QUIT), which is why PaddleSlap and the pause screen still quit. The same dead-flag shape as #202's `next_scene = None`, one level down: the log line claims a quit that never happens
+### 211. Smaller Findings From the Bug-Fix Round
+- **Description**: Found while fixing #74-#209 (2026-10-23); none fixed
 - **Status**: Active
-- **Priority**: Low (misleading log line and dead state; the release path quits)
-- **Reporter**: Found auditing every game's controls for the golden replays (plans/future-features.md #44)
+- **Priority**: Low
+- **Reporter**: The bug-fix round, 2026-10-23
 - **Date Reported**: 2026-10-23
-- **Details**: Likely fix: drop the flag and the Q branch (the release path is the quit), or post QUIT there as `_handle_quit_key_press` does (then Q would quit on its press and its release would post a second QUIT)
-- **Files**: `glitchygames/scenes/scene.py` (`Scene._handle_scene_key_events`, `Scene.__init__`'s `quit_requested`)
+- **Details**:
+  1. Recordings store raw custom event ids (#197): code that calls `pygame.event.custom_type()` before glitchygames is imported shifts FPSEVENT/GAMEEVENT/MENUEVENT, and a recording made that way replays only in a process that imports the same way. A follow-up could record the ids in the header and remap them on read
+  2. `Sprite.on_*_mouse_drag_down/up_event` are no longer called by the mouse proxy (#199): dead handlers
+  3. The engine's game-over subtitle still reads "Press SPACE to restart or ESC to quit" though a gamepad now works there too (#209 item 10)
+  4. Bitmappy: `FilmStripOperationTracker.add_frame_selection` (`history/operations.py`) falls back to a hard-coded `('strip_1', 0)` when no current frame is known; undoing that first selection on a sprite without `strip_1` targets an animation that does not exist (latent now that #150 keeps the current frame)
+  5. Bitmappy: every load records a "Selected frame" step before #150's reset clears it (harmless now; wasted work)
+  6. Clockwork Keep's victory plays the elevator clank: there is no victory sound recipe
+  7. `tests/examples/test_brave_adventurer_game.py`'s `_start_display()` keeps whatever display exists (not always 800x480 under pytest); the scenes size the pit floor from it, so pit tests set the display themselves
+- **Files**: see each item
 
-### 204. Brave Adventurer Never Keeps a Gold Scarab's Bonus
-- **Description**: Collecting a gold scarab adds `COLLECTIBLE_SCORE_BONUS` (100) to the score (`_on_player_collect`), but the last step of the same `dt_tick` sets `player.score = round(player.max_distance / DISTANCE_SCORE_DIVISOR)`, so the bonus is overwritten in the frame it is earned: the score is always the distance score. Both editions (`brave_adventurer/game.py:321`, `brave_adventurer_papyrus/game.py:314`). Reproduced by placing the player on a collectible: it was collected and the score stayed 29
-- **Status**: Active
-- **Priority**: Medium (a visible scoring rule that never works)
-- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
-- **Date Reported**: 2026-10-23
-- **Details**: Likely fix: keep the bonus points separately (score = distance score + bonus points). The golden replay and golden traces include collecting scarabs, so the fix changes the score sprite: check what they compare before changing it
-- **Files**: `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
-
-### 205. Clockwork Keep's Tinker Can Fall Through a Platform After a Slow Frame
-- **Description**: `_resolve_ground_collision` finds support only when the feet end a tick within 20 px below a support's top. At the 800 px/s terminal speed a tick longer than 25 ms (below 40 FPS) moves more than 20 px, and the 50 ms `MAX_FRAME_SECONDS` cap allows 40 px, so a hitch while falling fast can drop the Tinker through a platform, or through the ground (costing a life). The cap's comment says it prevents tunneling; at 50 ms it does not
-- **Status**: Active
-- **Priority**: Medium (a hitch can cost a life; rare on a fast machine)
-- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
-- **Date Reported**: 2026-10-23
-- **Details**: Likely fix: sweep the fall (test the segment from the previous to the new feet position against each support's top), or sub-step physics as Mr. Muncher does (at most 1/120 s per step). Platform and elevator support also use a literal 20 where the gear check uses `GROUND_SNAP_TOLERANCE`
-- **Files**: `glitchygames/examples/clockwork_keep/game.py` (`_resolve_ground_collision`, `MAX_FRAME_SECONDS`)
-
-### 206. The Papyrus Edition's Player Keeps Walking While It Respawns
-- **Description**: The Papyrus edition's `_respawn_player` lacks the original's `self.player.stop_horizontal()`. While `is_respawning` is set, movement input is skipped, so the acceleration target stays at the last direction (±200 px/s) and the player walks on (about 27 px) during the 0.2 s fade before it is repositioned
-- **Status**: Active
-- **Priority**: Low (cosmetic, during a fade)
-- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
-- **Date Reported**: 2026-10-23
-- **Files**: `glitchygames/examples/brave_adventurer_papyrus/game.py` (`_respawn_player`)
-
-### 208. Replaying a Brave Adventurer Recording Can Start the Real Voice Assistant
-- **Description**: `VoiceAssistant.discover()` (the primitives edition, its `__init__`) enumerates audio devices through miniaudio, outside the engine's doors, and the microphone toggle starts real listening and AI calls. A replay of a recording that pressed the microphone button would do the same on the replaying machine: nothing it draws differs, but it is outside the replay contract (a replay never touches real devices)
-- **Status**: Active
-- **Priority**: Low (only recordings with a microphone press; no visible divergence)
-- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
-- **Date Reported**: 2026-10-23
-- **Details**: Likely fix: route device enumeration through the devices door, and skip (or serve recorded results of) the voice assistant while replaying
-- **Files**: `glitchygames/examples/brave_adventurer/__init__.py`, `glitchygames/examples/brave_adventurer/game.py`
+## Resolved Bugs
 
 ### 209. Smaller Findings From the Game Architecture Pages
 - **Description**: Found reading every premier game's code for docs/games/ (2026-10-23); none fixed
-- **Status**: Active
+- **Status**: Resolved
 - **Priority**: Low
 - **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
 - **Date Reported**: 2026-10-23
@@ -534,8 +450,147 @@ This document tracks bugs reported during development. Bugs are listed in order 
   13. Stale or wrong comments: `ball.py` (~691) says paddle hits are resolved in PaddleSlap's `update()` (they are in `Game.dt_tick`); Clockwork Keep's `_go_to_next_floor` says it uses the wall colours (it passes the platform colours) and unpacks three unused locals; `CAMERA_LEAD_Y`'s "look ahead upward" (it leaves slightly less view above the player); `MovingGear`'s "gear diameter" (it is a size by size/4 bar); Brave Adventurer's repeated `dt_tick` step numbers, "Phase 3" parallax comment, "used in PhysicsBody.platformer()" (built by hand), Scarab "wrap or continue off-screen" (they reverse), and a duplicated voice-assistant comment; `pause_scene.py`'s "Pause scene for paddleslap game" (every game uses it); Mr. Muncher's `drawing.py` docstring says per-pixel-alpha drawing never leaves transparent pixels on the background, which contradicts `game.py` and #142 (why it calls `make_opaque`); `tests/collision/test_ball_paddle_collision.py` says `tests/conftest.py` mocks pygame (it no longer does)
   14. Fixed 2026-10-23: `--resolution`'s help said "(default: 1024x768)"; it now prints the real default (800x480), as #76's details say
 - **Files**: see each item
+- **Date Resolved**: 2026-10-23
+- **Solution**: Every item: (1) `-v/--version` is argparse's version action in PaddleSlap and both Brave editions (prints `<NAME> <VERSION>`, exits 0). (2) `VerticalPaddle` and `HorizontalPaddle` clamp in `dt_tick`. (3) PaddleSlap's `set_repeat(1)` removed. (4) The dead cooldown state removed. (5) Confirmed visually, then fixed: enemies overlapping a pit are redrawn after the pit fill. (6) Cobra, Scarab and Scorpion draw their pose in `dt_tick`. (7) running to falling added (code and Papyrus `player.toml`); the golden traces' new differences are explained by `adventurer_fell_in_its_falling_pose` / `papyrus_fell_in_its_falling_pose`. (8) Clockwork Keep's Clock Face victory: standing on the highest platform fades to `ClockworkKeepVictoryScene` (a `GameOverScene` titled VICTORY!). (9) The unused data and constants removed. (10) `PauseScene` and `GameOverScene` answer a gamepad on both layers (`scenes/builtin_scenes/gamepad_choice.py`): Start or A resumes/restarts on its release after a press there, B or Back quits on its press. (11) `ActionMap.begin_frame`'s docstring: read `just_pressed` first, then call it. (12) Every `input_mode` docstring lists 'auto'; the games' fallbacks are 'auto'. (13) Every stale comment listed. (14) `--resolution`'s help (with #76). Tests in each game's and module's test file; no golden replay re-recorded
 
-## Resolved Bugs
+### 208. Replaying a Brave Adventurer Recording Can Start the Real Voice Assistant
+- **Description**: `VoiceAssistant.discover()` (the primitives edition, its `__init__`) enumerates audio devices through miniaudio, outside the engine's doors, and the microphone toggle starts real listening and AI calls. A replay of a recording that pressed the microphone button would do the same on the replaying machine: nothing it draws differs, but it is outside the replay contract (a replay never touches real devices)
+- **Status**: Resolved
+- **Priority**: Low (only recordings with a microphone press; no visible divergence)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: route device enumeration through the devices door, and skip (or serve recorded results of) the voice assistant while replaying
+- **Files**: `glitchygames/examples/brave_adventurer/__init__.py`, `glitchygames/examples/brave_adventurer/game.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: `BraveAdventurerScene._discover_voice_assistant()` calls `VoiceAssistant.discover()` only when the active doors serve the real device registry (`LiveDeviceRegistry`: live play or a recording). In a replay, rebaseline or playback the assistant is None: no device enumeration, and a recorded microphone press does nothing. Test: `TestVoiceAssistantNeverStartsInAReplay` (including a golden replay with `discover` asserted not called)
+
+### 206. The Papyrus Edition's Player Keeps Walking While It Respawns
+- **Description**: The Papyrus edition's `_respawn_player` lacks the original's `self.player.stop_horizontal()`. While `is_respawning` is set, movement input is skipped, so the acceleration target stays at the last direction (±200 px/s) and the player walks on (about 27 px) during the 0.2 s fade before it is repositioned
+- **Status**: Resolved
+- **Priority**: Low (cosmetic, during a fade)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/examples/brave_adventurer_papyrus/game.py` (`_respawn_player`)
+- **Date Resolved**: 2026-10-23
+- **Solution**: The Papyrus edition's `_respawn_player` calls `stop_horizontal()`, as the original does. Test: `TestRespawnStopsWalking`
+
+### 205. Clockwork Keep's Tinker Can Fall Through a Platform After a Slow Frame
+- **Description**: `_resolve_ground_collision` finds support only when the feet end a tick within 20 px below a support's top. At the 800 px/s terminal speed a tick longer than 25 ms (below 40 FPS) moves more than 20 px, and the 50 ms `MAX_FRAME_SECONDS` cap allows 40 px, so a hitch while falling fast can drop the Tinker through a platform, or through the ground (costing a life). The cap's comment says it prevents tunneling; at 50 ms it does not
+- **Status**: Resolved
+- **Priority**: Medium (a hitch can cost a life; rare on a fast machine)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: sweep the fall (test the segment from the previous to the new feet position against each support's top), or sub-step physics as Mr. Muncher does (at most 1/120 s per step). Platform and elevator support also use a literal 20 where the gear check uses `GROUND_SNAP_TOLERANCE`
+- **Files**: `glitchygames/examples/clockwork_keep/game.py` (`_resolve_ground_collision`, `MAX_FRAME_SECONDS`)
+- **Date Resolved**: 2026-10-23
+- **Solution**: `_resolve_ground_collision` sweeps the fall: a platform, elevator or gear catches feet that end the tick at or below its top and started it (the world y before the tick, plus any gear ride) within `GROUND_SNAP_TOLERANCE` (`_feet_before_tick`, `_feet_reach_surface`), so a 50 ms tick at 800 px/s lands on the support it crossed. The literal 20s are gone; the `MAX_FRAME_SECONDS` comment no longer claims the cap prevents tunneling. Tests: `tests/examples/test_clockwork_keep.py::TestNoFallThroughAfterASlowFrame`
+
+### 204. Brave Adventurer Never Keeps a Gold Scarab's Bonus
+- **Description**: Collecting a gold scarab adds `COLLECTIBLE_SCORE_BONUS` (100) to the score (`_on_player_collect`), but the last step of the same `dt_tick` sets `player.score = round(player.max_distance / DISTANCE_SCORE_DIVISOR)`, so the bonus is overwritten in the frame it is earned: the score is always the distance score. Both editions (`brave_adventurer/game.py:321`, `brave_adventurer_papyrus/game.py:314`). Reproduced by placing the player on a collectible: it was collected and the score stayed 29
+- **Status**: Resolved
+- **Priority**: Medium (a visible scoring rule that never works)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: keep the bonus points separately (score = distance score + bonus points). The golden replay and golden traces include collecting scarabs, so the fix changes the score sprite: check what they compare before changing it
+- **Files**: `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: The players keep `bonus_points` (each gold scarab adds `COLLECTIBLE_SCORE_BONUS`), and `dt_tick` sets `score = round(max_distance / DISTANCE_SCORE_DIVISOR) + bonus_points` in both editions. Tests: `tests/examples/test_brave_adventurer_game.py::TestCollectibleBonusIsKept`. No golden recording changed
+
+### 203. A Scene's Q Key-Down Sets a Quit Flag Nothing Reads
+- **Description**: `Scene._handle_scene_key_events` (`glitchygames/scenes/scene.py`, reached from `Scene.on_key_down_event` for a key no focused sprite takes) logs "Quit requested" and sets the scene's own `quit_requested` on Q, but the frame loop reads only `SceneManager.quit_requested`, and nothing reads `Scene.quit_requested`. The press does nothing; a base scene quits on Q's (or ESC's) release instead (`Scene.on_key_up_event` posts QUIT), which is why PaddleSlap and the pause screen still quit. The same dead-flag shape as #202's `next_scene = None`, one level down: the log line claims a quit that never happens
+- **Status**: Resolved
+- **Priority**: Low (misleading log line and dead state; the release path quits)
+- **Reporter**: Found auditing every game's controls for the golden replays (plans/future-features.md #44)
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: drop the flag and the Q branch (the release path is the quit), or post QUIT there as `_handle_quit_key_press` does (then Q would quit on its press and its release would post a second QUIT)
+- **Files**: `glitchygames/scenes/scene.py` (`Scene._handle_scene_key_events`, `Scene.__init__`'s `quit_requested`)
+- **Date Resolved**: 2026-10-23
+- **Solution**: The Q branch and `Scene.quit_requested` are gone; `_handle_scene_key_events` stays as a hook that does nothing (Bitmappy overrides it), and Q quits once, on its release. Test: `tests/scenes/test_scene_focus.py::test_q_quits_once_on_its_release_and_its_press_claims_nothing`; the tests that asserted the flag now assert the press posts no QUIT
+
+### 201. The Sprite Count Report Always Says 0
+- **Description**: `Sprite.__init__` does `self.SPRITE_COUNT += 1` (`glitchygames/sprites/sprite.py` ~154), which creates an attribute on each instance instead of incrementing the class counter, so `Sprite.SPRITE_COUNT` stays 0 and the engine's teardown report says `Sprite Count: 0`; the first sprite of each type also records `pixels = 0` instead of its width times height, so per-type pixel totals leave one sprite out
+- **Status**: Resolved
+- **Priority**: Low (diagnostics only)
+- **Reporter**: Found fixing #188 (moving the report from `GameEngine.__del__` to teardown)
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/sprites/sprite.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: `Sprite.__init__` increments `Sprite.SPRITE_COUNT` on the class, and a type's first sprite records width x height pixels. Tests: `tests/sprites/test_sprite_core.py::TestSpriteCounters`
+
+### 199. Mouse Events: Wheel Directions Swapped, Some Handlers Never Called
+- **Description**: In `events/mouse.py`, wheel buttons 4 and 5 are swapped (scrolling up calls the scroll-down handler); the button-specific drop handlers and the focus/unfocus handlers are never called (found by reading; verify with tests)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/events/mouse.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: Wheel button 4 scrolls up and 5 down. The mouse proxy calls the handlers `Scene` defines (`on_*_mouse_drop_event`, `on_middle/right_mouse_drag_event`); a release after a drag also calls the released button's drop handler; focus and unfocus follow the topmost sprite under the mouse. Scene's middle/right drag and drop logs are at DEBUG. Tests: `tests/events/test_mouse_events.py` (two strict xfails removed)
+
+### 198. Event Manager Proxies: Lookup Stops at the First Proxy; Re-instantiation Resets a Manager
+- **Description**: `ResourceManager.__getattr__` returns from the first proxy and never tries later ones, so e.g. `MouseEventManager().get_pos()` (on `pygame.mouse`, the second proxy) raises AttributeError; and constructing a manager again re-runs `__init__` with `game=None`, resetting the singleton's state (both reproduced)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/events/base.py` (`ResourceManager`)
+- **Date Resolved**: 2026-10-23
+- **Solution**: `ResourceManager.__getattr__` tries every proxy in turn and raises AttributeError (not recursion) before `__init__` set the proxies. Shared instances (`SHARES_INSTANCE`: the event managers) are initialized once (`__init_subclass__` wraps `__init__`), so constructing one again returns it unchanged; proxies and `EventManager` (GameEngine, SceneManager) are not shared, which also fixes `ControllerEventProxy` being one object for every controller. `GameEngine._initialize_event_managers` calls `ResourceManager.release_shared_instances()`, so each run builds its own managers. Tests: `tests/events/test_events_core.py::TestResourceManager`, `tests/events/test_controller_events.py::...::test_two_controllers_have_a_proxy_each`
+
+### 197. Custom Event Ids Collide With pygame.event.custom_type()
+- **Description**: `FPSEVENT`, `GAMEEVENT` and `MENUEVENT` are hard-coded as `USEREVENT + 1..3` (`events/base.py` ~114-116) instead of being allocated with `pygame.event.custom_type()`; a game or library that calls `custom_type()` gets an id equal to `FPSEVENT` (confirmed: 32866)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the docs audit (2026-10-23)
+- **Date Reported**: 2026-10-23
+- **Details**: Allocating them with `custom_type()` changes their values, which recordings store: check the golden recordings and the recording format before changing (a remap on read may be needed)
+- **Files**: `glitchygames/events/base.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: FPSEVENT, GAMEEVENT and MENUEVENT are allocated with `pygame.event.custom_type()` at import (`events/base.py`), keeping USEREVENT+1..3 (the values recordings hold, since glitchygames is imported before game code allocates any); a later `custom_type()` never returns one of them. Tests: `tests/events/test_events_core.py::TestCustomEventTypes` (fresh interpreters). Caveat in #211
+
+### 169. Adding an Animation After a Delete Can Replace an Existing One
+- **Description**: `FilmStripCoordinator._add_new_animation` names the new animation `strip_{count+1}`; after a delete that name can still be in use, and that animation's frames are silently replaced
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_bitmappy_film_strips.py::test_adding_after_a_delete_does_not_replace_an_existing_animation`
+- **Files**: `glitchygames/bitmappy/film_strip_coordinator.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: `FilmStripCoordinator._add_new_animation` names the new animation with `_unused_animation_name`: `strip_<count + 1>`, counting up until no animation uses it, so adding (at the end or after a tab) never replaces an existing animation. Tests: `tests/tools/test_bitmappy_film_strips.py` (the strict xfail removed; insert-after and loaded-sprite cases added)
+
+### 150. Undo History Survives Loading Another Sprite
+- **Description**: Nothing clears undo history on load: paint on sprite A, load sprite B with the same animation name, press Ctrl+Z, and A's stroke is written into B
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: Related: `UndoRedoManager.clear_history` never clears the per-frame stacks (`frame_undo_stacks`/`frame_redo_stacks`) and has no callers. Confirmed by script
+- **Files**: `glitchygames/bitmappy/history/undo_redo.py`, `editor.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: `UndoRedoManager.clear_history` also clears the per-frame stacks (it keeps `current_frame`, which is where the editor is, not a step). `BitmapEditorScene.start_new_undo_history()` clears it and the paint not yet submitted; `AnimatedCanvasSprite._load_file_into_canvas` calls it in a `finally` once the sprite has been replaced (every load: dialog, drop, PNG, AI result), and `on_new_file_event` after a new canvas. A load that fails before replacing the sprite keeps the history. Loading still cannot be undone, as before. Tests: `tests/tools/test_bitmappy_editor_scene.py::TestUndoHistoryStartsOverInTheRealEditor`, `tests/tools/test_undo_redo_manager.py::test_clear_history_clears_every_frames_stacks`
+
+### 76. Graphics Options: `--resolution` Help, `--windowed` and the macOS Video-Driver Check Disagree With the Code
+- **Description**: In `GameEngine.args()` (`glitchygames/engine/game_engine.py`): `--resolution`'s help says "default: 1024x768" while its default is `800x480`; `-w`/`--windowed` is `store_true` with `default=True`, so the flag can never change anything (there is no way to ask for fullscreen); and the video-driver block checks `platform.system() == 'MacOS'`, which never matches (`platform.system()` returns `'Darwin'`), so the macOS branch is dead (harmless today, since it would also give no choices)
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 15: correcting `docs/architecture/argument_system.md` against the argparse definitions)
+- **Date Reported**: 2026-10-19
+- **Details**: The help text is fixed (2026-10-23: `%(default)s`, so it names the real default; `tests/engine/test_game_engine.py::TestResolutionArgument`). Still open: `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
+- **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
+- **Date Resolved**: 2026-10-23
+- **Solution**: All three parts: `--resolution`'s help prints `%(default)s` (800x480). `-w/--windowed` is `argparse.BooleanOptionalAction` (default windowed): `--no-windowed` asks for fullscreen, `-w`/`--windowed` keep working. `--video-driver` offers SDL 2's names per platform (`PLATFORM_VIDEO_DRIVERS`: Darwin cocoa, Windows windows, Linux x11/wayland/kmsdrm; plus offscreen and dummy everywhere), replacing the SDL 1 names and the 'MacOS' comparison; cocoa, offscreen and dummy checked to start on macOS. The option is still not applied (#210). Tests: `TestResolutionArgument`, `TestGameEngineFullscreen`, `TestVideoDriverArgument` (tests/engine/test_game_engine.py)
+
+### 74. `debug_events` Is Always False: `--log-level` Is Compared With Upper-Case Names
+- **Description**: `GameEngine.initialize_arguments` (`glitchygames/engine/game_engine.py`, around line 634) sets `OPTIONS['debug_events']` from `OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}`, but `--log-level` (`glitchygames/events/game.py`) is lower-cased by `type=str.lower` and its choices are lower case, so the test never matches and unhandled events are never logged through `debug_events`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here: correcting the case would turn event debug logging on for `--log-level error` and `critical` runs too, which looks unintended (the set probably meant `debug` only); the intended levels need deciding first
+- **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/events/game.py`, `glitchygames/events/base.py`
+- **Date Resolved**: 2026-10-23
+- **Solution**: `debug_events` is an explicit opt-in flag, `--debug-events` (Diagnostics Options, off by default): "log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)" (the user's decision). The derivation from `--log-level` (lower-cased, compared with upper-case names, so always False) is removed. It stays in `REPLAY_LOCAL_OPTIONS`, so a replay uses its own run's flag and old recordings replay unchanged. Side effect: `--debug` is no longer an accepted abbreviation of `--debug-overlay` (argparse: ambiguous with `--debug-events`); `--debug-o` is. Tests: `tests/engine/test_game_engine.py::TestGameEngineInitializeArguments`, `TestDebugEventsArgument`; the restart test's abbreviation case uses `--debug-o`
 
 ### 207. Unhandled-Event Warnings Turn On at Log Level ERROR and CRITICAL (Not a Bug: Duplicate of #74)
 - **Description**: Filed on the reading that `debug_events` is on for `--log-level` DEBUG, ERROR and CRITICAL. It never is: `--log-level` is lower-cased (`type=str.lower`) and compared with upper-case names, so `debug_events` is always False, which #74 already records

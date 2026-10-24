@@ -146,6 +146,7 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.canvas_operation_tracker = mocker.Mock()
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
+    editor.current_pixel_changes_dict = {}
     editor._is_drag_operation = False
     editor.applying_undo_redo = False
 

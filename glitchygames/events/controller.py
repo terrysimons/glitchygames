@@ -47,6 +47,9 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
     class ControllerEventProxy(ControllerEvents, ResourceManager):
         """Proxy class for controller events."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         log: ClassVar[logging.Logger] = LOG
 
         AXIS: ClassVar = [

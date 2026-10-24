@@ -141,6 +141,9 @@ class FontManager(ResourceManager):
     class FontProxy(FontEvents, ResourceManager):
         """A font proxy."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the font proxy.
 
@@ -245,11 +248,44 @@ class FontManager(ResourceManager):
                 'fonts)'
             ),
         )
-        group.add_argument('--font-size', type=int, default=14)
-        group.add_argument('--font-bold', action='store_true', default=False)
-        group.add_argument('--font-italic', action='store_true', default=False)
-        group.add_argument('--font-antialias', action='store_true', default=False)
-        group.add_argument('--font-dpi', type=int, default=72)
+        group.add_argument(
+            '--font-size',
+            type=int,
+            default=14,
+            help=(
+                'size of the default font, used by text that asks for no font of its own '
+                '(default: %(default)s)'
+            ),
+        )
+        # Stored in FontManager.OPTIONS, but no font loader or renderer reads them yet
+        group.add_argument(
+            '--font-bold',
+            action='store_true',
+            default=False,
+            help='not used yet: stored, but no text is drawn bold because of it',
+        )
+        group.add_argument(
+            '--font-italic',
+            action='store_true',
+            default=False,
+            help='not used yet: stored, but no text is drawn italic because of it',
+        )
+        group.add_argument(
+            '--font-antialias',
+            action='store_true',
+            default=False,
+            help='not used yet: stored, but each text widget chooses its own antialiasing',
+        )
+        group.add_argument(
+            '--font-dpi',
+            type=int,
+            default=72,
+            help=(
+                'the resolution, in dots per inch, freetype font sizes are scaled at (sets '
+                "pygame.freetype's default resolution); the pygame font system ignores it "
+                '(default: %(default)s)'
+            ),
+        )
         group.add_argument(
             '--font-system',
             choices=['pygame', 'freetype'],

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 if TYPE_CHECKING:
     import argparse
@@ -39,6 +39,9 @@ class MouseEventManager(ResourceManager):
     class MouseEventProxy(MouseEvents, ResourceManager):  # ruff: ignore[too-many-public-methods] - one handler per mouse event type
         """Mouse manager event proxy."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the mouse manager event proxy.
 
@@ -69,6 +72,16 @@ class MouseEventManager(ResourceManager):
             self.game.on_mouse_motion_event(event)
 
             sprite = collided_sprites(self.game, event=event, index=-1)
+
+            # Focus follows the topmost sprite under the mouse: the sprite entered is focused
+            # (and the one left unfocused) before it gets the motion (BUGS.md #199: the focus
+            # handlers were never called)
+            sprite_under_mouse = sprite[0] if sprite else None
+            if sprite_under_mouse is not self.current_focus:
+                if sprite_under_mouse is None:
+                    self.on_mouse_unfocus_event(event, self.current_focus)
+                else:
+                    self.on_mouse_focus_event(event, sprite_under_mouse)
 
             if sprite:
                 self.log.debug('%s: Mouse Motion: %s', type(self), event)
@@ -168,7 +181,7 @@ class MouseEventManager(ResourceManager):
                 trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_left_mouse_drag_up_event(event, trigger)
+            self.game.on_left_mouse_drop_event(event, trigger)
 
         @override
         def on_middle_mouse_drag_event(
@@ -183,7 +196,7 @@ class MouseEventManager(ResourceManager):
                 trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_middle_mouse_drag_down_event(event, trigger)
+            self.game.on_middle_mouse_drag_event(event, trigger)
 
         @override
         def on_middle_mouse_drop_event(
@@ -198,7 +211,7 @@ class MouseEventManager(ResourceManager):
                 trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_middle_mouse_drag_up_event(event, trigger)
+            self.game.on_middle_mouse_drop_event(event, trigger)
 
         @override
         def on_right_mouse_drag_event(
@@ -213,7 +226,7 @@ class MouseEventManager(ResourceManager):
                 trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_right_mouse_drag_down_event(event, trigger)
+            self.game.on_right_mouse_drag_event(event, trigger)
 
         @override
         def on_right_mouse_drop_event(
@@ -228,7 +241,7 @@ class MouseEventManager(ResourceManager):
                 trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_right_mouse_drag_up_event(event, trigger)
+            self.game.on_right_mouse_drop_event(event, trigger)
 
         @override
         def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
@@ -296,9 +309,11 @@ class MouseEventManager(ResourceManager):
                 pass
 
             if self.mouse_dragging:
-                # The mouse up location is also the trigger.
+                # The mouse up location is also the trigger. Through this proxy's own drop
+                # handler, which also calls the released button's drop handler (BUGS.md #199:
+                # calling only the game's generic one, the button-specific ones never ran)
                 self.mouse_dragging = False
-                self.game.on_mouse_drop_event(event=event, trigger=event)
+                self.on_mouse_drop_event(event, event)
 
         @override
         def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
@@ -349,10 +364,11 @@ class MouseEventManager(ResourceManager):
                 self.on_middle_mouse_button_down_event(event)
             if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_down_event(event)
+            # Button 4 is the wheel turned up, 5 down (BUGS.md #199: they were swapped)
             if event.button == MOUSE_WHEEL_SCROLL_UP:
-                self.on_mouse_scroll_down_event(event)
-            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 self.on_mouse_scroll_up_event(event)
+            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
+                self.on_mouse_scroll_down_event(event)
 
         @override
         def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:

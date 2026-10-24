@@ -25,7 +25,7 @@ sequenceDiagram
 
     INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
     INIT->>ENGINE: GameEngine.args(parser)
-    Note over ENGINE: Layer 1<br/>Graphics Options (15)<br/>Diagnostics Options (14, 2 hidden)
+    Note over ENGINE: Layer 1<br/>Graphics Options (15)<br/>Diagnostics Options (15, 2 hidden)
     loop for each of the 12
         ENGINE->>MANAGERS: manager.args(parser)
     end
@@ -35,7 +35,7 @@ sequenceDiagram
     Note over GAME: Layer 3<br/>-v, -s
     INIT->>PARSER: parse_args()
     PARSER-->>INIT: the parsed options
-    Note over INIT: GameEngine.OPTIONS = the options<br/>target_fps resolved, debug_events derived<br/>game.options = OPTIONS
+    Note over INIT: GameEngine.OPTIONS = the options<br/>target_fps resolved<br/>game.options = OPTIONS
 ```
 
 Every option each layer adds is listed in the [Complete Flag Reference](#complete-flag-reference).
@@ -58,7 +58,7 @@ flowchart TB
     L1 --> L2 --> L3
 ```
 
-In `--help` (Bitmappy's or Paddle Slap's) the groups hold 15 Graphics, 14 Diagnostics (2 more
+In `--help` (Bitmappy's or Paddle Slap's) the groups hold 15 Graphics, 15 Diagnostics (2 more
 hidden), 1 Controller, 7 Font and 3 Game options, then the game's own; the nine empty groups
 are left out. The [Complete Flag Reference](#complete-flag-reference) lists them all.
 
@@ -134,11 +134,8 @@ flowchart TD
     PARSE["parser.parse_args()"] --> VARS["vars(args)\nNamespace -> dict"]
     VARS --> OPT["GameEngine.OPTIONS (class var)"]
 
-    OPT --> SYNTH{"log_level in\nDEBUG/CRITICAL/ERROR?"}
-    SYNTH -->|"Yes"| DEBUG_T["OPTIONS['debug_events'] = True"]
-    SYNTH -->|"No"| DEBUG_F["OPTIONS['debug_events'] = False"]
-
-    DEBUG_T & DEBUG_F --> BACKPROP["game.options = OPTIONS"]
+    OPT --> FPS["OPTIONS['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
+    FPS --> BACKPROP["game.options = OPTIONS"]
     BACKPROP --> SM_OPT["SceneManager.OPTIONS = OPTIONS"]
     SM_OPT --> SCENE_INIT["Scene.__init__(options=OPTIONS)"]
     SCENE_INIT --> SELF_OPT["self.options = OPTIONS"]
@@ -157,8 +154,7 @@ flowchart TD
 ## Complete Flag Reference
 
 Every option, by the layer that adds it and grouped as `uv run bitmappy --help` prints it:
-each with its type and default, then its help text. Options with no help text are marked; the
-description is then this page's.
+each with its type and default, then its help text.
 
 ### Layer 1: the engine
 
@@ -168,9 +164,9 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 
 - `-f, --target-fps TARGET_FPS` (`float`): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
 - `--fps-log-interval-ms FPS_LOG_INTERVAL_MS` (`float`): how often to log the FPS counter in ms (default: 1000)
-- `-w, --windowed` (`store_true`, default `True`): run the program in windowed mode
+- `-w, --windowed, --no-windowed` (`bool`): run in a window; --no-windowed runs fullscreen (default: windowed)
 - `-r, --resolution RESOLUTION` (`str`): the resolution to use (default: 800x480)
-- `--use-gfxdraw` (`store_true`, default `False`): Use pygame.gfxdraw for rendering (no `--help` text yet)
+- `--use-gfxdraw` (`store_true`, default `False`): not used yet: stored, but nothing draws with pygame.gfxdraw because of it
 - `--update-type {update,flip}` (`choice`): update or flip (default: update)
 - `--timer-backend {auto,fast,pygame}` (`choice`): timer backend for draw loop pacing (default: auto, the fast backend with this machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps wake on time; pygame is the legacy backend)
 - `--sleep-granularity-ns SLEEP_GRANULARITY_NS` (`int`, default `1000000`): how long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only
@@ -180,15 +176,17 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 - `--rumble-intensity RUMBLE_INTENSITY` (`float`): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
-- `--video-driver {}` (`choice`, default `None`): Platform-specific video driver (see below) (no `--help` text yet)
+- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
 
-**`--video-driver` choices by platform:**
+**`--video-driver` choices by platform** (SDL 2's video driver names, by `platform.system()`;
+`--help` above is macOS's):
 
 | Platform | Choices |
 |----------|---------|
-| Linux | `wayland`, `x11`, `dga`, `fbcon`, `directfb`, `ggi`, `vgl`, `svgalib`, `aalib` |
-| Windows | `windib`, `directx` |
-| macOS | (none currently defined; the code checks `platform.system() == 'MacOS'`, which never matches, so macOS falls through to no choices either way) |
+| macOS (`Darwin`) | `cocoa`, `offscreen`, `dummy` |
+| Windows | `windows`, `offscreen`, `dummy` |
+| Linux | `x11`, `wayland`, `kmsdrm`, `offscreen`, `dummy` |
+| any other | `offscreen`, `dummy` |
 
 #### Diagnostics Options
 
@@ -201,6 +199,7 @@ from `--help`: the watched replay's restart internals.
 - `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in global FPS report
 - `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
 - `--debug-overlay, --no-debug-overlay` (`bool`, default `False`): show the debug overlay at startup (F3 toggles, F4 cycles panels)
+- `--debug-events` (`store_true`, default `False`): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)
 - `--record-trace PATH` (`PATH`): record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for inspection and later replay (default: off)
 - `--replay-trace PATH` (`PATH`): replay a --record-trace recording exactly through the engine, comparing every frame with it and reporting the first divergence (default: off)
 - `--replay-fps {recorded,real}` (`choice`, default `None` (read as `recorded`)): with --replay-trace: post FPS events from the recorded frame times (recorded, the default: exact, and compared with the recording) or from this machine's measured frame times (real: what this machine achieves; FPS events are then not compared, and sprites that draw the FPS value may diverge)
@@ -226,11 +225,11 @@ Added by `ControllerEventManager.args()` in `glitchygames/events/controller.py` 
 Added by `FontManager.args()` in `glitchygames/fonts/font_manager.py`.
 
 - `--font-name FONT_NAME` (`str`): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)
-- `--font-size FONT_SIZE` (`int`, default `14`): Font size in points (no `--help` text yet)
-- `--font-bold` (`store_true`, default `False`): Bold font (no `--help` text yet)
-- `--font-italic` (`store_true`, default `False`): Italic font (no `--help` text yet)
-- `--font-antialias` (`store_true`, default `False`): Enable font antialiasing (no `--help` text yet)
-- `--font-dpi FONT_DPI` (`int`, default `72`): Font DPI (no `--help` text yet)
+- `--font-size FONT_SIZE` (`int`): size of the default font, used by text that asks for no font of its own (default: 14)
+- `--font-bold` (`store_true`, default `False`): not used yet: stored, but no text is drawn bold because of it
+- `--font-italic` (`store_true`, default `False`): not used yet: stored, but no text is drawn italic because of it
+- `--font-antialias` (`store_true`, default `False`): not used yet: stored, but each text widget chooses its own antialiasing
+- `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default resolution); the pygame font system ignores it (default: 72)
 - `--font-system {pygame,freetype}` (`choice`, default `freetype`): Font system to use: freetype (enhanced, default) or pygame (built-in)
 
 #### Game Options
@@ -281,14 +280,6 @@ The other games add their own options the same way:
 | Joystick Demo | `glitchygames/examples/joystick_demo.py` | none (the engine's `--input-mode` chooses what it shows) |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
-
-### Synthetic options (not from argparse)
-
-These are derived after parsing and injected into the OPTIONS dict.
-
-| Key | Type | Derived From | Description |
-|-----|------|-------------|-------------|
-| `debug_events` | `bool` | `log_level` | Meant to be `True` for the `debug`, `critical` and `error` levels, but the code compares with upper-case names while `--log-level` is lower case, so it is always `False` (BUGS.md #74) |
 
 ## What `--help` Looks Like
 

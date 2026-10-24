@@ -632,24 +632,22 @@ class TestRedrawnGameSprites:
             set_display_mode(size=(800, 600))
 
     def test_cobra_hitbox_follows_first_draw_and_strike(self):
-        """Brave Adventurer's Cobra: blank before update(), then idle, then striking pose."""
+        """Brave Adventurer's Cobra: idle as it is made, then the strike pose dt_tick draws.
+
+        The pose is drawn when the cobra is made and in dt_tick (before collision), never in
+        update(), so its hitbox is never a blank image's or a frame behind (BUGS.md #209.6).
+        """
         from glitchygames.examples.brave_adventurer.enemies import Cobra
 
         cobra = Cobra(500.0, pygame.sprite.LayeredDirty())
-        full_rect = get_sprite_collision_rect(cobra)
-        assert full_rect.size == cobra.image.get_size()
-
-        cobra.update()
         idle_rect = get_sprite_collision_rect(cobra)
         idle_visible = cobra.image.get_bounding_rect()
         assert idle_rect.size == idle_visible.size
-        assert idle_rect.topleft == (
-            full_rect.x + idle_visible.x,
-            full_rect.y + idle_visible.y,
-        )
+        assert idle_visible.size != cobra.image.get_size()  # drawn, not a blank image
 
-        cobra.striking = True
-        cobra.update()
+        cobra.dt_tick(Cobra.STRIKE_INTERVAL)
+
+        assert cobra.striking
         striking_visible = cobra.image.get_bounding_rect()
         assert striking_visible != idle_visible
         assert get_sprite_collision_rect(cobra).size == striking_visible.size

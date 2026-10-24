@@ -533,8 +533,12 @@ class TestPaddleIntegration(BasePaddleTest):
         assert v_paddle.is_at_bottom_of_screen() is False
 
 
-class TestHorizontalPaddleUpdate:
-    """Test HorizontalPaddle.update() boundary behavior (lines 186-193)."""
+class TestHorizontalPaddleEdgeClamp:
+    """HorizontalPaddle clamps itself to the screen in dt_tick (game logic), not in update().
+
+    The pose rule (CLAUDE.md, World Space) keeps update() for visual work: collision runs after
+    dt_tick, so a paddle clamped only in update() was past the edge for that frame's collision.
+    """
 
     def _create_horizontal_paddle(self):
         """Create a HorizontalPaddle for testing.
@@ -561,51 +565,50 @@ class TestHorizontalPaddleUpdate:
         width = right - left
         return pygame.Surface((width, SCREEN_HEIGHT))
 
-    def test_update_clamps_at_left_boundary(self):
-        """Test update() clamps paddle at left boundary after dt_tick overshoot."""
+    def test_dt_tick_past_the_left_edge_clamps_and_stops(self):
         paddle = self._create_horizontal_paddle()
         paddle.screen = self._create_screen(left=0)
+        paddle.left()
 
-        # Simulate paddle that overshot left boundary via dt_tick
+        # 5 px/s for 100 s carries the paddle 500 px left of x 200
+        paddle.dt_tick(100.0)
+
         assert paddle.rect is not None
-        paddle.rect.x = -5
-        paddle._move.current_speed = -5
-
-        paddle.update()
-
         assert paddle.rect.x == 0
         assert paddle._move.current_speed == 0  # stop() was called
 
-    def test_update_clamps_at_right_boundary(self):
-        """Test update() clamps paddle at right boundary after dt_tick overshoot."""
+    def test_dt_tick_past_the_right_edge_clamps_and_stops(self):
         paddle = self._create_horizontal_paddle()
         paddle.screen = self._create_screen(right=SCREEN_WIDTH)
+        paddle.right()
 
-        # Simulate paddle that overshot right boundary via dt_tick
+        paddle.dt_tick(200.0)
+
         assert paddle.rect is not None
-        paddle.rect.x = SCREEN_WIDTH - SIZE_100 + 5
-        paddle._move.current_speed = 5
-
-        paddle.update()
-
         assert paddle.rect.x == SCREEN_WIDTH - paddle.rect.width
         assert paddle._move.current_speed == 0  # stop() was called
 
-    def test_update_no_clamp_when_in_bounds(self):
-        """Test update() does not modify position when paddle is within bounds."""
+    def test_dt_tick_in_bounds_moves_without_clamping(self):
         paddle = self._create_horizontal_paddle()
         paddle.screen = self._create_screen(left=0, right=SCREEN_WIDTH)
+        paddle.right()
 
-        # Position paddle in middle of screen
+        paddle.dt_tick(2.0)
+
         assert paddle.rect is not None
-        paddle.rect.x = POS_200
-        paddle._move.current_speed = 3
+        assert paddle.rect.x == POS_200 + 10
+        assert paddle._move.current_speed == 5
 
-        original_x = paddle.rect.x
+    def test_update_moves_nothing(self):
+        """update() runs in the render phase: an out-of-bounds rect is left for dt_tick."""
+        paddle = self._create_horizontal_paddle()
+        paddle.screen = self._create_screen(left=0)
+        assert paddle.rect is not None
+        paddle.rect.x = -5
+
         paddle.update()
 
-        # update() only clamps -- movement happens in dt_tick()
-        assert paddle.rect.x == original_x
+        assert paddle.rect.x == -5
 
 
 class TestHorizontalPaddleDirectionMethods:
@@ -698,8 +701,12 @@ class TestHorizontalPaddleDtTick:
         assert paddle.rect.x == original_x
 
 
-class TestVerticalPaddleUpdate:
-    """Test VerticalPaddle.update() boundary behavior (lines 301-306)."""
+class TestVerticalPaddleEdgeClamp:
+    """VerticalPaddle clamps itself to the screen in dt_tick (game logic), not in update().
+
+    BUGS.md #209 item 2: clamped in update() (the render phase), the paddle was past the edge
+    for the frame's collision, which PaddleSlap resolves in its dt_tick.
+    """
 
     def _create_vertical_paddle(self):
         """Create a VerticalPaddle for testing.
@@ -708,44 +715,58 @@ class TestVerticalPaddleUpdate:
             VerticalPaddle: A configured vertical paddle.
 
         """
-        return VerticalPaddle(
+        paddle = VerticalPaddle(
             name='test_vertical',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, POS_300),
             color=(0, 0, 255),
             speed=5,
         )
-
-    def test_update_clamps_at_top_and_stops(self):
-        """Test update() clamps position and stops at top (lines 301-303)."""
-        paddle = self._create_vertical_paddle()
         paddle.screen_height = SCREEN_HEIGHT
+        return paddle
 
-        # Position paddle above top boundary
+    def test_dt_tick_past_the_top_clamps_and_stops(self):
+        paddle = self._create_vertical_paddle()
+        paddle.up()
+
+        # 5 px/s for 100 s carries the paddle 500 px above y 300
+        paddle.dt_tick(100.0)
+
         assert paddle.rect is not None
-        paddle.rect.y = -10
-        paddle.up()  # Moving up
-
-        paddle.update()
-
         assert paddle.rect.y == 0
         assert paddle._move.current_speed == 0
 
-    def test_update_clamps_at_bottom_and_stops(self):
-        """Test update() clamps position and stops at bottom (lines 304-306)."""
+    def test_dt_tick_past_the_bottom_clamps_and_stops(self):
         paddle = self._create_vertical_paddle()
-        paddle.screen_height = SCREEN_HEIGHT
+        paddle.down()
 
-        # Position paddle below bottom boundary
+        paddle.dt_tick(100.0)
+
         assert paddle.rect is not None
-        paddle.rect.y = SCREEN_HEIGHT + 10
-        paddle.rect.height = SIZE_100
-        paddle.down()  # Moving down
+        assert paddle.rect.y == SCREEN_HEIGHT - paddle.rect.height
+        assert paddle._move.current_speed == 0
+
+    def test_a_clamped_paddle_moves_on_from_the_edge(self):
+        """The clamp resets the sub-pixel position too, so moving away starts at the edge."""
+        paddle = self._create_vertical_paddle()
+        paddle.up()
+        paddle.dt_tick(100.0)
+        paddle.down()
+
+        paddle.dt_tick(2.0)
+
+        assert paddle.rect is not None
+        assert paddle.rect.y == 10
+
+    def test_update_moves_nothing(self):
+        """update() runs in the render phase: an out-of-bounds rect is left for dt_tick."""
+        paddle = self._create_vertical_paddle()
+        assert paddle.rect is not None
+        paddle.rect.y = -10
 
         paddle.update()
 
-        assert paddle.rect.y == SCREEN_HEIGHT - paddle.rect.height
-        assert paddle._move.current_speed == 0
+        assert paddle.rect.y == -10
 
 
 class TestVerticalPaddleSpeedUp:

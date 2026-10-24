@@ -433,6 +433,22 @@ class TestPaddleslapExample:
         assert 'version' in actions
 
 
+def test_setup_leaves_key_repeat_off():
+    """Movement reads held keys, so nothing needs SDL's KEYDOWN repeats (BUGS.md #209.3).
+
+    pygame.key.set_repeat(1) made SDL repeat a held key's KEYDOWN about every millisecond,
+    which only bloated event batches and recordings.
+    """
+    pygame.key.set_repeat()  # off, as SDL starts
+    game = Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+    try:
+        game.setup()
+
+        assert pygame.key.get_repeat() == (0, 0)
+    finally:
+        pygame.key.set_repeat()
+
+
 class TestPaddleslapBallTrajectoryLogging:
     """The per-frame ball trajectory logs (and their history) run only with DEBUG logging."""
 
@@ -1140,6 +1156,20 @@ def test_a_space_release_without_its_press_neither_pauses_nor_quits():
     )
 
     assert game.next_scene is game
+
+
+@pytest.mark.parametrize('version_flag', ['-v', '--version'])
+def test_version_flag_prints_the_version_and_exits(mocker, capsys, version_flag):
+    """-v/--version prints the game's name and version and exits before the game starts."""
+    mocker.patch.object(paddleslap, 'GameEngine', GoldenTraceEngine)
+    # A game that ignored the flag would run its loop here; the flag must exit before start()
+    start = mocker.patch.object(GoldenTraceEngine, 'start')
+    with command_line([version_flag]), pytest.raises(SystemExit) as exit_info:
+        paddleslap.main()
+
+    assert exit_info.value.code == ExitCode.SUCCESS
+    assert capsys.readouterr().out == 'Paddle Slap 1.1\n'
+    start.assert_not_called()
 
 
 GOLDEN_REPLAY_PATH = (

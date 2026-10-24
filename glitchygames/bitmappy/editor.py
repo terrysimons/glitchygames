@@ -412,6 +412,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self._update_ai_sprite_position()
             self.canvas.update()
             self.canvas.dirty = 1
+            # The previous sprite's undo steps must not apply to the new canvas (BUGS.md #150)
+            self.start_new_undo_history()
             self.log.info(
                 'Canvas resized to %sx%s with pixel size %s',
                 width,
@@ -1137,6 +1139,20 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Route to canvas or parent (only if not in slider mode)
         if not self._slider_manager.is_any_controller_in_slider_mode():
             self._route_to_canvas_or_parent(event)
+
+    def start_new_undo_history(self) -> None:
+        """Forget the undo/redo history and any paint not yet recorded in it.
+
+        Called when the canvas gets another sprite (a load, a new canvas): the history's steps,
+        and paint collected but not yet submitted, belong to the sprite that was there, and
+        applying them to the new one would write the old sprite's pixels and animations into it
+        (BUGS.md #150).
+        """
+        self.undo_redo_manager.clear_history()
+        self.current_pixel_changes = []
+        self.current_pixel_changes_dict.clear()
+        self.pixel_change_timer = None
+        self.log.debug('Started a new undo history')
 
     def handle_undo(self) -> None:
         """Handle undo operation."""

@@ -944,16 +944,18 @@ class TestSceneKeyUpEvent:
 class TestSceneKeyDownEvent:
     """Test Scene.on_key_down_event() method."""
 
-    def test_key_down_q_sets_quit_requested(self, mocker):
-        """Test 'q' key down sets quit_requested."""
+    def test_key_down_q_does_not_quit_on_the_press(self, mocker):
+        """Q's press posts no QUIT and sets no flag: Q quits on its release (BUGS.md #203)."""
         scene = Scene()
+        pygame.event.clear(eventtype=pygame.QUIT)
 
         event = mocker.Mock()
         event.key = pygame.K_q
 
         scene.on_key_down_event(event)
 
-        assert scene.quit_requested is True
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
+        assert not hasattr(scene, 'quit_requested')
 
     def test_key_down_handled_by_focused_sprite(self, mocker):
         """Test key down is handled by focused sprite first."""
@@ -2637,14 +2639,15 @@ class TestSceneRender:
 class TestSceneOnKeyDownEventDeeper:
     """Test Scene.on_key_down_event with non-quit keys."""
 
-    def test_key_down_q_sets_quit(self, mocker):
-        """Test q key sets quit_requested on scene."""
+    def test_key_down_q_posts_no_quit(self, mocker):
+        """Q's press with no focused sprite posts no QUIT (it quits on release)."""
         scene = Scene()
+        pygame.event.clear(eventtype=pygame.QUIT)
         event = mocker.Mock()
         event.key = pygame.K_q
 
         scene.on_key_down_event(event)
-        assert scene.quit_requested is True
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
 
     def test_key_down_non_quit_key(self, mocker):
         """Test non-quit key does not set quit_requested when no focused sprites."""
@@ -3038,14 +3041,15 @@ class TestSceneManagerUpdateScreen:
 class TestSceneOnKeyDownWithFocusedSprites:
     """Test Scene.on_key_down_event with focused sprites for non-quit keys."""
 
-    def test_key_down_q_sets_quit(self, mocker):
-        """Test Q key sets quit_requested on Scene."""
+    def test_key_down_q_with_no_focused_sprite_posts_no_quit(self, mocker):
+        """Q's press posts no QUIT: Scene acts on no key press (BUGS.md #203)."""
         scene = Scene()
+        pygame.event.clear(eventtype=pygame.QUIT)
         event = mocker.Mock()
         event.key = pygame.K_q
 
         scene.on_key_down_event(event)
-        assert scene.quit_requested is True
+        assert pygame.event.get(eventtype=pygame.QUIT) == []
 
     def test_key_down_non_quit_with_focused_sprite(self, mocker):
         """Test non-quit key is dispatched to focused sprite."""
@@ -3066,8 +3070,8 @@ class TestSceneOnKeyDownWithFocusedSprites:
         event.key = pygame.K_a
 
         scene.on_key_down_event(event)
-        # Should not set quit_requested for non-quit key
-        assert not hasattr(scene, 'quit_requested') or scene.quit_requested is not True
+        # No quit state on the scene (BUGS.md #203: Scene has no quit_requested)
+        assert not hasattr(scene, 'quit_requested')
 
 
 class TestSceneUpdateWithFilmStrip:

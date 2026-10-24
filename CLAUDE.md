@@ -103,7 +103,7 @@ nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
 # --- Code quality ---
-nox -s code-complexity     # wily complexity diff; `-- --graphs` generates docs/quality/graphs/ (gitignored), `-- --rank` ranks files
+nox -s code-complexity     # wily: the working tree's changes against HEAD (history measured in a temporary worktree, never in yours); `-- --graphs` generates docs/quality/graphs/ (gitignored), `-- --rank` ranks files
 
 # --- Security ---
 nox -s security-scan       # Run ALL security scans (bandit + safety)
@@ -513,13 +513,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   deadline, no clock tick) and prints its report to stdout instead of logging it. A replay that a
   crash, Ctrl-C, signal or the game's own exit ends early reports only `Replay stopped at frame
   N: the run ended with ...` (after its result: the result, then `then the run ended with ...`).
-  The diagnostic flags (`--headless`, `--debug-overlay`, the trace/replay/audit flags, the timer
-  jitter and FPS report flags) are in the "Diagnostics Options" group
+  The diagnostic flags (`--headless`, `--debug-overlay`, `--debug-events`, the trace/replay/audit
+  flags, the timer jitter and FPS report flags) are in the "Diagnostics Options" group
 - Fabricated key events (scripts, tests) carry their key's US QWERTY position
   (`glitchygames.testing.keys.qwerty_scancode`): the example games bind their own scenes'
   controls by scancode (`ActionMap.bind(scancode=...)`), their pause and quit included; the
   engine's `PauseScene` and `GameOverScene`, and the base `Scene`'s Q/ESC quit (PaddleSlap's),
-  check key codes (`event.key`)
+  check key codes (`event.key`). Both screens answer a gamepad too, on either event layer
+  (`scenes/builtin_scenes/gamepad_choice.py`): Start or A goes on (resume, restart) on its
+  release after a press there, as SPACE does; B or Back quits on its press, as ESC does
 - Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
@@ -740,7 +742,7 @@ display before every present. The test guard judges what the window shows
   TypeError: use `event.with_fields(**changes)`; the hash is cached in a slot, never a field.
   `to_json()`/`from_json()` encode values as recordings do, windows as None (recordings still
   store raw pygame events)
-- Unhandled events: `GameEngine.unhandled_events` keeps per-type count, first-seen time and attribute names; logged as a table at teardown (`_shutdown`)
+- Unhandled events: `GameEngine.unhandled_events` keeps per-type count, first-seen time and attribute names; logged as a table at teardown (`_shutdown`). A scene's stub (`unhandled_event()`) also logs a warning the first time each type arrives under `--debug-events` (off by default) and raises `UnhandledEventError` under `--no-unhandled-events`
 - `SYSWMEVENT` (the window system's raw messages) stays blocked, as SDL leaves it (`events.allow_every_event_type`); a game opts in with `NATIVE_WINDOW_MESSAGES = True` on its scene class and gets them in `on_sys_wm_event` as plain `HashableEvent`s (docs/architecture/event_system.md)
 
 ### Sprite and Animation System

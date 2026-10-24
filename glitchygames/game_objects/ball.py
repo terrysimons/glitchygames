@@ -688,7 +688,8 @@ class BallSprite(Sprite):
         self.dirty = 1
 
         # Paddle hits are found by the game's CollisionManager after the balls move and
-        # resolved by handle_paddle_collision() (see PaddleSlap's update()).
+        # resolved by handle_paddle_collision() (see PaddleSlap's Game.dt_tick, which resolves
+        # them after every sprite moved).
 
         self._do_bounce()
 

@@ -40,18 +40,18 @@ from glitchygames.scenes import Scene
 # Options of a strict game: unhandled events raise UnhandledEventError
 STRICT_EVENT_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
 
-# Every handler MouseEventProxy calls on its game (glitchygames/events/mouse.py), including the
-# drag/drop names only sprites define (on_*_mouse_drag_down_event, on_*_mouse_drag_up_event)
+# Every handler MouseEventProxy calls on its game (glitchygames/events/mouse.py): the names Scene
+# defines (BUGS.md #199: the proxy called on_*_mouse_drag_down/up_event, which only sprites define)
 RECORDED_MOUSE_HANDLER_NAMES = (
     'on_mouse_motion_event',
     'on_mouse_drag_event',
     'on_mouse_drop_event',
     'on_left_mouse_drag_event',
-    'on_left_mouse_drag_up_event',
-    'on_middle_mouse_drag_down_event',
-    'on_middle_mouse_drag_up_event',
-    'on_right_mouse_drag_down_event',
-    'on_right_mouse_drag_up_event',
+    'on_left_mouse_drop_event',
+    'on_middle_mouse_drag_event',
+    'on_middle_mouse_drop_event',
+    'on_right_mouse_drag_event',
+    'on_right_mouse_drop_event',
     'on_mouse_button_down_event',
     'on_mouse_button_up_event',
     'on_left_mouse_button_down_event',
@@ -496,7 +496,7 @@ class TestMouseEventProxyDropEvent:
 
         assert mouse_scene.handler_calls == [
             ('on_mouse_drop_event', (event, trigger)),
-            ('on_left_mouse_drag_up_event', (event, trigger)),
+            ('on_left_mouse_drop_event', (event, trigger)),
         ]
         assert proxy.mouse_dropping is False
 
@@ -511,7 +511,7 @@ class TestMouseEventProxyDropEvent:
 
         assert mouse_scene.handler_calls == [
             ('on_mouse_drop_event', (event, trigger)),
-            ('on_middle_mouse_drag_up_event', (event, trigger)),
+            ('on_middle_mouse_drop_event', (event, trigger)),
         ]
 
     def test_drop_event_right_button_forwards_to_game(self, mouse_scene):
@@ -525,7 +525,7 @@ class TestMouseEventProxyDropEvent:
 
         assert mouse_scene.handler_calls == [
             ('on_mouse_drop_event', (event, trigger)),
-            ('on_right_mouse_drag_up_event', (event, trigger)),
+            ('on_right_mouse_drop_event', (event, trigger)),
         ]
 
     def test_drop_event_scroll_up_button_is_noop(self, mouse_scene):
@@ -550,15 +550,6 @@ class TestMouseEventProxyDropEvent:
 
         assert mouse_scene.handler_calls == [('on_mouse_drop_event', (event, trigger))]
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AttributeError,
-        reason=(
-            "MouseEventProxy.on_left_mouse_drop_event calls the game's "
-            'on_left_mouse_drag_up_event, which Scene does not define: a Scene receives a '
-            'left drop in on_left_mouse_drop_event, which the proxy never calls'
-        ),
-    )
     def test_left_drop_reaches_a_plain_scenes_left_drop_handler(self):
         """A left-button drop given to the proxy reaches Scene.on_left_mouse_drop_event."""
 
@@ -581,6 +572,36 @@ class TestMouseEventProxyDropEvent:
         proxy.on_mouse_drop_event(event, trigger)
 
         assert scene.left_drops == [(event, trigger)]
+
+    @pytest.mark.parametrize(
+        ('button', 'drop_handler_name'),
+        [
+            (MOUSE_BUTTON_LEFT, 'on_left_mouse_drop_event'),
+            (MOUSE_BUTTON_WHEEL, 'on_middle_mouse_drop_event'),
+            (MOUSE_BUTTON_RIGHT, 'on_right_mouse_drop_event'),
+        ],
+    )
+    def test_releasing_a_dragged_button_reaches_its_drop_handler(
+        self, mouse_scene, button, drop_handler_name
+    ):
+        """A press, a drag and the release give the drop and that button's drop (BUGS.md #199).
+
+        The release used to call only the game's generic on_mouse_drop_event, so the
+        button-specific drop handlers were never called.
+        """
+        manager = MouseEventManager(game=mouse_scene)
+        manager.on_mouse_button_down_event(
+            HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(5, 5), button=button)
+        )
+        manager.on_mouse_motion_event(
+            HashableEvent(pygame.MOUSEMOTION, pos=(6, 6), rel=(1, 1), buttons=(1, 1, 1))
+        )
+        release = HashableEvent(pygame.MOUSEBUTTONUP, pos=(6, 6), button=button)
+
+        manager.on_mouse_button_up_event(release)
+
+        assert mouse_scene.arguments_of('on_mouse_drop_event') == [(release, release)]
+        assert mouse_scene.arguments_of(drop_handler_name) == [(release, release)]
 
 
 # ---------------------------------------------------------------------------
@@ -616,7 +637,7 @@ class TestMouseEventProxyDragEvent:
 
         assert mouse_scene.handler_calls == [
             ('on_mouse_drag_event', (event, trigger)),
-            ('on_middle_mouse_drag_down_event', (event, trigger)),
+            ('on_middle_mouse_drag_event', (event, trigger)),
         ]
 
     def test_drag_event_right_button(self, mouse_scene):
@@ -630,7 +651,7 @@ class TestMouseEventProxyDragEvent:
 
         assert mouse_scene.handler_calls == [
             ('on_mouse_drag_event', (event, trigger)),
-            ('on_right_mouse_drag_down_event', (event, trigger)),
+            ('on_right_mouse_drag_event', (event, trigger)),
         ]
 
     def test_drag_event_scroll_up_is_noop(self, mouse_scene):
@@ -661,17 +682,6 @@ class TestMouseEventProxyDragEvent:
             (MOUSE_BUTTON_WHEEL, 'on_middle_mouse_drag_event'),
             (MOUSE_BUTTON_RIGHT, 'on_right_mouse_drag_event'),
         ],
-    )
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AttributeError,
-        reason=(
-            "MouseEventProxy routes a middle or right drag to the game's "
-            'on_middle_mouse_drag_down_event / on_right_mouse_drag_down_event, which Scene '
-            'does not define: Scene.on_middle_mouse_drag_event and on_right_mouse_drag_event '
-            '(which pass the drag to the sprites under the mouse) are never called. Through '
-            "the engine the SceneManager hands the miss to GameEngine's missing_event"
-        ),
     )
     def test_middle_and_right_drags_reach_a_plain_scenes_drag_handler(
         self, button, scene_handler_name
@@ -741,7 +751,11 @@ class TestMouseEventProxyMotionWithCollision:
         manager.on_mouse_motion_event(motion_event)
 
         assert mouse_scene.handler_calls == [('on_mouse_motion_event', (motion_event,))]
-        assert sprite_under_mouse.received == [('motion', motion_event)]
+        # Entered, it is focused first (BUGS.md #199)
+        assert sprite_under_mouse.received == [
+            ('focus', motion_event, sprite_under_mouse),
+            ('motion', motion_event),
+        ]
         assert sprite_elsewhere.received == []
 
     def test_motion_forwards_only_to_the_topmost_collided_sprite(self, mouse_scene):
@@ -756,8 +770,58 @@ class TestMouseEventProxyMotionWithCollision:
         )
         manager.on_mouse_motion_event(motion_event)
 
-        assert upper_sprite.received == [('motion', motion_event)]
+        assert upper_sprite.received == [
+            ('focus', motion_event, upper_sprite),
+            ('motion', motion_event),
+        ]
         assert lower_sprite.received == []
+
+    def test_moving_onto_a_sprite_focuses_it_and_moving_off_unfocuses_it(self, mouse_scene):
+        """The sprite under the mouse gets focus, and loses it when the mouse leaves (#199).
+
+        The proxy's focus and unfocus handlers were never called by anything.
+        """
+        sprite = RecordingSprite(rect=pygame.Rect(90, 90, 20, 20))
+        mouse_scene.all_sprites.add(sprite)
+        manager = MouseEventManager(game=mouse_scene)
+        onto_sprite = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(1, 1))
+        within_sprite = HashableEvent(pygame.MOUSEMOTION, pos=(101, 100), rel=(1, 0))
+        off_sprite = HashableEvent(pygame.MOUSEMOTION, pos=(300, 300), rel=(199, 200))
+
+        manager.on_mouse_motion_event(onto_sprite)
+        manager.on_mouse_motion_event(within_sprite)
+        manager.on_mouse_motion_event(off_sprite)
+
+        assert sprite.received == [
+            ('focus', onto_sprite, sprite),
+            ('motion', onto_sprite),
+            ('motion', within_sprite),
+            ('unfocus', off_sprite),
+        ]
+        assert manager.proxies[0].current_focus is None
+        assert manager.proxies[0].previous_focus is sprite
+
+    def test_moving_from_one_sprite_to_another_moves_the_focus(self, mouse_scene):
+        """The sprite left is unfocused before the sprite entered is focused."""
+        first_sprite = RecordingSprite(rect=pygame.Rect(0, 0, 20, 20))
+        second_sprite = RecordingSprite(rect=pygame.Rect(20, 0, 20, 20))
+        mouse_scene.all_sprites.add(first_sprite, second_sprite)
+        manager = MouseEventManager(game=mouse_scene)
+        onto_first = HashableEvent(pygame.MOUSEMOTION, pos=(10, 10), rel=(1, 1))
+        onto_second = HashableEvent(pygame.MOUSEMOTION, pos=(30, 10), rel=(20, 0))
+
+        manager.on_mouse_motion_event(onto_first)
+        manager.on_mouse_motion_event(onto_second)
+
+        assert first_sprite.received == [
+            ('focus', onto_first, first_sprite),
+            ('motion', onto_first),
+            ('unfocus', onto_second),
+        ]
+        assert second_sprite.received == [
+            ('focus', onto_second, second_sprite),
+            ('motion', onto_second),
+        ]
 
     def test_a_drag_handler_that_presses_another_button_does_not_break_the_drag(self):
         """The drag loop survives a handler changing the mouse state while it runs.
@@ -1015,10 +1079,10 @@ class TestMouseEventProxyDelegation:
             pos=(100, 200),
         )
         proxy.on_mouse_button_down_event(event)
-        # Button 4 (scroll up) is routed to the scroll down handler (as the code does)
+        # Button 4 is the wheel turned up (BUGS.md #199: it reached the scroll down handler)
         assert mouse_scene.called_handler_names() == [
             'on_mouse_button_down_event',
-            'on_mouse_scroll_down_event',
+            'on_mouse_scroll_up_event',
         ]
 
     def test_on_mouse_button_down_scroll_down(self, mouse_scene):
@@ -1029,10 +1093,10 @@ class TestMouseEventProxyDelegation:
             pos=(100, 200),
         )
         proxy.on_mouse_button_down_event(event)
-        # Button 5 (scroll down) is routed to the scroll up handler (as the code does)
+        # Button 5 is the wheel turned down
         assert mouse_scene.called_handler_names() == [
             'on_mouse_button_down_event',
-            'on_mouse_scroll_up_event',
+            'on_mouse_scroll_down_event',
         ]
 
     def test_on_mouse_button_up_left(self, mouse_scene):
@@ -1118,9 +1182,7 @@ class TestMouseEventProxyDelegation:
         )
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
-        assert mouse_scene.arguments_of('on_right_mouse_drag_down_event') == [
-            (motion_event, trigger)
-        ]
+        assert mouse_scene.arguments_of('on_right_mouse_drag_event') == [(motion_event, trigger)]
 
     def test_on_mouse_drag_event_middle(self, mouse_scene):
         proxy = MouseEventManager.MouseEventProxy(game=mouse_scene)
@@ -1132,9 +1194,7 @@ class TestMouseEventProxyDelegation:
         )
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
-        assert mouse_scene.arguments_of('on_middle_mouse_drag_down_event') == [
-            (motion_event, trigger)
-        ]
+        assert mouse_scene.arguments_of('on_middle_mouse_drag_event') == [(motion_event, trigger)]
 
     def test_on_mouse_drop_event_left(self, mouse_scene):
         proxy = MouseEventManager.MouseEventProxy(game=mouse_scene)
@@ -1143,7 +1203,7 @@ class TestMouseEventProxyDelegation:
         proxy.on_mouse_drop_event(event, trigger)
         assert mouse_scene.called_handler_names() == [
             'on_mouse_drop_event',
-            'on_left_mouse_drag_up_event',
+            'on_left_mouse_drop_event',
         ]
         assert proxy.mouse_dropping is False
 
@@ -1152,14 +1212,14 @@ class TestMouseEventProxyDelegation:
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=MOUSE_BUTTON_RIGHT, pos=(100, 200))
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(90, 190))
         proxy.on_mouse_drop_event(event, trigger)
-        assert mouse_scene.arguments_of('on_right_mouse_drag_up_event') == [(event, trigger)]
+        assert mouse_scene.arguments_of('on_right_mouse_drop_event') == [(event, trigger)]
 
     def test_on_mouse_drop_event_middle(self, mouse_scene):
         proxy = MouseEventManager.MouseEventProxy(game=mouse_scene)
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=MOUSE_BUTTON_WHEEL, pos=(100, 200))
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(90, 190))
         proxy.on_mouse_drop_event(event, trigger)
-        assert mouse_scene.arguments_of('on_middle_mouse_drag_up_event') == [(event, trigger)]
+        assert mouse_scene.arguments_of('on_middle_mouse_drop_event') == [(event, trigger)]
 
     def test_on_mouse_focus_event(self, mouse_scene):
         proxy = MouseEventManager.MouseEventProxy(game=mouse_scene)
@@ -1369,10 +1429,9 @@ class TestMouseEventManagerRouting:
         manager.on_mouse_button_down_event(button_4)
         manager.on_mouse_button_down_event(button_5)
 
-        # button 4 maps to scroll down in code
-        assert mouse_scene.arguments_of('on_mouse_scroll_down_event') == [(button_4,)]
-        # button 5 maps to scroll up in code
-        assert mouse_scene.arguments_of('on_mouse_scroll_up_event') == [(button_5,)]
+        # Button 4 is the wheel turned up, 5 down
+        assert mouse_scene.arguments_of('on_mouse_scroll_up_event') == [(button_4,)]
+        assert mouse_scene.arguments_of('on_mouse_scroll_down_event') == [(button_5,)]
 
     def test_focus_enter_unfocus_sequence_updates_state(self, mouse_scene):
         """Entering focus should unfocus old, set current to new, and call handlers."""
@@ -1455,4 +1514,5 @@ class TestMouseEventManagerRouting:
             ('on_left_mouse_button_up_event', (up,)),
             ('on_mouse_button_up_event', (up,)),
             ('on_mouse_drop_event', (up, up)),
+            ('on_left_mouse_drop_event', (up, up)),
         ]

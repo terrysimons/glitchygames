@@ -7,6 +7,7 @@ from pathlib import Path
 import pygame
 import pytest
 
+from glitchygames.events import HashableEvent
 from glitchygames.examples.paddleslap import Game, PaddleSlapGameOverScene
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
@@ -36,6 +37,30 @@ def _take_quit_events() -> list[pygame.event.Event]:
 
     """
     return pygame.event.get(eventtype=pygame.QUIT)
+
+
+# A gamepad's two event layers (glitchygames/input/input_devices.py, rule 1): a mapped pad's
+# buttons arrive as controller events, any other device's (or every device's in joystick mode)
+# as joystick events, by the same button numbers
+GAMEPAD_LAYERS = ('controller', 'joystick')
+
+
+def _gamepad_button(scene: Scene, *, layer: str, button: int, pressed: bool) -> None:
+    """Give the scene a real button press or release from a gamepad on one event layer."""
+    if layer == 'controller':
+        event_type = pygame.CONTROLLERBUTTONDOWN if pressed else pygame.CONTROLLERBUTTONUP
+        event = HashableEvent(event_type, instance_id=0, button=button)
+        if pressed:
+            scene.on_controller_button_down_event(event)
+        else:
+            scene.on_controller_button_up_event(event)
+        return
+    event_type = pygame.JOYBUTTONDOWN if pressed else pygame.JOYBUTTONUP
+    event = HashableEvent(event_type, instance_id=0, joy=0, button=button)
+    if pressed:
+        scene.on_joy_button_down_event(event)
+    else:
+        scene.on_joy_button_up_event(event)
 
 
 def _draw_the_active_scene(scene_manager: SceneManager) -> None:
@@ -289,6 +314,60 @@ class TestGameOverSceneRestart:
         assert scene_manager.active_scene is scene
         _draw_the_active_scene(scene_manager)
 
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    @pytest.mark.parametrize('button', [pygame.CONTROLLER_BUTTON_START, pygame.CONTROLLER_BUTTON_A])
+    def test_start_or_a_released_after_its_press_restarts(self, layer, button):
+        """Start or A, pressed and released, starts a new game (BUGS.md #209 item 10)."""
+        scene = GameOverScene(options={})
+        previous_game = RestartableGame(options={})
+        scene_manager = self._game_over_after(previous_game, scene)
+
+        _gamepad_button(scene, layer=layer, button=button, pressed=True)
+        assert scene_manager.active_scene is scene
+        _gamepad_button(scene, layer=layer, button=button, pressed=False)
+
+        new_game = scene_manager.active_scene
+        assert isinstance(new_game, RestartableGame)
+        assert new_game is not previous_game
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    def test_a_release_whose_press_came_before_game_over_does_not_restart(self, layer):
+        """A button held when the game ended (a jump) must not restart on its release."""
+        scene = GameOverScene()
+        scene_manager = self._game_over_after(RestartableGame(options={}), scene)
+
+        _gamepad_button(scene, layer=layer, button=pygame.CONTROLLER_BUTTON_A, pressed=False)
+
+        assert scene_manager.active_scene is scene
+        _draw_the_active_scene(scene_manager)
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    @pytest.mark.parametrize('button', [pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_BACK])
+    def test_b_or_back_quits(self, layer, button):
+        """B or Back quits on its press, as ESC does: one QUIT event."""
+        scene = GameOverScene()
+        scene_manager = self._game_over_after(RestartableGame(options={}), scene)
+        _take_quit_events()
+
+        _gamepad_button(scene, layer=layer, button=button, pressed=True)
+
+        assert len(_take_quit_events()) == 1
+        _draw_the_active_scene(scene_manager)
+
+    @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
+    def test_another_button_does_nothing(self, layer):
+        """Any other button neither restarts nor quits."""
+        scene = GameOverScene()
+        scene_manager = self._game_over_after(RestartableGame(options={}), scene)
+        _take_quit_events()
+
+        _gamepad_button(scene, layer=layer, button=pygame.CONTROLLER_BUTTON_X, pressed=True)
+        _gamepad_button(scene, layer=layer, button=pygame.CONTROLLER_BUTTON_X, pressed=False)
+
+        assert scene_manager.active_scene is scene
+        assert _take_quit_events() == []
+        _draw_the_active_scene(scene_manager)
+
     def test_restart_without_a_previous_scene_warns_and_stays(self, caplog):
         """With no previous scene to restart, resume logs a warning and switches nowhere."""
         scene = GameOverScene()
@@ -304,12 +383,11 @@ class TestGameOverSceneRestart:
         _draw_the_active_scene(scene_manager)
 
     def test_other_key_down_goes_to_the_base_scene(self):
-        """A key other than SPACE or ESC (here Q) reaches the base scene, which requests quit."""
+        """A key other than SPACE or ESC (here Q) reaches the base scene: no quit on the press."""
         scene = GameOverScene()
         _take_quit_events()
 
         scene.on_key_down_event(_key_event(event_type=pygame.KEYDOWN, key=pygame.K_q))
 
-        assert scene.quit_requested is True
-        # Q only requests the quit (it quits on release): no QUIT event is posted yet
+        # Q quits on its release (BUGS.md #203: its press set a flag nothing read)
         assert _take_quit_events() == []

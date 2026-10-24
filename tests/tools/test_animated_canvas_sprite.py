@@ -1130,10 +1130,15 @@ class ParentSceneStandIn:
         self.undo_redo_manager = UndoFrameRecorder()
         self.debug_text = type('DebugText', (), {'text': ''})()
         self.ai_sprite_position_updates = 0
+        self.new_undo_histories = 0
 
     def _update_ai_sprite_position(self) -> None:
         """Count AI sprite position updates."""
         self.ai_sprite_position_updates += 1
+
+    def start_new_undo_history(self) -> None:
+        """Count the new undo histories started (each load starts one)."""
+        self.new_undo_histories += 1
 
 
 def _make_real_canvas(frame_count=3, animation_name='idle'):
@@ -1933,6 +1938,7 @@ class TestLoading:
         assert parent_scene.debug_text.text == (
             'Enter a description of the sprite you want to create:'
         )
+        assert parent_scene.new_undo_histories == 1
 
     def test_loading_a_described_sprite_shows_its_description(self, tmp_path):
         """A sprite with a description puts it in the AI text box."""

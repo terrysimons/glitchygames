@@ -7,8 +7,10 @@ sparkles and the bonus a film reel.
 Shapes are drawn SUPERSAMPLE times larger and smooth-scaled down, which anti-aliases their
 edges. Every function returns a new or cached surface that callers must not draw on: the
 results are cached (``functools.cache``) because the game asks for the same few pictures every
-frame. Surfaces with per-pixel alpha are used throughout, so drawing one onto the opaque scene
-background never leaves transparent pixels behind (glitchygames/opacity.py).
+frame. Surfaces with per-pixel alpha are used throughout. Blending one onto a surface in the
+display's format still leaves alpha 0 there on a display whose pixels carry alpha (macOS, BUGS.md
+#142), which is why the scene makes its backgrounds opaque after drawing the maze on them
+(``MrMuncherScene._draw_maze_backgrounds``, glitchygames/opacity.py).
 """
 
 from __future__ import annotations

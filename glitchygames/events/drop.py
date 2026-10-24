@@ -7,7 +7,7 @@ This is a simple drop event class that can be used to handle drag & drop events.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -34,6 +34,9 @@ class DropEventManager(ResourceManager):
 
     class DropEventProxy(DropEvents, ResourceManager):
         """Proxy class for drop events."""
+
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
 
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the drop proxy.

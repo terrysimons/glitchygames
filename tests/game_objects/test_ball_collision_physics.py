@@ -34,7 +34,6 @@ class TestBallCollisionPhysics:
         ball.rect.x = x
         ball.rect.y = y
         ball.speed = Speed(speed_x, speed_y)
-        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _simulate_collision(self, ball1, ball2):
@@ -469,7 +468,6 @@ class TestBallCollisionEnergyTransfer:
         ball.rect.x = x
         ball.rect.y = y
         ball.speed = Speed(speed_x, speed_y)
-        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _simulate_collision(self, ball1, ball2):
@@ -574,7 +572,7 @@ class _CollisionSweepHarness:
     """Runs two real BallSprites through the real PaddleSlap per-frame collision path.
 
     It runs the ball-ball physics step (_handle_ball_collisions) only, not the playability
-    rule PaddleSlap's update() applies afterwards (_keep_collided_balls_playable), so the
+    rule PaddleSlap's dt_tick applies afterwards (_keep_collided_balls_playable), so the
     sweeps check exact equal-mass elastic physics: swapped velocities, a mover that stops
     dead, and conserved momentum and energy.
     """

@@ -11,7 +11,6 @@ The Tinker spawns near the bottom and climbs upward.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -63,7 +62,6 @@ class FloorData:
         platforms: List of (x, y, width) tuples.
         elevators: List of (x, y) tuples.
         collectibles: List of (x, y, type) tuples.
-        enemies: List of (type, x, y, kwargs) tuples.
         moving_gears: Moving gear platforms.
         spawn_x: Player spawn X.
         spawn_y: Player spawn Y.
@@ -75,7 +73,6 @@ class FloorData:
     platforms: list[tuple[int, int, int]] = field(default_factory=list)
     elevators: list[tuple[int, int]] = field(default_factory=list)
     collectibles: list[tuple[int, int, str]] = field(default_factory=list)
-    enemies: list[tuple[str, int, int, dict[str, Any]]] = field(default_factory=list)
     moving_gears: list[MovingGearData] = field(default_factory=list)
     spawn_x: int = SCREEN_WIDTH // 2
     spawn_y: int = 0
@@ -197,7 +194,7 @@ FLOOR_GEAR_WORKS = FloorData(
 # Floor 2: Clock Face (4 screens tall = 1920px)
 # Hard — tight platforms, running jumps required, precision climbing.
 # The final approach rides a moving gear across the clock face.
-# No elevator — reaching the top is victory.
+# No elevator — standing on the victory platform (the highest) wins the game.
 # ---------------------------------------------------------------------------
 _ch = SCREEN_HEIGHT * 4  # 1920
 

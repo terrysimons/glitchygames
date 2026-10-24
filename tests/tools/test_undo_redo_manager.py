@@ -155,6 +155,32 @@ class TestUndoRedoManager:
         assert len(self.manager.undo_stack) == 0
         assert len(self.manager.redo_stack) == 0
 
+    def test_clear_history_clears_every_frames_stacks(self):
+        """Test clearing history also forgets the per-frame stacks, keeping the current frame.
+
+        They are keyed by animation name and frame index only, so a stroke left there was
+        undone into the next sprite with the same names (BUGS.md #150).
+        """
+        for frame_index in range(2):
+            self.manager.add_frame_operation(
+                animation='idle',
+                frame=frame_index,
+                operation_type=OperationType.CANVAS_PIXEL_CHANGE,
+                description=f'Paint frame {frame_index}',
+                undo_data={'data': 'undo'},
+                redo_data={'data': 'redo'},
+            )
+        self.manager.undo_frame(animation='idle', frame=1)
+        self.manager.set_current_frame(animation='idle', frame=1)
+
+        self.manager.clear_history()
+
+        assert self.manager.frame_undo_stacks == {}
+        assert self.manager.frame_redo_stacks == {}
+        assert not self.manager.can_undo_frame(animation='idle', frame=0)
+        assert not self.manager.can_redo_frame(animation='idle', frame=1)
+        assert self.manager.current_frame == ('idle', 1)
+
     def test_get_history_info(self):
         """Test getting history information."""
         self.manager.add_operation(

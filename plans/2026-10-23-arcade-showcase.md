@@ -96,8 +96,9 @@ A to C as the plan; A to C stay as notes.
       process-wide, and only one playback scope exists.
     - Handing an inner frame to a sink (a tile) rather than the window.
     - Muting per inner game.
-- **Open:** D1 now (engine context refactor, its own master plan and sub-plans), or D2 first
-  with D1 later?
+- **Decided (the user, 2026-10-23): D1, one process.** The engine context refactor gets its own
+  master plan and sub-plans; D2 (child processes) stays a fallback behind the same `DemoPlayer`
+  interface.
 
 ### The demo reel
 
@@ -141,7 +142,7 @@ A to C as the plan; A to C stay as notes.
 
 ## Open questions for the user
 
-- Option D: D1 (per-player engine context in one process) or D2 (child processes) first?
+- ~~Option D: D1 or D2 first?~~ Decided: D1, one process (2026-10-23).
 - The reel and grid on one screen at once (needs the engine change), or alternating
   full-screen attract mode and menu for a first version?
 - How long the colour bars show (about 3 s?), and which beep (the 1 kHz film-leader one?).

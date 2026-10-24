@@ -54,9 +54,11 @@ from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager
 from glitchygames.examples.brave_adventurer.player import Player
 from glitchygames.examples.brave_adventurer.sounds import GameSounds
 from glitchygames.input import ActionMap
+from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sources import active_sources
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
@@ -189,13 +191,29 @@ class BraveAdventurerScene(Scene):
         self.hud_font: pygame.font.Font | None = None
 
         # Input action mapping (unifies keyboard + controller)
-        self.actions = self._create_action_map(
-            input_mode=self.options.get('input_mode', 'joystick')
-        )
+        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
 
-        # Voice assistant (auto-discovers controller mic/speaker)
-        # Voice assistant auto-discovers controller mic/speaker via miniaudio
-        self.voice_assistant: VoiceAssistant | None = VoiceAssistant.discover()
+        # Voice assistant: a controller's mic and speaker, found through miniaudio (live play
+        # only: see _discover_voice_assistant)
+        self.voice_assistant: VoiceAssistant | None = self._discover_voice_assistant()
+
+    @staticmethod
+    def _discover_voice_assistant() -> VoiceAssistant | None:
+        """Find a controller's microphone and speaker, unless the engine's doors are a replay's.
+
+        A replay never touches real devices (BUGS.md #208): the doors of a replay (or of a
+        rebaseline or playback) serve recorded devices, and there the voice assistant is not
+        started, so a recorded mic press neither listens nor calls the AI service. Live play
+        (and a recording, whose doors wrap the live ones) has the real device registry.
+
+        Returns:
+            The voice assistant, or None in a replay or when no controller has audio.
+
+        """
+        if not isinstance(active_sources().devices(), LiveDeviceRegistry):
+            log.info('Replaying: the voice assistant stays off (a replay uses no real devices)')
+            return None
+        return VoiceAssistant.discover()
 
     @staticmethod
     def _create_action_map(*, input_mode: str) -> ActionMap:
@@ -246,10 +264,12 @@ class BraveAdventurerScene(Scene):
             parser: The argument parser to add arguments to.
 
         """
+        # argparse prints the version and exits as it parses (before the game starts)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
 
@@ -298,27 +318,29 @@ class BraveAdventurerScene(Scene):
         # 5. Wall collision
         self._resolve_player_wall_collision()
 
-        # 5b. Enemy terrain collision (scarabs follow ground/walls)
+        # 6. Enemy terrain collision (scarabs follow ground/walls)
         self._resolve_enemy_terrain_collisions()
 
-        # 6. Pit death check (skip during respawn animation)
+        # 7. Pit death check (skip during respawn animation)
         if (
             not self.player.is_respawning
             and self.player.world_y > self.screen_height + PIT_DEATH_THRESHOLD
         ):
             self._player_die()
 
-        # 5. Enemy collision (skip during respawn invincibility)
+        # 8. Enemy collision (skip during respawn invincibility)
         if not self.player.is_respawning:
             self._check_enemy_collisions()
 
-        # 6. Collectible pickup
+        # 9. Collectible pickup
         self._check_collectible_collisions()
 
-        # 7. Update distance score (the engine aims the camera and places the sprites after
+        # 10. Update the score (the engine aims the camera and places the sprites after
         # this tick)
+        # The score is the distance score plus every gold scarab's bonus (BUGS.md #204)
         self.player.max_distance = max(self.player.max_distance, self.player.world_x)
-        self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+        distance_score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+        self.player.score = distance_score + self.player.bonus_points
 
     @staticmethod
     def _snapped_terrain_left(terrain_sprite: GroundSegment | StoneWall) -> int:
@@ -641,8 +663,8 @@ class BraveAdventurerScene(Scene):
         )
 
     def _on_player_collect(self: Self, _player: Player, collectible: GoldScarab) -> None:
-        """Handle player-collectible collision by awarding points."""
-        self.player.score += COLLECTIBLE_SCORE_BONUS
+        """Handle player-collectible collision by awarding bonus points (kept in the score)."""
+        self.player.bonus_points += COLLECTIBLE_SCORE_BONUS
         self.sounds.play_collect()
         collectible.kill()
         self.collectible_sprites.remove(collectible)
@@ -903,25 +925,33 @@ class BraveAdventurerScene(Scene):
         # Draw pits AFTER sprites so they render on top of the parallax sand,
         # but only in gaps between ground segments (ground sprites are opaque
         # and already drawn, so they mask the pit fill where ground exists).
-        self._draw_pits(screen)
-        # Re-draw player on top of pits so they're visible when falling in
+        pit_rects = self._draw_pits(screen)
+        # Re-draw enemies in a pit and the player on top of the pits, so they're visible when
+        # they fall in (the pit fill is drawn after the sprites)
+        for enemy in self.enemy_sprites:
+            if enemy.visible and enemy.rect.collidelist(pit_rects) != -1:
+                screen.blit(enemy.image, enemy.rect)
         screen.blit(self.player.image, self.player.rect)
 
         # Draw HUD on top
         self._draw_hud(screen)
 
-        # Force full-screen update (parallax will change every frame in Phase 3)
+        # Force a full-screen update: the parallax layers and the pits move with the camera
         self.rects = None
 
-    def _draw_pits(self: Self, screen: pygame.Surface) -> None:
+    def _draw_pits(self: Self, screen: pygame.Surface) -> list[pygame.Rect]:
         """Draw dark pits in gaps between ground segments.
 
         Args:
             screen: The display surface to draw on.
 
+        Returns:
+            The screen rect of each pit drawn.
+
         """
+        pit_rects: list[pygame.Rect] = []
         if not self.ground_sprites:
-            return
+            return pit_rects
 
         sorted_segments = sorted(self.ground_sprites, key=lambda segment: segment.world_x)
 
@@ -946,6 +976,7 @@ class BraveAdventurerScene(Scene):
                 continue
 
             pit_depth = SCREEN_HEIGHT - GROUND_Y
+            pit_rects.append(pygame.Rect(gap_left_screen, GROUND_Y, gap_width, pit_depth))
 
             # Dark fill
             pygame.draw.rect(
@@ -976,6 +1007,8 @@ class BraveAdventurerScene(Scene):
                 PIT_FLOOR_COLOR,
                 (gap_left_screen, SCREEN_HEIGHT - 4, gap_width, 4),
             )
+
+        return pit_rects
 
     def _draw_hud(self: Self, screen: pygame.Surface) -> None:
         """Draw the heads-up display showing score and lives.

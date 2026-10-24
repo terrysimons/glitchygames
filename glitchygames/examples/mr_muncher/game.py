@@ -365,9 +365,7 @@ class MrMuncherScene(Scene):
         self.projector: LiveVoice | None = None
         # The projector's settings last given (cutoff, flutter rate), to change them only then
         self.projector_settings: tuple[float, float] | None = None
-        self.actions = self._create_action_map(
-            input_mode=self.options.get('input_mode', 'joystick')
-        )
+        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
         self._pose_sprites()
 
     def _draw_maze_backgrounds(self: Self) -> None:
@@ -534,7 +532,8 @@ class MrMuncherScene(Scene):
         Arrows and WASD, a gamepad's D-pad and left stick steer; ESC, P or Start pause; Q quits.
 
         Args:
-            input_mode: Gamepad event family ('joystick' or 'controller').
+            input_mode: Gamepad event family: 'auto' (the engine's --input-mode default: both
+                families), 'joystick' or 'controller'.
 
         Returns:
             The action map.
