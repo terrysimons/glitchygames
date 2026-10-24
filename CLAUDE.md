@@ -193,6 +193,11 @@ games.
   beneath the recorder: `HostSources(inner=LiveSources)`, with `--record-trace`
   `RecordingSources(inner=HostSources(inner=LiveSources))`. Whatever the host adds or hides is
   what a recording holds, so recordings replay exactly without the host
+- What the host hides today: a window loss given back within one event batch
+  (`without_window_recreation_bursts`: focus lost/gained, hidden/shown, leave/enter, and their
+  ACTIVEEVENTs). SDL queues those when it recreates a `SCALED` window for an OpenGL renderer
+  (once in the browser, twice on the dummy driver, never on macOS); without this a game pausing
+  on focus loss starts paused (BUGS.md #213)
 - `GameHost.run` (blocking: `SceneManager.start`) and `GameHost.run_async(scene_manager=...,
   wait_for_tick=...)`: one awaited tick per loop, which returns the tick's timestamp in seconds
   (a browser animation frame), so the host never reads a clock. `TickPacer` runs an inner frame
@@ -202,7 +207,10 @@ games.
   every second tick at 120 Hz
 - `GameEngine.start_async(wait_for_tick=...)` runs a live game that way inside the same crash
   boundary as `start()` (`_crash_boundary`, a context manager both share: the same teardown and
-  exit codes); a replay raises RuntimeError. `_prepare_run()` is everything up to the first
+  exit codes). A watched replay runs through `run_watched_replay_async`
+  (`glitchygames/replay/viewer.py`: one viewer tick per awaited tick, `ticks_externally`, steps
+  until `SceneManager.last_step_was_held`); a headless replay raises RuntimeError. Replay
+  restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). `_prepare_run()` is everything up to the first
   frame
 
 **Exit Codes** (`glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
@@ -244,8 +252,9 @@ games.
   assumes sleeps wake on time) left most frames 1-2 ms late; at background priority the delay is
   a flat 85-100 ms. `--timer-backend auto` (the default) measures the model
   (`measure_sleep_model`: 10 sleeps each of 1 ms and 8 ms, 90th percentiles, about 0.1 s) as the
-  engine starts a paced live game (target FPS > 0, not a replay), else at the first paced frame
-  (uncapped runs and replays never measure), and sizes each
+  engine starts a paced live game (target FPS > 0, not a replay, not `start_async`, whose outer
+  tick is its wait), else at the first paced frame (uncapped runs, replays and async runs never
+  measure), and sizes each
   sleep so its predicted wake lands `sleep_granularity_ns` before the deadline; when even no
   sleep would (a delay longer than the wait) it spins the whole wait. Measured on macOS (60 FPS,
   4 ms of work): fast 1.5 ms late per frame at 24% CPU, auto on time at 30%; at background
@@ -833,7 +842,23 @@ Features:
   (`ai_worker._create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
-- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`)
+- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`).
+  There Load opens the browser's file picker and Save downloads the saved file, through the
+  installed user files (`glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
+  On the desktop nothing is installed and the dialogs ask for file names as always
+
+**Clipboard and the player's files** (`glitchygames/clipboard.py`, `glitchygames/user_files.py`)
+- Text widgets copy and paste through `system_clipboard()`: the installed clipboard, else
+  `create_clipboard()`'s choice (`PyperclipClipboard`, else `InProcessClipboard` without
+  pyperclip). A clipboard that cannot be used raises `ClipboardUnavailableError`. Tests get a
+  fresh `InProcessClipboard` each (`tests/conftest.py` `in_process_clipboard`), never the machine's
+- The browser installs `BrowserClipboard` (`browser/browser_clipboard.py`): paste takes the
+  page's paste event text (Ctrl/Cmd+V fires it before the game's frame reads the key); copy is
+  kept in the game and written with `navigator.clipboard.writeText`, which Safari refuses
+  outside the key's own handler (copied text then pastes only inside the game). pyperclip
+  installs in Pyodide but cannot work there (it runs clipboard programs)
+- `installed_user_files()` is None on the desktop; a browser installs `UserFiles` (`open_file`
+  with a file picker, `save_file` as a download). Tests start with none (`desktop_user_files`)
 
 ### Resource Management
 

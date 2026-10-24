@@ -537,6 +537,45 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 214. A Failed Bitmappy Save Ended the Editor (Unsaved Work Lost)
+- **Description**: `AnimatedCanvasSprite.on_save_file_event` logs a save failure (OSError,
+  ValueError, KeyError) and re-raises it "for the caller to report", but its caller,
+  `SaveDialogScene.on_confirm_event` (`glitchygames/ui/dialogs.py`), does not catch it, and
+  neither does `InputBox` (`glitchygames/ui/inputs.py`), which calls `on_confirm_event`. The
+  error reaches the engine's crash boundary, so the editor exits `INTERNAL_ERROR` with the
+  canvas unsaved, where a load failure is shown in the editor instead (`_show_load_message`)
+- **Status**: Resolved 2026-10-24 (branch `wasm/pygame-ce-fork`): `SaveDialogScene.on_confirm_event`
+  catches the canvas's OSError, ValueError and KeyError, shows `Error saving <path>: <error>` in
+  the editor's debug text box (where load errors show), hands nothing to the player (no browser
+  download) and closes the dialog; the drawing stays. The canvas still logs and re-raises.
+  Tests: `tests/ui/test_dialogs.py` `test_a_failed_save_returns_to_the_editor_and_is_not_handed_over`
+  and `tests/tools/test_bitmappy_failed_save.py` (a real editor saving into a missing folder)
+- **Priority**: Medium (a full disk or unwritable folder loses the drawing)
+- **Reporter**: Found adding browser Save/Load (plans/2026-10-23-game-host-and-browser-runner.md),
+  2026-10-24
+- **Date Reported**: 2026-10-24
+- **Files**: `glitchygames/ui/dialogs.py`, `glitchygames/bitmappy/animated_canvas.py`
+
+### 213. Games Saw a Focus Loss Before Their First Frame (SDL Recreating a SCALED Window)
+- **Description**: `GameEngine` opens its window with `SCALED`, so pygame-ce asks SDL for a
+  renderer. When that renderer needs an OpenGL window, SDL recreates the window (SDL 2.32.10
+  `GLES2_CreateRenderer` calls `SDL_RecreateWindow`, which hides, destroys and recreates it), and
+  each recreation queues the mouse leaving, focus lost and the window hidden, then all three given
+  back. The first batch therefore held a focus loss, and Mr. Muncher (which pauses on focus loss)
+  started paused in the browser. Measured 2026-10-24: one recreation in Chromium 141 and WebKit 26
+  (WebGL), two on the dummy driver (it tries two OpenGL renderers before software), none on
+  macOS (cocoa). `RESIZABLE` and `DOUBLEBUF` alone queue nothing
+- **Status**: Resolved 2026-10-24 (branch `wasm/pygame-ce-fork`): the host's doors
+  (`HostSources.pump_events`, `glitchygames/host.py` `without_window_recreation_bursts`) drop
+  each loss a window gets back later in the same batch, with the event giving it back (focus,
+  shown, entered, and the matching ACTIVEEVENTs). Beneath the recorder, so recordings hold the
+  cleaned batch. Mr. Muncher now starts playing in both browsers. Tests: `tests/test_host.py`
+  `TestWindowRecreationBursts` (including a real SCALED window on the dummy driver)
+- **Priority**: Medium (a game started paused in the browser)
+- **Reporter**: Found running Mr. Muncher in the browser, 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/host.py`
+
 ### 212. The Default Window Icon Was Never Loaded (ASSET_PATH Pointed Into glitchygames/engine/)
 - **Description**: `ASSET_PATH` (and `PACKAGE_PATH`) in `glitchygames/engine/game_engine.py` were
   `Path(__file__).parent`-based. That was right when the engine was `glitchygames/engine.py`

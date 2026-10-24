@@ -102,8 +102,7 @@
 
 - Injection features (AI input, hiding input, call injection): the seams are in place
   (`HostSources` for input, supervisors for calls).
-- Watched replays in the browser: the viewer's `hold_frame` sleeps between ticks and needs its
-  own async tick.
+- Watched replays in the browser: done 2026-10-24 (below).
 
 ## Done (2026-10-23)
 
@@ -130,16 +129,13 @@
 
 ## Open issues found on the way
 
-- **Startup focus events:** right after the window is created, the first event batch in the
-  browser holds WINDOWFOCUSGAINED, WINDOWFOCUSLOST, WINDOWFOCUSGAINED.
-  - Mr. Muncher pauses on focus loss, so in the browser it starts paused (P or Esc resumes).
-  - The dummy driver on desktop shows similar spurious show/hide/focus cycles after the one
-    `set_mode`; a real macOS window has not been checked.
-  - Candidate fix: the host's doors could drop a startup focus loss that is followed by a gain
-    in the same batch. Pending a decision.
-- **Timer calibration:** `start_async` still runs `_configure_timer_and_performance`, which
-  calibrates the desktop sleep timer (about 0.1 s of sleeps) although the async driver never
-  uses the timer.
+- **Fixed 2026-10-24 (BUGS.md #213), startup focus events:** the first batch held a focus loss
+  and regain, so Mr. Muncher started paused. Cause: `SCALED` makes SDL recreate the window for
+  an OpenGL renderer (once in the browser, twice on the dummy driver, never on macOS). The
+  host's doors drop a loss given back within the same batch.
+- **Fixed 2026-10-24, timer calibration:** `start_async` no longer calibrates the sleep timer
+  (about 0.1 s of sleeps) it never paces with (`_prepare_run(paced_by_timer=False)`); the timer
+  is still made, uncalibrated, for a recording's provenance.
 - **Fixed 2026-10-23 (BUGS.md #212):** `ASSET_PATH` pointed into `glitchygames/engine/`, so the
   default window icon was never loaded.
 
@@ -155,7 +151,38 @@
   bundle alone include `bitmappy/`.
 - **Verified** in Chromium and Playwright WebKit: the editor starts, renders, and a click
   draws on the canvas.
-- **Not tried yet:** Save/Load (sprite files: they need uploads/downloads or IndexedDB), the
-  clipboard (`pyperclip` is absent), voice input and controller editing.
+- **Save/Load and the clipboard (2026-10-24):**
+  - `glitchygames/user_files.py`: Load opens the browser's file picker (the file is copied to
+    ~/opened and loaded), Save downloads the saved file. On the desktop nothing changes.
+  - `glitchygames/clipboard.py`: a clipboard factory (pyperclip, else in-process); the browser
+    installs `BrowserClipboard` (the page's paste event; `navigator.clipboard.writeText`).
+  - Verified in Chromium and Playwright WebKit: the picker opens from the game's frame and loads
+    `scarab.toml` (four frames), Save downloads `my sprite.toml`, Cmd+V pastes the system
+    clipboard into the prompt box. Copying out of the game reaches the system clipboard in
+    Chromium only (Safari refuses `writeText` outside the key's handler).
+  - The page sets `user-select: none`: Cmd+A in a text box also selected the page.
+- **Not tried yet:** voice input and controller editing.
 - **Fork CI:** the first run built the wheel on Linux, byte-identical to the macOS build (sha256
   `777cfa26…`).
+
+## Replays, iOS and publishing (2026-10-24)
+
+- **Watched replays:** `GameEngine.start_async` drives a watched `--replay-trace` with
+  `run_watched_replay_async` (glitchygames/replay/viewer.py): each awaited tick is one viewer
+  tick (`ticks_externally`: no sleeping), its inner frames run until the viewer holds
+  (`SceneManager.last_step_was_held`). A headless replay is refused (it never gives control
+  back). Restarts (step back, Home, D) need a new process: in a browser they show a message
+  (`replay/controls.py` `RESTARTS_AVAILABLE`). Verified: `nox -s browser -- paddleslap --
+  --replay-trace glitchygames/examples/paddleslap_demos/rally.jsonl.gz` replays exactly in
+  Chromium and WebKit; PaddleSlap's attract-mode demo plays in the live game too.
+- **Engine version in the browser:** the engine archive carries
+  `glitchygames-<version>.dist-info/METADATA`, so a replay compares versions (it warned "this is
+  None" before).
+- **iOS Simulator (iOS 26.0, safaridriver):** no JSPI (`WebAssembly.Suspending` undefined); the
+  page loads in about 5 s and PaddleSlap runs on animation frames. safaridriver's tap fires only
+  pointerdown/touchstart (no click), so automation starts the game with a scripted click.
+- **Publishing:** `scripts/build_browser_bundle.py all` builds every game plus an index;
+  `nox -s docs-deploy` builds it first and the MkDocs hook copies it into the site as play/
+  (https://terrysimons.github.io/glitchygames/play/ after the next deploy). Verified: a strict
+  docs build, served under /glitchygames/ with wheels as application/octet-stream, starts Mr.
+  Muncher from play/ in Chromium and WebKit.
