@@ -503,15 +503,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-23
 - **Files**: `glitchygames/examples/brave_adventurer_papyrus/game.py` (`_respawn_player`)
 
-### 207. Unhandled-Event Warnings Turn On at Log Level ERROR and CRITICAL, Not INFO or WARNING
-- **Description**: `GameEngine.initialize_arguments` derives `debug_events` from `--log-level`: True for `DEBUG`, `ERROR` and `CRITICAL`, False otherwise. `unhandled_event()` logs its once-per-type warning only when `debug_events` is on, so the warnings appear at the quietest log levels and not at INFO or WARNING, which looks backwards (and at ERROR or CRITICAL a WARNING record is filtered out anyway)
-- **Status**: Active
-- **Priority**: Low (diagnostics)
-- **Reporter**: Found documenting the unhandled-event options (docs/architecture/event_system.md), 2026-10-23
-- **Date Reported**: 2026-10-23
-- **Details**: Decide the intent first: probably DEBUG only. The docs state the current behaviour
-- **Files**: `glitchygames/engine/game_engine.py` (`initialize_arguments`), `glitchygames/events/base.py` (`unhandled_event`)
-
 ### 208. Replaying a Brave Adventurer Recording Can Start the Real Voice Assistant
 - **Description**: `VoiceAssistant.discover()` (the primitives edition, its `__init__`) enumerates audio devices through miniaudio, outside the engine's doors, and the microphone toggle starts real listening and AI calls. A replay of a recording that pressed the microphone button would do the same on the replaying machine: nothing it draws differs, but it is outside the replay contract (a replay never touches real devices)
 - **Status**: Active
@@ -545,6 +536,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 207. Unhandled-Event Warnings Turn On at Log Level ERROR and CRITICAL (Not a Bug: Duplicate of #74)
+- **Description**: Filed on the reading that `debug_events` is on for `--log-level` DEBUG, ERROR and CRITICAL. It never is: `--log-level` is lower-cased (`type=str.lower`) and compared with upper-case names, so `debug_events` is always False, which #74 already records
+- **Status**: Resolved (duplicate)
+- **Priority**: Low
+- **Reporter**: Found documenting the unhandled-event options, 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Date Resolved**: 2026-10-23
+- **Solution**: Folded into #74, whose fix should also settle the intent (which levels turn the warnings on; DEBUG alone looks likely, since a WARNING record is filtered out at ERROR and CRITICAL anyway). The docs that stated the wrong rule are corrected
 
 ### 202. Q Did Not Quit Clockwork Keep, Brave Adventurer, the Papyrus Edition or Mr. Muncher
 - **Description**: Each game's quit action set `self.next_scene = None`, but `SceneManager._switch_to_requested_scene` reads a `None` next scene as "no switch pending", so pressing Q did nothing; a comment in `SceneManager.__init__` ("Scene manager terminates on self.next_scene = None") stated the old, wrong rule. The tests only checked that `next_scene` became `None`

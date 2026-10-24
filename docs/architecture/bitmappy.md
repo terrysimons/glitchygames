@@ -173,8 +173,8 @@ everything to the `active_scene`. In Bitmappy, that's `BitmapEditorScene`,
 which overrides handlers like `on_key_down_event()`,
 `on_left_mouse_button_down_event()`, `on_left_mouse_drag_event()`, and
 `on_controller_button_down_event()`. Events it doesn't override hit the stubs, which call
-`unhandled_event()`: it does nothing by default, logs each event type once when the log level
-is DEBUG, ERROR or CRITICAL, and raises `UnhandledEventError` under `--no-unhandled-events` (as the tests
+`unhandled_event()`: it does nothing by default, would log each event type once when `debug_events`
+is on (meant for the DEBUG, ERROR and CRITICAL log levels, but always off today: BUGS.md #74), and raises `UnhandledEventError` under `--no-unhandled-events` (as the tests
 run).
 
 ### Sprite hierarchy (renderable objects)
