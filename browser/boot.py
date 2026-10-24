@@ -7,7 +7,9 @@ and unpacks the engine into the working directory. This bootstrap then:
 1. gives SDL the page's canvas;
 2. mounts IndexedDB-backed storage over ~/.local/share, where glitchygames.state keeps saves on
    this platform, loads what earlier visits stored, and flushes after every save
-   (``observe_disk_save_changes``) and when the page is hidden;
+   (``observe_disk_save_changes``) and when the page is hidden; installs the page's clipboard
+   (browser_clipboard.py) and the player's own files (browser_user_files.py: a file picker to
+   open, downloads to save);
 3. waits for a click on the page (browsers start audio only after a user gesture);
 4. runs the game with ``GameEngine.start_async``, one outer tick per animation frame: the game
    host paces inner frames at the game's target FPS whatever the display's refresh rate.
@@ -23,7 +25,9 @@ import logging
 import sys
 from pathlib import Path
 
+import browser_clipboard
 import browser_storage
+import browser_user_files
 import js
 import pyodide_js
 from pyodide.ffi import create_once_callable, create_proxy
@@ -31,6 +35,8 @@ from pyodide.ffi import create_once_callable, create_proxy
 LOG = logging.getLogger('game.browser')
 BOOT_CONFIG_PATH = Path('boot_config.json')
 SAVE_ROOT = Path.home() / '.local' / 'share'
+# Where files the player opens through the file picker are copied
+OPENED_FILES_DIRECTORY = Path.home() / 'opened'
 # The engine's own format (GameEngine.initialize_arguments' basicConfig)
 LOG_FORMAT = '%(name)s - %(levelname)s - %(message)s'
 
@@ -122,10 +128,16 @@ async def main() -> None:
     module = importlib.import_module(config['module'])
     game_class = getattr(module, config['scene_class'])
 
+    from glitchygames.clipboard import install_clipboard
     from glitchygames.engine import GameEngine
     from glitchygames.state.manager import observe_disk_save_changes
+    from glitchygames.user_files import install_user_files
 
     observe_disk_save_changes(observer=flush_soon)
+    install_clipboard(clipboard=browser_clipboard.BrowserClipboard())
+    install_user_files(
+        user_files=browser_user_files.BrowserUserFiles(directory=OPENED_FILES_DIRECTORY)
+    )
 
     set_status(f'{config["title"]}: click to play')
     await wait_for_click()

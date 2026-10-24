@@ -39,6 +39,7 @@ from glitchygames.ui.dialogs import (
     _get_save_path,
     _process_example_filename,
 )
+from glitchygames.user_files import install_user_files, installed_user_files
 
 # Test constants from test_confirm_dialog_coverage.py
 TEST_CONFIRM_DIALOG_X = 50
@@ -82,12 +83,28 @@ class _RecordingCanvas:
     def __init__(self):
         self.loaded_paths = []
         self.saved_paths = []
+        self.save_error = None
 
     def on_load_file_event(self, path):
         self.loaded_paths.append(path)
 
     def on_save_file_event(self, path):
+        if self.save_error is not None:
+            raise self.save_error
         self.saved_paths.append(path)
+
+
+class _RecordingUserFiles:
+    """Stands in for a browser's user files: records the files handed to the player."""
+
+    def __init__(self):
+        self.saved_files = []
+
+    def open_file(self, *, accepted_extensions, on_opened):
+        raise AssertionError((accepted_extensions, on_opened))
+
+    def save_file(self, *, path):
+        self.saved_files.append(path)
 
 
 class _PreviousScene(Scene):
@@ -922,6 +939,44 @@ class TestSaveDialogConfirm:
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
         assert previous_scene.canvas.saved_paths == [str(_get_examples_dir() / 'star.toml')]
+
+    def test_without_user_files_nothing_is_handed_over(self, previous_scene):
+        """On the desktop the saved file is already the player's own."""
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'output.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert installed_user_files() is None
+        assert previous_scene.canvas.saved_paths == ['output.toml']
+
+    def test_with_user_files_the_saved_file_is_handed_to_the_player(self, previous_scene):
+        """In a browser the saved file goes to the player (a download)."""
+        user_files = _RecordingUserFiles()
+        install_user_files(user_files=user_files)
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'output.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert user_files.saved_files == [Path('output.toml')]
+
+    @pytest.mark.parametrize('save_error', [OSError('disk full'), ValueError('bad'), KeyError('k')])
+    def test_a_failed_save_returns_to_the_editor_and_is_not_handed_over(
+        self, previous_scene, save_error
+    ):
+        """A failed save closes the dialog with the error shown, not the editor (BUGS.md #217)."""
+        user_files = _RecordingUserFiles()
+        install_user_files(user_files=user_files)
+        previous_scene.canvas.save_error = save_error
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'output.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        # Dismissed: the dialog switches back to the scene it came from
+        assert dialog.next_scene is previous_scene
+        assert not user_files.saved_files
 
 
 class TestDeleteAnimationDialogSetup:

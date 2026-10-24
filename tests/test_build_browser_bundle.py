@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import functools
+import importlib.metadata
 import json
 import socket
 import sys
@@ -27,6 +28,7 @@ from scripts.build_browser_bundle import (
     bind_server,
     boot_config,
     bundled_package_files,
+    installed_engine_version,
     is_bundled,
     main,
     pyscript_config,
@@ -114,6 +116,31 @@ class TestEngineArchive:
         assert names[0] == 'glitchygames/__init__.py'
         assert 'glitchygames/bitmappy/editor.py' not in names
 
+    def test_the_engine_version_is_readable_where_the_archive_is_unpacked(self, tmp_path):
+        """Unpacked (not installed), the engine still knows its version: a replay checks it."""
+        package = make_package(tmp_path)
+        archive_path = tmp_path / 'glitchygames.zip'
+        unpacked = tmp_path / 'unpacked'
+
+        write_engine_archive(
+            package_directory=package, archive_path=archive_path, engine_version='1.2.3'
+        )
+        with zipfile.ZipFile(archive_path) as archive:
+            archive.extractall(unpacked)
+
+        (distribution,) = importlib.metadata.distributions(path=[str(unpacked)])
+        assert distribution.metadata['Name'] == 'glitchygames'
+        assert distribution.version == '1.2.3'
+
+    def test_without_package_metadata_no_version_is_bundled(self, mocker):
+        mocker.patch.object(
+            importlib.metadata,
+            'version',
+            side_effect=importlib.metadata.PackageNotFoundError('glitchygames'),
+        )
+
+        assert installed_engine_version() is None
+
     def test_the_same_sources_make_the_same_archive(self, tmp_path):
         """Fixed timestamps and order: a rebuild of unchanged sources is byte-identical."""
         package = make_package(tmp_path)
@@ -135,6 +162,8 @@ class TestGeneratedFiles:
         assert config['packages'] == [f'./wheels/{WHEEL_NAME}', 'numpy', 'pydantic', 'tomli-w']
         assert config['files']['./glitchygames.zip'] == './*'
         assert config['files']['./boot_config.json'] == './boot_config.json'
+        for module in ('browser_storage.py', 'browser_clipboard.py', 'browser_user_files.py'):
+            assert config['files'][f'./{module}'] == f'./{module}'
 
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {
@@ -214,7 +243,9 @@ class TestMain:
         assert sorted(path.name for path in output.iterdir()) == [
             'boot.py',
             'boot_config.json',
+            'browser_clipboard.py',
             'browser_storage.py',
+            'browser_user_files.py',
             'glitchygames.zip',
             'index.html',
             'pyscript.toml',
@@ -227,6 +258,31 @@ class TestMain:
             names = set(archive.namelist())
         assert 'glitchygames/host.py' in names
         assert not any(name.startswith('glitchygames/bitmappy/') for name in names)
+
+    def test_all_writes_every_game_and_a_page_linking_them(self, tmp_path):
+        """The site published with the docs (play/): one bundle per game, and an index."""
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+        output = tmp_path / 'site'
+
+        status = main(['all', '--wheel', str(wheel), '--output', str(output)])
+
+        assert status == 0
+        assert sorted(path.name for path in output.iterdir()) == sorted([*GAMES, 'index.html'])
+        index = (output / 'index.html').read_text()
+        for game, specification in GAMES.items():
+            assert (output / game / 'index.html').is_file()
+            assert f'<a href="{game}/">{specification.title}</a>' in index
+
+    def test_all_takes_no_game_arguments(self, tmp_path, capsys):
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        with pytest.raises(SystemExit) as exit_info:
+            main(['all', '--wheel', str(wheel), '--output', str(tmp_path / 'site'), '--', '-x'])
+
+        assert exit_info.value.code == 2
+        assert 'a game command line needs one game' in capsys.readouterr().err
 
     def test_only_the_bitmappy_bundle_holds_the_editor(self, tmp_path):
         """Bitmappy's bundle includes its package; a game's leaves it out."""

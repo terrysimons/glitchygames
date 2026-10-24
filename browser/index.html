@@ -15,7 +15,12 @@
   <script type="module" src="https://pyscript.net/releases/$pyscript_release/core.js"></script>
   <style>
     :root { color-scheme: dark; }
-    body { margin: 0; background: #000; color: #ddd; font-family: system-ui, sans-serif; }
+    /* No page selection: the game's own Ctrl/Cmd+A (select all in a text box) also reaches the
+       page, since SDL leaves a key's default action alone while text input is on */
+    body {
+      margin: 0; background: #000; color: #ddd; font-family: system-ui, sans-serif;
+      user-select: none; -webkit-user-select: none;
+    }
     main { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; }
     #frame { position: relative; }
     /* The game's pixels stay sharp when the browser scales the canvas (high-DPI displays) */

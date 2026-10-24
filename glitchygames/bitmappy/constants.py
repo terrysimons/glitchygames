@@ -70,6 +70,9 @@ AI_VALIDATION_MAX_RETRIES = 2  # Maximum retries for AI response validation
 # 2026-10-23): the AI worker is a separate process, which a browser cannot start
 AI_FEATURES_ENABLED: bool = sys.platform != 'emscripten'
 
+# The sprite files the editor opens (a browser's file picker offers these)
+SPRITE_FILE_EXTENSIONS: tuple[str, ...] = ('.toml',)
+
 # AI model configuration
 AI_MODEL: str = 'anthropic:claude-sonnet-4-5'
 AI_TIMEOUT = 600  # Seconds to wait for AI response (10 minutes for ollama models)

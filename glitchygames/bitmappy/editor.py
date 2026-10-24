@@ -26,12 +26,14 @@ from glitchygames.ui.dialogs import (
     NewCanvasDialogScene,
     SaveDialogScene,
 )
+from glitchygames.user_files import installed_user_files
 
 from .ai_manager import AIManager, shut_down_running_ai_workers
 from .animated_canvas import AnimatedCanvasSprite  # ruff: ignore[typing-only-first-party-import] - re-exported for test imports
 from .constants import (
     LOG,
     MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
+    SPRITE_FILE_EXTENSIONS,
 )
 from .controllers.event_handler import ControllerEventHandler
 from .controllers.manager import MultiControllerManager
@@ -454,13 +456,32 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.dirty = 1
 
     def on_load_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
-        """Handle the load dialog event."""
+        """Handle the load dialog event.
+
+        Where the game's files are not the player's (a browser: glitchygames/user_files.py),
+        the player picks one of their own files instead of typing a name.
+        """
+        user_files = installed_user_files()
+        if user_files is not None:
+            user_files.open_file(
+                accepted_extensions=SPRITE_FILE_EXTENSIONS, on_opened=self.load_opened_file
+            )
+            return
         # Create a fresh dialog scene each time
         load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
         # Set the dialog's background to the screenshot
         load_dialog_scene.background = self.screenshot
         self.next_scene = load_dialog_scene
         self.dirty = 1
+
+    def load_opened_file(self: Self, path: Path) -> None:
+        """Load a file the player opened through the installed user files into the canvas.
+
+        Args:
+            path: The file's copy in the game's file system.
+
+        """
+        self.canvas.on_load_file_event(str(path))
 
     def on_save_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle the save dialog event."""
