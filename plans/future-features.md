@@ -142,8 +142,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `workflow` scope);
   - reproducible builds (`SOURCE_DATE_EPOCH`);
   - the in-browser test runner (`../pygame-ce-wasm/tools/run_pygame_tests_in_browser.py`).
-  Implemented 2026-10-24, uncommitted in the fork's worktree `../pygame-ce-matrix` (branch
-  `glitchygames-version-matrix`):
+  Implemented 2026-10-24 on the fork's `glitchygames-wasm` (`e9d46a7cd`; the workflow file is
+  also on the fork's `main`, `96e04db5a`, so its weekly schedule runs):
   - `buildconfig/glitchygames/version_matrix.py` (discover, run one pair, report, all): fresh
     worktree per pair, each patch classified (clean / 3-way / already upstream / conflict),
     reproducible build, browser checks, JSON and markdown reports;
@@ -154,8 +154,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Run locally: 2.5.8 and `main` (3.0.0.dev1) on Pyodide 314.0.3 take all three patches
     cleanly, build, and pass in Chromium and WebKit. 2.5.8 without the patches fails every
     probe: all three are still needed.
-  Open: the workflow has not run on GitHub (it must also be on the fork's `main` for the
-  schedule); Pyodide 314.0.7 not built locally; 315.x needs a Python 3.15 build venv.
+  - First GitHub run (40131798850, manual, publish off), 2026-10-24: all 6 pairs (2.5.7, 2.5.8
+    and `main` on Pyodide 314.0.3 and 314.0.7) apply the patches cleanly, build and pass in
+    Chromium and WebKit; the 2.5.8 and `main` wheels are byte-identical to the macOS builds,
+    and each pygame-ce version's wheel is the same on both Pyodide releases.
+  Open: scheduled runs publish passing pairs as pre-releases (`publish` defaults to true);
+  315.x needs a Python 3.15 build venv.
 - **Priority**: Medium (experimental)
 
 ### 50. Browser Builds: PyScript/Pyodide Runner and the Game Host — IN PROGRESS
