@@ -6,6 +6,16 @@ repo_name: glitchygames
 
 nav:
   - GlitchyGames Getting Started: "index.md"
+  - Documentation:
+    - Bitmappy Architecture: "architecture/bitmappy.md"
+    - Event System: "architecture/event_system.md"
+    - Argument System: "architecture/argument_system.md"
+    - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
+    - Multi-Controller System: "multi_controller_system.md"
+    - Code Complexity: "quality/complexity.md"
+    - Replay Performance: "quality/performance.md"
+    - Driver Comparison: "quality/driver_comparison.md"
+    - Galimore Survey: "galimore.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"
     - glitchygames.api: "glitchygames/api/index.md"
@@ -31,16 +41,6 @@ nav:
     - glitchygames.tools: "glitchygames/tools/index.md"
     - glitchygames.transitions: "glitchygames/transitions/index.md"
     - glitchygames.ui: "glitchygames/ui/index.md"
-  - Documentation:
-    - Bitmappy Architecture: "architecture/bitmappy.md"
-    - Event System: "architecture/event_system.md"
-    - Argument System: "architecture/argument_system.md"
-    - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
-    - Multi-Controller System: "multi_controller_system.md"
-    - Code Complexity: "quality/complexity.md"
-    - Replay Performance: "quality/performance.md"
-    - Driver Comparison: "quality/driver_comparison.md"
-    - Galimore Survey: "galimore.md"
 
 extra_css:
   - css/full-width.css
