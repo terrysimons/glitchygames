@@ -57,19 +57,83 @@ sequenceDiagram
 
 ### Event dispatch chain (how events reach your scene)
 
-`EventManager` is the base class for `GameEngine` and `SceneManager`. Every `Scene` instead
-inherits `AllEventStubs`, which gives it a default `on_*_event()` method for every event, so
-events flow through all of them using the same `on_*_event()` API.
+Every scene has every `on_*_event()` handler, but it gets them a different way from the
+engine. A `Scene` *inherits* them: `AllEventStubs` gives it a default for each one, which reports
+the event as unhandled, and your scene overrides the ones it uses. `GameEngine` and
+`SceneManager` inherit no handlers at all. They pass `on_*_event()` calls along at runtime
+through `__getattr__`.
 
-**Inheritance:**
+- Solid arrows are inheritance, pointing at the base class.
+- Dotted arrows are the runtime calls, numbered in the order an event takes them.
 
 ```mermaid
-flowchart LR
-    EM["EventManager"] --- GE["GameEngine"]
-    EM --- SM["SceneManager"]
-    STUBS["AllEventStubs"] --- SC["Scene"]
-    SC --- BES["BitmapEditorScene"]
+classDiagram
+    direction TB
+    class EventInterface {
+        <<interface, abc.ABC>>
+        #95;#95;subclasshook#95;#95; counts any class with every handler
+    }
+    class EventInterfaces["MouseEvents, KeyboardEvents, ... (13)"] {
+        <<interface, abc.ABC>>
+        every on#95;#42;#95;event abstract
+    }
+    class EventStubs["MouseEventStubs, KeyboardEventStubs, ... (13)"] {
+        <<mixin>>
+        every on#95;#42;#95;event calls unhandled#95;event
+    }
+    class AllEventStubs {
+        <<mixin>>
+        all 13 stub mixins
+    }
+    class GameOptionsProvider {
+        <<Protocol>>
+        options dict
+    }
+    class Scene {
+        a default for every on#95;#42;#95;event
+    }
+    class BitmapEditorScene {
+        overrides the handlers it uses
+    }
+    class ManagerProxy["MouseEventManager.MouseEventProxy (one per manager)"] {
+        implements MouseEvents
+        each on#95;#42;#95;event calls game.on#95;#42;#95;event
+    }
+    class ResourceManager {
+        proxies list
+        #95;#95;getattr#95;#95; forwards to its proxies
+    }
+    class EventManager
+    class GameEngine {
+        process#95;#42;#95;event calls the event manager
+        #95;#95;getattr#95;#95; turns on#95;#42;#95;event into missing#95;event
+    }
+    class SceneManager {
+        #95;#95;getattr#95;#95; sends on#95;#42;#95;event to the active scene
+    }
+
+    EventInterface <|-- EventInterfaces
+    EventInterface <|-- EventStubs
+    EventStubs <|-- AllEventStubs
+    AllEventStubs <|-- Scene
+    Scene <|-- BitmapEditorScene
+    EventInterfaces <|-- ManagerProxy
+    ResourceManager <|-- EventManager
+    EventManager <|-- GameEngine
+    EventManager <|-- SceneManager
+
+    GameEngine ..> ManagerProxy : 1. process#95;mouse#95;event
+    ManagerProxy ..> SceneManager : 2. game.on#95;#42;#95;event
+    SceneManager ..> Scene : 3. #95;#95;getattr#95;#95; forwards it
+    SceneManager ..> GameEngine : 3b. no active scene, missing#95;event
+    EventStubs ..> GameOptionsProvider : unhandled#95;event(game)
 ```
+
+The interfaces are abstract base classes, not `typing.Protocol`s, but `EventInterface`'s
+`__subclasshook__` makes them structural: any class with every handler of an interface counts as
+one. `GameOptionsProvider` is a real `Protocol`: `unhandled_event()` needs only the scene's
+`options`. Both scene classes also inherit `SceneInterface` (left out to keep the diagram
+readable).
 
 **Event flow** — how an SDL event reaches your handler in Bitmappy:
 
