@@ -137,7 +137,7 @@ flowchart TD
     BLOCKED -->|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
     BLOCKED -->|"No"| WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
     WRAP --> STUB{"Scene overrides\nthe handler?"}
-    STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;<br/>raises UnhandledEventError under --no-unhandled-events,<br/>else logs a warning once per event type<br/>when debug_events is on #40;--log-level DEBUG, ERROR or CRITICAL#41;"]
+    STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;<br/>raises UnhandledEventError when options#91;'no_unhandled_events'#93; is set<br/>#40;the --no-unhandled-events argument#41;,<br/>else logs a warning once per event type when options#91;'debug_events'#93; is on<br/>#40;derived from the --log-level argument: DEBUG, ERROR or CRITICAL#41;"]
     STUB -->|"Yes — real handler"| HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]
 ```
 
@@ -2518,12 +2518,16 @@ AXIS = [
 When an event has no handler, the stub system catches it. The behavior is
 configurable: silent, logged, or error-raising (used in tests).
 
+Both settings come from the command line, through the scene's `options` (`GameEngine.OPTIONS`):
+`no_unhandled_events` is the `--no-unhandled-events` argument, and `debug_events` is not an
+argument of its own but derived from `--log-level` by `GameEngine.initialize_arguments()`.
+
 ```mermaid
 flowchart TD
     EVENT["Event arrives at\non_*_event() stub"] --> UH["unhandled_event()"]
-    UH --> CHECK_STRICT{"options.no_unhandled_events?"}
+    UH --> CHECK_STRICT{"options#91;'no_unhandled_events'#93;?<br/>#40;the --no-unhandled-events argument#41;"}
     CHECK_STRICT -->|"Yes"| RAISE["Raise UnhandledEventError\n(used in test suite)"]
-    CHECK_STRICT -->|"No"| CHECK_DEBUG{"options.debug_events?"}
+    CHECK_STRICT -->|"No"| CHECK_DEBUG{"options#91;'debug_events'#93;?<br/>#40;derived from the --log-level argument:<br/>on for DEBUG, ERROR and CRITICAL#41;"}
     CHECK_DEBUG -->|"Yes"| LOG_W["Log WARNING\nfirst occurrence of the type only"]
     CHECK_DEBUG -->|"No"| SILENT["Nothing"]
 ```
