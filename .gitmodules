@@ -1,0 +1,4 @@
+[submodule "third_party/pygame-ce"]
+	path = third_party/pygame-ce
+	url = https://github.com/terrysimons/pygame-ce.git
+	branch = glitchygames-wasm
