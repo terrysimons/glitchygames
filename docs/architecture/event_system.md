@@ -24,7 +24,7 @@ per frame, and whatever another reader takes never reaches the engine.
 - **Named handlers** — override `on_key_down_event()` instead of writing
   `if event.type == pygame.KEYDOWN`. No if/elif dispatch chains.
 - **Automatic state tracking** — event managers cache button states, axis
-  values, hat positions, and mouse focus so you can poll current state anytime.
+  values, hat positions, and mouse focus so you can poll the current state very cheaply at any time.
 - **Synthesized events** — GlitchyGames generates events that pygame doesn't
   provide: mouse drag and drop (`on_mouse_drag_event`, `on_left_mouse_drag_event`,
   `on_mouse_drop_event`), keyboard chords (`on_key_chord_down_event`), and
