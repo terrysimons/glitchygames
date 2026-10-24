@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 214. Two Docs Builds at Once Break Each Other's Complexity Graphs
+- **Description**: When two docs builds generate the complexity graphs at the same time (a running `mkdocs serve` and the pre-push hook's `mkdocs build --strict`, both seeing a new HEAD), one fails: `Could not generate the complexity graphs: The graph page loads no plotly.js from cdn.plot.ly: plotly changed its output`, and the push is refused
+- **Status**: Active
+- **Priority**: Medium (refuses pushes while a docs server runs; likely the "transient" pre-push lint failures seen before)
+- **Reporter**: Found pushing PR #96, 2026-10-24
+- **Date Reported**: 2026-10-24
+- **Details**: `scripts/generate_complexity_graphs.py`'s `graph_metric` has wily write each page straight into `docs/quality/graphs/`, then reads it back and rewrites it in place with jsDelivr's plotly.js (`load_plotly_from_jsdelivr`). Both builds write the same paths, so one reads a page the other already rewrote: no cdn.plot.ly URL left, so it raises. The server's log showed its 102 s regeneration (15:12:21-15:14:04) overlapping the push; with the server stopped the push passed. Plotly (5.24.1) and wily (1.25.0) were the same in both environments. Fix to make: wily writes into a per-process temporary directory and each finished page replaces the published one in one step (`glitchygames/output_files.py`'s write-aside-then-replace), and the whole generation takes a lock, so the second build waits and then finds the graphs current
+- **Files**: `scripts/generate_complexity_graphs.py`
+
 ### 212. Collecting Garbage Between Tests Stalls the Native Run's coreaudio
 - **Description**: With `tests/garbage_collection.py`'s collections on in every run, a local `uv run pytest -n 4` (the dummy run plus its native cocoa/coreaudio child, side by side) took over an hour: in the native run many tests waited almost exactly 30 s, and 20 failed with `pygame.error: mixer not initialized` (sound loading, paddles with collision sounds, the mixer pool, the pause screen)
 - **Status**: Active (worked around: only runs on the dummy audio driver collect)
