@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/games/mr_muncher/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Mr. Muncher Architecture - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Mr. Muncher Architecture";
+        var mkdocs_page_input_path = "games/mr_muncher.md";
+        var mkdocs_page_url = "/glitchygames/games/mr_muncher/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Games</li>
+      <li class="breadcrumb-item active">Mr. Muncher Architecture</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/games/mr_muncher.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../clockwork_keep/" class="btn btn-neutral float-left" title="Clockwork Keep Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../architecture/event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="mr-muncher-architecture">Mr. Muncher Architecture<a class="headerlink" href="#mr-muncher-architecture" title="Permanent link">#</a></h1>
+<p>Mr. Muncher is a maze chase set in a cinema, written as one of the engine's example games. You
+are Mr. Muncher, a red-and-white popcorn bucket. You eat the <strong>sprockets</strong> (small dots drawn like
+the holes along a film strip) to finish the <strong>reel</strong>, while four <strong>munchers</strong> (spiky fuzzballs)
+hunt you. A <strong>snack</strong> (a wrapped candy) gives you a sugar rush: for a few seconds the munchers
+turn dull blue and run away, and you can eat them. Each life is a <strong>take</strong>, a cleared maze is a
+<strong>CUT!</strong>, and the last life ends with <strong>THE END</strong>.</p>
+<p>This page explains how the game is built, for a developer who wants to understand it or write a
+game like it. Everything here comes from <code>glitchygames/examples/mr_muncher/</code>. The module
+docstrings there are the detailed reference.</p>
+<h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w">                      </span><span class="c1"># the console script (pyproject.toml [project.scripts])</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--debug-overlay<span class="w">      </span><span class="c1"># start with the debug overlay (F3 toggles it, F4 cycles panels)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
+</code></pre></div>
+<p><code>main()</code> (<code>game.py</code>) is just <code>GameEngine(game=MrMuncherScene).start()</code>. The scene does not
+define an <code>args()</code> class method, so the game adds no options of its own (the engine logs <code>Game
+does not implement arguments</code>). All its options are the engine's. These are the ones that
+matter here:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Effect on Mr. Muncher</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--resolution WxH</code> (default <code>800x480</code>)</td>
+<td>The maze is scaled to fit (see <a href="#layout-and-the-side-panels">Layout</a>). At 800x480 the tiles are 20 px and the maze starts at x = 130</td>
+</tr>
+<tr>
+<td><code>--target-fps</code></td>
+<td>The scene sets no <code>TARGET_FPS</code>, so the default is 60.01. Movement uses <code>dt</code>, so the frame rate does not change the game's speed</td>
+</tr>
+<tr>
+<td><code>--input-mode {auto,joystick,controller}</code></td>
+<td>Which gamepad events reach the <code>ActionMap</code> (both families in <code>auto</code>)</td>
+</tr>
+<tr>
+<td><code>--debug-overlay</code></td>
+<td>Shows each muncher's target tile (see <a href="#debug-overlay">Debug overlay</a>)</td>
+</tr>
+<tr>
+<td><code>--random-seed INT</code></td>
+<td>Seeds the frightened munchers' random turns</td>
+</tr>
+<tr>
+<td><code>--screen-shake-intensity</code>, <code>--rumble-intensity</code></td>
+<td>Scale the shake and rumble when a muncher catches you</td>
+</tr>
+<tr>
+<td><code>--live-voice-pool</code></td>
+<td>The projector sound needs one free live voice</td>
+</tr>
+<tr>
+<td><code>--record-trace</code>, <code>--replay-trace</code>, <code>--headless</code></td>
+<td>Recording and replay (see <a href="#how-it-uses-the-engine">Engine features</a>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
+<p>Every keyboard control is bound <strong>by scancode</strong> (<code>ActionMap.bind(scancode=...)</code>), so it is
+tied to a key's physical position and works the same on every keyboard layout.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Action</th>
+<th>Where it is handled</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Arrow keys, or W A S D</td>
+<td>Steer. A direction pressed early is remembered and taken at the next junction</td>
+<td><code>ActionMap</code> (<code>move_up</code>, <code>move_left</code>, <code>move_down</code>, <code>move_right</code>)</td>
+</tr>
+<tr>
+<td>Gamepad D-pad buttons</td>
+<td>Steer</td>
+<td><code>ActionMap</code> (<code>CONTROLLER_BUTTON_DPAD_*</code>)</td>
+</tr>
+<tr>
+<td>Gamepad left stick, pushed past 0.5</td>
+<td>Steer</td>
+<td><code>ActionMap</code> (<code>CONTROLLER_AXIS_LEFTX/LEFTY</code>, <code>STICK_THRESHOLD</code>)</td>
+</tr>
+<tr>
+<td>Joystick hat (a pad whose D-pad is a hat)</td>
+<td>Steer, in the direction pushed</td>
+<td><code>on_joy_hat_motion_event</code> (no <code>ActionMap</code>)</td>
+</tr>
+<tr>
+<td>ESC, P, or gamepad Start</td>
+<td>Pause (not after the game is over)</td>
+<td><code>ActionMap</code> (<code>pause</code>)</td>
+</tr>
+<tr>
+<td>Window loses focus</td>
+<td>Pause</td>
+<td><code>on_window_focus_lost_event</code></td>
+</tr>
+<tr>
+<td>Q</td>
+<td>Quit (on the press)</td>
+<td><code>ActionMap</code> (<code>quit</code>), then <code>scene_manager.quit()</code></td>
+</tr>
+<tr>
+<td>On the pause screen: SPACE or gamepad Start or A / ESC or gamepad B or Back / Q</td>
+<td>Resume (on release, after a press there) / quit (on the press) / quit (on release)</td>
+<td>The engine's <code>PauseScene</code> (both gamepad event layers)</td>
+</tr>
+<tr>
+<td>On the game-over screen: SPACE (release), gamepad A or Start / ESC or gamepad B or Back</td>
+<td>New game / quit</td>
+<td><code>MrMuncherGameOverScene</code> and <code>GameOverScene</code></td>
+</tr>
+</tbody>
+</table>
+<p>Note that ESC pauses the game, but ESC on the pause screen quits. The pause and game-over
+screens are engine scenes and check key codes (<code>event.key</code>), not scancodes.</p>
+<h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/__init__.py</code></td>
+<td>Re-exports <code>main</code> (the <code>mr-muncher</code> console script's entry point)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/maze.py</code></td>
+<td><code>MAZE_LAYOUT</code> (the maze as text), tile characters, <code>Direction</code>, <code>DIRECTION_PREFERENCE</code>, <code>Maze</code> (a frozen pydantic model: tile questions, wrapping, distances)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/levels.py</code></td>
+<td><code>LevelSettings</code> and <code>settings_for_level</code> (the difficulty ramp), the scatter/chase schedule helpers, the frightened flash</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/actors.py</code></td>
+<td><code>MazeGeometry</code> (tiles to pixels), <code>MazeActor</code> (tile-to-tile movement), <code>Player</code>, <code>Muncher</code>, <code>MuncherProfile</code>, <code>Personality</code>, <code>MuncherState</code>, <code>ChaseSituation</code>, <code>chase_target</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/game.py</code></td>
+<td><code>MrMuncherScene</code> (one reel: phases, scoring, input, saves, sound, drawing), <code>Phase</code>, <code>GameProgress</code>, <code>MrMuncherGameOverScene</code>, <code>main</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/drawing.py</code></td>
+<td>Every picture, drawn with pygame primitives and cached with <code>functools.cache</code>: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/scenery.py</code></td>
+<td>The sprites that never move (<code>Sprocket</code>, <code>Picture</code>, <code>SidePanel</code>) and the text helpers (<code>bundled_font</code>, <code>fitted_font</code>, <code>render_text</code>)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/sounds.py</code></td>
+<td>The sound effects and jingles as synth <code>SoundRecipe</code>s</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/mr_muncher/autopilot.py</code></td>
+<td><code>Autopilot</code>, a bot that plays the game. The golden replay's script and the tests use it</td>
+</tr>
+<tr>
+<td><code>tests/examples/test_mr_muncher.py</code></td>
+<td>The scene: game flow, scoring, input, saves, screens, whole games</td>
+</tr>
+<tr>
+<td><code>tests/examples/test_mr_muncher_maze_and_actors.py</code></td>
+<td>The parts: maze, levels, actors, pictures, scenery, sounds, autopilot</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code></td>
+<td>The golden replay (2,072 frames)</td>
+</tr>
+<tr>
+<td><code>scripts/record_golden_traces.py</code></td>
+<td><code>mr_muncher_script</code> and <code>MuncherSteering</code> (the autopilot pressing arrow keys)</td>
+</tr>
+<tr>
+<td><code>scripts/record_scripted_session.py</code></td>
+<td><code>mr_muncher_controls</code> (the golden replay's controls tail) and the command that records the fixture</td>
+</tr>
+</tbody>
+</table>
+<h2 id="scenes-and-how-they-switch">Scenes and how they switch<a class="headerlink" href="#scenes-and-how-they-switch" title="Permanent link">#</a></h2>
+<p>A game is a chain of scenes. Each reel is a new <code>MrMuncherScene</code>, built from a <code>GameProgress</code>
+(a frozen pydantic model holding the reel number, score, lives left and whether the extra life
+has been given). The scene keeps the progress it started with as <code>starting_progress</code>.</p>
+<p>In the diagram, the Engine box holds the engine's built-in <code>PauseScene</code>; the Mr. Muncher box
+holds the game's own scenes (<code>MrMuncherGameOverScene</code> extends the engine's <code>GameOverScene</code>, see
+<a href="#scene-classes">Scene classes</a>).</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    direction TB
+    [*] --&gt; Reel : GameEngine(game=MrMuncherScene)
+    state "Mr. Muncher" as MrMuncherScenes {
+        Reel : MrMuncherScene (reel n)
+        NextReel : MrMuncherScene (reel n + 1)&lt;br/&gt;same score and lives
+        GameOver : MrMuncherGameOverScene&lt;br/&gt;(extends the engine's GameOverScene)
+        NewGame : MrMuncherScene (reel 1)
+    }
+    state "Engine" as EngineScenes {
+        Pause : PauseScene
+    }
+    Reel --&gt; Pause : ESC, P, Start or focus lost&lt;br/&gt;next_scene = PauseScene
+    Pause --&gt; Reel : SPACE, Start or A released&lt;br/&gt;(setup() runs again)
+    Reel --&gt; NextReel : CUT! then flash&lt;br/&gt;next_scene = new scene
+    NextReel --&gt; Reel : the same flow
+    Reel --&gt; GameOver : THE END shown for 2.5 s&lt;br/&gt;transition_to(..., FadeTransition(1 s))
+    GameOver --&gt; NewGame : SPACE released, or A or Start&lt;br/&gt;switch_to_scene
+    Reel --&gt; [*] : Q (scene_manager.quit())
+    Pause --&gt; [*] : ESC, B, Back or Q
+    GameOver --&gt; [*] : ESC, B or Back</code></pre>
+<ul>
+<li><strong>Next reel</strong>: <code>_go_to_next_level</code> sets <code>next_scene</code> to a new <code>MrMuncherScene</code> with
+  <code>GameProgress(level + 1, score, lives, extra_life_awarded)</code>. It does this only once (it
+  checks that <code>next_scene is self</code>).</li>
+<li><strong>Game over</strong>: <code>_show_game_over_screen</code> fades (1 s <code>FadeTransition</code>) to
+  <code>MrMuncherGameOverScene</code>. This screen shows the engine's GAME OVER layout (score and high
+  score table) plus a headline, either <code>NEW HIGH SCORE!  Reel N</code> or <code>You reached reel N</code>.
+  <code>resume()</code> always starts a new game with <code>switch_to_scene(MrMuncherScene(...))</code>, because the
+  previous scene depends on how the screen was reached.</li>
+<li><strong>Pause</strong>: the engine's <code>PauseScene</code> shows a frozen screenshot of the game. When play
+  resumes, the scene's <code>setup()</code> runs again. That is why <code>setup()</code> shows the ready message only
+  while the phase is still <code>READY</code>.</li>
+</ul>
+<h3 id="scene-classes">Scene classes<a class="headerlink" href="#scene-classes" title="Permanent link">#</a></h3>
+<p>Mr. Muncher's scenes are two classes in <code>glitchygames/examples/mr_muncher/game.py</code>:
+<code>MrMuncherScene</code> and <code>MrMuncherGameOverScene</code>. <code>Scene</code> and the built-in <code>PauseScene</code> and
+<code>GameOverScene</code> come from the engine (<code>glitchygames.scenes</code>). In the diagram, the Engine box is
+what every game gets; the Mr. Muncher box is what this game adds. Solid arrows are inheritance,
+pointing at the base class; dotted arrows are how the game uses an engine class.</p>
+<pre class="mermaid"><code>classDiagram
+    direction TB
+    namespace Engine {
+        class Scene {
+            next_scene
+            transition_to(scene, transition)
+            replay_arguments()
+        }
+        class PauseScene {
+            the frozen game, dimmed
+            SPACE or Start/A resumes it, ESC, B/Back or Q quits
+        }
+        class GameOverScene {
+            score and high scores
+            final_score, high_scores
+        }
+    }
+    namespace MrMuncher {
+        class MrMuncherScene {
+            NAME = 'Mr. Muncher'
+            VERSION = '2.0'
+            MAX_FRAME_SECONDS = 0.05
+            starting_progress : GameProgress
+            phase : Phase
+            actions : ActionMap
+            saves : SaveManager
+            dt_tick(dt)
+            render(screen)
+        }
+        class MrMuncherGameOverScene {
+            level_reached : int
+            setup()
+            replay_arguments()
+            resume()
+        }
+    }
+
+    Scene &lt;|-- PauseScene
+    Scene &lt;|-- GameOverScene
+    Scene &lt;|-- MrMuncherScene
+    GameOverScene &lt;|-- MrMuncherGameOverScene
+
+    PauseScene &lt;.. MrMuncherScene : _pause sets next_scene = PauseScene
+    MrMuncherScene ..&gt; MrMuncherGameOverScene : transition_to after THE END
+    MrMuncherGameOverScene ..&gt; MrMuncherScene : resume starts a new game</code></pre>
+<p>Unlike PaddleSlap, <code>MrMuncherScene</code> names <code>PauseScene</code> itself: <code>_pause</code> sets
+<code>next_scene = PauseScene(options=self.options)</code>, except once the game is over.</p>
+<h3 id="phases-inside-a-reel">Phases inside a reel<a class="headerlink" href="#phases-inside-a-reel" title="Permanent link">#</a></h3>
+<p>Inside one scene, <code>Phase</code> decides what each frame does. <code>_run_phase</code> runs the current phase;
+each waiting phase moves on once <code>phase_seconds</code> (game time since the phase began) is up. Because
+the phase clocks run on game time, a paused game also pauses its countdowns.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    direction TB
+    [*] --&gt; READY
+    READY : READY&lt;br/&gt;3, 2, 1 (new game, 3.6 s)&lt;br/&gt;or TAKE n / REEL n (2.0 s)&lt;br/&gt;ACTION! for the last 0.8 s
+    PLAYING : PLAYING
+    MUNCHER_EATEN : MUNCHER_EATEN&lt;br/&gt;points shown, all still (0.75 s)
+    DYING : DYING&lt;br/&gt;freeze 0.8 s, shrivel 1.5 s, empty 0.7 s
+    LEVEL_CLEAR : LEVEL_CLEAR&lt;br/&gt;CUT!, hold 1 s, flash 2 s
+    GAME_OVER : GAME_OVER&lt;br/&gt;THE END (2.5 s)
+    READY --&gt; PLAYING : time up (_start_playing)
+    PLAYING --&gt; MUNCHER_EATEN : touched a frightened muncher
+    MUNCHER_EATEN --&gt; PLAYING : time up (_resume_after_eating)
+    PLAYING --&gt; DYING : touched by a dangerous muncher
+    DYING --&gt; READY : lives left (take + 1)
+    DYING --&gt; GAME_OVER : last life (high score saved)
+    PLAYING --&gt; LEVEL_CLEAR : last sprocket eaten
+    LEVEL_CLEAR --&gt; [*] : next reel (next_scene)
+    GAME_OVER --&gt; [*] : fade to game-over screen</code></pre>
+<p>The ready message (<code>_ready_message_text</code>) depends on the moment:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th><code>ready_seconds</code></th>
+<th>Message</th>
+<th>Cue sound</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New game (reel 1, score 0)</td>
+<td>3.6 (<code>INTRO_READY_SECONDS</code>)</td>
+<td><code>3</code>, <code>2</code>, <code>1</code> (2.8 s split three ways), then <code>ACTION!</code></td>
+<td><code>countdown_beep</code> for each number, then <code>action</code></td>
+</tr>
+<tr>
+<td>A later life</td>
+<td>2.0 (<code>READY_SECONDS</code>)</td>
+<td><code>TAKE n</code>, then <code>ACTION!</code></td>
+<td><code>action</code></td>
+</tr>
+<tr>
+<td>A later reel</td>
+<td>2.0</td>
+<td><code>REEL n</code>, then <code>ACTION!</code></td>
+<td><code>action</code></td>
+</tr>
+</tbody>
+</table>
+<p>The message is drawn again only when its text or colour changes (<code>message_shown</code>), and each cue
+plays once, when its text first appears.</p>
+<h2 id="the-maze">The maze<a class="headerlink" href="#the-maze" title="Permanent link">#</a></h2>
+<h3 id="layout-as-text">Layout as text<a class="headerlink" href="#layout-as-text" title="Permanent link">#</a></h3>
+<p><code>MAZE_LAYOUT</code> is a tuple of strings, one per row of tiles: 27 columns by 24 rows. It is
+symmetric from left to right, every corridor is one tile wide, there are no dead ends, and every
+open tile can be reached from every other. The tests check all four properties.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>###########################
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>#o...........#...........o#
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>T.........................T
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>#.####.##.#######.##.####.#
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>#......##....#....##......#
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>#.#....##         ##....#.#
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>#.#.##.## ###-### ##.##.#.#
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>#...##.   #HHHHH#   .##...#
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>###.##.## #HHHHH# ##.##.###
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>#......## #HHHHH# ##......#
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>#.####.## ####### ##.####.#
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>#.#....##         ##....#.#
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>#.#.##.#####.#.#####.##.#.#
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>#...##.......#.......##...#
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>#o..##.......P.......##..o#
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>###.##.##.#######.##.##.###
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>#......##....#....##......#
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>#.##########.#.##########.#
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>T.........................T
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>###########################
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Character</th>
+<th>Meaning</th>
+<th>Player may stand on it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>#</code></td>
+<td>Wall</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>.</code></td>
+<td>Sprocket (252 of them)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>o</code></td>
+<td>Snack (4 of them)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>space</td>
+<td>Empty corridor</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>T</code></td>
+<td>Tunnel mouth: munchers slow down here</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>H</code></td>
+<td>Inside the munchers' house</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>-</code></td>
+<td>The house door: munchers pass through it, the player never does</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>P</code></td>
+<td>Player start (an empty corridor tile)</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p><code>Maze</code> is a frozen pydantic model. Its validator rejects a layout that is not a rectangle or that
+does not have exactly one <code>P</code>. It knows nothing about pixels. Positions are in <strong>tile units</strong>:
+the centre of the tile in column <code>c</code>, row <code>r</code> is <code>(c, r)</code>, so an actor standing on a tile centre
+has whole-number coordinates.</p>
+<ul>
+<li><strong>Tunnels.</strong> <code>Maze.tile</code> wraps columns, and treats rows outside the maze as wall. Only rows 4
+  and 22 are open at both edges, so they are the two wrapping tunnels. <code>wrap_x</code> moves an x that
+  has gone more than half a tile past an edge to the other side. <code>tile_distance</code> measures the
+  short way round, so two positions at opposite ends of a tunnel count as close.</li>
+<li><strong>The house.</strong> The door is at (13, 9). <code>house_entrance</code> is the corridor tile above it (13, 8),
+  where munchers leave and come back. <code>house_centre</code> is two tiles below the door (13, 11).</li>
+<li><strong>Geometry.</strong> <code>MazeGeometry</code> (<code>actors.py</code>) holds <code>tile_size</code>, <code>left</code> and <code>top</code>, and converts a
+  position in tiles to pixels (<code>pixel_centre</code>). <code>maze_geometry</code> (<code>game.py</code>) chooses the tile
+  size.</li>
+</ul>
+<h3 id="grid-movement-and-turn-buffering">Grid movement and turn buffering<a class="headerlink" href="#grid-movement-and-turn-buffering" title="Permanent link">#</a></h3>
+<p>Both the player and the munchers are <code>MazeActor</code>s. They move only along corridors, and they
+choose a direction only when they stand exactly on a tile centre (<code>is_at_tile_centre</code>: both
+coordinates are whole numbers).</p>
+<p><code>MazeActor.advance(distance=..., choose_direction=...)</code> walks a distance from one tile centre to
+the next. Each time it reaches a centre, or starts on one, it calls <code>choose_direction</code> to decide
+the way on (<code>None</code> means stop). When a step reaches a centre, the coordinate is rounded so it
+lands exactly on it. Because the walk goes centre to centre, a long frame cannot skip past a
+turn.</p>
+<p>The player's turn buffering (<code>Player.travel</code> and <code>_choose_direction</code>):</p>
+<ol>
+<li><code>wanted_direction</code> is the way the player last asked for.</li>
+<li><strong>Reversing happens at once</strong>, even between centres. If the wanted direction is the opposite
+   of the current one, the player turns round on the spot.</li>
+<li>On each tile centre the player takes the wanted direction if it is open. Otherwise it goes
+   straight on if it can, and stops against a wall if it cannot. The wanted direction stays
+   remembered until a junction opens that way.</li>
+<li>A new life starts heading left with left wanted, as in the arcade game.</li>
+</ol>
+<p>How input sets <code>wanted_direction</code> (<code>_read_direction_input</code>, at the start of each <code>dt_tick</code>):
+a direction <strong>just pressed</strong> wins (if two are pressed in one frame, the first of up, left, down,
+right wins). If no direction was just pressed and the wanted direction's key was <strong>just
+released</strong> while another direction is still held, the held one becomes wanted, as with a held
+joystick. Releasing the last key keeps the wanted direction. Then <code>actions.begin_frame()</code> clears
+the frame's presses and releases.</p>
+<h2 id="the-munchers">The munchers<a class="headerlink" href="#the-munchers" title="Permanent link">#</a></h2>
+<p>There are four munchers (<code>muncher_profiles</code>). The chaser comes first in the list, because the
+flanker aims relative to it.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Colour</th>
+<th><code>Personality</code></th>
+<th>Chase target</th>
+<th>Scatter corner</th>
+<th>Starts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chomper</td>
+<td>purple</td>
+<td><code>CHASER</code></td>
+<td>The player's tile</td>
+<td>(24, -3), top right</td>
+<td>Outside, above the door, roaming left</td>
+</tr>
+<tr>
+<td>Snapper</td>
+<td>green</td>
+<td><code>AMBUSHER</code></td>
+<td>4 tiles ahead of where the player faces</td>
+<td>(2, -3), top left</td>
+<td>House centre</td>
+</tr>
+<tr>
+<td>Gnasher</td>
+<td>orange</td>
+<td><code>FLANKER</code></td>
+<td>The pivot 2 tiles ahead of the player, mirrored away from Chomper: <code>2 * pivot - chaser</code></td>
+<td>(26, 24), bottom right</td>
+<td>House, left seat</td>
+</tr>
+<tr>
+<td>Nibbles</td>
+<td>magenta</td>
+<td><code>SHY</code></td>
+<td>The player's tile while farther than 8 tiles from it, else its own corner</td>
+<td>(0, 24), bottom left</td>
+<td>House, right seat</td>
+</tr>
+</tbody>
+</table>
+<p>The scatter corners lie outside the maze, so a scattering muncher circles the block of walls
+nearest its corner.</p>
+<h3 id="choosing-a-turn">Choosing a turn<a class="headerlink" href="#choosing-a-turn" title="Permanent link">#</a></h3>
+<p>At each tile centre, a roaming muncher (<code>Muncher._choose_direction</code>):</p>
+<ol>
+<li>Never turns back by itself. The way it came is removed from the options; it is used only at
+   a dead end, and this maze has none.</li>
+<li>Considers only open corridor tiles (the same test as the player's, so roaming munchers never
+   walk back into the house).</li>
+<li>If <strong>frightened</strong>, picks one of the options at random from the seeded stream
+   <code>random_stream('mr_muncher.munchers')</code>, so a replay makes the same choices.</li>
+<li>Otherwise it takes the option whose next tile is closest in a straight line (<code>tile_distance</code>,
+   tunnel-aware) to its <strong>target</strong>. On a tie the order is up, left, down, right
+   (<code>DIRECTION_PREFERENCE</code>, the arcade game's order).</li>
+</ol>
+<p>The target (<code>_target</code>): the house entrance for eyes, the scatter corner while scattering,
+<code>chase_target(...)</code> while chasing. The target is stored on <code>muncher.target</code> for the debug
+overlay. The munchers learn about the game through a <code>ChaseSituation</code> that the scene builds for
+each step: the player's tile and facing, Chomper's tile, and whether the munchers are chasing.</p>
+<h3 id="muncher-state-machine">Muncher state machine<a class="headerlink" href="#muncher-state-machine" title="Permanent link">#</a></h3>
+<p><code>MuncherState</code> is where a muncher is in its life. Being frightened is a separate flag
+(<code>frightened</code>), because a muncher waiting in the house or walking out can be frightened too.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    direction TB
+    [*] --&gt; WAITING : reset() (house seat)
+    [*] --&gt; ROAMING : reset() (Chomper starts outside)
+    WAITING : WAITING&lt;br/&gt;bobs on its seat
+    LEAVING : LEAVING&lt;br/&gt;across, then up through the door
+    EATEN : EATEN&lt;br/&gt;only eyes, through the corridors to the entrance
+    ENTERING : ENTERING&lt;br/&gt;eyes go down to the house centre
+    WAITING --&gt; LEAVING : life_seconds reaches its release time
+    LEAVING --&gt; ROAMING : reaches the house entrance
+    state ROAMING {
+        direction TB
+        Scatter : Scatter&lt;br/&gt;target = corner
+        Chase : Chase&lt;br/&gt;target = chase_target()
+        Frightened : Frightened&lt;br/&gt;random turns (seeded stream)
+        Scatter --&gt; Chase : schedule phase ends (turns round)
+        Chase --&gt; Scatter : schedule phase ends (turns round)
+        Scatter --&gt; Frightened : snack eaten (turns round)
+        Chase --&gt; Frightened : snack eaten (turns round)
+        Frightened --&gt; Scatter : fright over (scatter phase)
+        Frightened --&gt; Chase : fright over (chase phase)
+    }
+    ROAMING --&gt; EATEN : player touches it while frightened
+    EATEN --&gt; ENTERING : eyes reach the house entrance
+    ENTERING --&gt; LEAVING : reaches the house centre&lt;br/&gt;(no longer frightened)</code></pre>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Movement</th>
+<th>Speed</th>
+<th>Can touch the player</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WAITING</code></td>
+<td><code>_bob</code>: up and down 0.35 tiles around its seat</td>
+<td><code>house_speed</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>LEAVING</code></td>
+<td><code>_walk_out</code>: across to the door's column, then up to the entrance</td>
+<td><code>house_speed</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>ROAMING</code></td>
+<td><code>advance</code> through the corridors, turning as above</td>
+<td><code>tunnel_speed</code> on a <code>T</code> tile, else <code>frightened_speed</code> if frightened, else <code>hurry_speed</code> (Chomper only, with few sprockets left), else <code>muncher_speed</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>EATEN</code></td>
+<td><code>advance</code> towards the house entrance</td>
+<td><code>eyes_speed</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>ENTERING</code></td>
+<td><code>_walk_in</code>: down to the house centre</td>
+<td><code>eyes_speed</code></td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>A <strong>change of mode turns every roaming muncher round</strong>. When the schedule's phase changes, or a
+snack starts a fright, the scene sets <code>reverse_soon</code>, and the muncher reverses on its next step,
+even between tile centres. This is the only time a muncher reverses.</p>
+<h3 id="scatter-chase-and-fright-timing">Scatter, chase and fright timing<a class="headerlink" href="#scatter-chase-and-fright-timing" title="Permanent link">#</a></h3>
+<p>The scene keeps three clocks per life, all in game time and all reset when a life starts
+(<code>_reset_actors</code>). <code>_advance_timers</code> advances them on every step:</p>
+<ul>
+<li><code>life_seconds</code> decides when each muncher waiting in the house is released (<code>release_seconds</code>,
+  in house order: Snapper, Gnasher, Nibbles).</li>
+<li><code>mode_seconds</code> drives the scatter/chase schedule. It <strong>stops while the munchers are
+  frightened</strong>, so a fright does not use up a scatter phase. <code>munchers_chase(schedule=...,
+  elapsed_seconds=...)</code> gives the mode: phases alternate scatter, chase, scatter, ..., starting
+  with scatter, and after the last phase the munchers chase for good. <code>mode_phase_index</code>
+  detects the change of phase that turns them round.</li>
+<li><code>frightened_seconds_left</code> counts down a fright. When it reaches zero, <code>_end_fright</code> clears
+  every muncher's <code>frightened</code> flag.</li>
+</ul>
+<p>A snack (<code>_start_fright</code>) frightens every muncher that is not eyes, resets the count of
+munchers eaten during this fright (which sets their points), and turns the roaming munchers
+round. Frightened munchers <strong>flash</strong> white and blue for the last 2 s of the fright (or all of
+it, if the fright is shorter), switching every quarter second (<code>frightened_is_flashing</code>).</p>
+<h2 id="levels-and-the-difficulty-ramp">Levels and the difficulty ramp<a class="headerlink" href="#levels-and-the-difficulty-ramp" title="Permanent link">#</a></h2>
+<p><code>settings_for_level(level)</code> returns a frozen <code>LevelSettings</code>. Each reel is a little faster and
+meaner than the one before, up to reel 8 (<code>LAST_RAMP_LEVEL</code>); after that, every reel plays like
+reel 8. Speeds are in tiles per second.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Reel 1</th>
+<th>Each reel adds</th>
+<th>From reel 8 on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Player speed</td>
+<td>7.5</td>
+<td>+0.15</td>
+<td>8.55</td>
+</tr>
+<tr>
+<td>Muncher speed (fraction of the player's speed)</td>
+<td>0.82</td>
+<td>+0.018 (at most 0.95)</td>
+<td>0.946 (8.09 tiles/s)</td>
+</tr>
+<tr>
+<td>Fright length</td>
+<td>8.0 s</td>
+<td>-0.9 s (never below 2.0 s)</td>
+<td>2.0 s</td>
+</tr>
+<tr>
+<td>Chomper hurries when this few sprockets are left</td>
+<td>20</td>
+<td>+5</td>
+<td>55</td>
+</tr>
+<tr>
+<td>Bonus reel points</td>
+<td>100, 300, 500, 700, 1000, 2000, 3000, 5000 (reels 1 to 8)</td>
+<td></td>
+<td>5000</td>
+</tr>
+<tr>
+<td>Scatter/chase schedule (s)</td>
+<td>9, 15, 9, 15, 7, 20, 5, then chase</td>
+<td></td>
+<td>5, 20, 5, 20, 3, 30, 1, then chase (from reel 2)</td>
+</tr>
+<tr>
+<td>House release times (s)</td>
+<td>0.5, 4.0, 8.0</td>
+<td></td>
+<td>0.5, 2.5, 5.0 (from reel 2)</td>
+</tr>
+</tbody>
+</table>
+<p>Other speeds are fixed fractions of the player's speed: frightened munchers 0.55, munchers on a
+tunnel tile 0.50, munchers moving in or out of the house 0.45, eyes 2.0. During a sugar rush the
+player is 1.1 times faster, and a hurrying Chomper is 1.08 times faster than the other munchers.</p>
+<h2 id="scoring-the-bonus-reel-and-lives">Scoring, the bonus reel and lives<a class="headerlink" href="#scoring-the-bonus-reel-and-lives" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Points</th>
+<th>Also</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sprocket</td>
+<td>10</td>
+<td>One of two crunch sounds, alternating</td>
+</tr>
+<tr>
+<td>Snack</td>
+<td>50</td>
+<td>Starts a fright (<code>sugar_rush</code> sound)</td>
+</tr>
+<tr>
+<td>Frightened muncher</td>
+<td>200, 400, 800, 1600 (doubling for each one eaten in the same fright)</td>
+<td>Everything stops for 0.75 s while the points show (<code>camera_flash</code> sound). Mr. Muncher and the eaten muncher are hidden meanwhile</td>
+</tr>
+<tr>
+<td>Bonus film reel</td>
+<td>The reel's <code>bonus_points</code></td>
+<td>Shown for 2 s (<code>eat_bonus</code> sound)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The bonus reel</strong> appears on the tile three rows below the house centre (<code>message_cell</code>,
+  where the messages show too) after the 70<sup>th</sup> and the 170<sup>th</sup> sprocket of a reel
+  (<code>BONUS_SPROCKET_COUNTS</code>), and stays 9.5 s unless eaten.</li>
+<li><strong>Extra life</strong>: one, the first time the score reaches 10,000 (<code>extra_life</code> sound). The game
+  starts with 3 lives, counting the one in play.</li>
+<li><strong>Contact</strong>: a muncher touches the player when their centres are closer than 0.6 tiles
+  (<code>CONTACT_DISTANCE_TILES</code>, tunnel-aware). Only munchers that are roaming or leaving the house
+  count. The first muncher found touching settles the step: it is eaten if frightened,
+  otherwise the player is caught.</li>
+<li><strong>High scores</strong> use the engine's saves: <code>open_saves(app_name='mr-muncher')</code>, save name
+  <code>high_scores</code>, stored as <code>{'scores': [{'score': ..., 'level': ...}, ...]}</code>, best first, the
+  best 10 kept. The game is added to the table when the last life is lost. The panel's HIGH
+  SCORE is the larger of the best saved score and the current score. In a replay the saves are
+  an in-memory sandbox seeded from the recording, so a replay never touches real saves.</li>
+</ul>
+<h2 id="one-frame">One frame<a class="headerlink" href="#one-frame" title="Permanent link">#</a></h2>
+<p>The engine runs <code>dt_tick</code> (logic) before it processes the frame's events, and <code>update()</code> (render
+phase) after positioning. Mr. Muncher does all its work in <code>dt_tick</code> and does not override
+<code>update()</code>. <code>MAX_FRAME_SECONDS = 0.05</code>: after a hitch, such as dragging the window, logic
+advances at most 50 ms in one frame.</p>
+<p>In the diagram, the Engine box is the scene manager calling the scene; everything in the
+Mr. Muncher box is the game's own <code>dt_tick</code>.</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph ENGINE_FRAME["Engine"]
+        direction TB
+        A["SceneManager: logic phase&lt;br/&gt;scene.dt_tick(dt), dt capped at&lt;br/&gt;MAX_FRAME_SECONDS (0.05 s)"]
+    end
+    subgraph GAME_FRAME["Mr. Muncher"]
+        direction TB
+        B["_read_direction_input()&lt;br/&gt;set wanted_direction from the ActionMap,&lt;br/&gt;then actions.begin_frame()"]
+        B --&gt; C["phase_seconds += dt&lt;br/&gt;_run_phase(dt)"]
+        C --&gt;|PLAYING| P["_play(dt): split into steps of at most 1/120 s"]
+        C --&gt;|DYING| D["_die_a_little()"]
+        C --&gt;|other phases| W["wait, then move on when the phase's time is up"]
+        P --&gt; S1["_advance_timers(step)&lt;br/&gt;releases, mode schedule, fright, bonus"]
+        S1 --&gt; S2["player.travel(speed x step)&lt;br/&gt;_eat_at_player()"]
+        S2 --&gt; S3{"phase changed, or&lt;br/&gt;contact?"}
+        S3 --&gt;|yes| E["end of play for this frame"]
+        S3 --&gt;|no| S4["each muncher.travel(its speed x step,&lt;br/&gt;ChaseSituation)"]
+        S4 --&gt; S5{"contact?"}
+        S5 --&gt;|yes| E
+        S5 --&gt;|"no: next step"| S1
+        D --&gt; F
+        W --&gt; F
+        E --&gt; F["_count_down_bonus_points(dt)&lt;br/&gt;_update_projector()"]
+        S5 --&gt;|no steps left| F
+        F --&gt; G["_pose_sprites()&lt;br/&gt;every picture for this moment, side panels"]
+    end
+    A --&gt; B</code></pre>
+<ul>
+<li><strong>Sub-steps.</strong> <code>_play</code> splits the frame into <code>ceil(dt / (1/120))</code> equal steps (two at 60 FPS,
+  at most six after a capped hitch), so no actor moves far enough in one step to pass through
+  another. In each step the player moves and eats first, and contact is checked both after the
+  player moves and after the munchers move.</li>
+<li><strong>The pose rule.</strong> Every sprite's picture is chosen in <code>dt_tick</code>, after its state is decided
+  (<code>_pose_sprites</code>): the bucket's chomp (four mouth steps per tile travelled), the dying
+  animation (24 steps), each muncher's body, frightened or flashing picture or eyes, the skirt's
+  wave (every 0.15 s of game time), and the snacks' twinkle. The side panels are redrawn only
+  when what they show changes.</li>
+<li><strong>Input timing.</strong> Key events are handled after <code>dt_tick</code>, so a key pressed in frame N changes
+  <code>wanted_direction</code> in the <code>dt_tick</code> of frame N + 1. The autopilot allows for this delay (see
+  below).</li>
+</ul>
+<h2 id="drawing">Drawing<a class="headerlink" href="#drawing" title="Permanent link">#</a></h2>
+<h3 id="sprites-and-background">Sprites and background<a class="headerlink" href="#sprites-and-background" title="Permanent link">#</a></h3>
+<p>The <strong>maze is not made of sprites</strong>. When a scene is built, <code>_draw_maze_backgrounds</code> blits
+<code>drawing.maze_picture(...)</code> onto the scene's background, and onto a copy for the level-clear
+flash (white trim on lighter velvet). Everything that changes is a sprite in the scene's
+<code>LayeredDirty</code> group, drawn in layer order:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Sprites</th>
+<th>Space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 <code>SPROCKET_LAYER</code></td>
+<td><code>Sprocket</code> (sprockets and snacks; an eaten one is made invisible)</td>
+<td>Screen</td>
+</tr>
+<tr>
+<td>1 <code>BONUS_LAYER</code></td>
+<td><code>Picture</code> named <code>Bonus</code> (the film reel)</td>
+<td>Screen</td>
+</tr>
+<tr>
+<td>2 <code>MUNCHER_LAYER</code></td>
+<td><code>Muncher</code> x 4</td>
+<td>World</td>
+</tr>
+<tr>
+<td>3 <code>PLAYER_LAYER</code></td>
+<td><code>Player</code></td>
+<td>World</td>
+</tr>
+<tr>
+<td>4 <code>POPUP_LAYER</code></td>
+<td><code>Picture</code>s <code>MuncherPoints</code>, <code>BonusPoints</code></td>
+<td>Screen</td>
+</tr>
+<tr>
+<td>5 <code>MESSAGE_LAYER</code></td>
+<td><code>Picture</code> <code>Message</code> (3, 2, 1, ACTION!, TAKE n, CUT!, THE END)</td>
+<td>Screen</td>
+</tr>
+<tr>
+<td>6 <code>PANEL_LAYER</code></td>
+<td><code>SidePanel</code> x 2 (film-strip edges with the score, lives, bonus, control hints)</td>
+<td>Screen</td>
+</tr>
+</tbody>
+</table>
+<p>In the diagram, the Engine box is the engine's <code>Sprite</code> (<code>glitchygames.sprites</code>); the
+Mr. Muncher box holds the game's sprite classes (<code>actors.py</code> and <code>scenery.py</code>). Solid arrows are
+inheritance, pointing at the base class.</p>
+<pre class="mermaid"><code>classDiagram
+    direction TB
+    namespace Engine {
+        class Sprite {
+            glitchygames.sprites
+        }
+    }
+    namespace MrMuncher {
+        class MazeActor {
+            COORDINATE_SPACE = WORLD
+            tile_x, tile_y, direction
+            world_x, world_y
+            advance(distance, choose_direction)
+        }
+        class Player {
+            wanted_direction, facing
+            travel(distance)
+            pose()
+        }
+        class Muncher {
+            profile, state, frightened
+            reverse_soon, target
+            travel(distance, situation)
+            pose(game_time, flashing)
+        }
+        class Sprocket {
+            cell, is_snack
+            eat()
+        }
+        class Picture {
+            centre
+            change_image(image)
+            move_to(centre)
+        }
+        class SidePanel {
+            contents
+            draw(contents, items)
+        }
+    }
+    Sprite &lt;|-- MazeActor
+    MazeActor &lt;|-- Player
+    MazeActor &lt;|-- Muncher
+    Sprite &lt;|-- Sprocket
+    Sprite &lt;|-- Picture
+    Sprite &lt;|-- SidePanel</code></pre>
+<p>The actors are <strong>world-space sprites</strong> (<code>COORDINATE_SPACE = CoordinateSpace.WORLD</code>). They keep
+their positions in tiles, report <code>world_x</code>/<code>world_y</code> in pixels (the picture's top-left corner),
+and the engine places their rects every frame. Hiding one uses <code>hidden = True</code>, never
+<code>visible</code>, which the engine owns for world sprites. The camera never moves (the scene sets no
+follow target), so world pixels are screen pixels. The still sprites are screen space and place
+their own rects.</p>
+<p><code>render()</code> is overridden: it blits the whole background (the flash copy on alternate quarter
+seconds during the level-clear flash), clears the group with that same background, draws every
+sprite, and sets <code>self.rects = None</code> so the whole screen is presented.</p>
+<h3 id="pictures">Pictures<a class="headerlink" href="#pictures" title="Permanent link">#</a></h3>
+<p><code>drawing.py</code> draws every picture with pygame primitives. Shapes are drawn four times larger
+(<code>SUPERSAMPLE</code>) and smooth-scaled down, which smooths their edges. The maze is drawn twice as
+large (<code>MAZE_SUPERSAMPLE</code>) because its blur is the costly part. Every function is cached with
+<code>functools.cache</code>, because the game asks for the same few pictures every frame, so callers must
+not draw on the surfaces they get back.</p>
+<p>The maze picture: each open tile is drawn as a black square widened by 0.2 of a tile on each
+side, the wall shape is blurred, and it is cut at two thresholds. The first gives the gold trim
+with rounded corners, the second the velvet inside it. The door is a bar across its tile.</p>
+<h3 id="make_opaque-on-the-backgrounds"><code>make_opaque</code> on the backgrounds<a class="headerlink" href="#make_opaque-on-the-backgrounds" title="Permanent link">#</a></h3>
+<p>After the maze is blitted onto each background, <code>_draw_maze_backgrounds</code> calls
+<code>make_opaque(surface=background)</code> (<code>glitchygames/opacity.py</code>). The reason is
+<a href="https://github.com/terrysimons/glitchygames/blob/main/BUGS.md">BUGS.md #142</a>. On a display
+with per-pixel alpha (macOS cocoa), a plain <code>pygame.Surface</code> takes the display's format,
+including its alpha channel. Alpha-blending a per-pixel-alpha picture such as the smooth-scaled
+maze onto it leaves alpha 0 in those pixels. Every sprite later blended over such a pixel would
+be copied unblended, and the window shows alpha 0 as black. Making the backgrounds opaque once,
+when the scene is built, keeps the sprites' blending correct. The engine also makes every
+presented frame opaque (<code>SceneManager._show_frame</code>), but that happens too late to fix blending
+inside the frame.</p>
+<h3 id="layout-and-the-side-panels">Layout and the side panels<a class="headerlink" href="#layout-and-the-side-panels" title="Permanent link">#</a></h3>
+<p><code>maze_geometry</code> makes the tiles as large as the screen's height allows (<code>height // 24</code>), unless
+the side panels would then be narrower than 100 px (<code>(width - 200) // 27</code>). Tiles are never
+smaller than 8 px. The maze is centred. The two <code>SidePanel</code>s fill the space to its left and
+right, drawn as film-strip edges with sprocket holes. The left panel shows the title, SCORE,
+HIGH SCORE and REEL; the right one the spare lives (up to four bucket icons), this reel's BONUS,
+and the control hints. <code>fitted_font</code> chooses the largest bundled Bitstream Vera size (from the
+wanted size down to 8) at which each panel's longest text fits.</p>
+<h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
+<p><code>sounds.py</code> defines every sound as a synth <code>SoundRecipe</code> (<code>glitchygames/audio/recipes.py</code>).
+<code>shared_sound_bank()</code> builds one <code>SoundBank(ALL_RECIPES)</code> for the whole process
+(<code>functools.cache</code>), and <code>setup()</code> calls <code>sounds.prerender()</code>, so no sound is rendered in the
+middle of a frame.</p>
+<table>
+<thead>
+<tr>
+<th>Recipe</th>
+<th>When it plays</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>crunch_one</code>, <code>crunch_two</code></td>
+<td>A sprocket or snack is eaten (alternating, so a run of them never repeats exactly)</td>
+</tr>
+<tr>
+<td><code>sugar_rush</code></td>
+<td>A snack starts a fright (two clapperboard clacks and a rising shimmer)</td>
+</tr>
+<tr>
+<td><code>camera_flash</code></td>
+<td>A frightened muncher is eaten</td>
+</tr>
+<tr>
+<td><code>eat_bonus</code></td>
+<td>The bonus reel is eaten</td>
+</tr>
+<tr>
+<td><code>film_snap</code></td>
+<td>The dying animation starts (the film snaps, then a sad trombone)</td>
+</tr>
+<tr>
+<td><code>level_clear</code></td>
+<td>The last sprocket is eaten</td>
+</tr>
+<tr>
+<td><code>extra_life</code></td>
+<td>The score reaches 10,000</td>
+</tr>
+<tr>
+<td><code>countdown_beep</code></td>
+<td>Each number of a new game's 3, 2, 1 (a 1 kHz film-leader beep)</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>ACTION! (a clack and a major chord)</td>
+</tr>
+<tr>
+<td><code>the_end</code></td>
+<td>THE END</td>
+</tr>
+</tbody>
+</table>
+<p>Behind play runs the <strong>projector</strong>, a live voice (<code>scene_manager.live_audio.create_voice(...)</code>)
+of low-pass filtered noise with a tremolo, so it flutters like a projector's shutter.
+<code>_update_projector</code> changes its cutoff and flutter rate only when they change: brighter and
+faster as the sprockets run out (500 to 1200 Hz, 20 to 30 Hz), slow and low while the munchers
+are frightened (300 Hz, 8 Hz), and racing while eyes are going home (2000 Hz, 40 Hz). It starts
+at ACTION!, stops when the player is caught, when the reel is cleared, and in <code>cleanup()</code>. If no
+live voice or no audio is available, the game logs a warning and plays without it.</p>
+<h2 id="the-autopilot">The autopilot<a class="headerlink" href="#the-autopilot" title="Permanent link">#</a></h2>
+<p><code>autopilot.py</code> is a simple bot that plays Mr. Muncher. It reads the scene the way a person reads
+the screen, and never changes it. <code>Autopilot.choose_direction(scene=...)</code> returns the direction
+to ask for in each frame. It has two uses:</p>
+<ul>
+<li><strong>Steering the golden replay.</strong> <code>scripts/record_golden_traces.py: mr_muncher_script</code> wraps it
+  in <code>MuncherSteering</code>, which holds the arrow key for the direction the autopilot wants
+  (pressing it again if the player still wants another way after 4 frames). With
+  <code>seek_capture_after_seconds=22.0</code> it walks into a muncher once, so the recording includes a
+  death and the next take.</li>
+<li><strong>Bot playtests in the tests.</strong> <code>tests/examples/test_mr_muncher.py::TestWholeGames</code> lets it
+  play a last life until game over (setting <code>wanted_direction</code> directly), and
+  <code>TestAutopilot</code> in <code>tests/examples/test_mr_muncher_maze_and_actors.py</code> checks its choices.</li>
+</ul>
+<p>How it decides:</p>
+<pre class="mermaid"><code>flowchart TB
+    A["decision_point()&lt;br/&gt;the next tile centre the player reaches&lt;br/&gt;(or the one after, if a key pressed now&lt;br/&gt;would arrive too late)"] --&gt; B["danger = corridor distances&lt;br/&gt;from every dangerous muncher"]
+    B --&gt; C["for each way on: way_on()&lt;br/&gt;territory = tiles the player reaches&lt;br/&gt;at least 2 tiles before any muncher"]
+    C --&gt; D{"seeking capture?"}
+    D --&gt;|yes| X["shortest way to a dangerous muncher"]
+    D --&gt;|no| E{"any way with a territory&lt;br/&gt;of 16 tiles or more?"}
+    E --&gt;|no| T["all are traps: the roomiest way&lt;br/&gt;(turning back counts half)"]
+    E --&gt;|yes| G["try ways onward first, then all roomy ways,&lt;br/&gt;shortest safe path to the first goal reachable"]
+    G --&gt; H["goals in order: catchable frightened muncher,&lt;br/&gt;bonus, snack (if a muncher is within 7 tiles),&lt;br/&gt;sprocket, any uneaten"]
+    H --&gt; R["no goal reachable: the roomiest way"]</code></pre>
+<p><code>INPUT_DELAY_SECONDS</code> (2/60 s) is the delay described under <a href="#one-frame">One frame</a>: a key
+pressed now changes the player's direction about two frames later, so the autopilot decides
+that far ahead. A frightened muncher is prey only if the player can reach it with at least
+0.75 s of the fright left.</p>
+<p>The game has no bundled attract-mode demo. The arcade showcase in
+<code>plans/2026-10-23-arcade-showcase.md</code> is a design draft. Because the golden script is steered
+by the autopilot, a demo could be recorded with
+<code>scripts/record_scripted_session.py --game mr_muncher --script-only --output PATH</code>.</p>
+<h2 id="how-it-uses-the-engine">How it uses the engine<a class="headerlink" href="#how-it-uses-the-engine" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Engine feature</th>
+<th>How Mr. Muncher uses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Game time and <code>dt</code></td>
+<td>All movement and timers use the scene's (capped) <code>dt</code>. Phase clocks, the skirt's wave and the snacks' twinkle use <code>game_time</code>, so they stop while the game is paused</td>
+</tr>
+<tr>
+<td>Random streams</td>
+<td>The only randomness is the frightened munchers' turns, drawn from <code>random_stream('mr_muncher.munchers')</code> (seeded from <code>--random-seed</code>, kept in recordings)</td>
+</tr>
+<tr>
+<td>Scene starts</td>
+<td><code>replay_arguments()</code> returns <code>{'progress': starting_progress.model_dump()}</code> and the scene accepts a mapping as <code>progress</code>, so a recording can rebuild any reel as it began. <code>MrMuncherGameOverScene.replay_arguments()</code> returns the final score, the table and the reel reached</td>
+</tr>
+<tr>
+<td>Saves</td>
+<td>High scores through <code>open_saves</code> (a sandbox in a replay)</td>
+</tr>
+<tr>
+<td><code>ActionMap</code></td>
+<td>Scancode bindings for the keyboard, D-pad and stick bindings for gamepads, built by <code>MrMuncherScene._create_action_map(input_mode=...)</code>. The golden replay test reads the bindings from the same function</td>
+</tr>
+<tr>
+<td>Pause screen</td>
+<td>The engine's <code>PauseScene</code>, which also shows the paused game in the debug overlay (<code>debug_subject</code>)</td>
+</tr>
+<tr>
+<td>Transitions</td>
+<td><code>FadeTransition</code> to the game-over screen</td>
+</tr>
+<tr>
+<td>Screen shake and rumble</td>
+<td><code>CAUGHT_SHAKE</code>: a 0.4 s <code>NOISE</code> shake of strength 6 on <code>ShakeTarget.SCREEN</code>, with gamepad rumble (low 0.8, high 0.4), when a muncher catches the player</td>
+</tr>
+<tr>
+<td>Live audio and synth</td>
+<td>The projector voice and the recipe bank (see <a href="#sound">Sound</a>)</td>
+</tr>
+<tr>
+<td>World space</td>
+<td>The actors are world sprites, and the engine positions their rects</td>
+</tr>
+<tr>
+<td>Opacity</td>
+<td><code>make_opaque</code> on the maze backgrounds (see <a href="#make_opaque-on-the-backgrounds">above</a>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="debug-overlay">Debug overlay<a class="headerlink" href="#debug-overlay" title="Permanent link">#</a></h3>
+<p><code>MrMuncherScene.debug_draw(surface, camera)</code> adds the game's own annotation to the engine's
+debug overlay (<code>--debug-overlay</code> or F3). For every muncher that is roaming or leaving the house
+and has a target, it draws a cross in the muncher's colour on the target tile and a thin line
+from the muncher to it. This shows each personality's aim live: for example, Snapper's cross
+four tiles in front of the bucket, or Nibbles' cross jumping to its corner when it gets close.</p>
+<h3 id="recording-replay-and-the-golden-replay">Recording, replay and the golden replay<a class="headerlink" href="#recording-replay-and-the-golden-replay" title="Permanent link">#</a></h3>
+<p>Everything that decides what happens runs on game time and the seeded stream, so a
+<code>--record-trace</code> recording replays exactly with <code>--replay-trace</code>.</p>
+<p>The golden replay <code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code> was recorded through the
+real engine loop by <code>scripts/record_scripted_session.py --game mr_muncher --frames 1950</code>. Its
+1,950 scripted frames cover the countdown, a pause with ESC at frame 600 and a resume with SPACE
+at frame 660, a snack, munchers and the bonus eaten, and a death at about frame 1650 followed by
+the next take's READY. The script is cut at 1,950 frames to keep the fixture under 100 KB.</p>
+<p>Then comes the <strong>controls tail</strong> (<code>mr_muncher_controls</code>), which presses the controls the script
+does not use: it taps W, A, S and D (the autopilot steers with the arrows), pauses with P and
+resumes, and ends with the game's own Q. The recording's last frame holds the QUIT event that the
+game itself posted, so a replay in which Q no longer quits diverges. With the tail, the fixture
+holds 2,072 frames. <code>tests/replay/test_golden_replays.py</code> checks that every bound control is
+exercised. The gamepad controls (D-pad, stick, Start and the hat, listed as <code>steer</code>) are
+excused in <code>UNEXERCISED_CONTROLS</code>, because the scripted session runs on the dummy driver,
+which has no gamepad.</p>
+<p>The pytest plugin <code>glitchygames/testing/replays.py</code> replays the fixture in a child process
+(<code>mr-muncher --replay-trace ... --headless</code>), and the test fails unless it exits <code>SUCCESS</code>.
+Re-record the fixture only deliberately (the commands are in the script's docstring), never just
+to make a failing replay pass.</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
+<p>Both test files use real pygame, the real 800x480 display and real files (saves go to
+<code>tmp_path</code>). What is drawn is checked by its pixels. The tests patch only sound playback, where
+a test is about which sound plays.</p>
+<p><code>tests/examples/test_mr_muncher_maze_and_actors.py</code> covers the parts:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>What it pins</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TestMazeLayout</code></td>
+<td>Symmetry, at least two ways on from every corridor tile, everything reachable, one-tile corridors, the sprocket, snack and house counts</td>
+</tr>
+<tr>
+<td><code>TestMazeQuestions</code></td>
+<td>Wrapping columns, wall outside the rows, the player kept out of the house and door, tunnels, short-way distance, layout validation</td>
+</tr>
+<tr>
+<td><code>TestLevels</code></td>
+<td>Reel 1 values, the ramp, its end at reel 8 and the shortest fright, no reel 0, scatter then chase, the flash</td>
+</tr>
+<tr>
+<td><code>TestPlayerMovement</code></td>
+<td>Exact landing on tile centres, walls, buffered turns, immediate reversing, the tunnel, <code>next_cell_ahead</code>, <code>reset</code></td>
+</tr>
+<tr>
+<td><code>TestChaseTargets</code></td>
+<td>Each personality's target, the four profiles</td>
+</tr>
+<tr>
+<td><code>TestMuncherStates</code></td>
+<td>Waiting, bobbing, walking out, eyes going home and back out, scatter and chase targets, never turning back, mode reversal, seeded frightened turns, dead ends</td>
+</tr>
+<tr>
+<td><code>TestMuncherSpeeds</code></td>
+<td>Every speed, only Chomper hurrying</td>
+</tr>
+<tr>
+<td><code>TestPlayerPictures</code>, <code>TestMuncherPictures</code>, <code>TestPictures</code>, <code>TestScenery</code></td>
+<td>The pictures by their pixels, fitted fonts, sprockets, pictures and panels</td>
+</tr>
+<tr>
+<td><code>TestSounds</code></td>
+<td>Every recipe renders, two crunches</td>
+</tr>
+<tr>
+<td><code>TestAutopilot</code></td>
+<td>Corridor distances, the decision point, each goal, avoiding danger, traps, seeking capture once</td>
+</tr>
+</tbody>
+</table>
+<p><code>tests/examples/test_mr_muncher.py</code> covers the scene: layout (<code>TestLayout</code>), the countdown and
+messages (<code>TestStartingALevel</code>), input including joystick and controller modes, the hat, pause
+and Q (<code>TestInput</code>), eating, the bonus, the extra life and clearing a reel (<code>TestEating</code>),
+releases, mode reversal, doubling points, catches with their shake and the game's end
+(<code>TestMunchers</code>), the projector (<code>TestProjector</code>), the target crosses (<code>TestDebugOverlay</code>), the
+game-over screen (<code>TestGameOverScreen</code>), whole games through the frame loop (<code>TestWholeGames</code>:
+a cleared reel leads to <code>REEL 2</code> with the score kept, and a game over leads to a new game), and
+<code>main()</code> replaying the golden fixture headless.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../clockwork_keep/" class="btn btn-neutral float-left" title="Clockwork Keep Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../architecture/event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../clockwork_keep/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../architecture/event_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

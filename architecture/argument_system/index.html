@@ -45,6 +45,39 @@
                 <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
               <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
@@ -98,27 +131,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">Documentation</span></p>
-              <ul class="current">
-                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
-                  </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Argument System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
-                  </li>
-              </ul>
       </div>
     </div>
     </nav>
@@ -154,166 +166,64 @@ font system, and individual games each contribute argument groups to a single pa
 Every game built on the engine automatically inherits all engine-level flags, and can
 extend the parser with its own game-specific options.</p>
 <h2 id="how-arguments-are-assembled">How Arguments Are Assembled<a class="headerlink" href="#how-arguments-are-assembled" title="Permanent link">#</a></h2>
-<p>The orchestration happens in <code>GameEngine.initialize_arguments()</code>, called from
-<code>GameEngine.__init__()</code>. The flow is:</p>
+<p><code>GameEngine.initialize_arguments()</code>, called from <code>GameEngine.__init__()</code>, builds one parser from
+three layers. Here is what happens when you run Bitmappy (<code>uv run bitmappy</code>): the Engine box
+adds layers 1 and 2, the Bitmappy box layer 3, and argparse's <code>ArgumentParser</code> is outside both.</p>
 <pre class="mermaid"><code>sequenceDiagram
-    participant GE as GameEngine.__init__()
-    participant IA as initialize_arguments(game_class)
-    participant AP as ArgumentParser
-    participant ENGINE as GameEngine.args()
-    participant MGR as Event Manager .args() x12
-    participant GAME as game_class.args()
-    participant NS as Namespace
+    participant PARSER as ArgumentParser
+    box rgb(232,238,255) Engine
+    participant INIT as initialize_arguments
+    participant ENGINE as GameEngine.args
+    participant MANAGERS as the 12 event managers
+    end
+    box rgb(255,243,224) Bitmappy
+    participant GAME as BitmapEditorScene.args
+    end
 
-    GE-&gt;&gt;IA: initialize_arguments(game_class)
-    IA-&gt;&gt;AP: ArgumentParser("GameName version X.Y")
-    IA-&gt;&gt;ENGINE: GameEngine.args(parser)
-
-    Note over ENGINE: Adds "Graphics Options" group&lt;br/&gt;15 arguments,&lt;br/&gt;and "Diagnostics Options"&lt;br/&gt;16 arguments (2 hidden:&lt;br/&gt;replay restart internals)
-
-    ENGINE-&gt;&gt;MGR: AppEventManager.args(parser)
-    Note over MGR: Adds "App Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: AudioEventManager.args(parser)
-    Note over MGR: Adds "Sound Mixer Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: ControllerEventManager.args(parser)
-    Note over MGR: Adds "Controller Options" group&lt;br/&gt;1 argument
-
-    ENGINE-&gt;&gt;MGR: DropEventManager.args(parser)
-    Note over MGR: Adds "Drop Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: FontManager.args(parser)
-    Note over MGR: Adds "Font Options" group&lt;br/&gt;7 arguments
-
-    ENGINE-&gt;&gt;MGR: GameEventManager.args(parser)
-    Note over MGR: Adds "Game Options" group&lt;br/&gt;3 arguments
-
-    ENGINE-&gt;&gt;MGR: JoystickEventManager.args(parser)
-    Note over MGR: Adds "Joystick Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: KeyboardEventManager.args(parser)
-    Note over MGR: Adds "Keyboard Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: MidiEventManager.args(parser)
-    Note over MGR: Adds "Midi Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: MouseEventManager.args(parser)
-    Note over MGR: Adds "Mouse Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: TouchEventManager.args(parser)
-    Note over MGR: Adds "Touch Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE-&gt;&gt;MGR: WindowEventManager.args(parser)
-    Note over MGR: Adds "Window Options" group&lt;br/&gt;(empty, reserved)
-
-    ENGINE--&gt;&gt;IA: return parser
-
-    IA-&gt;&gt;AP: parser.add_argument_group("GameName vX.Y Options")
-    IA-&gt;&gt;GAME: game_class.args(game_group)
-    Note over GAME: Adds game-specific arguments&lt;br/&gt;to its own group
-
-    IA-&gt;&gt;AP: parser.parse_args()
-    AP--&gt;&gt;NS: Namespace with all arguments
-    IA-&gt;&gt;IA: GameEngine.OPTIONS = vars(args)
-    IA-&gt;&gt;IA: Derive synthetic: debug_events
-    IA-&gt;&gt;IA: Back-propagate: game.options = OPTIONS</code></pre>
+    INIT-&gt;&gt;PARSER: ArgumentParser("Bitmappy version 1.0")
+    INIT-&gt;&gt;ENGINE: GameEngine.args(parser)
+    Note over ENGINE: Layer 1&lt;br/&gt;Graphics Options (15)&lt;br/&gt;Diagnostics Options (15, 2 hidden)
+    loop for each of the 12
+        ENGINE-&gt;&gt;MANAGERS: manager.args(parser)
+    end
+    Note over MANAGERS: Layer 2, in this order&lt;br/&gt;App, Audio, Controller (1), Drop,&lt;br/&gt;Font (7), Game (3), Joystick, Keyboard,&lt;br/&gt;Midi, Mouse, Touch, Window&lt;br/&gt;(the 9 without a count add empty groups)
+    INIT-&gt;&gt;PARSER: add_argument_group("Bitmappy v1.0 Options")
+    INIT-&gt;&gt;GAME: BitmapEditorScene.args(group)
+    Note over GAME: Layer 3&lt;br/&gt;-v, -s
+    INIT-&gt;&gt;PARSER: parse_args()
+    PARSER--&gt;&gt;INIT: the parsed options
+    Note over INIT: GameEngine.OPTIONS = the options&lt;br/&gt;target_fps resolved&lt;br/&gt;game.options = OPTIONS</code></pre>
+<p>Every option each layer adds is listed in the <a href="#complete-flag-reference">Complete Flag Reference</a>.</p>
 <h2 id="the-argument-group-hierarchy">The Argument Group Hierarchy<a class="headerlink" href="#the-argument-group-hierarchy" title="Permanent link">#</a></h2>
-<p>Each layer adds its own <code>add_argument_group()</code>, producing clearly separated
-sections in <code>--help</code> output. The hierarchy mirrors the engine architecture.</p>
-<pre class="mermaid"><code>flowchart TD
-    subgraph Parser["ArgumentParser: GameName version X.Y"]
-        subgraph L1["Layer 1: Graphics Options (GameEngine)"]
-            F1["-f, --target-fps"]
-            F2["--fps-log-interval-ms"]
-            F3["-w, --windowed"]
-            F4["-r, --resolution"]
-            F5["--use-gfxdraw"]
-            F6["--update-type"]
-            F7["--timer-backend"]
-            F8["--sleep-granularity-ns"]
-            F9["--windows-timer-1ms"]
-            F16["--random-seed"]
-            F17["--screen-shake-intensity, --rumble-intensity"]
-            F18["--live-voice-pool"]
-            F20["--default-background"]
-            F19["--video-driver"]
-        end
-
-        subgraph L1D["Layer 1: Diagnostics Options (GameEngine)"]
-            D1["--log-timer-jitter, --perf-trim-percent, --fps-histogram"]
-            D2["--debug-overlay"]
-            D3["--record-trace, --replay-trace, --replay-fps"]
-            D4["--audit, --replay-digest, --replay-pause-at-frame"]
-            D6["--compare-processing, --max-processing-slowdown, --rebaseline"]
-            D5["--headless"]
-        end
-
-        subgraph L2["Layer 2: Event Manager Groups"]
-            subgraph AO["App Options"]
-                AO_EMPTY["(no arguments yet)"]
-            end
-            subgraph SM["Sound Mixer Options"]
-                SM_EMPTY["(no arguments yet)"]
-            end
-            subgraph DO["Drop Options"]
-                DO_EMPTY["(no arguments yet)"]
-            end
-            subgraph CO["Controller Options"]
-                CO1["--input-mode"]
-            end
-            subgraph FO["Font Options"]
-                FO1["--font-name"]
-                FO2["--font-size"]
-                FO3["--font-bold"]
-                FO4["--font-italic"]
-                FO5["--font-antialias"]
-                FO6["--font-dpi"]
-                FO7["--font-system"]
-            end
-            subgraph GO["Game Options"]
-                GO1["-l, --log-level"]
-                GO2["--no-unhandled-events"]
-                GO3["-p, --profile"]
-            end
-            subgraph JO["Joystick Options"]
-                JO_EMPTY["(no arguments yet)"]
-            end
-            subgraph KO["Keyboard Options"]
-                KO_EMPTY["(no arguments yet)"]
-            end
-            subgraph MIO["Midi Options"]
-                MIO_EMPTY["(no arguments yet)"]
-            end
-            subgraph MO["Mouse Options"]
-                MO_EMPTY["(no arguments yet)"]
-            end
-            subgraph TO["Touch Options"]
-                TO_EMPTY["(no arguments yet)"]
-            end
-            subgraph WO["Window Options"]
-                WO_EMPTY["(no arguments yet)"]
-            end
-        end
-
-        subgraph L3["Layer 3: Game-Specific Options"]
-            GS["(varies per game)"]
-        end
-    end</code></pre>
+<p>Each layer adds its own <code>add_argument_group()</code>, so <code>--help</code> shows clearly separated sections, in
+the order of the layers. The layers mirror the engine's architecture.</p>
+<pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart TB
+    subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
+        L1["&lt;b&gt;Layer 1: the engine&lt;/b&gt; (GameEngine.args)&lt;br/&gt;Graphics Options, Diagnostics Options"]
+        L2["&lt;b&gt;Layer 2: event managers and fonts&lt;/b&gt; (each one's args)&lt;br/&gt;Controller Options, Font Options, Game Options,&lt;br/&gt;and 9 reserved groups with no options yet"]
+    end
+    subgraph GAME_ARGUMENT_LAYERS["Your game"]
+        L3["&lt;b&gt;Layer 3: your game&lt;/b&gt; (its scene's args)&lt;br/&gt;GameName vX.Y Options"]
+    end
+    L1 --&gt; L2 --&gt; L3</code></pre>
+<p>In <code>--help</code> (Bitmappy's or Paddle Slap's) the groups hold 15 Graphics, 15 Diagnostics (2 more
+hidden), 1 Controller, 7 Font and 3 Game options, then the game's own; the nine empty groups
+are left out. The <a href="#complete-flag-reference">Complete Flag Reference</a> lists them all.</p>
 <h2 id="how-games-add-arguments">How Games Add Arguments<a class="headerlink" href="#how-games-add-arguments" title="Permanent link">#</a></h2>
 <p>A game adds arguments by defining a <code>@classmethod</code> called <code>args()</code> on its scene class.
 The engine discovers this method via <code>getattr(game, 'args', None)</code> and calls it with
 a dedicated argument group. If the game does not define <code>args()</code>, the engine logs an
 informational message and continues.</p>
 <pre class="mermaid"><code>flowchart TD
-    subgraph Engine["GameEngine.initialize_arguments()"]
+    subgraph Engine["Engine: GameEngine.initialize_arguments()"]
         CHECK{"getattr(game, 'args', None)"}
         CHECK --&gt;|"method exists"| GROUP["parser.add_argument_group(\nGameName vX.Y Options)"]
         GROUP --&gt; CALL["game.args(group)"]
         CHECK --&gt;|"None"| LOG["log.info: Game does not\nimplement arguments"]
     end
 
-    subgraph GameCode["Your Game Scene"]
+    subgraph GameCode["Your game: its scene class"]
         ARGS["@classmethod\ndef args(cls, parser):\n    parser.add_argument(...)"]
     end
 
@@ -357,11 +267,8 @@ every component that needs it.</p>
     PARSE["parser.parse_args()"] --&gt; VARS["vars(args)\nNamespace -&gt; dict"]
     VARS --&gt; OPT["GameEngine.OPTIONS (class var)"]
 
-    OPT --&gt; SYNTH{"log_level in\nDEBUG/CRITICAL/ERROR?"}
-    SYNTH --&gt;|"Yes"| DEBUG_T["OPTIONS['debug_events'] = True"]
-    SYNTH --&gt;|"No"| DEBUG_F["OPTIONS['debug_events'] = False"]
-
-    DEBUG_T &amp; DEBUG_F --&gt; BACKPROP["game.options = OPTIONS"]
+    OPT --&gt; FPS["OPTIONS['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
+    FPS --&gt; BACKPROP["game.options = OPTIONS"]
     BACKPROP --&gt; SM_OPT["SceneManager.OPTIONS = OPTIONS"]
     SM_OPT --&gt; SCENE_INIT["Scene.__init__(options=OPTIONS)"]
     SCENE_INIT --&gt; SELF_OPT["self.options = OPTIONS"]
@@ -376,111 +283,30 @@ every component that needs it.</p>
 
     SELF_OPT --&gt; Access</code></pre>
 <h2 id="complete-flag-reference">Complete Flag Reference<a class="headerlink" href="#complete-flag-reference" title="Permanent link">#</a></h2>
-<h3 id="graphics-options">Graphics Options<a class="headerlink" href="#graphics-options" title="Permanent link">#</a></h3>
+<p>Every option, by the layer that adds it and grouped as <code>uv run bitmappy --help</code> prints it:
+each with its type and default, then its help text.</p>
+<h3 id="layer-1-the-engine">Layer 1: the engine<a class="headerlink" href="#layer-1-the-engine" title="Permanent link">#</a></h3>
+<h4 id="graphics-options">Graphics Options<a class="headerlink" href="#graphics-options" title="Permanent link">#</a></h4>
 <p>Added by <code>GameEngine.args()</code> in <code>glitchygames/engine/game_engine.py</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Type</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>-f</code>, <code>--target-fps</code></td>
-<td><code>float</code></td>
-<td><code>None</code> (the game's <code>TARGET_FPS</code>, else 60.01)</td>
-<td>Cap the framerate; <code>0</code> = uncapped</td>
-</tr>
-<tr>
-<td><code>--fps-log-interval-ms</code></td>
-<td><code>float</code></td>
-<td><code>1000</code></td>
-<td>How often to log the FPS counter in ms</td>
-</tr>
-<tr>
-<td><code>-w</code>, <code>--windowed</code></td>
-<td><code>store_true</code></td>
-<td><code>True</code></td>
-<td>Run in windowed mode (the default is already <code>True</code>, so the flag changes nothing)</td>
-</tr>
-<tr>
-<td><code>-r</code>, <code>--resolution</code></td>
-<td><code>str</code></td>
-<td><code>800x480</code></td>
-<td>Display resolution (WxH)</td>
-</tr>
-<tr>
-<td><code>--use-gfxdraw</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Use pygame.gfxdraw for rendering</td>
-</tr>
-<tr>
-<td><code>--update-type</code></td>
-<td><code>choice</code></td>
-<td><code>update</code></td>
-<td>Display update method: <code>update</code> or <code>flip</code></td>
-</tr>
-<tr>
-<td><code>--timer-backend</code></td>
-<td><code>choice</code></td>
-<td><code>auto</code></td>
-<td>Timer backend: <code>auto</code> (the fast backend with this machine's sleep delay measured, so each sleep wakes in time), <code>fast</code> (assumes sleeps wake on time) or <code>pygame</code> (legacy)</td>
-</tr>
-<tr>
-<td><code>--sleep-granularity-ns</code></td>
-<td><code>int</code></td>
-<td><code>1000000</code></td>
-<td>How long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only</td>
-</tr>
-<tr>
-<td><code>--windows-timer-1ms</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>On Windows, request 1ms system timer resolution</td>
-</tr>
-<tr>
-<td><code>--video-driver</code></td>
-<td><code>choice</code></td>
-<td><code>None</code></td>
-<td>Platform-specific video driver (see below)</td>
-</tr>
-<tr>
-<td><code>--random-seed</code></td>
-<td><code>int</code></td>
-<td>random 64-bit</td>
-<td>Master seed for every engine random stream</td>
-</tr>
-<tr>
-<td><code>--screen-shake-intensity</code></td>
-<td><code>float</code></td>
-<td><code>1.0</code></td>
-<td>Screen shake strength, 0.0 (off) to 1.0</td>
-</tr>
-<tr>
-<td><code>--rumble-intensity</code></td>
-<td><code>float</code></td>
-<td><code>1.0</code></td>
-<td>Controller rumble strength, 0.0 (off) to 1.0</td>
-</tr>
-<tr>
-<td><code>--live-voice-pool</code></td>
-<td><code>int</code></td>
-<td><code>4</code></td>
-<td>Mixer channels reserved for real-time synth voices</td>
-</tr>
-<tr>
-<td><code>--default-background</code></td>
-<td><code>choice</code></td>
-<td><code>test-pattern</code></td>
-<td>Background of a scene that sets none: <code>test-pattern</code> (the TV test pattern) or <code>channel-3</code> (the channel 3 blue screen)</td>
-</tr>
-</tbody>
-</table>
-<p><strong><code>--video-driver</code> choices by platform:</strong></p>
+<ul>
+<li><code>-f, --target-fps TARGET_FPS</code> (<code>float</code>): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)</li>
+<li><code>--fps-log-interval-ms FPS_LOG_INTERVAL_MS</code> (<code>float</code>): how often to log the FPS counter in ms (default: 1000)</li>
+<li><code>-w, --windowed, --no-windowed</code> (<code>bool</code>): run in a window; --no-windowed runs fullscreen (default: windowed)</li>
+<li><code>-r, --resolution RESOLUTION</code> (<code>str</code>): the resolution to use (default: 800x480)</li>
+<li><code>--use-gfxdraw</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but nothing draws with pygame.gfxdraw because of it</li>
+<li><code>--update-type {update,flip}</code> (<code>choice</code>): update or flip (default: update)</li>
+<li><code>--timer-backend {auto,fast,pygame}</code> (<code>choice</code>): timer backend for draw loop pacing (default: auto, the fast backend with this machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps wake on time; pygame is the legacy backend)</li>
+<li><code>--sleep-granularity-ns SLEEP_GRANULARITY_NS</code> (<code>int</code>, default <code>1000000</code>): how long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only</li>
+<li><code>--windows-timer-1ms</code> (<code>store_true</code>, default <code>False</code>): on Windows, request 1ms system timer resolution</li>
+<li><code>--random-seed RANDOM_SEED</code> (<code>int</code>): master seed for every engine random stream (default: a random 64-bit seed, logged in recordings)</li>
+<li><code>--screen-shake-intensity SCREEN_SHAKE_INTENSITY</code> (<code>float</code>): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)</li>
+<li><code>--rumble-intensity RUMBLE_INTENSITY</code> (<code>float</code>): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)</li>
+<li><code>--live-voice-pool LIVE_VOICE_POOL</code> (<code>int</code>): mixer channels reserved for real-time synth voices (default: 4)</li>
+<li><code>--default-background {test-pattern,channel-3}</code> (<code>choice</code>): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)</li>
+<li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead</li>
+</ul>
+<p><strong><code>--video-driver</code> choices by platform</strong> (SDL 2's video driver names, by <code>platform.system()</code>;
+<code>--help</code> above is macOS's):</p>
 <table>
 <thead>
 <tr>
@@ -490,229 +316,73 @@ every component that needs it.</p>
 </thead>
 <tbody>
 <tr>
-<td>Linux</td>
-<td><code>wayland</code>, <code>x11</code>, <code>dga</code>, <code>fbcon</code>, <code>directfb</code>, <code>ggi</code>, <code>vgl</code>, <code>svgalib</code>, <code>aalib</code></td>
+<td>macOS (<code>Darwin</code>)</td>
+<td><code>cocoa</code>, <code>offscreen</code>, <code>dummy</code></td>
 </tr>
 <tr>
 <td>Windows</td>
-<td><code>windib</code>, <code>directx</code></td>
+<td><code>windows</code>, <code>offscreen</code>, <code>dummy</code></td>
 </tr>
 <tr>
-<td>macOS</td>
-<td>(none currently defined; the code checks <code>platform.system() == 'MacOS'</code>, which never matches, so macOS falls through to no choices either way)</td>
+<td>Linux</td>
+<td><code>x11</code>, <code>wayland</code>, <code>kmsdrm</code>, <code>offscreen</code>, <code>dummy</code></td>
+</tr>
+<tr>
+<td>any other</td>
+<td><code>offscreen</code>, <code>dummy</code></td>
 </tr>
 </tbody>
 </table>
-<h3 id="diagnostics-options">Diagnostics Options<a class="headerlink" href="#diagnostics-options" title="Permanent link">#</a></h3>
+<h4 id="diagnostics-options">Diagnostics Options<a class="headerlink" href="#diagnostics-options" title="Permanent link">#</a></h4>
 <p>Added by <code>GameEngine.args()</code> right after the Graphics Options: how any run is watched,
-recorded, replayed or diagnosed, whatever the game. They change no game settings.</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Type</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>--log-timer-jitter</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Log frame pacing jitter statistics periodically</td>
-</tr>
-<tr>
-<td><code>--perf-trim-percent</code></td>
-<td><code>float</code></td>
-<td><code>5.0</code></td>
-<td>Percent of frames to trim from top and bottom in FPS report</td>
-</tr>
-<tr>
-<td><code>--fps-histogram</code></td>
-<td><code>choice</code></td>
-<td><code>equal-range</code></td>
-<td>FPS histogram buckets in the shutdown report: <code>equal-range</code> or <code>target-relative</code></td>
-</tr>
-<tr>
-<td><code>--debug-overlay</code> / <code>--no-debug-overlay</code></td>
-<td><code>bool</code></td>
-<td><code>False</code></td>
-<td>Show the debug overlay at startup (F3 toggles, F4 cycles panels)</td>
-</tr>
-<tr>
-<td><code>--record-trace</code></td>
-<td><code>PATH</code></td>
-<td><code>None</code></td>
-<td>Record the session to a gzip JSON Lines trace (<a href="../gameplay_replay/">Gameplay Recording and Replay</a>)</td>
-</tr>
-<tr>
-<td><code>--replay-trace</code></td>
-<td><code>PATH</code></td>
-<td><code>None</code></td>
-<td>Replay a recording exactly, reporting the first divergence</td>
-</tr>
-<tr>
-<td><code>--replay-fps</code></td>
-<td><code>choice</code></td>
-<td><code>None</code> (read as <code>recorded</code>)</td>
-<td>With <code>--replay-trace</code>: FPS events from the <code>recorded</code> or the <code>real</code> frame times</td>
-</tr>
-<tr>
-<td><code>--audit</code> / <code>--no-audit</code></td>
-<td><code>bool</code></td>
-<td><code>False</code></td>
-<td>With <code>--replay-trace</code>: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see <a href="../gameplay_replay/#exit-codes">exit codes</a>)</td>
-</tr>
-<tr>
-<td><code>--replay-digest</code></td>
-<td><code>PATH</code></td>
-<td><code>None</code></td>
-<td>With <code>--replay-trace</code>: write a SHA-256 per replayed frame (used by <code>--audit</code>)</td>
-</tr>
-<tr>
-<td><code>--compare-processing</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>With <code>--replay-trace --headless</code>: report how each frame's processing time compares with the recording's</td>
-</tr>
-<tr>
-<td><code>--max-processing-slowdown</code></td>
-<td><code>PERCENT</code></td>
-<td><code>None</code></td>
-<td>With <code>--replay-trace --headless</code> (implies <code>--compare-processing</code>): exit 8 when a matched replay took more than PERCENT longer</td>
-</tr>
-<tr>
-<td><code>--rebaseline</code></td>
-<td><code>NEW</code></td>
-<td><code>None</code></td>
-<td>With <code>--replay-trace OLD --headless</code>: replay OLD on the current code without stopping at divergences and write the run's recording to NEW</td>
-</tr>
-<tr>
-<td><code>--replay-pause-at-frame</code></td>
-<td><code>N</code> (non-negative int)</td>
-<td><code>None</code></td>
-<td>With <code>--replay-trace</code>, watched: skip the start screen, rebuild frames 0 to N - 1 unpresented, then pause with frame N next (what step back restarts with; ignored with <code>--headless</code>; <a href="../gameplay_replay/#step-back-home-and-d">step back</a>)</td>
-</tr>
-<tr>
-<td><code>--headless</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Run on SDL's dummy video and audio drivers (no window, no sound); a replay also runs unpaced and prints its report to stdout (<a href="../gameplay_replay/#headless-runs-headless">headless runs</a>)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="game-options">Game Options<a class="headerlink" href="#game-options" title="Permanent link">#</a></h3>
-<p>Added by <code>GameEventManager.args()</code> in <code>glitchygames/events/game.py</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Type</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>-l</code>, <code>--log-level</code></td>
-<td><code>choice</code></td>
-<td><code>info</code></td>
-<td>Logging level: <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code></td>
-</tr>
-<tr>
-<td><code>--no-unhandled-events</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Raise <code>UnhandledEventError</code> on unhandled events</td>
-</tr>
-<tr>
-<td><code>-p</code>, <code>--profile</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Enable cProfile profiling</td>
-</tr>
-</tbody>
-</table>
-<h3 id="controller-options">Controller Options<a class="headerlink" href="#controller-options" title="Permanent link">#</a></h3>
-<p>Added by <code>ControllerEventManager.args()</code> in <code>glitchygames/events/controller.py</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Type</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>--input-mode</code></td>
-<td><code>choice</code></td>
-<td><code>auto</code></td>
-<td>Which gamepads the game sees: <code>auto</code> (every device; a mapped pad sends controller events, any other device joystick events), <code>joystick</code> (every device sends joystick events) or <code>controller</code> (mapped pads only). See <a href="../event_system/#one-device-one-event-layer">Event System</a></td>
-</tr>
-</tbody>
-</table>
-<h3 id="font-options">Font Options<a class="headerlink" href="#font-options" title="Permanent link">#</a></h3>
+recorded, replayed or diagnosed, whatever the game; they change no game settings. Recording and
+replay are described in <a href="../gameplay_replay/">Gameplay Recording and Replay</a>. Two more are hidden
+from <code>--help</code>: the watched replay's restart internals.</p>
+<ul>
+<li><code>--log-timer-jitter</code> (<code>store_true</code>, default <code>False</code>): log frame pacing jitter statistics periodically</li>
+<li><code>--perf-trim-percent PERF_TRIM_PERCENT</code> (<code>float</code>, default <code>5.0</code>): percent of frames to trim from top and bottom in global FPS report</li>
+<li><code>--fps-histogram {equal-range,target-relative}</code> (<code>choice</code>, default <code>equal-range</code>): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)</li>
+<li><code>--debug-overlay, --no-debug-overlay</code> (<code>bool</code>, default <code>False</code>): show the debug overlay at startup (F3 toggles, F4 cycles panels)</li>
+<li><code>--debug-events</code> (<code>store_true</code>, default <code>False</code>): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)</li>
+<li><code>--record-trace PATH</code> (<code>PATH</code>): record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for inspection and later replay (default: off)</li>
+<li><code>--replay-trace PATH</code> (<code>PATH</code>): replay a --record-trace recording exactly through the engine, comparing every frame with it and reporting the first divergence (default: off)</li>
+<li><code>--replay-fps {recorded,real}</code> (<code>choice</code>, default <code>None</code> (read as <code>recorded</code>)): with --replay-trace: post FPS events from the recorded frame times (recorded, the default: exact, and compared with the recording) or from this machine's measured frame times (real: what this machine achieves; FPS events are then not compared, and sprites that draw the FPS value may diverge)</li>
+<li><code>--audit, --no-audit</code> (<code>bool</code>, default <code>False</code>): with --replay-trace: instead of replaying, replay the recording twice in fresh headless processes with different hash seeds and compare every frame with the recording and between the runs; exits 0 when both match, 3 otherwise, 70 if a run could not finish</li>
+<li><code>--compare-processing</code> (<code>store_true</code>, default <code>False</code>): with --replay-trace --headless: measure each frame's processing time (its work, without presenting or pacing) and report how it compares with the recording's (only meaningful on the machine that recorded)</li>
+<li><code>--max-processing-slowdown PERCENT</code> (<code>PERCENT</code>, default <code>None</code>): with --replay-trace --headless (implies --compare-processing): a replay that matched but took more than PERCENT longer than the recording's processing time exits 8; a recording without processing times exits 65</li>
+<li><code>--replay-pause-at-frame N</code> (<code>N</code> (non-negative int), default <code>None</code>): with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 without showing them, then pause with frame N next (what step back restarts with; ignored with --headless)</li>
+<li><code>--rebaseline NEW</code> (<code>NEW</code>, default <code>None</code>): with --replay-trace OLD and --headless: replay OLD on the current code without stopping at divergences, write the run's recording (OLD's inputs, the current sprites) to NEW, print a summary of the frames and sprites that changed and exit 0</li>
+<li><code>--replay-digest PATH</code> (<code>PATH</code>, default <code>None</code>): with --replay-trace: write a SHA-256 of every replayed frame, then the divergence, to PATH as JSON lines (used by --audit)</li>
+<li><code>--headless</code> (<code>store_true</code>, default <code>False</code>): run on SDL's dummy video and audio drivers: no window, no sound. With --replay-trace the replay also runs unpaced and prints its report to stdout (exit 0 when it matches, 1 when it diverges, 65 for a truncated recording)</li>
+</ul>
+<h3 id="layer-2-event-managers-and-fonts">Layer 2: event managers and fonts<a class="headerlink" href="#layer-2-event-managers-and-fonts" title="Permanent link">#</a></h3>
+<h4 id="controller-options">Controller Options<a class="headerlink" href="#controller-options" title="Permanent link">#</a></h4>
+<p>Added by <code>ControllerEventManager.args()</code> in <code>glitchygames/events/controller.py</code> (see
+<a href="../event_system/#one-device-one-event-layer">Event System</a>).</p>
+<ul>
+<li><code>--input-mode {auto,joystick,controller}</code> (<code>choice</code>): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)</li>
+</ul>
+<h4 id="font-options">Font Options<a class="headerlink" href="#font-options" title="Permanent link">#</a></h4>
 <p>Added by <code>FontManager.args()</code> in <code>glitchygames/fonts/font_manager.py</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Type</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>--font-name</code></td>
-<td><code>str</code></td>
-<td><code>Vera</code></td>
-<td>Font name: the bundled <code>Vera</code>, <code>VeraBd</code>, <code>VeraIt</code> or <code>VeraBI</code>; any other name is looked up among the system's fonts</td>
-</tr>
-<tr>
-<td><code>--font-size</code></td>
-<td><code>int</code></td>
-<td><code>14</code></td>
-<td>Font size in points</td>
-</tr>
-<tr>
-<td><code>--font-bold</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Bold font</td>
-</tr>
-<tr>
-<td><code>--font-italic</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Italic font</td>
-</tr>
-<tr>
-<td><code>--font-antialias</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Enable font antialiasing</td>
-</tr>
-<tr>
-<td><code>--font-dpi</code></td>
-<td><code>int</code></td>
-<td><code>72</code></td>
-<td>Font DPI</td>
-</tr>
-<tr>
-<td><code>--font-system</code></td>
-<td><code>choice</code></td>
-<td><code>freetype</code></td>
-<td>Font system: <code>freetype</code> (enhanced) or <code>pygame</code> (built-in)</td>
-</tr>
-</tbody>
-</table>
-<h3 id="reserved-groups-empty-no-arguments-yet">Reserved Groups (Empty, No Arguments Yet)<a class="headerlink" href="#reserved-groups-empty-no-arguments-yet" title="Permanent link">#</a></h3>
-<p>These groups exist as extension points. Each event manager creates its argument group
-but does not currently populate it with any flags.</p>
+<ul>
+<li><code>--font-name FONT_NAME</code> (<code>str</code>): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)</li>
+<li><code>--font-size FONT_SIZE</code> (<code>int</code>): size of the default font, used by text that asks for no font of its own (default: 14)</li>
+<li><code>--font-bold</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but no text is drawn bold because of it</li>
+<li><code>--font-italic</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but no text is drawn italic because of it</li>
+<li><code>--font-antialias</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but each text widget chooses its own antialiasing</li>
+<li><code>--font-dpi FONT_DPI</code> (<code>int</code>): the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default resolution); the pygame font system ignores it (default: 72)</li>
+<li><code>--font-system {pygame,freetype}</code> (<code>choice</code>, default <code>freetype</code>): Font system to use: freetype (enhanced, default) or pygame (built-in)</li>
+</ul>
+<h4 id="game-options">Game Options<a class="headerlink" href="#game-options" title="Permanent link">#</a></h4>
+<p>Added by <code>GameEventManager.args()</code> in <code>glitchygames/events/game.py</code>.</p>
+<ul>
+<li><code>-l, --log-level {debug,info,warning,error,critical}</code> (<code>choice</code>, default <code>info</code>): set the logging level</li>
+<li><code>--no-unhandled-events</code> (<code>store_true</code>, default <code>False</code>): fail on unhandled events</li>
+<li><code>-p, --profile</code> (<code>store_true</code>, default <code>False</code>): enable profiling</li>
+</ul>
+<h4 id="reserved-groups-empty-no-arguments-yet">Reserved groups (empty, no arguments yet)<a class="headerlink" href="#reserved-groups-empty-no-arguments-yet" title="Permanent link">#</a></h4>
+<p>These event managers create their group as an extension point but add no options, so <code>--help</code>
+leaves them out.</p>
 <table>
 <thead>
 <tr>
@@ -769,55 +439,16 @@ but does not currently populate it with any flags.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="synthetic-options-not-from-argparse">Synthetic Options (Not from argparse)<a class="headerlink" href="#synthetic-options-not-from-argparse" title="Permanent link">#</a></h3>
-<p>These are derived after parsing and injected into the OPTIONS dict.</p>
-<table>
-<thead>
-<tr>
-<th>Key</th>
-<th>Type</th>
-<th>Derived From</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>debug_events</code></td>
-<td><code>bool</code></td>
-<td><code>log_level</code></td>
-<td>Meant to be <code>True</code> for the <code>debug</code>, <code>critical</code> and <code>error</code> levels, but the code compares with upper-case names while <code>--log-level</code> is lower case, so it is always <code>False</code> (BUGS.md #74)</td>
-</tr>
-</tbody>
-</table>
-<h2 id="bitmappy-game-specific-arguments">Bitmappy Game-Specific Arguments<a class="headerlink" href="#bitmappy-game-specific-arguments" title="Permanent link">#</a></h2>
-<p>Added by <code>BitmapEditorScene.args()</code> in <code>glitchygames/bitmappy/editor.py</code>.
-These appear under the heading <strong>"Bitmappy vX.Y Options"</strong> in <code>--help</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Type</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>-v</code>, <code>--version</code></td>
-<td><code>store_true</code></td>
-<td><code>False</code></td>
-<td>Print the game version and exit</td>
-</tr>
-<tr>
-<td><code>-s</code>, <code>--size</code></td>
-<td><code>str</code></td>
-<td><code>32x32</code></td>
-<td>Canvas size (WxH in pixels)</td>
-</tr>
-</tbody>
-</table>
-<h2 id="example-game-arguments">Example Game Arguments<a class="headerlink" href="#example-game-arguments" title="Permanent link">#</a></h2>
-<p>Other games in the project demonstrate the pattern:</p>
+<h3 id="layer-3-the-game">Layer 3: the game<a class="headerlink" href="#layer-3-the-game" title="Permanent link">#</a></h3>
+<h4 id="bitmappy-v10-options">Bitmappy v1.0 Options<a class="headerlink" href="#bitmappy-v10-options" title="Permanent link">#</a></h4>
+<p>Added by <code>BitmapEditorScene.args()</code> in <code>glitchygames/bitmappy/editor.py</code>; the heading is
+<code>&lt;NAME&gt; v&lt;VERSION&gt; Options</code>.</p>
+<ul>
+<li><code>-v, --version</code> (<code>store_true</code>, default <code>False</code>): print the game version and exit</li>
+<li><code>-s, --size SIZE</code> (<code>str</code>): the canvas size in pixels, WIDTHxHEIGHT (default: 32x32)</li>
+</ul>
+<h4 id="other-games">Other games<a class="headerlink" href="#other-games" title="Permanent link">#</a></h4>
+<p>The other games add their own options the same way:</p>
 <table>
 <thead>
 <tr>
@@ -865,123 +496,67 @@ These appear under the heading <strong>"Bitmappy vX.Y Options"</strong> in <code
 </tbody>
 </table>
 <h2 id="what-help-looks-like">What <code>--help</code> Looks Like<a class="headerlink" href="#what-help-looks-like" title="Permanent link">#</a></h2>
-<p>When a user runs <code>uv run bitmappy --help</code>, argparse produces output structured
-like this (argument groups appear in registration order; argparse leaves out groups with no
-arguments, such as App Options):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>usage: Bitmappy version X.Y [-h] [-f TARGET_FPS] [...]
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>options:
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  -h, --help            show this help message and exit
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>Graphics Options:
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  -f, --target-fps      cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>  --fps-log-interval-ms how often to log the FPS counter in ms (default: 1000)
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>  -w, --windowed        run the program in windowed mode
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>  -r, --resolution      the resolution to use (default: 1024x768)
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>  --use-gfxdraw
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>  --update-type         update or flip (default: update)
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>  --timer-backend       timer backend for draw loop pacing (default: auto, the fast backend with this
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>                        machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>                        wake on time; pygame is the legacy backend)
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>  --sleep-granularity-ns how long before each frame deadline the fast backend is to wake from its sleep
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>                        and spin (ns); 0 spins only
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>  --windows-timer-1ms   on Windows, request 1ms system timer resolution
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>  --random-seed         master seed for every engine random stream (...)
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>  --screen-shake-intensity, --rumble-intensity, --live-voice-pool
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>  --default-background  the background of a scene that sets none (...)
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>  --video-driver
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>Diagnostics Options:
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>  --log-timer-jitter    log frame pacing jitter statistics periodically
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>  --perf-trim-percent   percent of frames to trim from top and bottom in global FPS report
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>  --fps-histogram       FPS histogram buckets in the shutdown report (...)
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>  --debug-overlay, --no-debug-overlay
-<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>                        show the debug overlay at startup (F3 toggles, F4 cycles panels)
-<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>  --record-trace PATH   record the session (...)
-<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>  --replay-trace PATH   replay a --record-trace recording exactly (...)
-<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>  --replay-fps, --audit, --no-audit, --compare-processing, --max-processing-slowdown PERCENT,
-<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>  --replay-pause-at-frame N, --rebaseline NEW, --replay-digest PATH
-<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>                        (replay options)
-<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>  --headless            run on SDL's dummy video and audio drivers: no window, no sound (...)
-<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>
-<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>Controller Options:
-<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>  --input-mode          Which gamepads the game sees (default: auto, ...)
-<a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a>
-<a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>Font Options:
-<a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a>  --font-name           Font to use (default: the bundled Vera; ...)
-<a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a>  --font-size
-<a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a>  --font-bold
-<a id="__codelineno-2-44" name="__codelineno-2-44" href="#__codelineno-2-44"></a>  --font-italic
-<a id="__codelineno-2-45" name="__codelineno-2-45" href="#__codelineno-2-45"></a>  --font-antialias
-<a id="__codelineno-2-46" name="__codelineno-2-46" href="#__codelineno-2-46"></a>  --font-dpi
-<a id="__codelineno-2-47" name="__codelineno-2-47" href="#__codelineno-2-47"></a>  --font-system         Font system to use: freetype (enhanced, default) or pygame (built-in)
-<a id="__codelineno-2-48" name="__codelineno-2-48" href="#__codelineno-2-48"></a>
-<a id="__codelineno-2-49" name="__codelineno-2-49" href="#__codelineno-2-49"></a>Game Options:
-<a id="__codelineno-2-50" name="__codelineno-2-50" href="#__codelineno-2-50"></a>  -l, --log-level       set the logging level
-<a id="__codelineno-2-51" name="__codelineno-2-51" href="#__codelineno-2-51"></a>  --no-unhandled-events fail on unhandled events
-<a id="__codelineno-2-52" name="__codelineno-2-52" href="#__codelineno-2-52"></a>  -p, --profile         enable profiling
-<a id="__codelineno-2-53" name="__codelineno-2-53" href="#__codelineno-2-53"></a>
-<a id="__codelineno-2-54" name="__codelineno-2-54" href="#__codelineno-2-54"></a>Bitmappy vX.Y Options:
-<a id="__codelineno-2-55" name="__codelineno-2-55" href="#__codelineno-2-55"></a>  -v, --version         print the game version and exit
-<a id="__codelineno-2-56" name="__codelineno-2-56" href="#__codelineno-2-56"></a>  -s, --size
-</code></pre></div>
-<p>The <code>--resolution</code> help text says 1024x768, but the default is <code>800x480</code> (BUGS.md #76).</p>
+<p><code>uv run bitmappy --help</code> prints a usage line, the <code>options:</code> group (<code>-h, --help</code>), then each
+group in the order the layers add them: Graphics, Diagnostics, Controller, Font and Game
+Options, then <code>Bitmappy v1.0 Options</code>. argparse leaves out groups with no arguments (App, Sound
+Mixer and the other reserved groups). Every option it prints, with its help text, is listed in
+<a href="#complete-flag-reference">Complete Flag Reference</a>.</p>
 <h2 id="how-to-add-arguments-to-a-new-event-manager">How to Add Arguments to a New Event Manager<a class="headerlink" href="#how-to-add-arguments-to-a-new-event-manager" title="Permanent link">#</a></h2>
 <p>If you are adding arguments to a currently-empty event manager group, follow the
 existing pattern:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># In glitchygames/events/mouse.py</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">:</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">group</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">'Mouse Options'</span><span class="p">)</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="s1">'--mouse-sensitivity'</span><span class="p">,</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">help</span><span class="o">=</span><span class="s1">'Mouse sensitivity multiplier (default: 1.0)'</span><span class="p">,</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="p">)</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="k">return</span> <span class="n">parser</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># In glitchygames/events/mouse.py</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">group</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">'Mouse Options'</span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="s1">'--mouse-sensitivity'</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="n">help</span><span class="o">=</span><span class="s1">'Mouse sensitivity multiplier (default: 1.0)'</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="p">)</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="k">return</span> <span class="n">parser</span>
 </code></pre></div>
 <p>The engine already calls your manager's <code>args()</code> method — you just need to
 add <code>add_argument()</code> calls to the existing group.</p>
 <h2 id="how-to-create-a-new-game-with-arguments">How to Create a New Game with Arguments<a class="headerlink" href="#how-to-create-a-new-game-with-arguments" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">GameEngine</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.scenes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scene</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyGame</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">NAME</span> <span class="o">=</span> <span class="s1">'My Game'</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">VERSION</span> <span class="o">=</span> <span class="s1">'1.0'</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">):</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">        </span><span class="sd">"""Add game-specific arguments.</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="sd">        Args:</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="sd">            parser: An argument group (not the root parser).</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="sd">        """</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>            <span class="s1">'-v'</span><span class="p">,</span> <span class="s1">'--version'</span><span class="p">,</span>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>            <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'print the game version and exit'</span><span class="p">,</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>        <span class="p">)</span>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>            <span class="s1">'--difficulty'</span><span class="p">,</span>
-<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>            <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">'easy'</span><span class="p">,</span> <span class="s1">'medium'</span><span class="p">,</span> <span class="s1">'hard'</span><span class="p">],</span>
-<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>            <span class="n">default</span><span class="o">=</span><span class="s1">'medium'</span><span class="p">,</span>
-<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'game difficulty level'</span><span class="p">,</span>
-<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>        <span class="p">)</span>
-<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>
-<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
-<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
-<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>        <span class="c1"># Access your arguments via self.options</span>
-<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">difficulty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">'difficulty'</span><span class="p">]</span>
-<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>
-<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a>
-<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>    <span class="n">GameEngine</span><span class="p">(</span><span class="n">game</span><span class="o">=</span><span class="n">MyGame</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">GameEngine</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.scenes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scene</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyGame</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">NAME</span> <span class="o">=</span> <span class="s1">'My Game'</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">VERSION</span> <span class="o">=</span> <span class="s1">'1.0'</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">):</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">        </span><span class="sd">"""Add game-specific arguments.</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="sd">        Args:</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="sd">            parser: An argument group (not the root parser).</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="sd">        """</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>            <span class="s1">'-v'</span><span class="p">,</span> <span class="s1">'--version'</span><span class="p">,</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>            <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'print the game version and exit'</span><span class="p">,</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>        <span class="p">)</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>            <span class="s1">'--difficulty'</span><span class="p">,</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>            <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">'easy'</span><span class="p">,</span> <span class="s1">'medium'</span><span class="p">,</span> <span class="s1">'hard'</span><span class="p">],</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>            <span class="n">default</span><span class="o">=</span><span class="s1">'medium'</span><span class="p">,</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'game difficulty level'</span><span class="p">,</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>        <span class="p">)</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>        <span class="c1"># Access your arguments via self.options</span>
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">difficulty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">'difficulty'</span><span class="p">]</span>
+<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a>
+<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a>
+<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>    <span class="n">GameEngine</span><span class="p">(</span><span class="n">game</span><span class="o">=</span><span class="n">MyGame</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 </code></pre></div>
 <p>Your arguments will automatically appear under <strong>"My Game v1.0 Options"</strong> in
 the <code>--help</code> output, separate from all engine-level flags.</p>

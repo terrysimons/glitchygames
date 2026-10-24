@@ -45,6 +45,39 @@
                 <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
               <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
@@ -98,27 +131,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">Documentation</span></p>
-              <ul class="current">
-                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
-                  </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Event System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
-                  </li>
-              </ul>
       </div>
     </div>
     </nav>
@@ -140,7 +152,7 @@
     </li>
   </ul>
     <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
-        <a href="../bitmappy/" class="btn btn-neutral float-left" title="Bitmappy Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../games/mr_muncher/" class="btn btn-neutral float-left" title="Mr. Muncher Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
         <a href="../argument_system/" class="btn btn-neutral float-right" title="Argument System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
     </div>
   <hr/>
@@ -172,14 +184,14 @@ Code inside the <code>glitchygames</code> package must always do so (<code>tests
 <li><strong>Named handlers</strong> — override <code>on_key_down_event()</code> instead of writing
   <code>if event.type == pygame.KEYDOWN</code>. No if/elif dispatch chains.</li>
 <li><strong>Automatic state tracking</strong> — event managers cache button states, axis
-  values, hat positions, and mouse focus so you can poll current state anytime.</li>
+  values, hat positions, and mouse focus so you can poll the current state very cheaply at any time.</li>
 <li><strong>Synthesized events</strong> — GlitchyGames generates events that pygame doesn't
   provide: mouse drag and drop (<code>on_mouse_drag_event</code>, <code>on_left_mouse_drag_event</code>,
   <code>on_mouse_drop_event</code>), keyboard chords (<code>on_key_chord_down_event</code>), and
   per-button mouse events (<code>on_left_mouse_button_down_event</code> vs raw
   <code>MOUSEBUTTONDOWN</code> with a button field).</li>
 <li><strong>Custom event types</strong> — three engine-level event types (<code>FPSEVENT</code>,
-  <code>GAMEEVENT</code>, <code>MENUEVENT</code>) built on <code>pygame.USEREVENT</code> offsets, plus an
+  <code>GAMEEVENT</code>, <code>MENUEVENT</code>) allocated with <code>pygame.event.custom_type()</code>, plus an
   extensible <code>GAMEEVENT</code> bus for posting arbitrary game-specific events with
   per-subtype callbacks.</li>
 <li><strong>An unhandled event safety net</strong> — every <code>on_*_event()</code> has a default stub
@@ -191,55 +203,164 @@ Code inside the <code>glitchygames</code> package must always do so (<code>tests
 state and synthesize higher-level events, through the scene manager, and finally
 into scenes and sprites.</p>
 <h2 id="event-dispatch-overview">Event Dispatch Overview<a class="headerlink" href="#event-dispatch-overview" title="Permanent link">#</a></h2>
-<p>The complete path an event takes from SDL to your scene handler. The <code>EVENT_HANDLERS</code>
-dict provides O(1) lookup from pygame event type to the correct processing method.</p>
-<pre class="mermaid"><code>flowchart TD
-    SDL["SDL2 Event Queue"] --&gt; PG["active_sources().pump_events()\n(live: pygame.event.get())"]
-    PG --&gt; PE["GameEngine.process_events()"]
-    PE --&gt;|"scene defines process_event()"| RAW["scene.process_event(raw event)"]
-    PE --&gt; WRAP["HashableEvent.from_pygame()"]
-    WRAP --&gt; LOOKUP{"EVENT_HANDLERS\n[event.type]"}
+<p>The path an event takes from SDL to your scene's handler. Every event family follows the same
+path; the <code>EVENT_HANDLERS</code> dict picks the family's method in one lookup (the table below says
+which method each event type gets). The Engine box is the same for every game; the Your game box
+is where your scene's and sprites' code runs.</p>
+<pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart TB
+    PATH_SDL["SDL event queue"] --&gt; PATH_PUMP
+    subgraph ENGINE_PATH["Engine"]
+        PATH_PUMP["active_sources().pump_events()&lt;br/&gt;(live: pygame.event.get())"]
+        PATH_PUMP --&gt; PATH_PROCESS["GameEngine.process_events()"]
+        PATH_PROCESS --&gt; PATH_WRAP["HashableEvent.from_pygame()"]
+        PATH_WRAP --&gt; PATH_LOOKUP{"EVENT_HANDLERS[event.type]"}
+        PATH_LOOKUP --&gt;|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()&lt;br/&gt;counted in unhandled_events"]
+        PATH_LOOKUP --&gt; PATH_FAMILY["GameEngine.process_family_event()&lt;br/&gt;(one per event family, table below)"]
+        PATH_FAMILY --&gt; PATH_MANAGER["the family's event manager"]
+        PATH_MANAGER --&gt; PATH_PROXY["its proxy: keeps state, synthesizes events&lt;br/&gt;(one proxy per device for joysticks and controllers)"]
+        PATH_PROXY --&gt; PATH_SCENE_MANAGER["SceneManager on_*_event()"]
+    end
+    subgraph GAME_PATH["Your game"]
+        PATH_RAW["scene.process_event(raw event)&lt;br/&gt;(skips everything below)"]
+        PATH_SCENE["the active scene's on_*_event()"]
+        PATH_SCENE --&gt; PATH_SPRITES["focused or collided sprites' on_*_event()"]
+    end
+    PATH_PROCESS --&gt;|"the scene defines process_event()"| PATH_RAW
+    PATH_SCENE_MANAGER --&gt; PATH_SCENE</code></pre>
+<table>
+<thead>
+<tr>
+<th>Event types</th>
+<th>Method</th>
+<th>Manager</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUDIODEVICEADDED</code>, <code>AUDIODEVICEREMOVED</code></td>
+<td><code>process_audio_event()</code></td>
+<td><code>AudioEventManager</code></td>
+</tr>
+<tr>
+<td><code>CONTROLLER*</code> (axis, button, device, touchpad, sensor)</td>
+<td><code>process_controller_event()</code></td>
+<td><code>ControllerEventManager</code> (see below)</td>
+</tr>
+<tr>
+<td><code>JOY*</code> (axis, ball, hat, button, device)</td>
+<td><code>process_joystick_event()</code></td>
+<td><code>JoystickEventManager</code> (see below)</td>
+</tr>
+<tr>
+<td><code>KEYDOWN</code>, <code>KEYUP</code></td>
+<td><code>process_keyboard_event()</code></td>
+<td><code>KeyboardEventManager</code></td>
+</tr>
+<tr>
+<td><code>MOUSEMOTION</code>, <code>MOUSEBUTTON*</code>, <code>MOUSEWHEEL</code></td>
+<td><code>process_mouse_event()</code></td>
+<td><code>MouseEventManager</code></td>
+</tr>
+<tr>
+<td><code>FINGERDOWN</code>, <code>FINGERMOTION</code>, <code>FINGERUP</code>, <code>MULTIGESTURE</code></td>
+<td><code>process_touch_event()</code></td>
+<td><code>TouchEventManager</code></td>
+</tr>
+<tr>
+<td><code>DROPBEGIN</code>, <code>DROPFILE</code>, <code>DROPTEXT</code>, <code>DROPCOMPLETE</code></td>
+<td><code>process_drop_event()</code></td>
+<td><code>DropEventManager</code></td>
+</tr>
+<tr>
+<td><code>WINDOWEVENT</code>, <code>WINDOW*</code></td>
+<td><code>process_window_event()</code></td>
+<td><code>WindowEventManager</code></td>
+</tr>
+<tr>
+<td><code>FPSEVENT</code>, <code>GAMEEVENT</code>, <code>MENUEVENT</code>, <code>QUIT</code>, <code>USEREVENT</code>, <code>ACTIVEEVENT</code>, <code>VIDEO*</code>, <code>SYSWMEVENT</code></td>
+<td><code>process_game_event()</code></td>
+<td><code>GameEventManager</code></td>
+</tr>
+<tr>
+<td><code>MIDIIN</code>, <code>MIDIOUT</code></td>
+<td><code>process_midi_event()</code></td>
+<td><code>MidiEventManager</code></td>
+</tr>
+<tr>
+<td><code>APP_*</code></td>
+<td><code>process_app_event()</code></td>
+<td><code>AppEventManager</code></td>
+</tr>
+<tr>
+<td><code>TEXTEDITING</code>, <code>TEXTINPUT</code></td>
+<td><code>process_text_event()</code></td>
+<td>none: passed to the scene manager (the active scene's <code>on_text_*_event</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-proxy-layers">The proxy layers<a class="headerlink" href="#the-proxy-layers" title="Permanent link">#</a></h3>
+<p>Every manager is a <code>ResourceManager</code> that passes calls on to a proxy. The proxy implements the
+family's interface (<code>MouseEvents</code> for the mouse), keeps the family's state, synthesizes
+higher-level events (drag, drop and focus for the mouse; chords for the keyboard) and calls the
+same handler on its <code>game</code>, which is the <code>SceneManager</code>. The <code>SceneManager</code> hands every
+<code>on_*_event()</code> to the active scene (<code>__getattr__</code>). The mouse, as an example:</p>
+<pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart LR
+    subgraph ENGINE_MOUSE["Engine"]
+        MOUSE_ENGINE["GameEngine&lt;br/&gt;process_mouse_event()"] --&gt; MOUSE_MANAGER["MouseEventManager&lt;br/&gt;proxies: the MouseEventProxy"]
+        MOUSE_MANAGER --&gt; MOUSE_PROXY["MouseEventProxy&lt;br/&gt;button states, drag tracking&lt;br/&gt;drag, drop, focus synthesized&lt;br/&gt;proxies: SceneManager, pygame.mouse"]
+        MOUSE_PROXY --&gt;|"game.on_mouse_*_event()"| MOUSE_SCENE_MANAGER["SceneManager&lt;br/&gt;__getattr__"]
+    end
+    subgraph GAME_MOUSE["Your game"]
+        MOUSE_SCENE["active scene&lt;br/&gt;on_mouse_*_event()"]
+    end
+    MOUSE_SCENE_MANAGER --&gt; MOUSE_SCENE</code></pre>
+<h3 id="joysticks-and-controllers">Joysticks and controllers<a class="headerlink" href="#joysticks-and-controllers" title="Permanent link">#</a></h3>
+<p>These two add a filter and keep one proxy per device. SDL sees a mapped gamepad as one device on
+two layers, the raw joystick layer and the controller layer, and sends both layers' events, so
+the engine lets each device's input through from one layer only (its <code>event_layer</code>: the
+controller layer when SDL maps the pad, else the joystick layer), and only for devices
+<code>--input-mode</code> shows the game (<code>glitchygames/input/input_devices.py</code>).</p>
+<pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart TB
+    DEVICE_EVENT["JOY* or CONTROLLER* event"] --&gt; DEVICE_PROCESS
+    subgraph ENGINE_DEVICE["Engine"]
+        DEVICE_PROCESS["process_joystick_event()&lt;br/&gt;or process_controller_event()"]
+        DEVICE_PROCESS --&gt; DEVICE_FILTER{"input_devices.dispatches()&lt;br/&gt;this device shown by the input mode,&lt;br/&gt;and this is its event layer?"}
+        DEVICE_FILTER --&gt;|"no: the other layer's copy,&lt;br/&gt;or a hidden device"| DEVICE_DROPPED["dropped (counted as handled)"]
+        DEVICE_FILTER --&gt;|"yes"| DEVICE_MANAGER["JoystickEventManager.joysticks&lt;br/&gt;or ControllerEventManager.controllers&lt;br/&gt;[event.instance_id]"]
+        DEVICE_MANAGER --&gt; DEVICE_PROXY["that device's proxy&lt;br/&gt;opened through the devices door&lt;br/&gt;proxies: SceneManager, the device"]
+        DEVICE_PROXY --&gt;|"game.on_joy_*_event() or&lt;br/&gt;game.on_controller_*_event()"| DEVICE_SCENE_MANAGER["SceneManager"]
 
-    LOOKUP --&gt;|"AUDIODEVICEADDED\nAUDIODEVICEREMOVED"| AUDIO["process_audio_event()"]
-    LOOKUP --&gt;|"CONTROLLERAXISMOTION\nCONTROLLERBUTTON*\nCONTROLLERDEVICE*\nCONTROLLERTOUCHPAD*"| CTRL["process_controller_event()"]
-    LOOKUP --&gt;|"DROPBEGIN\nDROPFILE\nDROPTEXT\nDROPCOMPLETE"| DROP["process_drop_event()"]
-    LOOKUP --&gt;|"KEYDOWN\nKEYUP"| KEY["process_keyboard_event()"]
-    LOOKUP --&gt;|"JOYAXISMOTION\nJOYBUTTON*\nJOYHAT*\nJOYBALL*\nJOYDEVICE*"| JOY["process_joystick_event()"]
-    LOOKUP --&gt;|"MOUSEMOTION\nMOUSEBUTTON*\nMOUSEWHEEL"| MOUSE["process_mouse_event()"]
-    LOOKUP --&gt;|"FINGERDOWN\nFINGERMOTION\nFINGERUP\nMULTIGESTURE"| TOUCH["process_touch_event()"]
-    LOOKUP --&gt;|"WINDOWEVENT\nWINDOW*"| WIN["process_window_event()"]
-    LOOKUP --&gt;|"FPSEVENT\nGAMEEVENT\nMENUEVENT\nQUIT\nUSEREVENT\nACTIVEEVENT\nVIDEO*\nSYSWMEVENT"| GAME["process_game_event()"]
-    LOOKUP --&gt;|"MIDIIN\nMIDIOUT"| MIDI["process_midi_event()"]
-    LOOKUP --&gt;|"TEXTEDITING\nTEXTINPUT"| TEXT["process_text_event()"]
-    LOOKUP --&gt;|"no entry, or not handled"| UNIMPL["process_unimplemented_event()\ncounted in unhandled_events"]
-    LOOKUP --&gt;|"APP_*"| APP["process_app_event()"]
-
-    AUDIO --&gt; AM["AudioEventManager"]
-    CTRL --&gt; CM["ControllerEventManager"]
-    DROP --&gt; DM["DropEventManager"]
-    KEY --&gt; KM["KeyboardEventManager"]
-    JOY --&gt; JM["JoystickEventManager"]
-    MOUSE --&gt; MM["MouseEventManager"]
-    TOUCH --&gt; TM["TouchEventManager"]
-    WIN --&gt; WM["WindowEventManager"]
-    GAME --&gt; GM["GameEventManager"]
-    MIDI --&gt; MIM["MidiEventManager"]
-    TEXT --&gt; UNIMPL
-    APP --&gt; APM["AppEventManager"]
-
-    AM &amp; CM &amp; DM &amp; KM &amp; JM &amp; MM &amp; TM &amp; WM &amp; GM &amp; MIM &amp; APM --&gt; SM["SceneManager\non_*_event()"]
-    SM --&gt; SCENE["Active Scene\non_*_event()"]
-    SCENE --&gt; SPRITE["Focused/Collided Sprites\non_*_event()"]</code></pre>
+        DEVICE_PROCESS --&gt;|"device added or removed:&lt;br/&gt;always passes the filter"| DEVICE_DEVICES["the manager opens or drops&lt;br/&gt;the device's proxy"]
+        DEVICE_DEVICES --&gt; DEVICE_SYNCHRONIZE["GameEngine._synchronize_input_devices()&lt;br/&gt;InputDevices follows the managers"]
+    end
+    subgraph GAME_DEVICE["Your game"]
+        DEVICE_SCENE["active scene's handler"]
+        DEVICE_NOTIFY["active scene's&lt;br/&gt;on_input_device_added(device=...)&lt;br/&gt;or on_input_device_removed(device=...)"]
+    end
+    DEVICE_SCENE_MANAGER --&gt; DEVICE_SCENE
+    DEVICE_SYNCHRONIZE --&gt; DEVICE_NOTIFY</code></pre>
+<p>A mapped pad's device events arrive twice (the joystick layer's, then the controller layer's);
+<code>InputDevices</code> adds it once, with both layers, and removes it once neither manager holds it.</p>
 <h3 id="event-performance-tiers">Event performance tiers<a class="headerlink" href="#event-performance-tiers" title="Permanent link">#</a></h3>
 <p>Not all events pay the same cost. Events fall into three tiers depending on
-whether they're blocked, unhandled, or handled:</p>
-<pre class="mermaid"><code>flowchart TD
+whether they're blocked, unhandled, or handled (SDL's filter is outside both boxes):</p>
+<pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart TD
     EVT["SDL event fires"] --&gt; BLOCKED{"Blocked by\npygame.event.set_blocked?"}
     BLOCKED --&gt;|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
-    BLOCKED --&gt;|"No"| WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
-    WRAP --&gt; STUB{"Scene overrides\nthe handler?"}
-    STUB --&gt;|"No — hits stub"| UH["unhandled_event#40;#41;\nwarns once per type#40;debug_events#41;\nor raises #40;no_unhandled_events#41;"]
-    STUB --&gt;|"Yes — real handler"| HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]</code></pre>
+    BLOCKED --&gt;|"No"| WRAP
+    subgraph ENGINE_TIERS["Engine"]
+        WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
+        WRAP --&gt; STUB{"Scene overrides\nthe handler?"}
+        STUB --&gt;|"No — hits stub"| UH["unhandled_event#40;#41;&lt;br/&gt;raises UnhandledEventError when options#91;'no_unhandled_events'#93; is set&lt;br/&gt;#40;the --no-unhandled-events argument#41;,&lt;br/&gt;else logs a warning once per event type when options#91;'debug_events'#93; is on&lt;br/&gt;#40;the --debug-events flag, off by default#41;"]
+    end
+    subgraph GAME_TIERS["Your game"]
+        HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]
+    end
+    STUB --&gt;|"Yes — real handler"| HANDLER</code></pre>
 <table>
 <thead>
 <tr>
@@ -276,19 +397,17 @@ but every unblocked event still travels the dispatch path (wrap in
 block the event at the pygame level with <code>pygame.event.set_blocked()</code>.</p>
 <h2 id="custom-event-types">Custom Event Types<a class="headerlink" href="#custom-event-types" title="Permanent link">#</a></h2>
 <p>GlitchyGames defines three custom event types beyond the standard pygame events,
-as fixed <code>USEREVENT</code> offsets (<code>USEREVENT + 1</code>, <code>+ 2</code>, <code>+ 3</code>) rather than through
-<code>pygame.event.custom_type()</code>, so the engine's events have known, predictable numbers.</p>
-<div class="admonition warning">
-<p class="admonition-title">Don't use <code>pygame.event.custom_type()</code> in a GlitchyGames game</p>
-<p><code>custom_type()</code> hands out <code>USEREVENT + 1</code>, <code>+ 2</code>, <code>+ 3</code>, ... in order, and nothing
-reserves the engine's offsets: in pygame-ce 2.5.8 the first three calls return the
-numbers of <code>FPSEVENT</code>, <code>GAMEEVENT</code> and <code>MENUEVENT</code>, so such an event would be
-dispatched as one of them. Use <code>GAMEEVENT</code> subtypes (below) instead.</p>
-</div>
+allocated with <code>pygame.event.custom_type()</code> when <code>glitchygames.events</code> is imported, so a
+game's or library's own <code>custom_type()</code> never gets one of their ids (BUGS.md #197).
+<code>custom_type()</code> hands out <code>USEREVENT + 1</code>, <code>+ 2</code>, <code>+ 3</code>, ... in order, and the engine's
+module is imported before any game code runs, so they are <code>USEREVENT + 1</code>, <code>+ 2</code> and <code>+ 3</code>,
+the numbers recordings hold. Something that calls <code>custom_type()</code> before glitchygames is
+imported shifts them (a recording made that way replays only in a process that imports the
+same way).</p>
 <p>These constants are defined in <code>glitchygames/events/base.py</code> (exported by <code>glitchygames.events</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span>  <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">USEREVENT</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1"># FPS counter updates</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">USEREVENT</span> <span class="o">+</span> <span class="mi">2</span>  <span class="c1"># Game-specific events (extensible via subtypes)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">USEREVENT</span> <span class="o">+</span> <span class="mi">3</span>  <span class="c1"># Menu item selections</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># FPS counter updates (USEREVENT + 1)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># Game-specific events, extensible via subtypes (+ 2)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># Menu item selections (+ 3)</span>
 </code></pre></div>
 <p><code>GAMEEVENT</code> is intentionally generic — game code posts events with arbitrary
 payloads via <code>GameEngine.post_game_event()</code>, and can register per-subtype
@@ -296,19 +415,23 @@ callbacks via <code>GameEngine.register_game_event()</code> (a scene reaches bot
 <code>self.scene_manager</code>: <code>register_game_event()</code> and <code>game_engine</code>). This gives games an extensible
 event bus without consuming additional pygame event IDs.</p>
 <pre class="mermaid"><code>flowchart LR
-    subgraph CustomEvents["Custom Event Types (fixed USEREVENT offsets)"]
+    subgraph CustomEvents["Custom Event Types (pygame.event.custom_type())"]
         FPS["FPSEVENT\npygame.USEREVENT + 1\nFPS counter updates"]
         GAME_E["GAMEEVENT\npygame.USEREVENT + 2\nGame-specific events"]
         MENU["MENUEVENT\npygame.USEREVENT + 3\nMenu item selections"]
     end
 
     subgraph Producers["Producers"]
-        SM_FPS["SceneManager\nposts every fps_log_interval_ms"]
-        GAME_CODE["Game code\nposts via post_game_event()"]
-        MENU_ITEM["MenuItem sprites\npost on click"]
+        subgraph ENGINE_PRODUCERS["Engine"]
+            SM_FPS["SceneManager\nposts every fps_log_interval_ms"]
+            MENU_ITEM["MenuItem sprites\npost on click"]
+        end
+        subgraph GAME_PRODUCERS["Your game"]
+            GAME_CODE["Game code\nposts via post_game_event()"]
+        end
     end
 
-    subgraph Consumers["Consumers"]
+    subgraph Consumers["Consumers (e.g. Your game.)"]
         FPS_H["on_fps_event()"]
         GAME_H["on_game_event()\n+ registered subtype callbacks"]
         MENU_H["on_menu_item_event()"]
@@ -396,14 +519,17 @@ the type to blocked when it ends. pygame-ce 2.5.8 reports <code>SYSWMEVENT</code
 something blocks it through pygame, although SDL ignores it, which is why the engine blocks it
 explicitly: a snapshot-and-restore of the blocked types would otherwise turn it on.</p>
 <h2 id="event-manager-class-hierarchy">Event Manager Class Hierarchy<a class="headerlink" href="#event-manager-class-hierarchy" title="Permanent link">#</a></h2>
-<p>Every event manager follows the same structural pattern: a <code>ResourceManager</code> singleton
-that owns one or more inner proxy objects. The proxy implements the event interface
+<p>Every event manager follows the same structural pattern: a <code>ResourceManager</code> shared
+instance that owns one or more inner proxy objects. The proxy implements the event interface
 and forwards calls to the game object.</p>
 <pre class="mermaid"><code>classDiagram
+    direction LR
     class ResourceManager {
         +__instances__ dict
         +proxies list
-        +__new__() enforces singleton
+        +SHARES_INSTANCE bool
+        +__new__() returns the shared instance
+        +release_shared_instances()
         +__getattr__() proxies to children
     }
 
@@ -545,7 +671,7 @@ and forwards calls to the game object.</p>
     ResourceManager &lt;|-- MidiEventManager
     ResourceManager &lt;|-- AppEventManager</code></pre>
 <h2 id="resourcemanager-proxy-pattern">ResourceManager Proxy Pattern<a class="headerlink" href="#resourcemanager-proxy-pattern" title="Permanent link">#</a></h2>
-<p>Each event manager is a singleton <code>ResourceManager</code> that delegates to inner proxy
+<p>Each event manager is a shared-instance <code>ResourceManager</code> that delegates to inner proxy
 objects. The proxy chain provides two capabilities:</p>
 <ol>
 <li>
@@ -556,60 +682,62 @@ objects. The proxy chain provides two capabilities:</p>
 </li>
 <li>
 <p><strong>Attribute fallthrough</strong>: An attribute the manager doesn't have is looked up
-   on its proxies by <code>ResourceManager.__getattr__</code> (<code>glitchygames/events/base.py</code>).
-   The design is that <code>mouse_manager.get_pos()</code> falls through the inner proxy and
-   the scene to <code>pygame.mouse</code>.</p>
+   on its proxies by <code>ResourceManager.__getattr__</code> (<code>glitchygames/events/base.py</code>), each
+   in turn until one has it: <code>mouse_manager.get_pos()</code> falls through the inner proxy and
+   the scene to <code>pygame.mouse</code> (BUGS.md #198: the lookup used to stop at the first proxy).</p>
 </li>
 </ol>
 <div class="admonition warning">
-<p class="admonition-title">Only the first proxy is consulted</p>
-<p><code>ResourceManager.__getattr__</code> returns (or raises) on the first proxy in
-<code>self.proxies</code>, so the lookup stops at <code>self.game</code>: <code>MouseEventManager().get_pos()</code>
-raises <code>AttributeError</code> unless the scene has <code>get_pos</code>. The pygame modules in
-the proxy lists below are never reached. Polled input should come from
-<code>glitchygames.input.state.current_input()</code> anyway: it is the frame's snapshot,
-which a replay serves exactly.</p>
+<p class="admonition-title">Poll input from the snapshot</p>
+<p>The pygame modules in the proxy lists below read the device live. Polled input
+should come from <code>glitchygames.input.state.current_input()</code>: it is the frame's
+snapshot, which a replay serves exactly.</p>
 </div>
 <p><strong>Why this matters</strong>: Scenes and sprites never need a direct reference to the
-event plumbing. They talk to the event manager, which is a singleton accessible
-from anywhere, and the manager handles state tracking (what buttons are held,
+event plumbing. They talk to the event manager, a shared instance accessible
+from anywhere (<code>MouseEventManager()</code> is the engine's), and the manager handles state tracking (what buttons are held,
 what sprite has mouse focus, what keys form a chord).</p>
 <h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">#</a></h3>
 <p>Each manager follows the same two-layer structure:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>MouseEventManager (singleton ResourceManager)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>MouseEventManager (shared-instance ResourceManager)
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>├── proxies: [MouseEventProxy]
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>│
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>└── MouseEventProxy (inner class, also a ResourceManager)
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>└── MouseEventProxy (inner class, also a ResourceManager; SHARES_INSTANCE = False)
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    ├── proxies: [self.game, pygame.mouse]
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    ├── state: mouse_state, dragging, focus tracking
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    └── on_*_event(): update state, synthesize events, forward to self.game
 </code></pre></div>
 <p>The inner proxy holds the real state and logic. The outer manager is just a
-singleton wrapper that ensures only one proxy chain exists per subsystem.</p>
+shared-instance wrapper that ensures only one proxy chain exists per subsystem.</p>
 <h3 id="proxy-resolution-order">Proxy resolution order<a class="headerlink" href="#proxy-resolution-order" title="Permanent link">#</a></h3>
-<p>When an attribute is accessed on a manager, Python's <code>__getattr__</code> walks the
+<p>When an attribute is accessed on a manager, <code>ResourceManager.__getattr__</code> walks the
 proxy list in order. The first proxy that has the attribute wins:</p>
 <pre class="mermaid"><code>sequenceDiagram
-    participant CODE as Game Code
+    box rgb(255,243,224) Your game
+    participant CODE as Your game code
+    end
+    box rgb(232,238,255) Engine
+    participant ENGINE as GameEngine
     participant MGR as MouseEventManager
     participant PROXY as MouseEventProxy
-    participant GAME as Scene (self.game)
+    participant GAME as SceneManager (self.game)
+    end
     participant PG as pygame.mouse
 
-    Note over CODE,PG: Event dispatch path
-    CODE-&gt;&gt;MGR: on_mouse_motion_event(event)
+    Note over ENGINE,PG: Event dispatch path
+    ENGINE-&gt;&gt;MGR: on_mouse_motion_event(event)
     MGR-&gt;&gt;PROXY: on_mouse_motion_event(event)
     Note over PROXY: Track drag state&lt;br/&gt;Check sprite collisions&lt;br/&gt;Synthesize focus/drag events
     PROXY-&gt;&gt;GAME: on_mouse_motion_event(event)
     PROXY--&gt;&gt;GAME: on_left_mouse_drag_event(event, trigger)
-    Note over GAME: Scene handles event&lt;br/&gt;or falls through to stubs
+    Note over GAME: forwards to the active scene's handler&lt;br/&gt;(its stub when the scene has none)
 
-    Note over CODE,PG: Attribute proxy path (as designed, see the warning above)
+    Note over CODE,PG: Attribute proxy path
     CODE-&gt;&gt;MGR: get_pos()
     Note over MGR: __getattr__: not on self&lt;br/&gt;try proxies[0]...
     MGR-&gt;&gt;PROXY: get_pos()
-    Note over PROXY: __getattr__: not on self&lt;br/&gt;try proxies[0]=game... AttributeError&lt;br/&gt;(proxies[1]=pygame.mouse is never tried)
-    PROXY--xPG: get_pos()</code></pre>
+    Note over PROXY: __getattr__: not on self&lt;br/&gt;try proxies[0]=game... AttributeError&lt;br/&gt;try proxies[1]=pygame.mouse
+    PROXY-&gt;&gt;PG: get_pos()</code></pre>
 <h3 id="proxy-lists-by-manager">Proxy lists by manager<a class="headerlink" href="#proxy-lists-by-manager" title="Permanent link">#</a></h3>
 <p>Each inner proxy's list (the outer manager's list holds the inner proxy, or for
 the joystick and controller managers, the game):</p>
@@ -680,19 +808,20 @@ the joystick and controller managers, the game):</p>
 </tbody>
 </table>
 <p>Managers without a pygame subsystem in their proxy list (like <code>DropEventManager</code>)
-only forward events — <code>__getattr__</code> falls through to the game object (as every
-manager's does today).</p>
-<h3 id="singleton-guarantee">Singleton guarantee<a class="headerlink" href="#singleton-guarantee" title="Permanent link">#</a></h3>
+only forward events — <code>__getattr__</code> falls through to the game object.</p>
+<h3 id="shared-instances">Shared instances<a class="headerlink" href="#shared-instances" title="Permanent link">#</a></h3>
 <p><code>ResourceManager.__new__</code> maintains a class-level <code>__instances__</code> dict keyed by
 concrete class type. Constructing <code>MouseEventManager(game)</code> a second time returns
-the original instance.</p>
-<div class="admonition warning">
-<p class="admonition-title">A second construction re-runs <code>__init__</code></p>
-<p>Python calls <code>__init__</code> on whatever <code>__new__</code> returns, so <code>MouseEventManager()</code>
-re-initializes the existing manager: its proxies are rebuilt for <code>game=None</code>, and
-its state is lost. Keep the reference the engine made (<code>GameEngine.mouse_manager</code>
-and so on) instead of constructing a manager again.</p>
-</div>
+the original instance as it is: <code>ResourceManager.__init_subclass__</code> wraps each class's
+<code>__init__</code> so a shared instance is initialized once (BUGS.md #198: Python runs <code>__init__</code>
+on whatever <code>__new__</code> returns, so a second construction rebuilt the manager for
+<code>game=None</code>).</p>
+<p>A class with <code>SHARES_INSTANCE = False</code> gets a new instance at every construction: the
+proxies (a manager owns its own; the controller manager one per controller) and
+<code>EventManager</code> (<code>GameEngine</code>, made for each run, and <code>SceneManager</code>, whose own <code>__new__</code>
+keeps its singleton). Each engine run calls <code>ResourceManager.release_shared_instances()</code>
+before it makes its managers, so a second engine in one process (a recording, then its
+replay) builds its own, opening devices through its own doors.</p>
 <h2 id="hashableevent-wrapper">HashableEvent Wrapper<a class="headerlink" href="#hashableevent-wrapper" title="Permanent link">#</a></h2>
 <p>Raw pygame events are converted to <code>HashableEvent</code> (<code>HashableEvent.from_pygame</code>) to
 enable hashing, immutability and serialization. This is the universal event type
@@ -812,7 +941,7 @@ real handler.</p>
 <ul>
 <li>with <code>no_unhandled_events</code> (<code>--no-unhandled-events</code>, and every test) raises
   <code>UnhandledEventError</code>;</li>
-<li>with <code>debug_events</code>, logs <code>Unhandled Event: &lt;name&gt; &lt;event&gt;</code> at WARNING the first
+<li>with <code>debug_events</code> (<code>--debug-events</code>), logs <code>Unhandled Event: &lt;name&gt; &lt;event&gt;</code> at WARNING the first
   time it sees each event type (a module-level set of seen types), and nothing
   after;</li>
 <li>otherwise does nothing.</li>
@@ -1007,17 +1136,14 @@ Button-specific variants are generated for the left, middle and right buttons
     MM-&gt;&gt;SCENE: on_mouse_button_up_event()
     MM-&gt;&gt;MM: Was dragging? Yes: mouse_dragging = False
     MM-&gt;&gt;SCENE: on_mouse_drop_event(event, trigger=event)
+    MM-&gt;&gt;SCENE: on_left_mouse_drop_event(event, trigger=event)
     Note over SCENE: the drop's trigger is the&lt;br/&gt;MOUSEBUTTONUP itself</code></pre>
 <p>The proxy also passes <code>MOUSEMOTION</code> to the topmost sprite under the cursor
 (<code>collided_sprites()</code>), and <code>Scene</code> passes mouse events on to the sprites at the
-event's position.</p>
-<div class="admonition warning">
-<p class="admonition-title">Not synthesized today</p>
-<p>The proxy defines <code>on_left/middle/right_mouse_drop_event</code> and
-<code>on_mouse_focus_event</code> / <code>on_mouse_unfocus_event</code> (with <code>current_focus</code>), but
-nothing calls them: a release after a drag reaches the scene only as
-<code>on_mouse_drop_event</code>, and no focus or unfocus event is sent.</p>
-</div>
+event's position. Focus follows that topmost sprite: when the sprite under the cursor
+changes, the one left gets <code>on_mouse_unfocus_event(event)</code> and the one entered
+<code>on_mouse_focus_event(event, current_focus)</code>, before it gets the motion (the proxy's
+<code>current_focus</code> and <code>previous_focus</code> hold them).</p>
 <h2 id="keyboard-chord-detection">Keyboard Chord Detection<a class="headerlink" href="#keyboard-chord-detection" title="Permanent link">#</a></h2>
 <p>The <code>KeyboardEventManager</code> tracks all currently pressed keys and emits
 chord events, enabling multi-key shortcut detection.</p>
@@ -1344,8 +1470,8 @@ signatures).</p>
     M2["MOUSEBUTTONDOWN"] -.-&gt;|"button==1"| MS1("on_left_mouse_button_down_event"):::synthesized
     M2 -.-&gt;|"button==2"| MS2("on_middle_mouse_button_down_event"):::synthesized
     M2 -.-&gt;|"button==3"| MS3("on_right_mouse_button_down_event"):::synthesized
-    M2 -.-&gt;|"button==4"| MS4("on_mouse_scroll_down_event"):::synthesized
-    M2 -.-&gt;|"button==5"| MS5("on_mouse_scroll_up_event"):::synthesized
+    M2 -.-&gt;|"button==4"| MS4("on_mouse_scroll_up_event"):::synthesized
+    M2 -.-&gt;|"button==5"| MS5("on_mouse_scroll_down_event"):::synthesized
     classDef synthesized stroke-dasharray: 5 5
     click M2 "https://pyga.me/docs/ref/mouse.html" _blank</code></pre>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Synthesized — button-specific variants of MOUSEBUTTONDOWN</span>
@@ -1449,9 +1575,9 @@ signatures).</p>
 <a id="__codelineno-29-29" name="__codelineno-29-29" href="#__codelineno-29-29"></a><span class="p">):</span>
 <a id="__codelineno-29-30" name="__codelineno-29-30" href="#__codelineno-29-30"></a>    <span class="o">...</span>
 </code></pre></div>
-<p>The button-specific drop handlers and the focus handlers below are defined but not
-synthesized today (see Mouse Event Synthesis); a release after a drag arrives as
-<code>on_mouse_drop_event(event, trigger)</code>, both arguments the <code>MOUSEBUTTONUP</code>.</p>
+<p>A release after a drag arrives as <code>on_mouse_drop_event(event, trigger)</code> and then as the
+released button's drop handler below, both arguments the <code>MOUSEBUTTONUP</code> (see Mouse Event
+Synthesis).</p>
 <pre class="mermaid"><code>flowchart LR
     M3["MOUSEBUTTONUP"] -.-&gt;|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
     M3 -.-&gt;|"released after drag"| MS10b("on_middle_mouse_drop_event"):::synthesized
@@ -1463,9 +1589,9 @@ synthesized today (see Mouse Event Synthesis); a release after a drag arrives as
 <a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="p">}),</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONDOWN</span> <span class="p">{</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 <a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="p">}),</span>  <span class="c1"># the original button-down</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="p">}),</span>  <span class="c1"># the release itself, as for on_mouse_drop_event</span>
 <a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="p">):</span>
 <a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="o">...</span>
 <a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>
@@ -1473,7 +1599,7 @@ synthesized today (see Mouse Event Synthesis); a release after a drag arrives as
 <a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 <a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>    <span class="p">}),</span>
-<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONDOWN</span> <span class="p">{</span>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 <a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>    <span class="p">}),</span>
 <a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a><span class="p">):</span>
@@ -1483,7 +1609,7 @@ synthesized today (see Mouse Event Synthesis); a release after a drag arrives as
 <a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 <a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a>    <span class="p">}),</span>
-<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONDOWN</span> <span class="p">{</span>
+<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 <a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a>    <span class="p">}),</span>
 <a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a><span class="p">):</span>
@@ -1599,9 +1725,8 @@ synthesized today (see Mouse Event Synthesis); a release after a drag arrives as
 <h3 id="windowevents-windoweventstubs">WindowEvents → WindowEventStubs<a class="headerlink" href="#windowevents-windoweventstubs" title="Permanent link">#</a></h3>
 <p>All window events carry <code>{'window': ...}</code> (the <code>pygame.Window</code>, or <code>None</code>; a replay serves
 <code>None</code>). WINDOWRESIZED, WINDOWMOVED, and WINDOWSIZECHANGED also carry <code>{'x': ..., 'y': ...}</code>.
-<code>GameEngine.process_window_event</code> routes the types below except WINDOWTAKEFOCUS;
-WINDOWTAKEFOCUS, WINDOWDISPLAYCHANGED and WINDOWICCPROFCHANGED reach no handler (they are
-counted as unhandled).</p>
+<code>GameEngine.process_window_event</code> routes the types below; WINDOWDISPLAYCHANGED and
+WINDOWICCPROFCHANGED reach no handler (they are counted as unhandled).</p>
 <pre class="mermaid"><code>flowchart LR
     W1["WINDOWCLOSE"] --&gt; WH1["on_window_close_event"]
     click W1 "https://pyga.me/docs/ref/window.html" _blank</code></pre>
@@ -1689,9 +1814,8 @@ counted as unhandled).</p>
 <pre class="mermaid"><code>flowchart LR
     W15["WINDOWTAKEFOCUS"] --&gt; WH15["on_window_take_focus_event"]
     click W15 "https://pyga.me/docs/ref/window.html" _blank</code></pre>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a><span class="c1"># Not routed by the engine today (see above)</span>
-<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_window_take_focus_event</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">WINDOWTAKEFOCUS</span> <span class="p">{</span><span class="s1">'window'</span><span class="p">:</span> <span class="o">...</span><span class="p">})):</span>
-<a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a>    <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_window_take_focus_event</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">WINDOWTAKEFOCUS</span> <span class="p">{</span><span class="s1">'window'</span><span class="p">:</span> <span class="o">...</span><span class="p">})):</span>
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>    <span class="o">...</span>
 </code></pre></div>
 <pre class="mermaid"><code>flowchart LR
     W16["WINDOWHITTEST"] --&gt; WH16["on_window_hit_test_event"]
@@ -1934,9 +2058,9 @@ messages). <code>GameEventManager</code> and the stubs also define <code>on_clip
 <a id="__codelineno-76-2" name="__codelineno-76-2" href="#__codelineno-76-2"></a>    <span class="o">...</span>
 </code></pre></div>
 <h3 id="text-events">Text Events<a class="headerlink" href="#text-events" title="Permanent link">#</a></h3>
-<p><code>GameEngine.process_text_event</code> passes <code>TEXTEDITING</code> and <code>TEXTINPUT</code> straight to
-<code>process_unimplemented_event</code> (counted as unhandled), so these handlers are not called
-by the engine today; text widgets read <code>KEYDOWN</code>'s <code>unicode</code> instead.</p>
+<p><code>GameEngine.process_text_event</code> passes <code>TEXTEDITING</code> and <code>TEXTINPUT</code> to the scene manager,
+which hands them to the active scene's handlers below (<code>Scene</code>'s log them); text widgets read
+<code>KEYDOWN</code>'s <code>unicode</code> instead.</p>
 <pre class="mermaid"><code>flowchart LR
     TX1["TEXTEDITING"] --&gt; TXH1["on_text_editing_event"]
     click TX1 "https://pyga.me/docs/ref/event.html" _blank</code></pre>
@@ -2285,11 +2409,15 @@ sticks, 0 to 32767 for triggers.</p>
 <h2 id="unhandled-event-safety-net">Unhandled Event Safety Net<a class="headerlink" href="#unhandled-event-safety-net" title="Permanent link">#</a></h2>
 <p>When an event has no handler, the stub system catches it. The behavior is
 configurable: silent, logged, or error-raising (used in tests).</p>
+<p>Both settings come from the command line, through the scene's <code>options</code> (<code>GameEngine.OPTIONS</code>):
+<code>no_unhandled_events</code> is the <code>--no-unhandled-events</code> argument (Game Options), and <code>debug_events</code>
+is the <code>--debug-events</code> flag (Diagnostics Options, off by default: a run opts in to the warnings).
+A replay keeps its own <code>--debug-events</code>, never the recording's (<code>REPLAY_LOCAL_OPTIONS</code>).</p>
 <pre class="mermaid"><code>flowchart TD
     EVENT["Event arrives at\non_*_event() stub"] --&gt; UH["unhandled_event()"]
-    UH --&gt; CHECK_STRICT{"options.no_unhandled_events?"}
+    UH --&gt; CHECK_STRICT{"options#91;'no_unhandled_events'#93;?&lt;br/&gt;#40;the --no-unhandled-events argument#41;"}
     CHECK_STRICT --&gt;|"Yes"| RAISE["Raise UnhandledEventError\n(used in test suite)"]
-    CHECK_STRICT --&gt;|"No"| CHECK_DEBUG{"options.debug_events?"}
+    CHECK_STRICT --&gt;|"No"| CHECK_DEBUG{"options#91;'debug_events'#93;?&lt;br/&gt;#40;the --debug-events flag, off by default#41;"}
     CHECK_DEBUG --&gt;|"Yes"| LOG_W["Log WARNING\nfirst occurrence of the type only"]
     CHECK_DEBUG --&gt;|"No"| SILENT["Nothing"]</code></pre>
 <p>Events no <code>process_*_event</code> method handled go to
@@ -2302,6 +2430,7 @@ attributes: device_index, guid</code>).</p>
 <code>active_scene</code>. This provides the indirection layer that enables scene switching
 without rewiring event handlers.</p>
 <pre class="mermaid"><code>flowchart LR
+    subgraph ENGINE_FORWARDING["Engine"]
     subgraph Managers["Event Managers"]
         AM["AudioEventManager"]
         CM["ControllerEventManager"]
@@ -2318,10 +2447,15 @@ without rewiring event handlers.</p>
         FWD["Forwards all on_*_event()\ncalls to active_scene"]
         AS["active_scene reference"]
     end
+    end
+
+    subgraph GAME_FORWARDING["Your game"]
+        SCENE["Active Scene\non_*_event()"]
+    end
 
     AM &amp; CM &amp; KM &amp; MM &amp; JM &amp; WM &amp; GM &amp; DM &amp; TM --&gt; FWD
     FWD --&gt; AS
-    AS --&gt; SCENE["Active Scene\non_*_event()"]</code></pre>
+    AS --&gt; SCENE</code></pre>
 <h3 id="scene-transitions-in-bitmappy">Scene transitions in Bitmappy<a class="headerlink" href="#scene-transitions-in-bitmappy" title="Permanent link">#</a></h3>
 <p>The <code>active_scene</code> pointer determines which scene receives all events. A scene
 asks for a switch by setting <code>self.next_scene</code>; after the frame, the SceneManager
@@ -2335,8 +2469,19 @@ calls <code>switch_to_scene(next_scene)</code>, which:</p>
 <p>A <code>next_scene</code> of <code>None</code> (or the scene itself) means no switch is pending; it never ends
 the game. A scene ends the run with <code>self.scene_manager.quit()</code>, which posts a QUIT event.</p>
 <p>The following diagram shows what user actions trigger each scene transition
-in the Bitmappy pixel art editor:</p>
+in the Bitmappy pixel art editor. The editor is Bitmappy's; the dialogs are the engine's:</p>
 <pre class="mermaid"><code>stateDiagram-v2
+    state "Bitmappy" as APP_BITMAPPY_SCENES {
+        state "BitmapEditorScene" as BitmapEditorScene
+    }
+    state "Engine: glitchygames/ui/dialogs.py" as ENGINE_DIALOG_SCENES {
+        state "LoadDialogScene" as LoadDialogScene
+        state "SaveDialogScene" as SaveDialogScene
+        state "NewCanvasDialogScene" as NewCanvasDialogScene
+        state "DeleteFrameDialogScene" as DeleteFrameDialogScene
+        state "DeleteAnimationDialogScene" as DeleteAnimationDialogScene
+    }
+
     [*] --&gt; BitmapEditorScene : GameEngine.start()
 
     BitmapEditorScene --&gt; LoadDialogScene : User opens File &gt; Load
@@ -2401,7 +2546,7 @@ list of pygame event type constants and maps every one to the corresponding
 <tr>
 <td><code>WINDOW_EVENTS</code></td>
 <td><code>WINDOWCLOSE</code>, <code>WINDOWRESIZED</code>, <code>WINDOWMOVED</code>, ...</td>
-<td><code>process_window_event</code> (<code>WINDOWTAKEFOCUS</code>, <code>WINDOWDISPLAYCHANGED</code>, <code>WINDOWICCPROFCHANGED</code> unhandled)</td>
+<td><code>process_window_event</code> (<code>WINDOWDISPLAYCHANGED</code>, <code>WINDOWICCPROFCHANGED</code> unhandled)</td>
 </tr>
 <tr>
 <td><code>DROP_EVENTS</code></td>
@@ -2431,7 +2576,7 @@ list of pygame event type constants and maps every one to the corresponding
 <tr>
 <td><code>TEXT_EVENTS</code></td>
 <td><code>TEXTEDITING</code>, <code>TEXTINPUT</code></td>
-<td><code>process_text_event</code> (both passed to <code>process_unimplemented_event</code>)</td>
+<td><code>process_text_event</code> (both passed to the scene manager)</td>
 </tr>
 </tbody>
 </table>
@@ -2463,7 +2608,7 @@ the type and returns whether it handled it.</p>
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../bitmappy/" class="btn btn-neutral float-left" title="Bitmappy Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../games/mr_muncher/" class="btn btn-neutral float-left" title="Mr. Muncher Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../argument_system/" class="btn btn-neutral float-right" title="Argument System">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -2491,7 +2636,7 @@ the type and returns whether it handled it.</p>
         </span>
     
     
-      <span><a href="../bitmappy/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../../games/mr_muncher/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../argument_system/" style="color: #fcfcfc">Next &raquo;</a></span>

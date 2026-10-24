@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/games/clockwork_keep/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Clockwork Keep Architecture - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Clockwork Keep Architecture";
+        var mkdocs_page_input_path = "games/clockwork_keep.md";
+        var mkdocs_page_url = "/glitchygames/games/clockwork_keep/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Games</li>
+      <li class="breadcrumb-item active">Clockwork Keep Architecture</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/games/clockwork_keep.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../brave_adventurer/" class="btn btn-neutral float-left" title="Brave Adventurer Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../mr_muncher/" class="btn btn-neutral float-right" title="Mr. Muncher Architecture">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="clockwork-keep-architecture">Clockwork Keep Architecture<a class="headerlink" href="#clockwork-keep-architecture" title="Permanent link">#</a></h1>
+<p>Clockwork Keep is a steampunk tower climb, one of GlitchyGames' example games. You play the
+Tinker, a goggled mechanic, climbing three floors of a clockwork tower: jump from platform to
+platform, collect cogs for points, and ride the elevator at the top of a floor to the next one.
+The last floor has no elevator: standing on its top platform, under the victory cog, wins the
+game.</p>
+<p>Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
+game is small enough to read in one sitting (about 2,700 lines in
+<code>glitchygames/examples/clockwork_keep/</code>). It is also one of the engine's reference games: its
+golden trace and golden replay pin world space, transitions, pausing and replay, so the page
+below shows both how the game works and which engine features it leans on.</p>
+<h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>clockwork-keep<span class="w">                 </span><span class="c1"># start on the Boiler Room (floor 0)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>clockwork-keep<span class="w"> </span>--floor<span class="w"> </span><span class="m">2</span><span class="w">       </span><span class="c1"># start on the Clock Face</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>clockwork-keep<span class="w"> </span>--debug-overlay<span class="w"> </span><span class="c1"># F3 toggles the overlay, F4 cycles its panels</span>
+</code></pre></div>
+<p>The game adds one option of its own (<code>ClockworkKeepScene.args</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Values</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--floor</code></td>
+<td><code>0</code>, <code>1</code>, <code>2</code> (default <code>0</code>)</td>
+<td>The first floor: 0 = Boiler Room, 1 = Gear Works, 2 = Clock Face. Anything else is refused by argparse (<code>choices=range(len(ALL_FLOORS))</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Every engine option applies too. The ones the game reads or depends on:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--input-mode {auto,joystick,controller}</code></td>
+<td>The gamepad event family its <code>ActionMap</code> binds (engine default <code>auto</code>)</td>
+</tr>
+<tr>
+<td><code>--screen-shake-intensity</code></td>
+<td>Passed to the floor's <code>Camera2D</code> (<code>shake_intensity</code>)</td>
+</tr>
+<tr>
+<td><code>--rumble-intensity</code></td>
+<td>Scales the elevator's rumble (the scene manager's <code>RumbleController</code>)</td>
+</tr>
+<tr>
+<td><code>--random-seed</code></td>
+<td>Seeds the engine's <code>shake</code> stream, the only randomness in a session (the rattle shake)</td>
+</tr>
+<tr>
+<td><code>--record-trace PATH</code> / <code>--replay-trace PATH</code></td>
+<td>Record a session / replay it exactly (see <a href="#engine-features-it-uses">Engine features it uses</a>)</td>
+</tr>
+<tr>
+<td><code>--target-fps</code></td>
+<td>The game sets no <code>TARGET_FPS</code>, so the engine default (60.01) applies</td>
+</tr>
+</tbody>
+</table>
+<h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
+<p>Every keyboard control binds a physical key position (a scancode), so it is in the same place
+on every keyboard layout. The names below are the US QWERTY keys at those positions.</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Keyboard</th>
+<th>Gamepad</th>
+<th>Read how</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>move_left</code> / <code>move_right</code></td>
+<td>Left / Right arrow</td>
+<td>D-pad left / right</td>
+<td>Held, each <code>dt_tick</code></td>
+</tr>
+<tr>
+<td><code>jump</code></td>
+<td>Space or Up arrow</td>
+<td>A</td>
+<td>On the press, in the event handler</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>Left Shift</td>
+<td>X</td>
+<td>Held: run speed, and a higher jump</td>
+</tr>
+<tr>
+<td><code>interact</code></td>
+<td>W</td>
+<td>Y</td>
+<td>Pressed this frame, at the top of <code>dt_tick</code> (rides the elevator)</td>
+</tr>
+<tr>
+<td><code>pause</code></td>
+<td>Esc</td>
+<td>none</td>
+<td>On the press: switches to the pause screen</td>
+</tr>
+<tr>
+<td><code>quit</code></td>
+<td>Q</td>
+<td>none</td>
+<td>On the press: <code>scene_manager.quit()</code> ends the run</td>
+</tr>
+</tbody>
+</table>
+<p>No stick axis is bound (<code>test_joystick_axis_motion_moves_nothing</code>). On the pause screen Space
+or a gamepad's Start or A (on its release, after a press there) resumes, and Esc or a gamepad's
+B or Back (on the press) quits; on the game-over and victory screens the same buttons restart
+and quit. The engine's screens answer both gamepad event layers (controller and joystick).
+Losing window focus pauses the game too.</p>
+<h2 id="scenes-and-how-they-switch">Scenes and how they switch<a class="headerlink" href="#scenes-and-how-they-switch" title="Permanent link">#</a></h2>
+<p>Each floor is its own <code>ClockworkKeepScene</code> instance. The engine builds the first one from options
+alone (<code>floor_index=None</code>, which takes <code>--floor</code>); the elevator builds the next one with the
+floor, score and lives it carries. Pausing and game over use the engine's built-in
+<code>PauseScene</code> and <code>GameOverScene</code>. In the diagram, the Clockwork Keep box is the game's own scene;
+the Engine box holds the engine's built-in scenes it switches to.</p>
+<pre class="mermaid"><code>flowchart TB
+    start(["uv run clockwork-keep"]) --&gt; first
+    subgraph GAME_SCENES["Clockwork Keep"]
+        direction TB
+        first["ClockworkKeepScene(options)&lt;br/&gt;floor = --floor (default 0)"]
+        first --&gt; floors
+        subgraph floors["one ClockworkKeepScene per floor"]
+            direction TB
+            floor0["Floor 0: Boiler Room&lt;br/&gt;960 px tall"]
+            floor1["Floor 1: Gear Works&lt;br/&gt;1440 px tall"]
+            floor2["Floor 2: Clock Face&lt;br/&gt;1920 px tall, no elevator"]
+            floor0 --&gt;|"interact on the elevator&lt;br/&gt;ElevatorTransition, 4 s"| floor1
+            floor1 --&gt;|"interact on the elevator&lt;br/&gt;ElevatorTransition, 4 s"| floor2
+        end
+        victory["ClockworkKeepVictoryScene&lt;br/&gt;a GameOverScene titled VICTORY!"]
+    end
+    subgraph ENGINE_SCENES["Engine"]
+        direction TB
+        pause["PauseScene&lt;br/&gt;frozen screenshot of the floor"]
+        gameOver["GameOverScene&lt;br/&gt;final score, high scores"]
+    end
+    floors --&gt;|"Esc, or window focus lost&lt;br/&gt;next_scene = PauseScene"| pause
+    pause --&gt;|"Space, Start or A released, or focus&lt;br/&gt;regained after 0.5 s"| floors
+    floors --&gt;|"last life lost&lt;br/&gt;FadeTransition, 1 s"| gameOver
+    floors --&gt;|"on the Clock Face's top platform&lt;br/&gt;FadeTransition, 1 s"| victory
+    gameOver --&gt;|"Space, Start or A released: a new&lt;br/&gt;ClockworkKeepScene(options)"| first
+    victory --&gt;|"Space, Start or A released: a new&lt;br/&gt;ClockworkKeepScene(options)"| first
+    floors --&gt;|"Q"| quitRun(["run ends"])
+    pause --&gt;|"Esc, B or Back"| quitRun
+    gameOver --&gt;|"Esc, B or Back"| quitRun
+    victory --&gt;|"Esc, B or Back"| quitRun</code></pre>
+<table>
+<thead>
+<tr>
+<th>Switch</th>
+<th>Code</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Next floor</td>
+<td><code>_check_elevator</code> → <code>_go_to_next_floor</code></td>
+<td><code>transition_to(next_scene, ElevatorTransition(...))</code>; the engine starts the transition after the frame is presented</td>
+</tr>
+<tr>
+<td>Pause</td>
+<td><code>on_key_down_event</code> (<code>pause</code>), <code>on_window_focus_lost_event</code></td>
+<td><code>self.next_scene = PauseScene(options=...)</code>; focus loss after game over does not pause</td>
+</tr>
+<tr>
+<td>Resume</td>
+<td><code>PauseScene.resume()</code></td>
+<td>Switches back to the paused floor, which keeps all its state</td>
+</tr>
+<tr>
+<td>Game over</td>
+<td><code>_player_die</code> on the last life</td>
+<td><code>transition_to(GameOverScene(final_score=..., high_scores=...), FadeTransition(duration=1.0))</code></td>
+</tr>
+<tr>
+<td>Victory</td>
+<td><code>_win</code>, when the Tinker stands on <code>victory_platform</code> (the Clock Face's highest platform)</td>
+<td>Saves the high score, then <code>transition_to(ClockworkKeepVictoryScene(final_score=..., high_scores=...), FadeTransition(duration=1.0))</code>: the engine's <code>GameOverScene</code> with its title replaced by VICTORY!</td>
+</tr>
+<tr>
+<td>Restart</td>
+<td><code>GameOverScene.resume()</code> (also the victory screen's)</td>
+<td><code>type(previous_scene)(options=...)</code>: a fresh first floor (the <code>--floor</code> one), score 0, 3 lives</td>
+</tr>
+<tr>
+<td>Quit</td>
+<td><code>scene_manager.quit()</code></td>
+<td>Posts QUIT; the run ends after teardown (BUGS.md #202)</td>
+</tr>
+</tbody>
+</table>
+<p>The floor never sets <code>next_scene = None</code> to quit: the scene manager reads that as "no switch
+pending", so <code>quit</code> goes through <code>scene_manager.quit()</code>.</p>
+<h3 id="replay_arguments-rebuilding-a-floor">replay_arguments: rebuilding a floor<a class="headerlink" href="#replay_arguments-rebuilding-a-floor" title="Permanent link">#</a></h3>
+<p><code>replay_arguments()</code> returns the constructor arguments the floor was built with, besides
+<code>options</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="s1">'floor_index'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">floor_index</span><span class="p">,</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> <span class="s1">'player_score'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_score</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a> <span class="s1">'player_lives'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_lives</span><span class="p">}</span>
+</code></pre></div>
+<p>The engine's default is <code>{}</code>, which rebuilds a scene from options alone. That works for the first
+floor but not for the others: a floor the elevator built would be rebuilt as the <code>--floor</code> floor
+with score 0 and 3 lives. A scene start (<code>glitchygames/scene_start.py</code>) keeps these arguments,
+and <code>rebuild_scene(start=..., scene_class=..., options=...)</code> passes them back to the constructor,
+so a playback scope (a demo, an instant replay) that starts on floor 2 rebuilds floor 2 with the
+score and lives it began with. The values are the ones the floor <strong>began</strong> with
+(<code>starting_player_score</code>, <code>starting_player_lives</code>), not the current ones: cogs collected and lives
+lost on the floor are what the playback replays, so they must not be in the starting state
+(<code>test_floor_replay_arguments_rebuild_the_floor</code>). They are plain ints, so they round-trip
+through JSON exactly, as scene starts require.</p>
+<h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
+<p>Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
+<code>glitchygames/examples/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
+<code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code> (<code>glitchygames.sprites</code>) and
+<code>PhysicsBody</code> (<code>glitchygames.physics</code>). In the diagram, the Engine box is what every game gets; the
+Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
+class; dotted arrows are how the game uses an engine class; plain arrows are what a game class
+holds. The scene owns everything on a floor. The five sprite classes all declare
+<code>COORDINATE_SPACE = CoordinateSpace.WORLD</code>, and the scene keeps each kind in a list of its own
+(<code>platform_sprites</code>, ...) besides <code>all_sprites</code>.</p>
+<pre class="mermaid"><code>classDiagram
+    direction TB
+    namespace Engine {
+        class Scene {
+            camera, collisions, tweens
+            replay_arguments()
+        }
+        class PauseScene {
+            the frozen floor, dimmed
+            SPACE or Start/A resumes it, ESC or B/Back quits
+        }
+        class GameOverScene {
+            score and high scores
+            SPACE or Start/A restarts, ESC or B/Back quits
+        }
+        class Sprite
+        class PhysicsBody {
+            GravityBehavior
+            AccelerationBehavior
+            BoundsConstraint
+        }
+    }
+    namespace ClockworkKeep {
+        class ClockworkKeepScene {
+            MAX_FRAME_SECONDS = 0.05
+            floor_index, floor_data
+            floor_elapsed_time
+            platform_sprites, elevator_sprites
+            moving_gear_sprites, collectible_sprites
+            actions: ActionMap
+            sounds: SoundBank
+            camera: Camera2D
+            saves: SaveManager
+            victory_platform
+            dt_tick(dt)
+            render(screen)
+        }
+        class ClockworkKeepVictoryScene {
+            the GameOverScene layout
+            titled VICTORY!
+        }
+        class Tinker {
+            lives, score, floor
+            state#95;machine: AnimationStateMachine
+            dt_tick(dt)
+            update()
+        }
+        class Platform
+        class Elevator
+        class MovingGear {
+            moved_x, moved_y
+            dt_tick(dt)
+        }
+        class CogCollectible {
+            points
+            dt_tick(dt)
+        }
+        class FloorData {
+            &lt;&lt;dataclass&gt;&gt;
+            platforms, elevators
+            collectibles, moving_gears
+        }
+    }
+
+    Scene &lt;|-- PauseScene
+    Scene &lt;|-- GameOverScene
+    Scene &lt;|-- ClockworkKeepScene
+    GameOverScene &lt;|-- ClockworkKeepVictoryScene
+    Sprite &lt;|-- Tinker
+    Sprite &lt;|-- Platform
+    Sprite &lt;|-- Elevator
+    Sprite &lt;|-- MovingGear
+    Sprite &lt;|-- CogCollectible
+    PauseScene &lt;.. ClockworkKeepScene : next_scene on Esc or focus lost
+    GameOverScene &lt;.. ClockworkKeepScene : after the last life
+    ClockworkKeepVictoryScene &lt;.. ClockworkKeepScene : on the top platform
+    PhysicsBody &lt;.. Tinker : physics
+    ClockworkKeepScene --&gt; FloorData : builds its sprites from
+    ClockworkKeepScene --&gt; Tinker : player</code></pre>
+<p><code>Tinker</code>'s <code>world_x</code>, <code>world_y</code>, <code>velocity_x</code>, <code>velocity_y</code>, <code>on_ground</code> and <code>facing_right</code> are
+properties that delegate to its <code>PhysicsBody</code>, so the scene and the engine read the body through
+the sprite. The debug overlay's physics panel finds the body as <code>sprite.physics</code>.</p>
+<h2 id="the-world">The world<a class="headerlink" href="#the-world" title="Permanent link">#</a></h2>
+<h3 id="floors">Floors<a class="headerlink" href="#floors" title="Permanent link">#</a></h3>
+<p>A floor is a <code>FloorData</code> (<code>levels.py</code>): one screen wide (800 px), several screens tall, with walls
+100 px wide on each side, leaving a 600 px playfield (x 100 to 700). World coordinates start at
+the floor's top-left; y grows downward, so climbing means a falling <code>world_y</code>. The Tinker spawns
+at x 400, 60 px above the floor's bottom.</p>
+<table>
+<thead>
+<tr>
+<th>Floor</th>
+<th>Height</th>
+<th>Platforms</th>
+<th>Cogs (bronze / silver / gold)</th>
+<th>Points</th>
+<th>Way up</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 Boiler Room</td>
+<td>960 (2 screens)</td>
+<td>14</td>
+<td>4 / 1 / 1</td>
+<td>190</td>
+<td>Elevator at the top</td>
+</tr>
+<tr>
+<td>1 Gear Works</td>
+<td>1440 (3 screens)</td>
+<td>19</td>
+<td>5 / 3 / 1</td>
+<td>300</td>
+<td>Elevator at the top</td>
+</tr>
+<tr>
+<td>2 Clock Face</td>
+<td>1920 (4 screens)</td>
+<td>21</td>
+<td>5 / 7 / 2</td>
+<td>600</td>
+<td>The moving gear, then the victory platform</td>
+</tr>
+</tbody>
+</table>
+<p>Cogs are worth 10 (bronze), 50 (silver) and 100 (gold) points. There are no enemies.</p>
+<p><strong>Victory.</strong> The Clock Face (the last floor) has no elevator; its highest platform is the
+floor's <code>victory_platform</code> (<code>_find_victory_platform</code>; None on the floors below). When ground
+collision stands the Tinker on it (<code>supporting_platform</code>), <code>dt_tick</code> calls <code>_win()</code> after the
+cog pickups (so the victory cog above it counts): the floor stops, the camera stops following,
+the victory chime plays, the high score is saved and the floor fades to <code>ClockworkKeepVictoryScene</code>, the
+engine's <code>GameOverScene</code> (final score and high scores, Space or a gamepad's Start or A restarts, Esc or B or Back quits) with a gold
+VICTORY! title.</p>
+<p>The floor builds its sprites in <code>__init__</code>, in this order: the parallax background, platforms,
+elevators, moving gears, cogs, then the player. Sprites of one layer draw in the order they are
+added, so the order is part of the picture. Each class sets <code>_layer</code> before <code>Sprite.__init__</code>
+(<code>LAYER_TERRAIN</code> 4, <code>LAYER_COLLECTIBLES</code> 5, <code>LAYER_PLAYER</code> 7, the background <code>LAYER_FAR_BACKGROUND</code>
+0) for the <code>LayeredDirty</code> group.</p>
+<h3 id="world-space-sprites">World-space sprites<a class="headerlink" href="#world-space-sprites" title="Permanent link">#</a></h3>
+<p>Every gameplay sprite (<code>Tinker</code>, <code>Platform</code>, <code>Elevator</code>, <code>MovingGear</code>, <code>CogCollectible</code>) declares
+<code>COORDINATE_SPACE = CoordinateSpace.WORLD</code> and keeps float <code>world_x</code> / <code>world_y</code>. The game never
+writes their <code>rect</code>: each frame the engine sets it from the camera, culls sprites more than 32 px
+off screen, and marks moved sprites dirty. The game reads positions from <code>world_x</code> / <code>world_y</code> and
+from collision rects, never from <code>rect</code> (except <code>rect.width</code>, which does not move). A cog bobs by
+moving its <code>world_y</code>, not by shifting pixels in its image.</p>
+<p>The HUD is not a sprite: <code>render()</code> draws the score (top left), lives (top right) and floor name
+(top centre) straight onto the screen after the sprites, with a 1 px shadow. Its font is loaded in
+<code>setup()</code>, so a floor rendered before setup draws no HUD.</p>
+<h3 id="camera">Camera<a class="headerlink" href="#camera" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>camera.follow(target=player, axes=FollowAxes.BOTH)</code></td>
+<td>in <code>setup()</code></td>
+<td>The engine aims the camera at the Tinker every frame</td>
+</tr>
+<tr>
+<td><code>set_bounds(min_x=0, max_x=0, ...)</code></td>
+<td>in <code>__init__</code></td>
+<td>No horizontal scroll: the tower is one screen wide</td>
+</tr>
+<tr>
+<td><code>set_bounds(min_y=0, max_y=height - 480)</code></td>
+<td>in <code>__init__</code></td>
+<td>The camera stops at the floor's top and bottom</td>
+</tr>
+<tr>
+<td><code>lead_y=200</code> (<code>CAMERA_LEAD_Y</code>)</td>
+<td>in <code>__init__</code></td>
+<td>The camera's top edge sits 200 px above the Tinker's top: a little less view above it than below it on the 480 px screen</td>
+</tr>
+<tr>
+<td><code>camera.follow(target=None)</code></td>
+<td>at game over</td>
+<td>The floor stands still during the fade</td>
+</tr>
+</tbody>
+</table>
+<p>The game never calls <code>camera.update()</code> and has no camera loop (<code>test_scene_has_no_camera_loop</code>).
+<code>setup()</code> does not <code>snap_to</code> the player, so on a fresh start the camera eases down from the
+floor's top to the spawn; a floor arriving by elevator is snapped to its target by the
+transition's arrival capture.</p>
+<h3 id="the-parallax-background-and-the-animated-clock">The parallax background and the animated clock<a class="headerlink" href="#the-parallax-background-and-the-animated-clock" title="Permanent link">#</a></h3>
+<p>Each floor has one parallax layer (<code>camera.add_background_layer</code>, <code>scroll_factor=PARALLAX_FAR</code>
+= 0.1): the tower walls with brick and windows, plus the floor's machinery (the Boiler Room's
+furnace glow and pipes, the Gear Works' gears and chain). The engine calls a layer's draw
+function again only when its offset changes, so these draw functions depend only on the camera
+position they are given.</p>
+<p>The Clock Face's layer is different: a working clock whose hands show <code>CLOCK_START_SECONDS</code> (11:58,
+two minutes to midnight) plus <code>floor_elapsed_time</code>, the floor's game time. Its picture changes
+while the camera stands still, so that layer is added with <code>animated=True</code> and redraws every frame
+(<code>test_only_the_clock_background_is_animated</code>, <code>test_clock_hands_move_on_a_still_camera</code>). The
+scene passes a bound method (<code>_draw_timed_clock_background</code>) that reads <code>floor_elapsed_time</code>.
+<code>floor_elapsed_time</code> adds the capped dt in <code>dt_tick</code>, so it stops while paused and after game
+over.</p>
+<h3 id="platforms-elevators-moving-gear-and-cogs">Platforms, elevators, moving gear and cogs<a class="headerlink" href="#platforms-elevators-moving-gear-and-cogs" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Sprite</th>
+<th>Image</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Platform</code></td>
+<td>12 px tall metal bar in the floor's theme colours, drawn once</td>
+<td>One-way support: the Tinker jumps up through it and lands on top of it</td>
+</tr>
+<tr>
+<td><code>Elevator</code></td>
+<td>60 x 8 px car with caution stripes and an up arrow</td>
+<td>Supports like a platform; interact while standing on it rides to the next floor</td>
+</tr>
+<tr>
+<td><code>MovingGear</code></td>
+<td><code>size</code> x <code>size/4</code> bar with teeth along its top, <code>dirty = 2</code></td>
+<td>Moves on <code>centre + range * sin(timer * speed)</code> each <code>dt_tick</code> and records <code>moved_x</code> / <code>moved_y</code></td>
+</tr>
+<tr>
+<td><code>CogCollectible</code></td>
+<td>16 px cog, redrawn each tick with spinning teeth</td>
+<td>Bobs 3 px; picked up when its collision rect overlaps the Tinker's</td>
+</tr>
+</tbody>
+</table>
+<p>The Clock Face's one moving gear (<code>MovingGearData</code>: 64 px wide, ±150 px horizontally, speed 1.2,
+a 5.2 s round trip) is the only way up its final approach: the centre step is 180 px below the
+last step, beyond a running jump's ~140 px, so the climber hops onto the gear (90 px up), rides
+it right, and hops off at the end of its sweep, where it pauses. <code>test_the_route_is_within_a_walking_jump</code>
+and <code>test_climbing_the_final_approach_on_the_gear</code> pin the route.</p>
+<h2 id="the-player-movement-physics-and-collision">The player: movement, physics and collision<a class="headerlink" href="#the-player-movement-physics-and-collision" title="Permanent link">#</a></h2>
+<h3 id="physics">Physics<a class="headerlink" href="#physics" title="Permanent link">#</a></h3>
+<p><code>Tinker</code> builds a <code>PhysicsBody</code> with:</p>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GravityBehavior</code></td>
+<td>1200 px/s², terminal fall speed 800 px/s</td>
+</tr>
+<tr>
+<td><code>AccelerationBehavior</code></td>
+<td>1600 px/s² toward the target speed, 1200 px/s² to slow down</td>
+</tr>
+<tr>
+<td><code>BoundsConstraint</code></td>
+<td>The side walls, refitted to the hitbox every tick</td>
+</tr>
+<tr>
+<td>Speeds</td>
+<td>Walk 160 px/s, run 280 px/s</td>
+</tr>
+<tr>
+<td>Jumps</td>
+<td><code>-480</code> px/s (~96 px high), running <code>-580</code> px/s (~140 px high)</td>
+</tr>
+</tbody>
+</table>
+<p><code>move_left</code> / <code>move_right</code> / <code>stop_horizontal</code> only set the acceleration behaviour's target
+velocity; the body accelerates toward it. <code>jump()</code> sets <code>velocity_y</code> only when <code>on_ground</code>, so an
+airborne Tinker never jumps again.</p>
+<p>An <code>AnimationStateMachine</code> picks the pose from the body's animation context: <code>idle</code>, <code>running</code>
+(<code>abs(velocity_x) &gt; 0.1</code>), <code>jumping</code> (<code>velocity_y &lt; -10</code>) and <code>falling</code> (<code>velocity_y &gt; 50</code> and not
+on the ground).</p>
+<h3 id="the-pose-rule-and-hitboxes">The pose rule and hitboxes<a class="headerlink" href="#the-pose-rule-and-hitboxes" title="Permanent link">#</a></h3>
+<p>The Tinker's hitbox is its image's visible pixels (the engine's default: transparent pixels
+trimmed, measured on every query). The figure's transparent margin moves with its pose and
+facing, so the pose must be drawn before anything collides with it. <code>Tinker.dt_tick</code> does, in
+order:</p>
+<ol>
+<li>Fit the wall bounds to the current hitbox, then <code>physics.tick(dt)</code>.</li>
+<li>Evaluate the state machine.</li>
+<li>Draw the pose (<code>_draw_pose</code>: clear the image, <code>draw_tinker(...)</code>).</li>
+<li>Refit the wall bounds to the new hitbox and apply them again, so turning toward a wall never
+   puts the hitbox inside it (BUGS.md #64, <code>TestPoseBeforeCollision</code>).</li>
+</ol>
+<p><code>Tinker.update()</code>, which runs in the render phase, only applies the respawn fade
+(<code>image.set_alpha</code>). Drawing the pose there would make the floor's ground and cog checks use the
+previous frame's pose.</p>
+<p>All support and pickups use collision rects (<code>get_sprite_collision_rect</code>) and
+<code>collision_rect_offset</code>, not the drawn image: the feet are the hitbox's bottom, and only a hitbox
+pixel over a platform supports (<code>TestPlatformSupportUsesHitbox</code>, <code>TestHitboxLooseEnds</code>). The
+scene registers two collision layers, <code>player</code> and <code>cogs</code>; cog pickup is
+<code>collisions.check_overlap('player', 'cogs', ...)</code>, and the debug overlay's hitbox panel draws the
+same layers.</p>
+<h3 id="ground-collision">Ground collision<a class="headerlink" href="#ground-collision" title="Permanent link">#</a></h3>
+<p><code>_resolve_ground_collision</code> clears <code>on_ground</code>, then stands the Tinker on the support it
+finds, falling or at rest (<code>velocity_y &gt;= 0</code>), whose top its feet reached this tick and its hitbox
+overlapping it horizontally. The fall is swept (<code>_feet_reach_surface</code>): the feet must end the tick
+at or below the support's top, and have started it (before this tick's movement; a gear's ride
+is not part of the fall) no more than <code>GROUND_SNAP_TOLERANCE</code> (20 px) below it. So a long tick at
+the 800 px/s terminal speed, which moves the feet up to 40 px at the 50 ms cap, still lands on
+the platform it crossed instead of passing through it:</p>
+<ol>
+<li>Platforms (their <code>world_y</code> is their top).</li>
+<li>Elevators (checked after the platforms, so an elevator standing on its shelf platform wins).</li>
+<li>Only if neither held it: moving gears, by the gear's collision rect top (<code>_land_on_moving_gear</code>),
+   which also sets <code>riding_gear</code>.</li>
+</ol>
+<p>A gear carries its rider in <code>_ride_moving_gear</code>, which runs after every sprite's <code>dt_tick</code> (the
+gear has moved) and before ground collision: the rider moves by the gear's <code>moved_x</code> / <code>moved_y</code>,
+so the collision that follows finds it on the gear again. A jump clears <code>on_ground</code>, so a player
+leaving the gear is not carried.</p>
+<h3 id="max_frame_seconds">MAX_FRAME_SECONDS<a class="headerlink" href="#max_frame_seconds" title="Permanent link">#</a></h3>
+<p><code>ClockworkKeepScene.MAX_FRAME_SECONDS = 0.05</code>: after a hitch (Cmd-Tab, a slow frame) the engine
+hands <code>dt_tick</code> and the camera aim at most 50 ms, so the game advances as at 20 FPS at worst
+instead of jumping. The cap alone does not keep a fast fall out of a platform (40 px in a 50 ms
+tick); the swept ground check does. The scene manager's own <code>dt</code> (pacing, FPS statistics, shake) stays the raw
+frame time, and recordings keep the raw dt.</p>
+<h2 id="one-frame">One frame<a class="headerlink" href="#one-frame" title="Permanent link">#</a></h2>
+<p>The engine runs the frame; the floor's code runs in two places: <code>dt_tick</code> (logic, physics,
+collision) and the render phase (<code>update()</code>, then <code>render()</code>). The Engine box is the engine's
+frame loop; the Clockwork Keep box is the game's scene and sprites.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant GE as GameEngine
+    end
+    box rgb(255,243,224) Clockwork Keep
+        participant CKS as ClockworkKeepScene
+        participant T as Tinker and the other sprites
+    end
+
+    SM-&gt;&gt;SM: camera.begin_frame()
+    SM-&gt;&gt;CKS: dt_tick(min(dt, 0.05))
+    CKS-&gt;&gt;T: sprite.dt_tick(dt) for all_sprites
+    Note over CKS: elevator check, movement input,&lt;br/&gt;gear ride, ground, pit, cogs
+    SM-&gt;&gt;GE: process events
+    GE-&gt;&gt;CKS: on_key_down_event / on_joy_button_down_event ...
+    Note over CKS: ActionMap.handle_event(event)&lt;br/&gt;jump right away, pause, quit
+    SM-&gt;&gt;SM: supervisor slot, then shake and rumble
+    SM-&gt;&gt;SM: aim the camera at the player
+    SM-&gt;&gt;SM: position world sprites from the camera, cull
+    SM-&gt;&gt;CKS: update() (Scene: sprite.update(), the Tinker's fade)
+    SM-&gt;&gt;CKS: render(screen): fill, draw sprites, HUD
+    SM-&gt;&gt;SM: present, then start a pending transition or switch
+    SM-&gt;&gt;SM: finish frame (pace, measure dt)</code></pre>
+<p>Input crosses the frame boundary in two ways. A jump happens in the event handler
+(<code>_try_jump</code>), so its velocity moves the Tinker in the next <code>dt_tick</code>. Interact is read at the
+top of the next <code>dt_tick</code> with <code>actions.just_pressed('interact')</code>, which is why <code>_check_elevator</code>
+runs before <code>_process_movement_input</code> calls <code>actions.begin_frame()</code> (which clears the frame's
+presses).</p>
+<p>Everything in it is the game's code (the Clockwork Keep box) except its first step,
+<code>super().dt_tick(dt)</code>, which runs the engine's <code>Scene.dt_tick</code> (the Engine box).</p>
+<pre class="mermaid"><code>flowchart TB
+    tick(["ClockworkKeepScene.dt_tick(dt)"])
+    subgraph GAME_TICK["Clockwork Keep"]
+        direction TB
+        over{"game_over_triggered?"}
+        done(["return: the floor stands still"])
+        elapsed["floor_elapsed_time += dt"]
+        elevator["_check_elevator&lt;br/&gt;interact just pressed, standing on an elevator?"]
+        movement["_process_movement_input&lt;br/&gt;actions.begin_frame(), held move and run"]
+        sprites["sprite.dt_tick(dt) for every sprite&lt;br/&gt;Tinker: physics, state, pose, walls&lt;br/&gt;gear moves, cogs bob"]
+        ride["_ride_moving_gear&lt;br/&gt;carry the rider by moved_x, moved_y"]
+        ground["_resolve_ground_collision&lt;br/&gt;platforms, elevators, then gears"]
+        land["_play_land_on_touchdown&lt;br/&gt;'land' on the frame the feet touch"]
+        pit{"world_y below the floor&lt;br/&gt;by more than 100 px?"}
+        die["_player_die"]
+        cogs["_check_collectibles"]
+    end
+    subgraph ENGINE_TICK["Engine"]
+        direction TB
+        base["Scene.dt_tick: dt, tweens&lt;br/&gt;(the respawn fade runs here)"]
+    end
+    tick --&gt;|"first: super().dt_tick(dt)"| base
+    base --&gt;|"returns"| over
+    over --&gt;|yes| done
+    over --&gt;|no| elapsed
+    elapsed --&gt; elevator
+    elevator --&gt; movement
+    movement --&gt; sprites
+    sprites --&gt; ride
+    ride --&gt; ground
+    ground --&gt; land
+    land --&gt; pit
+    pit --&gt;|yes| die
+    pit --&gt;|no| cogs
+    die --&gt; cogs</code></pre>
+<p><code>_play_land_on_touchdown</code> compares this frame's <code>on_ground</code> with the last frame's. The first
+result only initializes it, so the arriving floor's off-screen tick during the elevator ride
+plays nothing, and respawning resets it (<code>test_first_tick_never_plays_land</code>,
+<code>test_respawn_does_not_play_land</code>).</p>
+<h2 id="riding-the-elevator">Riding the elevator<a class="headerlink" href="#riding-the-elevator" title="Permanent link">#</a></h2>
+<p>The ride itself is the engine's (<code>ElevatorTransition</code>, Engine box); the floors and their callbacks
+are the game's (Clockwork Keep box).</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant P as Player
+    box rgb(255,243,224) Clockwork Keep
+        participant New as Floor N+1
+        participant Old as Floor N (ClockworkKeepScene)
+    end
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant ET as ElevatorTransition
+    end
+
+    P-&gt;&gt;Old: W / Y (interact)
+    Old-&gt;&gt;Old: _check_elevator (next dt_tick):&lt;br/&gt;on an elevator, not the last floor
+    Old-&gt;&gt;New: ClockworkKeepScene(floor_index=N+1,&lt;br/&gt;player_score, player_lives, options)
+    Old-&gt;&gt;ET: ElevatorTransition(duration=4.0,&lt;br/&gt;easing='ease_in_sine', player_surface=...)
+    Old-&gt;&gt;SM: create_voice(owner=transition), motor.start()
+    Old-&gt;&gt;SM: transition_to(New, ET)&lt;br/&gt;with a cue at progress 1.0
+    loop every frame of the ride
+        ET-&gt;&gt;Old: on_update: _update_elevator_motor(transition)
+        Old-&gt;&gt;SM: rumble.set_sustained(low, high)&lt;br/&gt;scaled by car speed
+        Note over Old: motor pitch 45 to 110 Hz, volume 0.15 to 0.6
+    end
+    ET-&gt;&gt;Old: cue 1.0: _elevator_arrived()
+    Old-&gt;&gt;SM: motor.stop_now(), rumble.clear_sustained()
+    Old-&gt;&gt;SM: play 'elevator_clank',&lt;br/&gt;SCREEN shakes: bounce + rattle
+    SM-&gt;&gt;New: the ride ends, Floor N+1 is active</code></pre>
+<p>The ride is <code>glitchygames/transitions/elevator.py</code>: a tall composite of the old floor, a shaft and
+the new floor scrolls up while the car and the Tinker (a copy of its image) stay pinned at the
+screen's centre. <code>ease_in_sine</code> arrives at full speed, so the stop reads as a slam. The car's
+speed is the easing's slope (<code>transition.eased_velocity_at(progress)</code>), divided by its peak
+(sampled over 101 points when the ride starts), so motor pitch, motor volume and rumble all follow
+the car.</p>
+<p>The callbacks run after the old floor's <code>cleanup()</code>, so they touch only SceneManager services: the
+live voice, the rumble and SCREEN shakes (a WORLD shake would need the old floor's sprites). A
+ride with no free live voice, or without audio, rides silently but still rumbles
+(<code>test_ride_without_free_voice_still_rumbles</code>). <code>_update_elevator_motor</code> ignores the completing
+frame (progress 1.0): the arrival cue runs first and clears the rumble, and updating again would
+restart it.</p>
+<p>Input pressed during the ride is not delivered to the new floor: a jump pressed and released
+mid-ride does not jump on arrival (<code>tests/world/test_transition_input.py</code>).</p>
+<h2 id="death-respawn-and-game-over">Death, respawn and game over<a class="headerlink" href="#death-respawn-and-game-over" title="Permanent link">#</a></h2>
+<p>The game decides a death and what follows (Clockwork Keep box); the fade and the game-over screen
+are the engine's (Engine box).</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph GAME_DEATH["Clockwork Keep"]
+        direction TB
+        fall["world_y more than 100 px&lt;br/&gt;below the floor's bottom"] --&gt; lose["lives -= 1"]
+        lose --&gt; left{"lives left?"}
+        left --&gt;|yes| deathSound["play 'death'"]
+        deathSound --&gt; fadeOut["_respawn_player: is_respawning,&lt;br/&gt;velocity 0, fade alpha to 0 (0.2 s)"]
+        fadeOut --&gt; respawn["at the spawn point, on the ground,&lt;br/&gt;riding no gear, fade in (0.3 s)"]
+        left --&gt;|no| over["game_over_triggered = True&lt;br/&gt;camera.follow(target=None)"]
+        over --&gt; sounds["play 'game_over'&lt;br/&gt;_save_high_score()"]
+        sounds --&gt; clear["screen_shake.clear()"]
+        clear --&gt; fade["transition_to(game over,&lt;br/&gt;FadeTransition(duration=1.0))"]
+    end
+    subgraph ENGINE_DEATH["Engine"]
+        direction TB
+        deathFadeTransition["FadeTransition&lt;br/&gt;1 s fade"]
+        deathGameOver["GameOverScene(final_score, high_scores)&lt;br/&gt;final score, high scores"]
+        deathFadeTransition --&gt; deathGameOver
+    end
+    fade -.-&gt;|uses| deathFadeTransition</code></pre>
+<p>While <code>is_respawning</code>, movement input is ignored and the pit check is skipped. After game over
+<code>dt_tick</code> returns early, so dying again changes nothing (<code>test_dying_after_game_over_changes_nothing</code>).</p>
+<p>Every floor's ground spans the playfield wall to wall and the walls stop the hitbox, so a fall
+lands on the ground: the pit check is a safety net, not a hazard the levels use. Since the ground
+check sweeps the fall, even a slow frame at terminal speed lands on the ground rather than
+dropping through it.</p>
+<h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
+<p><code>sounds.py</code> defines seven <code>SoundRecipe</code>s (synthesized tones: oscillators, envelopes, filters,
+tremolo), played through one <code>SoundBank(ALL_RECIPES)</code> per floor. <code>setup()</code> calls
+<code>sounds.prerender()</code>, so no sound renders mid-frame (the clank would otherwise render on the slam
+frame).</p>
+<table>
+<thead>
+<tr>
+<th>Sound</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jump</code></td>
+<td><code>_try_jump</code>, when the jump happens</td>
+</tr>
+<tr>
+<td><code>land</code></td>
+<td>The frame the feet touch down</td>
+</tr>
+<tr>
+<td><code>cog_pickup</code></td>
+<td>A cog is collected</td>
+</tr>
+<tr>
+<td><code>death</code></td>
+<td>A life is lost and lives remain</td>
+</tr>
+<tr>
+<td><code>game_over</code></td>
+<td>The last life is lost</td>
+</tr>
+<tr>
+<td><code>elevator_clank</code></td>
+<td>The elevator arrives (cue at progress 1.0)</td>
+</tr>
+<tr>
+<td><code>victory</code></td>
+<td>The Clock Face is won (<code>_win</code>): the clock tower's chime, struck bells (each a fundamental, its octave and a 2.76x overtone) climbing C5, E5, G5, then C6 ringing over a deep C3</td>
+</tr>
+</tbody>
+</table>
+<p>The elevator's motor is not a recipe but a live voice: a low-passed sawtooth with tremolo, made
+with <code>scene_manager.live_audio.create_voice(owner=transition)</code> and retuned every frame of the
+ride (<code>ELEVATOR_MOTOR_*</code> constants). <code>SoundBank.play</code> is a no-op when audio is unavailable.</p>
+<h2 id="state-score-lives-and-saves">State, score, lives and saves<a class="headerlink" href="#state-score-lives-and-saves" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Where</th>
+<th>Lifetime</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>player.score</code>, <code>player.lives</code></td>
+<td><code>Tinker</code></td>
+<td>Carried to the next floor through the constructor</td>
+</tr>
+<tr>
+<td><code>starting_player_score</code>, <code>starting_player_lives</code></td>
+<td><code>ClockworkKeepScene</code></td>
+<td>As the floor began (for <code>replay_arguments</code>)</td>
+</tr>
+<tr>
+<td><code>floor_elapsed_time</code></td>
+<td><code>ClockworkKeepScene</code></td>
+<td>The floor's capped game time (the clock)</td>
+</tr>
+<tr>
+<td><code>game_over_triggered</code>, <code>riding_gear</code>, <code>supporting_platform</code></td>
+<td><code>ClockworkKeepScene</code></td>
+<td>Per floor (<code>game_over_triggered</code> is also set by victory)</td>
+</tr>
+<tr>
+<td>High scores</td>
+<td><code>open_saves(app_name='clockwork-keep')</code>, save <code>high_scores</code></td>
+<td>On disk, across runs</td>
+</tr>
+</tbody>
+</table>
+<p>The game starts with 3 lives (<code>STARTING_LIVES</code>). At game over and at victory <code>_save_high_score</code> appends
+<code>{'score': ..., 'floor': ...}</code> to the saved <code>scores</code> list, keeps the 10 best (best first) and
+saves it; <code>GameOverScene</code> shows the list. A missing save loads as an empty list. In a replay the
+saves are a <code>MemorySaveManager</code> seeded from the recording, so a replayed game over never touches
+real high scores.</p>
+<h2 id="engine-features-it-uses">Engine features it uses<a class="headerlink" href="#engine-features-it-uses" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>How Clockwork Keep uses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>World space and camera</td>
+<td>Every gameplay sprite is a WORLD sprite; the engine follows the player and positions everything</td>
+</tr>
+<tr>
+<td>Parallax layers</td>
+<td>One layer per floor; the clock layer is <code>animated=True</code></td>
+</tr>
+<tr>
+<td>Physics</td>
+<td><code>PhysicsBody</code> with gravity, acceleration and a bounds constraint</td>
+</tr>
+<tr>
+<td>Collision layers</td>
+<td><code>player</code> and <code>cogs</code>, with trimmed (visible-pixel) hitboxes</td>
+</tr>
+<tr>
+<td><code>ActionMap</code></td>
+<td>Scancode bindings for every key, controller buttons for the gamepad</td>
+</tr>
+<tr>
+<td>Tweens</td>
+<td>The respawn fade out and in (<code>self.tweens.tween(...)</code>)</td>
+</tr>
+<tr>
+<td>Transitions</td>
+<td><code>ElevatorTransition</code> (with <code>on_update</code> and <code>add_cue</code>), <code>FadeTransition</code> to game over</td>
+</tr>
+<tr>
+<td>Shake and rumble</td>
+<td>Two SCREEN shakes on arrival, <code>ELEVATOR_STOP_BOUNCE</code> (BOUNCE, vertical) and <code>ELEVATOR_STOP_RATTLE</code> (NOISE), each with <code>RumbleSettings(scale_with_strength=False)</code>; sustained rumble during the ride</td>
+</tr>
+<tr>
+<td>Sound synthesis</td>
+<td>Six recipes and one live voice</td>
+</tr>
+<tr>
+<td>Saves</td>
+<td><code>open_saves</code>, <code>SaveManager.load</code> / <code>save</code></td>
+</tr>
+<tr>
+<td>Built-in scenes</td>
+<td><code>PauseScene</code> and <code>GameOverScene</code></td>
+</tr>
+<tr>
+<td>Debug overlay</td>
+<td>No <code>debug_draw</code> of its own: the hitbox panel shows the <code>player</code> and <code>cogs</code> layers (platforms, unlayered, as full rects), the physics panel the Tinker's body, the camera panel the bounds</td>
+</tr>
+<tr>
+<td>Random streams</td>
+<td>The game draws no randomness itself; the NOISE rattle shake draws from the engine's <code>shake</code> stream, which <code>--random-seed</code> fixes</td>
+</tr>
+<tr>
+<td>Recording and replay</td>
+<td><code>--record-trace</code> / <code>--replay-trace</code> work unchanged: the game reads input only through events and its <code>ActionMap</code>, time only from the dt it is given, and saves only through <code>open_saves</code>, so the doors serve all of it</td>
+</tr>
+<tr>
+<td>Scene starts</td>
+<td><code>replay_arguments()</code> lets any floor be rebuilt for a playback scope</td>
+</tr>
+</tbody>
+</table>
+<p>The game does not set <code>INSTANT_REPLAY_SECONDS</code>, ships no bundled demo, and sets no
+<code>PIXEL_SNAP_MODE</code> (the default, <code>NEAREST_HALF_UP</code>).</p>
+<h3 id="golden-trace-and-golden-replay">Golden trace and golden replay<a class="headerlink" href="#golden-trace-and-golden-replay" title="Permanent link">#</a></h3>
+<p>Clockwork Keep has both of the engine's golden checks:</p>
+<ul>
+<li><strong>Golden trace</strong> (<code>tests/world/golden/clockwork_keep.jsonl.gz</code>, checked by
+  <code>tests/world/test_golden_traces.py</code>): a 900-frame scripted run (<code>clockwork_keep_script</code> in
+  <code>scripts/record_golden_traces.py</code>, fixed dt 1/60) recorded before the world-space change. It
+  jumps for a cog, walks both ways, is placed on the first elevator at frame 330 (reaching it
+  takes more platforming than the script holds), presses W at frame 350, rides frames 352-592,
+  then walks and pauses (frames 740-790) on Gear Works. Each sprite's rect and visibility must
+  match the baseline frame by frame; six <code>ExpectedDifference</code> entries explain every difference
+  (engine culling, separate snapping of sprite and camera, and the pose fix's 2 px on frame 0 and
+  during the ride).</li>
+<li><strong>Golden replay</strong> (<code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code>, 532 frames): the
+  same script's first 330 frames plus a controls tail (run right with Left Shift, jump with Space,
+  interact away from an elevator, pause and resume with Esc / Space, quit with Q), recorded
+  through the real engine loop by <code>scripts/record_scripted_session.py --game clockwork_keep
+  --frames 330</code>. The replay plugin replays it in a child process
+  (<code>clockwork-keep --replay-trace ... --headless</code>) and fails unless it exits <code>SUCCESS</code>.
+  <code>tests/replay/test_golden_replays.py</code> also checks that the golden replays exercise every
+  control the game binds (<code>ClockworkKeepScene._create_action_map</code>); the gamepad bindings are
+  listed as unexercised, because the dummy driver has no gamepad.</li>
+</ul>
+<p>Both harnesses drop the focus-lost event SDL's dummy driver posts at startup, which would
+otherwise auto-pause the game. Never re-record either baseline to make a change pass.</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it pins</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/examples/test_clockwork_keep.py</code></td>
+<td>The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, <code>MAX_FRAME_SECONDS</code>, <code>replay_arguments</code>, <code>--floor</code>, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, <code>main()</code></td>
+</tr>
+<tr>
+<td><code>tests/world/test_golden_traces.py</code></td>
+<td>The 900-frame golden trace (above)</td>
+</tr>
+<tr>
+<td><code>tests/world/test_gameplay_recording.py</code></td>
+<td>Recording the 900-frame script gives the golden harness's own sprite frames, including the ride and the pause</td>
+</tr>
+<tr>
+<td><code>tests/world/test_transition_input.py</code></td>
+<td>A jump pressed during the elevator ride does not jump on arrival</td>
+</tr>
+<tr>
+<td><code>tests/replay/test_golden_replays.py</code> and the replay plugin</td>
+<td>The golden replay replays clean; its controls coverage</td>
+</tr>
+<tr>
+<td><code>tests/replay/test_record_scripted_session.py</code></td>
+<td>A scripted session that would run past the script's first sprite placement (frame 330) is refused; one that stops before it records only input</td>
+</tr>
+<tr>
+<td><code>tests/animation/test_animation.py</code></td>
+<td>The state machine's falling condition (<code>FALLING_VELOCITY_THRESHOLD</code>) matches the old hand-written logic</td>
+</tr>
+</tbody>
+</table>
+<p>Run them with <code>uv run pytest tests/examples/test_clockwork_keep.py</code> (add <code>--dummy-only</code> to skip
+the native-driver comparison while iterating).</p>
+<h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/__init__.py</code></td>
+<td><code>main</code> (the <code>clockwork-keep</code> console script in <code>pyproject.toml</code>)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/game.py</code></td>
+<td><code>ClockworkKeepScene</code> (floors, input, collision, elevator, death, saves, HUD), <code>CogCollectible</code>, the arrival shakes, <code>main()</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/player.py</code></td>
+<td><code>Tinker</code>: physics body, state machine, the pose rule, wall fitting</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/terrain.py</code></td>
+<td><code>Platform</code>, <code>Elevator</code>, <code>MovingGear</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/levels.py</code></td>
+<td><code>FloorData</code>, <code>MovingGearData</code>, the three floors, <code>ALL_FLOORS</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/drawing.py</code></td>
+<td>Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, <code>clock_hand_angles</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/sounds.py</code></td>
+<td>The six <code>SoundRecipe</code>s, <code>ALL_RECIPES</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/clockwork_keep/constants.py</code></td>
+<td>Screen, physics, layers, gameplay, colours, elevator ride feel, the clock</td>
+</tr>
+<tr>
+<td><code>glitchygames/transitions/elevator.py</code></td>
+<td><code>ElevatorTransition</code> (engine, written for this game)</td>
+</tr>
+<tr>
+<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code>, <code>game_over_scene.py</code></td>
+<td>The pause and game-over screens</td>
+</tr>
+<tr>
+<td><code>scripts/record_golden_traces.py</code></td>
+<td>The golden input script (<code>clockwork_keep_script</code>) and the golden trace harness</td>
+</tr>
+<tr>
+<td><code>scripts/record_scripted_session.py</code></td>
+<td>Records the golden replay (<code>clockwork_keep_controls</code> is its tail)</td>
+</tr>
+<tr>
+<td><code>tests/world/golden/clockwork_keep.jsonl.gz</code></td>
+<td>Golden trace baseline</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code></td>
+<td>Golden replay fixture</td>
+</tr>
+<tr>
+<td><code>tests/examples/test_clockwork_keep.py</code></td>
+<td>The game's tests</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../brave_adventurer/" class="btn btn-neutral float-left" title="Brave Adventurer Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../mr_muncher/" class="btn btn-neutral float-right" title="Mr. Muncher Architecture">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../brave_adventurer/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../mr_muncher/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

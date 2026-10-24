@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/games/paddleslap/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>PaddleSlap Architecture - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "PaddleSlap Architecture";
+        var mkdocs_page_input_path = "games/paddleslap.md";
+        var mkdocs_page_url = "/glitchygames/games/paddleslap/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
+    <ul class="current">
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Games</li>
+      <li class="breadcrumb-item active">PaddleSlap Architecture</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/games/paddleslap.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../../architecture/bitmappy/" class="btn btn-neutral float-left" title="Bitmappy Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../brave_adventurer/" class="btn btn-neutral float-right" title="Brave Adventurer Architecture">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="paddleslap-architecture">PaddleSlap Architecture<a class="headerlink" href="#paddleslap-architecture" title="Permanent link">#</a></h1>
+<p>PaddleSlap is the smallest example game in GlitchyGames: two paddles, one or more balls, and no
+title screen. It is a two-player Pong in which the players share one score, the <strong>rally count</strong>
+(every paddle hit by any ball adds one), and the game ends when the last ball has left the court.
+Paddle hits can spawn more balls, so a long rally fills the court.</p>
+<p>It is the reference for a game built from the engine's ready-made parts: <code>BallSprite</code> and
+<code>VerticalPaddle</code> from <code>glitchygames.game_objects</code>, the collision manager's layers, <code>ActionMap</code>
+input, the save store, and the built-in pause and game-over scenes. It is also the engine's
+oldest regression subject: it has a golden trace, a golden replay and a bundled attract-mode demo.
+This page shows how it is put together, from its scenes down to one frame.</p>
+<h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w">                          </span><span class="c1"># one ball, extra balls spawned by paddle hits</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--balls<span class="w"> </span><span class="m">3</span><span class="w">                </span><span class="c1"># start with three balls</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--ball-spawn-mode<span class="w"> </span>none<span class="w">   </span><span class="c1"># never spawn: a classic one-ball rally</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--random-seed<span class="w"> </span><span class="m">42</span><span class="w">         </span><span class="c1"># the same serves, spawns and colours every run</span>
+</code></pre></div>
+<p>The game adds these options to the engine's own (<code>Game.args()</code>; the engine's options, such as
+<code>--target-fps</code>, <code>--resolution</code> and <code>--input-mode</code>, are in <a href="../../architecture/argument_system/">Argument System</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-b</code>, <code>--balls N</code></td>
+<td><code>1</code></td>
+<td>Balls on the court when the game starts</td>
+</tr>
+<tr>
+<td><code>--ball-spawn-mode MODE</code></td>
+<td><code>paddle_only</code></td>
+<td>When extra balls appear: <code>paddle_only</code>, <code>wall_only</code>, <code>ball_only</code>, <code>frequent</code>, <code>rare</code>, <code>none</code> (see <a href="#ball-spawning">Ball spawning</a>)</td>
+</tr>
+<tr>
+<td><code>-v</code>, <code>--version</code></td>
+<td>off</td>
+<td>Prints <code>Paddle Slap 1.1</code> and exits before the game starts (argparse's <code>version</code> action)</td>
+</tr>
+</tbody>
+</table>
+<p>The game sets no <code>TARGET_FPS</code> and no <code>MAX_FRAME_SECONDS</code>, so it runs at the engine's default
+60.01 FPS and its logic gets the raw frame time.</p>
+<h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Player 1 (left)</th>
+<th>Player 2 (right)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Paddle up</td>
+<td><code>W</code> position, D-pad up, left stick up</td>
+<td><code>Up</code> arrow, D-pad up, left stick up</td>
+</tr>
+<tr>
+<td>Paddle down</td>
+<td><code>S</code> position, D-pad down, left stick down</td>
+<td><code>Down</code> arrow, D-pad down, left stick down</td>
+</tr>
+<tr>
+<td>Gamepad</td>
+<td>the pad with instance id 0</td>
+<td>the pad with instance id 1</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Scene</th>
+<th>Key</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Game</td>
+<td><code>Space</code> position (on release)</td>
+<td>Pause</td>
+</tr>
+<tr>
+<td>Game</td>
+<td><code>Q</code> or <code>Esc</code> (on release)</td>
+<td>Quit (the base <code>Scene</code> posts <code>QUIT</code>)</td>
+</tr>
+<tr>
+<td>Pause</td>
+<td><code>Space</code>, or a gamepad's Start or A (press, then release)</td>
+<td>Resume</td>
+</tr>
+<tr>
+<td>Pause</td>
+<td><code>Esc</code> or a gamepad's B or Back (on press), <code>Q</code> (on release)</td>
+<td>Quit</td>
+</tr>
+<tr>
+<td>Pause</td>
+<td>window focus regained (after 0.5 s paused)</td>
+<td>Resume</td>
+</tr>
+<tr>
+<td>Game over</td>
+<td><code>Space</code>, or a gamepad's Start or A (press, then release)</td>
+<td>New game</td>
+</tr>
+<tr>
+<td>Game over</td>
+<td><code>Esc</code> or a gamepad's B or Back (on press), <code>Q</code> (on release)</td>
+<td>Quit</td>
+</tr>
+<tr>
+<td>Game over</td>
+<td>nothing for 10 s of game time</td>
+<td>Play the attract-mode demo; any key or button ends it</td>
+</tr>
+</tbody>
+</table>
+<p>The paddle and pause keys are bound by <strong>scancode</strong> (a physical key position, the same place on
+every layout: AZERTY players press <code>Z</code>/<code>S</code>). The quit keys and the pause and game-over screens'
+<code>Space</code> and <code>Esc</code> are the engine's built-in scenes' <strong>key codes</strong>. Gamepads only move paddles: the
+pause and game-over screens answer the keyboard only (a button press on the game-over screen just
+restarts its idle wait).</p>
+<h2 id="scenes">Scenes<a class="headerlink" href="#scenes" title="Permanent link">#</a></h2>
+<p>PaddleSlap has two scenes of its own and one built in.</p>
+<table>
+<thead>
+<tr>
+<th>Scene</th>
+<th>Module</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Game</code></td>
+<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td>The court: paddles, balls, collisions, rally count, high scores</td>
+</tr>
+<tr>
+<td><code>PauseScene</code></td>
+<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
+<td>The engine's pause screen: the game's last frame dimmed with PAUSED over it</td>
+</tr>
+<tr>
+<td><code>PaddleSlapGameOverScene</code></td>
+<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td><code>GameOverScene</code> (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new <code>Game</code></td>
+</tr>
+</tbody>
+</table>
+<p>In the diagram, the Engine box holds what the engine provides (its pause screen and the playback
+scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    direction TB
+    state "PaddleSlap" as GAME_SCENES {
+        state "Game" as Game
+        state "PaddleSlapGameOverScene&lt;br/&gt;(extends the engine's GameOverScene)" as GameOver
+        state "switch_to_scene(Game(options))" as NewGame
+    }
+    state "Engine" as ENGINE_SCENES {
+        state "PauseScene" as PauseScene
+        state "Demo (playback scope)" as Demo
+    }
+
+    [*] --&gt; Game : GameEngine(game=Game).start()
+    Game --&gt; PauseScene : Space released&lt;br/&gt;Scene.pause() sets next_scene
+    PauseScene --&gt; Game : Space, Start or A, or focus regained&lt;br/&gt;resume() switches back to the same Game
+    Game --&gt; GameOver : last ball gone&lt;br/&gt;_show_game_over() sets next_scene
+    GameOver --&gt; Demo : 10 s of game time idle&lt;br/&gt;play_recording(then=self)
+    Demo --&gt; GameOver : any key or button,&lt;br/&gt;or the demo's end
+    GameOver --&gt; NewGame : Space, Start or A&lt;br/&gt;resume()
+    NewGame --&gt; Game
+    Game --&gt; [*] : Q or Esc
+    PauseScene --&gt; [*] : Q or Esc
+    GameOver --&gt; [*] : Q, Esc, B or Back</code></pre>
+<ul>
+<li><strong>Pause and game over switch at the end of the frame.</strong> Both set <code>next_scene</code> instead of
+  switching at once, so the scene manager switches after the frame renders. Pausing during event
+  processing would otherwise freeze the previous frame's picture (the comment on <code>Scene.pause()</code>).
+  <code>PauseScene</code> shows <code>previous_scene.screenshot</code>; <code>resume()</code> switches back to the same <code>Game</code>
+  object, so the rally goes on where it was.</li>
+<li><strong>A new game is always a <code>Game</code>.</strong> <code>GameOverScene.resume()</code> restarts the type of the scene
+  manager's <code>previous_scene</code>, which a playback scope can change (BUGS.md #81), so
+  <code>PaddleSlapGameOverScene.resume()</code> names <code>Game</code> explicitly.</li>
+<li><strong>Rebuilding the game-over screen.</strong> <code>PaddleSlapGameOverScene.replay_arguments()</code> returns
+  <code>final_score</code> and a copy of <code>high_scores</code>, so a recording that starts on this screen can rebuild
+  it (scene starts, in <a href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>).</li>
+</ul>
+<h3 id="the-attract-mode-demo">The attract-mode demo<a class="headerlink" href="#the-attract-mode-demo" title="Permanent link">#</a></h3>
+<p>PaddleSlap has no title screen (a game starts serving at once), so its idle screen is the
+game-over screen. <code>PaddleSlapGameOverScene.dt_tick</code> compares its <code>game_time</code> with
+<code>idle_since_game_time</code>; after <code>GAME_OVER_IDLE_SECONDS</code> (10.0) it plays the bundled recording
+<code>PADDLESLAP_DEMO_PATH</code> (<code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code>) with
+<code>SceneManager.play_recording(path=..., then=self)</code>. In the diagram, the PaddleSlap box is the
+game's own screen and the Engine box is what plays the demo; the player is outside both.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Player
+    box rgb(255,243,224) PaddleSlap
+        participant GO as PaddleSlapGameOverScene
+    end
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant PB as Playback scope
+    end
+
+    loop each frame
+        SM-&gt;&gt;GO: dt_tick(dt)
+        GO-&gt;&gt;GO: idle for 10 s of game_time?
+    end
+    Note over Player,GO: a key or button down restarts the idle wait
+    GO-&gt;&gt;SM: play_recording(then=self)
+    Note over GO: the idle wait restarts
+    SM-&gt;&gt;PB: start at the next frame (exit_on_input)
+    PB-&gt;&gt;PB: rebuild Game, play 450 frames
+    Player-&gt;&gt;PB: any press ends it (consumed)
+    PB-&gt;&gt;SM: back to the game-over screen
+    Note over GO: its game_time stood still meanwhile</code></pre>
+<ul>
+<li>The demo is an ordinary recording played in a playback scope: real input reaches only its exit
+  check, saves are a sandbox, and the live game-over screen is stashed, not cleaned up.</li>
+<li>The press that ends a demo never reaches the game-over screen, so starting a new game after a
+  demo takes a second press (the class docstring).</li>
+<li>A demo that cannot play is logged at WARNING ("No demo: ...") and nothing starts. A divergence
+  ends it with a WARNING <code>demo diverged: ...</code>.</li>
+</ul>
+<h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
+<p>PaddleSlap's own code is two classes in <code>glitchygames/examples/paddleslap.py</code>: <code>Game</code> and
+<code>PaddleSlapGameOverScene</code>. Everything else it uses comes from the engine: <code>Scene</code> and the
+built-in <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code>
+(<code>glitchygames.sprites</code>), and the paddles and balls of the engine's game-object library
+(<code>glitchygames.game_objects</code>). In the diagrams, the Engine box is what every game gets; the
+PaddleSlap box is what this game adds. Solid arrows are inheritance, pointing at the base class;
+dotted arrows are how the game uses an engine class.</p>
+<h3 id="scenes_1">Scenes<a class="headerlink" href="#scenes_1" title="Permanent link">#</a></h3>
+<pre class="mermaid"><code>classDiagram
+    direction TB
+    namespace Engine {
+        class Scene {
+            next_scene
+            pause requests a PauseScene
+        }
+        class PauseScene {
+            the frozen game, dimmed
+            SPACE or Start/A resumes it, ESC or B/Back quits
+        }
+        class GameOverScene {
+            score and high scores
+            SPACE or Start/A restarts, ESC or B/Back quits
+        }
+    }
+    namespace PaddleSlap {
+        class Game {
+            NAME = 'Paddle Slap'
+            VERSION = '1.1'
+            player1, player2 : VerticalPaddle
+            balls : list of BallSprite
+            rally_count : int
+            p1_actions, p2_actions, pause_actions : ActionMap
+            saves : SaveManager
+            ball_spawn_mode : BallSpawnMode flags
+            dt_tick(dt)
+            args(parser)
+        }
+        class PaddleSlapGameOverScene {
+            idle_since_game_time : float
+            dt_tick(dt)
+            replay_arguments()
+            resume()
+        }
+    }
+
+    Scene &lt;|-- PauseScene
+    Scene &lt;|-- GameOverScene
+    Scene &lt;|-- Game
+    GameOverScene &lt;|-- PaddleSlapGameOverScene
+
+    Game ..&gt; PauseScene : SPACE calls the inherited pause
+    Game ..&gt; PaddleSlapGameOverScene : next_scene when the last ball is gone
+    PaddleSlapGameOverScene ..&gt; Game : resume starts a new Game</code></pre>
+<p><code>Game</code> never names <code>PauseScene</code>: its pause action calls <code>Scene.pause()</code>, which it inherits, and
+that requests the engine's <code>PauseScene</code> for the end of the frame. PaddleSlap's game-over screen
+extends the engine's, adding the attract-mode demo after an idle wait and always restarting a new
+<code>Game</code> (the engine's <code>resume()</code> restarts whatever scene came before, BUGS.md #81).</p>
+<h3 id="sprites">Sprites<a class="headerlink" href="#sprites" title="Permanent link">#</a></h3>
+<pre class="mermaid"><code>classDiagram
+    direction TB
+    namespace Engine {
+        class Sprite
+        class BasePaddle {
+            _move : Vertical or Horizontal
+            _sub_pixel_x, _sub_pixel_y
+        }
+        class VerticalPaddle {
+            up() down() stop()
+            dt_tick(dt): move, then clamp
+        }
+        class HorizontalPaddle
+        class BallSprite {
+            COORDINATE_SPACE = WORLD
+            world_x, world_y : float
+            speed : Speed
+            serve_settings, speed_up_settings
+            on_paddle_collision, on_wall_bounce
+            dt_tick(dt)
+            handle_paddle_collision(paddle)
+        }
+    }
+    namespace PaddleSlap {
+        class GameSprites["Game"] {
+            creates the paddles and balls
+            sets the balls' callbacks
+            resolves collisions in dt_tick
+        }
+    }
+
+    Sprite &lt;|-- BasePaddle
+    BasePaddle &lt;|-- VerticalPaddle
+    BasePaddle &lt;|-- HorizontalPaddle
+    Sprite &lt;|-- BallSprite
+
+    VerticalPaddle &lt;.. GameSprites : player1, player2
+    BallSprite &lt;.. GameSprites : balls</code></pre>
+<p>PaddleSlap defines no sprite classes: both paddles are the engine's <code>VerticalPaddle</code>
+(<code>glitchygames/game_objects/paddle.py</code>) and every ball is its <code>BallSprite</code>
+(<code>glitchygames/game_objects/ball.py</code>). The game creates them, wires the balls' callbacks
+(<code>on_paddle_collision</code>, <code>on_wall_bounce</code>) to its rally count and sounds, and resolves collisions
+in <code>Game.dt_tick</code>. <code>HorizontalPaddle</code> is not used by PaddleSlap; it is shown because it shares
+<code>BasePaddle</code>.</p>
+<h2 id="sprites-and-how-they-are-drawn">Sprites and how they are drawn<a class="headerlink" href="#sprites-and-how-they-are-drawn" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Sprite</th>
+<th>Space</th>
+<th>Size and image</th>
+<th>Who writes <code>rect</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VerticalPaddle</code> ×2</td>
+<td>Screen (no <code>COORDINATE_SPACE</code>)</td>
+<td>20×100 white rectangle; left at x = 0, right at x = screen width − 20, vertically centred</td>
+<td>The paddle itself: <code>dt_tick</code> rounds its float <code>_sub_pixel_y</code> into <code>rect.y</code>, then clamps it to the screen (stopping it at an edge)</td>
+</tr>
+<tr>
+<td><code>BallSprite</code></td>
+<td>World (<code>CoordinateSpace.WORLD</code>)</td>
+<td>20×20 image with colour key 0 and a filled circle of radius 5 in the middle; colour set through the <code>color</code> property, which redraws the circle</td>
+<td>The engine: each frame <code>position_world_sprites</code> writes <code>rect</code> from the snapped <code>world_x</code>/<code>world_y</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The camera never moves.</strong> <code>Game</code> sets no follow target and no <code>camera_target()</code>, so the
+  camera stays at the origin: world and screen coordinates are the same and the balls are drawn
+  exactly where their logic left them (<code>TestPaddleSlapInTheFrame</code> in
+  <code>tests/world/test_frame_integration.py</code>). The balls are world sprites anyway, so the engine is
+  the only writer of their <code>rect</code>: game logic reads <code>world_x</code>/<code>world_y</code>, <code>drawn_center()</code> or the
+  collision rect, never <code>rect</code> (which holds where the ball was last drawn).</li>
+<li><strong>Pixel snapping.</strong> The ball's own <code>pixel_snap_mode</code> (default <code>NEAREST_HALF_UP</code>, the scene's
+  default too) rounds its sub-pixel position for drawing and for collision alike.</li>
+<li><strong>Background.</strong> The court is <code>BLACK</code>, named on purpose: a scene that sets no background shows
+  the engine's test pattern.</li>
+<li><strong>Dirty rendering.</strong> All sprites live in one <code>pygame.sprite.LayeredDirty</code> (<code>all_sprites</code>). The
+  ball sets <code>dirty = 2</code> (always redrawn); paddles set <code>dirty = 1</code> every tick.</li>
+<li><strong>Pose.</strong> Neither sprite changes its image with its state (a ball's image changes only when its
+  colour is set), so the pose rule has nothing to order here. Collision resolution, the other half
+  of that rule, runs in <code>dt_tick</code> (below).</li>
+</ul>
+<h3 id="hitboxes">Hitboxes<a class="headerlink" href="#hitboxes" title="Permanent link">#</a></h3>
+<p>The collision manager has two layers, <code>balls</code> and <code>paddles</code> (the debug overlay's hitbox panel
+draws them). Hitboxes are the default visible-pixel trim (<code>glitchygames/collision/bounds.py</code>):</p>
+<ul>
+<li>A ball's hitbox is its <strong>visible circle's 10×10 box</strong>, offset (5, 5) from the drawn position,
+  not its 20×20 image. <code>BallSprite._visible_rect()</code> returns that box with its offset, and every
+  ball test uses it: walls, paddles and other balls meet the circle the players see.</li>
+<li>A paddle's hitbox is its whole 20×100 rectangle.</li>
+</ul>
+<h2 id="one-frame">One frame<a class="headerlink" href="#one-frame" title="Permanent link">#</a></h2>
+<p>The engine's frame order is in the <a href="../../architecture/bitmappy/#bootstrap-main-loop">Bitmappy page</a>
+and <code>CLAUDE.md</code>. What PaddleSlap does inside it (the PaddleSlap box is the game's one scene class;
+the Engine box is the engine's scene manager, game objects and collision manager):</p>
+<pre class="mermaid"><code>sequenceDiagram
+    box rgb(255,243,224) PaddleSlap
+        participant G as Game
+    end
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant P as VerticalPaddle x2
+        participant B as BallSprite (each)
+        participant CM as CollisionManager
+    end
+
+    SM-&gt;&gt;G: dt_tick(dt)
+    G-&gt;&gt;G: _process_paddle_input()
+    G-&gt;&gt;P: up() / down() / stop()
+    G-&gt;&gt;P: dt_tick(dt): move, write rect.y, clamp to the screen
+    G-&gt;&gt;B: dt_tick(dt)
+    B-&gt;&gt;B: move, wall bounce, kill() past an edge
+    G-&gt;&gt;G: _resolve_collisions()
+    G-&gt;&gt;CM: check_overlap('balls', 'paddles')
+    CM-&gt;&gt;G: _on_ball_paddle_collision(ball, paddle)
+    G-&gt;&gt;B: handle_paddle_collision(paddle)
+    B-&gt;&gt;G: on_paddle_collision(ball): rally, spawn
+    G-&gt;&gt;CM: check_overlap('balls', 'balls')
+    CM-&gt;&gt;G: _on_ball_ball_collision(ball1, ball2)
+    G-&gt;&gt;G: playable rule, spawns
+    G-&gt;&gt;G: drop dead balls, game over?
+    SM-&gt;&gt;G: event handlers feed the ActionMaps
+    SM-&gt;&gt;SM: position the balls
+    SM-&gt;&gt;G: update() (render phase)
+    SM-&gt;&gt;SM: draw, present, pace</code></pre>
+<ul>
+<li><strong>Logic before events.</strong> <code>dt_tick</code> runs before the frame's events are pumped, so it reads
+  the held state the ActionMaps reached at the end of the previous frame; a press shows up in
+  the next frame's <code>dt_tick</code>.</li>
+<li><strong>Collisions in <code>dt_tick</code>, after every sprite moved.</strong> The engine positions the balls after
+  <code>dt_tick</code> and before <code>update()</code> renders, so a bounce, or a ball spawned this frame, is drawn
+  this frame (the comment in <code>Game.dt_tick</code>). <code>update()</code> resolves nothing
+  (<code>test_update_resolves_no_collisions</code>).</li>
+<li><strong>A dead ball stays in the <code>balls</code> layer until <code>_resolve_collisions</code> removes it</strong>, so
+  <code>_on_ball_paddle_collision</code> skips balls that are no longer <code>alive()</code>.</li>
+<li><strong>The paddle's screen clamp runs in its <code>dt_tick</code>.</strong> A paddle moved past the top or bottom edge
+  is clamped (and stopped) in the same <code>dt_tick</code>, so this frame's collisions see it on screen
+  (the pose rule keeps <code>update()</code> for visual work; <code>HorizontalPaddle</code> clamps the same way).</li>
+</ul>
+<h3 id="ball-versus-wall">Ball versus wall<a class="headerlink" href="#ball-versus-wall" title="Permanent link">#</a></h3>
+<p><code>BallSprite._handle_boundary_collisions</code> bounces the ball off the top and bottom walls only
+(PaddleSlap constructs every ball with <code>bounce_top_bottom=True, bounce_left_right=False</code>). A wall
+counts as hit when the visible box touches it <strong>while the ball moves toward it</strong>, so a ball still
+touching a wall the frame after a bounce does not bounce again. A hit flips the vertical speed,
+plays the bounce sound, applies a <code>WALL_BOUNCE</code> speed-up if configured (PaddleSlap's is not) and
+calls <code>on_wall_bounce</code>. <code>_keep_inside_playfield</code> then mirrors any overshoot back inside.</p>
+<p>A ball whose visible box is entirely past the left or right edge calls <code>kill()</code>: that is a score.</p>
+<h3 id="ball-versus-paddle">Ball versus paddle<a class="headerlink" href="#ball-versus-paddle" title="Permanent link">#</a></h3>
+<p>The collision manager pairs overlapping collision rects (an AABB broad phase), and
+<code>BallSprite.handle_paddle_collision(paddle)</code> does the exact test and the response:</p>
+<ol>
+<li><strong>Circle against rectangle.</strong> The ball is the circle inscribed in its visible box; the
+   nearest point of the paddle rectangle to its centre must be within the radius (touching
+   counts). Otherwise nothing happens.</li>
+<li><strong>Which face.</strong> <code>_entered_paddle_from_left</code> looks at where the visible box was before this
+   frame's move (<code>speed.x</code> × the last tick's dt back). If it was clear of the paddle on one side,
+   the ball came in from that side, even when a long frame carried its centre past the paddle's
+   centre; if it already overlapped, the side of the paddle's centre the ball's centre is on
+   decides.</li>
+<li><strong>Response.</strong> The ball is placed with its visible edge flush against that face, its
+   horizontal speed points away from the paddle, the paddle's slap sound plays, a
+   <code>PADDLE_BOUNCE</code> speed-up is applied, the speed is clamped to <code>max_speed</code>, and
+   <code>on_paddle_collision(ball)</code> is called. PaddleSlap's callback counts the rally hit and may
+   spawn a ball.</li>
+</ol>
+<h3 id="ball-versus-ball">Ball versus ball<a class="headerlink" href="#ball-versus-ball" title="Permanent link">#</a></h3>
+<p><code>_handle_ball_collisions</code> ticks the per-pair cooldowns, then asks the collision manager for
+overlapping <code>balls</code>/<code>balls</code> pairs. <code>_on_ball_ball_collision</code> handles each pair:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Method</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>cooldown check</td>
+<td>A pair that collided in the last 10 frames (either order) is skipped</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>_calculate_ball_distance</code></td>
+<td>Centre distance of the two collision rects; they collide within the sum of the half widths</td>
+</tr>
+<tr>
+<td>3</td>
+<td>separating check</td>
+<td>Skipped if the balls are moving apart and no longer overlap</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>_apply_elastic_collision</code></td>
+<td>Equal-mass elastic exchange: swap the velocity components along the collision normal, keep the tangential ones (momentum and kinetic energy conserved)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>_cap_ball_speeds</code></td>
+<td>Each ball's speed capped at 500 px/s</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>_separate_overlapping_balls</code></td>
+<td>Move both balls apart along the normal (by at least 3 px in total, at least 1 px on each significant axis), in <code>world_x</code>/<code>world_y</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>record</td>
+<td>Cooldown of 10 frames for the pair; the pair is kept for the two steps below</td>
+</tr>
+</tbody>
+</table>
+<p>After the pass, two game rules apply to every pair that collided this frame:</p>
+<ul>
+<li><strong><code>_keep_collided_balls_playable</code></strong>: exact physics can leave a ball almost stopped, almost
+  vertical (it bounces between the walls and never reaches a paddle) or flat (it slides along a
+  wall). The ball's angle from horizontal is moved into its <code>ServeSettings</code> band (15° to 60°) and
+  its speed raised to at least the serve speed, keeping each component's sign (a zero component
+  points away from the partner). This is deliberately not physics and not part of
+  <code>_apply_elastic_collision</code>, whose physics the collision tests check.</li>
+<li><strong><code>_spawn_new_balls_for_ball_collisions</code></strong>: one spawn attempt per pair, if ball-ball hits are a
+  spawn trigger; the speed check uses the pair's faster ball. It runs outside the collision
+  manager's pass, so spawned balls never join it.</li>
+</ul>
+<h3 id="serves-and-speed-ups">Serves and speed-ups<a class="headerlink" href="#serves-and-speed-ups" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PADDLESLAP_SERVE</code></td>
+<td><code>ServeSettings()</code>: 250 px/s, 15° to 60° from horizontal, either side, either vertical direction, 50 px margin</td>
+<td>Opening balls (<code>reset()</code> in the constructor picks a random position and serve)</td>
+</tr>
+<tr>
+<td><code>PADDLESLAP_SPAWN_SERVE</code></td>
+<td><code>ServeSettings(speed=150.0)</code></td>
+<td>Spawned balls in a mode with <code>RANDOM_SPEED</code> (<code>serve()</code> keeps the position the game chose)</td>
+</tr>
+<tr>
+<td>fixed spawn speed</td>
+<td><code>Speed(250.0, 125.0)</code></td>
+<td>Spawned balls in a mode without <code>RANDOM_SPEED</code> (no listed mode)</td>
+</tr>
+<tr>
+<td><code>PADDLESLAP_SPEED_UP</code></td>
+<td><code>PADDLE_BOUNCE</code> trigger, <code>LOGARITHMIC</code> curve, <code>BOTH</code> axes, multiplier 1.15, <code>max_speed</code> 500 px/s</td>
+<td>Every ball</td>
+</tr>
+</tbody>
+</table>
+<p>The logarithmic curve gives big early boosts that taper off, <code>s0 × (1 + 0.15 × ln(1 + n))</code> after
+<code>n</code> paddle hits, and scaling both axes keeps the angle the paddle set. Paddles move at
+400 px/s.</p>
+<h2 id="ball-spawning">Ball spawning<a class="headerlink" href="#ball-spawning" title="Permanent link">#</a></h2>
+<p><code>BallSpawnMode</code> (<code>glitchygames/game_objects/ball.py</code>) is a set of bit flags: <strong>triggers</strong> (which
+events may spawn), <strong>conditions</strong> (cooldown, speed check, random position, speed and colour) and
+<strong>frequency</strong> (the cooldown length). <code>--ball-spawn-mode</code> picks one combination:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Triggers</th>
+<th>Cooldown</th>
+<th>Other flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paddle_only</code> (default)</td>
+<td>paddle hit</td>
+<td>2.0 s</td>
+<td>speed check, random position, speed and colour</td>
+</tr>
+<tr>
+<td><code>wall_only</code></td>
+<td>wall bounce</td>
+<td>2.0 s</td>
+<td>as above</td>
+</tr>
+<tr>
+<td><code>ball_only</code></td>
+<td>ball-ball hit</td>
+<td>2.0 s</td>
+<td>as above</td>
+</tr>
+<tr>
+<td><code>frequent</code></td>
+<td>all four (paddle, wall, ball, score)</td>
+<td>0.5 s</td>
+<td>as above</td>
+</tr>
+<tr>
+<td><code>rare</code></td>
+<td>paddle hit</td>
+<td>5.0 s</td>
+<td>as above</td>
+</tr>
+<tr>
+<td><code>none</code></td>
+<td>none</td>
+<td></td>
+<td>the rally is still counted</td>
+</tr>
+</tbody>
+</table>
+<p>Every trigger goes through <code>_spawn_new_ball_on_trigger</code>, so all triggers share one cooldown and
+one speed check. In the diagram, the Engine box is the engine's <code>BallSprite</code> reporting paddle hits
+and wall bounces through its callbacks; the PaddleSlap box is the game's spawn rule in <code>Game</code>
+(which serves each new ball with the engine's <code>BallSprite.serve()</code>):</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph ENGINE_SPAWN["Engine"]
+        direction TB
+        ballcallback["BallSprite calls on_paddle_collision&lt;br/&gt;or on_wall_bounce"]
+    end
+    subgraph GAME_SPAWN["PaddleSlap"]
+        direction TB
+        gametrigger["Game._resolve_collisions:&lt;br/&gt;ball-ball hit or score"]
+        trigger["_spawn_new_ball_on_trigger(trigger, ball)"]
+        named{"Is it one of the&lt;br/&gt;mode's triggers?"}
+        skip1["No spawn"]
+        cooldown{"COOLDOWN_ENABLED and&lt;br/&gt;game_time - last spawn&lt;br/&gt;under the cooldown?"}
+        skip2["No spawn"]
+        speed{"SPEED_CHECK_ENABLED and&lt;br/&gt;the triggering ball faster&lt;br/&gt;than 1000 px/s?"}
+        skip3["No spawn"]
+        spawn["_spawn_new_ball()"]
+        place["Position: 10 tries for a spot&lt;br/&gt;at least 100 px from every ball&lt;br/&gt;(the last try if none is clear)"]
+        serve["Speed: the engine's serve() at 150 px/s&lt;br/&gt;Colour: from the colour stream"]
+        join["Added to balls, all_sprites&lt;br/&gt;and the 'balls' layer"]
+    end
+    ballcallback --&gt; trigger
+    gametrigger --&gt; trigger
+    trigger --&gt; named
+    named -- no --&gt; skip1
+    named -- yes --&gt; cooldown
+    cooldown -- yes --&gt; skip2
+    cooldown -- no --&gt; speed
+    speed -- yes --&gt; skip3
+    speed -- no --&gt; spawn
+    spawn --&gt; place
+    place --&gt; serve
+    serve --&gt; join</code></pre>
+<ul>
+<li>The cooldown counts <code>Scene.game_time</code>, so it stops while the game is paused or behind the
+  game-over screen (<code>test_spawn_cooldown_counts_game_time_only</code>).</li>
+<li>A score spawns before the game-over check, so in <code>frequent</code> mode the last ball scoring brings a
+  replacement (when the cooldown and speed check allow it) instead of ending the game.</li>
+<li>Each new ball is connected to the same paddle-hit and wall-bounce callbacks, so spawned balls
+  spawn too.</li>
+</ul>
+<h2 id="input">Input<a class="headerlink" href="#input" title="Permanent link">#</a></h2>
+<p>Each player has an <code>ActionMap</code> (<code>glitchygames/input/action_map.py</code>) with <code>up</code> and <code>down</code>; a third
+holds <code>pause</code>. <code>_create_action_maps</code> binds, per player, a scancode, a D-pad button and the left
+stick's vertical axis at a ±0.3 threshold, filtered to the gamepad with <strong>instance id</strong> 0 (player 1)
+or 1 (player 2). The keyboard bindings have no instance filter. In the diagram, the Engine boxes are
+the engine's event dispatch (top) and its <code>ActionMap</code>, <code>VerticalPaddle</code> and base <code>Scene</code> (bottom);
+the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code> add between them:</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph ENGINE_INPUT_DISPATCH["Engine"]
+        direction TB
+        events["Event dispatch: on_key_down/up_event,&lt;br/&gt;on_controller_button/axis_*_event,&lt;br/&gt;on_joy_button/axis_*_event"]
+    end
+    subgraph GAME_INPUT["PaddleSlap"]
+        direction TB
+        feed["Game feeds each event to the ActionMaps&lt;br/&gt;(keys: all three, gamepad: the two players')"]
+        pause{"Game.on_key_up_event:&lt;br/&gt;pause just released?"}
+        tick["Next frame, Game.dt_tick:&lt;br/&gt;begin_frame(), then reads the held state"]
+    end
+    subgraph ENGINE_INPUT_PARTS["Engine"]
+        direction TB
+        state["ActionMap held state&lt;br/&gt;(held, just pressed, just released)"]
+        paddle["VerticalPaddle: up(), down() or stop()"]
+        pausecall["Scene.pause()"]
+        base["Scene.on_key_up_event&lt;br/&gt;(Q or Esc quits)"]
+    end
+    events --&gt; feed
+    feed --&gt; pause
+    feed -- handle_event --&gt; state
+    tick -- "is_held('up') / is_held('down')" --&gt; state
+    tick --&gt; paddle
+    pause -- yes --&gt; pausecall
+    pause -- "not a pause key" --&gt; base</code></pre>
+<ul>
+<li><strong>Movement is frame-driven.</strong> Handlers only update the ActionMaps; the paddles are moved by
+  <code>_process_paddle_input</code> at the top of <code>dt_tick</code>, from the held state.</li>
+<li><strong>Input mode.</strong> The ActionMaps take the engine's <code>--input-mode</code> (default <code>auto</code>: a mapped pad's
+  controller events and any other device's joystick events, each press once). PaddleSlap handles
+  both families, so a pad works in every mode.</li>
+<li><strong>Instance ids, not player slots.</strong> SDL numbers devices in the order they appear, so the first
+  pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
+  instance id and no longer matches its binding.</li>
+<li><strong>Key repeat.</strong> PaddleSlap leaves SDL's key repeat off: movement reads held state and pause
+  acts on the release, so nothing needs repeated key-downs (they would only fill event batches
+  and recordings).</li>
+<li><strong>Polling.</strong> PaddleSlap never polls pygame: everything it knows about input comes through
+  events, which recordings hold, so a replay serves the same input.</li>
+</ul>
+<h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
+<p>Two sound effects, loaded with <code>glitchygames.game_objects.load_sound</code> from
+<code>glitchygames/game_objects/snd_files/</code> at volume 0.25 (<code>pygame.mixer.Sound</code>, not the synthesiser):</p>
+<table>
+<thead>
+<tr>
+<th>Sound</th>
+<th>File</th>
+<th>Played when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SFX.BOUNCE</code></td>
+<td><code>sfx_bounce.wav</code></td>
+<td>A ball bounces off a wall (the ball's own sound), or two balls collide (the first ball's sound)</td>
+</tr>
+<tr>
+<td><code>SFX.SLAP</code></td>
+<td><code>sfx_slap.wav</code></td>
+<td>A ball hits a paddle (the paddle's sound, played by <code>handle_paddle_collision</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="score-and-saves">Score and saves<a class="headerlink" href="#score-and-saves" title="Permanent link">#</a></h2>
+<ul>
+<li><code>rally_count</code> counts paddle hits by any ball; it is the game's only score, shared by both
+  players. <code>_spawn_new_ball_with_speed_check</code> counts the hit whatever the spawn mode.</li>
+<li>At game over, <code>_save_high_score</code> loads the <code>high_scores</code> slot of the <code>paddleslap</code> save store
+  (<code>open_saves(app_name='paddleslap')</code>), appends the rally, keeps the ten best (best first) and
+  saves it. Live, that is <code>high_scores.json</code> in the platform's save directory
+  (<code>~/Library/Application Support/paddleslap/</code> on macOS, <code>~/.local/share/paddleslap/</code> on Linux,
+  <code>%APPDATA%\paddleslap\</code> on Windows). The game-over screen shows the final score and the top
+  five.</li>
+<li>In a replay or a demo the store is a <code>MemorySaveManager</code> seeded from the recording, so the
+  real high scores are never touched (the recordings start from an empty <code>paddleslap</code> store).</li>
+</ul>
+<h2 id="engine-features-it-uses">Engine features it uses<a class="headerlink" href="#engine-features-it-uses" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>How PaddleSlap uses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Random streams</td>
+<td>Serves draw from <code>ball.serve</code> (<code>SERVE_RANDOM_STREAM</code>), spawn positions from <code>paddleslap.spawn</code>, ball colours from <code>paddleslap.colors</code>: separate streams, so a colour draw never moves where the next ball spawns. <code>--random-seed</code> fixes them all</td>
+</tr>
+<tr>
+<td><code>Scene.game_time</code></td>
+<td>The spawn cooldown and the game-over idle wait</td>
+</tr>
+<tr>
+<td>Collision layers</td>
+<td><code>balls</code> and <code>paddles</code>, <code>check_overlap</code> for the broad phase</td>
+</tr>
+<tr>
+<td>World space</td>
+<td>The balls (identity camera); the paddles stay screen space</td>
+</tr>
+<tr>
+<td>Save store</td>
+<td>High scores (<code>open_saves</code>)</td>
+</tr>
+<tr>
+<td>Built-in scenes</td>
+<td><code>PauseScene</code>, <code>GameOverScene</code></td>
+</tr>
+<tr>
+<td>Playback scope</td>
+<td>The attract-mode demo (<code>play_recording</code>)</td>
+</tr>
+<tr>
+<td>Debug overlay</td>
+<td>F3 and F4 work as in every game; the hitbox panel shows the two layers. The ball keeps <code>speed</code>, not a physics body, so the physics panel has nothing to draw</td>
+</tr>
+<tr>
+<td>Not used</td>
+<td>Screen shake, rumble, live synth voices, instant replay, ghosts, camera follow</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recordings-that-pin-it">Recordings that pin it<a class="headerlink" href="#recordings-that-pin-it" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Recording</th>
+<th>What it is</th>
+<th>Checked by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/world/golden/paddleslap.jsonl.gz</code></td>
+<td>Golden trace: the scripted run recorded before the world-space change, by <code>scripts/record_golden_traces.py</code></td>
+<td><code>tests/world/test_golden_traces.py</code> compares every sprite's rect and visibility frame by frame; each difference must be explained by one <code>ExpectedDifference</code></td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
+<td>Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by <code>scripts/record_scripted_session.py --game paddleslap --frames 600</code></td>
+<td>The replay plugin (<code>glitchygames/testing/replays.py</code>) replays it with <code>paddleslap --replay-trace ... --headless</code> and fails unless it exits <code>SUCCESS</code>; <code>tests/replay/test_golden_replays.py</code> checks the fixture set and the controls rule</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td>Bundled demo: 450 frames of <code>Game</code>, recorded with <code>--frames 450 --script-only</code> (before the script's pause, no quit)</td>
+<td><code>tests/replay/test_bundled_demos.py</code> replays it headless and plays it through <code>play_recording</code> inside a running game</td>
+</tr>
+</tbody>
+</table>
+<p>The golden script (<code>paddleslap_script</code> in <code>scripts/record_golden_traces.py</code>) steers both paddles
+with a <code>PaddleTracker</code>: each paddle holds its up or down key to follow the nearest ball moving
+toward it, with a 12 px dead zone. It pauses with <code>Space</code> at frame 450 and resumes at frame 510.
+The golden replay then adds the controls tail (<code>paddleslap_controls</code>): <code>Q</code> and <code>Esc</code> pressed and
+released, so the recording ends on the game's own <code>QUIT</code> and a replay in which either key no longer
+quits diverges.</p>
+<p>Re-record only deliberately, after finding out why a replay diverged (the commands are in the
+docstring of <code>scripts/record_scripted_session.py</code>). Replay performance for both recordings is in
+<a href="../../quality/performance/">Replay Performance</a>.</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it pins</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/examples/test_paddleslap.py</code></td>
+<td>The game: construction, options and spawn modes, random streams (colours, spawn positions, global <code>random</code> untouched), serves and speed-ups, same-frame paddle bounces, collisions in <code>dt_tick</code> (not <code>update()</code>), dead balls, spawn triggers and the shared cooldown, ball-ball edge cases (500 px/s cap, playable-ball rule), high scores, the game-over demo and idle wait, scancode bindings, gamepads, and <code>main()</code> replaying the golden recording</td>
+</tr>
+<tr>
+<td><code>tests/collision/test_ball_paddle_collision.py</code></td>
+<td><code>handle_paddle_collision</code>: the circle-versus-rectangle test, the face decision and the response, on real surfaces</td>
+</tr>
+<tr>
+<td><code>tests/game_objects/test_ball*.py</code>, <code>test_multi_ball_*.py</code>, <code>test_collision_*.py</code>, <code>test_diagonal_collision.py</code>, <code>test_zero_speed.py</code></td>
+<td><code>BallSprite</code>: wall bounces, speed-up curves and schedules, serves, multi-ball physics at many frame rates, energy conservation</td>
+</tr>
+<tr>
+<td><code>tests/game_objects/test_paddle.py</code>, <code>test_paddle_dt_tick.py</code></td>
+<td>Paddles: sub-pixel movement and the screen clamp</td>
+</tr>
+<tr>
+<td><code>tests/game_objects/test_game_over_scene.py</code>, <code>tests/scenes/builtin_scenes/</code></td>
+<td>The built-in game-over and pause screens</td>
+</tr>
+<tr>
+<td><code>tests/world/test_frame_integration.py</code> (<code>TestPaddleSlapInTheFrame</code>), <code>tests/world/test_positioning.py</code></td>
+<td>The balls are drawn at their world positions in the frame they move or spawn</td>
+</tr>
+<tr>
+<td><code>tests/world/test_golden_traces.py</code>, <code>tests/replay/test_golden_replays.py</code>, <code>tests/replay/test_bundled_demos.py</code></td>
+<td>The recordings above</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td><code>Game</code>, <code>PaddleSlapGameOverScene</code>, <code>main()</code> (the <code>paddleslap</code> console script), the serve, speed-up and demo constants</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td>The bundled attract-mode demo</td>
+</tr>
+<tr>
+<td><code>glitchygames/game_objects/ball.py</code></td>
+<td><code>BallSprite</code>, <code>BallSpawnMode</code>, <code>ServeSettings</code>, <code>SpeedUpSettings</code> and their enums</td>
+</tr>
+<tr>
+<td><code>glitchygames/game_objects/paddle.py</code></td>
+<td><code>BasePaddle</code>, <code>VerticalPaddle</code>, <code>HorizontalPaddle</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/game_objects/sounds.py</code>, <code>snd_files/</code></td>
+<td><code>SFX</code>, <code>load_sound</code>, the two WAV files</td>
+</tr>
+<tr>
+<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
+<td><code>PauseScene</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/scenes/builtin_scenes/game_over_scene.py</code></td>
+<td><code>GameOverScene</code>, <code>TextSprite</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/input/action_map.py</code></td>
+<td><code>ActionMap</code></td>
+</tr>
+<tr>
+<td><code>scripts/record_golden_traces.py</code></td>
+<td>The golden script (<code>paddleslap_script</code>, <code>PaddleTracker</code>) and the golden trace recorder</td>
+</tr>
+<tr>
+<td><code>scripts/record_scripted_session.py</code></td>
+<td>The golden replay and demo recorder, and the controls tail</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
+<td>The golden replay</td>
+</tr>
+<tr>
+<td><code>tests/world/golden/paddleslap.jsonl.gz</code></td>
+<td>The golden trace baseline</td>
+</tr>
+<tr>
+<td><code>tests/examples/test_paddleslap.py</code></td>
+<td>The game's tests</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../architecture/bitmappy/" class="btn btn-neutral float-left" title="Bitmappy Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../brave_adventurer/" class="btn btn-neutral float-right" title="Brave Adventurer Architecture">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../../architecture/bitmappy/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../brave_adventurer/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

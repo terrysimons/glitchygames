@@ -45,6 +45,39 @@
                 <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
               <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
@@ -98,27 +131,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">Documentation</span></p>
-              <ul class="current">
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Bitmappy Architecture</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
-                  </li>
-              </ul>
       </div>
     </div>
     </nav>
@@ -140,8 +152,8 @@
     </li>
   </ul>
     <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
-        <a href="../../glitchygames/ui/" class="btn btn-neutral float-left" title="glitchygames.ui"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
-        <a href="../event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+        <a href="../.." class="btn btn-neutral float-left" title="GlitchyGames Getting Started"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../games/paddleslap/" class="btn btn-neutral float-right" title="PaddleSlap Architecture">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
     </div>
   <hr/>
 </div>
@@ -153,13 +165,18 @@
 through the engine, from bootstrap to rendering.</p>
 <h2 id="bootstrap-main-loop">Bootstrap &amp; Main Loop<a class="headerlink" href="#bootstrap-main-loop" title="Permanent link">#</a></h2>
 <p>How Bitmappy starts up: entry point through <code>main()</code>, GameEngine initialization,
-scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame</code>).</p>
+scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame</code>). The Bitmappy box
+is the editor's own code (<code>glitchygames/bitmappy/</code>); the Engine box is what every game gets.</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant User
+    box rgb(255,243,224) Bitmappy
     participant main as main()
+    participant BES as BitmapEditorScene
+    end
+    box rgb(232,238,255) Engine
     participant GE as GameEngine
     participant SM as SceneManager (singleton)
-    participant BES as BitmapEditorScene
+    end
 
     User-&gt;&gt;main: uv run bitmappy
     main-&gt;&gt;GE: GameEngine(game=BitmapEditorScene, icon=...)
@@ -198,23 +215,101 @@ scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame
     end</code></pre>
 <h2 id="class-hierarchy">Class Hierarchy<a class="headerlink" href="#class-hierarchy" title="Permanent link">#</a></h2>
 <h3 id="event-dispatch-chain-how-events-reach-your-scene">Event dispatch chain (how events reach your scene)<a class="headerlink" href="#event-dispatch-chain-how-events-reach-your-scene" title="Permanent link">#</a></h3>
-<p><code>EventManager</code> is the base class for <code>GameEngine</code> and <code>SceneManager</code>. Every <code>Scene</code> instead
-inherits <code>AllEventStubs</code>, which gives it a default <code>on_*_event()</code> method for every event, so
-events flow through all of them using the same <code>on_*_event()</code> API.</p>
-<p><strong>Inheritance:</strong></p>
-<pre class="mermaid"><code>flowchart LR
-    EM["EventManager"] --- GE["GameEngine"]
-    EM --- SM["SceneManager"]
-    STUBS["AllEventStubs"] --- SC["Scene"]
-    SC --- BES["BitmapEditorScene"]</code></pre>
-<p><strong>Event flow</strong> — how an SDL event reaches your handler in Bitmappy:</p>
+<p>Every scene has every <code>on_*_event()</code> handler, but it gets them a different way from the
+engine. A <code>Scene</code> <em>inherits</em> them: <code>AllEventStubs</code> gives it a default for each one, which reports
+the event as unhandled, and your scene overrides the ones it uses. <code>GameEngine</code> and
+<code>SceneManager</code> inherit no handlers at all. They pass <code>on_*_event()</code> calls along at runtime
+through <code>__getattr__</code>.</p>
+<ul>
+<li>Solid arrows are inheritance, pointing at the base class.</li>
+<li>Dotted arrows are the runtime calls, numbered in the order an event takes them.</li>
+<li>The Engine box is the engine's classes; the Bitmappy box is the editor's scene.</li>
+</ul>
+<pre class="mermaid"><code>classDiagram
+    direction TB
+    namespace Engine {
+        class EventInterface {
+            &lt;&lt;interface, abc.ABC&gt;&gt;
+            #95;#95;subclasshook#95;#95; counts any class with every handler
+        }
+        class EventInterfaces["MouseEvents, KeyboardEvents, ... (13)"] {
+            &lt;&lt;interface, abc.ABC&gt;&gt;
+            every on#95;#42;#95;event abstract
+        }
+        class EventStubs["MouseEventStubs, KeyboardEventStubs, ... (13)"] {
+            &lt;&lt;mixin&gt;&gt;
+            every on#95;#42;#95;event calls unhandled#95;event
+        }
+        class AllEventStubs {
+            &lt;&lt;mixin&gt;&gt;
+            all 13 stub mixins
+        }
+        class GameOptionsProvider {
+            &lt;&lt;Protocol&gt;&gt;
+            options dict
+        }
+        class Scene {
+            a default for every on#95;#42;#95;event
+        }
+        class ManagerProxy["MouseEventManager.MouseEventProxy (one per manager)"] {
+            implements MouseEvents
+            each on#95;#42;#95;event calls game.on#95;#42;#95;event
+        }
+        class ResourceManager {
+            proxies list
+            #95;#95;getattr#95;#95; forwards to its proxies
+        }
+        class EventManager
+        class GameEngine {
+            process#95;#42;#95;event calls the event manager
+            #95;#95;getattr#95;#95; turns on#95;#42;#95;event into missing#95;event
+        }
+        class SceneManager {
+            #95;#95;getattr#95;#95; sends on#95;#42;#95;event to the active scene
+        }
+    }
+    namespace Bitmappy {
+        class BitmapEditorScene {
+            overrides the handlers it uses
+        }
+    }
+
+    EventInterface &lt;|-- EventInterfaces
+    EventInterface &lt;|-- EventStubs
+    EventStubs &lt;|-- AllEventStubs
+    AllEventStubs &lt;|-- Scene
+    Scene &lt;|-- BitmapEditorScene
+    EventInterfaces &lt;|-- ManagerProxy
+    ResourceManager &lt;|-- EventManager
+    EventManager &lt;|-- GameEngine
+    EventManager &lt;|-- SceneManager
+
+    GameEngine ..&gt; ManagerProxy : 1. process#95;mouse#95;event
+    ManagerProxy ..&gt; SceneManager : 2. game.on#95;#42;#95;event
+    SceneManager ..&gt; Scene : 3. #95;#95;getattr#95;#95; forwards it
+    SceneManager ..&gt; GameEngine : 3b. no active scene, missing#95;event
+    EventStubs ..&gt; GameOptionsProvider : unhandled#95;event(game)</code></pre>
+<p>The interfaces are abstract base classes, not <code>typing.Protocol</code>s, but <code>EventInterface</code>'s
+<code>__subclasshook__</code> makes them structural: any class with every handler of an interface counts as
+one. <code>GameOptionsProvider</code> is a real <code>Protocol</code>: <code>unhandled_event()</code> needs only the scene's
+<code>options</code>. Both scene classes also inherit <code>SceneInterface</code> (left out to keep the diagram
+readable).</p>
+<p><strong>Event flow</strong> — how an SDL event reaches your handler in Bitmappy (the stub a missing handler
+falls to is the engine's):</p>
 <pre class="mermaid"><code>flowchart TD
-    SDL["SDL Event"] --&gt; GE["GameEngine\nO#40;1#41; EVENT_HANDLERS lookup"]
-    GE --&gt; MGR["Event Manager\ne.g. MouseEventManager"]
-    MGR --&gt;|"updates state,\nsynthesizes events"| SM["SceneManager\nforwards to active_scene"]
-    SM --&gt; BES["BitmapEditorScene\n#40;the active scene#41;"]
-    BES --&gt; HANDLER["Your handler runs\non_left_mouse_drag_event#40;#41;"]
-    BES --&gt; STUB["No handler?\nThe stub calls unhandled_event#40;#41;"]</code></pre>
+    SDL["SDL Event"] --&gt; GE
+    subgraph ENGINE_BITMAPPY_EVENT_FLOW["Engine"]
+        GE["GameEngine\nO#40;1#41; EVENT_HANDLERS lookup"]
+        GE --&gt; MGR["Event Manager\ne.g. MouseEventManager"]
+        MGR --&gt;|"updates state,\nsynthesizes events"| SM["SceneManager\nforwards to active_scene"]
+        STUB["No handler?\nThe stub calls unhandled_event#40;#41;"]
+    end
+    subgraph APP_BITMAPPY_EVENT_FLOW["Bitmappy"]
+        BES["BitmapEditorScene\n#40;the active scene#41;"]
+        BES --&gt; HANDLER["Your handler runs\non_left_mouse_drag_event#40;#41;"]
+    end
+    SM --&gt; BES
+    BES --&gt; STUB</code></pre>
 <p>The <code>GameEngine</code> receives every SDL event and does an O(1) dict lookup to find
 the right event manager. The event manager updates its internal state (button
 tracking, axis values, drag detection) and may synthesize higher-level events
@@ -223,72 +318,99 @@ everything to the <code>active_scene</code>. In Bitmappy, that's <code>BitmapEdi
 which overrides handlers like <code>on_key_down_event()</code>,
 <code>on_left_mouse_button_down_event()</code>, <code>on_left_mouse_drag_event()</code>, and
 <code>on_controller_button_down_event()</code>. Events it doesn't override hit the stubs, which call
-<code>unhandled_event()</code>: it does nothing by default, logs each event type once when the log level
-is DEBUG, ERROR or CRITICAL, and raises <code>UnhandledEventError</code> under <code>--no-unhandled-events</code> (as the tests
+<code>unhandled_event()</code>: it does nothing by default, logs each event type once when <code>debug_events</code>
+is on (the <code>--debug-events</code> flag, off by default), and raises <code>UnhandledEventError</code> under <code>--no-unhandled-events</code> (as the tests
 run).</p>
 <h3 id="sprite-hierarchy-renderable-objects">Sprite hierarchy (renderable objects)<a class="headerlink" href="#sprite-hierarchy-renderable-objects" title="Permanent link">#</a></h3>
 <p><code>DirtySprite</code> is pygame's base for all sprites that support dirty-rect
 rendering. GlitchyGames extends it through <code>RootSprite</code> → <code>Sprite</code> → <code>BitmappySprite</code> to add
 mouse events, non-optional <code>image</code>/<code>rect</code>, named parent tracking and TOML load/save.
-<code>AnimatedSprite</code> derives from <code>DirtySprite</code> directly.</p>
+<code>AnimatedSprite</code> derives from <code>DirtySprite</code> directly. <code>DirtySprite</code> is pygame's, outside both
+boxes; the Bitmappy box holds the editor's own sprites.</p>
 <pre class="mermaid"><code>flowchart TD
     DS["DirtySprite\ndirty, image, rect"]
-    DS --&gt; RS["RootSprite\nmouse event support\nnon-optional image/rect"]
-    RS --&gt; SP["Sprite\nx, y, name, parent"]
-    SP --&gt; BS["BitmappySprite\nload#40;#41;, save#40;#41;"]
-    BS --&gt; ACS["AnimatedCanvasSprite\npixels_across, pixels_tall\ncanvas_interface.set_pixel_at#40;#41;, show_frame#40;#41;"]
-    BS --&gt; FSS["FilmStripSprite\nfilm_strip_widget\non_left_mouse_button_down_event#40;#41;"]
-    DS --&gt; AS["AnimatedSprite\n_animations, frame_manager\nset_animation#40;#41;, set_frame#40;#41;"]</code></pre>
+    subgraph ENGINE_SPRITE_HIERARCHY["Engine"]
+        RS["RootSprite\nmouse event support\nnon-optional image/rect"]
+        RS --&gt; SP["Sprite\nx, y, name, parent"]
+        SP --&gt; BS["BitmappySprite\nload#40;#41;, save#40;#41;"]
+        AS["AnimatedSprite\n_animations, frame_manager\nset_animation#40;#41;, set_frame#40;#41;"]
+    end
+    subgraph APP_SPRITE_HIERARCHY["Bitmappy"]
+        ACS["AnimatedCanvasSprite\npixels_across, pixels_tall\ncanvas_interface.set_pixel_at#40;#41;, show_frame#40;#41;"]
+        FSS["FilmStripSprite\nfilm_strip_widget\non_left_mouse_button_down_event#40;#41;"]
+    end
+    DS --&gt; RS
+    DS --&gt; AS
+    BS --&gt; ACS
+    BS --&gt; FSS</code></pre>
 <h2 id="event-flow">Event Flow<a class="headerlink" href="#event-flow" title="Permanent link">#</a></h2>
 <p>How pygame events propagate through the system: from <code>GameEngine._pump_events()</code> (live:
 <code>pygame.event.get()</code>) through
 the <code>EVENT_HANDLERS</code> dispatch table, into specialized event managers, through the
-scene manager, and finally into Bitmappy's scene and sprite handlers.</p>
+scene manager, and finally into Bitmappy's scene and sprite handlers. The top Engine box is the
+dispatch every game gets, the Bitmappy box is the editor's handlers, and the bottom Engine box is
+the engine's UI widgets (<code>glitchygames.ui</code>) the editor's clicks reach.</p>
 <pre class="mermaid"><code>flowchart TD
-    PG["GameEngine._pump_events()\nactive_sources().pump_events()"] --&gt; GE["GameEngine.process_events()"]
-    GE --&gt; EH{"EVENT_HANDLERS[event.type]"}
+    subgraph ENGINE_BITMAPPY_DISPATCH["Engine"]
+        PG["GameEngine._pump_events()\nactive_sources().pump_events()"] --&gt; GE["GameEngine.process_events()"]
+        GE --&gt; EH{"EVENT_HANDLERS[event.type]"}
 
-    EH --&gt;|KEYDOWN| KEM["KeyboardEventManager"]
-    EH --&gt;|MOUSEBUTTONDOWN| MEM["MouseEventManager"]
-    EH --&gt;|CONTROLLERBUTTONDOWN| CEM["ControllerEventManager"]
-    EH --&gt;|DROPFILE| DEM["DropEventManager"]
-    EH --&gt;|"WINDOW* events"| WEM["WindowEventManager"]
-    EH --&gt;|FPSEVENT| GEM["GameEventManager"]
+        EH --&gt;|KEYDOWN| KEM["KeyboardEventManager"]
+        EH --&gt;|MOUSEBUTTONDOWN| MEM["MouseEventManager"]
+        EH --&gt;|CONTROLLERBUTTONDOWN| CEM["ControllerEventManager"]
+        EH --&gt;|DROPFILE| DEM["DropEventManager"]
+        EH --&gt;|"WINDOW* events"| WEM["WindowEventManager"]
+        EH --&gt;|FPSEVENT| GEM["GameEventManager"]
 
-    KEM --&gt; SM["SceneManager.on_key_down_event()"]
-    MEM --&gt; SM2["SceneManager.on_left_mouse_button_down_event()"]
-    CEM --&gt; SM3["SceneManager.on_controller_button_down_event()"]
-    DEM --&gt; SM4["SceneManager.on_drop_file_event()"]
+        KEM --&gt; SM["SceneManager.on_key_down_event()"]
+        MEM --&gt; SM2["SceneManager.on_left_mouse_button_down_event()"]
+        CEM --&gt; SM3["SceneManager.on_controller_button_down_event()"]
+        DEM --&gt; SM4["SceneManager.on_drop_file_event()"]
+    end
 
-    SM --&gt; BES["BitmapEditorScene.on_key_down_event()"]
-    SM2 --&gt; BES2["BitmapEditorScene.on_left_mouse_button_down_event()"]
-    SM3 --&gt; BES3["BitmapEditorScene.on_controller_button_down_event()"]
-    SM4 --&gt; BES4["BitmapEditorScene.on_drop_file_event()\nFileIOManager"]
+    subgraph APP_BITMAPPY_DISPATCH["Bitmappy"]
+        BES["BitmapEditorScene.on_key_down_event()"]
+        BES2["BitmapEditorScene.on_left_mouse_button_down_event()"]
+        BES3["BitmapEditorScene.on_controller_button_down_event()"]
+        BES4["BitmapEditorScene.on_drop_file_event()\nFileIOManager"]
 
-    BES --&gt;|"Ctrl+Z / Ctrl+Y, Ctrl+Shift+Z"| UNDO["handle_undo() / handle_redo()"]
-    BES --&gt;|"Ctrl+C / Ctrl+V"| COPY["Copy / paste frame"]
-    BES --&gt;|"Ctrl+Shift+Arrow"| PAN["Pan the frame's pixels"]
-    BES --&gt;|"Arrow keys, 0-9, Space"| CANVAS["AnimatedCanvasSprite.handle_keyboard_event()"]
-    BES --&gt;|"O key"| ONION["Toggle Onion Skinning"]
+        BES --&gt;|"Ctrl+Z / Ctrl+Y, Ctrl+Shift+Z"| UNDO["handle_undo() / handle_redo()"]
+        BES --&gt;|"Ctrl+C / Ctrl+V"| COPY["Copy / paste frame"]
+        BES --&gt;|"Ctrl+Shift+Arrow"| PAN["Pan the frame's pixels"]
+        BES --&gt;|"Arrow keys, 0-9, Space"| CANVAS["AnimatedCanvasSprite.handle_keyboard_event()"]
+        BES --&gt;|"O key"| ONION["Toggle Onion Skinning"]
 
-    BES2 --&gt;|"Canvas area"| PIXEL["canvas.canvas_interface.set_pixel_at(x, y, color)"]
-    BES2 --&gt;|"Ctrl+click"| FLOOD["canvas._flood_fill(x, y, color)"]
-    BES2 --&gt;|"Film strip area"| FRAME["FilmStripSprite: select frame"]
-    BES2 --&gt;|"Menu item"| MENU["MenuItem: dialog scene"]
-    BES2 --&gt;|"Slider area"| SLIDER["SliderSprite: adjust RGBA"]
+        BES2 --&gt;|"Canvas area"| PIXEL["canvas.canvas_interface.set_pixel_at(x, y, color)"]
+        BES2 --&gt;|"Ctrl+click"| FLOOD["canvas._flood_fill(x, y, color)"]
+        BES2 --&gt;|"Film strip area"| FRAME["FilmStripSprite: select frame"]
 
-    BES3 --&gt; CEH["ControllerEventHandler"]
-    CEH --&gt; MCM["MultiControllerManager\n(assigns the controller)"]
-    CEH --&gt; MS["ModeSwitcher strategy"]
-    MS --&gt;|"Canvas Mode"| CPAINT["Canvas navigation/paint"]
-    MS --&gt;|"Film Strip Mode"| FNAV["Frame navigation/select"]
-    MS --&gt;|"Slider Mode"| SADJ["Slider adjustment"]</code></pre>
+        BES3 --&gt; CEH["ControllerEventHandler"]
+        CEH --&gt; MCM["MultiControllerManager\n(assigns the controller)"]
+        CEH --&gt; MS["ModeSwitcher strategy"]
+        MS --&gt;|"Canvas Mode"| CPAINT["Canvas navigation/paint"]
+        MS --&gt;|"Film Strip Mode"| FNAV["Frame navigation/select"]
+        MS --&gt;|"Slider Mode"| SADJ["Slider adjustment"]
+    end
+
+    subgraph ENGINE_BITMAPPY_WIDGETS["Engine: glitchygames.ui widgets"]
+        MENU["MenuItem: dialog scene"]
+        SLIDER["SliderSprite: adjust RGBA"]
+    end
+
+    SM --&gt; BES
+    SM2 --&gt; BES2
+    SM3 --&gt; BES3
+    SM4 --&gt; BES4
+    BES2 --&gt;|"Menu item"| MENU
+    BES2 --&gt;|"Slider area"| SLIDER</code></pre>
 <h2 id="ui-layout-component-wiring">UI Layout &amp; Component Wiring<a class="headerlink" href="#ui-layout-component-wiring" title="Permanent link">#</a></h2>
 <p>How the UI components are arranged on screen and how data flows between them.
-Dotted lines show data flow; solid lines show scene transitions via <code>switch_to_scene</code>.</p>
+Every line is dotted: data flow, and the scene switches to the dialogs (<code>next_scene</code>).
+Each box says whose the widgets are: "Engine" for the engine's widgets and dialog scenes
+(<code>glitchygames.ui</code>), "Bitmappy" for the editor's own sprites, scene and managers.</p>
 <pre class="mermaid"><code>flowchart TB
     subgraph Screen["Display Surface"]
-        subgraph MenuArea["Menu Bar - top 24px"]
+        subgraph MenuArea["Engine: Menu Bar - top 24px"]
             ICON["MenuItem: raspb icon"]
             NEW["MenuItem: New"]
             SAVE_M["MenuItem: Save"]
@@ -296,16 +418,22 @@ Dotted lines show data flow; solid lines show scene transitions via <code>switch
         end
 
         subgraph MainArea["Main Area"]
-            CANVAS_S["AnimatedCanvasSprite\npixel grid"]
+            subgraph APP_UI_CANVAS["Bitmappy"]
+                CANVAS_S["AnimatedCanvasSprite\npixel grid"]
+            end
             subgraph RightPanel["Right Side"]
-                FS1["FilmStripSprite 1\nfirst animation"]
-                FS2["FilmStripSprite 2\nsecond animation"]
-                ARROWS["Scroll Arrows"]
-                AI["TextSprite 'AI Sprite' +\nMultiLineTextBox (AI prompt, messages)"]
+                subgraph APP_UI_FILM_STRIPS["Bitmappy"]
+                    FS1["FilmStripSprite 1\nfirst animation"]
+                    FS2["FilmStripSprite 2\nsecond animation"]
+                    ARROWS["Scroll Arrows"]
+                end
+                subgraph ENGINE_UI_AI_PROMPT["Engine"]
+                    AI["TextSprite 'AI Sprite' +\nMultiLineTextBox (AI prompt, messages)"]
+                end
             end
         end
 
-        subgraph BottomArea["Bottom Controls"]
+        subgraph BottomArea["Engine: Bottom Controls"]
             CW["ColorWellSprite\ncurrent color"]
             SA["SliderSprite A: 0-255"]
             SR["SliderSprite R: 0-255"]
@@ -314,39 +442,56 @@ Dotted lines show data flow; solid lines show scene transitions via <code>switch
         end
     end
 
+    subgraph APP_UI_OUTSIDE["Bitmappy"]
+        AIM["AIManager"]
+        BES_RETURN["BitmapEditorScene"]
+    end
+
+    subgraph ENGINE_UI_DIALOGS["Engine: glitchygames.ui dialogs"]
+        LDS["LoadDialogScene"]
+        SDS["SaveDialogScene"]
+        NDS["NewCanvasDialogScene"]
+    end
+
     CANVAS_S -.-&gt;|"show_frame()"| FS1
     FS1 -.-&gt;|"frame selected"| CANVAS_S
     CW -.-&gt;|"active color"| CANVAS_S
     SR &amp; SG &amp; SB &amp; SA -.-&gt;|"RGBA values"| CW
-    AI -.-&gt;|"on_text_submit_event"| AIM["AIManager"]
+    AI -.-&gt;|"on_text_submit_event"| AIM
 
-    LOAD_M -.-&gt;|"next_scene"| LDS["LoadDialogScene"]
-    SAVE_M -.-&gt;|"next_scene"| SDS["SaveDialogScene"]
-    NEW -.-&gt;|"next_scene"| NDS["NewCanvasDialogScene"]
+    LOAD_M -.-&gt;|"next_scene"| LDS
+    SAVE_M -.-&gt;|"next_scene"| SDS
+    NEW -.-&gt;|"next_scene"| NDS
 
-    LDS -.-&gt;|"return to"| BES_RETURN["BitmapEditorScene"]
+    LDS -.-&gt;|"return to"| BES_RETURN
     SDS -.-&gt;|"return to"| BES_RETURN
     NDS -.-&gt;|"return to"| BES_RETURN</code></pre>
 <h2 id="rendering-pipeline">Rendering Pipeline<a class="headerlink" href="#rendering-pipeline" title="Permanent link">#</a></h2>
 <p>The steps of each frame, in order (<code>SceneManager._run_scene_frame</code>, then <code>_finish_frame</code>).
 Bitmappy has no world-space sprites, so steps 5 and 6 leave its widgets alone. Dirty-rect
-optimization ensures only changed regions are redrawn and pushed to the display.</p>
+optimization ensures only changed regions are redrawn and pushed to the display. The engine runs
+every step; the Bitmappy box is the editor's <code>update()</code>, which step 7 calls.</p>
 <pre class="mermaid"><code>flowchart TD
-    BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --&gt; LOGIC
-    LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --&gt; EVENTS
-    EVENTS["3. _process_events(), then _run_supervisor_slot()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
-    SERVICES["4. _update_frame_services()\nshake and rumble"] --&gt; AIM
-    AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --&gt; POSITION
-    POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --&gt; RENDER
-    RENDER["7. _render_scene()\nScene.update() (visual only), LayeredDirty.draw"] --&gt; CHECK{"sprite.dirty?"}
-    RENDER --&gt; FM["BitmapEditorScene.update()\ncanvas.update_animation(dt)\nFilmStripCoordinator.update_film_strip_animation_timing()\nFilmStripSprite.dirty = 1 when a frame advances"]
-    CHECK --&gt;|"dirty=0"| SKIP["Skip - no redraw"]
-    CHECK --&gt;|"dirty=1 or 2"| REDRAW["Blit sprite.image at sprite.rect\ncollect changed rects"]
-    SKIP --&gt; STILL
-    REDRAW --&gt; STILL
-    STILL["8. _advance_still_camera_shake()\nadvance a WORLD shake nothing advanced this frame\n(no aim, no game camera.update())"] --&gt; PRESENT
-    PRESENT["9. _present_frame()\ndebug overlay, pygame.display.update rects or flip"] --&gt; FINISH
-    FINISH["10. _finish_frame()\npace, then one perf_counter reading sets the next dt"]</code></pre>
+    subgraph ENGINE_BITMAPPY_FRAME["Engine"]
+        BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --&gt; LOGIC
+        LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --&gt; EVENTS
+        EVENTS["3. _process_events(), then _run_supervisor_slot()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
+        SERVICES["4. _update_frame_services()\nshake and rumble"] --&gt; AIM
+        AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --&gt; POSITION
+        POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --&gt; RENDER
+        RENDER["7. _render_scene()\nScene.update() (visual only), LayeredDirty.draw"] --&gt; CHECK{"sprite.dirty?"}
+        CHECK --&gt;|"dirty=0"| SKIP["Skip - no redraw"]
+        CHECK --&gt;|"dirty=1 or 2"| REDRAW["Blit sprite.image at sprite.rect\ncollect changed rects"]
+        SKIP --&gt; STILL
+        REDRAW --&gt; STILL
+        STILL["8. _advance_still_camera_shake()\nadvance a WORLD shake nothing advanced this frame\n(no aim, no game camera.update())"] --&gt; PRESENT
+        PRESENT["9. _present_frame()\ndebug overlay, pygame.display.update rects or flip"] --&gt; FINISH
+        FINISH["10. _finish_frame()\npace, then one perf_counter reading sets the next dt"]
+    end
+    subgraph APP_BITMAPPY_FRAME["Bitmappy"]
+        FM["BitmapEditorScene.update()\ncanvas.update_animation(dt)\nFilmStripCoordinator.update_film_strip_animation_timing()\nFilmStripSprite.dirty = 1 when a frame advances"]
+    end
+    RENDER --&gt; FM</code></pre>
 <h2 id="undoredo-operations">Undo/Redo &amp; Operations<a class="headerlink" href="#undoredo-operations" title="Permanent link">#</a></h2>
 <p>How user actions flow through operation trackers into the central undo/redo stack.
 Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
@@ -389,21 +534,41 @@ Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
     STACK_U --&gt;|"Ctrl+Z"| STACK_R
     STACK_R --&gt;|"Ctrl+Y / Ctrl+Shift+Z"| STACK_U</code></pre>
 <h2 id="sprite-loadsave-pipeline">Sprite Load/Save Pipeline<a class="headerlink" href="#sprite-loadsave-pipeline" title="Permanent link">#</a></h2>
-<p>How sprites are loaded from TOML files, saved back, and imported via drag-and-drop.</p>
+<p>How sprites are loaded from TOML files, saved back, and imported via drag-and-drop. Inside each
+path, the Bitmappy box is the editor's canvas and the Engine box is the engine's <code>AnimatedSprite</code>,
+which reads and writes the file; drag and drop is all the editor's (<code>FileIOManager</code>).</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph Load["Load Path"]
-        FILE_IN["sprite.toml"] --&gt; CLOAD["AnimatedCanvasSprite.on_load_file_event()"]
-        CLOAD --&gt; DETECT["detect_file_format()\n(glitchygames/bitmappy/utils.py: TOML only)"]
-        DETECT --&gt; AS["AnimatedSprite().load(filename)\nstatic sprites become one-frame animations"]
-        AS --&gt; CANVAS_L["AnimatedCanvasSprite\ndisplays frames, resizes to fit"]
+        FILE_IN["sprite.toml"]
+        subgraph APP_LOAD["Bitmappy"]
+            CLOAD["AnimatedCanvasSprite.on_load_file_event()"]
+            CLOAD --&gt; DETECT["detect_file_format()\n(glitchygames/bitmappy/utils.py: TOML only)"]
+        end
+        subgraph ENGINE_LOAD["Engine"]
+            AS["AnimatedSprite().load(filename)\nstatic sprites become one-frame animations"]
+        end
+        subgraph APP_LOAD_DISPLAY["Bitmappy"]
+            CANVAS_L["AnimatedCanvasSprite\ndisplays frames, resizes to fit"]
+        end
+        FILE_IN --&gt; CLOAD
+        DETECT --&gt; AS
+        AS --&gt; CANVAS_L
     end
 
     subgraph Save["Save Path"]
-        CANVAS_SAVE["AnimatedCanvasSprite.on_save_file_event()"] --&gt; DECIDE{"One frame?"}
-        DECIDE --&gt;|Yes| STATIC["AnimatedSprite._save_as_static_sprite()"]
-        DECIDE --&gt;|No| SER["AnimatedSpriteSerializer\n-&gt; AnimatedSprite.save()"]
-        SER --&gt; WRITE_TOML["Write TOML\ncolors (per-pixel alpha detected) + frames + animations"]
-        STATIC --&gt; FILE_OUT["output.toml"]
+        subgraph APP_SAVE["Bitmappy"]
+            CANVAS_SAVE["AnimatedCanvasSprite.on_save_file_event()"] --&gt; DECIDE{"One frame?"}
+            DECIDE --&gt;|No| SER["AnimatedSpriteSerializer\n-&gt; AnimatedSprite.save()"]
+            DECIDE --&gt;|Yes| CANVAS_STATIC["AnimatedCanvasSprite._save_as_static_sprite()\nbuilds an AnimatedSprite, calls its save()"]
+        end
+        subgraph ENGINE_SAVE["Engine"]
+            STATIC["AnimatedSprite._save_as_static_sprite()"]
+            WRITE_TOML["Write TOML\ncolors (per-pixel alpha detected) + frames + animations"]
+        end
+        CANVAS_STATIC --&gt; STATIC
+        SER --&gt; WRITE_TOML
+        FILE_OUT["output.toml"]
+        STATIC --&gt; FILE_OUT
         WRITE_TOML --&gt; FILE_OUT
     end
 
@@ -467,8 +632,8 @@ and X redoes in film strip and canvas modes.</p>
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../../glitchygames/ui/" class="btn btn-neutral float-left" title="glitchygames.ui"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../.." class="btn btn-neutral float-left" title="GlitchyGames Getting Started"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../games/paddleslap/" class="btn btn-neutral float-right" title="PaddleSlap Architecture">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -495,10 +660,10 @@ and X redoes in film strip and canvas modes.</p>
         </span>
     
     
-      <span><a href="../../glitchygames/ui/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../.." style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../event_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../../games/paddleslap/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

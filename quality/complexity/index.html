@@ -45,6 +45,39 @@
                 <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
               <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
@@ -98,27 +131,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">Documentation</span></p>
-              <ul class="current">
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
-                  </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Code Complexity</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../performance/">Replay Performance</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_comparison/">Driver Comparison</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
-                  </li>
-              </ul>
       </div>
     </div>
     </nav>
@@ -159,7 +171,7 @@ the published site. To see them in a local build (<code>mkdocs serve</code>), ge
 <code>uv run python scripts/generate_complexity_graphs.py</code> (or <code>nox -s code-complexity -- --graphs</code>),
 which measures the committed history (HEAD) in a temporary worktree and writes them to
 <code>docs/quality/graphs/</code>; until then this page has only this text.</p>
-<p>Generated at commit <code>b7d5bd57</code> (2026-10-23) from all 280 commits. The modules, highest total cyclomatic complexity first: <code>glitchygames/scenes/scene.py</code>, <code>glitchygames/sprites/animated.py</code>, <code>glitchygames/bitmappy/film_strip_coordinator.py</code>, <code>glitchygames/engine/game_engine.py</code>, <code>glitchygames/replay/driver.py</code>, <code>glitchygames/bitmappy/animated_canvas.py</code>, <code>glitchygames/bitmappy/editor.py</code>, <code>glitchygames/ui/text_widgets.py</code>, <code>glitchygames/bitmappy/ai_manager.py</code>, <code>glitchygames/examples/mr_muncher/game.py</code>, <code>glitchygames/recording.py</code>, <code>glitchygames/bitmappy/canvas_interfaces.py</code>, <code>glitchygames/bitmappy/toml_processing.py</code>, <code>glitchygames/bitmappy/film_strip_events.py</code>, <code>glitchygames/bitmappy/history/undo_redo.py</code>.</p>
+<p>Generated at commit <code>ed745014</code> (2026-10-23) from all 300 commits. The modules, highest total cyclomatic complexity first: <code>glitchygames/scenes/scene.py</code>, <code>glitchygames/sprites/animated.py</code>, <code>glitchygames/bitmappy/film_strip_coordinator.py</code>, <code>glitchygames/replay/driver.py</code>, <code>glitchygames/engine/game_engine.py</code>, <code>glitchygames/bitmappy/animated_canvas.py</code>, <code>glitchygames/bitmappy/editor.py</code>, <code>glitchygames/ui/text_widgets.py</code>, <code>glitchygames/bitmappy/ai_manager.py</code>, <code>glitchygames/examples/mr_muncher/game.py</code>, <code>glitchygames/recording.py</code>, <code>glitchygames/bitmappy/canvas_interfaces.py</code>, <code>glitchygames/bitmappy/toml_processing.py</code>, <code>glitchygames/bitmappy/film_strip_events.py</code>, <code>glitchygames/bitmappy/history/undo_redo.py</code>.</p>
 <h2 id="maintainability-index">Maintainability Index<a class="headerlink" href="#maintainability-index" title="Permanent link">#</a></h2>
 <iframe src="../graphs/maintainability_mi.html" width="100%" height="600" frameborder="0"></iframe>
 

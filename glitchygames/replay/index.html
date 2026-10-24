@@ -45,6 +45,39 @@
                 <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
                 </li>
               </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
                 <ul><li>
                     <a href="../" style="padding: 0; font-size: inherit; line-height: inherit">
               <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
@@ -96,27 +129,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../transitions/">glitchygames.transitions</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../ui/">glitchygames.ui</a>
-                  </li>
-              </ul>
-              <p class="caption"><span class="caption-text">Documentation</span></p>
-              <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
               </ul>
       </div>
@@ -32777,7 +32789,7 @@ and singletons hold the state of every frame run so far). So <code>,</code> (ste
    <code>--no-debug-overlay</code> (whether the overlay was shown) and <code>--replay-viewer-state</code> (the
    speed, the debug overlay's panel and the divergence found so far, so D works at once:
    <code>ViewerState</code>). They are appended, the last occurrence of an option winning (an earlier
-   abbreviation such as <code>--debug</code> included), before any bare <code>--</code>.</li>
+   abbreviation such as <code>--debug-o</code> included), before any bare <code>--</code>.</li>
 <li><code>relaunch_replay</code> runs it, with the engine's signal handlers installed again (a SIGTERM or
    SIGHUP raises SystemExit, and <code>subprocess.run</code> then kills the child with SIGKILL, without
    its teardown, and reaps it: acceptable, as a replay never records). The first
