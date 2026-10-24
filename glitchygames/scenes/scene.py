@@ -225,6 +225,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self.quit_requested: bool = False
         # Frames finished this run; the doors' end_frame receives each frame's number
         self.frame_number: int = 0
+        # Whether the last run_frame_step was a hold (the doors presented the latest frame again,
+        # a watched replay's outer tick) rather than a frame
+        self.last_step_was_held: bool = False
         self._initialize_supervision()
 
         # Scene transition support
@@ -1687,7 +1690,8 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         # The doors may hold the loop between frames (a paused watched replay): no frame
         # runs, the last one is presented again with the doors' overlay
-        if active_sources().hold_frame():
+        self.last_step_was_held = active_sources().hold_frame()
+        if self.last_step_was_held:
             # Unless the hold ended the run (the viewer quit): nothing more to show
             if not active_sources().stop_requested:
                 self._present_held_frame()

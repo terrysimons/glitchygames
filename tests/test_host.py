@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter on a fixed program
+import sys
+import textwrap
 from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
@@ -194,6 +197,157 @@ class TestHostSources:
         host = HostSources(inner=RecordingDoors())  # type: ignore[arg-type]
 
         assert host.first_open_save_snapshots == MappingProxyType({})
+
+
+class BatchDoors(RecordingDoors):
+    """Stand-in inner doors whose next batch is given."""
+
+    def __init__(self: Self, *, batch: list[pygame.event.Event]) -> None:
+        """Serve ``batch`` from pump_events."""
+        super().__init__()
+        self.batch = batch
+
+    def pump_events(self: Self) -> list[pygame.event.Event]:
+        return list(self.batch)
+
+
+def active_event(*, gain: int, state: int) -> pygame.event.Event:
+    """Return an ACTIVEEVENT: ``gain`` 0 takes ``state`` (APP*) from the window, 1 gives it."""
+    return pygame.event.Event(pygame.ACTIVEEVENT, gain=gain, state=state)
+
+
+def window_event(event_type: int) -> pygame.event.Event:
+    """Return a window event of ``event_type`` for the one window (``window`` None)."""
+    return pygame.event.Event(event_type, window=None)
+
+
+def recreated_window_events() -> list[pygame.event.Event]:
+    """What one SDL window recreation queues: everything lost, then everything given back."""
+    return [
+        active_event(gain=0, state=pygame.APPMOUSEFOCUS),
+        window_event(pygame.WINDOWLEAVE),
+        active_event(gain=0, state=pygame.APPINPUTFOCUS),
+        window_event(pygame.WINDOWFOCUSLOST),
+        window_event(pygame.WINDOWHIDDEN),
+        active_event(gain=1, state=pygame.APPMOUSEFOCUS),
+        window_event(pygame.WINDOWENTER),
+        active_event(gain=1, state=pygame.APPINPUTFOCUS),
+        window_event(pygame.WINDOWFOCUSGAINED),
+        window_event(pygame.WINDOWSHOWN),
+    ]
+
+
+def new_window_events() -> list[pygame.event.Event]:
+    """What a new window queues: entered, focused and shown."""
+    return [
+        active_event(gain=1, state=pygame.APPMOUSEFOCUS),
+        window_event(pygame.WINDOWENTER),
+        active_event(gain=1, state=pygame.APPINPUTFOCUS),
+        window_event(pygame.WINDOWFOCUSGAINED),
+        window_event(pygame.WINDOWSHOWN),
+    ]
+
+
+def described(events: list[pygame.event.Event]) -> list[tuple[str, int | None]]:
+    """Return each event's name and ACTIVEEVENT gain (None for other events), to compare batches."""
+    return [(pygame.event.event_name(event.type), getattr(event, 'gain', None)) for event in events]
+
+
+class TestWindowRecreationBursts:
+    """A loss given back in the same batch never reaches the game (SDL recreating the window).
+
+    A SCALED display makes SDL recreate the window when its renderer needs an OpenGL window
+    (SDL 2.32.10 ``GLES2_CreateRenderer`` calls ``SDL_RecreateWindow``, which hides the window,
+    destroys it and creates it again). Batches measured 2026-10-24: the browser queues one
+    recreation after the new window's events, the dummy driver two.
+    """
+
+    def test_one_recreation_after_a_new_window_leaves_the_new_window(self):
+        """The browser's first batch (Chromium 141 and WebKit 26, pygame-ce 2.5.7 SCALED)."""
+        device = pygame.event.Event(pygame.AUDIODEVICEADDED, which=0, iscapture=0)
+        motion = pygame.event.Event(pygame.MOUSEMOTION, pos=(1, 1), rel=(0, 0), buttons=(0, 0, 0))
+        host = HostSources(
+            inner=BatchDoors(  # type: ignore[arg-type]
+                batch=[device, *new_window_events(), *recreated_window_events(), motion]
+            )
+        )
+
+        assert described(host.pump_events()) == described([
+            device,
+            *new_window_events(),
+            motion,
+        ])
+
+    def test_two_recreations_leave_the_new_window(self):
+        """The dummy driver's first batch: SDL tries two OpenGL renderers before software."""
+        host = HostSources(
+            inner=BatchDoors(  # type: ignore[arg-type]
+                batch=[*new_window_events(), *recreated_window_events(), *recreated_window_events()]
+            )
+        )
+
+        assert described(host.pump_events()) == described(new_window_events())
+
+    def test_a_loss_not_given_back_in_the_batch_reaches_the_game(self):
+        lost = [
+            active_event(gain=0, state=pygame.APPINPUTFOCUS),
+            window_event(pygame.WINDOWFOCUSLOST),
+        ]
+        host = HostSources(inner=BatchDoors(batch=lost))  # type: ignore[arg-type]
+
+        assert described(host.pump_events()) == described(lost)
+
+    def test_a_gain_then_a_loss_both_reach_the_game(self):
+        """Only a loss followed by its gain cancels out: the reverse ends the batch unfocused."""
+        batch = [window_event(pygame.WINDOWFOCUSGAINED), window_event(pygame.WINDOWFOCUSLOST)]
+        host = HostSources(inner=BatchDoors(batch=batch))  # type: ignore[arg-type]
+
+        assert described(host.pump_events()) == described(batch)
+
+    def test_a_loss_is_given_back_only_by_its_own_kind_and_window(self):
+        other_window = object()
+        batch = [
+            window_event(pygame.WINDOWFOCUSLOST),
+            window_event(pygame.WINDOWSHOWN),
+            pygame.event.Event(pygame.WINDOWFOCUSGAINED, window=other_window),
+            active_event(gain=0, state=pygame.APPINPUTFOCUS),
+            active_event(gain=1, state=pygame.APPMOUSEFOCUS),
+        ]
+        host = HostSources(inner=BatchDoors(batch=batch))  # type: ignore[arg-type]
+
+        assert described(host.pump_events()) == described(batch)
+
+    def test_a_scaled_window_on_the_dummy_driver_never_reports_a_focus_loss(self):
+        """Real pygame in a fresh process: the first batch through the host keeps no loss."""
+        script = textwrap.dedent("""
+            import os
+            os.environ['SDL_VIDEODRIVER'] = 'dummy'
+            os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+            import pygame
+            from glitchygames.host import HostSources
+            from glitchygames.live_sources import LiveSources
+            pygame.init()
+            pygame.display.set_mode((64, 48), pygame.SCALED)
+            live = LiveSources(random_seed=1, captures_scene_starts=False)
+            raw = []
+            live_pump_events = live.pump_events
+            def pump_events():
+                batch = live_pump_events()
+                raw.extend(pygame.event.event_name(event.type) for event in batch)
+                return batch
+            live.pump_events = pump_events
+            host = HostSources(inner=live)
+            hosted = [pygame.event.event_name(event.type) for event in host.pump_events()]
+            print(raw.count('WindowFocusLost'), hosted.count('WindowFocusLost'))
+            print(hosted.count('WindowFocusGained'), hosted.count('WindowShown'))
+        """)
+        result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - this interpreter, a fixed program
+            [sys.executable, '-c', script], capture_output=True, text=True, check=True
+        )
+
+        raw_losses, *hosted_counts = result.stdout.split()
+        assert int(raw_losses) > 0, 'the dummy driver no longer recreates SCALED windows'
+        assert hosted_counts == ['0', '1', '1']
 
 
 class TestTickPacer:
