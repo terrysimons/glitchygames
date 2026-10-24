@@ -65,9 +65,12 @@ from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     PROCESSING_SECONDS_FIELD,
     MeasurementRun,
+    budget_seconds_for,
     frame_content_hash,
     latest_measurement_run,
     recording_content_hash,
+    recording_run_summaries,
+    run_summary,
 )
 from glitchygames.replay import audit
 from glitchygames.replay import driver as driver_module
@@ -5356,6 +5359,24 @@ class TestProcessingComparison:
         assert new_run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert new_run.machine == machine_description()
         assert new_run.rebaselined_from == str(recording_path)
+        # OLD's run gets its summary now, from OLD's frames; NEW's own is computed when asked
+        old_frames = read_trace_result(path=recording_path).trace['frames']
+        new_trace = read_trace_result(path=new_path).trace
+        old_run = new_trace[MEASUREMENT_RUNS_HEADER_FIELD][1]
+        expected_old_summary = run_summary(
+            frames=old_frames,
+            run_index=0,
+            budget_seconds=budget_seconds_for(header=new_trace),
+            live_run=True,
+        )
+        assert expected_old_summary is not None
+        assert expected_old_summary.frame_time is not None
+        assert old_run['summary'] == expected_old_summary.model_dump(mode='json')
+        assert new_trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['summary'] is None
+        summaries = recording_run_summaries(header=new_trace, frames=new_trace['frames'])
+        assert summaries[1] == expected_old_summary
+        assert summaries[0] is not None
+        assert summaries[0].frame_time is None
 
 
 class TestRebaselinedHeader:

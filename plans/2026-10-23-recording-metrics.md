@@ -39,7 +39,11 @@ a checkout, `export-subst` for archives, a build stamp for packages; no stamp co
 known. **Done (2026-10-23): machine state.** `glitchygames/machine_state.py`:
 `MeasurementRun.machine_state` (CPU model, logical CPUs, memory, mains or battery, macOS's
 `pmset -g therm` report kept as reported, continuous integration), read once per process as its
-first run starts (about 18 ms on macOS; every run cost the suite ~30 s). Still to do in Part 0: the per-run summary.
+first run starts (about 18 ms on macOS; every run cost the suite ~30 s). **Done (2026-10-23): the per-run summary** (decision: option 1, the
+user deferred to the recommendation). `RunSummary` (processing p50/p95/p99/max, worst frame and
+its scene, frames over budget, the live run's frame times) is filled into each earlier run when
+the next run stacks (`stacked_measurement_runs`, as `frame_count` already was); the newest run's
+is computed on demand (`recording_run_summaries`). No rewrite on close. Part 0 is complete.
 
 Each `MeasurementRun` also records the git commit and whether the tree had uncommitted changes
 (absent outside a checkout), the CPU model, power source (AC or battery) and thermal state where

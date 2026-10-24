@@ -65,8 +65,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   spare-time queue whose results reach the game through the doors (recorded, served in replays)
 - **Status**: TODO: design in `plans/2026-10-23-recording-metrics.md` (Parts 0-7, all chosen by
   the user 2026-10-23; open decisions listed there)
-  Done: the engine's source revision and the machine's state in every run
-  (`glitchygames/build_info.py`, `glitchygames/machine_state.py`, 2026-10-23)
+  Done: Part 0 (2026-10-23): the engine's source revision, the machine's state and a run
+  summary in every run (`glitchygames/build_info.py`, `machine_state.py`, `recording_history.py`)
 - **Priority**: High (requested 2026-10-23)
 
 ### 47. Controller Layout Mapper: PlayStation-Style Pads (PS3, PS4, PS5) — TODO

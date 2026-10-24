@@ -562,6 +562,11 @@ class RecordedFrames:
         """How many complete frames the recording holds."""
         return len(self._frames)
 
+    @property
+    def frames(self: Self) -> Sequence[dict[str, Any]]:
+        """Every complete frame, decoded (a rebaseline summarises the earlier runs from them)."""
+        return self._frames
+
     def frame(self: Self, *, frame_index: int) -> dict[str, Any] | None:
         """Return a recorded frame, or None past the end of the recording.
 
