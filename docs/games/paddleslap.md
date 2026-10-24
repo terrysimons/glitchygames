@@ -137,63 +137,119 @@ sequenceDiagram
 
 ## Classes
 
-Arrows are inheritance, pointing at the base class. `Game` owns the sprites through the members
-shown (`player1`, `player2`, `balls`).
+PaddleSlap's own code is two classes in `glitchygames/examples/paddleslap.py`: `Game` and
+`PaddleSlapGameOverScene`. Everything else it uses comes from the engine: `Scene` and the
+built-in `PauseScene` and `GameOverScene` (`glitchygames.scenes`), `Sprite`
+(`glitchygames.sprites`), and the paddles and balls of the engine's game-object library
+(`glitchygames.game_objects`). In the diagrams, the Engine box is what every game gets; the
+PaddleSlap box is what this game adds. Solid arrows are inheritance, pointing at the base class;
+dotted arrows are how the game uses an engine class.
+
+### Scenes
 
 ```mermaid
 classDiagram
     direction TB
-    class Scene
-    class GameOverScene
-    class Game {
-        NAME = 'Paddle Slap'
-        VERSION = '1.1'
-        player1, player2 : VerticalPaddle
-        balls : list of BallSprite
-        rally_count : int
-        p1_actions, p2_actions, pause_actions : ActionMap
-        saves : SaveManager
-        ball_spawn_mode : BallSpawnMode flags
-        dt_tick(dt)
-        args(parser)
+    namespace Engine {
+        class Scene {
+            next_scene
+            pause requests a PauseScene
+        }
+        class PauseScene {
+            the frozen game, dimmed
+            SPACE resumes it, ESC quits
+        }
+        class GameOverScene {
+            score and high scores
+            SPACE restarts, ESC quits
+        }
     }
-    class PaddleSlapGameOverScene {
-        idle_since_game_time : float
-        dt_tick(dt)
-        replay_arguments()
-        resume()
-    }
-    class Sprite
-    class BasePaddle {
-        _move : Vertical or Horizontal
-        _sub_pixel_x, _sub_pixel_y
-    }
-    class VerticalPaddle {
-        up() down() stop()
-        dt_tick(dt)
-        update()
-    }
-    class HorizontalPaddle
-    class BallSprite {
-        COORDINATE_SPACE = WORLD
-        world_x, world_y : float
-        speed : Speed
-        serve_settings, speed_up_settings
-        on_paddle_collision, on_wall_bounce
-        dt_tick(dt)
-        handle_paddle_collision(paddle)
+    namespace PaddleSlap {
+        class Game {
+            NAME = 'Paddle Slap'
+            VERSION = '1.1'
+            player1, player2 : VerticalPaddle
+            balls : list of BallSprite
+            rally_count : int
+            p1_actions, p2_actions, pause_actions : ActionMap
+            saves : SaveManager
+            ball_spawn_mode : BallSpawnMode flags
+            dt_tick(dt)
+            args(parser)
+        }
+        class PaddleSlapGameOverScene {
+            idle_since_game_time : float
+            dt_tick(dt)
+            replay_arguments()
+            resume()
+        }
     }
 
-    Scene <|-- Game
+    Scene <|-- PauseScene
     Scene <|-- GameOverScene
+    Scene <|-- Game
     GameOverScene <|-- PaddleSlapGameOverScene
+
+    Game ..> PauseScene : SPACE calls the inherited pause
+    Game ..> PaddleSlapGameOverScene : next_scene when the last ball is gone
+    PaddleSlapGameOverScene ..> Game : resume starts a new Game
+```
+
+`Game` never names `PauseScene`: its pause action calls `Scene.pause()`, which it inherits, and
+that requests the engine's `PauseScene` for the end of the frame. PaddleSlap's game-over screen
+extends the engine's, adding the attract-mode demo after an idle wait and always restarting a new
+`Game` (the engine's `resume()` restarts whatever scene came before, BUGS.md #81).
+
+### Sprites
+
+```mermaid
+classDiagram
+    direction TB
+    namespace Engine {
+        class Sprite
+        class BasePaddle {
+            _move : Vertical or Horizontal
+            _sub_pixel_x, _sub_pixel_y
+        }
+        class VerticalPaddle {
+            up() down() stop()
+            dt_tick(dt)
+            update()
+        }
+        class HorizontalPaddle
+        class BallSprite {
+            COORDINATE_SPACE = WORLD
+            world_x, world_y : float
+            speed : Speed
+            serve_settings, speed_up_settings
+            on_paddle_collision, on_wall_bounce
+            dt_tick(dt)
+            handle_paddle_collision(paddle)
+        }
+    }
+    namespace PaddleSlap {
+        class GameSprites["Game"] {
+            creates the paddles and balls
+            sets the balls' callbacks
+            resolves collisions in dt_tick
+        }
+    }
+
     Sprite <|-- BasePaddle
     BasePaddle <|-- VerticalPaddle
     BasePaddle <|-- HorizontalPaddle
     Sprite <|-- BallSprite
+
+    VerticalPaddle <.. GameSprites : player1, player2
+    BallSprite <.. GameSprites : balls
 ```
 
-`HorizontalPaddle` is not used by PaddleSlap; it is shown because it shares `BasePaddle`.
+PaddleSlap defines no sprite classes: both paddles are the engine's `VerticalPaddle`
+(`glitchygames/game_objects/paddle.py`) and every ball is its `BallSprite`
+(`glitchygames/game_objects/ball.py`). The game creates them, wires the balls' callbacks
+(`on_paddle_collision`, `on_wall_bounce`) to its rally count and sounds, and resolves collisions
+in `Game.dt_tick`. `HorizontalPaddle` is not used by PaddleSlap; it is shown because it shares
+`BasePaddle`.
 
 ## Sprites and how they are drawn
 
