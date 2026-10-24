@@ -45,48 +45,85 @@ into scenes and sprites.
 
 ## Event Dispatch Overview
 
-The complete path an event takes from SDL to your scene handler. The `EVENT_HANDLERS`
-dict provides O(1) lookup from pygame event type to the correct processing method.
+The path an event takes from SDL to your scene's handler. Every event family follows the same
+path; the `EVENT_HANDLERS` dict picks the family's method in one lookup (the table below says
+which method each event type gets).
 
 ```mermaid
-flowchart TD
-    SDL["SDL2 Event Queue"] --> PG["active_sources().pump_events()\n(live: pygame.event.get())"]
-    PG --> PE["GameEngine.process_events()"]
-    PE -->|"scene defines process_event()"| RAW["scene.process_event(raw event)"]
-    PE --> WRAP["HashableEvent.from_pygame()"]
-    WRAP --> LOOKUP{"EVENT_HANDLERS\n[event.type]"}
-
-    LOOKUP -->|"AUDIODEVICEADDED\nAUDIODEVICEREMOVED"| AUDIO["process_audio_event()"]
-    LOOKUP -->|"CONTROLLERAXISMOTION\nCONTROLLERBUTTON*\nCONTROLLERDEVICE*\nCONTROLLERTOUCHPAD*"| CTRL["process_controller_event()"]
-    LOOKUP -->|"DROPBEGIN\nDROPFILE\nDROPTEXT\nDROPCOMPLETE"| DROP["process_drop_event()"]
-    LOOKUP -->|"KEYDOWN\nKEYUP"| KEY["process_keyboard_event()"]
-    LOOKUP -->|"JOYAXISMOTION\nJOYBUTTON*\nJOYHAT*\nJOYBALL*\nJOYDEVICE*"| JOY["process_joystick_event()"]
-    LOOKUP -->|"MOUSEMOTION\nMOUSEBUTTON*\nMOUSEWHEEL"| MOUSE["process_mouse_event()"]
-    LOOKUP -->|"FINGERDOWN\nFINGERMOTION\nFINGERUP\nMULTIGESTURE"| TOUCH["process_touch_event()"]
-    LOOKUP -->|"WINDOWEVENT\nWINDOW*"| WIN["process_window_event()"]
-    LOOKUP -->|"FPSEVENT\nGAMEEVENT\nMENUEVENT\nQUIT\nUSEREVENT\nACTIVEEVENT\nVIDEO*\nSYSWMEVENT"| GAME["process_game_event()"]
-    LOOKUP -->|"MIDIIN\nMIDIOUT"| MIDI["process_midi_event()"]
-    LOOKUP -->|"TEXTEDITING\nTEXTINPUT"| TEXT["process_text_event()"]
-    LOOKUP -->|"no entry, or not handled"| UNIMPL["process_unimplemented_event()\ncounted in unhandled_events"]
-    LOOKUP -->|"APP_*"| APP["process_app_event()"]
-
-    AUDIO --> AM["AudioEventManager"]
-    CTRL --> CM["ControllerEventManager"]
-    DROP --> DM["DropEventManager"]
-    KEY --> KM["KeyboardEventManager"]
-    JOY --> JM["JoystickEventManager"]
-    MOUSE --> MM["MouseEventManager"]
-    TOUCH --> TM["TouchEventManager"]
-    WIN --> WM["WindowEventManager"]
-    GAME --> GM["GameEventManager"]
-    MIDI --> MIM["MidiEventManager"]
-    TEXT --> UNIMPL
-    APP --> APM["AppEventManager"]
-
-    AM & CM & DM & KM & JM & MM & TM & WM & GM & MIM & APM --> SM["SceneManager\non_*_event()"]
-    SM --> SCENE["Active Scene\non_*_event()"]
-    SCENE --> SPRITE["Focused/Collided Sprites\non_*_event()"]
+%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart TB
+    PATH_SDL["SDL event queue"] --> PATH_PUMP["active_sources().pump_events()<br/>(live: pygame.event.get())"]
+    PATH_PUMP --> PATH_PROCESS["GameEngine.process_events()"]
+    PATH_PROCESS -->|"the scene defines process_event()"| PATH_RAW["scene.process_event(raw event)<br/>(skips everything below)"]
+    PATH_PROCESS --> PATH_WRAP["HashableEvent.from_pygame()"]
+    PATH_WRAP --> PATH_LOOKUP{"EVENT_HANDLERS[event.type]"}
+    PATH_LOOKUP -->|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()<br/>counted in unhandled_events"]
+    PATH_LOOKUP --> PATH_FAMILY["GameEngine.process_family_event()<br/>(one per event family, table below)"]
+    PATH_FAMILY --> PATH_MANAGER["the family's event manager"]
+    PATH_MANAGER --> PATH_PROXY["its proxy: keeps state, synthesizes events<br/>(one proxy per device for joysticks and controllers)"]
+    PATH_PROXY --> PATH_SCENE_MANAGER["SceneManager on_*_event()"]
+    PATH_SCENE_MANAGER --> PATH_SCENE["the active scene's on_*_event()"]
+    PATH_SCENE --> PATH_SPRITES["focused or collided sprites' on_*_event()"]
 ```
+
+| Event types | Method | Manager |
+|---|---|---|
+| `AUDIODEVICEADDED`, `AUDIODEVICEREMOVED` | `process_audio_event()` | `AudioEventManager` |
+| `CONTROLLER*` (axis, button, device, touchpad, sensor) | `process_controller_event()` | `ControllerEventManager` (see below) |
+| `JOY*` (axis, ball, hat, button, device) | `process_joystick_event()` | `JoystickEventManager` (see below) |
+| `KEYDOWN`, `KEYUP` | `process_keyboard_event()` | `KeyboardEventManager` |
+| `MOUSEMOTION`, `MOUSEBUTTON*`, `MOUSEWHEEL` | `process_mouse_event()` | `MouseEventManager` |
+| `FINGERDOWN`, `FINGERMOTION`, `FINGERUP`, `MULTIGESTURE` | `process_touch_event()` | `TouchEventManager` |
+| `DROPBEGIN`, `DROPFILE`, `DROPTEXT`, `DROPCOMPLETE` | `process_drop_event()` | `DropEventManager` |
+| `WINDOWEVENT`, `WINDOW*` | `process_window_event()` | `WindowEventManager` |
+| `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`, `QUIT`, `USEREVENT`, `ACTIVEEVENT`, `VIDEO*`, `SYSWMEVENT` | `process_game_event()` | `GameEventManager` |
+| `MIDIIN`, `MIDIOUT` | `process_midi_event()` | `MidiEventManager` |
+| `APP_*` | `process_app_event()` | `AppEventManager` |
+| `TEXTEDITING`, `TEXTINPUT` | `process_text_event()` | none: counted as unhandled |
+
+### The proxy layers
+
+Every manager is a `ResourceManager` that passes calls on to a proxy. The proxy implements the
+family's interface (`MouseEvents` for the mouse), keeps the family's state, synthesizes
+higher-level events (drag, drop and focus for the mouse; chords for the keyboard) and calls the
+same handler on its `game`, which is the `SceneManager`. The `SceneManager` hands every
+`on_*_event()` to the active scene (`__getattr__`). The mouse, as an example:
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart LR
+    MOUSE_ENGINE["GameEngine<br/>process_mouse_event()"] --> MOUSE_MANAGER["MouseEventManager<br/>proxies: the MouseEventProxy"]
+    MOUSE_MANAGER --> MOUSE_PROXY["MouseEventProxy<br/>button states, drag tracking<br/>drag, drop, focus synthesized<br/>proxies: SceneManager, pygame.mouse"]
+    MOUSE_PROXY -->|"game.on_mouse_*_event()"| MOUSE_SCENE_MANAGER["SceneManager<br/>__getattr__"]
+    MOUSE_SCENE_MANAGER --> MOUSE_SCENE["active scene<br/>on_mouse_*_event()"]
+```
+
+### Joysticks and controllers
+
+These two add a filter and keep one proxy per device. SDL sees a mapped gamepad as one device on
+two layers, the raw joystick layer and the controller layer, and sends both layers' events, so
+the engine lets each device's input through from one layer only (its `event_layer`: the
+controller layer when SDL maps the pad, else the joystick layer), and only for devices
+`--input-mode` shows the game (`glitchygames/input/input_devices.py`).
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
+flowchart TB
+    DEVICE_EVENT["JOY* or CONTROLLER* event"] --> DEVICE_PROCESS["process_joystick_event()<br/>or process_controller_event()"]
+    DEVICE_PROCESS --> DEVICE_FILTER{"input_devices.dispatches()<br/>this device shown by the input mode,<br/>and this is its event layer?"}
+    DEVICE_FILTER -->|"no: the other layer's copy,<br/>or a hidden device"| DEVICE_DROPPED["dropped (counted as handled)"]
+    DEVICE_FILTER -->|"yes"| DEVICE_MANAGER["JoystickEventManager.joysticks<br/>or ControllerEventManager.controllers<br/>[event.instance_id]"]
+    DEVICE_MANAGER --> DEVICE_PROXY["that device's proxy<br/>opened through the devices door<br/>proxies: SceneManager, the device"]
+    DEVICE_PROXY -->|"game.on_joy_*_event() or<br/>game.on_controller_*_event()"| DEVICE_SCENE_MANAGER["SceneManager"]
+    DEVICE_SCENE_MANAGER --> DEVICE_SCENE["active scene's handler"]
+
+    DEVICE_PROCESS -->|"device added or removed:<br/>always passes the filter"| DEVICE_DEVICES["the manager opens or drops<br/>the device's proxy"]
+    DEVICE_DEVICES --> DEVICE_SYNCHRONIZE["GameEngine._synchronize_input_devices()<br/>InputDevices follows the managers"]
+    DEVICE_SYNCHRONIZE --> DEVICE_NOTIFY["active scene's<br/>on_input_device_added(device=...)<br/>or on_input_device_removed(device=...)"]
+```
+
+A mapped pad's device events arrive twice (the joystick layer's, then the controller layer's);
+`InputDevices` adds it once, with both layers, and removes it once neither manager holds it.
 
 ### Event performance tiers
 
@@ -94,12 +131,13 @@ Not all events pay the same cost. Events fall into three tiers depending on
 whether they're blocked, unhandled, or handled:
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart TD
     EVT["SDL event fires"] --> BLOCKED{"Blocked by\npygame.event.set_blocked?"}
     BLOCKED -->|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
     BLOCKED -->|"No"| WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
     WRAP --> STUB{"Scene overrides\nthe handler?"}
-    STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;\nwarns once per type#40;debug_events#41;\nor raises #40;no_unhandled_events#41;"]
+    STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;<br/>raises UnhandledEventError under --no-unhandled-events,<br/>else logs a warning once per event type<br/>when debug_events is on #40;--log-level DEBUG, ERROR or CRITICAL#41;"]
     STUB -->|"Yes — real handler"| HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]
 ```
 
