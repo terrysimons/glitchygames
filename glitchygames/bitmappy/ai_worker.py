@@ -46,11 +46,11 @@ try:
 except ImportError, AttributeError:  # pragma: no cover - aisuite is an optional package
     ai = None
 
-import tenacity
-
 if TYPE_CHECKING:
     import multiprocessing
     from collections.abc import Callable, Sequence
+
+    import tenacity
 
 
 # aisuite ships no type information, so these protocols name exactly what this module calls
@@ -488,6 +488,9 @@ def _create_ai_retry_decorator(
         The decorator.
 
     """
+    # Imported here, when an AI request is made, not with the module: Bitmappy then imports
+    # where tenacity is not installed (a browser build), with only AI requests unavailable
+    import tenacity
 
     def should_retry(error: BaseException) -> bool:
         if _is_non_retryable_ai_error(error):

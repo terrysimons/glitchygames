@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from http import HTTPStatus
 from typing import Any
 
@@ -64,6 +65,10 @@ MIN_COLOR_FIELD_VALUES_FOR_BLUE = 3  # Minimum parsed color field values for blu
 # AI validation
 AI_CAPABILITY_RESPONSE_FIELD_COUNT = 2  # Expected field count for AI capability response
 AI_VALIDATION_MAX_RETRIES = 2  # Maximum retries for AI response validation
+
+# Feature flag: AI sprite generation. Off in WebAssembly builds for now (the user,
+# 2026-10-23): the AI worker is a separate process, which a browser cannot start
+AI_FEATURES_ENABLED: bool = sys.platform != 'emscripten'
 
 # AI model configuration
 AI_MODEL: str = 'anthropic:claude-sonnet-4-5'

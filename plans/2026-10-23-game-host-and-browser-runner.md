@@ -142,3 +142,20 @@
   uses the timer.
 - **Fixed 2026-10-23 (BUGS.md #212):** `ASSET_PATH` pointed into `glitchygames/engine/`, so the
   default window icon was never loaded.
+
+## Bitmappy in the browser (2026-10-23, follow-up)
+
+- **Lazy import:** `tenacity` (not in Pyodide) is imported when an AI request is made, not with
+  `ai_worker`, so `glitchygames.bitmappy` imports without it. Test: the editor imports in a
+  fresh interpreter whose `import tenacity` fails.
+- **Feature flag:** `bitmappy/constants.AI_FEATURES_ENABLED` is `sys.platform != 'emscripten'`
+  (off for WebAssembly only, the user's choice for now). With it off, `AIManager.setup` starts
+  no worker process, and a prompt shows "AI features are off in this build".
+- **Launcher:** `nox -s browser -- bitmappy`. `GameSpecification.included_subpackages` lets that
+  bundle alone include `bitmappy/`.
+- **Verified** in Chromium and Playwright WebKit: the editor starts, renders, and a click
+  draws on the canvas.
+- **Not tried yet:** Save/Load (sprite files: they need uploads/downloads or IndexedDB), the
+  clipboard (`pyperclip` is absent), voice input and controller editing.
+- **Fork CI:** the first run built the wheel on Linux, byte-identical to the macOS build (sha256
+  `777cfa26…`).

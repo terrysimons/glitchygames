@@ -831,9 +831,13 @@ Features:
 - Multi-controller support (`MultiControllerManager`)
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
-- AI integration via aisuite
+- AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
+  (`bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
+  process, which a browser cannot start). `tenacity` is imported only when an AI request is made
+  (`ai_worker._create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
+- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`)
 
 ### Resource Management
 

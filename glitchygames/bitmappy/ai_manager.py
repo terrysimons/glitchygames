@@ -44,6 +44,7 @@ from .ai_worker import (
     select_relevant_training_examples,
 )
 from .constants import (
+    AI_FEATURES_ENABLED,
     AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
     AI_VALIDATION_MAX_RETRIES,
     DEBUG_LOG_FIRST_N_PIXELS,
@@ -107,6 +108,10 @@ def _write_temporary_toml_file(*, prefix: str, write: Callable[[str], object]) -
     return temporary_path
 
 
+# What a request says while the AI feature flag is off (constants.AI_FEATURES_ENABLED)
+AI_FEATURES_OFF_MESSAGE = 'AI features are off in this build'
+
+
 def shut_down_running_ai_workers() -> None:
     """Shut down every running AI worker the way a normal quit does (AIManager.cleanup).
 
@@ -147,6 +152,10 @@ class AIManager:
 
     def setup(self) -> None:
         """Initialize AI processing components and start the worker process."""
+        if not AI_FEATURES_ENABLED:
+            # The feature flag (constants.py): no worker, so every request says AI is off
+            self.log.info('AI features are off in this build: no AI worker started')
+            return
         # Check if we are in the main process
         if multiprocessing.current_process().name == 'MainProcess':
             self.log.info('Initializing AI worker process...')
@@ -395,6 +404,12 @@ class AIManager:
         self.log.info("AI Sprite Generation Request: '%s'", text)
         self.log.debug('Text length: %s', len(text))
         self.log.debug('Text type: %s', type(text))
+
+        if not AI_FEATURES_ENABLED:
+            self.log.info('AI features are off in this build: request ignored')
+            if hasattr(self.editor, 'debug_text'):
+                self.editor.debug_text.text = AI_FEATURES_OFF_MESSAGE
+            return
 
         if not self.ai_request_queue:
             self.log.error('AI request queue is not available')

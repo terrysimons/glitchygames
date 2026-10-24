@@ -160,7 +160,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - `GameEngine.start_async`;
   - optional MIDI and controller modules;
   - save observers;
-  - `nox -s browser -- <game>`, with all four games running in Chromium and WebKit.
+  - `nox -s browser -- <game>`, with all four games running in Chromium and WebKit;
+  - Bitmappy (`-- bitmappy`), with its AI feature flag off in browser builds.
   Open: the startup focus-loss pause (Mr. Muncher), timer calibration skipped for async runs,
   real-browser and iOS checks of the launcher.
 - **Priority**: High (requested 2026-10-23)
