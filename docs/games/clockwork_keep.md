@@ -59,23 +59,33 @@ Losing window focus pauses the game too.
 Each floor is its own `ClockworkKeepScene` instance. The engine builds the first one from options
 alone (`floor_index=None`, which takes `--floor`); the elevator builds the next one with the
 floor, score and lives it carries. Pausing and game over use the engine's built-in
-`PauseScene` and `GameOverScene`.
+`PauseScene` and `GameOverScene`. In the diagram, the Clockwork Keep box is the game's own scene;
+the Engine box holds the engine's built-in scenes it switches to.
 
 ```mermaid
 flowchart TB
-    start(["uv run clockwork-keep"]) --> first["ClockworkKeepScene(options)<br/>floor = --floor (default 0)"]
-    first --> floors
-    subgraph floors["one ClockworkKeepScene per floor"]
+    start(["uv run clockwork-keep"]) --> first
+    subgraph GAME_SCENES["Clockwork Keep"]
         direction TB
-        floor0["Floor 0: Boiler Room<br/>960 px tall"]
-        floor1["Floor 1: Gear Works<br/>1440 px tall"]
-        floor2["Floor 2: Clock Face<br/>1920 px tall, no elevator"]
-        floor0 -->|"interact on the elevator<br/>ElevatorTransition, 4 s"| floor1
-        floor1 -->|"interact on the elevator<br/>ElevatorTransition, 4 s"| floor2
+        first["ClockworkKeepScene(options)<br/>floor = --floor (default 0)"]
+        first --> floors
+        subgraph floors["one ClockworkKeepScene per floor"]
+            direction TB
+            floor0["Floor 0: Boiler Room<br/>960 px tall"]
+            floor1["Floor 1: Gear Works<br/>1440 px tall"]
+            floor2["Floor 2: Clock Face<br/>1920 px tall, no elevator"]
+            floor0 -->|"interact on the elevator<br/>ElevatorTransition, 4 s"| floor1
+            floor1 -->|"interact on the elevator<br/>ElevatorTransition, 4 s"| floor2
+        end
     end
-    floors -->|"Esc, or window focus lost<br/>next_scene = PauseScene"| pause["PauseScene<br/>frozen screenshot of the floor"]
+    subgraph ENGINE_SCENES["Engine"]
+        direction TB
+        pause["PauseScene<br/>frozen screenshot of the floor"]
+        gameOver["GameOverScene<br/>final score, high scores"]
+    end
+    floors -->|"Esc, or window focus lost<br/>next_scene = PauseScene"| pause
     pause -->|"Space released, or focus<br/>regained after 0.5 s"| floors
-    floors -->|"last life lost<br/>FadeTransition, 1 s"| gameOver["GameOverScene<br/>final score, high scores"]
+    floors -->|"last life lost<br/>FadeTransition, 1 s"| gameOver
     gameOver -->|"Space released: a new<br/>ClockworkKeepScene(options)"| first
     floors -->|"Q"| quitRun(["run ends"])
     pause -->|"Esc"| quitRun
@@ -118,71 +128,89 @@ through JSON exactly, as scene starts require.
 
 ## Classes
 
-The scene owns everything on a floor. Solid arrows are inheritance; the other lines are what a
-class holds. The five sprite classes all declare `COORDINATE_SPACE = CoordinateSpace.WORLD`, and
-the scene keeps each kind in a list of its own (`platform_sprites`, ...) besides `all_sprites`.
+Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
+`glitchygames/examples/clockwork_keep/`. The rest comes from the engine: `Scene` and the built-in
+`PauseScene` and `GameOverScene` (`glitchygames.scenes`), `Sprite` (`glitchygames.sprites`) and
+`PhysicsBody` (`glitchygames.physics`). In the diagram, the Engine box is what every game gets; the
+Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
+class; dotted arrows are how the game uses an engine class; plain arrows are what a game class
+holds. The scene owns everything on a floor. The five sprite classes all declare
+`COORDINATE_SPACE = CoordinateSpace.WORLD`, and the scene keeps each kind in a list of its own
+(`platform_sprites`, ...) besides `all_sprites`.
 
 ```mermaid
 classDiagram
     direction TB
-    class Scene {
-        <<engine>>
-        camera, collisions, tweens
-        replay_arguments()
+    namespace Engine {
+        class Scene {
+            camera, collisions, tweens
+            replay_arguments()
+        }
+        class PauseScene {
+            the frozen floor, dimmed
+            SPACE resumes it, ESC quits
+        }
+        class GameOverScene {
+            score and high scores
+            SPACE restarts, ESC quits
+        }
+        class Sprite
+        class PhysicsBody {
+            GravityBehavior
+            AccelerationBehavior
+            BoundsConstraint
+        }
     }
-    class ClockworkKeepScene {
-        MAX_FRAME_SECONDS = 0.05
-        floor_index, floor_data
-        floor_elapsed_time
-        platform_sprites, elevator_sprites
-        moving_gear_sprites, collectible_sprites
-        actions: ActionMap
-        sounds: SoundBank
-        camera: Camera2D
-        saves: SaveManager
-        dt_tick(dt)
-        render(screen)
-    }
-    class Sprite {
-        <<engine>>
-    }
-    class Tinker {
-        lives, score, floor
-        state#95;machine: AnimationStateMachine
-        dt_tick(dt)
-        update()
-    }
-    class Platform
-    class Elevator
-    class MovingGear {
-        moved_x, moved_y
-        dt_tick(dt)
-    }
-    class CogCollectible {
-        points
-        dt_tick(dt)
-    }
-    class PhysicsBody {
-        <<engine>>
-        GravityBehavior
-        AccelerationBehavior
-        BoundsConstraint
-    }
-    class FloorData {
-        <<dataclass>>
-        platforms, elevators
-        collectibles, moving_gears
+    namespace ClockworkKeep {
+        class ClockworkKeepScene {
+            MAX_FRAME_SECONDS = 0.05
+            floor_index, floor_data
+            floor_elapsed_time
+            platform_sprites, elevator_sprites
+            moving_gear_sprites, collectible_sprites
+            actions: ActionMap
+            sounds: SoundBank
+            camera: Camera2D
+            saves: SaveManager
+            dt_tick(dt)
+            render(screen)
+        }
+        class Tinker {
+            lives, score, floor
+            state#95;machine: AnimationStateMachine
+            dt_tick(dt)
+            update()
+        }
+        class Platform
+        class Elevator
+        class MovingGear {
+            moved_x, moved_y
+            dt_tick(dt)
+        }
+        class CogCollectible {
+            points
+            dt_tick(dt)
+        }
+        class FloorData {
+            <<dataclass>>
+            platforms, elevators
+            collectibles, moving_gears
+        }
     }
 
+    Scene <|-- PauseScene
+    Scene <|-- GameOverScene
     Scene <|-- ClockworkKeepScene
     Sprite <|-- Tinker
     Sprite <|-- Platform
     Sprite <|-- Elevator
     Sprite <|-- MovingGear
     Sprite <|-- CogCollectible
+    PauseScene <.. ClockworkKeepScene : next_scene on Esc or focus lost
+    GameOverScene <.. ClockworkKeepScene : after the last life
+    PhysicsBody <.. Tinker : physics
     ClockworkKeepScene --> FloorData : builds its sprites from
     ClockworkKeepScene --> Tinker : player
-    Tinker --> PhysicsBody : physics
 ```
 
 `Tinker`'s `world_x`, `world_y`, `velocity_x`, `velocity_y`, `on_ground` and `facing_right` are
@@ -344,14 +372,19 @@ frame time, and recordings keep the raw dt.
 ## One frame
 
 The engine runs the frame; the floor's code runs in two places: `dt_tick` (logic, physics,
-collision) and the render phase (`update()`, then `render()`).
+collision) and the render phase (`update()`, then `render()`). The Engine box is the engine's
+frame loop; the Clockwork Keep box is the game's scene and sprites.
 
 ```mermaid
 sequenceDiagram
-    participant SM as SceneManager
-    participant CKS as ClockworkKeepScene
-    participant T as Tinker and the other sprites
-    participant GE as GameEngine
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant GE as GameEngine
+    end
+    box rgb(255,243,224) Clockwork Keep
+        participant CKS as ClockworkKeepScene
+        participant T as Tinker and the other sprites
+    end
 
     SM->>SM: camera.begin_frame()
     SM->>CKS: dt_tick(min(dt, 0.05))
@@ -375,23 +408,44 @@ top of the next `dt_tick` with `actions.just_pressed('interact')`, which is why 
 runs before `_process_movement_input` calls `actions.begin_frame()` (which clears the frame's
 presses).
 
-### Inside dt_tick
+Everything in it is the game's code (the Clockwork Keep box) except its first step,
+`super().dt_tick(dt)`, which runs the engine's `Scene.dt_tick` (the Engine box).
 
 ```mermaid
 flowchart TB
-    tick["ClockworkKeepScene.dt_tick(dt)"] --> base["Scene.dt_tick: dt, tweens<br/>(the respawn fade runs here)"]
-    base --> over{"game_over_triggered?"}
-    over -->|yes| done(["return: the floor stands still"])
-    over -->|no| elapsed["floor_elapsed_time += dt"]
-    elapsed --> elevator["_check_elevator<br/>interact just pressed, standing on an elevator?"]
-    elevator --> movement["_process_movement_input<br/>actions.begin_frame(), held move and run"]
-    movement --> sprites["sprite.dt_tick(dt) for every sprite<br/>Tinker: physics, state, pose, walls<br/>gear moves, cogs bob"]
-    sprites --> ride["_ride_moving_gear<br/>carry the rider by moved_x, moved_y"]
-    ride --> ground["_resolve_ground_collision<br/>platforms, elevators, then gears"]
-    ground --> land["_play_land_on_touchdown<br/>'land' on the frame the feet touch"]
-    land --> pit{"world_y below the floor<br/>by more than 100 px?"}
-    pit -->|yes| die["_player_die"]
-    pit -->|no| cogs["_check_collectibles"]
+    tick(["ClockworkKeepScene.dt_tick(dt)"])
+    subgraph GAME_TICK["Clockwork Keep"]
+        direction TB
+        over{"game_over_triggered?"}
+        done(["return: the floor stands still"])
+        elapsed["floor_elapsed_time += dt"]
+        elevator["_check_elevator<br/>interact just pressed, standing on an elevator?"]
+        movement["_process_movement_input<br/>actions.begin_frame(), held move and run"]
+        sprites["sprite.dt_tick(dt) for every sprite<br/>Tinker: physics, state, pose, walls<br/>gear moves, cogs bob"]
+        ride["_ride_moving_gear<br/>carry the rider by moved_x, moved_y"]
+        ground["_resolve_ground_collision<br/>platforms, elevators, then gears"]
+        land["_play_land_on_touchdown<br/>'land' on the frame the feet touch"]
+        pit{"world_y below the floor<br/>by more than 100 px?"}
+        die["_player_die"]
+        cogs["_check_collectibles"]
+    end
+    subgraph ENGINE_TICK["Engine"]
+        direction TB
+        base["Scene.dt_tick: dt, tweens<br/>(the respawn fade runs here)"]
+    end
+    tick -->|"first: super().dt_tick(dt)"| base
+    base -->|"returns"| over
+    over -->|yes| done
+    over -->|no| elapsed
+    elapsed --> elevator
+    elevator --> movement
+    movement --> sprites
+    sprites --> ride
+    ride --> ground
+    ground --> land
+    land --> pit
+    pit -->|yes| die
+    pit -->|no| cogs
     die --> cogs
 ```
 
@@ -402,28 +456,35 @@ plays nothing, and respawning resets it (`test_first_tick_never_plays_land`,
 
 ## Riding the elevator
 
+The ride itself is the engine's (`ElevatorTransition`, Engine box); the floors and their callbacks
+are the game's (Clockwork Keep box).
+
 ```mermaid
 sequenceDiagram
     participant P as Player
-    participant Old as Floor N (ClockworkKeepScene)
-    participant SM as SceneManager
-    participant ET as ElevatorTransition
-    participant New as Floor N+1
+    box rgb(255,243,224) Clockwork Keep
+        participant New as Floor N+1
+        participant Old as Floor N (ClockworkKeepScene)
+    end
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant ET as ElevatorTransition
+    end
 
     P->>Old: W / Y (interact)
-    Old->>Old: _check_elevator (next dt_tick): on an elevator, not the last floor
-    Old->>New: ClockworkKeepScene(floor_index=N+1, player_score, player_lives, options)
-    Old->>ET: ElevatorTransition(duration=4.0, easing='ease_in_sine', player_surface=...)
+    Old->>Old: _check_elevator (next dt_tick):<br/>on an elevator, not the last floor
+    Old->>New: ClockworkKeepScene(floor_index=N+1,<br/>player_score, player_lives, options)
+    Old->>ET: ElevatorTransition(duration=4.0,<br/>easing='ease_in_sine', player_surface=...)
     Old->>SM: create_voice(owner=transition), motor.start()
-    Old->>SM: transition_to(New, ET) with a cue at progress 1.0
+    Old->>SM: transition_to(New, ET)<br/>with a cue at progress 1.0
     loop every frame of the ride
         ET->>Old: on_update: _update_elevator_motor(transition)
-        Old->>SM: rumble.set_sustained(low, high) scaled by car speed
+        Old->>SM: rumble.set_sustained(low, high)<br/>scaled by car speed
         Note over Old: motor pitch 45 to 110 Hz, volume 0.15 to 0.6
     end
     ET->>Old: cue 1.0: _elevator_arrived()
     Old->>SM: motor.stop_now(), rumble.clear_sustained()
-    Old->>SM: play 'elevator_clank', SCREEN shakes: bounce + rattle
+    Old->>SM: play 'elevator_clank',<br/>SCREEN shakes: bounce + rattle
     SM->>New: the ride ends, Floor N+1 is active
 ```
 
@@ -446,17 +507,30 @@ mid-ride does not jump on arrival (`tests/world/test_transition_input.py`).
 
 ## Death, respawn and game over
 
+The game decides a death and what follows (Clockwork Keep box); the fade and the game-over screen
+are the engine's (Engine box).
+
 ```mermaid
 flowchart TB
-    fall["world_y more than 100 px<br/>below the floor's bottom"] --> lose["lives -= 1"]
-    lose --> left{"lives left?"}
-    left -->|yes| deathSound["play 'death'"]
-    deathSound --> fadeOut["_respawn_player: is_respawning,<br/>velocity 0, fade alpha to 0 (0.2 s)"]
-    fadeOut --> respawn["at the spawn point, on the ground,<br/>riding no gear, fade in (0.3 s)"]
-    left -->|no| over["game_over_triggered = True<br/>camera.follow(target=None)"]
-    over --> sounds["play 'game_over'<br/>_save_high_score()"]
-    sounds --> clear["screen_shake.clear()"]
-    clear --> fade["FadeTransition(1.0) to<br/>GameOverScene(final_score, high_scores)"]
+    subgraph GAME_DEATH["Clockwork Keep"]
+        direction TB
+        fall["world_y more than 100 px<br/>below the floor's bottom"] --> lose["lives -= 1"]
+        lose --> left{"lives left?"}
+        left -->|yes| deathSound["play 'death'"]
+        deathSound --> fadeOut["_respawn_player: is_respawning,<br/>velocity 0, fade alpha to 0 (0.2 s)"]
+        fadeOut --> respawn["at the spawn point, on the ground,<br/>riding no gear, fade in (0.3 s)"]
+        left -->|no| over["game_over_triggered = True<br/>camera.follow(target=None)"]
+        over --> sounds["play 'game_over'<br/>_save_high_score()"]
+        sounds --> clear["screen_shake.clear()"]
+        clear --> fade["transition_to(game over,<br/>FadeTransition(duration=1.0))"]
+    end
+    subgraph ENGINE_DEATH["Engine"]
+        direction TB
+        deathFadeTransition["FadeTransition<br/>1 s fade"]
+        deathGameOver["GameOverScene(final_score, high_scores)<br/>final score, high scores"]
+        deathFadeTransition --> deathGameOver
+    end
+    fade -.->|uses| deathFadeTransition
 ```
 
 While `is_respawning`, movement input is ignored and the pit check is skipped. After game over

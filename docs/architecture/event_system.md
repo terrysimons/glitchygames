@@ -47,23 +47,31 @@ into scenes and sprites.
 
 The path an event takes from SDL to your scene's handler. Every event family follows the same
 path; the `EVENT_HANDLERS` dict picks the family's method in one lookup (the table below says
-which method each event type gets).
+which method each event type gets). The Engine box is the same for every game; the Your game box
+is where your scene's and sprites' code runs.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart TB
-    PATH_SDL["SDL event queue"] --> PATH_PUMP["active_sources().pump_events()<br/>(live: pygame.event.get())"]
-    PATH_PUMP --> PATH_PROCESS["GameEngine.process_events()"]
-    PATH_PROCESS -->|"the scene defines process_event()"| PATH_RAW["scene.process_event(raw event)<br/>(skips everything below)"]
-    PATH_PROCESS --> PATH_WRAP["HashableEvent.from_pygame()"]
-    PATH_WRAP --> PATH_LOOKUP{"EVENT_HANDLERS[event.type]"}
-    PATH_LOOKUP -->|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()<br/>counted in unhandled_events"]
-    PATH_LOOKUP --> PATH_FAMILY["GameEngine.process_family_event()<br/>(one per event family, table below)"]
-    PATH_FAMILY --> PATH_MANAGER["the family's event manager"]
-    PATH_MANAGER --> PATH_PROXY["its proxy: keeps state, synthesizes events<br/>(one proxy per device for joysticks and controllers)"]
-    PATH_PROXY --> PATH_SCENE_MANAGER["SceneManager on_*_event()"]
-    PATH_SCENE_MANAGER --> PATH_SCENE["the active scene's on_*_event()"]
-    PATH_SCENE --> PATH_SPRITES["focused or collided sprites' on_*_event()"]
+    PATH_SDL["SDL event queue"] --> PATH_PUMP
+    subgraph ENGINE_PATH["Engine"]
+        PATH_PUMP["active_sources().pump_events()<br/>(live: pygame.event.get())"]
+        PATH_PUMP --> PATH_PROCESS["GameEngine.process_events()"]
+        PATH_PROCESS --> PATH_WRAP["HashableEvent.from_pygame()"]
+        PATH_WRAP --> PATH_LOOKUP{"EVENT_HANDLERS[event.type]"}
+        PATH_LOOKUP -->|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()<br/>counted in unhandled_events"]
+        PATH_LOOKUP --> PATH_FAMILY["GameEngine.process_family_event()<br/>(one per event family, table below)"]
+        PATH_FAMILY --> PATH_MANAGER["the family's event manager"]
+        PATH_MANAGER --> PATH_PROXY["its proxy: keeps state, synthesizes events<br/>(one proxy per device for joysticks and controllers)"]
+        PATH_PROXY --> PATH_SCENE_MANAGER["SceneManager on_*_event()"]
+    end
+    subgraph GAME_PATH["Your game"]
+        PATH_RAW["scene.process_event(raw event)<br/>(skips everything below)"]
+        PATH_SCENE["the active scene's on_*_event()"]
+        PATH_SCENE --> PATH_SPRITES["focused or collided sprites' on_*_event()"]
+    end
+    PATH_PROCESS -->|"the scene defines process_event()"| PATH_RAW
+    PATH_SCENE_MANAGER --> PATH_SCENE
 ```
 
 | Event types | Method | Manager |
@@ -92,10 +100,15 @@ same handler on its `game`, which is the `SceneManager`. The `SceneManager` hand
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart LR
-    MOUSE_ENGINE["GameEngine<br/>process_mouse_event()"] --> MOUSE_MANAGER["MouseEventManager<br/>proxies: the MouseEventProxy"]
-    MOUSE_MANAGER --> MOUSE_PROXY["MouseEventProxy<br/>button states, drag tracking<br/>drag, drop, focus synthesized<br/>proxies: SceneManager, pygame.mouse"]
-    MOUSE_PROXY -->|"game.on_mouse_*_event()"| MOUSE_SCENE_MANAGER["SceneManager<br/>__getattr__"]
-    MOUSE_SCENE_MANAGER --> MOUSE_SCENE["active scene<br/>on_mouse_*_event()"]
+    subgraph ENGINE_MOUSE["Engine"]
+        MOUSE_ENGINE["GameEngine<br/>process_mouse_event()"] --> MOUSE_MANAGER["MouseEventManager<br/>proxies: the MouseEventProxy"]
+        MOUSE_MANAGER --> MOUSE_PROXY["MouseEventProxy<br/>button states, drag tracking<br/>drag, drop, focus synthesized<br/>proxies: SceneManager, pygame.mouse"]
+        MOUSE_PROXY -->|"game.on_mouse_*_event()"| MOUSE_SCENE_MANAGER["SceneManager<br/>__getattr__"]
+    end
+    subgraph GAME_MOUSE["Your game"]
+        MOUSE_SCENE["active scene<br/>on_mouse_*_event()"]
+    end
+    MOUSE_SCENE_MANAGER --> MOUSE_SCENE
 ```
 
 ### Joysticks and controllers
@@ -109,17 +122,24 @@ controller layer when SDL maps the pad, else the joystick layer), and only for d
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart TB
-    DEVICE_EVENT["JOY* or CONTROLLER* event"] --> DEVICE_PROCESS["process_joystick_event()<br/>or process_controller_event()"]
-    DEVICE_PROCESS --> DEVICE_FILTER{"input_devices.dispatches()<br/>this device shown by the input mode,<br/>and this is its event layer?"}
-    DEVICE_FILTER -->|"no: the other layer's copy,<br/>or a hidden device"| DEVICE_DROPPED["dropped (counted as handled)"]
-    DEVICE_FILTER -->|"yes"| DEVICE_MANAGER["JoystickEventManager.joysticks<br/>or ControllerEventManager.controllers<br/>[event.instance_id]"]
-    DEVICE_MANAGER --> DEVICE_PROXY["that device's proxy<br/>opened through the devices door<br/>proxies: SceneManager, the device"]
-    DEVICE_PROXY -->|"game.on_joy_*_event() or<br/>game.on_controller_*_event()"| DEVICE_SCENE_MANAGER["SceneManager"]
-    DEVICE_SCENE_MANAGER --> DEVICE_SCENE["active scene's handler"]
+    DEVICE_EVENT["JOY* or CONTROLLER* event"] --> DEVICE_PROCESS
+    subgraph ENGINE_DEVICE["Engine"]
+        DEVICE_PROCESS["process_joystick_event()<br/>or process_controller_event()"]
+        DEVICE_PROCESS --> DEVICE_FILTER{"input_devices.dispatches()<br/>this device shown by the input mode,<br/>and this is its event layer?"}
+        DEVICE_FILTER -->|"no: the other layer's copy,<br/>or a hidden device"| DEVICE_DROPPED["dropped (counted as handled)"]
+        DEVICE_FILTER -->|"yes"| DEVICE_MANAGER["JoystickEventManager.joysticks<br/>or ControllerEventManager.controllers<br/>[event.instance_id]"]
+        DEVICE_MANAGER --> DEVICE_PROXY["that device's proxy<br/>opened through the devices door<br/>proxies: SceneManager, the device"]
+        DEVICE_PROXY -->|"game.on_joy_*_event() or<br/>game.on_controller_*_event()"| DEVICE_SCENE_MANAGER["SceneManager"]
 
-    DEVICE_PROCESS -->|"device added or removed:<br/>always passes the filter"| DEVICE_DEVICES["the manager opens or drops<br/>the device's proxy"]
-    DEVICE_DEVICES --> DEVICE_SYNCHRONIZE["GameEngine._synchronize_input_devices()<br/>InputDevices follows the managers"]
-    DEVICE_SYNCHRONIZE --> DEVICE_NOTIFY["active scene's<br/>on_input_device_added(device=...)<br/>or on_input_device_removed(device=...)"]
+        DEVICE_PROCESS -->|"device added or removed:<br/>always passes the filter"| DEVICE_DEVICES["the manager opens or drops<br/>the device's proxy"]
+        DEVICE_DEVICES --> DEVICE_SYNCHRONIZE["GameEngine._synchronize_input_devices()<br/>InputDevices follows the managers"]
+    end
+    subgraph GAME_DEVICE["Your game"]
+        DEVICE_SCENE["active scene's handler"]
+        DEVICE_NOTIFY["active scene's<br/>on_input_device_added(device=...)<br/>or on_input_device_removed(device=...)"]
+    end
+    DEVICE_SCENE_MANAGER --> DEVICE_SCENE
+    DEVICE_SYNCHRONIZE --> DEVICE_NOTIFY
 ```
 
 A mapped pad's device events arrive twice (the joystick layer's, then the controller layer's);
@@ -128,17 +148,23 @@ A mapped pad's device events arrive twice (the joystick layer's, then the contro
 ### Event performance tiers
 
 Not all events pay the same cost. Events fall into three tiers depending on
-whether they're blocked, unhandled, or handled:
+whether they're blocked, unhandled, or handled (SDL's filter is outside both boxes):
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart TD
     EVT["SDL event fires"] --> BLOCKED{"Blocked by\npygame.event.set_blocked?"}
     BLOCKED -->|"Yes"| ZERO["Filtered by SDL\nNever enters pipeline\nCost: zero"]
-    BLOCKED -->|"No"| WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
-    WRAP --> STUB{"Scene overrides\nthe handler?"}
-    STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;<br/>raises UnhandledEventError when options#91;'no_unhandled_events'#93; is set<br/>#40;the --no-unhandled-events argument#41;,<br/>else logs a warning once per event type when options#91;'debug_events'#93; is on<br/>#40;derived from the --log-level argument: DEBUG, ERROR or CRITICAL#41;"]
-    STUB -->|"Yes — real handler"| HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]
+    BLOCKED -->|"No"| WRAP
+    subgraph ENGINE_TIERS["Engine"]
+        WRAP["Wrap as HashableEvent\nO#40;1#41; EVENT_HANDLERS lookup"]
+        WRAP --> STUB{"Scene overrides\nthe handler?"}
+        STUB -->|"No — hits stub"| UH["unhandled_event#40;#41;<br/>raises UnhandledEventError when options#91;'no_unhandled_events'#93; is set<br/>#40;the --no-unhandled-events argument#41;,<br/>else logs a warning once per event type when options#91;'debug_events'#93; is on<br/>#40;derived from the --log-level argument: DEBUG, ERROR or CRITICAL#41;"]
+    end
+    subgraph GAME_TIERS["Your game"]
+        HANDLER["Your on_*_event#40;#41; runs\nCost: dispatch + your code"]
+    end
+    STUB -->|"Yes — real handler"| HANDLER
 ```
 
 | Tier | When | Cost per occurrence | Example |
@@ -187,12 +213,16 @@ flowchart LR
     end
 
     subgraph Producers["Producers"]
-        SM_FPS["SceneManager\nposts every fps_log_interval_ms"]
-        GAME_CODE["Game code\nposts via post_game_event()"]
-        MENU_ITEM["MenuItem sprites\npost on click"]
+        subgraph ENGINE_PRODUCERS["Engine"]
+            SM_FPS["SceneManager\nposts every fps_log_interval_ms"]
+            MENU_ITEM["MenuItem sprites\npost on click"]
+        end
+        subgraph GAME_PRODUCERS["Your game"]
+            GAME_CODE["Game code\nposts via post_game_event()"]
+        end
     end
 
-    subgraph Consumers["Consumers"]
+    subgraph Consumers["Your game: consumers"]
         FPS_H["on_fps_event()"]
         GAME_H["on_game_event()\n+ registered subtype callbacks"]
         MENU_H["on_menu_item_event()"]
@@ -504,19 +534,24 @@ proxy list in order. The first proxy that has the attribute wins:
 
 ```mermaid
 sequenceDiagram
-    participant CODE as Game Code
+    box rgb(255,243,224) Your game
+    participant CODE as Your game code
+    end
+    box rgb(232,238,255) Engine
+    participant ENGINE as GameEngine
     participant MGR as MouseEventManager
     participant PROXY as MouseEventProxy
-    participant GAME as Scene (self.game)
+    participant GAME as SceneManager (self.game)
+    end
     participant PG as pygame.mouse
 
-    Note over CODE,PG: Event dispatch path
-    CODE->>MGR: on_mouse_motion_event(event)
+    Note over ENGINE,PG: Event dispatch path
+    ENGINE->>MGR: on_mouse_motion_event(event)
     MGR->>PROXY: on_mouse_motion_event(event)
     Note over PROXY: Track drag state<br/>Check sprite collisions<br/>Synthesize focus/drag events
     PROXY->>GAME: on_mouse_motion_event(event)
     PROXY-->>GAME: on_left_mouse_drag_event(event, trigger)
-    Note over GAME: Scene handles event<br/>or falls through to stubs
+    Note over GAME: forwards to the active scene's handler<br/>(its stub when the scene has none)
 
     Note over CODE,PG: Attribute proxy path (as designed, see the warning above)
     CODE->>MGR: get_pos()
@@ -2546,6 +2581,7 @@ without rewiring event handlers.
 
 ```mermaid
 flowchart LR
+    subgraph ENGINE_FORWARDING["Engine"]
     subgraph Managers["Event Managers"]
         AM["AudioEventManager"]
         CM["ControllerEventManager"]
@@ -2562,10 +2598,15 @@ flowchart LR
         FWD["Forwards all on_*_event()\ncalls to active_scene"]
         AS["active_scene reference"]
     end
+    end
+
+    subgraph GAME_FORWARDING["Your game"]
+        SCENE["Active Scene\non_*_event()"]
+    end
 
     AM & CM & KM & MM & JM & WM & GM & DM & TM --> FWD
     FWD --> AS
-    AS --> SCENE["Active Scene\non_*_event()"]
+    AS --> SCENE
 ```
 
 ### Scene transitions in Bitmappy
@@ -2583,10 +2624,21 @@ A `next_scene` of `None` (or the scene itself) means no switch is pending; it ne
 the game. A scene ends the run with `self.scene_manager.quit()`, which posts a QUIT event.
 
 The following diagram shows what user actions trigger each scene transition
-in the Bitmappy pixel art editor:
+in the Bitmappy pixel art editor. The editor is Bitmappy's; the dialogs are the engine's:
 
 ```mermaid
 stateDiagram-v2
+    state "Bitmappy" as APP_BITMAPPY_SCENES {
+        state "BitmapEditorScene" as BitmapEditorScene
+    }
+    state "Engine: glitchygames/ui/dialogs.py" as ENGINE_DIALOG_SCENES {
+        state "LoadDialogScene" as LoadDialogScene
+        state "SaveDialogScene" as SaveDialogScene
+        state "NewCanvasDialogScene" as NewCanvasDialogScene
+        state "DeleteFrameDialogScene" as DeleteFrameDialogScene
+        state "DeleteAnimationDialogScene" as DeleteAnimationDialogScene
+    }
+
     [*] --> BitmapEditorScene : GameEngine.start()
 
     BitmapEditorScene --> LoadDialogScene : User opens File > Load

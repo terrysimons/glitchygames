@@ -8,15 +8,20 @@ extend the parser with its own game-specific options.
 ## How Arguments Are Assembled
 
 `GameEngine.initialize_arguments()`, called from `GameEngine.__init__()`, builds one parser from
-three layers. Here is what happens when you run Bitmappy (`uv run bitmappy`):
+three layers. Here is what happens when you run Bitmappy (`uv run bitmappy`): the Engine box
+adds layers 1 and 2, the Bitmappy box layer 3, and argparse's `ArgumentParser` is outside both.
 
 ```mermaid
 sequenceDiagram
-    participant INIT as initialize_arguments
     participant PARSER as ArgumentParser
+    box rgb(232,238,255) Engine
+    participant INIT as initialize_arguments
     participant ENGINE as GameEngine.args
     participant MANAGERS as the 12 event managers
+    end
+    box rgb(255,243,224) Bitmappy
     participant GAME as BitmapEditorScene.args
+    end
 
     INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
     INIT->>ENGINE: GameEngine.args(parser)
@@ -58,9 +63,13 @@ the order of the layers. The layers mirror the engine's architecture.
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 500}}}%%
 flowchart TB
-    L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options"]
-    L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options,<br/>and 9 reserved groups with no options yet"]
-    L3["<b>Layer 3: your game</b> (its scene's args)<br/>GameName vX.Y Options"]
+    subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
+        L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options"]
+        L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options,<br/>and 9 reserved groups with no options yet"]
+    end
+    subgraph GAME_ARGUMENT_LAYERS["Your game"]
+        L3["<b>Layer 3: your game</b> (its scene's args)<br/>GameName vX.Y Options"]
+    end
     L1 --> L2 --> L3
 ```
 
@@ -87,14 +96,14 @@ informational message and continues.
 
 ```mermaid
 flowchart TD
-    subgraph Engine["GameEngine.initialize_arguments()"]
+    subgraph Engine["Engine: GameEngine.initialize_arguments()"]
         CHECK{"getattr(game, 'args', None)"}
         CHECK -->|"method exists"| GROUP["parser.add_argument_group(\nGameName vX.Y Options)"]
         GROUP --> CALL["game.args(group)"]
         CHECK -->|"None"| LOG["log.info: Game does not\nimplement arguments"]
     end
 
-    subgraph GameCode["Your Game Scene"]
+    subgraph GameCode["Your game: its scene class"]
         ARGS["@classmethod\ndef args(cls, parser):\n    parser.add_argument(...)"]
     end
 

@@ -68,14 +68,26 @@ The scene's `args()` adds one option of its own; everything else is the engine's
 The game is one gameplay scene plus the engine's built-in pause and game-over screens. Every
 switch is a plain `next_scene` assignment or `switch_to_scene`; the game uses no transitions.
 
+In the diagrams on this page, the Engine box is what every game gets from `glitchygames`; the
+Brave Adventurer box (or the PapyrusEdition box) is what this game adds. Here the game's own
+code is its `main()` (which starts the engine's `GameEngine`) and the gameplay scene; the pause
+and game-over screens are the engine's, which the game constructs and hands to `next_scene`, and
+the engine ends the run on QUIT.
+
 ```mermaid
 flowchart TB
-    start(["main#40;#41;: GameEngine#40;game=BraveAdventurerScene#41;.start#40;#41;"])
-    play["BraveAdventurerScene<br/>the gameplay scene"]
-    pause["PauseScene<br/>the frozen game under a translucent overlay"]
-    over["GameOverScene<br/>final score and the top 5 high scores"]
-    fresh["a new BraveAdventurerScene<br/>type#40;previous_scene#41;#40;options=...#41;"]
-    quit(["QUIT: the run ends"])
+    subgraph GAME_SCENES["Brave Adventurer"]
+        direction TB
+        start(["main#40;#41;: GameEngine#40;game=BraveAdventurerScene#41;.start#40;#41;"])
+        play["BraveAdventurerScene<br/>the gameplay scene"]
+        fresh["a new BraveAdventurerScene<br/>type#40;previous_scene#41;#40;options=...#41;"]
+    end
+    subgraph ENGINE_SCENES["Engine"]
+        direction TB
+        pause["PauseScene<br/>the frozen game under a translucent overlay"]
+        over["GameOverScene<br/>final score and the top 5 high scores"]
+        quit(["QUIT: the run ends"])
+    end
 
     start --> play
     play -->|"Esc: _pause_game#40;#41; sets next_scene"| pause
@@ -151,23 +163,31 @@ screen-local x (and y for collectibles):
 `LEVEL_1` ("The Path of the Pharaoh") has 20 screens of rising difficulty: flat ground with
 scarabs to collect, a first short wall (screen 2), a first pit (screen 4), the first cobra
 (5), scarab (7) and scorpion (10), then combinations, a triple pit (16), a gauntlet (18) and a
-collectible run (19). `LevelManager` builds it once, in the scene's `__init__`:
+collectible run (19). `LevelManager` builds it once, in the scene's `__init__`. The level data,
+the builder and the terrain code are the game's; the sprite group and the collision layers they
+feed are the engine's `Scene` services:
 
 ```mermaid
 flowchart TB
-    level["LEVEL_1<br/>20 ScreenData, one per 800 px screen"]
-    build["LevelManager._build#40;#41;<br/>world x = screen index × 800 + local x"]
-    map["_get_enemy_class_map#40;#41;<br/>'cobra', 'scarab', 'scorpion' to classes<br/>#40;an unknown name is skipped#41;"]
-    group["the scene's all_sprites<br/>#40;LayeredDirty, drawn by layer#41;"]
-    lists["ground_sprites, wall_sprites,<br/>enemy_sprites, collectible_sprites"]
-    layers["collision layers<br/>'player', 'enemies', 'collectibles'"]
-    terrain["terrain collision code in the scene<br/>#40;ground and wall lists#41;"]
+    subgraph GAME_LEVEL["Brave Adventurer"]
+        direction TB
+        level["LEVEL_1<br/>20 ScreenData, one per 800 px screen"]
+        map["_get_enemy_class_map#40;#41;<br/>'cobra', 'scarab', 'scorpion' to classes<br/>#40;an unknown name is skipped#41;"]
+        build["LevelManager._build#40;#41;<br/>world x = screen index × 800 + local x"]
+        lists["ground_sprites, wall_sprites,<br/>enemy_sprites, collectible_sprites"]
+        terrain["terrain collision code in the scene<br/>#40;ground and wall lists#41;"]
+    end
+    subgraph ENGINE_LEVEL["Engine"]
+        direction TB
+        group["Scene.all_sprites<br/>#40;a LayeredDirty the engine draws by layer#41;"]
+        layers["Scene.collisions, a CollisionManager<br/>layers 'player', 'enemies', 'collectibles'"]
+    end
 
     level --> build
     map --> build
     build -->|"every sprite joins"| group
     build -->|"and one list per kind"| lists
-    lists -->|"enemies, collectibles"| layers
+    lists -->|"the scene adds enemies, collectibles"| layers
     lists -->|"ground, walls"| terrain
 ```
 
@@ -250,22 +270,36 @@ drawn size:
 
 ### Death and respawn
 
+The game decides what a death does; the engine's scene tweens run the fades, its rumble
+controller sends the pulses, and its `GameOverScene` is the screen the game switches to:
+
 ```mermaid
 flowchart TB
-    hit["an enemy hitbox overlaps,<br/>or the player fell 100 px below the screen"]
-    die["_player_die#40;#41;: lives -= 1"]
-    respawn["death sound, death rumble pulse<br/>_respawn_player#40;#41;: is_respawning = True, velocities 0"]
-    fadeout["tween alpha to 0 over 0.2 s"]
-    place["back 200 px #40;RESPAWN_OFFSET#41;, on the ground,<br/>is_respawning = False"]
-    fadein["tween alpha to 255 over 0.3 s"]
-    over["game_over_triggered = True, camera stops following<br/>game-over sound and rumble pulse<br/>_save_high_score#40;#41;, next_scene = GameOverScene"]
+    subgraph GAME_DEATH["Brave Adventurer"]
+        direction TB
+        hit["an enemy hitbox overlaps,<br/>or the player fell 100 px below the screen"]
+        die["_player_die#40;#41;: lives -= 1"]
+        respawn["death sound<br/>_respawn_player#40;#41;: is_respawning = True, velocities 0"]
+        place["back 200 px #40;RESPAWN_OFFSET#41;, on the ground,<br/>is_respawning = False"]
+        over["game_over_triggered = True, camera stops following<br/>game-over sound, _save_high_score#40;#41;<br/>next_scene = GameOverScene#40;...#41;"]
+    end
+    subgraph ENGINE_DEATH["Engine"]
+        direction TB
+        rumble["scene_manager.rumble.pulse#40;...#41;<br/>the death or game-over pulse"]
+        fadeout["Scene.tweens: alpha to 0 over 0.2 s"]
+        fadein["Scene.tweens: alpha to 255 over 0.3 s"]
+        gameover["GameOverScene<br/>at the end of the frame"]
+    end
 
     hit --> die
     die -->|"lives left"| respawn
-    respawn --> fadeout
-    fadeout --> place
-    place --> fadein
+    respawn -.->|"pulse"| rumble
+    respawn -->|"tween"| fadeout
+    fadeout -->|"on_complete"| place
+    place -->|"tween"| fadein
     die -->|"no lives left"| over
+    over -.->|"pulse"| rumble
+    over -->|"next_scene"| gameover
 ```
 
 While `is_respawning` is set, movement input, enemy contact and the pit-death check are
@@ -276,27 +310,26 @@ the last frame before the switch.
 ## One frame
 
 The engine runs the frame (CLAUDE.md, SceneManager); the scene's `dt_tick` does all the game
-logic in a fixed order, and its `render()` draws.
+logic in a fixed order, and its `render()` draws. The Engine box is the `SceneManager`'s frame;
+the Brave Adventurer box is the scene's code it calls:
 
 ```mermaid
-flowchart TB
-    begin["1. begin the frame"]
-    subgraph logic["2. logic: dt_tick#40;dt#41;"]
-        direction TB
-        input["movement input"]
-        tick["every sprite's dt_tick"]
-        collide["terrain collision"]
-        contact["deaths and pickups"]
-        score["distance score"]
-        input --> tick --> collide --> contact --> score
+sequenceDiagram
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
     end
-    events["3. event handlers"]
-    aim["5. camera aim"]
-    position["6. position and cull"]
-    render["7. update#40;#41;, then render#40;#41;"]
-    present["9-10. present and pace"]
+    box rgb(255,243,224) Brave Adventurer
+        participant Scene as BraveAdventurerScene
+    end
 
-    begin --> logic --> events --> aim --> position --> render --> present
+    Note over SM: 1. begin the frame
+    SM->>Scene: 2. dt_tick(dt)
+    Note over Scene: movement input<br/>every sprite's dt_tick<br/>terrain collision<br/>deaths and pickups<br/>distance score
+    Note over SM: 3. pump and dispatch the events
+    SM->>Scene: 3. on_*_event handlers
+    Note over SM: 5. camera aim<br/>6. position and cull<br/>7. Scene.update(): every<br/>dirty sprite's update()
+    SM->>Scene: 7. render()
+    Note over SM: 9-10. present and pace
 ```
 
 | Step | Who | What happens in Brave Adventurer |
@@ -329,18 +362,25 @@ a 1 px shadow), and sets `self.rects = None` so the whole screen is presented.
 
 ## Input
 
+The engine delivers the events and keeps the `ActionMap`'s held state; the game's scene reads
+the map and drives its player. SDL, outside both boxes, is where the events come from:
+
 ```mermaid
 sequenceDiagram
     participant SDL as SDL queue
-    participant Engine as GameEngine and SceneManager
-    participant Scene as BraveAdventurerScene
-    participant Actions as ActionMap
-    participant Player
+    box rgb(232,238,255) Engine
+        participant Engine as GameEngine and<br/>SceneManager
+        participant Actions as ActionMap
+    end
+    box rgb(255,243,224) Brave Adventurer
+        participant Scene as BraveAdventurerScene
+        participant Player
+    end
 
     Note over Scene,Player: dt_tick, before this frame's events
     Scene->>Actions: begin_frame()
     Scene->>Actions: is_held('move_right')
-    Actions-->>Scene: True (held since an earlier KEYDOWN)
+    Actions-->>Scene: True (held since a KEYDOWN)
     Scene->>Player: move_right() sets the target speed
     Note over SDL,Engine: event processing
     SDL->>Engine: KEYDOWN (scancode of Space)
@@ -348,7 +388,7 @@ sequenceDiagram
     Scene->>Actions: handle_event(event) updates held state
     Scene->>Actions: get_action(event)
     Actions-->>Scene: 'jump'
-    Scene->>Player: jump() (sound first when on the ground)
+    Scene->>Player: jump() (sound first if on the ground)
 ```
 
 Held actions (`move_right`, `move_left`) are read once per frame in `dt_tick` with
@@ -471,50 +511,89 @@ have pixel art.
 
 ### How it is structured
 
-The level manager is reused by subclassing; the scene is a parallel copy. Solid arrows are
-inheritance; dotted arrows are runtime use (one class building or calling another). Both
-scenes also import the original's `drawing.py`, `sounds.py` and constants (left out to keep
-the diagram readable).
+The level manager is reused by subclassing; the scene is a parallel copy. The Engine box is
+what both editions get from `glitchygames`, the BraveAdventurer box is the original game, and
+the PapyrusEdition box is what the edition adds on top of it. Solid arrows are inheritance,
+pointing at the base class; dotted arrows are runtime use (one class building or calling
+another). Both scenes also import the original's `drawing.py`, `sounds.py` and constants (left
+out to keep the diagrams readable).
+
+#### Scenes
 
 ```mermaid
 classDiagram
     direction TB
-    class Scene
-    class BraveAdventurerScene
-    class PapyrusBraveAdventurerScene
-    class LevelManager {
-        _build()
-        _get_enemy_class_map()
+    namespace Engine {
+        class Scene
+        class PauseScene
+        class GameOverScene
     }
-    class PapyrusLevelManager {
-        _build()
-        _get_enemy_class_map()
+    namespace BraveAdventurer {
+        class BraveAdventurerScene
+        class LevelManager {
+            _build()
+            _get_enemy_class_map()
+        }
     }
-    class Sprite
-    class AnimatedSprite
-    class Player
-    class PapyrusPlayer {
-        frame_anchor BOTTOM
+    namespace PapyrusEdition {
+        class PapyrusBraveAdventurerScene
+        class PapyrusLevelManager {
+            _build()
+            _get_enemy_class_map()
+        }
     }
-    class TerrainSprites["GroundSegment, StoneWall"]
-    class PrimitiveSprites["Cobra, Scarab, Scorpion, GoldScarab"]
-    class PapyrusSprites["PapyrusCobra, PapyrusScarab,<br/>PapyrusScorpion, PapyrusGoldScarab"]
 
+    Scene <|-- PauseScene
+    Scene <|-- GameOverScene
     Scene <|-- BraveAdventurerScene
     Scene <|-- PapyrusBraveAdventurerScene
     LevelManager <|-- PapyrusLevelManager
+
+    PauseScene <.. BraveAdventurerScene : Esc creates
+    GameOverScene <.. BraveAdventurerScene : creates at game over
+    LevelManager <.. BraveAdventurerScene : uses
+    PapyrusLevelManager <.. PapyrusBraveAdventurerScene : uses
+```
+
+`PapyrusBraveAdventurerScene` creates the same engine `PauseScene` and `GameOverScene` as the
+original scene (left out of the diagram to keep it readable).
+
+#### Sprites
+
+```mermaid
+classDiagram
+    direction TB
+    namespace Engine {
+        class Sprite
+        class AnimatedSprite
+        class PhysicsBody
+    }
+    namespace BraveAdventurer {
+        class SpritesLevelManager["LevelManager"]
+        class Player
+        class TerrainSprites["GroundSegment, StoneWall"]
+        class PrimitiveSprites["Cobra, Scarab, Scorpion, GoldScarab"]
+    }
+    namespace PapyrusEdition {
+        class SpritesPapyrusLevelManager["PapyrusLevelManager"]
+        class PapyrusPlayer {
+            frame_anchor BOTTOM
+        }
+        class PapyrusSprites["PapyrusCobra, PapyrusScarab,<br/>PapyrusScorpion, PapyrusGoldScarab"]
+    }
+
     Sprite <|-- Player
     Sprite <|-- TerrainSprites
     Sprite <|-- PrimitiveSprites
     AnimatedSprite <|-- PapyrusPlayer
     AnimatedSprite <|-- PapyrusSprites
+    PhysicsBody <.. Player : physics
+    PhysicsBody <.. PapyrusPlayer : physics
 
-    PapyrusLevelManager ..> TerrainSprites : builds
-    PapyrusLevelManager ..> PapyrusSprites : builds
-    LevelManager ..> TerrainSprites : builds
-    LevelManager ..> PrimitiveSprites : builds
-    BraveAdventurerScene ..> LevelManager : uses
-    PapyrusBraveAdventurerScene ..> PapyrusLevelManager : uses
+    TerrainSprites <.. SpritesLevelManager : builds
+    PrimitiveSprites <.. SpritesLevelManager : builds
+    TerrainSprites <.. SpritesPapyrusLevelManager : builds
+    PapyrusSprites <.. SpritesPapyrusLevelManager : builds
 ```
 
 - **`PapyrusLevelManager`** overrides `_get_enemy_class_map()` to return the Papyrus enemy

@@ -81,21 +81,29 @@ A game is a chain of scenes. Each reel is a new `MrMuncherScene`, built from a `
 (a frozen pydantic model holding the reel number, score, lives left and whether the extra life
 has been given). The scene keeps the progress it started with as `starting_progress`.
 
+In the diagram, the Engine box holds the engine's built-in `PauseScene`; the Mr. Muncher box
+holds the game's own scenes (`MrMuncherGameOverScene` extends the engine's `GameOverScene`, see
+[Scene classes](#scene-classes)).
+
 ```mermaid
 stateDiagram-v2
     direction TB
     [*] --> Reel : GameEngine(game=MrMuncherScene)
-    Reel : MrMuncherScene (reel n)
-    Pause : PauseScene (engine)
-    GameOver : MrMuncherGameOverScene
+    state "Mr. Muncher" as MrMuncherScenes {
+        Reel : MrMuncherScene (reel n)
+        NextReel : MrMuncherScene (reel n + 1)<br/>same score and lives
+        GameOver : MrMuncherGameOverScene<br/>(extends the engine's GameOverScene)
+        NewGame : MrMuncherScene (reel 1)
+    }
+    state "Engine" as EngineScenes {
+        Pause : PauseScene
+    }
     Reel --> Pause : ESC, P, Start or focus lost<br/>next_scene = PauseScene
     Pause --> Reel : SPACE released<br/>(setup() runs again)
     Reel --> NextReel : CUT! then flash<br/>next_scene = new scene
-    NextReel : MrMuncherScene (reel n + 1)<br/>same score and lives
     NextReel --> Reel : the same flow
     Reel --> GameOver : THE END shown for 2.5 s<br/>transition_to(..., FadeTransition(1 s))
     GameOver --> NewGame : SPACE released, or A or Start<br/>switch_to_scene
-    NewGame : MrMuncherScene (reel 1)
     Reel --> [*] : Q (scene_manager.quit())
     Pause --> [*] : ESC or Q
     GameOver --> [*] : ESC
@@ -112,6 +120,65 @@ stateDiagram-v2
 - **Pause**: the engine's `PauseScene` shows a frozen screenshot of the game. When play
   resumes, the scene's `setup()` runs again. That is why `setup()` shows the ready message only
   while the phase is still `READY`.
+
+### Scene classes
+
+Mr. Muncher's scenes are two classes in `glitchygames/examples/mr_muncher/game.py`:
+`MrMuncherScene` and `MrMuncherGameOverScene`. `Scene` and the built-in `PauseScene` and
+`GameOverScene` come from the engine (`glitchygames.scenes`). In the diagram, the Engine box is
+what every game gets; the Mr. Muncher box is what this game adds. Solid arrows are inheritance,
+pointing at the base class; dotted arrows are how the game uses an engine class.
+
+```mermaid
+classDiagram
+    direction TB
+    namespace Engine {
+        class Scene {
+            next_scene
+            transition_to(scene, transition)
+            replay_arguments()
+        }
+        class PauseScene {
+            the frozen game, dimmed
+            SPACE resumes it, ESC or Q quits
+        }
+        class GameOverScene {
+            score and high scores
+            final_score, high_scores
+        }
+    }
+    namespace MrMuncher {
+        class MrMuncherScene {
+            NAME = 'Mr. Muncher'
+            VERSION = '2.0'
+            MAX_FRAME_SECONDS = 0.05
+            starting_progress : GameProgress
+            phase : Phase
+            actions : ActionMap
+            saves : SaveManager
+            dt_tick(dt)
+            render(screen)
+        }
+        class MrMuncherGameOverScene {
+            level_reached : int
+            setup()
+            replay_arguments()
+            resume()
+        }
+    }
+
+    Scene <|-- PauseScene
+    Scene <|-- GameOverScene
+    Scene <|-- MrMuncherScene
+    GameOverScene <|-- MrMuncherGameOverScene
+
+    PauseScene <.. MrMuncherScene : _pause sets next_scene = PauseScene
+    MrMuncherScene ..> MrMuncherGameOverScene : transition_to after THE END
+    MrMuncherGameOverScene ..> MrMuncherScene : resume starts a new game
+```
+
+Unlike PaddleSlap, `MrMuncherScene` names `PauseScene` itself: `_pause` sets
+`next_scene = PauseScene(options=self.options)`, except once the game is over.
 
 ### Phases inside a reel
 
@@ -391,26 +458,37 @@ phase) after positioning. Mr. Muncher does all its work in `dt_tick` and does no
 `update()`. `MAX_FRAME_SECONDS = 0.05`: after a hitch, such as dragging the window, logic
 advances at most 50 ms in one frame.
 
+In the diagram, the Engine box is the scene manager calling the scene; everything in the
+Mr. Muncher box is the game's own `dt_tick`.
+
 ```mermaid
 flowchart TB
-    A["dt_tick(dt)<br/>dt capped at 0.05 s"] --> B["_read_direction_input()<br/>set wanted_direction from the ActionMap,<br/>then actions.begin_frame()"]
-    B --> C["phase_seconds += dt<br/>_run_phase(dt)"]
-    C -->|PLAYING| P["_play(dt): split into steps of at most 1/120 s"]
-    C -->|DYING| D["_die_a_little()"]
-    C -->|other phases| W["wait, then move on when the phase's time is up"]
-    P --> S1["_advance_timers(step)<br/>releases, mode schedule, fright, bonus"]
-    S1 --> S2["player.travel(speed x step)<br/>_eat_at_player()"]
-    S2 --> S3{"phase changed, or<br/>contact?"}
-    S3 -->|yes| E["end of play for this frame"]
-    S3 -->|no| S4["each muncher.travel(its speed x step,<br/>ChaseSituation)"]
-    S4 --> S5{"contact?"}
-    S5 -->|yes| E
-    S5 -->|"no: next step"| S1
-    D --> F
-    W --> F
-    E --> F["_count_down_bonus_points(dt)<br/>_update_projector()"]
-    S5 -->|no steps left| F
-    F --> G["_pose_sprites()<br/>every picture for this moment, side panels"]
+    subgraph ENGINE_FRAME["Engine"]
+        direction TB
+        A["SceneManager: logic phase<br/>scene.dt_tick(dt), dt capped at<br/>MAX_FRAME_SECONDS (0.05 s)"]
+    end
+    subgraph GAME_FRAME["Mr. Muncher"]
+        direction TB
+        B["_read_direction_input()<br/>set wanted_direction from the ActionMap,<br/>then actions.begin_frame()"]
+        B --> C["phase_seconds += dt<br/>_run_phase(dt)"]
+        C -->|PLAYING| P["_play(dt): split into steps of at most 1/120 s"]
+        C -->|DYING| D["_die_a_little()"]
+        C -->|other phases| W["wait, then move on when the phase's time is up"]
+        P --> S1["_advance_timers(step)<br/>releases, mode schedule, fright, bonus"]
+        S1 --> S2["player.travel(speed x step)<br/>_eat_at_player()"]
+        S2 --> S3{"phase changed, or<br/>contact?"}
+        S3 -->|yes| E["end of play for this frame"]
+        S3 -->|no| S4["each muncher.travel(its speed x step,<br/>ChaseSituation)"]
+        S4 --> S5{"contact?"}
+        S5 -->|yes| E
+        S5 -->|"no: next step"| S1
+        D --> F
+        W --> F
+        E --> F["_count_down_bonus_points(dt)<br/>_update_projector()"]
+        S5 -->|no steps left| F
+        F --> G["_pose_sprites()<br/>every picture for this moment, side panels"]
+    end
+    A --> B
 ```
 
 - **Sub-steps.** `_play` splits the frame into `ceil(dt / (1/120))` equal steps (two at 60 FPS,
@@ -445,41 +523,49 @@ flash (white trim on lighter velvet). Everything that changes is a sprite in the
 | 5 `MESSAGE_LAYER` | `Picture` `Message` (3, 2, 1, ACTION!, TAKE n, CUT!, THE END) | Screen |
 | 6 `PANEL_LAYER` | `SidePanel` x 2 (film-strip edges with the score, lives, bonus, control hints) | Screen |
 
+In the diagram, the Engine box is the engine's `Sprite` (`glitchygames.sprites`); the
+Mr. Muncher box holds the game's sprite classes (`actors.py` and `scenery.py`). Solid arrows are
+inheritance, pointing at the base class.
+
 ```mermaid
 classDiagram
     direction TB
-    class Sprite {
-        glitchygames.sprites
+    namespace Engine {
+        class Sprite {
+            glitchygames.sprites
+        }
     }
-    class MazeActor {
-        COORDINATE_SPACE = WORLD
-        tile_x, tile_y, direction
-        world_x, world_y
-        advance(distance, choose_direction)
-    }
-    class Player {
-        wanted_direction, facing
-        travel(distance)
-        pose()
-    }
-    class Muncher {
-        profile, state, frightened
-        reverse_soon, target
-        travel(distance, situation)
-        pose(game_time, flashing)
-    }
-    class Sprocket {
-        cell, is_snack
-        eat()
-    }
-    class Picture {
-        centre
-        change_image(image)
-        move_to(centre)
-    }
-    class SidePanel {
-        contents
-        draw(contents, items)
+    namespace MrMuncher {
+        class MazeActor {
+            COORDINATE_SPACE = WORLD
+            tile_x, tile_y, direction
+            world_x, world_y
+            advance(distance, choose_direction)
+        }
+        class Player {
+            wanted_direction, facing
+            travel(distance)
+            pose()
+        }
+        class Muncher {
+            profile, state, frightened
+            reverse_soon, target
+            travel(distance, situation)
+            pose(game_time, flashing)
+        }
+        class Sprocket {
+            cell, is_snack
+            eat()
+        }
+        class Picture {
+            centre
+            change_image(image)
+            move_to(centre)
+        }
+        class SidePanel {
+            contents
+            draw(contents, items)
+        }
     }
     Sprite <|-- MazeActor
     MazeActor <|-- Player
