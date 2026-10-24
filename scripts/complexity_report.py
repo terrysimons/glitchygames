@@ -12,8 +12,8 @@ directory, and the worktree is removed.
 
 Exit codes: ``SUCCESS``; ``INTERNAL_ERROR`` when git or wily fails (its output is printed).
 
-Usage:
-    uv run python scripts/complexity_report.py [--rank]
+Usage (from the project root):
+    uv run python -m scripts.complexity_report [--rank]
 """
 
 from __future__ import annotations

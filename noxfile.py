@@ -1385,7 +1385,9 @@ def code_complexity(session: nox.Session) -> None:
     # checks each revision out where it runs, which in the working tree would rewrite the files
     # being worked on (scripts/complexity_report.py)
     rank_arguments = ['--rank'] if '--rank' in session.posargs else []
-    session.run('python', 'scripts/complexity_report.py', *rank_arguments)
+    # As a module from the project root: the session installs the package (not editable), so the
+    # script's own `from scripts...` import needs the root on sys.path, which -m gives it
+    session.run('python', '-m', 'scripts.complexity_report', *rank_arguments)
 
     # Optional: generate graphs for documentation
     if '--graphs' in session.posargs:
