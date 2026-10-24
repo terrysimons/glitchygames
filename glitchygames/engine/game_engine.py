@@ -457,7 +457,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         group.add_argument(
             '-r',
             '--resolution',
-            help='the resolution to use (default: 1024x768)',
+            help='the resolution to use (default: %(default)s)',
             default='800x480',
         )
         group.add_argument('--use-gfxdraw', action='store_true', default=False)

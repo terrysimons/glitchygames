@@ -360,7 +360,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found on feature/gameplay-replay (replay core, Task 15: correcting `docs/architecture/argument_system.md` against the argparse definitions)
 - **Date Reported**: 2026-10-19
-- **Details**: Not fixed here (documentation task). The help text is a one-line fix; `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
+- **Details**: The help text is fixed (2026-10-23: `%(default)s`, so it names the real default; `tests/engine/test_game_engine.py::TestResolutionArgument`). Still open: `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
 - **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
 
 ### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
@@ -541,7 +541,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   11. `ActionMap.begin_frame`'s docstring says to call it at the start of `dt_tick` before querying `just_pressed`; events are processed after `dt_tick`, so doing that makes `just_pressed` always False in `dt_tick` (Clockwork Keep reads first, correctly)
   12. The games' `_create_action_map(s)` docstrings list `input_mode` as 'joystick' or 'controller' only; 'auto' is the engine default, and the games fall back to 'joystick' when the option is missing
   13. Stale or wrong comments: `ball.py` (~691) says paddle hits are resolved in PaddleSlap's `update()` (they are in `Game.dt_tick`); Clockwork Keep's `_go_to_next_floor` says it uses the wall colours (it passes the platform colours) and unpacks three unused locals; `CAMERA_LEAD_Y`'s "look ahead upward" (it leaves slightly less view above the player); `MovingGear`'s "gear diameter" (it is a size by size/4 bar); Brave Adventurer's repeated `dt_tick` step numbers, "Phase 3" parallax comment, "used in PhysicsBody.platformer()" (built by hand), Scarab "wrap or continue off-screen" (they reverse), and a duplicated voice-assistant comment; `pause_scene.py`'s "Pause scene for paddleslap game" (every game uses it); Mr. Muncher's `drawing.py` docstring says per-pixel-alpha drawing never leaves transparent pixels on the background, which contradicts `game.py` and #142 (why it calls `make_opaque`); `tests/collision/test_ball_paddle_collision.py` says `tests/conftest.py` mocks pygame (it no longer does)
-  14. `--resolution`'s help says "(default: 1024x768)"; the default is 800x480 (`glitchygames/engine/game_engine.py`)
+  14. Fixed 2026-10-23: `--resolution`'s help said "(default: 1024x768)"; it now prints the real default (800x480), as #76's details say
 - **Files**: see each item
 
 ## Resolved Bugs

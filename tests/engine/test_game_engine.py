@@ -2729,6 +2729,17 @@ class TestDefaultBackgroundArgument:
             _make_engine(mocker, '--default-background', 'snow')
 
 
+class TestResolutionArgument:
+    """--resolution's help names the default it really has (BUGS.md #76)."""
+
+    def test_the_help_shows_the_real_default(self):
+        parser = GameEngine.args(argparse.ArgumentParser(prog='game'))
+        resolution = next(action for action in parser._actions if action.dest == 'resolution')
+
+        assert resolution.default == '800x480'
+        assert 'default: 800x480' in parser.format_help()
+
+
 class TestShakeAndAudioArguments:
     """Test the screen shake, rumble and live voice pool arguments."""
 
