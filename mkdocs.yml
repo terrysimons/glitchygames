@@ -38,6 +38,7 @@ nav:
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
+    - Replay Performance: "quality/performance.md"
     - Driver Comparison: "quality/driver_comparison.md"
     - Galimore Survey: "galimore.md"
 
@@ -45,13 +46,15 @@ extra_javascript:
   - https://unpkg.com/mermaid/dist/mermaid.min.js
   - js/mermaid-init.js
 
-# The complexity graphs' snippet, which quality/complexity.md includes (pymdownx.snippets), is
-# not a page of its own (scripts/generate_complexity_graphs.py)
+# The complexity and performance graphs' snippets, which quality/complexity.md and
+# quality/performance.md include (pymdownx.snippets), are not pages of their own
+# (scripts/generate_complexity_graphs.py, scripts/generate_performance_graphs.py)
 exclude_docs: |
   /quality/graphs/*.md
+  /quality/metrics/*.md
 
 # Every build (build, serve, gh-deploy) first generates the complexity graphs when they are
-# missing or were made from another commit (scripts/mkdocs_hooks.py)
+# missing or were made from another commit, then the performance graphs (scripts/mkdocs_hooks.py)
 hooks:
   - scripts/mkdocs_hooks.py
 

@@ -67,6 +67,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   the user 2026-10-23; open decisions listed there)
   Done: Part 0 (2026-10-23): the engine's source revision, the machine's state and a run
   summary in every run (`glitchygames/build_info.py`, `machine_state.py`, `recording_history.py`)
+  Done: Parts 1 and 2 (2026-10-23): the run ledger on gh-pages (`nox -s replay-metrics`, the docs
+  site's Replay Performance page) and `scripts/recording_report.py` (speed changes and the
+  behaviour-change map; `glitchygames/recording_metrics.py`)
 - **Priority**: High (requested 2026-10-23)
 
 ### 47. Controller Layout Mapper: PlayStation-Style Pads (PS3, PS4, PS5) — TODO

@@ -145,6 +145,9 @@ venv.bak/
 
 # wily complexity graphs (scripts/generate_complexity_graphs.py; nox -s docs-deploy makes them)
 docs/quality/graphs/
+# The run ledger and its performance graphs (scripts/generate_performance_graphs.py; every mkdocs
+# build makes them, nox -s docs-deploy publishes them)
+docs/quality/metrics/
 
 # mypy
 .mypy_cache/

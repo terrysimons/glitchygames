@@ -578,15 +578,48 @@ def latest_measurement_run(*, header: Mapping[str, Any]) -> MeasurementRun | Non
 
     """
     runs = header.get(MEASUREMENT_RUNS_HEADER_FIELD)
-    if not isinstance(runs, list) or not runs or not isinstance(runs[0], dict):
+    if not isinstance(runs, list) or not runs:
         return None
-    # Read leniently: a newer run's extra fields (a git commit, say) must not hide what this
-    # reader knows of it; writing stays strict (extra='forbid')
-    latest = cast('dict[str, Any]', runs[0])
+    return measurement_run_from(run=cast('list[Any]', runs)[0])
+
+
+def measurement_run_from(*, run: object) -> MeasurementRun | None:
+    """Read one ``measurement_runs`` entry leniently.
+
+    A newer run's extra fields (one this reader does not know) must not hide what this reader
+    knows of it, so unknown fields are dropped; writing stays strict (extra='forbid').
+
+    Args:
+        run: The entry, as the header holds it.
+
+    Returns:
+        The run, or None when it is not a mapping or its known fields are unreadable.
+
+    """
+    if not isinstance(run, dict):
+        return None
+    run_fields = cast('dict[str, Any]', run)
     known_fields = {
-        name: value for name, value in latest.items() if name in MeasurementRun.model_fields
+        name: value for name, value in run_fields.items() if name in MeasurementRun.model_fields
     }
     try:
         return MeasurementRun.model_validate(known_fields)
     except ValidationError:
         return None
+
+
+def recorded_measurement_runs(*, header: Mapping[str, Any]) -> list[MeasurementRun | None]:
+    """Return every run a header names, newest first, each read leniently.
+
+    Args:
+        header: A recording's header fields.
+
+    Returns:
+        One entry per ``measurement_runs`` entry (None for an unreadable one, so indexes stay
+        aligned with the frames' histories); empty when the header has none.
+
+    """
+    runs = header.get(MEASUREMENT_RUNS_HEADER_FIELD)
+    if not isinstance(runs, list):
+        return []
+    return [measurement_run_from(run=run) for run in cast('list[Any]', runs)]

@@ -21,6 +21,7 @@ from glitchygames.testing.replays import (
     REPLAY_FIXTURES_PATH_PARTS,
     bundled_demo_paths,
     game_entry_point,
+    rebaseline_recording_headless,
     replay_recording_headless,
 )
 from tests.replay.replay_helpers import tamper_first_sprite_rect
@@ -291,6 +292,19 @@ def test_replay_recording_headless_returns_the_finished_replay(tmp_path):
 
     assert completed.returncode == ExitCode.REPLAY_DIVERGED
     assert f'Replay diverged at frame {TAMPERED_FRAME}' in completed.stdout
+
+
+def test_rebaseline_recording_headless_writes_the_new_recording(tmp_path):
+    """The child rebaselines through the console script and prints its summary."""
+    new_path = tmp_path / 'rebaselined.jsonl.gz'
+
+    completed = rebaseline_recording_headless(
+        console_script='paddleslap', path=REPO_FIXTURE, new_path=new_path
+    )
+
+    assert completed.returncode == ExitCode.SUCCESS, completed.stdout
+    assert f'to {new_path}: no frames differ' in completed.stdout
+    assert new_path.is_file()
 
 
 # A conftest for an in-process inner run: it takes the plugin's collection hook by import, so

@@ -334,11 +334,18 @@ def test_the_mkdocs_hook_generates_the_graphs_before_a_build(fixture_repository,
     graphs_directory = tmp_path / 'graphs'
     mocker.patch.object(graph_script, 'PROJECT_ROOT', fixture_repository)
     mocker.patch.object(graph_script, 'GRAPHS_DIR', graphs_directory)
+    # The performance graphs follow (tests/test_generate_performance_graphs.py): kept out of
+    # this repository's docs tree
+    performance_script = mkdocs_hooks.load_performance_script()
+    mocker.patch.object(performance_script, 'PROJECT_ROOT', fixture_repository)
+    mocker.patch.object(performance_script, 'METRICS_DIR', tmp_path / 'metrics')
+    mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', tmp_path / 'pending.jsonl')
 
     mkdocs_hooks.on_pre_build(config=MkDocsConfig())
 
     assert (graphs_directory / GRAPHS_SNIPPET_NAME).is_file()
     assert (graphs_directory / GENERATED_FROM_NAME).is_file()
+    assert (tmp_path / 'metrics' / performance_script.SNIPPET_NAME).is_file()
 
 
 def test_the_mkdocs_hook_stops_the_build_when_the_generation_fails(tmp_path, mocker):

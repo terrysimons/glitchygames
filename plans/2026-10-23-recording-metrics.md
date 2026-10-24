@@ -59,6 +59,12 @@ or a rewrite on close, as `--rebaseline` already moves a finished file into plac
 
 ### Part 1: Frame performance history
 
+**Done (2026-10-23):** sub-plan
+`plans/2026-10-23-recording-metrics-1-frame-performance-history.md`. The ledger lives on the
+gh-pages branch (user decision): `nox -s replay-metrics` appends pending rows, every docs build
+merges and graphs them (Replay Performance page), `nox -s docs-deploy` publishes them. CI does
+not deploy docs (user decision), so the history builds on the user's Mac.
+
 Per recording, a frame × run table of `processing_seconds` (the 10 stacked runs), with the
 content hash proving each run did the same work (a frame whose hash changed is shown as
 "different work", never as a speed change). Reports: frames or spans that got slower or faster
@@ -68,11 +74,15 @@ a heatmap on the docs site.
 **Beyond 10 runs** (chosen by the user, 2026-10-23): a run ledger outside the recordings (one summary row per recording per run:
 total, p50, p95, p99, worst frame and its scene, plus the run's provenance). `nox -s
 replay-metrics` replays every golden replay and bundled demo headless with processing measured
-and appends rows; CI runs it on every merge, so the history builds on one machine. Open: where
-the ledger lives (a JSON Lines file on the gh-pages branch, which the docs build reads, is the
-proposal; SQLite in a cache directory is the alternative).
+and appends rows; `nox -s docs-deploy` (run on the user's Mac, not CI) measures first and
+publishes them, so the history builds on one machine. The ledger lives on the gh-pages branch
+(settled 2026-10-23). The heatmap (frame x run) is not built yet: the report script prints the
+same table condensed to spans.
 
 ### Part 2: Behaviour-change map
+
+**Done (2026-10-23):** sub-plan `plans/2026-10-23-recording-metrics-2-behaviour-change-map.md`
+(`glitchygames/recording_metrics.py`, `scripts/recording_report.py`).
 
 From the `content_hash` histories: for each pair of adjacent runs, the frames whose hash
 changed, grouped into spans, with the first changed frame's scene and the runs' commits. "Run 4
@@ -163,7 +173,7 @@ then 3 (measurement, then the runtime queue), then 6.
 
 ## Open decisions
 
-1. Where the run ledger lives (gh-pages JSON Lines, or SQLite in a cache directory)
+1. ~~Where the run ledger lives~~ Settled (2026-10-23): gh-pages JSON Lines (Part 1)
 2. Part 3: the GPU backend to try first, and the safety margin policy
 3. Part 3: whether the spare-time queue lands in the engine core or as an opt-in service a
    scene enables

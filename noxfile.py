@@ -222,25 +222,87 @@ def lint_docs(session: nox.Session) -> None:
     _lint_docs(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
-def docs_deploy(session: nox.Session) -> None:
-    """Build the docs strictly and publish them to GitHub Pages.
+# git fetch's exit statuses a docs build accepts: fetched, or failed (offline, no remote, no
+# gh-pages branch yet)
+_GIT_FETCH_STATUSES = [0, 1, 128]
 
-    https://terrysimons.github.io/glitchygames/ serves the gh-pages branch. ``mkdocs gh-deploy``
-    builds the site (its hook, scripts/mkdocs_hooks.py, first generates the complexity graphs from
-    HEAD's whole git history when they were made from another commit: about a minute), commits it
-    to gh-pages and pushes it. Run it from what should be published (usually main after a merge);
-    a warning stops it before anything is pushed.
+
+def _replay_metrics(session: nox.Session, *arguments: str) -> None:
+    """Run scripts/replay_metrics.py in the project's environment (``uv run``).
+
+    The rebaselines it starts must run this checkout's package (the project's editable install)
+    to know their commit: a nox venv's built copy of the package cannot name it.
+    """
+    session.run(
+        'uv',
+        'run',
+        '--frozen',
+        'python',
+        'scripts/replay_metrics.py',
+        *arguments,
+        external=True,
+        # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
+        env={'VIRTUAL_ENV': None},
+    )
+
+
+@nox.session(venv_backend='none', name='replay-metrics', default=False)
+def replay_metrics(session: nox.Session) -> None:
+    """Measure every golden replay and bundled demo on this machine into the run ledger.
+
+    scripts/replay_metrics.py rebaselines each recording headless (a few seconds each), which
+    measures every frame's processing time, and appends one row per recording to
+    test-results/replay-metrics/pending.jsonl; ``nox -s docs-deploy`` publishes the rows with the
+    docs site (gh-pages), whose Performance page graphs them. A recording already measured for
+    this commit on this machine is skipped. A checkout with uncommitted changes is refused.
 
     Usage:
-        nox -s docs-deploy                  # Build (graphs included) and push gh-pages
-        nox -s docs-deploy -- --build-only  # Build into site/; no push
+        nox -s replay-metrics                    # Measure what this commit has not measured
+        nox -s replay-metrics -- --force         # Measure everything again
+        nox -s replay-metrics -- --allow-dirty   # A trial on uncommitted changes (rows say so)
+        nox -s replay-metrics -- --only muncher  # Only recordings whose path contains "muncher"
+    """
+    _replay_metrics(session, 'measure', *session.posargs)
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
+def docs_deploy(session: nox.Session) -> None:
+    """Measure the replays, build the docs strictly and publish them to GitHub Pages.
+
+    https://terrysimons.github.io/glitchygames/ serves the gh-pages branch. First ``git fetch
+    origin gh-pages`` (the deploy republishes the run ledger merged with what gh-pages holds, so
+    a failed fetch stops it; ``--build-only`` goes on offline with what the last fetch saw) and
+    ``nox -s replay-metrics``'s measurement (``--skip-dirty``: nothing is measured on a checkout
+    with uncommitted changes). ``mkdocs gh-deploy`` then builds the site (its hook,
+    scripts/mkdocs_hooks.py, first generates the complexity graphs from HEAD's whole git history
+    when they were made from another commit: about a minute, and the performance graphs from the
+    published run ledger plus the pending rows, which it publishes with the site), commits it to
+    gh-pages and pushes it. Only after that succeeded are the now-published pending rows
+    removed. Run it from what should be published (usually main after a merge); a warning stops
+    it before anything is pushed.
+
+    Usage:
+        nox -s docs-deploy                  # Measure, build (graphs included) and push gh-pages
+        nox -s docs-deploy -- --build-only  # Measure and build into site/; no push
     """
     _install_from_lockfile(session)
-    if '--build-only' in session.posargs:
+    build_only = '--build-only' in session.posargs
+    # A deploy publishes the merged ledger in place of the published one, so it must start from
+    # what gh-pages holds now: only a build tolerates a failed fetch
+    session.run(
+        'git',
+        'fetch',
+        'origin',
+        'gh-pages',
+        external=True,
+        success_codes=_GIT_FETCH_STATUSES if build_only else [0],
+    )
+    _replay_metrics(session, 'measure', '--skip-dirty')
+    if build_only:
         session.run('mkdocs', 'build', '--strict')
         return
     session.run('mkdocs', 'gh-deploy', '--strict')
+    _replay_metrics(session, 'clear-published')
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-serve', default=False)

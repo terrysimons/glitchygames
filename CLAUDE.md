@@ -97,6 +97,7 @@ nox -s static-analysis-ty           # Run ty only
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
+nox -s replay-metrics      # Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
 nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
@@ -117,9 +118,10 @@ nox -s build-wheel         # Build wheel (.whl) only
 # (glitchygames/_build_info.json, removed after; glitchygames/build_info.py)
 
 # --- Docs ---
-nox -s docs-deploy         # Generate complexity graphs, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages; `-- --build-only`: no push)
+nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
 nox -s docs-serve          # Serve the docs locally (same strict build, graphs included) at http://127.0.0.1:8000/glitchygames/
-# Every mkdocs build generates the complexity graphs first when HEAD changed (hook: scripts/mkdocs_hooks.py)
+# Every mkdocs build generates the complexity graphs first when HEAD changed, then the performance
+# graphs (published run ledger from origin/gh-pages + pending rows; hook: scripts/mkdocs_hooks.py)
 ```
 
 ### Running Bitmappy (Pixel Art Editor)
@@ -584,6 +586,17 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run
   in front (same hashes when behaviour is unchanged); `recording_content_hash` derives a
   recording's hash for any run. Never compared by a replay, never served
+- Recording metrics (`glitchygames/recording_metrics.py`, a leaf; design
+  `plans/2026-10-23-recording-metrics.md`, Parts 1 and 2 done): `behaviour_changes` (adjacent
+  runs' frames whose `content_hash` differs, as spans with the first frame's scene and both
+  commits), `processing_comparisons` (same-work frames only, equal hashes, that got slower or
+  faster beyond a ratio and a minimum), and the run ledger (`LedgerRow`, one per recording per
+  run, keyed by recording + `measured_at` + machine; `merge_ledgers`, `performance_series`). The
+  ledger lives on gh-pages (`quality/metrics/replay-ledger.jsonl`): `nox -s replay-metrics`
+  (`scripts/replay_metrics.py`) appends pending rows, every docs build merges and graphs them
+  (`scripts/generate_performance_graphs.py`, docs/quality/performance.md), and a deploy publishes
+  them. `uv run python scripts/recording_report.py PATH` prints a recording's runs, speed changes
+  and behaviour-change map
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a
