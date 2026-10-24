@@ -477,6 +477,73 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Likely fix: drop the flag and the Q branch (the release path is the quit), or post QUIT there as `_handle_quit_key_press` does (then Q would quit on its press and its release would post a second QUIT)
 - **Files**: `glitchygames/scenes/scene.py` (`Scene._handle_scene_key_events`, `Scene.__init__`'s `quit_requested`)
 
+### 204. Brave Adventurer Never Keeps a Gold Scarab's Bonus
+- **Description**: Collecting a gold scarab adds `COLLECTIBLE_SCORE_BONUS` (100) to the score (`_on_player_collect`), but the last step of the same `dt_tick` sets `player.score = round(player.max_distance / DISTANCE_SCORE_DIVISOR)`, so the bonus is overwritten in the frame it is earned: the score is always the distance score. Both editions (`brave_adventurer/game.py:321`, `brave_adventurer_papyrus/game.py:314`). Reproduced by placing the player on a collectible: it was collected and the score stayed 29
+- **Status**: Active
+- **Priority**: Medium (a visible scoring rule that never works)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: keep the bonus points separately (score = distance score + bonus points). The golden replay and golden traces include collecting scarabs, so the fix changes the score sprite: check what they compare before changing it
+- **Files**: `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
+
+### 205. Clockwork Keep's Tinker Can Fall Through a Platform After a Slow Frame
+- **Description**: `_resolve_ground_collision` finds support only when the feet end a tick within 20 px below a support's top. At the 800 px/s terminal speed a tick longer than 25 ms (below 40 FPS) moves more than 20 px, and the 50 ms `MAX_FRAME_SECONDS` cap allows 40 px, so a hitch while falling fast can drop the Tinker through a platform, or through the ground (costing a life). The cap's comment says it prevents tunneling; at 50 ms it does not
+- **Status**: Active
+- **Priority**: Medium (a hitch can cost a life; rare on a fast machine)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: sweep the fall (test the segment from the previous to the new feet position against each support's top), or sub-step physics as Mr. Muncher does (at most 1/120 s per step). Platform and elevator support also use a literal 20 where the gear check uses `GROUND_SNAP_TOLERANCE`
+- **Files**: `glitchygames/examples/clockwork_keep/game.py` (`_resolve_ground_collision`, `MAX_FRAME_SECONDS`)
+
+### 206. The Papyrus Edition's Player Keeps Walking While It Respawns
+- **Description**: The Papyrus edition's `_respawn_player` lacks the original's `self.player.stop_horizontal()`. While `is_respawning` is set, movement input is skipped, so the acceleration target stays at the last direction (±200 px/s) and the player walks on (about 27 px) during the 0.2 s fade before it is repositioned
+- **Status**: Active
+- **Priority**: Low (cosmetic, during a fade)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Files**: `glitchygames/examples/brave_adventurer_papyrus/game.py` (`_respawn_player`)
+
+### 207. Unhandled-Event Warnings Turn On at Log Level ERROR and CRITICAL, Not INFO or WARNING
+- **Description**: `GameEngine.initialize_arguments` derives `debug_events` from `--log-level`: True for `DEBUG`, `ERROR` and `CRITICAL`, False otherwise. `unhandled_event()` logs its once-per-type warning only when `debug_events` is on, so the warnings appear at the quietest log levels and not at INFO or WARNING, which looks backwards (and at ERROR or CRITICAL a WARNING record is filtered out anyway)
+- **Status**: Active
+- **Priority**: Low (diagnostics)
+- **Reporter**: Found documenting the unhandled-event options (docs/architecture/event_system.md), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Decide the intent first: probably DEBUG only. The docs state the current behaviour
+- **Files**: `glitchygames/engine/game_engine.py` (`initialize_arguments`), `glitchygames/events/base.py` (`unhandled_event`)
+
+### 208. Replaying a Brave Adventurer Recording Can Start the Real Voice Assistant
+- **Description**: `VoiceAssistant.discover()` (the primitives edition, its `__init__`) enumerates audio devices through miniaudio, outside the engine's doors, and the microphone toggle starts real listening and AI calls. A replay of a recording that pressed the microphone button would do the same on the replaying machine: nothing it draws differs, but it is outside the replay contract (a replay never touches real devices)
+- **Status**: Active
+- **Priority**: Low (only recordings with a microphone press; no visible divergence)
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**: Likely fix: route device enumeration through the devices door, and skip (or serve recorded results of) the voice assistant while replaying
+- **Files**: `glitchygames/examples/brave_adventurer/__init__.py`, `glitchygames/examples/brave_adventurer/game.py`
+
+### 209. Smaller Findings From the Game Architecture Pages
+- **Description**: Found reading every premier game's code for docs/games/ (2026-10-23); none fixed
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found writing the game architecture pages (docs/games/), 2026-10-23
+- **Date Reported**: 2026-10-23
+- **Details**:
+  1. PaddleSlap declares `-v/--version` ("print the game version and exit") but nothing reads it (Brave Adventurer's is #178 item 25)
+  2. PaddleSlap: `VerticalPaddle.update()` clamps the paddle to the screen in the render phase (the pose rule reserves `update()` for visual work), so collision sees a paddle past the edge for a frame
+  3. PaddleSlap: `Game.setup()` calls `pygame.key.set_repeat(1)` (a KEYDOWN repeat about every 1 ms while a key is held), never undone; movement reads held state, so the repeats only bloat event batches and recordings
+  4. PaddleSlap: dead state: `self.ball_spawn_cooldown` (never read; `_get_spawn_cooldown()` is used) and `ball.collision_cooldowns` (only a test touches it)
+  5. Brave Adventurer: a scarab that rolls into a pit is probably hidden (the pit fill is drawn after the sprites; only the player is re-blitted). From the code, not checked visually
+  6. Brave Adventurer (primitives): Cobra, Scarab and Scorpion redraw their image in `update()`, so their visible-pixel hitboxes are a frame behind in collision (and the whole image before the first draw)
+  7. Brave Adventurer: neither edition's player has a running to falling transition: running off a ledge keeps the running pose
+  8. Clockwork Keep: no victory: `levels.py` says reaching the top of the Clock Face is victory, but nothing detects it
+  9. Clockwork Keep: unused data: `FloorData.enemies` (never filled or read) and the constants `STEAM_SPRITE_*`, `GEAR_GOLEM_*`, `MIC_BUTTON_*`, `PARALLAX_MID`, `PARALLAX_NEAR`, `LAYER_WALLS`, `LAYER_ENEMIES`, `LAYER_HUD`, `INVINCIBILITY_DURATION`, `PLATFORM_GAP_*`
+  10. The pause and game-over screens answer only the keyboard: a gamepad cannot unpause or restart any game
+  11. `ActionMap.begin_frame`'s docstring says to call it at the start of `dt_tick` before querying `just_pressed`; events are processed after `dt_tick`, so doing that makes `just_pressed` always False in `dt_tick` (Clockwork Keep reads first, correctly)
+  12. The games' `_create_action_map(s)` docstrings list `input_mode` as 'joystick' or 'controller' only; 'auto' is the engine default, and the games fall back to 'joystick' when the option is missing
+  13. Stale or wrong comments: `ball.py` (~691) says paddle hits are resolved in PaddleSlap's `update()` (they are in `Game.dt_tick`); Clockwork Keep's `_go_to_next_floor` says it uses the wall colours (it passes the platform colours) and unpacks three unused locals; `CAMERA_LEAD_Y`'s "look ahead upward" (it leaves slightly less view above the player); `MovingGear`'s "gear diameter" (it is a size by size/4 bar); Brave Adventurer's repeated `dt_tick` step numbers, "Phase 3" parallax comment, "used in PhysicsBody.platformer()" (built by hand), Scarab "wrap or continue off-screen" (they reverse), and a duplicated voice-assistant comment; `pause_scene.py`'s "Pause scene for paddleslap game" (every game uses it); Mr. Muncher's `drawing.py` docstring says per-pixel-alpha drawing never leaves transparent pixels on the background, which contradicts `game.py` and #142 (why it calls `make_opaque`); `tests/collision/test_ball_paddle_collision.py` says `tests/conftest.py` mocks pygame (it no longer does)
+  14. `--resolution`'s help says "(default: 1024x768)"; the default is 800x480 (`glitchygames/engine/game_engine.py`)
+- **Files**: see each item
+
 ## Resolved Bugs
 
 ### 202. Q Did Not Quit Clockwork Keep, Brave Adventurer, the Papyrus Edition or Mr. Muncher

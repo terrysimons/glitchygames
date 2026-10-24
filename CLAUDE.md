@@ -516,8 +516,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   The diagnostic flags (`--headless`, `--debug-overlay`, the trace/replay/audit flags, the timer
   jitter and FPS report flags) are in the "Diagnostics Options" group
 - Fabricated key events (scripts, tests) carry their key's US QWERTY position
-  (`glitchygames.testing.keys.qwerty_scancode`): the example games bind every control by
-  scancode (`ActionMap.bind(scancode=...)`), pause and quit included
+  (`glitchygames.testing.keys.qwerty_scancode`): the example games bind their own scenes'
+  controls by scancode (`ActionMap.bind(scancode=...)`), their pause and quit included; the
+  engine's `PauseScene` and `GameOverScene`, and the base `Scene`'s Q/ESC quit (PaddleSlap's),
+  check key codes (`event.key`)
 - Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).

@@ -338,7 +338,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `debug_draw` marks muncher targets; `drawing.py` (velvet-and-gold maze, popcorn-bucket
     player, fuzzball munchers, candy snacks), `scenery.py`, `sounds.py` (all original sounds)
   - `autopilot.py`: a player bot (territory-safe BFS) used by the golden script and the tests;
-    golden replay re-recorded (2250 frames: countdown, pause, a snack, two munchers and the
+    golden replay re-recorded (then 2250 frames, 2072 since #44: countdown, pause, a snack, two munchers and the
     bonus eaten, a death, take 2); tests `tests/examples/test_mr_muncher.py` and
     `tests/examples/test_mr_muncher_maze_and_actors.py` (100% lines and branches)
 
