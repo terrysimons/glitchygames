@@ -267,6 +267,7 @@ and forwards calls to the game object.
 
 ```mermaid
 classDiagram
+    direction LR
     class ResourceManager {
         +__instances__ dict
         +proxies list
