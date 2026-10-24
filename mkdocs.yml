@@ -8,6 +8,11 @@ nav:
   - GlitchyGames Getting Started: "index.md"
   - Documentation:
     - Bitmappy Architecture: "architecture/bitmappy.md"
+    - Games:
+      - PaddleSlap Architecture: "games/paddleslap.md"
+      - Brave Adventurer Architecture: "games/brave_adventurer.md"
+      - Clockwork Keep Architecture: "games/clockwork_keep.md"
+      - Mr. Muncher Architecture: "games/mr_muncher.md"
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
