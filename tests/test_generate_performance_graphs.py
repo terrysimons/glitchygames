@@ -25,6 +25,7 @@ from scripts.generate_performance_graphs import (
 
 from glitchygames.recording_history import FrameTimeSummary
 from glitchygames.recording_metrics import (
+    FrameProfile,
     LedgerOrigin,
     LedgerRow,
     ledger_text,
@@ -46,6 +47,24 @@ if TYPE_CHECKING:
 GOLDEN = 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
 DEMO = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
 OLDER_COMMITTED_AT = '2026-10-22T12:00:00-07:00'
+OLDER_PROFILE = FrameProfile(
+    frame_count=4, max_microseconds=(100, 200, None, 400), scene_runs=((0, 'Game'), (3, 'Pause'))
+)
+NEWER_PROFILE = FrameProfile(
+    frame_count=4, max_microseconds=(150, 250, 350, 450), scene_runs=((0, 'Game'),)
+)
+
+
+def page_charts(*, path: Path) -> dict:
+    """Return the charts a graph page plots.
+
+    Returns:
+        The charts' JSON.
+
+    """
+    match = re.search(r'const charts = (.*);\n', path.read_text(encoding='utf-8'))
+    assert match is not None
+    return json.loads(match.group(1))
 
 
 def live_row() -> LedgerRow:
@@ -87,9 +106,12 @@ def published_and_pending(*, tmp_path: Path) -> tuple[Path, Path, list[LedgerRow
         committed_at=OLDER_COMMITTED_AT,
         measured_at='2026-10-22T21:00:00+00:00',
         p50=0.001,
-    )
+    ).model_copy(update={'profile': OLDER_PROFILE})
     newer = ledger_row(p50=0.002).model_copy(
-        update={'run': with_uncommitted_changes(run(commit=NEWER_COMMIT))}
+        update={
+            'run': with_uncommitted_changes(run(commit=NEWER_COMMIT)),
+            'profile': NEWER_PROFILE,
+        }
     )
     demo = ledger_row(recording=DEMO)
     clone = clone_with_published_ledger(
@@ -106,7 +128,10 @@ def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path
     metrics = tmp_path / 'docs' / 'quality' / 'metrics'
 
     page = generate_performance_page(
-        project_root=clone, metrics_directory=metrics, pending_path=pending
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=pending,
+        include_uncommitted_changes=True,
     )
 
     assert (page.rows, page.published_rows, page.pending_rows) == (4, 2, 3)
@@ -117,7 +142,7 @@ def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path
     assert set(page.written) == {LEDGER_NAME, SNIPPET_NAME, *page.graph_pages}
     golden_page = (metrics / 'paddleslap-golden.html').read_text(encoding='utf-8')
     assert PLOTLY_JS_URL in golden_page
-    charts = json.loads(re.search(r'const charts = (.*);\n', golden_page).group(1))
+    charts = page_charts(path=metrics / 'paddleslap-golden.html')
     assert charts['commits'] == ['abc1234', 'def5678']
     assert [trace['name'] for trace in charts['frame_time']] == [
         'Apple M4 Max, paced live run: p50',
@@ -133,10 +158,46 @@ def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path
     assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
 
+    (heatmap,) = charts['heatmaps']
+    assert heatmap['name'] == 'Apple M4 Max, unpaced replay'
+    assert heatmap['y'] == ['abc1234', 'def5678']
+    assert heatmap['x'] == [0, 1, 2, 3]
+    assert heatmap['z'] == [[0.1, 0.2, None, 0.4], [0.15, 0.25, 0.35, 0.45]]
+    assert heatmap['customdata'][0][3] == 'frames 3-3, scene Pause, max 0.400 ms'
+    assert heatmap['customdata'][0][2] == 'frames 2-2, scene Game, not timed'
+    assert 'whether the work changed' in golden_page
+
     again = generate_performance_page(
-        project_root=clone, metrics_directory=metrics, pending_path=pending
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=pending,
+        include_uncommitted_changes=True,
     )
     assert again.written == ()
+
+
+def test_a_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
+    """The merged ledger, the table and every graph lose the trial; the rest is kept."""
+    clone, pending, rows = published_and_pending(tmp_path=tmp_path)
+    metrics = tmp_path / 'metrics'
+
+    page = generate_performance_page(
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=pending,
+        include_uncommitted_changes=False,
+    )
+
+    assert page.rows == 3
+    merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
+    assert not any(row.from_uncommitted_changes for row in merged)
+    assert len(merged) == len(rows) - 1
+    charts = page_charts(path=metrics / 'paddleslap-golden.html')
+    assert charts['commits'] == ['abc1234']
+    assert charts['heatmaps'][0]['y'] == ['abc1234']
+    snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    assert 'uncommitted changes' not in snippet
+    assert 'Generated from 3 ledger rows' in snippet
 
 
 def test_pages_of_recordings_that_left_the_ledger_are_removed(tmp_path):
@@ -146,7 +207,10 @@ def test_pages_of_recordings_that_left_the_ledger_are_removed(tmp_path):
     (metrics / 'gone-golden.html').write_text('old', encoding='utf-8')
 
     page = generate_performance_page(
-        project_root=tmp_path, metrics_directory=metrics, pending_path=tmp_path / 'none.jsonl'
+        project_root=tmp_path,
+        metrics_directory=metrics,
+        pending_path=tmp_path / 'none.jsonl',
+        include_uncommitted_changes=False,
     )
 
     assert page.removed == ('gone-golden.html',)
@@ -165,6 +229,8 @@ def test_a_series_without_a_budget_has_no_over_budget_trace():
     charts = recording_charts(series_list=performance_series(rows=[uncapped]))
     assert charts['over_budget'] == []
     assert charts['frame_time'] == []
+    # Rows without a profile have no heatmap line
+    assert charts['heatmaps'] == []
 
 
 def test_graph_page_names():
@@ -174,18 +240,29 @@ def test_graph_page_names():
     )
 
 
-def test_the_mkdocs_hook_generates_the_performance_graphs(tmp_path, mocker):
-    """The hook loads the script by path and generates into its METRICS_DIR."""
+@pytest.mark.parametrize(
+    ('command', 'shows_uncommitted_changes'),
+    [('gh-deploy', False), ('build', True), ('serve', True), (None, False)],
+)
+def test_the_mkdocs_hook_shows_trials_only_in_a_local_build(
+    tmp_path, mocker, command, shows_uncommitted_changes
+):
+    """gh-deploy (or no startup event) publishes without them; build and serve show them."""
     clone, pending, _ = published_and_pending(tmp_path=tmp_path)
     performance_script = mkdocs_hooks.load_performance_script()
     metrics = tmp_path / 'metrics'
     mocker.patch.object(performance_script, 'PROJECT_ROOT', clone)
     mocker.patch.object(performance_script, 'METRICS_DIR', metrics)
     mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', pending)
+    # Restored after the test: on_startup sets it for the whole mkdocs invocation
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', None)
+    if command is not None:
+        mkdocs_hooks.on_startup(command=command, dirty=False)
 
     mkdocs_hooks.generate_performance_graphs()
 
-    assert (metrics / 'paddleslap-golden.html').is_file()
+    snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    assert ('uncommitted changes' in snippet) is shows_uncommitted_changes
     assert mkdocs_hooks.load_performance_script() is performance_script
 
 

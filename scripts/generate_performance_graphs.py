@@ -11,13 +11,18 @@ runs this through the hook scripts/mkdocs_hooks.py, after the complexity graphs:
    (``glitchygames.recording_metrics.merge_ledgers``);
 2. the merged ledger is written into the docs tree (``docs/quality/metrics/replay-ledger.jsonl``,
    gitignored), so the deploy publishes it at the same path: publishing is how the history
-   persists;
+   persists. Rows measured on uncommitted changes (``LedgerRow.from_uncommitted_changes``) are
+   left out of a published build (``include_uncommitted_changes`` False: the hook's
+   ``gh-deploy``) and shown, labelled, in a local one; they stay in the pending file, since
+   ``replay_metrics.py clear-published`` removes only rows gh-pages holds;
 3. one graph page per recording (``<console-script>-<name>.html``): processing time per frame
    (p50, p99 and max) by commit, frames over budget by commit, and the live runs' frame times
    (how steady pacing was), one line per machine and kind of run (``performance_series``: times
    compare only on one machine, and paced frames process slower than replayed ones). The x axis
    is the commits in commit-date order, labelled with their short hash; plotly.js comes from
-   jsDelivr, as the complexity graphs' does;
+   jsDelivr, as the complexity graphs' does. Then a frame x commit heatmap per machine from
+   the rows' per-frame profiles (``FrameProfile``: each bucket's slowest frame); rows without
+   one (older rows, a recording's own runs) have no heatmap line;
 4. the snippet docs/quality/performance.md includes (``performance_graphs.md``): the latest
    measurement of each recording on each machine, then each recording's graphs.
 
@@ -43,12 +48,14 @@ from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
     PENDING_LEDGER_RELATIVE_PATH,
     PUBLISHED_LEDGER_PATH,
+    FrameProfile,
     LedgerRow,
     PerformanceSeries,
     ledger_text,
     merge_ledgers,
     parse_ledger,
     performance_series,
+    publishable_rows,
     published_ledger_text,
     read_ledger_file,
     short_commit,
@@ -73,7 +80,8 @@ PLOTLY_JS_URL = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.m
 GRAPHS_URL_FROM_PAGE = '../metrics'
 # A markdown link is resolved from the page's source (docs/quality/performance.md) instead
 LEDGER_LINK_FROM_PAGE_SOURCE = f'{METRICS_DIR.name}/{LEDGER_NAME}'
-GRAPH_FRAME_HEIGHT_PIXELS = 1100
+GRAPH_FRAME_HEIGHT_PIXELS = 1550
+MICROSECONDS_PER_MILLISECOND = 1000.0
 RECORDING_SUFFIX = '.jsonl.gz'
 
 # The categorical palette (the dataviz skill's reference palette: light, dark), in fixed order;
@@ -181,8 +189,9 @@ def recording_charts(*, series_list: Sequence[PerformanceSeries]) -> dict[str, A
         series_list: The recording's series.
 
     Returns:
-        ``commits`` (short hashes, commit-date order) and ``processing``, ``over_budget`` and
-        ``frame_time`` trace lists (``frame_time`` empty when no live run has a commit).
+        ``commits`` (short hashes, commit-date order), ``processing``, ``over_budget`` and
+        ``frame_time`` trace lists (``frame_time`` empty when no live run has a commit), and
+        ``heatmaps`` (``profile_heatmap``, one per series with a profiled row).
 
     """
     commits: list[str] = []
@@ -236,6 +245,76 @@ def recording_charts(*, series_list: Sequence[PerformanceSeries]) -> dict[str, A
         'processing': processing,
         'over_budget': over_budget,
         'frame_time': frame_time,
+        'heatmaps': [
+            heatmap
+            for series in series_list
+            if (heatmap := profile_heatmap(series=series)) is not None
+        ],
+    }
+
+
+def _bucket_hover(*, profile: FrameProfile, bucket: int) -> str:
+    first, last = profile.bucket_frames(bucket=bucket)
+    scene = profile.bucket_scene(bucket=bucket)
+    maximum = profile.max_microseconds[bucket]
+    parts = [f'frames {first}-{last}']
+    if scene is not None:
+        parts.append(f'scene {scene}')
+    parts.append(
+        'not timed' if maximum is None else f'max {maximum / MICROSECONDS_PER_MILLISECOND:.3f} ms'
+    )
+    return ', '.join(parts)
+
+
+def _bucket_milliseconds(*, profile: FrameProfile, bucket: int) -> float | None:
+    """Return a bucket's slowest time in milliseconds (None: untimed, or past the profile)."""
+    if bucket >= len(profile.max_microseconds):
+        return None
+    maximum = profile.max_microseconds[bucket]
+    return None if maximum is None else maximum / MICROSECONDS_PER_MILLISECOND
+
+
+def profile_heatmap(*, series: PerformanceSeries) -> dict[str, Any] | None:
+    """Return a series' frame x commit heatmap (each bucket's slowest frame, by commit).
+
+    Args:
+        series: One recording on one machine, in commit order.
+
+    Returns:
+        A plotly heatmap trace (``y``: the commits whose row has a profile; ``x``: bucket
+        positions; ``z``: milliseconds, None where untimed or past a shorter profile), or None
+        when no row has a profile.
+
+    """
+    profiled = [
+        (short_commit(run=row.run) or '', row.profile)
+        for row in series.rows
+        if row.profile is not None
+    ]
+    if not profiled:
+        return None
+    width = max(len(profile.max_microseconds) for _, profile in profiled)
+    values: list[list[float | None]] = []
+    hovers: list[list[str]] = []
+    for _, profile in profiled:
+        buckets = len(profile.max_microseconds)
+        values.append([
+            _bucket_milliseconds(profile=profile, bucket=bucket) for bucket in range(width)
+        ])
+        hovers.append([
+            _bucket_hover(profile=profile, bucket=bucket) if bucket < buckets else ''
+            for bucket in range(width)
+        ])
+    return {
+        'type': 'heatmap',
+        'name': series.label,
+        'x': list(range(width)),
+        'y': [label for label, _ in profiled],
+        'z': values,
+        'customdata': hovers,
+        'hoverongaps': False,
+        'hovertemplate': '%{y}: %{customdata}<extra></extra>',
+        'colorbar': {'title': {'text': 'ms'}},
     }
 
 
@@ -288,6 +367,11 @@ p {{ color: var(--text-secondary); margin: 0.2rem 0; font-size: 0.9rem; }}
 <div class="chart" id="over_budget"></div>
 <h2>Live frame time (ms): how steady pacing was</h2>
 <div class="chart" id="frame_time"></div>
+<h2>Slowest frame across the recording, by commit (ms)</h2>
+<p>Each cell is the slowest frame of a stretch of the recording (about 1% of it). The heatmap
+shows time only: whether the work changed (a frame whose content hash differs) is what the
+behaviour-change map shows (<code>scripts/recording_report.py</code>).</p>
+<div id="heatmaps"></div>
 <script>
 const charts = {charts};
 const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -326,6 +410,32 @@ for (const name of ['processing', 'over_budget', 'frame_time']) {{
       title: {{ text: 'commit' }}, gridcolor: grid, linecolor: grid,
     }},
     yaxis: {{ rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid }},
+  }}, {{ responsive: true, displaylogo: false }});
+}}
+const heatmapScale = dark
+  ? [[0, '#1d2b3f'], [1, '#9cc4f5']]
+  : [[0, '#e8f0fb'], [1, '#0d3b7a']];
+const heatmapContainer = document.getElementById('heatmaps');
+if (charts.heatmaps.length === 0) {{
+  heatmapContainer.outerHTML = '<p>No measurements with a per-frame profile yet.</p>';
+}}
+for (const heatmap of charts.heatmaps) {{
+  const heading = document.createElement('p');
+  heading.textContent = heatmap.name;
+  const element = document.createElement('div');
+  element.className = 'chart';
+  heatmapContainer.append(heading, element);
+  heatmap.colorscale = heatmapScale;
+  Plotly.newPlot(element, [heatmap], {{
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {{ color: ink }},
+    margin: {{ l: 72, r: 16, t: 8, b: 48 }},
+    xaxis: {{ title: {{ text: 'position in the recording (start to end)' }}, showgrid: false }},
+    yaxis: {{
+      type: 'category', categoryorder: 'array', categoryarray: heatmap.y,
+      title: {{ text: 'commit' }},
+    }},
   }}, {{ responsive: true, displaylogo: false }});
 }}
 </script>
@@ -440,7 +550,11 @@ def _write_if_changed(*, path: Path, text: str) -> bool:
 
 
 def generate_performance_page(
-    *, project_root: Path, metrics_directory: Path, pending_path: Path
+    *,
+    project_root: Path,
+    metrics_directory: Path,
+    pending_path: Path,
+    include_uncommitted_changes: bool,
 ) -> PerformancePage:
     """Merge the ledgers and write the ledger, graph pages and snippet (see the docstring).
 
@@ -448,6 +562,9 @@ def generate_performance_page(
         project_root: The repository (its ``origin/gh-pages`` holds the published ledger).
         metrics_directory: Where the files go (created when missing).
         pending_path: The pending rows.
+        include_uncommitted_changes: Keep rows that measured other code than their commit
+            (``LedgerRow.from_uncommitted_changes``), labelled: a local build. False for a
+            build that is published: they leave the ledger file and every graph.
 
     Returns:
         What was generated.
@@ -456,6 +573,8 @@ def generate_performance_page(
     published = parse_ledger(text=published_ledger_text(project_root=project_root))
     pending = read_ledger_file(path=pending_path)
     rows = merge_ledgers(ledgers=[published.rows, pending.rows])
+    if not include_uncommitted_changes:
+        rows = publishable_rows(rows=rows)
     series_list = performance_series(rows=rows)
     by_recording: dict[str, list[PerformanceSeries]] = {}
     for series in series_list:
@@ -498,8 +617,12 @@ def generate_performance_page(
 def main() -> None:
     """Generate the performance graphs for the documentation site."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
+    # Run by hand, this is a local build: rows from uncommitted changes are shown, labelled
     page = generate_performance_page(
-        project_root=PROJECT_ROOT, metrics_directory=METRICS_DIR, pending_path=PENDING_LEDGER_PATH
+        project_root=PROJECT_ROOT,
+        metrics_directory=METRICS_DIR,
+        pending_path=PENDING_LEDGER_PATH,
+        include_uncommitted_changes=True,
     )
     LOG.info(
         'Graphed %d recordings from %d ledger rows (%d published, %d pending) into %s',

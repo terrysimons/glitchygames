@@ -57,6 +57,24 @@
    the snippet `docs/quality/performance.md` includes. Files are rewritten only when their text
    changed (no `mkdocs serve` reload loop).
 
+## Follow-ups (user decisions, 2026-10-23; done)
+
+5. **Frame x commit heatmap** ("Yes"): each replay-metrics row carries a `FrameProfile`
+   (`frame_profile`): the run's per-frame processing times cut into `PROFILE_BUCKET_COUNT`
+   (100) buckets of consecutive frames (one per frame for a shorter recording), each keeping
+   its slowest frame in integer microseconds, with the scenes run-length encoded by bucket; the
+   frame ranges are derived from the frame count, so a row grows by 0.4-0.6 KB (measured on the
+   goldens). Old rows parse (`profile` defaults to None) and have no heatmap line; neither do a
+   recording's own runs. The page shows one heatmap per machine (x: bucket, y: commits in the
+   graphs' order, colour: milliseconds; hover: frames, scene, time) and says it shows time only:
+   whether the work changed is the behaviour-change map's job (bucket data cannot tell).
+6. **Uncommitted changes are never published** ("Leave them out"; "Can they still be viewed
+   locally if built locally?": yes): `LedgerRow.from_uncommitted_changes` (an `--allow-dirty`
+   trial or a run whose checkout had changes); `publishable_rows` drops them. The mkdocs hook's
+   `on_startup(command=..., dirty=...)` (MkDocs 1.4+) records the command: `gh-deploy` (or no
+   startup event) leaves them out of the ledger file and every graph, `build`/`serve` show them
+   labelled. `clear-published` removes only rows gh-pages holds, so they stay pending, local only.
+
 ## Tests
 
 `tests/test_recording_metrics.py` (pure analysis, real recordings from `record_session`),

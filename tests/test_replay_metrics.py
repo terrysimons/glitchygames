@@ -32,6 +32,7 @@ from glitchygames.recording_metrics import (
     PUBLISHED_LEDGER_REF,
     LedgerOrigin,
     ledger_text,
+    publishable_rows,
     published_ledger_text,
     read_ledger_file,
 )
@@ -360,6 +361,19 @@ class TestClearingPublishedRows:
         assert not pending.exists()
         clear_published(pending_path=pending, published_text='')
         assert 'No pending rows' in capsys.readouterr().out
+
+    def test_rows_from_uncommitted_changes_stay_pending_after_a_deploy(self, tmp_path):
+        """A deploy publishes only clean rows, so the trial stays local and pending."""
+        pending = tmp_path / 'pending.jsonl'
+        clean = ledger_row()
+        trial = ledger_row(measured_at='2026-10-24T09:00:00+00:00').model_copy(
+            update={'allowed_uncommitted_changes': True}
+        )
+        pending.write_text(ledger_text(rows=[clean, trial]), encoding='utf-8')
+        # What a gh-deploy build published (scripts/generate_performance_graphs.py)
+        published = ledger_text(rows=publishable_rows(rows=[clean, trial]))
+        clear_published(pending_path=pending, published_text=published)
+        assert read_ledger_file(path=pending).rows == (trial,)
 
 
 class TestTheCommandLine:

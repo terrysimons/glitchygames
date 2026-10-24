@@ -16,8 +16,18 @@ and kind of run is its own line.
 - **Live frame time**: for the runs that recorded a session live (paced, in a window), how long
   each frame really took, start to start: how steady pacing was. Replays have none.
 
-Hover a point for the commit's date, when it was measured and whether the checkout had
-uncommitted changes (a trial: `nox -s replay-metrics -- --allow-dirty`).
+- **Slowest frame across the recording, by commit**: a heatmap per machine. Each column is a
+  stretch of the recording (about 1% of it, start to end) and each row a commit; the colour is
+  the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
+  shows time only: whether the work itself changed (frames whose content hash differs) is what
+  `scripts/recording_report.py` shows. Measurements from before per-frame profiles have no row.
+
+Hover a point for the commit's date and when it was measured.
+
+Measurements made on a checkout with uncommitted changes (a trial: `nox -s replay-metrics --
+--allow-dirty`) are never published: the published site leaves them out, while a local build
+(`mkdocs build`, `mkdocs serve`, `nox -s docs-serve`) shows them, labelled "uncommitted
+changes". They stay in the pending file after a deploy, so they remain visible locally only.
 
 ## Where the numbers come from
 

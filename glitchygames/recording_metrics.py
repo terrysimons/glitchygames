@@ -576,6 +576,102 @@ def processing_comparisons(
     return comparisons
 
 
+# How many buckets a run's per-frame profile has (a shorter recording keeps one per frame)
+PROFILE_BUCKET_COUNT = 100
+MICROSECONDS_PER_SECOND = 1_000_000
+
+
+class FrameProfile(BaseModel):
+    """A run's processing times across its recording, bucketed: compact enough for every row.
+
+    The frames are cut into ``len(max_microseconds)`` buckets of consecutive frames (positions in
+    the recording; ``bucket_frames``), and each bucket keeps its slowest frame's time. About 100
+    small integers: a few hundred bytes of JSON.
+
+    Attributes:
+        frame_count: How many frames the run's recording holds.
+        max_microseconds: Each bucket's slowest processing time, in whole microseconds, or None
+            when no frame of the bucket was timed.
+        scene_runs: ``(bucket, scene)`` wherever a bucket's first frame names another scene than
+            the bucket before (the first entry is bucket 0): the scenes, run-length encoded.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    frame_count: int
+    max_microseconds: tuple[int | None, ...]
+    scene_runs: tuple[tuple[int, str | None], ...]
+
+    def bucket_frames(self: Self, *, bucket: int) -> tuple[int, int]:
+        """Return a bucket's first and last frame position.
+
+        Returns:
+            The positions, inclusive.
+
+        """
+        return _bucket_bounds(
+            bucket=bucket, frame_count=self.frame_count, bucket_count=len(self.max_microseconds)
+        )
+
+    def bucket_scene(self: Self, *, bucket: int) -> str | None:
+        """Return the scene of a bucket's first frame.
+
+        Returns:
+            The scene, or None when the frame names none.
+
+        """
+        scene: str | None = None
+        for first_bucket, run_scene in self.scene_runs:
+            if first_bucket > bucket:
+                break
+            scene = run_scene
+        return scene
+
+
+def _bucket_bounds(*, bucket: int, frame_count: int, bucket_count: int) -> tuple[int, int]:
+    return (bucket * frame_count // bucket_count, (bucket + 1) * frame_count // bucket_count - 1)
+
+
+def frame_profile(
+    *,
+    frames: Sequence[Mapping[str, Any]],
+    run_index: int,
+    bucket_count: int = PROFILE_BUCKET_COUNT,
+) -> FrameProfile | None:
+    """Bucket one run's per-frame processing times (``FrameProfile``).
+
+    Args:
+        frames: The recording's decoded frames.
+        run_index: The run's index in their histories.
+        bucket_count: How many buckets (fewer when the recording has fewer frames).
+
+    Returns:
+        The profile, or None when no frame holds a time for the run.
+
+    """
+    buckets = min(bucket_count, len(frames))
+    maxima: list[int | None] = []
+    scene_runs: list[tuple[int, str | None]] = []
+    for bucket in range(buckets):
+        first, last = _bucket_bounds(bucket=bucket, frame_count=len(frames), bucket_count=buckets)
+        times = [
+            seconds
+            for frame in frames[first : last + 1]
+            if (seconds := _frame_seconds(frame=frame, run_index=run_index)) is not None
+        ]
+        maxima.append(round(max(times) * MICROSECONDS_PER_SECOND) if times else None)
+        scene = frames[first].get('scene')
+        scene_name = scene if isinstance(scene, str) else None
+        if not scene_runs or scene_runs[-1][1] != scene_name:
+            scene_runs.append((bucket, scene_name))
+    if all(maximum is None for maximum in maxima):
+        return None
+    return FrameProfile(
+        frame_count=len(frames), max_microseconds=tuple(maxima), scene_runs=tuple(scene_runs)
+    )
+
+
 class LedgerOrigin(StrEnum):
     """Where a ledger row's run came from."""
 
@@ -602,6 +698,8 @@ class LedgerRow(BaseModel):
             None for a run the recording held.
         allowed_uncommitted_changes: Whether the measurement was allowed on a checkout with
             uncommitted changes (``--allow-dirty``).
+        profile: The run's per-frame times, bucketed (``FrameProfile``), for a measured run;
+            None for a run the recording held and rows from before profiles.
 
     """
 
@@ -617,6 +715,12 @@ class LedgerRow(BaseModel):
     frames_changed: int | None
     rebaseline_exit: str | None
     allowed_uncommitted_changes: bool
+    profile: FrameProfile | None = None
+
+    @property
+    def from_uncommitted_changes(self: Self) -> bool:
+        """Whether the row measured other code than its commit: a trial or a changed checkout."""
+        return self.allowed_uncommitted_changes or self.measured_uncommitted_changes
 
     @property
     def key(self: Self) -> str:
@@ -771,6 +875,19 @@ def read_ledger_file(*, path: Path) -> LedgerParse:
     return parse_ledger(text=text)
 
 
+def publishable_rows(*, rows: Iterable[LedgerRow]) -> list[LedgerRow]:
+    """Return the rows a published site may hold: none measured other code than its commit.
+
+    Args:
+        rows: The ledger's rows.
+
+    Returns:
+        The rows without ``from_uncommitted_changes``, in order.
+
+    """
+    return [row for row in rows if not row.from_uncommitted_changes]
+
+
 def is_measured(*, rows: Iterable[LedgerRow], recording: str, commit: str, machine: str) -> bool:
     """Tell whether replay-metrics already measured a recording at a commit on a machine.
 
@@ -838,6 +955,7 @@ def ledger_rows_from_rebaseline(
                 frames_changed=changes[0].frames_changed if measured and changes else None,
                 rebaseline_exit=rebaseline_exit if measured else None,
                 allowed_uncommitted_changes=allowed_uncommitted_changes and measured,
+                profile=frame_profile(frames=frames, run_index=run_index) if measured else None,
             )
         )
     return rows

@@ -595,8 +595,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   ledger lives on gh-pages (`quality/metrics/replay-ledger.jsonl`): `nox -s replay-metrics`
   (`scripts/replay_metrics.py`) appends pending rows, every docs build merges and graphs them
   (`scripts/generate_performance_graphs.py`, docs/quality/performance.md), and a deploy publishes
-  them. `uv run python scripts/recording_report.py PATH` prints a recording's runs, speed changes
-  and behaviour-change map
+  them. Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
+  per stretch, integer microseconds, scenes run-length encoded; ~0.4-0.6 KB) for the page's frame
+  x commit heatmap (time only: the report shows whether the work changed). Rows measured on
+  uncommitted changes (`LedgerRow.from_uncommitted_changes`, e.g. `--allow-dirty`) are left out
+  of a published build (the hook's `on_startup` sees `gh-deploy`; no startup event counts as
+  published) and shown, labelled, in a local `mkdocs build`/`serve`; they stay in the pending
+  file after a deploy (`clear-published` removes only rows gh-pages holds). `uv run python
+  scripts/recording_report.py PATH` prints a recording's runs, speed changes and
+  behaviour-change map
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a

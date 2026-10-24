@@ -26,12 +26,15 @@ from glitchygames.recording_history import (
     recording_content_hash,
 )
 from glitchygames.recording_metrics import (
+    PROFILE_BUCKET_COUNT,
     BehaviourChange,
+    FrameProfile,
     FrameSpan,
     LedgerOrigin,
     LedgerRow,
     SpeedChange,
     behaviour_changes,
+    frame_profile,
     frame_spans,
     is_measured,
     ledger_rows_from_rebaseline,
@@ -41,6 +44,7 @@ from glitchygames.recording_metrics import (
     parse_ledger,
     performance_series,
     processing_comparisons,
+    publishable_rows,
     short_commit,
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace
@@ -469,6 +473,11 @@ class TestRowsFromARebaseline:
         assert recorded.summary is not None
         assert recorded.summary.frame_time is not None
         assert recorded.frame_count == len(frames)
+        # Only the measurement carries a per-frame profile (its own run's times)
+        assert measured.profile is not None
+        assert measured.profile.frame_count == len(frames)
+        assert measured.profile.max_microseconds[0] == 500
+        assert recorded.profile is None
 
     def test_an_unreadable_run_gives_no_row(self):
         frames = [frame(number=0, hashes=['a', 'a'], times=[0.001, 0.001])]
@@ -525,3 +534,69 @@ class TestPerformanceSeries:
         (series,) = performance_series(rows=[unsummarised, paced])
         assert series.paced
         assert series.label == 'Apple M4 Max, paced live run'
+
+
+class TestFrameProfiles:
+    """A run's per-frame times, bucketed: each bucket's slowest frame, in whole microseconds."""
+
+    def test_a_long_recording_is_cut_into_the_bucket_count(self):
+        frames = [
+            frame(number=number, hashes=['a'], times=[number / 1_000_000], scene=scene)
+            for number, scene in zip(range(250), ['Title'] * 30 + ['Game'] * 220, strict=True)
+        ]
+        profile = frame_profile(frames=frames, run_index=0)
+        assert profile is not None
+        assert len(profile.max_microseconds) == PROFILE_BUCKET_COUNT
+        # Bucket 0 holds frames 0-1 (250 frames in 100 buckets), bucket 99 frames 247-249
+        assert profile.bucket_frames(bucket=0) == (0, 1)
+        assert profile.bucket_frames(bucket=99) == (247, 249)
+        assert profile.max_microseconds[0] == 1
+        assert profile.max_microseconds[99] == 249
+        assert profile.scene_runs == ((0, 'Title'), (12, 'Game'))
+        assert profile.bucket_scene(bucket=11) == 'Title'
+        assert profile.bucket_scene(bucket=50) == 'Game'
+        # Well under a kilobyte of JSON per row
+        assert len(profile.model_dump_json()) < 1000
+
+    def test_a_short_recording_keeps_a_bucket_per_frame_and_gaps_stay_empty(self):
+        frames = [
+            frame(number=0, hashes=['a'], times=[0.0000014], scene='Game'),
+            frame(number=1, hashes=['a'], times=[None]),
+            {'frame': 2, PROCESSING_SECONDS_FIELD: [0.003]},
+        ]
+        profile = frame_profile(frames=frames, run_index=0)
+        assert profile == FrameProfile(
+            frame_count=3, max_microseconds=(1, None, 3000), scene_runs=((0, 'Game'), (2, None))
+        )
+        assert profile.bucket_frames(bucket=1) == (1, 1)
+
+    def test_no_times_no_profile(self):
+        frames = [frame(number=0, hashes=['a'], times=[None, 0.001])]
+        assert frame_profile(frames=frames, run_index=0) is None
+        assert frame_profile(frames=[], run_index=0) is None
+        # Another run's times
+        assert frame_profile(frames=frames, run_index=1) is not None
+
+    def test_old_rows_without_a_profile_still_parse(self):
+        row = ledger_row()
+        old_fields = row.model_dump(mode='json')
+        del old_fields['profile']
+        (parsed,) = parse_ledger(text=json.dumps(old_fields)).rows
+        assert parsed.profile is None
+
+
+class TestPublishing:
+    """Rows from a checkout with uncommitted changes are never published, only built locally."""
+
+    def test_trials_and_changed_checkouts_are_left_out(self):
+        clean = ledger_row()
+        trial = ledger_row(measured_at='2026-10-24T01:00:00+00:00').model_copy(
+            update={'allowed_uncommitted_changes': True}
+        )
+        changed_run = ledger_row(measured_at='2026-10-24T02:00:00+00:00').model_copy(
+            update={'run': with_uncommitted_changes(run(commit=NEWER_COMMIT))}
+        )
+        assert not clean.from_uncommitted_changes
+        assert trial.from_uncommitted_changes
+        assert changed_run.from_uncommitted_changes
+        assert publishable_rows(rows=[clean, trial, changed_run]) == [clean]
