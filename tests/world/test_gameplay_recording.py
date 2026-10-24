@@ -915,11 +915,29 @@ class TestRecordingThroughTheEngine:
             'get_button.return_value': False,
             'get_hat.return_value': (0, 1),
         })
-        mocker.patch.object(devices_module.pygame.joystick, 'Joystick', return_value=fake_device)
+        # Only the scripted open gets the fake: a pad attached to this machine (a DualSense on the
+        # developer's Mac) is opened at startup from SDL's added event, and would otherwise be
+        # recorded as the fake in frame 0; it fails as an absent device instead
+        scripted_open = {'now': False}
+
+        def joystick(device_index):
+            if not scripted_open['now']:
+                message = f'Invalid joystick device number {device_index}'
+                raise pygame.error(message)
+            return fake_device
+
+        def open_the_fake():
+            scripted_open['now'] = True
+            try:
+                return active_sources().devices().open_joystick(device_index=0)
+            finally:
+                scripted_open['now'] = False
+
+        mocker.patch.object(devices_module.pygame.joystick, 'Joystick', side_effect=joystick)
         recording_path = tmp_path / 'session.jsonl.gz'
         with engine_run_environment(mocker):
             Script.action_frame = 1
-            Script.action = lambda: active_sources().devices().open_joystick(device_index=0)
+            Script.action = open_the_fake
             _schedule_quit_in_arrival()
             run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
         frames = read_trace_result(path=recording_path).trace['frames']

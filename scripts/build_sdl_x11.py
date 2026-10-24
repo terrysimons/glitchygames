@@ -71,8 +71,9 @@ X11_PREFIX = Path('/opt/X11')
 CONFIGURE_OPTIONS = (
     '--disable-static',
     '--enable-video-x11',
-    f'--x-includes={X11_PREFIX / "include"}',
-    f'--x-libraries={X11_PREFIX / "lib"}',
+    # XQuartz's (macOS) paths, spelled with / whatever the host (a Windows test run used \)
+    f'--x-includes={(X11_PREFIX / "include").as_posix()}',
+    f'--x-libraries={(X11_PREFIX / "lib").as_posix()}',
     # pygame-ce's bundled SDL is loaded too and keeps its Cocoa, Metal and MFi code; a second
     # copy of their Objective-C classes in one process makes the runtime warn ("Class
     # SDLApplication is implemented in both ...") and risks crashes, and x11 needs none of them

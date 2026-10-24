@@ -8,6 +8,7 @@ in, the edit must show in the report, and the temporary worktree must be gone.
 from __future__ import annotations
 
 import io
+import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -26,6 +27,16 @@ if TYPE_CHECKING:
 EDITED_SIMPLE_MODULE = BRANCHY_MODULE.replace('def branchy', 'def simple')
 
 __all__ = ['fixture_repository']
+
+
+def posix_paths(report: str) -> str:
+    """Return wily's report with Windows path separators written as /, as on the other hosts.
+
+    Returns:
+        The report.
+
+    """
+    return report.replace('\\', '/')
 
 
 def working_tree_state(*, repository: Path) -> tuple[str, str, str]:
@@ -48,7 +59,7 @@ def test_the_report_compares_the_working_tree_without_changing_it(fixture_reposi
     )
     before = working_tree_state(repository=fixture_repository)
 
-    report = make_complexity_report(project_root=fixture_repository, rank=False)
+    report = posix_paths(make_complexity_report(project_root=fixture_repository, rank=False))
 
     assert 'glitchygames/simple.py' in report
     # Compared with HEAD, where branchy.py already is what it is now: unchanged, not reported
@@ -57,9 +68,11 @@ def test_the_report_compares_the_working_tree_without_changing_it(fixture_reposi
 
 
 def test_the_report_can_rank_the_modules(fixture_repository):
-    report = make_complexity_report(project_root=fixture_repository, rank=True)
+    report = posix_paths(make_complexity_report(project_root=fixture_repository, rank=True))
 
-    assert 'glitchygames/branchy.py' in report
+    # Ranked at HEAD, where branchy.py's complexity is 3 (1 at the first commit)
+    # (the table's border is | on Windows and a box-drawing line elsewhere)
+    assert re.search(r'glitchygames/branchy\.py\s*[|\u2502]\s*3\b', report)
 
 
 def test_main_prints_the_report(fixture_repository, mocker):
@@ -68,7 +81,7 @@ def test_main_prints_the_report(fixture_repository, mocker):
 
     main(['--rank'])
 
-    assert 'glitchygames/branchy.py' in output.getvalue()
+    assert 'glitchygames/branchy.py' in posix_paths(output.getvalue())
 
 
 def test_main_exits_internal_error_when_a_tool_fails(fixture_repository, mocker):

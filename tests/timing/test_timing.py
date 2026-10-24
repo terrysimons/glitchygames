@@ -3,6 +3,7 @@
 import io
 import itertools
 import logging
+import os
 import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, override
@@ -1097,6 +1098,23 @@ class TestFastTimerWindowsTimerResolution:
 
         assert winmm.calls == [('timeBeginPeriod', 1), ('timeEndPeriod', 1)]
 
+    def test_closing_off_windows_ends_the_period_without_winmm(self, mocker, monkeypatch):
+        """A timer whose period is on, closed on another platform, just marks it ended."""
+        import ctypes
+
+        from glitchygames import timing
+
+        winmm = FakeWinmm()
+        monkeypatch.setattr(ctypes, 'windll', fake_windll(winmm=winmm), raising=False)
+        timer = FastTimer(windows_timer_1ms=False)
+        timer._win_period_on = True
+        mocker.patch.object(timing, 'sys', mocker.Mock(platform='darwin'))
+
+        timer.close()
+
+        assert timer._win_period_on is False
+        assert winmm.calls == []
+
     def test_without_the_flag_winmm_is_not_touched(self, on_windows, monkeypatch):
         """Without windows_timer_1ms, a Windows timer leaves the system timer alone."""
         import ctypes
@@ -1183,7 +1201,9 @@ class TestFastTimerWindowsTimerResolution:
 
         assert timer_holder == []
         assert unraisable_errors == []
-        assert raw_stream.written == b'a record being written when the timer is finalised\n'
+        # The text stream writes the platform's line ending (\r\n on Windows)
+        expected = f'a record being written when the timer is finalised{os.linesep}'.encode()
+        assert raw_stream.written == expected
 
 
 def fake_windll(*, winmm: FakeWinmm) -> SimpleNamespace:

@@ -106,6 +106,8 @@ def complexity_report(*, project_root: Path, rank: bool) -> str:
                         'rank',
                         '--limit',
                         str(RANK_LIMIT),
+                        '--revision',
+                        head,
                         RANKED_PATH,
                         'cyclomatic.complexity',
                     ],

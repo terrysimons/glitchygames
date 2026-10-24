@@ -183,13 +183,14 @@ class TestExtractSingleFrame:
 class TestSaveSpritFilesEdgeCases:
     """Test _save_sprite_files edge cases."""
 
-    def test_absolute_path_rejected(self):
+    def test_absolute_path_rejected(self, tmp_path):
         """Test that absolute output paths are rejected with HTTPException."""
         from fastapi import HTTPException
 
+        # Absolute on this host: /etc/passwd has no drive, so Windows does not count it absolute
         with pytest.raises(HTTPException) as exception_info:
             _save_sprite_files(
-                output_path='/etc/passwd',
+                output_path=str(tmp_path.resolve() / 'passwd'),
                 sprite_name='evil',
                 toml_content='content',
                 png_bytes=None,

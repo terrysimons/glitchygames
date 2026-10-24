@@ -108,6 +108,27 @@ class TestThisMachine:
         assert state.cpu_model is None
         assert state.power_source is None
 
+    def test_a_tool_that_answers_is_read(self, mocker):
+        """The readings of macOS tools that answer (faked, so every host runs this path)."""
+        answers = {
+            'machdep.cpu.brand_string': 'Apple M4 Max\n',
+            'hw.memsize': '137438953472\n',
+            'batt': PMSET_BATTERY_ON_MAINS,
+            'therm': PMSET_THERMAL_APPLE_SILICON,
+        }
+        mocker.patch.object(machine_state_module.shutil, 'which', return_value='/usr/bin/tool')
+
+        def answer(*, command, **_options):
+            return mocker.Mock(returncode=0, stdout=answers[command[-1]])
+
+        mocker.patch.object(machine_state_module, 'run_command', side_effect=answer)
+
+        state = machine_state(system='Darwin', environment=NOT_IN_CI)
+
+        assert (state.cpu_model, state.memory_bytes) == ('Apple M4 Max', 137438953472)
+        assert state.power_source is PowerSource.MAINS
+        assert state.thermal_report is not None
+
     def test_a_tool_that_fails_is_unknown(self, mocker):
         mocker.patch.object(machine_state_module.shutil, 'which', return_value='/usr/bin/false')
         failed = mocker.Mock(returncode=1, stdout='')

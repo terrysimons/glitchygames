@@ -324,6 +324,13 @@ class TestGameEngineSuggestedResolution:
         assert len(result) == 2
         assert result == (1024, 768)
 
+    def test_suggested_resolution_elsewhere_keeps_the_desired_size(self, mocker):
+        """Off Linux the desired resolution is used as given."""
+        engine = _make_engine(mocker)
+        mocker.patch('platform.system', return_value='Darwin')
+
+        assert engine.suggested_resolution(1024, 768) == (1024, 768)
+
     def test_suggested_resolution_linux_arm(self, mocker):
         """Test suggested_resolution on Linux ARM forces 800x480."""
         engine = _make_engine(mocker)

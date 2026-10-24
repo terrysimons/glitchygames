@@ -129,6 +129,35 @@ class TestStartCommand:
         assert output_path.read_text(encoding='utf-8').strip() == 'given'
 
 
+class TestStopCommandOnEveryPlatform:
+    """stop_command's steps with a stand-in child, so every platform runs them (no real signals)."""
+
+    def test_an_ended_child_is_left_alone(self, mocker):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = 0
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+
+        stop_command(process=child)
+
+        child.wait.assert_not_called()
+        group_signal.assert_not_called()
+
+    def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.side_effect = [process.TimeoutExpired(cmd='game', timeout=1.0), 0]
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+
+        stop_command(process=child)
+
+        # Asked to end, waited for, then killed and reaped: by its group on POSIX, itself on
+        # Windows
+        assert child.wait.call_count == 2
+        ended_by_group_signals = group_signal.call_count == 2
+        ended_itself = child.terminate.called and child.kill.called
+        assert ended_by_group_signals or ended_itself
+
+
 @pytest.mark.skipif(sys.platform == 'win32', reason='process groups are POSIX')
 class TestStopCommand:
     """stop_command ends the child's whole group and reaps the child."""
