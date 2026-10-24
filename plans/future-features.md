@@ -121,7 +121,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Medium (requested 2026-10-23)
 
 ## Medium Priority Features
-### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — TODO
+### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — IN PROGRESS
 - **Description**: A CI pipeline (on the fork `terrysimons/pygame-ce`) that builds our patched
   Pyodide wheel for the current pygame-ce and Pyodide versions, and then tries every newer
   version too. For each pygame-ce release (and `main`) × each Pyodide release that PyScript
@@ -142,9 +142,20 @@ This document tracks planned future features for the GlitchyGames project. Featu
     `workflow` scope);
   - reproducible builds (`SOURCE_DATE_EPOCH`);
   - the in-browser test runner (`../pygame-ce-wasm/tools/run_pygame_tests_in_browser.py`).
-  Open: version discovery (PyPI and GitHub tags for pygame-ce; the Pyodide xbuildenv list),
-  patch rebasing strategy (`git am -3` and report conflicts), a browser test job in CI
-  (Playwright Chromium and WebKit headless), and where results are shown.
+  Implemented 2026-10-24, uncommitted in the fork's worktree `../pygame-ce-matrix` (branch
+  `glitchygames-version-matrix`):
+  - `buildconfig/glitchygames/version_matrix.py` (discover, run one pair, report, all): fresh
+    worktree per pair, each patch classified (clean / 3-way / already upstream / conflict),
+    reproducible build, browser checks, JSON and markdown reports;
+  - `buildconfig/glitchygames/browser_checks/` (from the feasibility study's runner);
+  - `.github/workflows/glitchygames-wasm-version-matrix.yml` (weekly and on demand; passing
+    pairs published as `experimental-...` pre-releases); `build_pyodide_wheel.sh` takes
+    `PYODIDE_VERSION`.
+  - Run locally: 2.5.8 and `main` (3.0.0.dev1) on Pyodide 314.0.3 take all three patches
+    cleanly, build, and pass in Chromium and WebKit. 2.5.8 without the patches fails every
+    probe: all three are still needed.
+  Open: the workflow has not run on GitHub (it must also be on the fork's `main` for the
+  schedule); Pyodide 314.0.7 not built locally; 315.x needs a Python 3.15 build venv.
 - **Priority**: Medium (experimental)
 
 ### 50. Browser Builds: PyScript/Pyodide Runner and the Game Host — IN PROGRESS
@@ -162,8 +173,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - save observers;
   - `nox -s browser -- <game>`, with all four games running in Chromium and WebKit;
   - Bitmappy (`-- bitmappy`), with its AI feature flag off in browser builds.
-  Open: the startup focus-loss pause (Mr. Muncher), timer calibration skipped for async runs,
-  real-browser and iOS checks of the launcher.
+  Done 2026-10-24: the startup focus-loss pause (BUGS.md #216), no timer calibration for async
+  runs, Bitmappy Save/Load (file picker, downloads) and a clipboard factory, watched replays
+  (`--replay-trace`) and attract mode in the browser, iOS Simulator Safari (no JSPI) runs the
+  games, and every game published with the docs as play/ (`nox -s docs-deploy`).
+  Open: touch controls (the games need a keyboard on a phone). Fixed: a failed Bitmappy save
+  ended the editor (BUGS.md #217).
 - **Priority**: High (requested 2026-10-23)
 
 
