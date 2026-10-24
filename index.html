@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="None" /><link rel="canonical" href="https://glitchygames.github.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="None" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/" />
       <link rel="shortcut icon" href="img/favicon.ico" />
     <title>GlitchyGames</title>
     <link rel="stylesheet" href="css/theme.css" />
@@ -15,7 +15,7 @@
         // Current page data
         var mkdocs_page_name = "GlitchyGames Getting Started";
         var mkdocs_page_input_path = "index.md";
-        var mkdocs_page_url = "/";
+        var mkdocs_page_url = "/glitchygames/";
       </script>
     
     <!--[if lt IE 9]>
@@ -52,7 +52,13 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/api/">glitchygames.api</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/collision/">glitchygames.collision</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/effects/">glitchygames.effects</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/engine/">glitchygames.engine</a>
                   </li>
@@ -64,19 +70,29 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/game_objects/">glitchygames.game_objects</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/input/">glitchygames.input</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/interfaces/">glitchygames.interfaces</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/movement/">glitchygames.movement</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/physics/">glitchygames.physics</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/scenes/">glitchygames.scenes</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/sprites/">glitchygames.sprites</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/scenes/">glitchygames.scenes</a>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/state/">glitchygames.state</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/templates/">glitchygames.templates</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="glitchygames/transitions/">glitchygames.transitions</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="glitchygames/ui/">glitchygames.ui</a>
                   </li>
@@ -94,6 +110,10 @@
                   <li class="toctree-l1"><a class="reference internal" href="multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="quality/driver_comparison/">Driver Comparison</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="galimore/">Galimore Survey</a>
                   </li>
@@ -147,14 +167,19 @@
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">BitrotAdventures</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="sd">"""Draws a pixel to the screen"""</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">GameEngine</span><span class="p">()</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">main</span><span class="p">()</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">NAME</span> <span class="o">=</span> <span class="s1">'Bitrot Adventures'</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">VERSION</span> <span class="o">=</span> <span class="s1">'0.0.0'</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="c1"># Pass the Scene class uninitialized; the engine creates it</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">GameEngine</span><span class="p">(</span><span class="n">game</span><span class="o">=</span><span class="n">BitrotAdventures</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="n">main</span><span class="p">()</span>
 </code></pre></div>
 <!-- ::: glitchygames.engine -->
               
@@ -211,5 +236,5 @@
 
 <!--
 MkDocs version : 1.6.1
-Build Date UTC : 2026-10-22 05:32:40.362554+00:00
+Build Date UTC : 2026-10-24 01:20:37.441992+00:00
 -->

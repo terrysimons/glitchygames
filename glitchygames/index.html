@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/glitchygames/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/glitchygames/" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
     <title>glitchygames API Reference - GlitchyGames</title>
     <link rel="stylesheet" href="../css/theme.css" />
@@ -15,7 +15,7 @@
         // Current page data
         var mkdocs_page_name = "glitchygames API Reference";
         var mkdocs_page_input_path = "glitchygames/index.md";
-        var mkdocs_page_url = "/glitchygames/";
+        var mkdocs_page_url = "/glitchygames/glitchygames/";
       </script>
     
     <!--[if lt IE 9]>
@@ -52,7 +52,13 @@
               <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="api/">glitchygames.api</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="collision/">glitchygames.collision</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="effects/">glitchygames.effects</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="engine/">glitchygames.engine</a>
                   </li>
@@ -64,19 +70,29 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="game_objects/">glitchygames.game_objects</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="input/">glitchygames.input</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="interfaces/">glitchygames.interfaces</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="movement/">glitchygames.movement</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="physics/">glitchygames.physics</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="scenes/">glitchygames.scenes</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="sprites/">glitchygames.sprites</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="scenes/">glitchygames.scenes</a>
+                  <li class="toctree-l1"><a class="reference internal" href="state/">glitchygames.state</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="templates/">glitchygames.templates</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="transitions/">glitchygames.transitions</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="ui/">glitchygames.ui</a>
                   </li>
@@ -94,6 +110,10 @@
                   <li class="toctree-l1"><a class="reference internal" href="../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../quality/driver_comparison/">Driver Comparison</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../galimore/">Galimore Survey</a>
                   </li>
@@ -130,7 +150,7 @@
 <p><a href="color/">glitchygames.color</a></p>
 <p>glitchygames.color provides color utilities like palettes, helpers to do color conversion, etc...</p>
 <p><a href="engine/">glitchygames.engine</a></p>
-<p>The glitchygame.engine module handles game initialization, event routing, minimal event loop that calls into the active scene's update method.</p>
+<p>The glitchygames.engine module handles game initialization, event routing, minimal event loop that calls into the active scene's update method.</p>
 <p>To start your game, pass your main Scene class to the engine.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="ch">#!/usr/bin/env python3</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="sd">"""Bitrot Adventures."""</span>
@@ -196,53 +216,128 @@
 </code></pre></div>
 <p>When we run <code>./bitrotadventures.py</code> with the <code>-h</code> flag, we can see our command line option, along with options the engine and scene manager provide to us:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span>./bitrotadventures.py<span class="w"> </span>-h
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pygame<span class="w"> </span><span class="m">2</span>.5.2<span class="w"> </span><span class="o">(</span>SDL<span class="w"> </span><span class="m">2</span>.28.3,<span class="w"> </span>Python<span class="w"> </span><span class="m">3</span>.12.1<span class="o">)</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Hello<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>pygame<span class="w"> </span>community.<span class="w"> </span>https://www.pygame.org/contribute.html
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>usage:<span class="w"> </span>Bitrot<span class="w"> </span>Adventures<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.0.0<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">[</span>-f<span class="w"> </span>TARGET_FPS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--fps-refresh-rate<span class="w"> </span>FPS_REFRESH_RATE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="o">]</span><span class="w"> </span><span class="o">[</span>-r<span class="w"> </span>RESOLUTION<span class="o">]</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">                                       </span><span class="o">[</span>--use-gfxdraw<span class="o">]</span><span class="w"> </span><span class="o">[</span>--update-type<span class="w"> </span><span class="o">{</span>update,flip<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--video-driver<span class="w"> </span><span class="o">{}]</span><span class="w"> </span><span class="o">[</span>--font-name<span class="w"> </span>FONT_NAME<span class="o">]</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">                                       </span><span class="o">[</span>--font-size<span class="w"> </span>FONT_SIZE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-bold<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-italic<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-antialias<span class="o">]</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">                                       </span><span class="o">[</span>--font-dpi<span class="w"> </span>FONT_DPI<span class="o">]</span><span class="w"> </span><span class="o">[</span>-l<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--no-unhandled-events<span class="o">]</span><span class="w"> </span><span class="o">[</span>-p<span class="o">]</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">                                       </span><span class="o">[</span>-s<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION<span class="o">]</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>options:
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">            </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>Graphics<span class="w"> </span>Options:
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span>-f<span class="w"> </span>TARGET_FPS,<span class="w"> </span>--target-fps<span class="w"> </span>TARGET_FPS
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">                        </span>cap<span class="w"> </span>the<span class="w"> </span>framerate<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>infinite<span class="o">)</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span>--fps-refresh-rate<span class="w"> </span>FPS_REFRESH_RATE
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">                        </span>how<span class="w"> </span>often<span class="w"> </span>to<span class="w"> </span>update<span class="w"> </span>the<span class="w"> </span>FPS<span class="w"> </span>counter<span class="w"> </span><span class="k">in</span><span class="w"> </span>ms<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span><span class="m">1000</span><span class="o">)</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span>-w,<span class="w"> </span>--windowed<span class="w">        </span>run<span class="w"> </span>the<span class="w"> </span>program<span class="w"> </span><span class="k">in</span><span class="w"> </span>windowed<span class="w"> </span>mode
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">  </span>-r<span class="w"> </span>RESOLUTION,<span class="w"> </span>--resolution<span class="w"> </span>RESOLUTION
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">                        </span>the<span class="w"> </span>resolution<span class="w"> </span>to<span class="w"> </span>use<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>1024x768<span class="o">)</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span>--use-gfxdraw
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span>--update-type<span class="w"> </span><span class="o">{</span>update,flip<span class="o">}</span>
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">                        </span>update<span class="w"> </span>or<span class="w"> </span>flip<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>update<span class="o">)</span>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">  </span>--video-driver<span class="w"> </span><span class="o">{}</span>
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>Font<span class="w"> </span>Options:
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">  </span>--font-name<span class="w"> </span>FONT_NAME
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">  </span>--font-size<span class="w"> </span>FONT_SIZE
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">  </span>--font-bold
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">  </span>--font-italic
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">  </span>--font-antialias
-<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">  </span>--font-dpi<span class="w"> </span>FONT_DPI
-<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>
-<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>Game<span class="w"> </span>Options:
-<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">  </span>-l<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}</span>,<span class="w"> </span>--log-level<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}</span>
-<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="w">                        </span><span class="nb">set</span><span class="w"> </span>the<span class="w"> </span>logging<span class="w"> </span>level
-<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="w">  </span>--no-unhandled-events
-<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="w">                        </span>fail<span class="w"> </span>on<span class="w"> </span>unhandled<span class="w"> </span>events
-<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="w">  </span>-p,<span class="w"> </span>--profile<span class="w">         </span><span class="nb">enable</span><span class="w"> </span>profiling
-<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>
-<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a>Bitrot<span class="w"> </span>Adventures<span class="w"> </span>v0.0.0<span class="w"> </span>Options:
-<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">  </span>-s<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION,<span class="w"> </span>--some-game-specific-option<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION
-<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="w">                        </span>foo<span class="w"> </span><span class="nb">help</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pygame-ce<span class="w"> </span><span class="m">2</span>.5.8<span class="w"> </span><span class="o">(</span>SDL<span class="w"> </span><span class="m">2</span>.32.10,<span class="w"> </span>Python<span class="w"> </span><span class="m">3</span>.14.8<span class="o">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>usage:<span class="w"> </span>Bitrot<span class="w"> </span>Adventures<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.0.0<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">[</span>-f<span class="w"> </span>TARGET_FPS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--fps-log-interval-ms<span class="w"> </span>FPS_LOG_INTERVAL_MS<span class="o">]</span><span class="w"> </span><span class="o">[</span>-w<span class="o">]</span><span class="w"> </span><span class="o">[</span>-r<span class="w"> </span>RESOLUTION<span class="o">]</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">                                       </span><span class="o">[</span>--use-gfxdraw<span class="o">]</span><span class="w"> </span><span class="o">[</span>--update-type<span class="w"> </span><span class="o">{</span>update,flip<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--timer-backend<span class="w"> </span><span class="o">{</span>auto,fast,pygame<span class="o">}]</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">                                       </span><span class="o">[</span>--sleep-granularity-ns<span class="w"> </span>SLEEP_GRANULARITY_NS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--windows-timer-1ms<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-timer-jitter<span class="o">]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">                                       </span><span class="o">[</span>--perf-trim-percent<span class="w"> </span>PERF_TRIM_PERCENT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--fps-histogram<span class="w"> </span><span class="o">{</span>equal-range,target-relative<span class="o">}]</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">                                       </span><span class="o">[</span>--debug-overlay<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-debug-overlay<span class="o">]</span><span class="w"> </span><span class="o">[</span>--record-trace<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--replay-trace<span class="w"> </span>PATH<span class="o">]</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">                                       </span><span class="o">[</span>--replay-fps<span class="w"> </span><span class="o">{</span>recorded,real<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--audit<span class="w"> </span><span class="p">|</span><span class="w"> </span>--no-audit<span class="o">]</span><span class="w"> </span><span class="o">[</span>--compare-processing<span class="o">]</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">                                       </span><span class="o">[</span>--max-processing-slowdown<span class="w"> </span>PERCENT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--replay-pause-at-frame<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--rebaseline<span class="w"> </span>NEW<span class="o">]</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">                                       </span><span class="o">[</span>--replay-digest<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--random-seed<span class="w"> </span>RANDOM_SEED<span class="o">]</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">                                       </span><span class="o">[</span>--screen-shake-intensity<span class="w"> </span>SCREEN_SHAKE_INTENSITY<span class="o">]</span><span class="w"> </span><span class="o">[</span>--rumble-intensity<span class="w"> </span>RUMBLE_INTENSITY<span class="o">]</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">                                       </span><span class="o">[</span>--live-voice-pool<span class="w"> </span>LIVE_VOICE_POOL<span class="o">]</span><span class="w"> </span><span class="o">[</span>--default-background<span class="w"> </span><span class="o">{</span>test-pattern,channel-3<span class="o">}]</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">                                       </span><span class="o">[</span>--video-driver<span class="w"> </span><span class="o">{}]</span><span class="w"> </span><span class="o">[</span>--headless<span class="o">]</span><span class="w"> </span><span class="o">[</span>--input-mode<span class="w"> </span><span class="o">{</span>auto,joystick,controller<span class="o">}]</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">                                       </span><span class="o">[</span>--font-name<span class="w"> </span>FONT_NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-size<span class="w"> </span>FONT_SIZE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-bold<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-italic<span class="o">]</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">                                       </span><span class="o">[</span>--font-antialias<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-dpi<span class="w"> </span>FONT_DPI<span class="o">]</span><span class="w"> </span><span class="o">[</span>--font-system<span class="w"> </span><span class="o">{</span>pygame,freetype<span class="o">}]</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">                                       </span><span class="o">[</span>-l<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}]</span><span class="w"> </span><span class="o">[</span>--no-unhandled-events<span class="o">]</span><span class="w"> </span><span class="o">[</span>-p<span class="o">]</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">                                       </span><span class="o">[</span>-s<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION<span class="o">]</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>options:
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">  </span>-h,<span class="w"> </span>--help<span class="w">            </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>Graphics<span class="w"> </span>Options:
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">  </span>-f,<span class="w"> </span>--target-fps<span class="w"> </span>TARGET_FPS
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">                        </span>cap<span class="w"> </span>the<span class="w"> </span>framerate<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>the<span class="w"> </span>game<span class="s1">'s TARGET_FPS, else 60.01; 0 = uncapped)</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="s1">  --fps-log-interval-ms FPS_LOG_INTERVAL_MS</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="s1">                        how often to log the FPS counter in ms (default: 1000)</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="s1">  -w, --windowed        run the program in windowed mode</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="s1">  -r, --resolution RESOLUTION</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="s1">                        the resolution to use (default: 1024x768)</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="s1">  --use-gfxdraw</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="s1">  --update-type {update,flip}</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="s1">                        update or flip (default: update)</span>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="s1">  --timer-backend {auto,fast,pygame}</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="s1">                        timer backend for draw loop pacing (default: auto, the fast backend with this machine'</span>s<span class="w"> </span>sleep<span class="w"> </span>delay
+<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">                        </span>measured,<span class="w"> </span>so<span class="w"> </span>each<span class="w"> </span>sleep<span class="w"> </span>wakes<span class="w"> </span><span class="k">in</span><span class="w"> </span>time<span class="p">;</span><span class="w"> </span>fast<span class="w"> </span>assumes<span class="w"> </span>sleeps<span class="w"> </span>wake<span class="w"> </span>on<span class="w"> </span>time<span class="p">;</span><span class="w"> </span>pygame<span class="w"> </span>is<span class="w"> </span>the<span class="w"> </span>legacy<span class="w"> </span>backend<span class="o">)</span>
+<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="w">  </span>--sleep-granularity-ns<span class="w"> </span>SLEEP_GRANULARITY_NS
+<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="w">                        </span>how<span class="w"> </span>long<span class="w"> </span>before<span class="w"> </span>each<span class="w"> </span>frame<span class="w"> </span>deadline<span class="w"> </span>the<span class="w"> </span>fast<span class="w"> </span>backend<span class="w"> </span>is<span class="w"> </span>to<span class="w"> </span>wake<span class="w"> </span>from<span class="w"> </span>its<span class="w"> </span>sleep<span class="w"> </span>and<span class="w"> </span>spin<span class="w"> </span><span class="o">(</span>ns<span class="o">)</span><span class="p">;</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>spins
+<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="w">                        </span>only
+<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="w">  </span>--windows-timer-1ms<span class="w">   </span>on<span class="w"> </span>Windows,<span class="w"> </span>request<span class="w"> </span>1ms<span class="w"> </span>system<span class="w"> </span>timer<span class="w"> </span>resolution
+<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a><span class="w">  </span>--random-seed<span class="w"> </span>RANDOM_SEED
+<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="w">                        </span>master<span class="w"> </span>seed<span class="w"> </span><span class="k">for</span><span class="w"> </span>every<span class="w"> </span>engine<span class="w"> </span>random<span class="w"> </span>stream<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>a<span class="w"> </span>random<span class="w"> </span><span class="m">64</span>-bit<span class="w"> </span>seed,<span class="w"> </span>logged<span class="w"> </span><span class="k">in</span><span class="w"> </span>recordings<span class="o">)</span>
+<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">  </span>--screen-shake-intensity<span class="w"> </span>SCREEN_SHAKE_INTENSITY
+<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="w">                        </span>screen<span class="w"> </span>shake<span class="w"> </span>strength<span class="w"> </span>from<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span><span class="o">(</span>off<span class="o">)</span><span class="w"> </span>to<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span><span class="m">1</span>.0<span class="o">)</span>
+<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a><span class="w">  </span>--rumble-intensity<span class="w"> </span>RUMBLE_INTENSITY
+<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a><span class="w">                        </span>controller<span class="w"> </span>rumble<span class="w"> </span>strength<span class="w"> </span>from<span class="w"> </span><span class="m">0</span>.0<span class="w"> </span><span class="o">(</span>off<span class="o">)</span><span class="w"> </span>to<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span><span class="m">1</span>.0<span class="o">)</span>
+<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a><span class="w">  </span>--live-voice-pool<span class="w"> </span>LIVE_VOICE_POOL
+<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a><span class="w">                        </span>mixer<span class="w"> </span>channels<span class="w"> </span>reserved<span class="w"> </span><span class="k">for</span><span class="w"> </span>real-time<span class="w"> </span>synth<span class="w"> </span>voices<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span><span class="m">4</span><span class="o">)</span>
+<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a><span class="w">  </span>--default-background<span class="w"> </span><span class="o">{</span>test-pattern,channel-3<span class="o">}</span>
+<a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a><span class="w">                        </span>the<span class="w"> </span>background<span class="w"> </span>of<span class="w"> </span>a<span class="w"> </span>scene<span class="w"> </span>that<span class="w"> </span>sets<span class="w"> </span>none:<span class="w"> </span>the<span class="w"> </span>TV<span class="w"> </span><span class="nb">test</span><span class="w"> </span>pattern<span class="w"> </span>or<span class="w"> </span>the<span class="w"> </span>channel<span class="w"> </span><span class="m">3</span><span class="w"> </span>blue<span class="w"> </span>screen<span class="w"> </span><span class="o">(</span>default:
+<a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a><span class="w">                        </span>test-pattern<span class="o">)</span>
+<a id="__codelineno-1-51" name="__codelineno-1-51" href="#__codelineno-1-51"></a><span class="w">  </span>--video-driver<span class="w"> </span><span class="o">{}</span>
+<a id="__codelineno-1-52" name="__codelineno-1-52" href="#__codelineno-1-52"></a>
+<a id="__codelineno-1-53" name="__codelineno-1-53" href="#__codelineno-1-53"></a>Diagnostics<span class="w"> </span>Options:
+<a id="__codelineno-1-54" name="__codelineno-1-54" href="#__codelineno-1-54"></a><span class="w">  </span>--log-timer-jitter<span class="w">    </span>log<span class="w"> </span>frame<span class="w"> </span>pacing<span class="w"> </span>jitter<span class="w"> </span>statistics<span class="w"> </span>periodically
+<a id="__codelineno-1-55" name="__codelineno-1-55" href="#__codelineno-1-55"></a><span class="w">  </span>--perf-trim-percent<span class="w"> </span>PERF_TRIM_PERCENT
+<a id="__codelineno-1-56" name="__codelineno-1-56" href="#__codelineno-1-56"></a><span class="w">                        </span>percent<span class="w"> </span>of<span class="w"> </span>frames<span class="w"> </span>to<span class="w"> </span>trim<span class="w"> </span>from<span class="w"> </span>top<span class="w"> </span>and<span class="w"> </span>bottom<span class="w"> </span><span class="k">in</span><span class="w"> </span>global<span class="w"> </span>FPS<span class="w"> </span>report
+<a id="__codelineno-1-57" name="__codelineno-1-57" href="#__codelineno-1-57"></a><span class="w">  </span>--fps-histogram<span class="w"> </span><span class="o">{</span>equal-range,target-relative<span class="o">}</span>
+<a id="__codelineno-1-58" name="__codelineno-1-58" href="#__codelineno-1-58"></a><span class="w">                        </span>FPS<span class="w"> </span>histogram<span class="w"> </span>buckets<span class="w"> </span><span class="k">in</span><span class="w"> </span>the<span class="w"> </span>shutdown<span class="w"> </span>report:<span class="w"> </span>equal-range<span class="w"> </span><span class="o">(</span><span class="m">10</span><span class="w"> </span>equal<span class="w"> </span>buckets<span class="w"> </span>spanning<span class="w"> </span>the<span class="w"> </span>analyzed<span class="w"> </span>min<span class="w"> </span>to
+<a id="__codelineno-1-59" name="__codelineno-1-59" href="#__codelineno-1-59"></a><span class="w">                        </span>max,<span class="w"> </span>default<span class="o">)</span><span class="w"> </span>or<span class="w"> </span>target-relative<span class="w"> </span><span class="o">(</span><span class="m">10</span>%<span class="w"> </span>steps<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>target<span class="w"> </span>FPS<span class="o">)</span>
+<a id="__codelineno-1-60" name="__codelineno-1-60" href="#__codelineno-1-60"></a><span class="w">  </span>--debug-overlay,<span class="w"> </span>--no-debug-overlay
+<a id="__codelineno-1-61" name="__codelineno-1-61" href="#__codelineno-1-61"></a><span class="w">                        </span>show<span class="w"> </span>the<span class="w"> </span>debug<span class="w"> </span>overlay<span class="w"> </span>at<span class="w"> </span>startup<span class="w"> </span><span class="o">(</span>F3<span class="w"> </span>toggles,<span class="w"> </span>F4<span class="w"> </span>cycles<span class="w"> </span>panels<span class="o">)</span>
+<a id="__codelineno-1-62" name="__codelineno-1-62" href="#__codelineno-1-62"></a><span class="w">  </span>--record-trace<span class="w"> </span>PATH<span class="w">   </span>record<span class="w"> </span>the<span class="w"> </span>session<span class="w"> </span><span class="o">(</span>sprites,<span class="w"> </span>frame<span class="w"> </span>times,<span class="w"> </span>input<span class="w"> </span>events,<span class="w"> </span>random<span class="w"> </span>seed<span class="o">)</span><span class="w"> </span>to<span class="w"> </span>a<span class="w"> </span>gzip<span class="w"> </span>JSON<span class="w"> </span>Lines<span class="w"> </span>trace<span class="w"> </span><span class="k">for</span>
+<a id="__codelineno-1-63" name="__codelineno-1-63" href="#__codelineno-1-63"></a><span class="w">                        </span>inspection<span class="w"> </span>and<span class="w"> </span>later<span class="w"> </span>replay<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>off<span class="o">)</span>
+<a id="__codelineno-1-64" name="__codelineno-1-64" href="#__codelineno-1-64"></a><span class="w">  </span>--replay-trace<span class="w"> </span>PATH<span class="w">   </span>replay<span class="w"> </span>a<span class="w"> </span>--record-trace<span class="w"> </span>recording<span class="w"> </span>exactly<span class="w"> </span>through<span class="w"> </span>the<span class="w"> </span>engine,<span class="w"> </span>comparing<span class="w"> </span>every<span class="w"> </span>frame<span class="w"> </span>with<span class="w"> </span>it<span class="w"> </span>and
+<a id="__codelineno-1-65" name="__codelineno-1-65" href="#__codelineno-1-65"></a><span class="w">                        </span>reporting<span class="w"> </span>the<span class="w"> </span>first<span class="w"> </span>divergence<span class="w"> </span><span class="o">(</span>default:<span class="w"> </span>off<span class="o">)</span>
+<a id="__codelineno-1-66" name="__codelineno-1-66" href="#__codelineno-1-66"></a><span class="w">  </span>--replay-fps<span class="w"> </span><span class="o">{</span>recorded,real<span class="o">}</span>
+<a id="__codelineno-1-67" name="__codelineno-1-67" href="#__codelineno-1-67"></a><span class="w">                        </span>with<span class="w"> </span>--replay-trace:<span class="w"> </span>post<span class="w"> </span>FPS<span class="w"> </span>events<span class="w"> </span>from<span class="w"> </span>the<span class="w"> </span>recorded<span class="w"> </span>frame<span class="w"> </span><span class="nb">times</span><span class="w"> </span><span class="o">(</span>recorded,<span class="w"> </span>the<span class="w"> </span>default:<span class="w"> </span>exact,<span class="w"> </span>and
+<a id="__codelineno-1-68" name="__codelineno-1-68" href="#__codelineno-1-68"></a><span class="w">                        </span>compared<span class="w"> </span>with<span class="w"> </span>the<span class="w"> </span>recording<span class="o">)</span><span class="w"> </span>or<span class="w"> </span>from<span class="w"> </span>this<span class="w"> </span>machine<span class="s1">'s measured frame times (real: what this machine</span>
+<a id="__codelineno-1-69" name="__codelineno-1-69" href="#__codelineno-1-69"></a><span class="s1">                        achieves; FPS events are then not compared, and sprites that draw the FPS value may diverge)</span>
+<a id="__codelineno-1-70" name="__codelineno-1-70" href="#__codelineno-1-70"></a><span class="s1">  --audit, --no-audit   with --replay-trace: instead of replaying, replay the recording twice in fresh headless processes with</span>
+<a id="__codelineno-1-71" name="__codelineno-1-71" href="#__codelineno-1-71"></a><span class="s1">                        different hash seeds and compare every frame with the recording and between the runs; exits 0 when both</span>
+<a id="__codelineno-1-72" name="__codelineno-1-72" href="#__codelineno-1-72"></a><span class="s1">                        match, 3 otherwise, 70 if a run could not finish</span>
+<a id="__codelineno-1-73" name="__codelineno-1-73" href="#__codelineno-1-73"></a><span class="s1">  --compare-processing  with --replay-trace --headless: measure each frame'</span>s<span class="w"> </span>processing<span class="w"> </span><span class="nb">time</span><span class="w"> </span><span class="o">(</span>its<span class="w"> </span>work,<span class="w"> </span>without<span class="w"> </span>presenting<span class="w"> </span>or
+<a id="__codelineno-1-74" name="__codelineno-1-74" href="#__codelineno-1-74"></a><span class="w">                        </span>pacing<span class="o">)</span><span class="w"> </span>and<span class="w"> </span>report<span class="w"> </span>how<span class="w"> </span>it<span class="w"> </span>compares<span class="w"> </span>with<span class="w"> </span>the<span class="w"> </span>recording<span class="s1">'s (only meaningful on the machine that recorded)</span>
+<a id="__codelineno-1-75" name="__codelineno-1-75" href="#__codelineno-1-75"></a><span class="s1">  --max-processing-slowdown PERCENT</span>
+<a id="__codelineno-1-76" name="__codelineno-1-76" href="#__codelineno-1-76"></a><span class="s1">                        with --replay-trace --headless (implies --compare-processing): a replay that matched but took more than</span>
+<a id="__codelineno-1-77" name="__codelineno-1-77" href="#__codelineno-1-77"></a><span class="s1">                        PERCENT longer than the recording'</span>s<span class="w"> </span>processing<span class="w"> </span><span class="nb">time</span><span class="w"> </span>exits<span class="w"> </span><span class="m">8</span><span class="p">;</span><span class="w"> </span>a<span class="w"> </span>recording<span class="w"> </span>without<span class="w"> </span>processing<span class="w"> </span><span class="nb">times</span><span class="w"> </span>exits
+<a id="__codelineno-1-78" name="__codelineno-1-78" href="#__codelineno-1-78"></a><span class="w">                        </span><span class="m">65</span>
+<a id="__codelineno-1-79" name="__codelineno-1-79" href="#__codelineno-1-79"></a><span class="w">  </span>--replay-pause-at-frame<span class="w"> </span>N
+<a id="__codelineno-1-80" name="__codelineno-1-80" href="#__codelineno-1-80"></a><span class="w">                        </span>with<span class="w"> </span>--replay-trace,<span class="w"> </span>watched:<span class="w"> </span>skip<span class="w"> </span>the<span class="w"> </span>start<span class="w"> </span>screen,<span class="w"> </span>run<span class="w"> </span>frames<span class="w"> </span><span class="m">0</span><span class="w"> </span>to<span class="w"> </span>N<span class="w"> </span>-<span class="w"> </span><span class="m">1</span><span class="w"> </span>without<span class="w"> </span>showing<span class="w"> </span>them,<span class="w"> </span><span class="k">then</span>
+<a id="__codelineno-1-81" name="__codelineno-1-81" href="#__codelineno-1-81"></a><span class="w">                        </span>pause<span class="w"> </span>with<span class="w"> </span>frame<span class="w"> </span>N<span class="w"> </span>next<span class="w"> </span><span class="o">(</span>what<span class="w"> </span>step<span class="w"> </span>back<span class="w"> </span>restarts<span class="w"> </span>with<span class="p">;</span><span class="w"> </span>ignored<span class="w"> </span>with<span class="w"> </span>--headless<span class="o">)</span>
+<a id="__codelineno-1-82" name="__codelineno-1-82" href="#__codelineno-1-82"></a><span class="w">  </span>--rebaseline<span class="w"> </span>NEW<span class="w">      </span>with<span class="w"> </span>--replay-trace<span class="w"> </span>OLD<span class="w"> </span>and<span class="w"> </span>--headless:<span class="w"> </span>replay<span class="w"> </span>OLD<span class="w"> </span>on<span class="w"> </span>the<span class="w"> </span>current<span class="w"> </span>code<span class="w"> </span>without<span class="w"> </span>stopping<span class="w"> </span>at<span class="w"> </span>divergences,
+<a id="__codelineno-1-83" name="__codelineno-1-83" href="#__codelineno-1-83"></a><span class="w">                        </span>write<span class="w"> </span>the<span class="w"> </span>run<span class="s1">'s recording (OLD'</span>s<span class="w"> </span>inputs,<span class="w"> </span>the<span class="w"> </span>current<span class="w"> </span>sprites<span class="o">)</span><span class="w"> </span>to<span class="w"> </span>NEW,<span class="w"> </span>print<span class="w"> </span>a<span class="w"> </span>summary<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>frames<span class="w"> </span>and
+<a id="__codelineno-1-84" name="__codelineno-1-84" href="#__codelineno-1-84"></a><span class="w">                        </span>sprites<span class="w"> </span>that<span class="w"> </span>changed<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-1-85" name="__codelineno-1-85" href="#__codelineno-1-85"></a><span class="w">  </span>--replay-digest<span class="w"> </span>PATH<span class="w">  </span>with<span class="w"> </span>--replay-trace:<span class="w"> </span>write<span class="w"> </span>a<span class="w"> </span>SHA-256<span class="w"> </span>of<span class="w"> </span>every<span class="w"> </span>replayed<span class="w"> </span>frame,<span class="w"> </span><span class="k">then</span><span class="w"> </span>the<span class="w"> </span>divergence,<span class="w"> </span>to<span class="w"> </span>PATH<span class="w"> </span>as<span class="w"> </span>JSON<span class="w"> </span>lines
+<a id="__codelineno-1-86" name="__codelineno-1-86" href="#__codelineno-1-86"></a><span class="w">                        </span><span class="o">(</span>used<span class="w"> </span>by<span class="w"> </span>--audit<span class="o">)</span>
+<a id="__codelineno-1-87" name="__codelineno-1-87" href="#__codelineno-1-87"></a><span class="w">  </span>--headless<span class="w">            </span>run<span class="w"> </span>on<span class="w"> </span>SDL<span class="s1">'s dummy video and audio drivers: no window, no sound. With --replay-trace the replay also</span>
+<a id="__codelineno-1-88" name="__codelineno-1-88" href="#__codelineno-1-88"></a><span class="s1">                        runs unpaced and prints its report to stdout (exit 0 when it matches, 1 when it diverges, 65 for a</span>
+<a id="__codelineno-1-89" name="__codelineno-1-89" href="#__codelineno-1-89"></a><span class="s1">                        truncated recording)</span>
+<a id="__codelineno-1-90" name="__codelineno-1-90" href="#__codelineno-1-90"></a>
+<a id="__codelineno-1-91" name="__codelineno-1-91" href="#__codelineno-1-91"></a><span class="s1">Controller Options:</span>
+<a id="__codelineno-1-92" name="__codelineno-1-92" href="#__codelineno-1-92"></a><span class="s1">  --input-mode {auto,joystick,controller}</span>
+<a id="__codelineno-1-93" name="__codelineno-1-93" href="#__codelineno-1-93"></a><span class="s1">                        Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any</span>
+<a id="__codelineno-1-94" name="__codelineno-1-94" href="#__codelineno-1-94"></a><span class="s1">                        other device joystick events; joystick: every device sends joystick events; controller: mapped pads</span>
+<a id="__codelineno-1-95" name="__codelineno-1-95" href="#__codelineno-1-95"></a><span class="s1">                        only)</span>
+<a id="__codelineno-1-96" name="__codelineno-1-96" href="#__codelineno-1-96"></a>
+<a id="__codelineno-1-97" name="__codelineno-1-97" href="#__codelineno-1-97"></a><span class="s1">Font Options:</span>
+<a id="__codelineno-1-98" name="__codelineno-1-98" href="#__codelineno-1-98"></a><span class="s1">  --font-name FONT_NAME</span>
+<a id="__codelineno-1-99" name="__codelineno-1-99" href="#__codelineno-1-99"></a><span class="s1">                        Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any</span>
+<a id="__codelineno-1-100" name="__codelineno-1-100" href="#__codelineno-1-100"></a><span class="s1">                        other name is looked up among the system'</span>s<span class="w"> </span>fonts<span class="o">)</span>
+<a id="__codelineno-1-101" name="__codelineno-1-101" href="#__codelineno-1-101"></a><span class="w">  </span>--font-size<span class="w"> </span>FONT_SIZE
+<a id="__codelineno-1-102" name="__codelineno-1-102" href="#__codelineno-1-102"></a><span class="w">  </span>--font-bold
+<a id="__codelineno-1-103" name="__codelineno-1-103" href="#__codelineno-1-103"></a><span class="w">  </span>--font-italic
+<a id="__codelineno-1-104" name="__codelineno-1-104" href="#__codelineno-1-104"></a><span class="w">  </span>--font-antialias
+<a id="__codelineno-1-105" name="__codelineno-1-105" href="#__codelineno-1-105"></a><span class="w">  </span>--font-dpi<span class="w"> </span>FONT_DPI
+<a id="__codelineno-1-106" name="__codelineno-1-106" href="#__codelineno-1-106"></a><span class="w">  </span>--font-system<span class="w"> </span><span class="o">{</span>pygame,freetype<span class="o">}</span>
+<a id="__codelineno-1-107" name="__codelineno-1-107" href="#__codelineno-1-107"></a><span class="w">                        </span>Font<span class="w"> </span>system<span class="w"> </span>to<span class="w"> </span>use:<span class="w"> </span>freetype<span class="w"> </span><span class="o">(</span>enhanced,<span class="w"> </span>default<span class="o">)</span><span class="w"> </span>or<span class="w"> </span>pygame<span class="w"> </span><span class="o">(</span>built-in<span class="o">)</span>
+<a id="__codelineno-1-108" name="__codelineno-1-108" href="#__codelineno-1-108"></a>
+<a id="__codelineno-1-109" name="__codelineno-1-109" href="#__codelineno-1-109"></a>Game<span class="w"> </span>Options:
+<a id="__codelineno-1-110" name="__codelineno-1-110" href="#__codelineno-1-110"></a><span class="w">  </span>-l,<span class="w"> </span>--log-level<span class="w"> </span><span class="o">{</span>debug,info,warning,error,critical<span class="o">}</span>
+<a id="__codelineno-1-111" name="__codelineno-1-111" href="#__codelineno-1-111"></a><span class="w">                        </span><span class="nb">set</span><span class="w"> </span>the<span class="w"> </span>logging<span class="w"> </span>level
+<a id="__codelineno-1-112" name="__codelineno-1-112" href="#__codelineno-1-112"></a><span class="w">  </span>--no-unhandled-events
+<a id="__codelineno-1-113" name="__codelineno-1-113" href="#__codelineno-1-113"></a><span class="w">                        </span>fail<span class="w"> </span>on<span class="w"> </span>unhandled<span class="w"> </span>events
+<a id="__codelineno-1-114" name="__codelineno-1-114" href="#__codelineno-1-114"></a><span class="w">  </span>-p,<span class="w"> </span>--profile<span class="w">         </span><span class="nb">enable</span><span class="w"> </span>profiling
+<a id="__codelineno-1-115" name="__codelineno-1-115" href="#__codelineno-1-115"></a>
+<a id="__codelineno-1-116" name="__codelineno-1-116" href="#__codelineno-1-116"></a>Bitrot<span class="w"> </span>Adventures<span class="w"> </span>v0.0.0<span class="w"> </span>Options:
+<a id="__codelineno-1-117" name="__codelineno-1-117" href="#__codelineno-1-117"></a><span class="w">  </span>-s,<span class="w"> </span>--some-game-specific-option<span class="w"> </span>SOME_GAME_SPECIFIC_OPTION
+<a id="__codelineno-1-118" name="__codelineno-1-118" href="#__codelineno-1-118"></a><span class="w">                        </span>foo<span class="w"> </span><span class="nb">help</span>
 </code></pre></div>
 <p><a href="events/">glitchygames.events</a></p>
 <p>The glitchygames.events module extends the pygame event subsystem by giving you on_<em><em>event callbacks.  Note that you can use the normal pygame raw event mode by simply implementing a <code>process_event(event)</code> method in your Scene: the engine then calls it once for each raw pygame event, in order, instead of dispatching on</em></em>_event callbacks.</p>
 <p>This can be especially useful for porting games to glitchygames, but there are some advantages to using glitchygames' event subsystem.</p>
-<p>The glitchygames.events subsystem dynamically detects events that your game does not handle and can suppress them automatically.  This helps mitigate the overhead introduced by processing pygame events into on_*_event handlers.</p>
+<p>The glitchygames.events subsystem detects events that your game does not handle: each type is reported once (with <code>debug_events</code>), raised as an error under <code>--no-unhandled-events</code>, and counted in a table the engine logs at shutdown. See <a href="../architecture/event_system/">Event System</a>.</p>
 <p>Note that if you bypass the glitchygames game engine event processing, you'll lose some functionality like <code>esc</code> and <code>q</code> to quit, along with  on_*_event handler support.</p>
 <p>It is recommended that you use the glitchygames event subsystem.</p>
 <p>TODO: Add some benchmark data comparing the two methods in various user scenarios to highlight the performance implications.</p>
@@ -256,9 +351,16 @@
 <p><a href="pixels/">glitchygames.pixels</a></p>
 <p>The glitchygames.pixels module provides common pixel manipulation operations such as 565 conversion.</p>
 <p><a href="sprites/">glitchygames.sprites</a></p>
-<p>The glitchygames.sprites module provides extended subclasses for sprite handling that will enable glitchygames to provide common tools and file formats that are human readible and templatable in addition to common sprite sheet formats and other goodies.</p>
+<p>The glitchygames.sprites module provides extended subclasses for sprite handling that will enable glitchygames to provide common tools and file formats that are human readable and templatable in addition to common sprite sheet formats and other goodies.</p>
 <p><a href="ui/">glitchygames.ui</a></p>
-<p>The glichtchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...</p>
+<p>The glitchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...</p>
+<p>Also in the reference: <a href="audio/">glitchygames.audio</a> (synthesis, recipes, live voices),
+<a href="collision/">glitchygames.collision</a> (layers and hitbox-aware detection),
+<a href="effects/">glitchygames.effects</a> (easing, tweens, screen shake),
+<a href="input/">glitchygames.input</a> (action maps, devices, the per-frame input snapshot, rumble),
+<a href="physics/">glitchygames.physics</a>, <a href="replay/">glitchygames.replay</a> (gameplay replay),
+<a href="state/">glitchygames.state</a> (saves) and <a href="transitions/">glitchygames.transitions</a>
+(scene transitions).</p>
 <!-- ::: glitchygames
     options:
       heading_level: 2

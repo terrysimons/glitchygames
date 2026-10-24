@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://glitchygames.github.io/architecture/bitmappy/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/architecture/bitmappy/" />
       <link rel="shortcut icon" href="../../img/favicon.ico" />
     <title>Bitmappy Architecture - GlitchyGames</title>
     <link rel="stylesheet" href="../../css/theme.css" />
@@ -15,7 +15,7 @@
         // Current page data
         var mkdocs_page_name = "Bitmappy Architecture";
         var mkdocs_page_input_path = "architecture/bitmappy.md";
-        var mkdocs_page_url = "/architecture/bitmappy/";
+        var mkdocs_page_url = "/glitchygames/architecture/bitmappy/";
       </script>
     
     <!--[if lt IE 9]>
@@ -52,7 +52,13 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
@@ -64,19 +70,29 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
@@ -94,6 +110,10 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
@@ -141,20 +161,21 @@ scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame
     participant BES as BitmapEditorScene
 
     User-&gt;&gt;main: uv run bitmappy
-    main-&gt;&gt;GE: GameEngine(game=BitmapEditorScene)
-    GE-&gt;&gt;GE: parse CLI args (Scene.args() + GameEngine.args())
+    main-&gt;&gt;GE: GameEngine(game=BitmapEditorScene, icon=...)
+    GE-&gt;&gt;GE: parse CLI args (GameEngine.args() + BitmapEditorScene.args())
     GE-&gt;&gt;GE: pygame.init(), create display
+    main-&gt;&gt;main: load_ai_training_data()
     main-&gt;&gt;GE: engine.start()
     GE-&gt;&gt;BES: BitmapEditorScene(options=OPTIONS)
+    BES-&gt;&gt;BES: EditorSetup.init_undo_redo_system()
+    BES-&gt;&gt;BES: EditorSetup.setup_menu_bar()
+    BES-&gt;&gt;BES: EditorSetup.setup_canvas(options)
+    BES-&gt;&gt;BES: SliderManager.setup_sliders_and_color_well()
+    BES-&gt;&gt;BES: EditorSetup.setup_debug_text_box()
+    BES-&gt;&gt;BES: FilmStripCoordinator.setup_film_strips()
     GE-&gt;&gt;GE: _initialize_event_managers()
     GE-&gt;&gt;SM: scene_manager.switch_to_scene(game)
-    SM-&gt;&gt;BES: setup()
-    BES-&gt;&gt;BES: _setup_menu_bar()
-    BES-&gt;&gt;BES: _setup_canvas()
-    BES-&gt;&gt;BES: _create_film_strips()
-    BES-&gt;&gt;BES: _setup_color_well()
-    BES-&gt;&gt;BES: _setup_sliders()
-    BES-&gt;&gt;BES: _setup_managers()
+    SM-&gt;&gt;BES: setup() (AIManager.setup() starts the AI worker)
     GE-&gt;&gt;SM: scene_manager.start()
 
     loop Main Game Loop (while active_scene is not None)
@@ -162,27 +183,28 @@ scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame
         SM-&gt;&gt;SM: camera.begin_frame()
         SM-&gt;&gt;BES: _update_scene() (Scene.dt_tick: logic and collision)
         SM-&gt;&gt;GE: _process_events()
-        GE-&gt;&gt;GE: pygame.event.get()
+        GE-&gt;&gt;GE: _pump_events() (active_sources().pump_events(): live, pygame.event.get())
         GE-&gt;&gt;SM: EVENT_HANDLERS[event.type](event)
         SM-&gt;&gt;BES: on_*_event(event)
+        SM-&gt;&gt;SM: _run_supervisor_slot() (supervisors, e.g. a recording's)
         SM-&gt;&gt;SM: _update_frame_services() (shake, rumble)
         SM-&gt;&gt;SM: _aim_active_camera() (camera_target / follow)
         SM-&gt;&gt;SM: _position_active_world_sprites() (world sprites' rect, culling)
-        SM-&gt;&gt;SM: _render_scene() (Scene.update, then draw)
+        SM-&gt;&gt;SM: _render_scene() (BitmapEditorScene.update: animation, controllers, AI; then draw)
         SM-&gt;&gt;SM: _advance_still_camera_shake() (WORLD shake nothing advanced)
         SM-&gt;&gt;SM: _present_frame() (overlay, display update)
         SM-&gt;&gt;SM: _finish_frame() (pace, then set dt once from perf_counter)
     end</code></pre>
 <h2 id="class-hierarchy">Class Hierarchy<a class="headerlink" href="#class-hierarchy" title="Permanent link">#</a></h2>
 <h3 id="event-dispatch-chain-how-events-reach-your-scene">Event dispatch chain (how events reach your scene)<a class="headerlink" href="#event-dispatch-chain-how-events-reach-your-scene" title="Permanent link">#</a></h3>
-<p><code>EventManager</code> is the base class for <code>GameEngine</code>, <code>SceneManager</code>, and every
-<code>Scene</code>. This shared base is why events can flow through all of them using the
-same <code>on_*_event()</code> API.</p>
-<p><strong>Inheritance</strong> — all dispatch chain classes share the <code>EventManager</code> base:</p>
+<p><code>EventManager</code> is the base class for <code>GameEngine</code> and <code>SceneManager</code>. Every <code>Scene</code> instead
+inherits <code>AllEventStubs</code>, which gives it a default <code>on_*_event()</code> method for every event, so
+events flow through all of them using the same <code>on_*_event()</code> API.</p>
+<p><strong>Inheritance:</strong></p>
 <pre class="mermaid"><code>flowchart LR
     EM["EventManager"] --- GE["GameEngine"]
     EM --- SM["SceneManager"]
-    EM --- SC["Scene"]
+    STUBS["AllEventStubs"] --- SC["Scene"]
     SC --- BES["BitmapEditorScene"]</code></pre>
 <p><strong>Event flow</strong> — how an SDL event reaches your handler in Bitmappy:</p>
 <pre class="mermaid"><code>flowchart TD
@@ -191,7 +213,7 @@ same <code>on_*_event()</code> API.</p>
     MGR --&gt;|"updates state,\nsynthesizes events"| SM["SceneManager\nforwards to active_scene"]
     SM --&gt; BES["BitmapEditorScene\n#40;the active scene#41;"]
     BES --&gt; HANDLER["Your handler runs\non_left_mouse_drag_event#40;#41;"]
-    BES --&gt; STUB["No handler?\nCached stub, O#40;1#41; no-op"]</code></pre>
+    BES --&gt; STUB["No handler?\nThe stub calls unhandled_event#40;#41;"]</code></pre>
 <p>The <code>GameEngine</code> receives every SDL event and does an O(1) dict lookup to find
 the right event manager. The event manager updates its internal state (button
 tracking, axis values, drag detection) and may synthesize higher-level events
@@ -199,59 +221,67 @@ tracking, axis values, drag detection) and may synthesize higher-level events
 everything to the <code>active_scene</code>. In Bitmappy, that's <code>BitmapEditorScene</code>,
 which overrides handlers like <code>on_key_down_event()</code>,
 <code>on_left_mouse_button_down_event()</code>, <code>on_left_mouse_drag_event()</code>, and
-<code>on_controller_hat_motion_event()</code>. Events it doesn't override hit the cached
-stubs — O(1) no-ops after their first occurrence.</p>
+<code>on_controller_button_down_event()</code>. Events it doesn't override hit the stubs, which call
+<code>unhandled_event()</code>: it does nothing by default, logs each event type once when the log level
+is DEBUG, ERROR or CRITICAL, and raises <code>UnhandledEventError</code> under <code>--no-unhandled-events</code> (as the tests
+run).</p>
 <h3 id="sprite-hierarchy-renderable-objects">Sprite hierarchy (renderable objects)<a class="headerlink" href="#sprite-hierarchy-renderable-objects" title="Permanent link">#</a></h3>
 <p><code>DirtySprite</code> is pygame's base for all sprites that support dirty-rect
-rendering. GlitchyGames extends it through <code>RootSprite</code> → <code>Sprite</code> to add
-mouse events, non-optional <code>image</code>/<code>rect</code>, and named parent tracking.</p>
+rendering. GlitchyGames extends it through <code>RootSprite</code> → <code>Sprite</code> → <code>BitmappySprite</code> to add
+mouse events, non-optional <code>image</code>/<code>rect</code>, named parent tracking and TOML load/save.
+<code>AnimatedSprite</code> derives from <code>DirtySprite</code> directly.</p>
 <pre class="mermaid"><code>flowchart TD
     DS["DirtySprite\ndirty, image, rect"]
     DS --&gt; RS["RootSprite\nmouse event support\nnon-optional image/rect"]
     RS --&gt; SP["Sprite\nx, y, name, parent"]
-    SP --&gt; ACS["AnimatedCanvasSprite\npixels_across, pixels_tall\nset_pixel_at#40;#41;, show_frame#40;#41;"]
-    SP --&gt; FSS["FilmStripSprite\nfilm_strip_widget\non_left_mouse_button_down_event#40;#41;"]
-    SP --&gt; AS["AnimatedSprite\n_animations, frame_manager\nset_animation#40;#41;, set_frame#40;#41;"]</code></pre>
+    SP --&gt; BS["BitmappySprite\nload#40;#41;, save#40;#41;"]
+    BS --&gt; ACS["AnimatedCanvasSprite\npixels_across, pixels_tall\ncanvas_interface.set_pixel_at#40;#41;, show_frame#40;#41;"]
+    BS --&gt; FSS["FilmStripSprite\nfilm_strip_widget\non_left_mouse_button_down_event#40;#41;"]
+    DS --&gt; AS["AnimatedSprite\n_animations, frame_manager\nset_animation#40;#41;, set_frame#40;#41;"]</code></pre>
 <h2 id="event-flow">Event Flow<a class="headerlink" href="#event-flow" title="Permanent link">#</a></h2>
-<p>How pygame events propagate through the system: from <code>pygame.event.get()</code> through
+<p>How pygame events propagate through the system: from <code>GameEngine._pump_events()</code> (live:
+<code>pygame.event.get()</code>) through
 the <code>EVENT_HANDLERS</code> dispatch table, into specialized event managers, through the
 scene manager, and finally into Bitmappy's scene and sprite handlers.</p>
 <pre class="mermaid"><code>flowchart TD
-    PG["pygame.event.get()"] --&gt; GE["GameEngine.process_events()"]
+    PG["GameEngine._pump_events()\nactive_sources().pump_events()"] --&gt; GE["GameEngine.process_events()"]
     GE --&gt; EH{"EVENT_HANDLERS[event.type]"}
 
     EH --&gt;|KEYDOWN| KEM["KeyboardEventManager"]
     EH --&gt;|MOUSEBUTTONDOWN| MEM["MouseEventManager"]
-    EH --&gt;|JOYHATMOTION| CEM["ControllerEventManager"]
+    EH --&gt;|CONTROLLERBUTTONDOWN| CEM["ControllerEventManager"]
     EH --&gt;|DROPFILE| DEM["DropEventManager"]
-    EH --&gt;|WINDOWEVENT| WEM["WindowEventManager"]
+    EH --&gt;|"WINDOW* events"| WEM["WindowEventManager"]
     EH --&gt;|FPSEVENT| GEM["GameEventManager"]
 
     KEM --&gt; SM["SceneManager.on_key_down_event()"]
     MEM --&gt; SM2["SceneManager.on_left_mouse_button_down_event()"]
-    CEM --&gt; SM3["SceneManager.on_controller_hat_motion_event()"]
+    CEM --&gt; SM3["SceneManager.on_controller_button_down_event()"]
     DEM --&gt; SM4["SceneManager.on_drop_file_event()"]
 
     SM --&gt; BES["BitmapEditorScene.on_key_down_event()"]
     SM2 --&gt; BES2["BitmapEditorScene.on_left_mouse_button_down_event()"]
-    SM3 --&gt; BES3["BitmapEditorScene.on_controller_hat_motion_event()"]
-    SM4 --&gt; BES4["BitmapEditorScene.on_drop_file_event()"]
+    SM3 --&gt; BES3["BitmapEditorScene.on_controller_button_down_event()"]
+    SM4 --&gt; BES4["BitmapEditorScene.on_drop_file_event()\nFileIOManager"]
 
-    BES --&gt;|"Ctrl+Z"| UNDO["UndoRedoManager.undo()"]
-    BES --&gt;|"Ctrl+S"| SAVE["SaveDialogScene"]
-    BES --&gt;|"Arrow keys"| CANVAS["AnimatedCanvasSprite"]
+    BES --&gt;|"Ctrl+Z / Ctrl+Y, Ctrl+Shift+Z"| UNDO["handle_undo() / handle_redo()"]
+    BES --&gt;|"Ctrl+C / Ctrl+V"| COPY["Copy / paste frame"]
+    BES --&gt;|"Ctrl+Shift+Arrow"| PAN["Pan the frame's pixels"]
+    BES --&gt;|"Arrow keys, 0-9, Space"| CANVAS["AnimatedCanvasSprite.handle_keyboard_event()"]
     BES --&gt;|"O key"| ONION["Toggle Onion Skinning"]
 
-    BES2 --&gt;|"Canvas area"| PIXEL["canvas.set_pixel_at(x, y, color)"]
+    BES2 --&gt;|"Canvas area"| PIXEL["canvas.canvas_interface.set_pixel_at(x, y, color)"]
     BES2 --&gt;|"Ctrl+click"| FLOOD["canvas._flood_fill(x, y, color)"]
     BES2 --&gt;|"Film strip area"| FRAME["FilmStripSprite: select frame"]
     BES2 --&gt;|"Menu item"| MENU["MenuItem: dialog scene"]
     BES2 --&gt;|"Slider area"| SLIDER["SliderSprite: adjust RGBA"]
 
-    BES3 --&gt; MCM["MultiControllerManager"]
-    MCM --&gt;|"Canvas Mode"| CPAINT["Canvas navigation/paint"]
-    MCM --&gt;|"Film Strip Mode"| FNAV["Frame navigation/select"]
-    MCM --&gt;|"Slider Mode"| SADJ["Slider adjustment"]</code></pre>
+    BES3 --&gt; CEH["ControllerEventHandler"]
+    CEH --&gt; MCM["MultiControllerManager\n(assigns the controller)"]
+    CEH --&gt; MS["ModeSwitcher strategy"]
+    MS --&gt;|"Canvas Mode"| CPAINT["Canvas navigation/paint"]
+    MS --&gt;|"Film Strip Mode"| FNAV["Frame navigation/select"]
+    MS --&gt;|"Slider Mode"| SADJ["Slider adjustment"]</code></pre>
 <h2 id="ui-layout-component-wiring">UI Layout &amp; Component Wiring<a class="headerlink" href="#ui-layout-component-wiring" title="Permanent link">#</a></h2>
 <p>How the UI components are arranged on screen and how data flows between them.
 Dotted lines show data flow; solid lines show scene transitions via <code>switch_to_scene</code>.</p>
@@ -267,19 +297,19 @@ Dotted lines show data flow; solid lines show scene transitions via <code>switch
         subgraph MainArea["Main Area"]
             CANVAS_S["AnimatedCanvasSprite\npixel grid"]
             subgraph RightPanel["Right Side"]
-                FS1["FilmStripSprite 1\ndefault animation"]
-                FS2["FilmStripSprite 2\nwalk animation"]
+                FS1["FilmStripSprite 1\nfirst animation"]
+                FS2["FilmStripSprite 2\nsecond animation"]
                 ARROWS["Scroll Arrows"]
+                AI["TextSprite 'AI Sprite' +\nMultiLineTextBox (AI prompt, messages)"]
             end
         end
 
         subgraph BottomArea["Bottom Controls"]
             CW["ColorWellSprite\ncurrent color"]
+            SA["SliderSprite A: 0-255"]
             SR["SliderSprite R: 0-255"]
             SG["SliderSprite G: 0-255"]
             SB["SliderSprite B: 0-255"]
-            SA["SliderSprite A: 0-255"]
-            INFO["TextSprite\nanim name, frame, dims"]
         end
     end
 
@@ -287,10 +317,11 @@ Dotted lines show data flow; solid lines show scene transitions via <code>switch
     FS1 -.-&gt;|"frame selected"| CANVAS_S
     CW -.-&gt;|"active color"| CANVAS_S
     SR &amp; SG &amp; SB &amp; SA -.-&gt;|"RGBA values"| CW
+    AI -.-&gt;|"on_text_submit_event"| AIM["AIManager"]
 
-    LOAD_M -.-&gt;|"switch_to_scene"| LDS["LoadDialogScene"]
-    SAVE_M -.-&gt;|"switch_to_scene"| SDS["SaveDialogScene"]
-    NEW -.-&gt;|"switch_to_scene"| NDS["NewCanvasDialogScene"]
+    LOAD_M -.-&gt;|"next_scene"| LDS["LoadDialogScene"]
+    SAVE_M -.-&gt;|"next_scene"| SDS["SaveDialogScene"]
+    NEW -.-&gt;|"next_scene"| NDS["NewCanvasDialogScene"]
 
     LDS -.-&gt;|"return to"| BES_RETURN["BitmapEditorScene"]
     SDS -.-&gt;|"return to"| BES_RETURN
@@ -302,12 +333,12 @@ optimization ensures only changed regions are redrawn and pushed to the display.
 <pre class="mermaid"><code>flowchart TD
     BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --&gt; LOGIC
     LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --&gt; EVENTS
-    LOGIC --&gt; FM["FrameManager.notify_observers\nFilmStripSprite.dirty = 1"]
-    EVENTS["3. _process_events()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
+    EVENTS["3. _process_events(), then _run_supervisor_slot()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --&gt; SERVICES
     SERVICES["4. _update_frame_services()\nshake and rumble"] --&gt; AIM
     AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --&gt; POSITION
     POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --&gt; RENDER
     RENDER["7. _render_scene()\nScene.update() (visual only), LayeredDirty.draw"] --&gt; CHECK{"sprite.dirty?"}
+    RENDER --&gt; FM["BitmapEditorScene.update()\ncanvas.update_animation(dt)\nFilmStripCoordinator.update_film_strip_animation_timing()\nFilmStripSprite.dirty = 1 when a frame advances"]
     CHECK --&gt;|"dirty=0"| SKIP["Skip - no redraw"]
     CHECK --&gt;|"dirty=1 or 2"| REDRAW["Blit sprite.image at sprite.rect\ncollect changed rects"]
     SKIP --&gt; STILL
@@ -324,101 +355,107 @@ Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
         FILL["Flood fill"]
         FSEL["Select frame"]
         FDEL["Delete frame"]
-        CMOVE["Controller move"]
+        FCOPY["Copy/paste frame"]
+        CMOVE["Controller move / mode change"]
     end
 
     subgraph Trackers["Operation Trackers"]
         COT["CanvasOperationTracker\npixel-level, batched per drag"]
         FOT["FilmStripOperationTracker\nframe-level operations"]
-        CAOT["CrossAreaOperationTracker\ncontroller positions"]
+        CAOT["CrossAreaOperationTracker\nframe copy/paste"]
+        CPOT["ControllerPositionOperationTracker\ncontroller positions and modes"]
     end
 
-    subgraph URM["UndoRedoManager"]
-        STACK_U["Undo Stack"]
-        STACK_R["Redo Stack"]
+    subgraph URM["UndoRedoManager (max_history=50)"]
+        STACK_F["Per-frame Undo/Redo Stacks"]
+        STACK_U["Global Undo Stack"]
+        STACK_R["Global Redo Stack"]
     end
 
     PAINT --&gt; COT
     FILL --&gt; COT
     FSEL --&gt; FOT
     FDEL --&gt; FOT
-    CMOVE --&gt; CAOT
+    FCOPY --&gt; CAOT
+    CMOVE --&gt; CPOT
 
-    COT --&gt;|"batch submit\n0.1s debounce"| STACK_U
+    COT --&gt;|"batch submit\n0.1s debounce"| STACK_F
     FOT --&gt;|"submit"| STACK_U
     CAOT --&gt;|"submit"| STACK_U
+    CPOT --&gt;|"submit"| STACK_U
 
+    STACK_F -.-&gt;|"Ctrl+Z tries the current frame first"| STACK_U
     STACK_U --&gt;|"Ctrl+Z"| STACK_R
-    STACK_R --&gt;|"Ctrl+Y"| STACK_U</code></pre>
+    STACK_R --&gt;|"Ctrl+Y / Ctrl+Shift+Z"| STACK_U</code></pre>
 <h2 id="sprite-loadsave-pipeline">Sprite Load/Save Pipeline<a class="headerlink" href="#sprite-loadsave-pipeline" title="Permanent link">#</a></h2>
 <p>How sprites are loaded from TOML files, saved back, and imported via drag-and-drop.</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph Load["Load Path"]
-        FILE_IN["sprite.toml"] --&gt; SF["SpriteFactory.load_sprite()"]
-        SF --&gt; DETECT["detect_file_format()"]
-        DETECT --&gt; PARSE["Parse TOML config"]
-        PARSE --&gt; DECIDE{"Multi-frame?"}
-        DECIDE --&gt;|Yes| AS["AnimatedSprite\nwith _animations dict"]
-        DECIDE --&gt;|No| BS["BitmappySprite\nsingle frame"]
-        AS --&gt; CANVAS_L["AnimatedCanvasSprite\ndisplays frames"]
-        BS --&gt; CANVAS_L
+        FILE_IN["sprite.toml"] --&gt; CLOAD["AnimatedCanvasSprite.on_load_file_event()"]
+        CLOAD --&gt; DETECT["detect_file_format()\n(glitchygames/bitmappy/utils.py: TOML only)"]
+        DETECT --&gt; AS["AnimatedSprite().load(filename)\nstatic sprites become one-frame animations"]
+        AS --&gt; CANVAS_L["AnimatedCanvasSprite\ndisplays frames, resizes to fit"]
     end
 
     subgraph Save["Save Path"]
-        CANVAS_SAVE["AnimatedCanvasSprite"] --&gt; SER["AnimatedSpriteSerializer"]
-        SER --&gt; VALIDATE["Validate pixel data\ndetect per-pixel alpha"]
-        VALIDATE --&gt; WRITE_TOML["Write TOML\ncolors + frames + animations"]
-        WRITE_TOML --&gt; FILE_OUT["output.toml"]
-
-        CANVAS_SAVE --&gt; PNG["Export PNG\npygame.image.save"]
-        PNG --&gt; FILE_PNG["output.png"]
+        CANVAS_SAVE["AnimatedCanvasSprite.on_save_file_event()"] --&gt; DECIDE{"One frame?"}
+        DECIDE --&gt;|Yes| STATIC["AnimatedSprite._save_as_static_sprite()"]
+        DECIDE --&gt;|No| SER["AnimatedSpriteSerializer\n-&gt; AnimatedSprite.save()"]
+        SER --&gt; WRITE_TOML["Write TOML\ncolors (per-pixel alpha detected) + frames + animations"]
+        STATIC --&gt; FILE_OUT["output.toml"]
+        WRITE_TOML --&gt; FILE_OUT
     end
 
-    subgraph DragDrop["Drag and Drop"]
-        DROP_FILE["Dropped file"] --&gt; EXT{"Extension?"}
-        EXT --&gt;|".toml"| SF
-        EXT --&gt;|".png"| PNG_LOAD["pygame.image.load()"]
-        PNG_LOAD --&gt; NEW_FRAME["Insert as new frame"]
+    subgraph DragDrop["Drag and Drop (FileIOManager)"]
+        DROP_FILE["Dropped file"] --&gt; WHERE{"Where?"}
+        WHERE --&gt;|"Film strip: image file"| FS_DROP["FilmStripSprite.on_drop_file_event()\non a frame: replace it\nelsewhere: insert a new frame"]
+        WHERE --&gt;|"Canvas: .toml"| CLOAD
+        WHERE --&gt;|"Canvas: .png"| CONVERT["_convert_png_to_bitmappy()\nPNG -&gt; TOML"]
+        CONVERT --&gt; CLOAD
     end</code></pre>
 <h2 id="multi-controller-system">Multi-Controller System<a class="headerlink" href="#multi-controller-system" title="Permanent link">#</a></h2>
 <p>Up to 4 color-coded controllers can operate simultaneously. Each controller
-independently switches between three modes using shoulder buttons.</p>
+independently switches between film strip, canvas and slider (R, G, B) modes using the
+triggers: L2 steps forward, R2 steps back (R2 does nothing in film strip mode). B undoes
+and X redoes in film strip and canvas modes.</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph Assignment["Controller Assignment"]
-        CONNECT["Controller connected"] --&gt; FIRST["First button press"]
+        CONNECT["Controller connected"] --&gt; FIRST["First button press\nMultiControllerManager.assign_controller()"]
         FIRST --&gt; RED["Red - controller 0"]
         FIRST --&gt; GREEN["Green - controller 1"]
         FIRST --&gt; BLUE["Blue - controller 2"]
         FIRST --&gt; YELLOW["Yellow - controller 3"]
     end
 
-    subgraph Modes["Mode Switching per Controller"]
-        FSM["Film Strip Mode\nR2 to enter"]
-        CM["Canvas Mode\nL2 to enter"]
-        SLM["Slider Mode\nL2+R2 to enter"]
+    subgraph Modes["Mode Switching per Controller (ModeSwitcher)"]
+        FSM["Film Strip Mode\n(starting mode)"]
+        CM["Canvas Mode"]
+        SLM["Slider Modes\nR, then G, then B"]
 
-        FSM --&gt;|"Press L2"| CM
-        CM --&gt;|"Press R2"| FSM
-        CM --&gt;|"Press L2+R2"| SLM
-        SLM --&gt;|"Release L2 or R2"| CM
-        FSM --&gt;|"Press L2+R2"| SLM
-        SLM --&gt;|"Release L2 or R2"| FSM
+        FSM --&gt;|"L2"| CM
+        CM --&gt;|"L2"| SLM
+        SLM --&gt;|"L2 on B"| FSM
+        SLM --&gt;|"R2 on R"| CM
+        CM --&gt;|"R2"| FSM
     end
 
     subgraph FilmStripControls["Film Strip Mode Controls"]
-        FS_NAV["D-pad: Navigate frames"]
+        FS_NAV["D-pad left/right, L1/R1: Previous/next frame"]
+        FS_ANIM["D-pad up/down: Previous/next animation"]
         FS_SEL["A: Select frame"]
-        FS_SW["L1/R1: Switch animation"]
+        FS_ONION["Y: Toggle onion skinning"]
     end
 
     subgraph CanvasControls["Canvas Mode Controls"]
         C_MOVE["D-pad: Move cursor"]
         C_PAINT["A: Paint pixel"]
-        C_JUMP["L1/R1: Jump 8 pixels"]
+        C_JUMP["L1/R1: Jump 8 pixels\n(with A held: paint 8)"]
+        C_VIS["Y: Toggle selected frame visibility"]
     end
 
     subgraph SliderControls["Slider Mode Controls"]
-        S_ADJ["D-pad: Adjust value"]
+        S_ADJ["D-pad left/right: Adjust value"]
+        S_NAV["D-pad up/down: Previous/next slider"]
         S_JUMP["L1/R1: Adjust by 8"]
     end
 
