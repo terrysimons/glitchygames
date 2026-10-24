@@ -22,6 +22,7 @@ import pygame
 from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
+from glitchygames.user_files import installed_user_files
 
 LOG = logging.getLogger('game.ui.dialogs')
 LOG.addHandler(logging.NullHandler())
@@ -440,9 +441,31 @@ class SaveDialogScene(InputConfirmationDialogScene):
         # Process example: prefix if present
         save_path = _get_save_path(filename)
         LOG.info('Processed save path: %s', save_path)
-        # Pass the path as string to maintain compatibility
-        self.previous_scene.canvas.on_save_file_event(str(save_path))
+        # Pass the path as string to maintain compatibility. The canvas logs a failed save and
+        # raises it for its caller to report: shown in the editor, which keeps the drawing and
+        # goes on (it used to reach the engine's crash boundary and end the editor, BUGS.md #214)
+        try:
+            self.previous_scene.canvas.on_save_file_event(str(save_path))
+        except (OSError, ValueError, KeyError) as error:
+            self._show_save_error(message=f'Error saving {save_path}: {error}')
+        else:
+            # Where the game's files are not the player's (a browser), the saved file is handed
+            # to the player (a download)
+            user_files = installed_user_files()
+            if user_files is not None:
+                user_files.save_file(path=save_path)
         self.dismiss()
+
+    def _show_save_error(self: Self, *, message: str) -> None:
+        """Show ``message`` in the editor's debug text box, where a load error shows too.
+
+        Args:
+            message: The message.
+
+        """
+        debug_text = getattr(self.previous_scene, 'debug_text', None)
+        if debug_text is not None:
+            debug_text.text = message
 
 
 class DeleteAnimationDialogScene(Scene):

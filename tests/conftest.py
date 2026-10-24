@@ -22,6 +22,7 @@ import pygame
 
 from glitchygames import pixel_snap, randomness, sources
 from glitchygames.backgrounds import set_active_default_background_pattern
+from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -33,6 +34,7 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
+from glitchygames.user_files import install_user_files
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
@@ -231,6 +233,28 @@ def restore_signal_handlers():
     """
     with preserved_signal_handlers():
         yield
+
+
+@pytest.fixture(autouse=True)
+def in_process_clipboard():
+    """Give each test an empty clipboard of its own, so none reads or writes the machine's.
+
+    Yields:
+        InProcessClipboard: The clipboard the text widgets copy to and paste from.
+
+    """
+    clipboard = InProcessClipboard()
+    install_clipboard(clipboard=clipboard)
+    yield clipboard
+    install_clipboard(clipboard=None)
+
+
+@pytest.fixture(autouse=True)
+def desktop_user_files():
+    """Run each test the desktop's way: no user files installed (glitchygames/user_files.py)."""
+    install_user_files(user_files=None)
+    yield
+    install_user_files(user_files=None)
 
 
 @pytest.fixture(autouse=True)

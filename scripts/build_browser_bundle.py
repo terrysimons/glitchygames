@@ -8,7 +8,8 @@ It writes, into the output directory:
 
   index.html          browser/index.html for the game (the canvas, a click-to-play overlay)
   boot.py             browser/boot.py, which starts the game with GameEngine.start_async
-  browser_storage.py  IndexedDB-backed saves (browser/browser_storage.py)
+  browser_*.py        the page's services for the engine (browser/): IndexedDB-backed saves,
+                      the clipboard, and the player's own files (a file picker, downloads)
   boot_config.json    which game to start, and its command-line arguments
   glitchygames.zip    the engine package, without what only desktop tools use (the API server
                       and its services, test helpers, project templates, the large PNG assets,
@@ -22,8 +23,13 @@ from the submodule's current commit with no uncommitted changes; otherwise it is
 submodule's ``buildconfig/glitchygames/build_pyodide_wheel.sh`` (about 2 GB of toolchain, cached
 under ~/.cache/glitchygames-pyodide-build; the first build takes several minutes).
 
+``all`` builds every game into one site (default build/browser/site): a directory per game
+and an index.html linking them, which ``nox -s docs-deploy`` publishes with the docs as play/
+(scripts/mkdocs_hooks.py).
+
 Usage:
     uv run python scripts/build_browser_bundle.py paddleslap --serve
+    uv run python scripts/build_browser_bundle.py all --serve
     uv run python scripts/build_browser_bundle.py mr-muncher --output build/browser/mr-muncher \\
         -- --target-fps 30
 """
@@ -34,6 +40,8 @@ import argparse
 import dataclasses
 import errno
 import functools
+import html
+import importlib.metadata
 import json
 import shutil
 import string
@@ -56,6 +64,12 @@ WHEEL_OUTPUT_DIRECTORY_NAME = 'dist-pyodide'
 PYSCRIPT_RELEASE = '2026.7.3'
 # Pyodide packages the engine imports (numpy for surfarray and the synth, pydantic, tomli-w)
 PYODIDE_PACKAGES = ('numpy', 'pydantic', 'tomli-w')
+
+# The game argument that builds every game into one site
+ALL_GAMES = 'all'
+
+# browser/boot.py's own modules, served next to it (pyscript.toml's [files])
+BROWSER_MODULES = ('browser_storage.py', 'browser_clipboard.py', 'browser_user_files.py')
 
 # Engine subpackages no game imports: desktop tools only (checked: nothing outside them refers
 # to them, but sprites/animated.py's TOML sprite loading, which no bundled game uses)
@@ -168,25 +182,55 @@ def write_engine_archive(
     package_directory: Path,
     archive_path: Path,
     excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES,
+    engine_version: str | None = None,
 ) -> int:
     """Zip the bundled package files as ``glitchygames/...`` with fixed timestamps.
 
+    With ``engine_version``, the archive also holds the package's metadata
+    (``glitchygames-<version>.dist-info/METADATA``): the package is unpacked, not installed, and
+    ``importlib.metadata`` finds the version there (a replay compares it with the recording's).
+
     Returns:
-        How many files were archived.
+        How many package files were archived.
 
     """
     files = bundled_package_files(
         package_directory=package_directory, excluded_subpackages=excluded_subpackages
     )
+    members = [
+        (
+            (Path(package_directory.name) / relative_path).as_posix(),
+            (package_directory / relative_path).read_bytes(),
+        )
+        for relative_path in files
+    ]
+    if engine_version is not None:
+        metadata = (
+            f'Metadata-Version: 2.1\nName: {package_directory.name}\nVersion: {engine_version}\n'
+        )
+        members.append((
+            f'{package_directory.name}-{engine_version}.dist-info/METADATA',
+            metadata.encode('utf-8'),
+        ))
     with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-        for relative_path in files:
-            member = zipfile.ZipInfo(
-                filename=(Path(package_directory.name) / relative_path).as_posix(),
-                date_time=ARCHIVE_TIMESTAMP,
-            )
+        for name, contents in members:
+            member = zipfile.ZipInfo(filename=name, date_time=ARCHIVE_TIMESTAMP)
             member.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(member, (package_directory / relative_path).read_bytes())
+            archive.writestr(member, contents)
     return len(files)
+
+
+def installed_engine_version() -> str | None:
+    """Return the version of the glitchygames package this script runs with.
+
+    Returns:
+        The version, or None when the package metadata is not installed.
+
+    """
+    try:
+        return importlib.metadata.version('glitchygames')
+    except importlib.metadata.PackageNotFoundError:
+        return None
 
 
 def pyscript_config(*, wheel_name: str) -> str:
@@ -198,13 +242,14 @@ def pyscript_config(*, wheel_name: str) -> str:
     """
     packages = [f'./wheels/{wheel_name}', *PYODIDE_PACKAGES]
     package_lines = ''.join(f'  "{package}",\n' for package in packages)
+    module_lines = ''.join(f'"./{module}" = "./{module}"\n' for module in BROWSER_MODULES)
     return (
         '# Written by scripts/build_browser_bundle.py\n'
         f'packages = [\n{package_lines}]\n'
         '\n'
         '[files]\n'
         '"./glitchygames.zip" = "./*"\n'
-        '"./browser_storage.py" = "./browser_storage.py"\n'
+        f'{module_lines}'
         '"./boot_config.json" = "./boot_config.json"\n'
     )
 
@@ -303,7 +348,8 @@ def write_bundle(
     (output_directory / 'wheels').mkdir(parents=True)
     shutil.copy2(wheel_path, output_directory / 'wheels' / wheel_path.name)
     shutil.copy2(BROWSER_DIRECTORY / 'boot.py', output_directory / 'boot.py')
-    shutil.copy2(BROWSER_DIRECTORY / 'browser_storage.py', output_directory / 'browser_storage.py')
+    for module in BROWSER_MODULES:
+        shutil.copy2(BROWSER_DIRECTORY / module, output_directory / module)
     template = (BROWSER_DIRECTORY / 'index.html').read_text(encoding='utf-8')
     (output_directory / 'index.html').write_text(
         render_page(template=template, game=game), encoding='utf-8'
@@ -318,6 +364,7 @@ def write_bundle(
         package_directory=PACKAGE_DIRECTORY,
         archive_path=output_directory / 'glitchygames.zip',
         excluded_subpackages=EXCLUDED_SUBPACKAGES - GAMES[game].included_subpackages,
+        engine_version=installed_engine_version(),
     )
     report(f'{output_directory}: {GAMES[game].title}, {file_count} engine files, {wheel_path.name}')
 
@@ -391,6 +438,60 @@ def serve(*, server: ThreadingHTTPServer, directory: Path, open_browser: bool) -
             report('Stopped.')
 
 
+def site_index_page() -> str:
+    """Return the site's index.html: a link to each game's page.
+
+    Returns:
+        The page.
+
+    """
+    links = ''.join(
+        f'      <li><a href="{html.escape(game)}/">{html.escape(specification.title)}</a></li>\n'
+        for game, specification in GAMES.items()
+    )
+    return (
+        '<!doctype html>\n'
+        '<html lang="en">\n'
+        '<head>\n'
+        '  <meta charset="utf-8">\n'
+        '  <meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        '  <title>GlitchyGames in the browser</title>\n'
+        '  <style>\n'
+        '    :root { color-scheme: dark; }\n'
+        '    body { margin: 0; padding: 24px 16px; background: #000; color: #ddd;\n'
+        '           font-family: system-ui, sans-serif; }\n'
+        '    main { max-width: 40rem; margin: 0 auto; }\n'
+        '    a { color: #9cf; }\n'
+        '    li { margin: 0.5rem 0; font-size: 1.2rem; }\n'
+        '  </style>\n'
+        '</head>\n'
+        '<body>\n'
+        '  <main>\n'
+        '    <h1>GlitchyGames in the browser</h1>\n'
+        '    <p>Python and pygame-ce in WebAssembly (PyScript). The first load takes a few\n'
+        '      seconds; then click the game to start it.</p>\n'
+        '    <ul>\n'
+        f'{links}'
+        '    </ul>\n'
+        '    <p><a href="../">GlitchyGames documentation</a></p>\n'
+        '  </main>\n'
+        '</body>\n'
+        '</html>\n'
+    )
+
+
+def write_site(*, output_directory: Path, wheel_path: Path) -> None:
+    """Write every game's bundle into ``output_directory/<game>`` and an index linking them."""
+    if output_directory.exists():
+        shutil.rmtree(output_directory)
+    output_directory.mkdir(parents=True)
+    for game in GAMES:
+        write_bundle(
+            game=game, output_directory=output_directory / game, wheel_path=wheel_path, arguments=[]
+        )
+    (output_directory / 'index.html').write_text(site_index_page(), encoding='utf-8')
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments, build the bundle and optionally serve it.
 
@@ -399,8 +500,10 @@ def main(argv: list[str] | None = None) -> int:
 
     """
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('game', choices=sorted(GAMES))
-    parser.add_argument('--output', type=Path, default=None, help='default: build/browser/<game>')
+    parser.add_argument('game', choices=[*sorted(GAMES), ALL_GAMES])
+    parser.add_argument(
+        '--output', type=Path, default=None, help='default: build/browser/<game> (all: site)'
+    )
     parser.add_argument('--wheel', type=Path, default=None, help='use this pygame-ce wheel')
     parser.add_argument('--rebuild-wheel', action='store_true', help='build even if up to date')
     parser.add_argument('--serve', action='store_true', help='serve the bundle and open it')
@@ -413,9 +516,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--no-open', action='store_true', help='serve without opening a browser')
     parser.add_argument('game_arguments', nargs='*', help='after --: the game command line')
     arguments = parser.parse_args(argv)
+    builds_site = arguments.game == ALL_GAMES
+    if builds_site and arguments.game_arguments:
+        parser.error('a game command line needs one game, not all')
 
-    output_directory = (
-        arguments.output or REPOSITORY_DIRECTORY / 'build' / 'browser' / arguments.game
+    output_directory = arguments.output or REPOSITORY_DIRECTORY / 'build' / 'browser' / (
+        'site' if builds_site else arguments.game
     )
     wheel_path = arguments.wheel
     if wheel_path is None:
@@ -431,12 +537,15 @@ def main(argv: list[str] | None = None) -> int:
                 f'Building the pygame-ce wheel for {commit[:9]} (several minutes the first time)'
             )
             wheel_path = build_wheel(pygame_ce_directory=PYGAME_CE_DIRECTORY)
-    write_bundle(
-        game=arguments.game,
-        output_directory=output_directory,
-        wheel_path=wheel_path,
-        arguments=arguments.game_arguments,
-    )
+    if builds_site:
+        write_site(output_directory=output_directory, wheel_path=wheel_path)
+    else:
+        write_bundle(
+            game=arguments.game,
+            output_directory=output_directory,
+            wheel_path=wheel_path,
+            arguments=arguments.game_arguments,
+        )
     if arguments.serve:
         try:
             server = bind_server(directory=output_directory, port=arguments.port)

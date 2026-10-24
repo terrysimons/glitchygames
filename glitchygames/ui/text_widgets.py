@@ -8,14 +8,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Self, override
 
-try:
-    import pyperclip
-except ImportError:  # pragma: no cover - pyperclip is an optional package
-    pyperclip = None
-
 import pygame
 from pygame import Rect
 
+from glitchygames.clipboard import ClipboardUnavailableError, system_clipboard
 from glitchygames.clock import frame_clock_milliseconds
 from glitchygames.color import WHITE
 from glitchygames.fonts import FontManager, GameFont
@@ -51,12 +47,6 @@ CURSOR_BLINK_FRAME_INTERVAL = 30
 CURSOR_BLINK_HALF_SECOND = 0.5
 PYGAME_MOUSE_SCROLL_UP_BUTTON = 4
 PYGAME_MOUSE_SCROLL_DOWN_BUTTON = 5
-
-# What a clipboard call may raise: pyperclip's PyperclipException comes from copy() and paste()
-# on a machine with no clipboard tool (headless Linux without xclip, xsel or wl-clipboard)
-CLIPBOARD_ERRORS: tuple[type[Exception], ...] = (ImportError, AttributeError) + (
-    () if pyperclip is None else (pyperclip.PyperclipException,)
-)
 
 
 class TextSprite(BitmappySprite):
@@ -1313,9 +1303,6 @@ class MultiLineTextBox(BitmappySprite):
 
     def _handle_copy(self) -> None:
         """Handle copy operation."""
-        if pyperclip is None:
-            self.log.warning('pyperclip not available, cannot copy text')
-            return
         if self.selection_start is not None and self.selection_end is not None:
             start = min(self.selection_start, self.selection_end)
             end = max(self.selection_start, self.selection_end)
@@ -1323,17 +1310,15 @@ class MultiLineTextBox(BitmappySprite):
         else:
             copied_text = self._text
         try:
-            pyperclip.copy(copied_text)
-        except CLIPBOARD_ERRORS:
+            system_clipboard().copy(copied_text)
+        except ClipboardUnavailableError:
             self.log.error('Error copying text')  # ruff: ignore[error-instead-of-exception]
 
     def _handle_paste(self) -> None:
         """Handle paste operation."""
-        if not pyperclip:
-            return
         try:
-            clipboard_text = pyperclip.paste()
-        except CLIPBOARD_ERRORS:
+            clipboard_text = system_clipboard().paste()
+        except ClipboardUnavailableError:
             self.log.error('Error pasting text')  # ruff: ignore[error-instead-of-exception]
             return
         if clipboard_text:
@@ -1344,17 +1329,14 @@ class MultiLineTextBox(BitmappySprite):
 
     def _handle_cut(self) -> None:
         """Handle cut operation: the selection, or all the text when nothing is selected."""
-        if pyperclip is None:
-            self.log.warning('pyperclip not available, cannot cut text')
-            return
         if self.selection_start is not None and self.selection_end is not None:
             start = min(self.selection_start, self.selection_end)
             end = max(self.selection_start, self.selection_end)
         else:
             start, end = 0, len(self._original_text)
         try:
-            pyperclip.copy(self._original_text[start:end])
-        except CLIPBOARD_ERRORS:
+            system_clipboard().copy(self._original_text[start:end])
+        except ClipboardUnavailableError:
             self.log.error('Error cutting text')  # ruff: ignore[error-instead-of-exception]
             return
         self.text = self._original_text[:start] + self._original_text[end:]
