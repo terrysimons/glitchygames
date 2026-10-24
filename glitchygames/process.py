@@ -184,14 +184,14 @@ def stop_command(*, process: subprocess.Popen[str]) -> None:
     """
     if process.poll() is not None:
         return
-    if sys.platform == 'win32':  # pragma: no cover - the suite runs on macOS and Linux
+    if sys.platform == 'win32':
         process.terminate()
     else:
         os.killpg(process.pid, signal.SIGTERM)
     try:
         process.wait(timeout=STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
-        if sys.platform == 'win32':  # pragma: no cover - the suite runs on macOS and Linux
+        if sys.platform == 'win32':
             process.kill()
         else:
             os.killpg(process.pid, signal.SIGKILL)

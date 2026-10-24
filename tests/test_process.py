@@ -7,14 +7,19 @@ ends the whole group (a pytest run's xdist workers with it).
 from __future__ import annotations
 
 import os
+import signal
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from glitchygames import process
 from glitchygames.process import start_command, stop_command
+
+# SIGKILL's number on POSIX (Windows' signal module has no SIGKILL)
+SIGKILL_NUMBER = 9
 
 # How long a test waits for a child to write its line, or for a stopped process to be gone
 WAIT_SECONDS = 10.0
@@ -130,9 +135,21 @@ class TestStartCommand:
 
 
 class TestStopCommandOnEveryPlatform:
-    """stop_command's steps with a stand-in child, so every platform runs them (no real signals)."""
+    """stop_command's steps with a stand-in child, for both platforms' branches on every host.
 
-    def test_an_ended_child_is_left_alone(self, mocker):
+    The platform and the signals are faked (Windows has no SIGKILL or killpg), so each CI host
+    runs the other's branch too and nothing real is signalled.
+    """
+
+    @pytest.fixture(params=['linux', 'win32'])
+    def platform(self, request, mocker):
+        mocker.patch.object(process.sys, 'platform', request.param)
+        mocker.patch.object(
+            process, 'signal', SimpleNamespace(SIGTERM=signal.SIGTERM, SIGKILL=SIGKILL_NUMBER)
+        )
+        return request.param
+
+    def test_an_ended_child_is_left_alone(self, mocker, platform):
         child = mocker.Mock(pid=4242)
         child.poll.return_value = 0
         group_signal = mocker.patch.object(process.os, 'killpg', create=True)
@@ -142,7 +159,7 @@ class TestStopCommandOnEveryPlatform:
         child.wait.assert_not_called()
         group_signal.assert_not_called()
 
-    def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker):
+    def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker, platform):
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
         child.wait.side_effect = [process.TimeoutExpired(cmd='game', timeout=1.0), 0]
@@ -153,9 +170,15 @@ class TestStopCommandOnEveryPlatform:
         # Asked to end, waited for, then killed and reaped: by its group on POSIX, itself on
         # Windows
         assert child.wait.call_count == 2
-        ended_by_group_signals = group_signal.call_count == 2
-        ended_itself = child.terminate.called and child.kill.called
-        assert ended_by_group_signals or ended_itself
+        if platform == 'win32':
+            child.terminate.assert_called_once_with()
+            child.kill.assert_called_once_with()
+            group_signal.assert_not_called()
+        else:
+            assert [call.args for call in group_signal.call_args_list] == [
+                (4242, signal.SIGTERM),
+                (4242, SIGKILL_NUMBER),
+            ]
 
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='process groups are POSIX')
