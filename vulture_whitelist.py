@@ -15,3 +15,7 @@ fgcolor  # noqa: F821
 bgcolor  # noqa: F821
 surf  # noqa: F821
 dest  # noqa: F821
+
+# Location: glitchygames/user_files.py UserFiles Protocol (open_file)
+accepted_extensions  # noqa: F821
+on_opened  # noqa: F821
