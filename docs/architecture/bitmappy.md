@@ -46,7 +46,7 @@ sequenceDiagram
         SM->>SM: _update_frame_services() (shake, rumble)
         SM->>SM: _aim_active_camera() (camera_target / follow)
         SM->>SM: _position_active_world_sprites() (world sprites' rect, culling)
-        SM->>SM: _render_scene() (BitmapEditorScene.update: animation, controllers, AI; then draw)
+        SM->>SM: _render_scene() (BitmapEditorScene.update: animation, controllers, AI, then draw)
         SM->>SM: _advance_still_camera_shake() (WORLD shake nothing advanced)
         SM->>SM: _present_frame() (overlay, display update)
         SM->>SM: _finish_frame() (pace, then set dt once from perf_counter)

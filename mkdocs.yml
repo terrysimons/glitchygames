@@ -42,6 +42,9 @@ nav:
     - Driver Comparison: "quality/driver_comparison.md"
     - Galimore Survey: "galimore.md"
 
+extra_css:
+  - css/full-width.css
+
 extra_javascript:
   - https://unpkg.com/mermaid/dist/mermaid.min.js
   - js/mermaid-init.js

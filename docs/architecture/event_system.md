@@ -479,7 +479,7 @@ sequenceDiagram
     PROXY-->>GAME: on_left_mouse_drag_event(event, trigger)
     Note over GAME: Scene handles event<br/>or falls through to stubs
 
-    Note over CODE,PG: Attribute proxy path (as designed; see the warning above)
+    Note over CODE,PG: Attribute proxy path (as designed, see the warning above)
     CODE->>MGR: get_pos()
     Note over MGR: __getattr__: not on self<br/>try proxies[0]...
     MGR->>PROXY: get_pos()
