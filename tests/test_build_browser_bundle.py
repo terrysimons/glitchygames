@@ -228,6 +228,21 @@ class TestMain:
         assert 'glitchygames/host.py' in names
         assert not any(name.startswith('glitchygames/bitmappy/') for name in names)
 
+    def test_only_the_bitmappy_bundle_holds_the_editor(self, tmp_path):
+        """Bitmappy's bundle includes its package; a game's leaves it out."""
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        archives = {}
+        for game in ('bitmappy', 'paddleslap'):
+            main([game, '--wheel', str(wheel), '--output', str(tmp_path / game)])
+            with zipfile.ZipFile(tmp_path / game / 'glitchygames.zip') as archive:
+                archives[game] = set(archive.namelist())
+
+        assert 'glitchygames/bitmappy/editor.py' in archives['bitmappy']
+        assert 'glitchygames/bitmappy/editor.py' not in archives['paddleslap']
+        assert not any(name.startswith('glitchygames/api/') for name in archives['bitmappy'])
+
     def test_main_replaces_an_earlier_bundle(self, tmp_path):
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')

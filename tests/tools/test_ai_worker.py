@@ -8,7 +8,11 @@ connection.
 
 import inspect
 import logging
+import os
 import queue
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter on a fixed program
+import sys
+import textwrap
 from http import HTTPStatus
 from types import SimpleNamespace
 
@@ -610,3 +614,40 @@ class TestRunAiWorker:
 
         with pytest.raises(OSError, match='no client'):
             ai_worker.run_ai_worker(queue.Queue(), queue.Queue())  # type: ignore[arg-type]
+
+
+class TestImportWithoutTenacity:
+    """Bitmappy imports where tenacity is missing (a browser): only an AI request needs it."""
+
+    def test_the_editor_imports_with_tenacity_blocked(self):
+        """In a fresh interpreter whose import of tenacity fails, the editor still imports."""
+        program = textwrap.dedent("""
+            import sys
+
+            class BlockTenacity:
+                def find_spec(self, name, path=None, target=None):
+                    if name == 'tenacity' or name.startswith('tenacity.'):
+                        raise ModuleNotFoundError(f"No module named '{name}'")
+                    return None
+
+            sys.meta_path.insert(0, BlockTenacity())
+            import glitchygames.bitmappy.editor
+            print('tenacity' in sys.modules)
+        """)
+        completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - this interpreter, a fixed program
+            [sys.executable, '-c', program],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, 'PYGAME_HIDE_SUPPORT_PROMPT': '1'},
+        )
+
+        assert completed.returncode == 0, completed.stderr[-2000:]
+        assert completed.stdout.strip() == 'False'
+
+    def test_the_retry_decorator_imports_tenacity_when_made(self):
+        """Making the retry decorator (an AI request) imports tenacity then."""
+        decorator = ai_worker._create_ai_retry_decorator(logging.getLogger('test'))
+
+        assert callable(decorator)
+        assert 'tenacity' in sys.modules

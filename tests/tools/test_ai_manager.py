@@ -6,8 +6,12 @@ temporary file the manager writes goes to the test's tmp_path.
 """
 
 import logging
+import os
 import queue
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter on a fixed program
+import sys
 import tempfile
+import textwrap
 import tomllib
 from collections import deque
 from pathlib import Path
@@ -17,6 +21,7 @@ import pytest
 
 from glitchygames.ai import build_refinement_messages, build_sprite_generation_messages
 from glitchygames.bitmappy import ai_manager as ai_manager_module
+from glitchygames.bitmappy import constants as constants_module
 from glitchygames.bitmappy.ai_manager import (
     AI_WORKER_JOIN_TIMEOUT_SECONDS,
     AIManager,
@@ -1530,3 +1535,67 @@ class TestRemainingBranches:
             None,
             None,
         )
+
+
+class TestAiFeatureFlag:
+    """constants.AI_FEATURES_ENABLED: off in WebAssembly builds, where no worker can start."""
+
+    def test_the_flag_is_on_where_processes_can_start(self):
+        """This (desktop) interpreter is not emscripten: AI features are on."""
+        assert sys.platform != 'emscripten'
+        assert constants_module.AI_FEATURES_ENABLED is True
+
+    def test_the_flag_is_off_on_emscripten(self):
+        """Imported on emscripten (a browser build), the flag is off.
+
+        In a fresh interpreter: importing the constants again in this one would rebind the
+        package's attribute for later tests.
+        """
+        program = textwrap.dedent("""
+            import importlib
+            import sys
+
+            # Imported as on desktop first (pygame's own import checks the platform too), then
+            # the constants are evaluated again as a browser build would
+            from glitchygames.bitmappy import constants
+
+            sys.platform = 'emscripten'
+            print(importlib.reload(constants).AI_FEATURES_ENABLED)
+        """)
+        completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - this interpreter, a fixed program
+            [sys.executable, '-c', program],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, 'PYGAME_HIDE_SUPPORT_PROMPT': '1'},
+        )
+
+        assert completed.returncode == 0, completed.stderr[-2000:]
+        assert completed.stdout.strip() == 'False'
+
+    def test_setup_starts_no_worker_with_the_flag_off(self, mocker, fake_process_class):
+        mocker.patch.object(ai_manager_module, 'AI_FEATURES_ENABLED', new=False)
+        manager = AIManager(_editor())  # type: ignore[arg-type]
+
+        manager.setup()
+
+        assert manager.ai_process is None
+        assert manager.ai_request_queue is None
+        assert manager not in ai_manager_module._RUNNING_AI_MANAGERS
+        manager.cleanup()
+
+    def test_a_request_with_the_flag_off_says_ai_is_off(self, mocker):
+        mocker.patch.object(ai_manager_module, 'AI_FEATURES_ENABLED', new=False)
+        editor = _editor()
+
+        AIManager(editor).on_text_submit_event('a ball')  # type: ignore[arg-type]
+
+        assert editor.debug_text.text == 'AI features are off in this build'
+
+    def test_a_request_with_the_flag_off_and_no_debug_text_is_ignored(self, mocker):
+        mocker.patch.object(ai_manager_module, 'AI_FEATURES_ENABLED', new=False)
+        editor = _editor(with_debug_text=False)
+
+        AIManager(editor).on_text_submit_event('a ball')  # type: ignore[arg-type]
+
+        assert not hasattr(editor, 'debug_text')

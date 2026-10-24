@@ -10,9 +10,10 @@ It writes, into the output directory:
   boot.py             browser/boot.py, which starts the game with GameEngine.start_async
   browser_storage.py  IndexedDB-backed saves (browser/browser_storage.py)
   boot_config.json    which game to start, and its command-line arguments
-  glitchygames.zip    the engine package, without what only desktop tools use (Bitmappy, the
-                      API server and its services, test helpers, project templates and the
-                      large PNG assets); unpacked by PyScript into Python's working directory
+  glitchygames.zip    the engine package, without what only desktop tools use (the API server
+                      and its services, test helpers, project templates, the large PNG assets,
+                      and Bitmappy unless the build is Bitmappy itself); unpacked by PyScript
+                      into Python's working directory
   wheels/             the pygame-ce wheel
   pyscript.toml       packages (our wheel, numpy, pydantic, tomli-w) and the engine archive
 
@@ -85,12 +86,14 @@ class GameSpecification:
         module: The module holding the game's first scene class.
         scene_class: The scene class GameEngine is constructed with.
         title: The page title.
+        included_subpackages: Subpackages of EXCLUDED_SUBPACKAGES this one needs (Bitmappy).
 
     """
 
     module: str
     scene_class: str
     title: str
+    included_subpackages: frozenset[str] = frozenset()
 
 
 GAMES: dict[str, GameSpecification] = {
@@ -112,10 +115,20 @@ GAMES: dict[str, GameSpecification] = {
         scene_class='MrMuncherScene',
         title='Mr. Muncher',
     ),
+    # The pixel-art editor: its AI sprite generation is off in browser builds (the
+    # glitchygames.bitmappy.constants.AI_FEATURES_ENABLED feature flag)
+    'bitmappy': GameSpecification(
+        module='glitchygames.bitmappy.editor',
+        scene_class='BitmapEditorScene',
+        title='Bitmappy',
+        included_subpackages=frozenset({'bitmappy'}),
+    ),
 }
 
 
-def is_bundled(*, relative_path: Path) -> bool:
+def is_bundled(
+    *, relative_path: Path, excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES
+) -> bool:
     """Return whether a file of the package (relative to it) belongs in the browser bundle.
 
     Returns:
@@ -125,12 +138,14 @@ def is_bundled(*, relative_path: Path) -> bool:
     parts = relative_path.parts
     if '__pycache__' in parts or relative_path.suffix == '.pyc':
         return False
-    if parts[0] in EXCLUDED_SUBPACKAGES:
+    if parts[0] in excluded_subpackages:
         return False
     return not (parts[0] == 'assets' and relative_path.suffix in EXCLUDED_ASSET_SUFFIXES)
 
 
-def bundled_package_files(*, package_directory: Path) -> list[Path]:
+def bundled_package_files(
+    *, package_directory: Path, excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES
+) -> list[Path]:
     """Return the package's files that go into the bundle, relative to the package, sorted.
 
     Returns:
@@ -140,18 +155,29 @@ def bundled_package_files(*, package_directory: Path) -> list[Path]:
     return sorted(
         path.relative_to(package_directory)
         for path in package_directory.rglob('*')
-        if path.is_file() and is_bundled(relative_path=path.relative_to(package_directory))
+        if path.is_file()
+        and is_bundled(
+            relative_path=path.relative_to(package_directory),
+            excluded_subpackages=excluded_subpackages,
+        )
     )
 
 
-def write_engine_archive(*, package_directory: Path, archive_path: Path) -> int:
+def write_engine_archive(
+    *,
+    package_directory: Path,
+    archive_path: Path,
+    excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES,
+) -> int:
     """Zip the bundled package files as ``glitchygames/...`` with fixed timestamps.
 
     Returns:
         How many files were archived.
 
     """
-    files = bundled_package_files(package_directory=package_directory)
+    files = bundled_package_files(
+        package_directory=package_directory, excluded_subpackages=excluded_subpackages
+    )
     with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for relative_path in files:
             member = zipfile.ZipInfo(
@@ -289,7 +315,9 @@ def write_bundle(
         json.dumps(boot_config(game=game, arguments=arguments), indent=2) + '\n', encoding='utf-8'
     )
     file_count = write_engine_archive(
-        package_directory=PACKAGE_DIRECTORY, archive_path=output_directory / 'glitchygames.zip'
+        package_directory=PACKAGE_DIRECTORY,
+        archive_path=output_directory / 'glitchygames.zip',
+        excluded_subpackages=EXCLUDED_SUBPACKAGES - GAMES[game].included_subpackages,
     )
     report(f'{output_directory}: {GAMES[game].title}, {file_count} engine files, {wheel_path.name}')
 
