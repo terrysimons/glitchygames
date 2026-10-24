@@ -305,7 +305,9 @@ def docs_deploy(session: nox.Session) -> None:
     when they were made from another commit: about a minute, and the performance graphs from the
     published run ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
-    removed. Run it from what should be published (usually main after a merge); a warning stops
+    removed. Before the docs, every game's browser build (``scripts/build_browser_bundle.py
+    all``: the pygame-ce wheel is built first when the submodule changed) goes into the site as
+    play/. Run it from what should be published (usually main after a merge); a warning stops
     it before anything is pushed.
 
     Usage:
@@ -325,6 +327,8 @@ def docs_deploy(session: nox.Session) -> None:
         success_codes=_GIT_FETCH_STATUSES if build_only else [0],
     )
     _replay_metrics(session, 'measure', '--skip-dirty')
+    # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
+    session.run('python', 'scripts/build_browser_bundle.py', 'all')
     if build_only:
         session.run('mkdocs', 'build', '--strict')
         return
