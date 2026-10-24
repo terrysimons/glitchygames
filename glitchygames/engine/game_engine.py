@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import cProfile
+import functools
 import logging
 import math
 import multiprocessing
@@ -99,6 +100,7 @@ from glitchygames.replay.rebuild import (
     relaunch_replay,
     restart_command,
 )
+from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
@@ -145,7 +147,8 @@ UNKNOWN_SDL2_EVENT_TYPE_1543 = 1543
 
 GAME_NOT_INITIALIZED_MSG = 'Game not initialized.  Pass a game class to the GameEngine constructor.'
 ASYNC_RUN_NEEDS_HOST_MSG = (
-    'start_async() runs live games only: a replay has no game host (glitchygames/host.py)'
+    'start_async() runs live games and watched replays only: a headless replay never gives '
+    'control back between frames; run it with start()'
 )
 MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
@@ -2228,11 +2231,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         pygame.display.quit()
         pygame.quit()
 
-    def _configure_timer_and_performance(self: Self) -> None:
+    def _configure_timer_and_performance(self: Self, *, paced_by_timer: bool) -> None:
         """Create the frame-pacing timer and configure the performance manager from the options.
 
         Each part is guarded on its own: a bad option falls back (the pygame clock, the
         performance defaults) and is logged at debug level, never ending the run.
+
+        Args:
+            paced_by_timer: Whether the run's frames wait on this timer (``start()``); False for
+                ``start_async()``, whose outer tick is the wait. Only a timer that paces is
+                calibrated; the timer is made either way (a recording names it).
+
         """
         # Initialize timer backend for draw-loop pacing (after options exist)
         try:
@@ -2242,9 +2251,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
             self.log.info('Timer backend: %s', GameEngine.OPTIONS.get('timer_backend'))
             # auto measures this machine's sleep model now for a paced live game, so no frame
-            # pays for it (and logs what it chose); a replay never paces with the timer, and an
-            # uncapped run calibrates only if it starts pacing (at its first paced frame)
-            if GameEngine.OPTIONS.get('target_fps', 0) > 0 and self.replay_sources is None:
+            # pays for it (and logs what it chose); a replay and an async run never pace with
+            # the timer, and an uncapped run calibrates only if it starts pacing (at its first
+            # paced frame)
+            if (
+                paced_by_timer
+                and GameEngine.OPTIONS.get('target_fps', 0) > 0
+                and self.replay_sources is None
+            ):
                 self.timer.calibrate()
         except (ValueError, TypeError, OSError) as timer_error:
             self.timer = None
@@ -2329,8 +2343,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         For a host that must not block (a browser: glitchygames/host.py). The run is
         ``start()``'s, inside the same crash boundary (the same teardown and exit codes), but
-        its frames are driven by ``GameHost.run_async``: one awaited ``wait_for_tick()`` per
-        outer tick, an inner frame on the ticks ``TickPacer`` picks for the target FPS.
+        its frames are driven by one awaited ``wait_for_tick()`` per outer tick: a live game's
+        by ``GameHost.run_async`` (an inner frame on the ticks ``TickPacer`` picks for the
+        target FPS), a watched replay's by its viewer (``run_watched_replay_async``: the tick's
+        inner frames, then the viewer's outer frame).
 
         Args:
             wait_for_tick: Waits for the next outer tick (a browser animation frame) and
@@ -2339,17 +2355,31 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         It ends as ``start()`` does (see there).
 
         Raises:
-            RuntimeError: If the run is a replay (only live runs are hosted), or (from
-                ``_begin_start``) the game is not initialized.
+            RuntimeError: If the run is a headless replay (it never holds between frames, so
+                it would never give control back), or (from ``_begin_start``) the game is not
+                initialized.
 
         """
-        if self.host is None:
+        # Chosen first (a run start_async cannot drive is refused before anything starts), but
+        # called inside the boundary
+        run_frames: Callable[[], Awaitable[None]]
+        if self.host is not None:
+            run_frames = functools.partial(
+                self.host.run_async, scene_manager=self.scene_manager, wait_for_tick=wait_for_tick
+            )
+        elif self.replay_sources is not None and not self.replay_sources.options.headless:
+            run_frames = functools.partial(
+                run_watched_replay_async,
+                scene_manager=self.scene_manager,
+                viewer=self.replay_sources.viewer,
+                wait_for_tick=wait_for_tick,
+            )
+        else:
             raise RuntimeError(ASYNC_RUN_NEEDS_HOST_MSG)
-        host = self.host
         profiler = self._begin_start()
         with self._crash_boundary(profiler=profiler):
-            self._prepare_run()
-            await host.run_async(scene_manager=self.scene_manager, wait_for_tick=wait_for_tick)
+            self._prepare_run(paced_by_timer=False)
+            await run_frames()
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
         """Log the start, check there is a game and start the profiler (``--profile``).
@@ -2432,15 +2462,21 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
     def _run_game(self: Self) -> None:
         """Construct the game and run its scenes: the whole run inside start()'s crash boundary."""
-        self._prepare_run()
+        self._prepare_run(paced_by_timer=True)
         if self.host is not None:
             self.host.run(scene_manager=self.scene_manager)
         else:
             # A replay: its doors (and watched, its viewer) drive the blocking loop
             self.scene_manager.start()
 
-    def _prepare_run(self: Self) -> None:
-        """Construct the game and its first scene, up to the first frame (inside the boundary)."""
+    def _prepare_run(self: Self, *, paced_by_timer: bool) -> None:
+        """Construct the game and its first scene, up to the first frame (inside the boundary).
+
+        Args:
+            paced_by_timer: Whether the frames wait on the engine's timer (``start()``), which
+                is then calibrated; False for ``start_async()``.
+
+        """
         # For the whole run, so a signal always ends it through start()'s teardown
         self._install_signal_handlers()
 
@@ -2454,7 +2490,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self._initialize_event_managers()
 
         self.scene_manager.switch_to_scene(self.game)
-        self._configure_timer_and_performance()
+        self._configure_timer_and_performance(paced_by_timer=paced_by_timer)
         self._start_requested_trace_recording()
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:

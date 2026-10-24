@@ -274,3 +274,51 @@ def test_sleep_for_does_not_sleep_for_zero_or_less(mocker):
     viewer_module.sleep_for(seconds=0.0)
     viewer_module.sleep_for(seconds=-0.1)
     sleep_until_next.assert_not_called()
+
+
+class TestExternalTicks:
+    """A viewer ticked from outside (a browser's animation frames) never sleeps.
+
+    The outer tick is the wait (glitchygames/replay/viewer.py ``run_watched_replay_async``); the
+    viewer opens a tick on each and owes the inner game the real time since the last one.
+    """
+
+    def test_it_never_sleeps(self, mocker):
+        time = FakeTime(mocker=mocker)
+        viewer = new_viewer()
+        viewer.ticks_externally = True
+
+        first_tick = viewer.begin_tick(is_inner_running=True)
+        viewer.accrue(now=time.now, is_inner_running=True)
+        viewer.should_run_inner_frame(
+            inner_frame_seconds=RECORDED_FRAME_SECONDS,
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        )
+        second_tick = viewer.begin_tick(is_inner_running=True)
+
+        assert first_tick == second_tick == time.now
+        assert not time.sleeps
+
+    @pytest.mark.parametrize('display_hertz', [60, 120, 144])
+    def test_normal_speed_follows_real_time_at_any_display_rate(self, mocker, display_hertz):
+        """60.01 FPS at 1x runs as many inner frames as real time passed, whatever the rate."""
+        time = FakeTime(mocker=mocker)
+        viewer = new_viewer()
+        viewer.ticks_externally = True
+        tick_count = display_hertz * 20
+        frames_run = 0
+        for _ in range(tick_count):
+            now = viewer.begin_tick(is_inner_running=True)
+            viewer.accrue(now=now, is_inner_running=True)
+            while viewer.should_run_inner_frame(
+                inner_frame_seconds=RECORDED_FRAME_SECONDS,
+                is_inner_over=False,
+                is_first_inner_frame=False,
+            ):
+                frames_run += 1
+            time.now += 1 / display_hertz
+
+        real_seconds = (tick_count - 1) / display_hertz
+        assert abs(frames_run - real_seconds / RECORDED_FRAME_SECONDS) <= 1
+        assert not time.sleeps

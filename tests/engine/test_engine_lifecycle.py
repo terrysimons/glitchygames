@@ -33,6 +33,7 @@ from glitchygames.host import HostSources
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources
+from glitchygames.timing import FastTimer
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -406,6 +407,8 @@ class TestStartExitStatus:
 # Outer ticks for start_async: 60 Hz timestamps, and a cap so a run that never ends fails
 ASYNC_TICK_SECONDS = 1 / 60
 ASYNC_TICK_LIMIT = 600
+# A paced game whose timer calibrates when made to (--timer-backend auto)
+PACED_ARGUMENTS = ('--target-fps', '60', '--timer-backend', 'auto')
 
 
 def async_ticks() -> tuple[list[float], Any]:
@@ -469,10 +472,35 @@ class TestHostedRuns:
         assert exit_info.value.__cause__ is run_error
 
     def test_start_async_refuses_an_unhosted_run(self, mocker):
-        """Only live runs are hosted; a run without a host (a replay) cannot start async."""
+        """A run with neither a host nor a watched replay's viewer cannot start async."""
         engine = build_engine(mocker, game=first_frame_game())
         engine.host = None
         _, wait_for_tick = async_ticks()
 
-        with pytest.raises(RuntimeError, match='runs live games only'):
+        with pytest.raises(RuntimeError, match='runs live games and watched replays only'):
             asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+    def test_start_calibrates_a_paced_games_timer(self, mocker):
+        """The blocking run paces with the timer, so --timer-backend auto measures it first."""
+        engine = build_engine(mocker, game=first_frame_game(), extra_arguments=PACED_ARGUMENTS)
+        calibrate = mocker.spy(FastTimer, 'calibrate')
+
+        engine.start()
+
+        # Again at its first paced frame (FastTimer.start_frame), where it does nothing
+        calibrate.assert_called()
+
+    def test_start_async_never_calibrates_the_timer(self, mocker):
+        """The async run's outer tick is its wait: the timer never paces it, so it is not measured.
+
+        The timer is still made: a recording names it (uncalibrated) in its provenance.
+        """
+        engine = build_engine(mocker, game=first_frame_game(), extra_arguments=PACED_ARGUMENTS)
+        calibrate = mocker.spy(FastTimer, 'calibrate')
+        _, wait_for_tick = async_ticks()
+
+        asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        calibrate.assert_not_called()
+        assert isinstance(engine.timer, FastTimer)
+        assert engine.timer.pacing_timer().sleep_model is None

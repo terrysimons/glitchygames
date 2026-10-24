@@ -1,16 +1,21 @@
 """The game host: an outer game grafted on top of every live run (the inner game).
 
 The host is transparent: the inner game (its scenes and the scene manager) never sees it, and
-today it changes nothing. It is where an outer layer can later act on the game without the
-game knowing (AI input, event and call injection; plans/2026-10-23-game-host-and-browser-runner.md).
+today it changes nothing but hiding the window events SDL queues when it recreates a window
+(``without_window_recreation_bursts``). It is where an outer layer can later act on the game
+without the game knowing (AI input, event and call injection;
+plans/2026-10-23-game-host-and-browser-runner.md).
 It has two parts:
 
 - ``HostSources``: doors (glitchygames/sources.py) installed around a live run's doors,
   beneath the recorder. A live run reads through ``HostSources(inner=LiveSources)``, and with
   ``--record-trace`` through ``RecordingSources(inner=HostSources(inner=LiveSources))``. Every
-  member forwards to ``inner`` unchanged. Being beneath the recorder, whatever the host adds,
-  hides or rewrites later is what a recording holds, so the recording replays exactly without
-  the host. Replays keep their own doors: there the replay viewer (glitchygames/replay/viewer.py)
+  member forwards to ``inner`` unchanged, but for one thing hidden from each event batch: a
+  window losing focus (or being hidden, or the mouse leaving it) and getting it back within
+  the batch, which SDL queues when it recreates the window for a SCALED display's renderer
+  (``without_window_recreation_bursts``). Being beneath the recorder, whatever the host adds,
+  hides or rewrites is what a recording holds, so the recording replays exactly without the
+  host. Replays keep their own doors: there the replay viewer (glitchygames/replay/viewer.py)
   is the outer game.
 - ``GameHost``: owns those doors and drives the inner game's frames. ``run`` is the blocking
   frame loop (``SceneManager.start``, paced by the engine's timer); ``run_async`` gives control
@@ -31,14 +36,14 @@ import statistics
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
+import pygame
+
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import active_sources
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping
     from datetime import datetime
-
-    import pygame
 
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
@@ -55,12 +60,79 @@ TICK_INTERVAL_SAMPLES = 240
 # The measured tick rate is logged once, after this many ticks (startup hitches have passed)
 TICKS_BEFORE_LOGGING_RATE = 120
 
+# A window event that takes something from the window, and the event that gives it back.
+# ACTIVEEVENT, pygame's older form of the same changes, pairs by its state: gain 0 takes, 1 gives
+REGAINED_EVENT_TYPE_BY_LOST_EVENT_TYPE: dict[int, int] = {
+    pygame.WINDOWFOCUSLOST: pygame.WINDOWFOCUSGAINED,
+    pygame.WINDOWHIDDEN: pygame.WINDOWSHOWN,
+    pygame.WINDOWLEAVE: pygame.WINDOWENTER,
+}
+REGAINED_EVENT_TYPES = frozenset(REGAINED_EVENT_TYPE_BY_LOST_EVENT_TYPE.values())
+
+
+def _window_change(event: pygame.event.Event) -> tuple[bool, tuple[object, ...]] | None:
+    """Classify ``event`` as a window losing or regaining something.
+
+    Returns:
+        Whether it is a loss, and what pairs a loss with its regain (the regained event's type
+        and the window, or ACTIVEEVENT's state); None for any other event.
+
+    """
+    if event.type == pygame.ACTIVEEVENT:
+        return event.gain == 0, (pygame.ACTIVEEVENT, event.state)
+    window = getattr(event, 'window', None)
+    if event.type in REGAINED_EVENT_TYPE_BY_LOST_EVENT_TYPE:
+        return True, (REGAINED_EVENT_TYPE_BY_LOST_EVENT_TYPE[event.type], window)
+    if event.type in REGAINED_EVENT_TYPES:
+        return False, (event.type, window)
+    return None
+
+
+def without_window_recreation_bursts(
+    *, events: list[pygame.event.Event]
+) -> list[pygame.event.Event]:
+    """Drop each loss a window gets back later in the same batch, with the event giving it back.
+
+    A SCALED display gets a renderer, and when that renderer needs an OpenGL window SDL
+    recreates the window: SDL 2.32.10's ``GLES2_CreateRenderer`` calls ``SDL_RecreateWindow``,
+    which hides the window, destroys it and creates it again. Every recreation queues the mouse
+    leaving, focus lost and the window hidden, then all three given back. The browser recreates
+    once (WebGL), the dummy driver twice (it tries two OpenGL renderers before software); macOS
+    windows are not recreated. A game pausing on focus loss (Mr. Muncher) then starts paused.
+
+    The batch ends in the state it would have reached anyway. A real loss and regain within one
+    batch (one frame) is dropped too: no game could show the player it happened.
+
+    Args:
+        events: One batch, in queue order.
+
+    Returns:
+        The batch without those pairs, in queue order.
+
+    """
+    unanswered_losses: dict[tuple[object, ...], list[int]] = collections.defaultdict(list)
+    dropped_indexes: set[int] = set()
+    for index, event in enumerate(events):
+        change = _window_change(event)
+        if change is None:
+            continue
+        is_loss, pairing_key = change
+        if is_loss:
+            unanswered_losses[pairing_key].append(index)
+        elif unanswered_losses[pairing_key]:
+            dropped_indexes.update((unanswered_losses[pairing_key].pop(), index))
+    if not dropped_indexes:
+        return events
+    LOG.debug('Dropped %d window events lost and regained in one batch', len(dropped_indexes))
+    return [event for index, event in enumerate(events) if index not in dropped_indexes]
+
 
 class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSources member
     """Doors that forward everything to ``inner`` (implements EngineSources).
 
     The host's layer of the doors: installed around a live run's doors, beneath the recorder.
-    Today every member forwards unchanged.
+    Every member forwards unchanged, but event batches lose what a window recreation queued
+    (``without_window_recreation_bursts``).
 
     Attributes:
         inner: The doors read through (the run's live doors).
@@ -113,13 +185,13 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
         self.inner.on_uninstalled()
 
     def pump_events(self: Self) -> list[pygame.event.Event]:
-        """Return ``inner``'s next batch, unchanged.
+        """Return ``inner``'s next batch, without the losses a window got back within it.
 
         Returns:
             The batch, in queue order.
 
         """
-        return self.inner.pump_events()
+        return without_window_recreation_bursts(events=self.inner.pump_events())
 
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Return ``inner``'s frame time for logic.
