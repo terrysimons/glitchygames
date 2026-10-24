@@ -958,7 +958,7 @@ class MrMuncherScene(Scene):
 
     def _go_to_next_level(self: Self) -> None:
         """Start the next reel with this score and these lives (once)."""
-        if self.next_scene is not self:
+        if self.next_scene is not None:
             return
         self.next_scene = MrMuncherScene(
             options=self.options,

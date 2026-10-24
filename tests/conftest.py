@@ -42,6 +42,7 @@ from tests.display_canvas import (
     show_canvas,
     show_canvas_on_new_display,
 )
+from tests.garbage_collection import process_peak_memory_collector
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -184,6 +185,21 @@ def _fail_on_entirely_black_frame(
         'per-pixel alpha, alpha 0) over everything.',
         pytrace=False,
     )
+
+
+# This process's collector (None on Windows and real audio drivers), made as the session starts
+_PEAK_MEMORY_COLLECTOR = process_peak_memory_collector(
+    audio_driver=SDL_DRIVER_ENVIRONMENT_FOR_RUN['SDL_AUDIODRIVER']
+)
+
+
+def pytest_runtest_logfinish(nodeid, location):
+    """Free the finished test's garbage when memory climbs (tests/garbage_collection.py).
+
+    By now pytest has dropped the test's fixture values, so its scene and sprites are garbage.
+    """
+    if _PEAK_MEMORY_COLLECTOR is not None:
+        _PEAK_MEMORY_COLLECTOR.after_test()
 
 
 def pytest_configure(config):

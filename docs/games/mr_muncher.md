@@ -111,7 +111,7 @@ stateDiagram-v2
 
 - **Next reel**: `_go_to_next_level` sets `next_scene` to a new `MrMuncherScene` with
   `GameProgress(level + 1, score, lives, extra_life_awarded)`. It does this only once (it
-  checks that `next_scene is self`).
+  checks that `next_scene` is still `None`).
 - **Game over**: `_show_game_over_screen` fades (1 s `FadeTransition`) to
   `MrMuncherGameOverScene`. This screen shows the engine's GAME OVER layout (score and high
   score table) plus a headline, either `NEW HIGH SCORE!  Reel N` or `You reached reel N`.

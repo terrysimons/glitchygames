@@ -352,16 +352,16 @@ class TestInput:
     def test_other_keys_go_to_the_base_scene(self, scene):
         _press(scene, pygame.K_x)
         _release(scene, pygame.K_x)
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
     def test_losing_focus_pauses_but_not_once_the_game_is_over(self, scene):
         focus_lost = HashableEvent(pygame.WINDOWFOCUSLOST, window=None)
         scene.on_window_focus_lost_event(focus_lost)
         assert isinstance(scene.next_scene, PauseScene)
-        scene.next_scene = scene
+        scene.next_scene = None
         scene.phase = Phase.GAME_OVER
         scene.on_window_focus_lost_event(focus_lost)
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
     def test_joystick_buttons_steer_and_start_pauses(self, scene):
         dpad_up = HashableEvent(
@@ -376,7 +376,7 @@ class TestInput:
                 pygame.JOYBUTTONUP, instance_id=0, joy=0, button=pygame.CONTROLLER_BUTTON_DPAD_UP
             )
         )
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
         scene.on_joy_button_down_event(
             HashableEvent(
                 pygame.JOYBUTTONDOWN, instance_id=0, joy=0, button=pygame.CONTROLLER_BUTTON_START
@@ -668,7 +668,7 @@ class TestMunchers:
     def test_pausing_after_game_over_is_not_possible(self, playing):
         playing.phase = Phase.GAME_OVER
         _press(playing, pygame.K_ESCAPE)
-        assert playing.next_scene is playing
+        assert playing.next_scene is None
 
     def test_the_high_score_table_keeps_the_best_ten(self, playing):
         playing.saves.save(

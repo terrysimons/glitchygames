@@ -1458,18 +1458,21 @@ class SceneManager(SceneInterface, events.EventManager):
         request their real scene from __init__.
         """
         if self.active_scene is not None:
-            self.active_scene.next_scene = self.active_scene
+            self.active_scene.next_scene = None
 
     def _switch_to_requested_scene(self: Self) -> None:
         """Perform the plain scene switch the active scene requested via next_scene.
 
         Runs at the end of a frame, after rendering. A next_scene of None or of the active
-        scene itself means no switch is pending.
+        scene itself means no switch is pending; the scene itself is reset to None, so a game
+        that still says "stay" that way leaves no scene in a reference cycle with itself.
         """
         if self.active_scene is None:
             return
         requested_scene = self.active_scene.next_scene
-        if requested_scene is not None and requested_scene != self.active_scene:
+        if requested_scene is self.active_scene:
+            self.active_scene.next_scene = None
+        elif requested_scene is not None:
             self.switch_to_scene(requested_scene)
 
     @override
@@ -2830,7 +2833,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Logic seconds since this scene started (game_time); the scene manager adds each
         # frame's scene dt before dt_tick
         self._game_time_seconds: float = 0.0
-        self.next_scene: Scene | Self | None = self
+        # The scene to switch to at the end of this frame; None: stay (never self, which would
+        # make every scene a reference cycle that only the cycle collector frees)
+        self.next_scene: Scene | None = None
         self.rects = None
         self.screen = pygame.display.get_surface()
         assert self.screen is not None

@@ -222,7 +222,7 @@ class TestInputConfirmationDialogScene:
             scene.on_text_submit_event('Submitted Text')
 
         assert "Text submitted: 'Submitted Text'" in caplog.text
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
     def test_input_confirmation_dialog_cancellation(self, previous_scene):
         """Releasing Escape in the active input box deactivates it; the dialog stays open."""
@@ -232,7 +232,7 @@ class TestInputConfirmationDialogScene:
         scene.on_key_up_event(_key_up(pygame.K_ESCAPE))
 
         assert scene.dialog.input_box.is_active is False
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
     @pytest.mark.xfail(
         strict=True,
@@ -507,7 +507,7 @@ class TestDialogSceneSetupCleanupDismiss:
 
         scene.cleanup()
 
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
     def test_input_confirmation_dialog_dismiss(self, previous_scene):
         """Dismiss returns to the previous scene and empties the dialog's sprites."""
@@ -519,7 +519,7 @@ class TestDialogSceneSetupCleanupDismiss:
         scene.dismiss()
 
         assert scene.next_scene is previous_scene
-        assert previous_scene.next_scene is previous_scene
+        assert previous_scene.next_scene is None
         assert len(scene.all_sprites) == 0
 
     def test_input_confirmation_dialog_cancel_event(self, previous_scene):
@@ -545,7 +545,7 @@ class TestDialogSceneSetupCleanupDismiss:
             scene.on_input_box_submit_event(input_box)
 
         assert 'Got text input from: TestInput: test value' in caplog.text
-        assert scene.next_scene is scene
+        assert scene.next_scene is None
 
     def test_input_confirmation_dialog_mouse_button_up(self, previous_scene):
         """Test InputConfirmationDialogScene on_mouse_button_up_event activates input."""

@@ -22,7 +22,6 @@ none, fails too).
 from __future__ import annotations
 
 import enum
-import functools
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -356,9 +355,11 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
 }
 
 
-@functools.cache
 def golden_recording(console_script: str) -> dict[str, Any]:
-    """Read a game's golden replay (once per test process).
+    """Read a game's golden replay.
+
+    Not cached: the five decoded recordings are about 200 MB, which a cache kept for the rest
+    of the test run (the Linux CI job has 2 GB); reading them all again takes about 0.5 s.
 
     Returns:
         The decoded trace: header fields and ``frames``.

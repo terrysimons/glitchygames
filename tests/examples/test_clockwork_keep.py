@@ -1234,7 +1234,7 @@ class TestFloorInput:
     def test_losing_window_focus_after_game_over_does_not_pause(self, clockwork_scene):
         clockwork_scene.game_over_triggered = True
         clockwork_scene.on_window_focus_lost_event(HashableEvent(pygame.WINDOWFOCUSLOST))
-        assert clockwork_scene.next_scene is clockwork_scene
+        assert clockwork_scene.next_scene is None
 
     def test_the_pause_key_pauses(self, clockwork_scene):
         _press_key(clockwork_scene, pygame.K_ESCAPE)
@@ -1252,7 +1252,7 @@ class TestFloorInput:
 
     def test_an_unbound_key_goes_to_the_scene_and_changes_nothing(self, clockwork_scene):
         _press_key(clockwork_scene, pygame.K_F13)
-        assert clockwork_scene.next_scene is clockwork_scene
+        assert clockwork_scene.next_scene is None
         assert clockwork_scene.player.velocity_y == pytest.approx(0.0)
 
     def test_joystick_interact_button_is_held_and_does_not_jump(self, clockwork_scene):

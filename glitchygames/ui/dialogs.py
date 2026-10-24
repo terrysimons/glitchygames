@@ -204,12 +204,12 @@ class InputConfirmationDialogScene(Scene):
     @override
     def cleanup(self: Self) -> None:
         """Cleanup the scene."""
-        self.next_scene = self
+        self.next_scene = None
 
     def dismiss(self: Self) -> None:
         """Dismiss the dialog."""
         # Set next scene before cleanup
-        self.previous_scene.next_scene = self.previous_scene
+        self.previous_scene.next_scene = None
         self.next_scene = self.previous_scene
 
         # Clear all sprites from our group

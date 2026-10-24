@@ -1727,7 +1727,7 @@ class TestJumpInput:
 
         assert player.on_ground
         assert player.velocity_y == 0.0
-        assert jump_scene.next_scene is jump_scene
+        assert jump_scene.next_scene is None
         # No quit either (the scene manager's flag: Scene has none, BUGS.md #203)
         assert not jump_scene.scene_manager.quit_requested
 

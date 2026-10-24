@@ -1,7 +1,9 @@
 """Tests for Scene class functionality."""
 
 import contextlib
+import gc
 import sys
+import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -129,7 +131,8 @@ class TestScene:
         # No colour set: the background shows the default pattern (glitchygames/backgrounds.py)
         assert scene.background_color is None
         assert scene.background_pattern is CANVAS_PATTERN
-        assert scene.next_scene == scene
+        # No switch pending
+        assert scene.next_scene is None
         assert scene.rects is None
         assert scene.screen is not None
         assert scene.screen_width > 0
@@ -313,6 +316,26 @@ class TestScene:
 
         # Test mouse wheel event handling
         scene.on_mouse_wheel_event(mock_event)
+
+
+class TestSceneLifetime:
+    """When a scene's memory is given back."""
+
+    def test_a_scene_no_longer_referenced_is_freed_at_once(self):
+        """A scene is not in a reference cycle with itself, so the last reference frees it.
+
+        A scene in a cycle waits for the cycle collector, which counts objects, not bytes, so
+        a few finished scenes holding megabytes of surfaces piled up (the Linux CI test job ran
+        out of memory).
+        """
+        scene = Scene()
+        scene_reference = weakref.ref(scene)
+        gc.disable()
+        try:
+            del scene
+            assert scene_reference() is None
+        finally:
+            gc.enable()
 
 
 class TestSceneJoystickControllerEvents:
@@ -1273,7 +1296,19 @@ class TestScenePauseAndResume:
         scene_manager._switch_to_requested_scene()
 
         assert scene_manager.active_scene is game_scene
-        assert game_scene.next_scene is game_scene
+        assert game_scene.next_scene is None
+
+    def test_a_scene_naming_itself_next_is_reset_to_none(self):
+        """next_scene = self (an older way to say "stay") stays put, and the cycle is broken."""
+        scene_manager = SceneManager()
+        game_scene = Scene()
+        scene_manager.switch_to_scene(game_scene)
+        game_scene.next_scene = game_scene
+
+        scene_manager._switch_to_requested_scene()
+
+        assert scene_manager.active_scene is game_scene
+        assert game_scene.next_scene is None
 
     def test_scene_left_through_a_transition_does_not_switch_back_on_return(self, mocker):
         """A next_scene left on a scene that leaves via a transition is cleared.
@@ -1289,7 +1324,7 @@ class TestScenePauseAndResume:
         game_scene.next_scene = stale_pause_scene  # left over, then the game transitions
 
         scene_manager._start_transition(next_floor_scene, mocker.Mock())
-        assert game_scene.next_scene is game_scene
+        assert game_scene.next_scene is None
 
         scene_manager.switch_to_scene(game_scene)  # the game is returned to later
         scene_manager._switch_to_requested_scene()

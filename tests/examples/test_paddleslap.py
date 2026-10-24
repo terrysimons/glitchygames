@@ -1155,7 +1155,7 @@ def test_a_space_release_without_its_press_neither_pauses_nor_quits():
         HashableEvent(pygame.KEYUP, key=pygame.K_SPACE, scancode=pygame.KSCAN_SPACE, mod=0)
     )
 
-    assert game.next_scene is game
+    assert game.next_scene is None
 
 
 @pytest.mark.parametrize('version_flag', ['-v', '--version'])
