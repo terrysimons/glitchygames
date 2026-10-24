@@ -67,9 +67,22 @@ PaddleSlap has two scenes of its own and one built in.
 | `PauseScene` | `glitchygames/scenes/builtin_scenes/pause_scene.py` | The engine's pause screen: the game's last frame dimmed with PAUSED over it |
 | `PaddleSlapGameOverScene` | `glitchygames/examples/paddleslap.py` | `GameOverScene` (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new `Game` |
 
+In the diagram, the Engine box holds what the engine provides (its pause screen and the playback
+scope the demo runs in); the PaddleSlap box holds the game's own scenes.
+
 ```mermaid
 stateDiagram-v2
     direction TB
+    state "PaddleSlap" as GAME_SCENES {
+        state "Game" as Game
+        state "PaddleSlapGameOverScene<br/>(extends the engine's GameOverScene)" as GameOver
+        state "switch_to_scene(Game(options))" as NewGame
+    }
+    state "Engine" as ENGINE_SCENES {
+        state "PauseScene" as PauseScene
+        state "Demo (playback scope)" as Demo
+    }
+
     [*] --> Game : GameEngine(game=Game).start()
     Game --> PauseScene : Space released<br/>Scene.pause() sets next_scene
     PauseScene --> Game : Space, or focus regained<br/>resume() switches back to the same Game
@@ -81,10 +94,6 @@ stateDiagram-v2
     Game --> [*] : Q or Esc
     PauseScene --> [*] : Q or Esc
     GameOver --> [*] : Q or Esc
-
-    state "PaddleSlapGameOverScene" as GameOver
-    state "Demo (playback scope)" as Demo
-    state "switch_to_scene(Game(options))" as NewGame
 ```
 
 - **Pause and game over switch at the end of the frame.** Both set `next_scene` instead of
@@ -105,14 +114,19 @@ PaddleSlap has no title screen (a game starts serving at once), so its idle scre
 game-over screen. `PaddleSlapGameOverScene.dt_tick` compares its `game_time` with
 `idle_since_game_time`; after `GAME_OVER_IDLE_SECONDS` (10.0) it plays the bundled recording
 `PADDLESLAP_DEMO_PATH` (`glitchygames/examples/paddleslap_demos/rally.jsonl.gz`) with
-`SceneManager.play_recording(path=..., then=self)`.
+`SceneManager.play_recording(path=..., then=self)`. In the diagram, the PaddleSlap box is the
+game's own screen and the Engine box is what plays the demo; the player is outside both.
 
 ```mermaid
 sequenceDiagram
     participant Player
-    participant GO as PaddleSlapGameOverScene
-    participant SM as SceneManager
-    participant PB as Playback scope
+    box rgb(255,243,224) PaddleSlap
+        participant GO as PaddleSlapGameOverScene
+    end
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant PB as Playback scope
+    end
 
     loop each frame
         SM->>GO: dt_tick(dt)
@@ -287,15 +301,20 @@ draws them). Hitboxes are the default visible-pixel trim (`glitchygames/collisio
 ## One frame
 
 The engine's frame order is in the [Bitmappy page](../architecture/bitmappy.md#bootstrap-main-loop)
-and `CLAUDE.md`. What PaddleSlap does inside it:
+and `CLAUDE.md`. What PaddleSlap does inside it (the PaddleSlap box is the game's one scene class;
+the Engine box is the engine's scene manager, game objects and collision manager):
 
 ```mermaid
 sequenceDiagram
-    participant SM as SceneManager
-    participant G as Game
-    participant P as VerticalPaddle x2
-    participant B as BallSprite (each)
-    participant CM as CollisionManager
+    box rgb(255,243,224) PaddleSlap
+        participant G as Game
+    end
+    box rgb(232,238,255) Engine
+        participant SM as SceneManager
+        participant P as VerticalPaddle x2
+        participant B as BallSprite (each)
+        participant CM as CollisionManager
+    end
 
     SM->>G: dt_tick(dt)
     G->>G: _process_paddle_input()
@@ -417,20 +436,43 @@ events may spawn), **conditions** (cooldown, speed check, random position, speed
 | `none` | none | | the rally is still counted |
 
 Every trigger goes through `_spawn_new_ball_on_trigger`, so all triggers share one cooldown and
-one speed check:
+one speed check. In the diagram, the Engine box is the engine's `BallSprite` reporting paddle hits
+and wall bounces through its callbacks; the PaddleSlap box is the game's spawn rule in `Game`
+(which serves each new ball with the engine's `BallSprite.serve()`):
 
 ```mermaid
 flowchart TB
-    trigger["A trigger: paddle hit, wall bounce,<br/>ball-ball hit or score"] --> named{"Is it one of the<br/>mode's triggers?"}
-    named -- no --> skip1["No spawn"]
-    named -- yes --> cooldown{"COOLDOWN_ENABLED and<br/>game_time - last spawn<br/>under the cooldown?"}
-    cooldown -- yes --> skip2["No spawn"]
-    cooldown -- no --> speed{"SPEED_CHECK_ENABLED and<br/>the triggering ball faster<br/>than 1000 px/s?"}
-    speed -- yes --> skip3["No spawn"]
-    speed -- no --> spawn["_spawn_new_ball()"]
-    spawn --> place["Position: 10 tries for a spot<br/>at least 100 px from every ball<br/>(the last try if none is clear)"]
-    place --> serve["Speed: serve() at 150 px/s<br/>Colour: from the colour stream"]
-    serve --> join["Added to balls, all_sprites<br/>and the 'balls' layer"]
+    subgraph ENGINE_SPAWN["Engine"]
+        direction TB
+        ballcallback["BallSprite calls on_paddle_collision<br/>or on_wall_bounce"]
+    end
+    subgraph GAME_SPAWN["PaddleSlap"]
+        direction TB
+        gametrigger["Game._resolve_collisions:<br/>ball-ball hit or score"]
+        trigger["_spawn_new_ball_on_trigger(trigger, ball)"]
+        named{"Is it one of the<br/>mode's triggers?"}
+        skip1["No spawn"]
+        cooldown{"COOLDOWN_ENABLED and<br/>game_time - last spawn<br/>under the cooldown?"}
+        skip2["No spawn"]
+        speed{"SPEED_CHECK_ENABLED and<br/>the triggering ball faster<br/>than 1000 px/s?"}
+        skip3["No spawn"]
+        spawn["_spawn_new_ball()"]
+        place["Position: 10 tries for a spot<br/>at least 100 px from every ball<br/>(the last try if none is clear)"]
+        serve["Speed: the engine's serve() at 150 px/s<br/>Colour: from the colour stream"]
+        join["Added to balls, all_sprites<br/>and the 'balls' layer"]
+    end
+    ballcallback --> trigger
+    gametrigger --> trigger
+    trigger --> named
+    named -- no --> skip1
+    named -- yes --> cooldown
+    cooldown -- yes --> skip2
+    cooldown -- no --> speed
+    speed -- yes --> skip3
+    speed -- no --> spawn
+    spawn --> place
+    place --> serve
+    serve --> join
 ```
 
 - The cooldown counts `Scene.game_time`, so it stops while the game is paused or behind the
@@ -445,17 +487,36 @@ flowchart TB
 Each player has an `ActionMap` (`glitchygames/input/action_map.py`) with `up` and `down`; a third
 holds `pause`. `_create_action_maps` binds, per player, a scancode, a D-pad button and the left
 stick's vertical axis at a ±0.3 threshold, filtered to the gamepad with **instance id** 0 (player 1)
-or 1 (player 2). The keyboard bindings have no instance filter.
+or 1 (player 2). The keyboard bindings have no instance filter. In the diagram, the Engine boxes are
+the engine's event dispatch (top) and its `ActionMap`, `VerticalPaddle` and base `Scene` (bottom);
+the PaddleSlap box is what `Game`'s handlers and `dt_tick` add between them:
 
 ```mermaid
 flowchart TB
-    events["Engine dispatch: on_key_down/up_event,<br/>on_controller_button/axis_*_event,<br/>on_joy_button/axis_*_event"] --> feed["Game feeds each event to the ActionMaps<br/>(keys: all three, gamepad: the two players')"]
-    feed --> state["ActionMap held state<br/>(held, just pressed, just released)"]
-    state --> tick["Next frame, dt_tick:<br/>begin_frame(), then is_held('up') / is_held('down')"]
-    tick --> paddle["paddle.up(), down() or stop()"]
-    feed --> pause{"Key up: pause just released?"}
-    pause -- yes --> pausecall["Scene.pause()"]
-    pause -- "not a pause key" --> base["Scene.on_key_up_event<br/>(Q or Esc quits)"]
+    subgraph ENGINE_INPUT_DISPATCH["Engine"]
+        direction TB
+        events["Event dispatch: on_key_down/up_event,<br/>on_controller_button/axis_*_event,<br/>on_joy_button/axis_*_event"]
+    end
+    subgraph GAME_INPUT["PaddleSlap"]
+        direction TB
+        feed["Game feeds each event to the ActionMaps<br/>(keys: all three, gamepad: the two players')"]
+        pause{"Game.on_key_up_event:<br/>pause just released?"}
+        tick["Next frame, Game.dt_tick:<br/>begin_frame(), then reads the held state"]
+    end
+    subgraph ENGINE_INPUT_PARTS["Engine"]
+        direction TB
+        state["ActionMap held state<br/>(held, just pressed, just released)"]
+        paddle["VerticalPaddle: up(), down() or stop()"]
+        pausecall["Scene.pause()"]
+        base["Scene.on_key_up_event<br/>(Q or Esc quits)"]
+    end
+    events --> feed
+    feed --> pause
+    feed -- handle_event --> state
+    tick -- "is_held('up') / is_held('down')" --> state
+    tick --> paddle
+    pause -- yes --> pausecall
+    pause -- "not a pause key" --> base
 ```
 
 - **Movement is frame-driven.** Handlers only update the ActionMaps; the paddles are moved by
