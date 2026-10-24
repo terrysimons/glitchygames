@@ -280,3 +280,101 @@ class TestBitmappyMultiControllerPerformance:
         enhancements.position_cache[0] = (999, 888)
         position = enhancements._calculate_enhanced_position(0, 'walk', 2)
         assert position == (999, 888)
+
+
+class TestBitmappyMultiControllerEnhancementsEdgeCases:
+    """Tests for navigation, indicator and cleanup cases with nothing to act on."""
+
+    def test_frame_navigation_without_a_film_strip_is_not_clamped(
+        self, enhancements, mock_controller_selection
+    ):
+        """An animation with no film strip has no frame count to clamp the new frame to."""
+        mock_controller_selection.get_selection.return_value = ('ghost', 2)
+
+        assert enhancements.enhanced_navigation(0, 'frame', 3) is True
+
+        mock_controller_selection.set_selection.assert_called_once_with('ghost', 5)
+
+    def test_unknown_direction_changes_no_selection_but_is_recorded(
+        self, enhancements, mock_controller_selection
+    ):
+        """A direction other than frame or animation moves nothing; the attempt is in history."""
+        assert enhancements.enhanced_navigation(0, 'diagonal', 1) is True
+
+        mock_controller_selection.set_selection.assert_not_called()
+        assert enhancements.controller_history[0][-1]['data']['direction'] == 'diagonal'
+
+    def test_animation_navigation_without_animations_changes_no_selection(
+        self, enhancements, mock_scene, mock_controller_selection
+    ):
+        """With no film strips there is no animation to move to."""
+        mock_scene.film_strips = {}
+
+        assert enhancements.enhanced_navigation(0, 'animation', 1) is True
+
+        mock_controller_selection.set_selection.assert_not_called()
+
+    def test_indicator_is_created_for_the_matching_controller_only(
+        self, enhancements, mock_scene, mocker
+    ):
+        """The indicator uses the info of the controller whose id matches, skipping others."""
+        mock_scene.multi_controller_manager.controllers = {
+            10: mocker.Mock(controller_id=5, instance_id=50, color=(1, 1, 1)),
+            11: mocker.Mock(controller_id=0, instance_id=60, color=(2, 2, 2)),
+        }
+
+        enhancements._create_enhanced_visual_indicator(0, (7, 8))
+
+        mock_scene.visual_collision_manager.add_controller_indicator.assert_called_once_with(
+            controller_id=0, instance_id=60, color=(2, 2, 2), position=(7, 8)
+        )
+
+    def test_customizations_without_size_or_shape_leave_the_indicator_alone(
+        self, enhancements, mock_scene, mocker
+    ):
+        """Customizations naming neither size nor shape change neither."""
+        indicator = mocker.Mock(size=7, shape='original')
+        mock_scene.visual_collision_manager.indicators = {0: indicator}
+        enhancements.visual_customizations[0] = {'pulse': True}
+
+        enhancements._apply_visual_customizations(0)
+
+        assert indicator.size == 7
+        assert indicator.shape == 'original'
+
+    def test_status_summary_counts_only_active_controllers(self, enhancements, mock_scene, mocker):
+        """An inactive controller is listed but not counted as active."""
+        inactive_selection = mocker.Mock()
+        inactive_selection.is_active.return_value = False
+        inactive_selection.get_selection.return_value = ('walk', 0)
+        mock_scene.controller_selections[1] = inactive_selection
+
+        summary = enhancements.get_controller_status_summary()
+
+        assert summary['total_controllers'] == 2
+        assert summary['active_controllers'] == 1
+        assert summary['controllers'][1]['active'] is False
+
+    def test_cleanup_removes_the_indicator_of_a_controller_without_other_resources(
+        self, enhancements, mock_scene, mocker
+    ):
+        """An inactive controller with only an indicator loses the indicator and its selection."""
+        inactive_selection = mocker.Mock()
+        inactive_selection.is_active.return_value = False
+        mock_scene.controller_selections[1] = inactive_selection
+        mock_scene.visual_collision_manager.indicators = {1: mocker.Mock()}
+
+        assert enhancements.cleanup_inactive_controllers() == 1
+
+        mock_scene.visual_collision_manager.remove_controller_indicator.assert_called_once_with(1)
+        assert 1 not in mock_scene.controller_selections
+
+    def test_optimize_with_nothing_to_clean_does_not_improve_performance(self, enhancements):
+        """With no inactive controllers and no cached positions nothing improves."""
+        results = enhancements.optimize_performance()
+
+        assert results == {
+            'controllers_cleaned': 0,
+            'cache_cleared': 0,
+            'performance_improved': False,
+        }

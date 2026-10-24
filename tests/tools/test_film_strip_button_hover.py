@@ -9,14 +9,8 @@ This module tests the hover functionality for all film strip button types:
 All buttons should invert their colors on hover (black background, white border).
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent / '..' / '..'))
 
 from glitchygames.bitmappy.film_strip import (
     FilmStripDeleteTab,
@@ -24,34 +18,68 @@ from glitchygames.bitmappy.film_strip import (
     FilmStripWidget,
     FilmTabWidget,
 )
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
+from tests.tools.test_film_strip_base import make_real_animated_sprite
+
+# The button colours (film_strip.py, film_strip_rendering.py)
+TAB_COLOR = (200, 200, 200)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+# Every button draws a 2-pixel border
+BORDER_WIDTH = 2
+# Not a colour any button draws, so an undrawn pixel is obvious
+BACKGROUND_COLOR = (10, 90, 160)
+
+
+def blank_surface(size):
+    """Build a 32-bit surface without per-pixel alpha, filled with the background colour.
+
+    Returns:
+        pygame.Surface: The surface.
+
+    """
+    surface = pygame.Surface(size, flags=0, depth=32)
+    surface.fill(BACKGROUND_COLOR)
+    return surface
+
+
+def drawn_button_colors(*, surface, button_rect):
+    """Read a drawn button's fill colour (inside its border) and its border colour.
+
+    Returns:
+        tuple: The (fill, border) RGB colours.
+
+    """
+    inside_border = (button_rect.x + BORDER_WIDTH, button_rect.y + BORDER_WIDTH)
+    fill_color = tuple(surface.get_at(inside_border))[:3]
+    border_color = tuple(surface.get_at(button_rect.topleft))[:3]
+    return fill_color, border_color
+
+
+def assert_tab_inverts_on_hover(*, tab, surface_size):
+    """Check a tab draws grey with a black border, and black with a white border on hover."""
+    tab.is_hovered = False
+    surface = blank_surface(surface_size)
+    tab.render(surface)
+    assert drawn_button_colors(surface=surface, button_rect=tab.rect) == (TAB_COLOR, BLACK)
+    # The sign at the centre is drawn in the border colour
+    assert tuple(surface.get_at(tab.rect.center))[:3] == BLACK
+
+    tab.is_hovered = True
+    surface = blank_surface(surface_size)
+    tab.render(surface)
+    assert drawn_button_colors(surface=surface, button_rect=tab.rect) == (BLACK, WHITE)
+    assert tuple(surface.get_at(tab.rect.center))[:3] == WHITE
 
 
 class TestFilmStripButtonHover:
     """Test film strip button hover effects."""
 
     @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures using centralized mocks."""
-        self._mocker = mocker
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-        # Create a mock animated sprite with frames
-        self.mock_animated_sprite = mocker.Mock(spec=AnimatedSprite)
-        animations_data = {
-            'test_animation': [
-                mocker.Mock(spec=SpriteFrame),
-                mocker.Mock(spec=SpriteFrame),
-                mocker.Mock(spec=SpriteFrame),
-            ],
-        }
-        self.mock_animated_sprite._animations = animations_data
-        self.mock_animated_sprite.animations = animations_data
-
-        # Create film strip widget
+    def setup_film_strip(self):
+        """Build a real film strip showing a real three-frame animation."""
+        self.animated_sprite = make_real_animated_sprite(frame_counts={'test_animation': 3})
         self.film_strip_widget = FilmStripWidget(0, 0, 400, 100)
-        self.film_strip_widget.animated_sprite = self.mock_animated_sprite
+        self.film_strip_widget.set_animated_sprite(self.animated_sprite)
         self.film_strip_widget.current_animation = 'test_animation'
 
     def test_removal_button_hover_tracking(self):
@@ -79,75 +107,47 @@ class TestFilmStripButtonHover:
 
     def test_removal_button_hover_effect(self):
         """Test that removal button renders with inverted colors on hover."""
-        # Setup removal button layouts
-        self.film_strip_widget.removal_button_layouts = {
-            ('test_animation', 0): pygame.Rect(10, 20, 11, 30),
-        }
+        button_rect = pygame.Rect(10, 20, 11, 30)
+        self.film_strip_widget.removal_button_layouts = {('test_animation', 0): button_rect}
 
-        # Create a surface to render on
-        surface = pygame.Surface((100, 100))
-
-        # Test normal state (not hovered)
+        # Normal state: grey with a black border and a black minus sign
+        surface = blank_surface((100, 100))
         self.film_strip_widget.hovered_removal_button = None
         self.film_strip_widget._render_removal_button(surface, 'test_animation', 0)
+        assert drawn_button_colors(surface=surface, button_rect=button_rect) == (TAB_COLOR, BLACK)
+        assert tuple(surface.get_at(button_rect.center))[:3] == BLACK
 
-        # Test hovered state
+        # Hovered state: inverted, black with a white border and a white minus sign
+        surface = blank_surface((100, 100))
         self.film_strip_widget.hovered_removal_button = ('test_animation', 0)
         self.film_strip_widget._render_removal_button(surface, 'test_animation', 0)
+        assert drawn_button_colors(surface=surface, button_rect=button_rect) == (BLACK, WHITE)
+        assert tuple(surface.get_at(button_rect.center))[:3] == WHITE
 
-        # The method should complete without errors
-        assert True
+    def test_removal_button_is_not_drawn_for_the_only_frame(self):
+        """Test that a one-frame animation draws no removal button (it cannot be removed)."""
+        self.film_strip_widget.set_animated_sprite(
+            make_real_animated_sprite(frame_counts={'test_animation': 1}),
+        )
+        button_rect = pygame.Rect(10, 20, 11, 30)
+        self.film_strip_widget.removal_button_layouts = {('test_animation', 0): button_rect}
+        surface = blank_surface((100, 100))
+
+        self.film_strip_widget._render_removal_button(surface, 'test_animation', 0)
+
+        assert tuple(surface.get_at(button_rect.center))[:3] == BACKGROUND_COLOR
 
     def test_film_tab_widget_hover_effect(self):
         """Test that FilmTabWidget inverts colors on hover."""
-        tab = FilmTabWidget(10, 20, 20, 30)
-
-        # Test normal state
-        tab.is_hovered = False
-        surface = pygame.Surface((50, 50))
-        tab.render(surface)
-
-        # Test hovered state
-        tab.is_hovered = True
-        surface = pygame.Surface((50, 50))
-        tab.render(surface)
-
-        # The method should complete without errors
-        assert True
+        assert_tab_inverts_on_hover(tab=FilmTabWidget(10, 20, 20, 30), surface_size=(50, 50))
 
     def test_film_strip_tab_hover_effect(self):
         """Test that FilmStripTab inverts colors on hover."""
-        tab = FilmStripTab(10, 20, 40, 10)
-
-        # Test normal state
-        tab.is_hovered = False
-        surface = pygame.Surface((60, 30))
-        tab.render(surface)
-
-        # Test hovered state
-        tab.is_hovered = True
-        surface = pygame.Surface((60, 30))
-        tab.render(surface)
-
-        # The method should complete without errors
-        assert True
+        assert_tab_inverts_on_hover(tab=FilmStripTab(10, 20, 40, 10), surface_size=(60, 30))
 
     def test_film_strip_delete_tab_hover_effect(self):
         """Test that FilmStripDeleteTab inverts colors on hover."""
-        tab = FilmStripDeleteTab(10, 5, 40, 10)
-
-        # Test normal state
-        tab.is_hovered = False
-        surface = pygame.Surface((60, 20))
-        tab.render(surface)
-
-        # Test hovered state
-        tab.is_hovered = True
-        surface = pygame.Surface((60, 20))
-        tab.render(surface)
-
-        # The method should complete without errors
-        assert True
+        assert_tab_inverts_on_hover(tab=FilmStripDeleteTab(10, 5, 40, 10), surface_size=(60, 20))
 
     def test_film_tab_widget_hover_detection(self):
         """Test that FilmTabWidget properly detects hover."""
@@ -257,11 +257,11 @@ class TestFilmStripButtonHover:
         assert tab2.is_hovered
         assert tab3.is_hovered
 
-        # All should render without errors
-        surface = pygame.Surface((50, 50))
-        tab1.render(surface)
-        tab2.render(surface)
-        tab3.render(surface)
+        # All draw the same inverted colours: a black fill inside a white border
+        for tab in (tab1, tab2, tab3):
+            surface = blank_surface((50, 50))
+            tab.render(surface)
+            assert drawn_button_colors(surface=surface, button_rect=tab.rect) == (BLACK, WHITE)
 
     def test_hover_state_persistence(self):
         """Test that hover states persist correctly during mouse movement."""

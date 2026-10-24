@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import cProfile
-import importlib.metadata
 import logging
 import math
 import multiprocessing
@@ -18,13 +17,21 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, override
 
 import pygame
 
 from glitchygames import events
+from glitchygames.backgrounds import (
+    DEFAULT_BACKGROUND_PATTERN,
+    BackgroundPattern,
+    paint_default_background,
+    set_active_default_background_pattern,
+)
+from glitchygames.build_info import engine_source_revision
 from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.controller import ControllerEventManager
@@ -38,8 +45,10 @@ from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import ExitCode
 from glitchygames.fonts import FontManager
+from glitchygames.input.input_devices import InputDevices, InputMode
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import (
@@ -76,7 +85,9 @@ from glitchygames.replay.driver import (
     ReplayRefusedError,
     ReplaySources,
     announce_replay,
+    display_size_refusal,
     installed_engine_version,
+    replayed_batch_origins,
     start_replay,
 )
 from glitchygames.replay.processing import machine_description
@@ -110,12 +121,10 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections import OrderedDict
     from collections.abc import Callable, Generator, Mapping
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
-    from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -137,6 +146,17 @@ DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
 # The SDL video and audio driver --headless runs on (no window, no sound)
 HEADLESS_SDL_DRIVER = 'dummy'
+# The environment variables that choose SDL's video and audio drivers (--headless sets both)
+SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
+# src/video/SDL_video.c bootstrap[]; checked on macOS: cocoa, offscreen and dummy start, metal and
+# x11 are not drivers of pygame-ce's SDL there), then the ones SDL builds on every platform
+PLATFORM_VIDEO_DRIVERS: dict[str, tuple[str, ...]] = {
+    'Darwin': ('cocoa',),
+    'Windows': ('windows',),
+    'Linux': ('x11', 'wayland', 'kmsdrm'),
+}
+PORTABLE_VIDEO_DRIVERS = ('offscreen', 'dummy')
 
 # The signals that end a run through the normal teardown (exit_on_signal), by name:
 # SIGHUP exists only on Unix and SIGBREAK only on Windows, so each is looked up where it runs.
@@ -298,30 +318,8 @@ def exit_with(*, exit_code: ExitCode, cause: BaseException | None = None) -> NoR
         SystemExit: Always, with ``exit_code``.
 
     """
-    LOG.info(f'Exiting with {exit_code.describe()}')
+    LOG.info('Exiting with %s', exit_code.describe())
     raise SystemExit(exit_code) from cause
-
-
-def replayed_batch_origins(*, doors: EngineSources) -> list[str] | None:
-    """Return each event's origin in the doors' last batch, when a replay's merge knows them.
-
-    A recorder over a replay (``--rebaseline``) takes them from the replay, and so does the
-    instant-replay journal (glitchygames/instant_replay.py, rule 4): a watched replay's held
-    frames drain the real queue between pumps, so the posts pending before a pump do not tell
-    them.
-
-    Args:
-        doors: The doors that pumped (the run's installed ones, or a recording around them).
-
-    Returns:
-        The origins, or None when the doors are not a replay's.
-
-    """
-    while isinstance(doors, RecordingSources):
-        doors = doors.inner
-    if isinstance(doors, ReplaySources):
-        return doors.last_batch_origins()
-    return None
 
 
 @dataclass
@@ -428,11 +426,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Supported Arguments:
             -f, --target-fps (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
             --fps-log-interval-ms
-            -w, --windowed
+            -w, --windowed, --no-windowed (default: windowed)
             -r, --resolution
             --use-gfxdraw
             --update-type
             --video-driver
+            --debug-events
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
@@ -458,20 +457,28 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             type=float,
             default=1000,
         )
+        # A store_true flag defaulting to True could never ask for fullscreen (BUGS.md #76):
+        # --no-windowed does, and -w/--windowed keep the command lines from before working
         group.add_argument(
             '-w',
             '--windowed',
-            help='run the program in windowed mode',
-            action='store_true',
+            help='run in a window; --no-windowed runs fullscreen (default: windowed)',
+            action=argparse.BooleanOptionalAction,
             default=True,
         )
         group.add_argument(
             '-r',
             '--resolution',
-            help='the resolution to use (default: 1024x768)',
+            help='the resolution to use (default: %(default)s)',
             default='800x480',
         )
-        group.add_argument('--use-gfxdraw', action='store_true', default=False)
+        # Kept as GameEngine.use_gfxdraw, but nothing reads it (Ball and Paddle set their own)
+        group.add_argument(
+            '--use-gfxdraw',
+            help='not used yet: stored, but nothing draws with pygame.gfxdraw because of it',
+            action='store_true',
+            default=False,
+        )
         group.add_argument(
             '--update-type',
             help='update or flip (default: update)',
@@ -529,6 +536,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '--debug-overlay',
             help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
             action=argparse.BooleanOptionalAction,
+            default=False,
+        )
+        # Read by events.unhandled_event (glitchygames/events/base.py); how this run is
+        # diagnosed, not what the game does, so a replay keeps its own (REPLAY_LOCAL_OPTIONS)
+        diagnostics_group.add_argument(
+            '--debug-events',
+            help=(
+                'log a warning the first time each unhandled event type arrives '
+                '(--no-unhandled-events raises on one instead)'
+            ),
+            action='store_true',
             default=False,
         )
         diagnostics_group.add_argument(
@@ -672,38 +690,34 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             help='mixer channels reserved for real-time synth voices (default: 4)',
             default=DEFAULT_LIVE_VOICE_POOL,
         )
+        group.add_argument(
+            '--default-background',
+            choices=[pattern.value for pattern in BackgroundPattern],
+            help=(
+                'the background of a scene that sets none: the TV test pattern or the channel 3 '
+                f'blue screen (default: {DEFAULT_BACKGROUND_PATTERN.value})'
+            ),
+            default=None,
+        )
 
-        # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
-        default_videodriver = []
-        if platform.system() == 'Linux':
-            linux_videodriver_choices = [
-                'wayland',
-                'x11',
-                'dga',
-                'fbcon',
-                'directfb',
-                'ggi',
-                'vgl',
-                'svgalib',
-                'aalib',
-            ]
-
-            LOG.debug('Linux Video Driver Choices: %s', linux_videodriver_choices)
-
-            default_videodriver = linux_videodriver_choices
-
-        elif platform.system() == 'MacOS':
-            mac_videodriver_choices: list[str] = []
-
-            LOG.debug('Mac Video Driver Choices: %s', mac_videodriver_choices)
-            default_videodriver = mac_videodriver_choices
-        elif platform.system() == 'Windows':
-            windows_videodriver_choices = ['windib', 'directx']
-
-            LOG.debug('Windows Video Driver Choices: %s', windows_videodriver_choices)
-            default_videodriver = windows_videodriver_choices
-
-        group.add_argument('--video-driver', default=None, choices=default_videodriver)
+        # SDL 2's video drivers for this platform (SDL_VIDEODRIVER names; the old list held SDL 1's,
+        # and its macOS branch compared with 'MacOS', which platform.system() never returns:
+        # macOS is 'Darwin', BUGS.md #76). offscreen and dummy are built into SDL everywhere.
+        video_driver_choices = [
+            *PLATFORM_VIDEO_DRIVERS.get(platform.system(), ()),
+            *PORTABLE_VIDEO_DRIVERS,
+        ]
+        LOG.debug('Video Driver Choices: %s', video_driver_choices)
+        # Parsed and recorded, but never handed to SDL: nothing sets SDL_VIDEODRIVER from it
+        group.add_argument(
+            '--video-driver',
+            help=(
+                'not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER '
+                '(or --headless) instead'
+            ),
+            default=None,
+            choices=video_driver_choices,
+        )
 
         diagnostics_group.add_argument(
             '--headless',
@@ -763,6 +777,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if command_line_target_fps is not None:
             return float(command_line_target_fps)
 
+        # Looked up by name: TARGET_FPS is optional on a game (Scene does not declare it)
         game_target_fps = getattr(game, 'TARGET_FPS', None)
         if game_target_fps is None:
             return DEFAULT_TARGET_FPS
@@ -803,7 +818,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # args is a class method, which allows us to call it before initializing a game
         # object, which allows us to query all of the game engine objects for their
-        # command line parameters.
+        # command line parameters. It is optional (Scene does not declare it): looked up by name
         game_args_method: Callable[..., Any] | None = getattr(game, 'args', None)
         if game_args_method is not None:
             game_args_method(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
@@ -826,12 +841,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             command_line_target_fps=GameEngine.OPTIONS.get('target_fps'),
             game=game,
         )
-
-        # Some optimizations to reduce the number of lookups
-        if GameEngine.OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}:
-            GameEngine.OPTIONS['debug_events'] = True
-        else:
-            GameEngine.OPTIONS['debug_events'] = False
 
         options: dict[str, Any] = GameEngine.OPTIONS
 
@@ -860,6 +869,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
+        # The SDL driver variables as they were before --headless set them (by name; None: the
+        # variable was not set), put back when the run ends (_restore_sdl_driver_variables);
+        # None when the run is not headless and changed nothing
+        self._sdl_driver_variables_before_headless: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
         if options.get('headless'):
             self._enter_headless_mode()
@@ -900,6 +913,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if self.replay_sources is not None
             else seed_engine_random(seed=options.get('random_seed'))
         )
+        # The background a scene that sets none shows (glitchygames/backgrounds.py); without
+        # the option the process's default (the test pattern) stays
+        default_background = options.get('default_background')
+        if default_background is not None:
+            set_active_default_background_pattern(pattern=BackgroundPattern(default_background))
 
         # Unhandled events by type, reported at teardown (see unhandled_event_report); their
         # first-seen times are elapsed_seconds() readings, the frame clock that
@@ -946,7 +964,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
         # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
         sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
-        self.log.debug(f'GIL switch interval set to {GIL_SWITCH_INTERVAL_SECONDS} seconds')
+        self.log.debug('GIL switch interval set to %s seconds', GIL_SWITCH_INTERVAL_SECONDS)
 
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
@@ -956,13 +974,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # versions of pygame, or use the new event loop for newer
         # versions of pygame >= 2.2
         if self.USE_FASTEVENTS and hasattr(pygame, 'fastevent'):
-            self.log.info(f'Using pygame.fastevents for pygame version {pygame.version.ver}')
+            self.log.info('Using pygame.fastevents for pygame version %s', pygame.version.ver)
             pygame.fastevent.init()  # type: ignore[attr-defined]
         else:
             # This is the default mode when USE_FASTEVENTS is disabled.
             #
             # pygame.event doesn't have an init() method, so nothing to do.
-            self.log.info(f'Using pygame.events for pygame version {pygame.version.ver}')
+            self.log.info('Using pygame.events for pygame version %s', pygame.version.ver)
 
         # Fresh doors for this run (glitchygames/sources.py): the replay's when --replay-trace
         # is given, else live ones
@@ -991,10 +1009,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The scene will start once .start() is called on the GameEngine
         # object
         GameEngine.game = game
-        # ResourceManager makes each engine class a singleton, so a second engine in one process
-        # (a recording and then its replay) is the same object, whose start() set self.game to
-        # the earlier run's game instance: drop it, so self.game reads this run's game above
-        vars(self).pop('game', None)
 
         # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
@@ -1043,6 +1057,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Initialize display
         self.initialize_display()
+        # A replay's window opened at the recorded size (start_replay asked for it), or the
+        # replay is refused: the game would be set up on another size (rule 1 of
+        # glitchygames/replay/driver.py)
+        self._refuse_a_replay_display_of_another_size(options=options)
 
         self.initialize_event_handlers()
 
@@ -1065,8 +1083,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.midi_manager: MidiEventManager
         self.mouse_manager: MouseEventManager
         self.window_manager: WindowEventManager
-        self.joysticks: list[Any] = []
-        self.joystick_count: int = 0
+        # Every joystick and game controller the game sees (glitchygames/input/input_devices.py),
+        # following the joystick and controller managers; built with them
+        self.input_devices: InputDevices = InputDevices()
 
     def initialize_display(self: Self) -> None:
         """Initialize the display."""
@@ -1097,10 +1116,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The Pygame documentation recommends against using hardware accelerated blitting.
         #
         # Note that you can also get the screen with pygame.display.get_surface()
-        self.screen: pygame.Surface = pygame.display.set_mode(
-            self.desired_resolution,
-            self.mode_flags,
+        #
+        # An existing window (a test's, or one a game opened first) may take its new size
+        # only after set_mode returns (x11): the game is set up on the size it really has
+        self.screen: pygame.Surface = set_display_mode(
+            size=self.desired_resolution,
+            flags=self.mode_flags,
         )
+        # A new display is black, which cannot be told from "nothing rendered": until the
+        # first scene draws, it shows the default background (glitchygames/backgrounds.py)
+        paint_default_background(surface=self.screen)
+        # A scene manager made before this display (pygame started first) holds the surface
+        # of the display it saw then, which a --headless restart closed: it draws on this one
+        self.scene_manager.screen = self.screen
 
     def initialize_event_handlers(self: Self) -> None:
         """Initialize event handlers.
@@ -1136,10 +1164,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self.initialize_input_event_handlers()
 
-        # Enable all events.
+        # Enable all events, except the window system's raw messages (SYSWMEVENT) unless the
+        # game declares NATIVE_WINDOW_MESSAGES = True.
         # Note that glitchygames will auto-suppress events not handled
         # by the game once they are encountered, so it is recommended to enable all.
-        pygame.event.set_allowed(None)
+        events.allow_every_event_type(
+            native_window_messages=self.native_window_messages(game=self.game)
+        )
+
+    @staticmethod
+    def native_window_messages(*, game: type[Scene] | Scene) -> bool:
+        """Read whether the game asks for the window system's raw messages (SYSWMEVENT).
+
+        Args:
+            game: The game scene class or instance, which may declare NATIVE_WINDOW_MESSAGES.
+
+        Returns:
+            bool: The game's NATIVE_WINDOW_MESSAGES (False when it declares none).
+
+        Raises:
+            TypeError: If the game's NATIVE_WINDOW_MESSAGES is not a bool.
+
+        """
+        # Looked up by name: a game need not be a Scene subclass
+        native_window_messages = getattr(game, 'NATIVE_WINDOW_MESSAGES', False)
+        if not isinstance(native_window_messages, bool):
+            scene_class = game if isinstance(game, type) else type(game)
+            message = (
+                f'{scene_class.__name__}.NATIVE_WINDOW_MESSAGES must be a bool, '
+                f'got {native_window_messages!r}'
+            )
+            raise TypeError(message)
+        return native_window_messages
 
     def initialize_input_event_handlers(self: Self) -> None:
         """Initialize input event handlers.
@@ -1169,20 +1225,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         for event_type in events.TEXT_EVENTS:
             GameEngine.EVENT_HANDLERS[event_type] = self.process_text_event
-
-    def __del__(self: Self) -> None:
-        """Delete the game engine."""
-        # This is the total # of sprites.
-        self.log.info(f'Sprite Count: {Sprite.SPRITE_COUNT}')
-
-        # This is a count of each type of sprite.
-        sprite_counters: OrderedDict[str, OrderedDict[str, int]] = cast(
-            'OrderedDict[str, OrderedDict[str, int]]',
-            Sprite.SPRITE_COUNTERS,
-        )
-        for sprite_type, counters in sprite_counters.items():
-            for key, value in counters.items():
-                self.log.info('%s Sprite %s: %s', sprite_type, key, value)
 
     @property
     def input(self: Self) -> InputSnapshot:
@@ -1220,14 +1262,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def print_system_info(self: Self) -> None:
         """Print system information."""
         # General Info
-        self.log.info(f'Pygame Version: {pygame.version.ver}')
-        self.log.info(f'CPU Count: {multiprocessing.cpu_count()}')
-        self.log.info(f'System: {platform.system()}')
-        self.log.info(f'Machine: {platform.machine()}')
-        self.log.info(f'Platform: {platform.platform()}')
-        self.log.info(f'Platform (Terse): {platform.platform(aliased=False, terse=True)}')
-        self.log.info(f'Processor: {platform.processor()}')
-        self.log.info(f'Release: {platform.release()}')
+        self.log.info('Pygame Version: %s', pygame.version.ver)
+        self.log.info('CPU Count: %s', multiprocessing.cpu_count())
+        self.log.info('System: %s', platform.system())
+        self.log.info('Machine: %s', platform.machine())
+        self.log.info('Platform: %s', platform.platform())
+        self.log.info('Platform (Terse): %s', platform.platform(aliased=False, terse=True))
+        self.log.info('Processor: %s', platform.processor())
+        self.log.info('Release: %s', platform.release())
 
         # Set up a display mode.
         # Note: pygame.display.init() isn't necessary here
@@ -1235,37 +1277,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # initializes all available modules.
         #
         # Let's do a sanity check and make sure we're initialized.
-        self.log.info(f'Display inited: {pygame.display.get_init()}')
+        self.log.info('Display inited: %s', pygame.display.get_init())
 
         # Display some configuration information.
-        self.log.info(f'SDL Version: {pygame.get_sdl_version()}')
-        self.log.info(f'SDL Byte Order: {pygame.get_sdl_byteorder()}')
+        self.log.info('SDL Version: %s', pygame.get_sdl_version())
+        self.log.info('SDL Byte Order: %s', pygame.get_sdl_byteorder())
 
         # Dump a bit more info about the configured mode.
-        self.log.info(f'Display Driver: {pygame.display.get_driver()}')
-        self.log.info(f'Display Info: {self.display_info}')
-        self.log.info(f'Initial Resolution: {self.initial_resolution}')
-        self.log.info(f'8-bit Modes: {pygame.display.list_modes(8)}')
-        self.log.info(f'16-bit Modes: {pygame.display.list_modes(16)}')
-        self.log.info(f'24-bit Modes: {pygame.display.list_modes(24)}')
-        self.log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
+        self.log.info('Display Driver: %s', pygame.display.get_driver())
+        self.log.info('Display Info: %s', self.display_info)
+        self.log.info('Initial Resolution: %s', self.initial_resolution)
+        self.log.info('8-bit Modes: %s', pygame.display.list_modes(8))
+        self.log.info('16-bit Modes: %s', pygame.display.list_modes(16))
+        self.log.info('24-bit Modes: %s', pygame.display.list_modes(24))
+        self.log.info('32-bit Modes: %s', pygame.display.list_modes(32))
         self.log.info(
-            'Best Color Depth: '
-            f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
-            f' ({self.mode_flags})',
+            'Best Color Depth: %s (%s)',
+            (pygame.display.mode_ok(self.initial_resolution), self.mode_flags),
+            self.mode_flags,
         )
-        self.log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
-        self.log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
+        self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
+        self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
     def print_game_info(self: Self) -> None:
         """Print game information."""
         self.log.debug(
-            f'Successfully loaded {self.init_pass} modules '
-            f'and failed loading {self.init_fail} modules.',
+            'Successfully loaded %s modules and failed loading %s modules.',
+            self.init_pass,
+            self.init_fail,
         )
 
-        self.log.info(f'Game Title: {type(self).NAME}')
-        self.log.info(f'Game Version: {type(self).VERSION}')
+        self.log.info('Game Title: %s', type(self).NAME)
+        self.log.info('Game Version: %s', type(self).VERSION)
 
     def suggested_resolution(
         self: Self,
@@ -1369,6 +1412,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         #
         # Always call this before you call set_mode()
 
+        # Looked up by name: icon is optional on a game (Scene does not declare it)
         icon_attr: pygame.Surface | None = getattr(self.game, 'icon', GameEngine.icon)
 
         if icon_attr is None:
@@ -1393,6 +1437,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _initialize_event_managers(self: Self) -> None:
         """Initialize all event managers for the game engine."""
         self.registered_events = {}
+        # The managers are shared instances (ResourceManager): this run builds its own, opening
+        # devices through its own doors, instead of getting an earlier run's in this process
+        events.ResourceManager.release_shared_instances()
         from glitchygames.events.app import AppEventManager
 
         self.app_manager = AppEventManager(game=self.scene_manager)
@@ -1407,33 +1454,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
-        # Determine input mode for gamepads
-        input_mode = GameEngine.OPTIONS.get('input_mode', 'auto')
+        # Which devices and events the game sees (glitchygames/input/input_devices.py, rule 2):
+        # auto (the default) both layers, a mapped pad dispatching its controller events and
+        # any other device its joystick events; joystick the joystick layer only; controller
+        # mapped pads only. Joystick events are never blocked at SDL: blocking them interferes
+        # with CONTROLLERDEVICEADDED/REMOVED on macOS (they are dropped at dispatch instead)
+        input_mode = InputMode(GameEngine.OPTIONS.get('input_mode', InputMode.AUTO))
 
-        if input_mode == 'auto':
-            # Detect pygame-ce and default to joystick API (controller API
-            # has compatibility issues with pygame-ce 2.5+)
-            using_pygame_ce: bool = False
-            try:
-                using_pygame_ce = (
-                    importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
-                )
-            except NameError, importlib.metadata.PackageNotFoundError:
-                with contextlib.suppress(importlib.metadata.PackageNotFoundError):
-                    using_pygame_ce = (
-                        importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
-                    )
-            input_mode = 'joystick' if using_pygame_ce else 'controller'
-            GameEngine.OPTIONS['input_mode'] = input_mode
-            LOG.info('Auto-detected input mode: %s', input_mode)
-
-        if input_mode == 'joystick':
+        if input_mode is InputMode.JOYSTICK:
             self.controller_manager = None
             pygame.event.set_blocked(events.CONTROLLER_EVENTS)
             LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            LOG.info('Input mode: controller (SDL Game Controller API)')
+            LOG.info('Input mode: %s (SDL Game Controller API)', input_mode)
 
         self.touch_manager = TouchEventManager(game=self.scene_manager)
         # https://glitchy-games.atlassian.net/browse/GG-23
@@ -1445,16 +1479,35 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.mouse_manager = MouseEventManager(game=self.scene_manager)
         self.window_manager = WindowEventManager(game=self.scene_manager)
 
-        # Get count of joysticks
-        self.joysticks = []
-        if self.joystick_manager:
-            # JoystickEventManager.joysticks is a dictionary, convert to list of values
-            manager_joysticks: dict[Any, Any] = cast(
-                'dict[Any, Any]',
-                self.joystick_manager.joysticks,
-            )
-            self.joysticks = list(manager_joysticks.values())
-        self.joystick_count = len(self.joysticks)
+        # The devices the managers just opened (no scene is running yet to be told)
+        self.input_devices = InputDevices(input_mode=input_mode)
+        self._synchronize_input_devices()
+
+    def _synchronize_input_devices(self: Self) -> None:
+        """Follow the managers' devices, telling the active scene which came and went.
+
+        Called once the managers are made and after every device event they handle
+        (glitchygames/input/input_devices.py, rule 3).
+        """
+        controller_manager = self.controller_manager
+        changes = self.input_devices.synchronize(
+            joysticks={
+                proxy.instance_id: proxy.joystick
+                for proxy in self.joystick_manager.joysticks.values()
+            },
+            controllers=(
+                {}
+                if controller_manager is None
+                else {
+                    proxy.instance_id: proxy.controller
+                    for proxy in controller_manager.controllers.values()
+                }
+            ),
+        )
+        for device in changes.removed:
+            self.scene_manager.on_input_device_removed(device=device)
+        for device in changes.added:
+            self.scene_manager.on_input_device_added(device=device)
 
     def _resolve_scene_name_for_error(self: Self) -> str:
         """Resolve the current or previous scene name for error reporting.
@@ -1463,24 +1516,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             The scene name string for error messages.
 
         """
-        current_scene = getattr(self.scene_manager, 'current_scene', None)
-        if current_scene:
-            scene_name = getattr(current_scene, 'NAME', None)
-            # If NAME is None, use the class name
-            if scene_name is None:
-                scene_name = current_scene.__class__.__name__
-            return scene_name
-
-        # If current scene is None, try to get the previous scene
-        previous_scene = getattr(self.scene_manager, 'previous_scene', None)
-        if previous_scene:
-            scene_name = getattr(previous_scene, 'NAME', None)
-            # If NAME is None, use the class name
-            if scene_name is None:
-                scene_name = previous_scene.__class__.__name__
-            return scene_name
-
-        return 'None'
+        # The scene that was running, else (none active: the run ended before a scene began,
+        # or after the last one) the scene before it
+        scene = self.scene_manager.active_scene
+        if scene is None:
+            scene = self.scene_manager.previous_scene
+        if scene is None:
+            return 'None'
+        # A scene without a name (an empty NAME) is named by its class
+        return scene.NAME or scene.__class__.__name__
 
     def measurement_run(
         self: Self, *, processing_paced: bool, rebaselined_from: str | None
@@ -1517,6 +1561,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             rebaselined_from=rebaselined_from,
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
+            source_revision=engine_source_revision(),
+            machine_state=current_machine_state(),
         )
 
     def trace_recording_header(self: Self) -> dict[str, Any]:
@@ -1615,7 +1661,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         recorder = GameplayRecorder(path=path, header=header)
         install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
-        self.log.info(f'Recording gameplay to {path} (random seed {self.random_seed})')
+        self.log.info('Recording gameplay to %s (random seed %s)', path, self.random_seed)
         return recorder
 
     def _start_requested_trace_recording(self: Self) -> None:
@@ -1754,7 +1800,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             announce_replay(path=Path(replay_trace_path), sources=sources)
             return sources
         # Logged without a traceback: the message says what is wrong with the recording
-        self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
+        self.log.error('Cannot replay %s: %s', replay_trace_path, refusal)
         # Only a file that does not exist is missing input; one that cannot be read (no
         # permission, a directory, not gzip: gzip.BadGzipFile is an OSError) is unusable
         exit_with(
@@ -1765,6 +1811,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             cause=refusal,
         )
+
+    def _refuse_a_replay_display_of_another_size(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.UNUSABLE_INPUT if the replay's window has another size than recorded.
+
+        The replay asked for the recorded ``screen_size`` (``start_replay``); a window manager
+        that gave the window another size would set the game up on it, and the replay would
+        diverge from its first frame.
+
+        Args:
+            options: The parsed options (``replay_trace`` names the recording).
+
+        """
+        if self.replay_sources is None:
+            return
+        refusal = display_size_refusal(
+            header=self.replay_sources.header, display_size=self.screen.get_size()
+        )
+        if refusal is None:
+            return
+        self.log.error('Cannot replay %s: %s', options['replay_trace'], refusal)
+        exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
 
     def _check_replay_options_without_a_recording(self: Self, *, options: dict[str, Any]) -> None:
         """Refuse --audit and --rebaseline without --replay-trace; warn about ignored options.
@@ -1790,7 +1857,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ('max_processing_slowdown', '--max-processing-slowdown'),
         ):
             if options.get(option_name) is not None:
-                self.log.warning(f'{flag} is ignored without --replay-trace')
+                self.log.warning('%s is ignored without --replay-trace', flag)
 
     def _refuse_unwritable_outputs(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.CANNOT_WRITE_OUTPUT if an output file of the run cannot be written.
@@ -1818,7 +1885,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         for flag, path in outputs:
             refusal_reason = output_refusal(path=path)
             if refusal_reason is not None:
-                self.log.error(f'Cannot write {flag}: {refusal_reason}')
+                self.log.error('Cannot write %s: %s', flag, refusal_reason)
                 exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
 
     def _refuse_an_unsound_recording_over_the_replay(
@@ -1838,12 +1905,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if options.get('rebaseline') is not None:
             refusal_reason = rebaseline_refusal(options=options)
             if refusal_reason is not None:
-                self.log.error(f'Cannot rebaseline {replay_trace_path}: {refusal_reason}')
+                self.log.error('Cannot rebaseline %s: %s', replay_trace_path, refusal_reason)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
         elif options.get('record_trace') is not None:
             self.log.error(
-                f'Cannot replay {replay_trace_path} with --record-trace: record over a replay '
-                'with --rebaseline NEW --headless'
+                'Cannot replay %s with --record-trace: record over a replay '
+                'with --rebaseline NEW --headless',
+                replay_trace_path,
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
@@ -1876,7 +1944,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             reason = 'not with --rebaseline'
         else:
             return
-        self.log.error(f'Cannot compare the processing times of {replay_trace_path}: {reason}')
+        self.log.error('Cannot compare the processing times of %s: %s', replay_trace_path, reason)
         exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_an_unsound_audit(
@@ -1895,14 +1963,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if options.get('replay_fps') == REAL_REPLAY_FPS:
             self.log.error(
-                f'Cannot audit {replay_trace_path} with --replay-fps {REAL_REPLAY_FPS}: --audit '
-                'compares recorded FPS events'
+                'Cannot audit %s with --replay-fps %s: --audit compares recorded FPS events',
+                replay_trace_path,
+                REAL_REPLAY_FPS,
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
         if not environment_reaches_children():
             self.log.error(
-                f'Cannot audit {replay_trace_path}: Python was started with -E or -I, so the '
-                'audit replays would ignore their PYTHONHASHSEED; run without those options'
+                'Cannot audit %s: Python was started with -E or -I, so the '
+                'audit replays would ignore their PYTHONHASHSEED; run without those options',
+                replay_trace_path,
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
@@ -1922,9 +1992,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if sources.recording.is_truncated:
             self.log.error(
-                f'Cannot audit {replay_trace_path}: the recording is truncated after '
-                f'{sources.recording.frame_count} complete frames, and an audit needs the whole '
-                'recording'
+                'Cannot audit %s: the recording is truncated after '
+                '%s complete frames, and an audit needs the whole '
+                'recording',
+                replay_trace_path,
+                sources.recording.frame_count,
             )
             exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
 
@@ -1940,7 +2012,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             path: The recording.
 
         """
-        self.log.info(f'Auditing {path}: two replays in fresh processes')
+        self.log.info('Auditing %s: two replays in fresh processes', path)
         try:
             with self._waiting_for_child_processes():
                 result = audit_recording(
@@ -1955,7 +2027,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.log.error(result.summary())
             exit_with(exit_code=ExitCode.AUDIT_NONDETERMINISTIC)
         # Logged without a traceback: the message says which run failed and how
-        self.log.error(f'Audit could not run: {run_error}')
+        self.log.error('Audit could not run: %s', run_error)
         exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=run_error)
 
     def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
@@ -2033,9 +2105,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
           converted to, which still matches. The buffer size cannot be read back, so it is
           pygame's default. If the dummy mixer cannot start, the run goes on without audio
           (logged).
+
+        The variables' earlier values are kept and put back when the run ends
+        (``_restore_sdl_driver_variables``), so a process that goes on after a headless run
+        starts pygame on its own drivers again.
         """
-        os.environ['SDL_VIDEODRIVER'] = HEADLESS_SDL_DRIVER
-        os.environ['SDL_AUDIODRIVER'] = HEADLESS_SDL_DRIVER
+        self._sdl_driver_variables_before_headless = {
+            name: os.environ.get(name) for name in SDL_DRIVER_VARIABLES
+        }
+        for name in SDL_DRIVER_VARIABLES:
+            os.environ[name] = HEADLESS_SDL_DRIVER
         restarted: list[str] = []
         if pygame.display.get_init() and pygame.display.get_driver() != HEADLESS_SDL_DRIVER:
             restarted.append(f'the display (video driver {pygame.display.get_driver()!r})')
@@ -2056,17 +2135,39 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             except pygame.error as error:
                 # The run goes on without a mixer: sounds and live voices are silent no-ops
                 self.log.warning(
-                    f'--headless: the mixer could not start on the dummy audio driver ({error}); '
-                    'running without audio'
+                    '--headless: the mixer could not start on the dummy audio driver (%s); '
+                    'running without audio',
+                    error,
                 )
             else:
                 pygame.mixer.set_num_channels(mixing_channel_count)
         if restarted:
             self.log.warning(
-                f'--headless: pygame was started before the engine; restarting '
-                f'{" and ".join(restarted)} on the dummy driver, so there is no window and '
-                'audio is muted'
+                '--headless: pygame was started before the engine; restarting '
+                '%s on the dummy driver, so there is no window and '
+                'audio is muted',
+                ' and '.join(restarted),
             )
+
+    def _restore_sdl_driver_variables(self: Self) -> None:
+        """Put back the SDL driver variables --headless set, as they were before it (idempotent).
+
+        SDL reads them only when the display or mixer starts, so this changes nothing that is
+        running: it is called after ``_shutdown`` quit pygame, so a process that goes on (runs a
+        headless replay, then opens a window) starts pygame on its own drivers, not the dummy
+        ones. A variable that was not set before is removed.
+        """
+        variables_before, self._sdl_driver_variables_before_headless = (
+            self._sdl_driver_variables_before_headless,
+            None,
+        )
+        if variables_before is None:
+            return
+        for name, value in variables_before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
     def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
         """Close any recording, report any replay, print performance reports, shut down pygame.
@@ -2084,6 +2185,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # reported; the closing error then propagates (the teardown failed)
             self._restore_signal_handlers()
             self._report_replay_result(run_ended_by=run_ended_by)
+        # The run is over, a restart included (its process makes its own timer): give back what
+        # the timer holds here, not in its finaliser, which must not log (BUGS.md #188)
+        if self.timer is not None:
+            self.timer.close()
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
@@ -2105,6 +2210,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             performance_manager.print_shutdown_report()
             performance_manager.print_per_scene_shutdown_report()
 
+        self._log_sprite_count_report()
         self._log_unhandled_event_report()
 
         pygame.display.quit()
@@ -2122,7 +2228,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 GameEngine.OPTIONS.get('timer_backend'),
                 GameEngine.OPTIONS,
             )
-            self.log.info(f'Timer backend: {GameEngine.OPTIONS.get("timer_backend")}')
+            self.log.info('Timer backend: %s', GameEngine.OPTIONS.get('timer_backend'))
             # auto measures this machine's sleep model now for a paced live game, so no frame
             # pays for it (and logs what it chose); a replay never paces with the timer, and an
             # uncapped run calibrates only if it starts pacing (at its first paced frame)
@@ -2140,8 +2246,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             from glitchygames.performance import performance_manager
 
             trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
-            if hasattr(performance_manager, 'set_trim_percent'):
-                performance_manager.set_trim_percent(trim)
+            performance_manager.set_trim_percent(trim)
         except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
             LOG.debug('Performance trim percent configuration failed: %s', perf_error)
         try:
@@ -2176,6 +2281,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         finally:
             # Again (it is idempotent): _shutdown restores them, but not if it failed first
             self._restore_signal_handlers()
+            # After _shutdown quit pygame: whatever starts it next does so on these drivers
+            self._restore_sdl_driver_variables()
         if GameEngine.OPTIONS['profile'] and profiler is not None:
             profiler.disable()
             profiler.print_stats()
@@ -2207,7 +2314,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger('game')
 
-        self.log.info(f'Starting game engine for game: {type(self).NAME}')
+        self.log.info('Starting game engine for game: %s', type(self).NAME)
         if self.game is None:
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
@@ -2284,7 +2391,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if isinstance(exit_status, int):
             description = ExitCode.describe_status(exit_status)
-            self.log.info(f'Exiting with {description}')
+            self.log.info('Exiting with %s', description)
             return description
         return f'SystemExit({exit_status!r})'
 
@@ -2410,7 +2517,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             SystemExit: Always, with the status ``relaunch_replay`` returns.
 
         """
-        self.log.info(f'Restarting the replay at frame {restart_frame}')
+        self.log.info('Restarting the replay at frame %s', restart_frame)
         debug_overlay = self.scene_manager.debug_overlay
         controls = replay_sources.controls
         recording_path = Path(GameEngine.OPTIONS['replay_trace'])
@@ -2418,8 +2525,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             bookmarked_copy = replay_sources.bookmarks.save()
             if bookmarked_copy is None:
                 self.log.warning(
-                    f'Restarting without the bookmarks {controls.bookmarks}: the bookmarked copy '
-                    f'of {recording_path} could not be saved'
+                    'Restarting without the bookmarks %s: the bookmarked copy '
+                    'of %s could not be saved',
+                    controls.bookmarks,
+                    recording_path,
                 )
             else:
                 recording_path = bookmarked_copy
@@ -2448,7 +2557,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             exit_code = ExitCode(status)
         except ValueError:
             # A status no member names (a game's own exit status, a signal without a member)
-            self.log.info(f'Exiting with {ExitCode.describe_status(status)}')
+            self.log.info('Exiting with %s', ExitCode.describe_status(status))
             raise SystemExit(status) from None
         exit_with(exit_code=exit_code)
 
@@ -2538,8 +2647,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
                 continue
 
-            event: events.HashableEvent = events.HashableEvent(type=pygame_event.type)
-            event.__dict__.update(pygame_event.dict)
+            event = events.HashableEvent.from_pygame(pygame_event)
 
             # Decided per event: a type missing from the map is unhandled
             event_was_handled = False
@@ -2646,7 +2754,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements]
+    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a controller event.
 
         Args:
@@ -2659,48 +2767,58 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if self.controller_manager is None:
             return False
 
-        if event.type == pygame.CONTROLLERAXISMOTION:
-            self.controller_manager.on_controller_axis_motion_event(event)
+        # Each device's input events come from one layer only: a controller event of a device
+        # the game does not see on its controller layer is dropped (handled: deliberately not
+        # dispatched; glitchygames/input/input_devices.py, rules 1 and 2)
+        if not self.input_devices.dispatches(
+            event_type=event.type, instance_id=self._device_event_instance_id(event=event)
+        ):
             return True
 
-        if event.type == pygame.CONTROLLERTOUCHPADMOTION:
-            self.controller_manager.on_controller_touchpad_motion_event(event)
-            return True
+        # Matched by class (the type's class from events.EVENT_CLASSES, which every event of
+        # the type is, however it was built) and then by type where a class covers several
+        manager = self.controller_manager
+        match event:
+            case events.ControllerAxisEvent():
+                manager.on_controller_axis_motion_event(event)
+            case events.ControllerTouchpadEvent(type=pygame.CONTROLLERTOUCHPADMOTION):
+                manager.on_controller_touchpad_motion_event(event)
+            case events.ControllerButtonEvent(type=pygame.CONTROLLERBUTTONDOWN):
+                manager.on_controller_button_down_event(event)
+            case events.ControllerButtonEvent(type=pygame.CONTROLLERBUTTONUP):
+                manager.on_controller_button_up_event(event)
+            case events.ControllerTouchpadEvent(type=pygame.CONTROLLERTOUCHPADDOWN):
+                manager.on_controller_touchpad_down_event(event)
+            case events.ControllerTouchpadEvent(type=pygame.CONTROLLERTOUCHPADUP):
+                manager.on_controller_touchpad_up_event(event)
+            case events.HashableEvent(type=pygame.CONTROLLERSENSORUPDATE):
+                manager.on_controller_sensor_update_event(event)
+            case _:
+                return self._process_controller_device_event(manager=manager, event=event)
+        return True
 
-        if event.type == pygame.CONTROLLERBUTTONDOWN:
-            self.controller_manager.on_controller_button_down_event(event)
-            return True
+    def _process_controller_device_event(
+        self: Self, *, manager: ControllerEventManager, event: events.HashableEvent
+    ) -> bool:
+        """Process a controller's added, removed or remapped event (``process_controller_event``).
 
-        if event.type == pygame.CONTROLLERBUTTONUP:
-            self.controller_manager.on_controller_button_up_event(event)
-            return True
+        Returns:
+            bool: True if the event was handled, False otherwise.
 
-        if event.type == pygame.CONTROLLERTOUCHPADDOWN:
-            self.controller_manager.on_controller_touchpad_down_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERTOUCHPADUP:
-            self.controller_manager.on_controller_touchpad_up_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERSENSORUPDATE:
-            self.controller_manager.on_controller_sensor_update_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERDEVICEREMOVED:
-            self.controller_manager.on_controller_device_removed_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERDEVICEADDED:
-            self.controller_manager.on_controller_device_added_event(event)
-            return True
-
-        if event.type == pygame.CONTROLLERDEVICEREMAPPED:
-            self.controller_manager.on_controller_device_remapped_event(event)
-            return True
-
-        # We haven't handled this event, so let's see if it's a controller init event
-        return False
+        """
+        match event:
+            case events.ControllerDeviceEvent(type=pygame.CONTROLLERDEVICEREMOVED):
+                manager.on_controller_device_removed_event(event)
+                self._synchronize_input_devices()
+            case events.ControllerDeviceAddedEvent():
+                manager.on_controller_device_added_event(event)
+                self._synchronize_input_devices()
+            case events.ControllerDeviceEvent(type=pygame.CONTROLLERDEVICEREMAPPED):
+                manager.on_controller_device_remapped_event(event)
+            case _:
+                # We haven't handled this event, so let's see if it's a controller init event
+                return False
+        return True
 
     def process_drop_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a drop event.
@@ -2799,9 +2917,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
             self.log.debug(
-                'ENGINE: MOUSEBUTTONDOWN received:'
-                f' button={getattr(event, "button", None)},'
-                f' pos={getattr(event, "pos", None)}',
+                'ENGINE: MOUSEBUTTONDOWN received: button=%s, pos=%s',
+                getattr(event, 'button', None),
+                getattr(event, 'pos', None),
             )
             self.mouse_manager.on_mouse_button_down_event(event)
             return True
@@ -2834,7 +2952,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
+    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a joystick event.
 
         Args:
@@ -2844,40 +2962,55 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             bool: True if the event was handled, False otherwise.
 
         """
-        if event.type == pygame.JOYAXISMOTION:
-            # JOYAXISMOTION    joy, axis, value
-            self.joystick_manager.on_joy_axis_motion_event(event)
+        # Each device's input events come from one layer only: a mapped pad's joystick-layer
+        # events are dropped (handled: deliberately not dispatched), as are the events of a
+        # device the game does not see (glitchygames/input/input_devices.py, rules 1 and 2)
+        if not self.input_devices.dispatches(
+            event_type=event.type, instance_id=self._device_event_instance_id(event=event)
+        ):
             return True
 
-        if event.type == pygame.JOYBALLMOTION:
-            # JOYBALLMOTION    joy, ball, rel
-            self.joystick_manager.on_joy_ball_motion_event(event)
-            return True
+        # Matched by class (the type's class from events.EVENT_CLASSES), then by type for
+        # the button class's two types
+        match event:
+            case events.JoyAxisEvent():
+                # JOYAXISMOTION    instance_id, axis, value
+                self.joystick_manager.on_joy_axis_motion_event(event)
+            case events.JoyBallEvent():
+                # JOYBALLMOTION    instance_id, ball, rel
+                self.joystick_manager.on_joy_ball_motion_event(event)
+            case events.JoyHatEvent():
+                # JOYHATMOTION     instance_id, hat, value
+                self.joystick_manager.on_joy_hat_motion_event(event)
+            case events.JoyButtonEvent(type=pygame.JOYBUTTONUP):
+                # JOYBUTTONUP      instance_id, button
+                self.joystick_manager.on_joy_button_up_event(event)
+            case events.JoyButtonEvent(type=pygame.JOYBUTTONDOWN):
+                # JOYBUTTONDOWN    instance_id, button
+                self.joystick_manager.on_joy_button_down_event(event)
+            case events.JoyDeviceAddedEvent():
+                self.joystick_manager.on_joy_device_added_event(event)
+                self._synchronize_input_devices()
+            case events.JoyDeviceRemovedEvent():
+                self.joystick_manager.on_joy_device_removed_event(event)
+                self._synchronize_input_devices()
+            case _:
+                return False
+        return True
 
-        if event.type == pygame.JOYHATMOTION:
-            # JOYHATMOTION     joy, hat, value
-            self.joystick_manager.on_joy_hat_motion_event(event)
-            return True
+    @staticmethod
+    def _device_event_instance_id(*, event: events.HashableEvent) -> int | None:
+        """Return the instance id of a joystick or controller event, None when it has none.
 
-        if event.type == pygame.JOYBUTTONUP:
-            # JOYBUTTONUP      joy, button
-            self.joystick_manager.on_joy_button_up_event(event)
-            return True
+        An added event names a device index instead (``device_index``): it is a device
+        event, which always passes (``InputDevices.dispatches``).
 
-        if event.type == pygame.JOYBUTTONDOWN:
-            # JOYBUTTONDOWN    joy, button
-            self.joystick_manager.on_joy_button_down_event(event)
-            return True
+        Returns:
+            The instance id, or None.
 
-        if event.type == pygame.JOYDEVICEADDED:
-            self.joystick_manager.on_joy_device_added_event(event)
-            return True
-
-        if event.type == pygame.JOYDEVICEREMOVED:
-            self.joystick_manager.on_joy_device_removed_event(event)
-            return True
-
-        return False
+        """
+        instance_id = event.dict.get('instance_id')
+        return None if instance_id is None else int(instance_id)
 
     def process_text_event(self: Self, event: events.HashableEvent) -> bool:
         """Process a text event.
@@ -2889,12 +3022,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             bool: True if the event was handled, False otherwise.
 
         """
+        # To the active scene's on_text_*_event (BUGS.md #200 item 1: both went to
+        # process_unimplemented_event, so Scene's text handlers were never called)
         if event.type == pygame.TEXTEDITING:
-            self.process_unimplemented_event(event)
+            self.scene_manager.on_text_editing_event(event)
             return True
 
         if event.type == pygame.TEXTINPUT:
-            self.process_unimplemented_event(event)
+            self.scene_manager.on_text_input_event(event)
             return True
 
         return False
@@ -2962,6 +3097,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             pygame.WINDOWLEAVE: self.window_manager.on_window_leave_event,
             pygame.WINDOWENTER: self.window_manager.on_window_enter_event,
             pygame.WINDOWSHOWN: self.window_manager.on_window_shown_event,
+            # BUGS.md #200 item 1: it had a handler but no entry, so it was never routed
+            pygame.WINDOWTAKEFOCUS: self.window_manager.on_window_take_focus_event,
         }
 
     def process_window_event(self: Self, event: events.HashableEvent) -> bool:
@@ -2993,49 +3130,50 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         # Game events are listed in the order they're most
-        # likely to occur in.
-        match event.type:
-            case events.FPSEVENT:
+        # likely to occur in; matched by class (the type's class from events.EVENT_CLASSES),
+        # or by type for the types without a class of their own
+        match event:
+            case events.FpsEvent():
                 # FPSEVENT is pygame.USEREVENT + 1
                 self.game_manager.on_fps_event(event)
                 return True
 
-            case events.GAMEEVENT:
+            case events.GameEvent():
                 # GAMEEVENT is pygame.USEREVENT + 2
                 self.game_manager.on_game_event(event)
                 return True
 
-            case events.MENUEVENT:
+            case events.HashableEvent(type=events.MENUEVENT):
                 # MENUEVENT is pygame.USEREVENT + 3
                 self.game_manager.on_menu_item_event(event)
                 return True
 
-            case pygame.ACTIVEEVENT:
+            case events.ActiveEvent():
                 # ACTIVEEVENT      gain, state
                 self.game_manager.on_active_event(event)
                 return True
 
-            case pygame.USEREVENT:
+            case events.HashableEvent(type=pygame.USEREVENT):
                 # USEREVENT        code
                 self.game_manager.on_user_event(event)
                 return True
 
-            case pygame.VIDEORESIZE:
+            case events.VideoResizeEvent():
                 # VIDEORESIZE      size, w, h
                 self.game_manager.on_video_resize_event(event)
                 return True
 
-            case pygame.VIDEOEXPOSE:
+            case events.HashableEvent(type=pygame.VIDEOEXPOSE):
                 # VIDEOEXPOSE      none
                 self.game_manager.on_video_expose_event(event)
                 return True
 
-            case pygame.SYSWMEVENT:
+            case events.HashableEvent(type=pygame.SYSWMEVENT):
                 # SYSWMEVENT
                 self.game_manager.on_sys_wm_event(event)
                 return True
 
-            case pygame.QUIT:
+            case events.HashableEvent(type=pygame.QUIT):
                 # QUIT             none
                 self.game_manager.on_quit_event(event)
                 return True
@@ -3095,7 +3233,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         if event.type not in self.UNIMPLEMENTED_EVENTS:
             self.log.debug(
-                f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}',
+                '(UNIMPLEMENTED) %s: %s',
+                pygame.event.event_name(event.type).upper(),
+                event,
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
 
@@ -3149,16 +3289,28 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             for event_type, record in records
         ]
 
+    def _log_sprite_count_report(self: Self) -> None:
+        """Log the sprite counts at teardown: the total, then each sprite type's counters.
+
+        Logged here, not from a finaliser: a ``__del__`` runs whenever the garbage collector
+        does, possibly in the middle of a write to the stream the log goes to, where a second
+        write raises ``RuntimeError: reentrant call`` (BUGS.md #188).
+        """
+        self.log.info('Sprite Count: %s', Sprite.SPRITE_COUNT)
+        for sprite_type, counters in Sprite.SPRITE_COUNTERS.items():
+            for counter_name, counter_value in counters.items():
+                self.log.info('%s Sprite %s: %s', sprite_type, counter_name, counter_value)
+
     def _log_unhandled_event_report(self: Self) -> None:
         """Log the unhandled event table at teardown; log nothing if there were none."""
         report_lines = self.unhandled_event_report()
         if not report_lines:
             return
         # Framed like the performance shutdown reports logged just before it
-        self.log.info(f'\n{"=" * 80}')
+        self.log.info('\n%s', '=' * 80)
         self.log.info('Unhandled events:')
         for report_line in report_lines:
-            self.log.info(f'  {report_line}')
+            self.log.info('  %s', report_line)
         self.log.info('=' * 80)
 
     def post_game_event(self: Self, event_subtype: int, event_data: dict[str, Any]) -> None:
@@ -3212,7 +3364,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if self.LAST_EVENT_MISS not in self.MISSING_EVENTS:
             self.MISSING_EVENTS.append(self.LAST_EVENT_MISS)
 
-            self.log.info(f'Unimplemented method called: {self.LAST_EVENT_MISS}{args}, {kwargs}')
+            self.log.info(
+                'Unimplemented method called: %s%s, %s', self.LAST_EVENT_MISS, args, kwargs
+            )
             self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.

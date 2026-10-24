@@ -171,7 +171,7 @@ def _render_png_to_response(
         render_all_frames=render_all_frames,
     )
     if not render_result.success:
-        LOG.warning(f'PNG rendering failed: {render_result.error}')
+        LOG.warning('PNG rendering failed: %s', render_result.error)
         return None
 
     response.png_base64 = render_result.png_base64
@@ -214,7 +214,7 @@ def _response_for_result(
 
     """
     if not result.success:
-        LOG.warning(f'{failure_label} failed: {result.error}')
+        LOG.warning('%s failed: %s', failure_label, result.error)
         return SpriteGenerationResponse(
             success=False,
             error=result.error,
@@ -284,9 +284,9 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
 
     try:
         # Generate the sprite
-        LOG.info(f'Generating sprite from prompt: {request.prompt[:50]}...')
+        LOG.info('Generating sprite from prompt: %s...', request.prompt[:50])
         if request.model:
-            LOG.info(f'Using model override: {request.model}')
+            LOG.info('Using model override: %s', request.model)
         result = generation_service.generate_sprite(
             prompt=request.prompt,
             width=request.width,
@@ -308,6 +308,10 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
             status_code=503,
             detail=f'AI provider unavailable: {e}',
         ) from e
+    except HTTPException:
+        # An answer already chosen (a refused output_path is a 400): passed on as it is, not
+        # turned into a 500 by the handler below (BUGS.md #200 item 3)
+        raise
     except Exception as e:
         LOG.exception('Unexpected error')
         raise HTTPException(
@@ -339,7 +343,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
 
     try:
         # Refine the sprite
-        LOG.info(f'Refining sprite with prompt: {request.prompt[:50]}...')
+        LOG.info('Refining sprite with prompt: %s...', request.prompt[:50])
         result = generation_service.refine_sprite(
             prompt=request.prompt,
             current_toml=request.current_toml,
@@ -356,6 +360,10 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
             status_code=503,
             detail=f'AI provider unavailable: {e}',
         ) from e
+    except HTTPException:
+        # An answer already chosen (a refused output_path is a 400): passed on as it is, not
+        # turned into a 500 by the handler below (BUGS.md #200 item 3)
+        raise
     except Exception as e:
         LOG.exception('Unexpected error')
         raise HTTPException(
@@ -444,14 +452,12 @@ def _extract_png_dimensions(
     """
     import struct
 
-    try:
-        # PNG dimensions are in the IHDR chunk at bytes 16-24
-        if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
-            width = struct.unpack('>I', frame_bytes[16:20])[0]
-            height = struct.unpack('>I', frame_bytes[20:24])[0]
-            return width, height
-    except (struct.error, IndexError, ValueError) as dimension_error:
-        LOG.debug('Could not extract PNG dimensions: %s', dimension_error)
+    # PNG dimensions are in the IHDR chunk at bytes 16-24; with at least 24 bytes each
+    # slice holds exactly the 4 bytes '>I' unpacks, so unpacking cannot fail
+    if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
+        width = struct.unpack('>I', frame_bytes[16:20])[0]
+        height = struct.unpack('>I', frame_bytes[20:24])[0]
+        return width, height
     return default_width, default_height
 
 
@@ -466,10 +472,11 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         request: APNG extraction request with base64-encoded APNG data
 
     Returns:
-        Extracted frames and metadata
+        Extracted frames and metadata. Bad base64 or an APNG that cannot be parsed is not an
+        HTTP error: the response (200) has success=False and the reason in its error field.
 
     Raises:
-        HTTPException: If APNG parsing fails (400) or other errors (500)
+        HTTPException: 500 for any unexpected error
 
     """
     try:
@@ -495,6 +502,8 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
         data
 
     """
+    import struct
+
     from apng import APNG
 
     # Decode the base64 APNG data
@@ -507,10 +516,11 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
             error=f'Invalid base64 data: {e}',
         )
 
-    # Parse the APNG
+    # Parse the APNG. The apng package reads chunk headers with struct, so data cut off inside
+    # one raises struct.error (not a ValueError subclass)
     try:
         apng: APNG = APNG.from_bytes(apng_bytes)
-    except (ValueError, OSError) as e:
+    except (ValueError, OSError, struct.error) as e:
         LOG.warning('Failed to parse APNG: %s', e)
         return ApngExtractResponse(
             success=False,
@@ -538,8 +548,11 @@ def _extract_apng_frames(*, apng_base64: str) -> ApngExtractResponse:
     loop_count = apng.num_plays if hasattr(apng, 'num_plays') else 0
 
     LOG.info(
-        f'Extracted {len(frames_info)} frames from APNG '
-        f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)',
+        'Extracted %s frames from APNG (%sx%s, %sms total)',
+        len(frames_info),
+        canvas_width,
+        canvas_height,
+        total_duration_ms,
     )
 
     return ApngExtractResponse(

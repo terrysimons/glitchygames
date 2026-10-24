@@ -163,19 +163,22 @@ def _run_bounce_simulation(state: BounceState, bounds: BoundsRect, config: SimCo
 def _log_simulation_results(results, iterations):
     """Log the results of a bounce simulation."""
     LOG.debug('\n=== FINAL RESULTS ===')
-    LOG.debug(f'Total bounces: {results["bounce_count"]:,}')
-    LOG.debug(f'X bounces: {results["x_bounces"]:,}')
-    LOG.debug(f'Y bounces: {results["y_bounces"]:,}')
-    LOG.debug(f'Total time: {results["total_time"]:.3f} seconds')
-    LOG.debug(f'Iterations per second: {iterations / results["total_time"]:.0f}')
-    LOG.debug(f'Calculations per second: {iterations * 4 / results["total_time"]:.0f}')
-    LOG.debug(f'Final position: ({results["x"]:.3f}, {results["y"]:.3f})')
-    LOG.debug(f'Final speed: ({results["speed_x"]:.6f}, {results["speed_y"]:.6f})')
+    LOG.debug('Total bounces: %s', format(results['bounce_count'], ','))
+    LOG.debug('X bounces: %s', format(results['x_bounces'], ','))
+    LOG.debug('Y bounces: %s', format(results['y_bounces'], ','))
+    LOG.debug('Total time: %.3f seconds', results['total_time'])
+    LOG.debug('Iterations per second: %.0f', iterations / results['total_time'])
+    LOG.debug('Calculations per second: %.0f', iterations * 4 / results['total_time'])
+    LOG.debug('Final position: (%.3f, %.3f)', results['x'], results['y'])
+    LOG.debug('Final speed: (%.6f, %.6f)', results['speed_x'], results['speed_y'])
     final_magnitude = math.sqrt(results['speed_x'] ** 2 + results['speed_y'] ** 2)
-    LOG.debug(f'Final speed magnitude: {final_magnitude:.6f}')
+    LOG.debug('Final speed magnitude: %.6f', final_magnitude)
     LOG.debug(
-        f'Position bounds: X[{results["min_x"]:.1f}-{results["max_x"]:.1f}]'
-        f' Y[{results["min_y"]:.1f}-{results["max_y"]:.1f}]',
+        'Position bounds: X[%.1f-%.1f] Y[%.1f-%.1f]',
+        results['min_x'],
+        results['max_x'],
+        results['min_y'],
+        results['max_y'],
     )
 
 
@@ -190,12 +193,12 @@ def _analyze_magnitude_stability(magnitude_samples, initial_magnitude):
     magnitude_drift = max_magnitude - min_magnitude
 
     LOG.debug('\nSpeed magnitude analysis:')
-    LOG.debug(f'  Initial: {initial_magnitude:.6f}')
-    LOG.debug(f'  Samples: {len(magnitude_samples)}')
-    LOG.debug(f'  Min: {min_magnitude:.6f}')
-    LOG.debug(f'  Max: {max_magnitude:.6f}')
-    LOG.debug(f'  Average: {avg_magnitude:.6f}')
-    LOG.debug(f'  Drift: {magnitude_drift:.6f}')
+    LOG.debug('  Initial: %.6f', initial_magnitude)
+    LOG.debug('  Samples: %s', len(magnitude_samples))
+    LOG.debug('  Min: %.6f', min_magnitude)
+    LOG.debug('  Max: %.6f', max_magnitude)
+    LOG.debug('  Average: %.6f', avg_magnitude)
+    LOG.debug('  Drift: %.6f', magnitude_drift)
 
     if magnitude_drift > 1.0:
         LOG.debug('  WARNING: Significant speed magnitude drift detected!')
@@ -218,22 +221,28 @@ def _check_position_bounds(results, screen_width, screen_height, ball_width, bal
     else:
         LOG.debug('  Position bounds issue detected')
         LOG.debug(
-            f'    Expected X: [{expected_min_x}-{expected_max_x}],'
-            f' got [{results["min_x"]:.1f}-{results["max_x"]:.1f}]',
+            '    Expected X: [%s-%s], got [%.1f-%.1f]',
+            expected_min_x,
+            expected_max_x,
+            results['min_x'],
+            results['max_x'],
         )
         LOG.debug(
-            f'    Expected Y: [{expected_min_y}-{expected_max_y}],'
-            f' got [{results["min_y"]:.1f}-{results["max_y"]:.1f}]',
+            '    Expected Y: [%s-%s], got [%.1f-%.1f]',
+            expected_min_y,
+            expected_max_y,
+            results['min_y'],
+            results['max_y'],
         )
 
 
 def _check_finite_values(speed_x, speed_y, x, y):
     """Check for NaN or infinity values and fail the test if found."""
     LOG.debug('\nFloating-point precision check:')
-    LOG.debug(f'  Speed X precision: {speed_x:.10f}')
-    LOG.debug(f'  Speed Y precision: {speed_y:.10f}')
-    LOG.debug(f'  Position X precision: {x:.10f}')
-    LOG.debug(f'  Position Y precision: {y:.10f}')
+    LOG.debug('  Speed X precision: %.10f', speed_x)
+    LOG.debug('  Speed Y precision: %.10f', speed_y)
+    LOG.debug('  Position X precision: %.10f', x)
+    LOG.debug('  Position Y precision: %.10f', y)
 
     if math.isnan(speed_x) or math.isnan(speed_y) or math.isnan(x) or math.isnan(y):
         pytest.fail('NaN values detected in ball calculations')
@@ -254,7 +263,7 @@ def test_ball_math_fast():
     ball_height = 20
     iterations = 100000
 
-    LOG.debug(f'\nRunning {iterations:,} iterations...')
+    LOG.debug('\nRunning %s iterations...', format(iterations, ','))
 
     results = _run_bounce_simulation(
         state=BounceState(x=400.0, y=300.0, speed_x=250.0, speed_y=125.0),
@@ -277,7 +286,7 @@ def test_ball_math_fast():
     initial_mag = float(results['initial_magnitude'])
     final_magnitude = math.sqrt(final_speed_x**2 + final_speed_y**2)
     magnitude_change = abs(final_magnitude - initial_mag)
-    LOG.debug(f'  Speed magnitude change: {magnitude_change:.6f}')
+    LOG.debug('  Speed magnitude change: %.6f', magnitude_change)
 
     _check_position_bounds(results, screen_width, screen_height, ball_width, ball_height)
     _check_finite_values(final_speed_x, final_speed_y, results['x'], results['y'])

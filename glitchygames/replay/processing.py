@@ -145,12 +145,17 @@ class ProcessingSummary(BaseModel):
             change = f'{-change_percent:.1f}% less time than'
         else:
             change = 'the same time as'
+        # Frames were compared (change_percent is not None), so both medians exist
+        replayed_median_seconds = self.replayed_median_seconds
+        recorded_median_seconds = self.recorded_median_seconds
+        assert replayed_median_seconds is not None
+        assert recorded_median_seconds is not None
         totals = (
             f'Processing: the replay took {change} the recording ({self.frames_compared} '
             f'frames: {self.replayed_total_seconds:.3f} s against '
             f'{self.recorded_total_seconds:.3f} s; median frame '
-            f'{_milliseconds(self.replayed_median_seconds)} against '
-            f'{_milliseconds(self.recorded_median_seconds)})'
+            f'{_milliseconds(replayed_median_seconds)} against '
+            f'{_milliseconds(recorded_median_seconds)})'
         )
         parts = [totals]
         if self.slowest_frames:
@@ -252,13 +257,11 @@ class ProcessingComparison:
         )
 
 
-def _milliseconds(seconds: float | None) -> str:
+def _milliseconds(seconds: float) -> str:
     """Format seconds as milliseconds for the report.
 
     Returns:
-        ``3.100 ms``, or ``-`` for None.
+        ``3.100 ms``.
 
     """
-    if seconds is None:
-        return '-'
     return f'{seconds * MILLISECONDS_PER_SECOND:.3f} ms'

@@ -18,6 +18,7 @@ from glitchygames.debug.panels import (
     draw_physics_panel,
     screen_rect_for,
 )
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.frame import SpriteFrame
@@ -102,7 +103,7 @@ def ball():
     """
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode(SURFACE_SIZE)
+        set_display_mode(size=SURFACE_SIZE)
     return BallSprite()
 
 
@@ -283,6 +284,16 @@ class TestCollisionPanel:
         scene = build_scene(camera=camera, layers={'a': [layered]}, extra_sprites=[loose])
         draw_collision(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((60, 70))[:3] == UNLAYERED_COLOR
+
+    def test_unlayered_sprite_without_a_rect_is_skipped(self, surface, camera, font):
+        """An unlayered entry with no rect (a bare game object) is not outlined."""
+        rectless = types.SimpleNamespace(world_x=60.0, world_y=70.0)
+        loose = ScreenSprite(x=120, y=90)
+        layered = WorldSprite(world_x=300, world_y=200)
+        scene = build_scene(camera=camera, layers={'a': [layered]}, extra_sprites=[rectless, loose])
+        draw_collision(surface=surface, scene=scene, camera=camera, font=font)
+        assert surface.get_at((60, 70))[:3] == (0, 0, 0)
+        assert surface.get_at((120, 90))[:3] == UNLAYERED_COLOR
 
     def test_legend_row_per_layer_with_count(self, surface, camera, font):
         """The legend writes each layer name with its sprite count."""

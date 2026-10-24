@@ -12,15 +12,14 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from glitchygames import events
 from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import (
+    BLACK,
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.engine import ExitCode, GameEngine
 from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.input.state import current_input
-from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.ui.dialogs import (
     LoadDialogScene,
@@ -41,12 +40,14 @@ from .file_io import FileIOManager
 from .film_strip_coordinator import FilmStripCoordinator
 from .frame_operations import FrameOperationManager
 from .indicators.collision import VisualCollisionManager
+from .panning import PAN_GESTURE_KEYS
 from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
 
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames import events
     from glitchygames.events.voice import VoiceEventManager
     from glitchygames.sprites.animated import AnimatedSprite
     from glitchygames.ui import (
@@ -103,10 +104,10 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     film_strip_operation_tracker: FilmStripOperationTracker
     cross_area_operation_tracker: CrossAreaOperationTracker
     controller_position_operation_tracker: ControllerPositionOperationTracker
-    current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]]
+    current_pixel_changes: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool
     pixel_change_timer: float | None
-    _applying_undo_redo: bool
+    applying_undo_redo: bool
     _initialized: bool
 
     # Set your game name/version here.
@@ -193,9 +194,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             options: Dictionary of configuration options for the scene.
             groups: Optional pygame sprite groups for sprite management.
 
-        Raises:
-            None
-
         """
         if options is None:  # type: ignore[reportUnnecessaryComparison]
             options = {}
@@ -205,6 +203,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             options['size'] = '32x32'  # Default canvas size
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        # Black between the panels (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
 
         # Initialize film strip scrolling attributes
         self.film_strip_scroll_offset = 0
@@ -214,10 +214,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Used by _refresh_all_film_strip_widgets and undo/redo methods
         self.film_strip_widget: FilmStripWidget | None = None
 
-        # Pixel change tracking dict for deduplication (used alongside _current_pixel_changes list)
+        # Pixel change tracking dict for deduplication (used alongside _current_pixel_changes list):
+        # (x, y) -> (x, y, old_color, new_color), as canvas_interfaces and the canvas's drag fill it
         self.current_pixel_changes_dict: dict[
-            int,
-            tuple[int, tuple[int, ...], tuple[int, ...]],
+            tuple[int, int],
+            tuple[int, int, tuple[int, ...], tuple[int, ...]],
         ] = {}
 
         # Initialize scroll arrows
@@ -301,9 +302,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         Args:
             event (pygame.event.Event): The pygame event.
 
-        Raises:
-            None
-
         """
         self.log.info('Scene got menu item event: %s', event)
         if not event.menu.name:
@@ -319,7 +317,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self.log.info('User quit from menu item.')
             self.scene_manager.quit()
         else:
-            self.log.info(f'Unhandled Menu Item: {event.menu.name}')
+            self.log.info('Unhandled Menu Item: %s', event.menu.name)
         self.dirty = 1
 
     # NB: Keepings this around causes GG-7 not to manifest... curious.
@@ -346,15 +344,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)
         self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
-        # Reset viewport/panning system
-        if hasattr(self.canvas, 'reset_panning'):
-            self.canvas.reset_panning()
-        if hasattr(self.canvas, '_panning_active'):
-            self.canvas._panning_active = False  # type: ignore[reportPrivateUsage]
-        if hasattr(self.canvas, 'pan_offset_x'):
-            self.canvas.pan_offset_x = 0
-        if hasattr(self.canvas, 'pan_offset_y'):
-            self.canvas.pan_offset_y = 0
+        # A pan gesture of the old canvas must not carry over to the new one
+        self.canvas.end_panning()
 
     def _create_fresh_animated_sprite(self, width: int, height: int, pixel_size: int) -> None:
         """Create a fresh animated sprite and update the canvas.
@@ -394,7 +385,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.log.info('Creating new canvas with dimensions: %s', dimensions)
 
         try:
-            width, height = map(int, dimensions.lower().split('x'))
+            width, height = self._parse_canvas_dimensions(dimensions)
+        except ValueError:
+            self.log.exception("Invalid dimensions format '%s'", dimensions)
+            self.log.exception("Expected format: WxH (e.g., '32x32')")
+        else:
             self.log.info('Parsed dimensions: %sx%s', width, height)
 
             available_height = self.screen_height - 80 - 24
@@ -417,6 +412,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self._update_ai_sprite_position()
             self.canvas.update()
             self.canvas.dirty = 1
+            # The previous sprite's undo steps must not apply to the new canvas (BUGS.md #150)
+            self.start_new_undo_history()
             self.log.info(
                 'Canvas resized to %sx%s with pixel size %s',
                 width,
@@ -424,11 +421,28 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 new_pixel_size,
             )
 
-        except ValueError:
-            self.log.exception("Invalid dimensions format '%s'", dimensions)
-            self.log.exception("Expected format: WxH (e.g., '32x32')")
-
         self.dirty = 1
+
+    @staticmethod
+    def _parse_canvas_dimensions(dimensions: str) -> tuple[int, int]:
+        """Parse canvas dimensions typed as WxH (e.g. '32x32').
+
+        Args:
+            dimensions: The dimensions text from the new canvas dialog.
+
+        Returns:
+            The canvas width and height in pixels.
+
+        Raises:
+            ValueError: If the text is not two whole numbers joined by 'x', or either is not
+                positive (a zero width or height would divide by zero sizing the pixels).
+
+        """
+        width, height = map(int, dimensions.lower().split('x'))
+        if width <= 0 or height <= 0:
+            msg = f'Canvas dimensions must be positive, got {width}x{height}'
+            raise ValueError(msg)
+        return width, height
 
     def on_new_canvas_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle the new canvas dialog event."""
@@ -457,10 +471,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.next_scene = save_dialog_scene
         self.dirty = 1
 
-    def on_color_well_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
-        """Handle the color well event by delegating to SliderManager."""
-        self._slider_manager.on_color_well_event(event, trigger)
-
     def on_slider_event(
         self: Self,
         event: events.HashableEvent,
@@ -470,14 +480,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self._slider_manager.on_slider_event(event, trigger)
 
     @override
-    def on_right_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_right_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the right mouse button up event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
+            event (MouseButtonEvent): The pygame event.
 
         """
         # Check for shift-right-click (screen sampling)
@@ -502,11 +509,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Fallback to screen sampling (RGB only)
         try:
             assert self.screen is not None
-            color = tuple(self.screen.get_at(event.pos))
-            if len(color) == RGBA_COMPONENT_COUNT:
-                red, green, blue, _ = color  # Ignore alpha from screen
-            else:
-                red, green, blue = color
+            # Surface.get_at always returns an RGBA Color; ignore the screen's alpha
+            red, green, blue, _ = tuple(self.screen.get_at(event.pos))
             alpha = 255  # Screen has no alpha, default to opaque
             self.log.info(
                 'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',
@@ -517,17 +521,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             )
 
             # Update sliders with RGB values and default alpha
-            trigger = events.HashableEvent(0, name='R', value=red)
-            self.on_slider_event(event=event, trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='G', value=green)
-            self.on_slider_event(event=event, trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='B', value=blue)
-            self.on_slider_event(event=event, trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='A', value=alpha)
-            self.on_slider_event(event=event, trigger=trigger)
+            self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
         except IndexError:
             pass
 
@@ -597,20 +591,15 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         )
 
         # Update all sliders with the sampled RGBA values
-        for name, value in [('R', red), ('G', green), ('B', blue), ('A', alpha)]:
-            trigger = events.HashableEvent(0, name=name, value=value)
-            self.on_slider_event(event=event, trigger=trigger)
+        self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
         return True
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button down event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
+            event (MouseButtonEvent): The pygame event.
 
         """
         sprites = self.sprites_at_position(pos=event.pos)
@@ -622,22 +611,13 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Check if click is on any slider text box and deactivate others
         clicked_slider = self._slider_manager.detect_clicked_slider(event.pos)
 
-        # Deactivate all slider text boxes except the one clicked (if any)
-        # Also commit values when clicking outside of any slider text box
-        for slider_name in ('red', 'green', 'blue'):
-            slider_attr = f'{slider_name}_slider'
-            if hasattr(self, slider_attr):
-                self._slider_manager.commit_and_deactivate_slider(
-                    getattr(self, slider_attr),
-                    clicked_slider,
-                    slider_name,
-                )
+        # Commit and deactivate every editing slider text box (alpha included) except the one
+        # clicked (if any), as Enter would
+        self._slider_manager.commit_slider_text_boxes(event=event, clicked_slider=clicked_slider)
 
         # If a slider text box was clicked, also trigger the slider's normal behavior
         if clicked_slider is not None:
-            slider_attr = f'{clicked_slider}_slider'
-            if hasattr(self, slider_attr):
-                getattr(self, slider_attr).on_left_mouse_button_down_event(event)
+            clicked_slider.on_left_mouse_button_down_event(event)
 
         # Handle other sprite clicks
         for sprite in sprites:
@@ -649,8 +629,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             self.film_strip_drag_start_y = event.pos[1]
             self.film_strip_drag_start_offset = self.film_strip_scroll_offset
             self.log.debug(
-                f'Started film strip drag at Y={event.pos[1]},'
-                f' offset={self.film_strip_scroll_offset}',
+                'Started film strip drag at Y=%s, offset=%s',
+                event.pos[1],
+                self.film_strip_scroll_offset,
             )
 
     def _handle_scroll_arrow_click(self, sprites: list[Any]) -> bool:
@@ -682,14 +663,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self._slider_manager.on_tab_change_event(tab_format)
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle the left mouse button up event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
+            event (MouseButtonEvent): The pygame event.
 
         """
         # Stop film strip drag scrolling if active
@@ -705,20 +683,19 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             sprite.on_left_mouse_button_up_event(event)
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: events.MouseMotionEvent, trigger: object
+    ) -> None:
         """Handle the left mouse drag event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (MouseMotionEvent): The pygame event.
             trigger (object): The trigger object.
-
-        Raises:
-            None
 
         """
         # Handle film strip drag scrolling
         if self.is_dragging_film_strips:
-            self.log.debug(f'Handling film strip drag at Y={event.pos[1]}')
+            self.log.debug('Handling film strip drag at Y=%s', event.pos[1])
             self.film_strip_coordinator.handle_film_strip_drag_scroll(event.pos[1])
             return  # Don't process other drag events when dragging film strips
 
@@ -746,7 +723,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             pass
 
     @override
-    def on_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle mouse button up events."""
         # Check if debug text box should handle the event
         if (
@@ -804,11 +781,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 sprite.on_mouse_button_up_event(event)
 
     @override
-    def on_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: events.MouseMotionEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle
+            event (MouseMotionEvent): The event to handle
             trigger (object): The trigger object
 
         """
@@ -817,11 +794,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 sprite.on_mouse_drag_event(event, trigger)
 
     @override
-    def on_mouse_motion_event(self: Self, event: events.HashableEvent) -> None:
+    def on_mouse_motion_event(self: Self, event: events.MouseMotionEvent) -> None:
         """Handle mouse motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle
+            event (MouseMotionEvent): The event to handle
 
         """
         # Handle slider hover effects
@@ -948,33 +925,25 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         super().cleanup()
 
     @override
-    def on_key_up_event(self, event: events.HashableEvent) -> None:
-        """Handle key release events."""
-        # Get modifier keys
-        mod = event.mod if hasattr(event, 'mod') else 0
+    def on_key_up_event(self, event: events.KeyEvent) -> None:
+        """Handle key release events.
 
-        # Check if this is a Ctrl+Shift+Arrow key release
+        Releasing any key of Ctrl+Shift+Arrow (in any order) ends the pan gesture in
+        progress and records it as one undoable step.
+        """
         if (
-            (mod & pygame.KMOD_CTRL)
-            and (mod & pygame.KMOD_SHIFT)
+            event.key in PAN_GESTURE_KEYS
             and hasattr(self, 'canvas')
             and self.canvas
-            and event.key in {pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN}
+            and self.canvas.pan_session is not None
         ):
-            self.log.debug('Ctrl+Shift+Arrow key released - committing panned buffer')
-            self._frame_operations.commit_panned_buffer()
-            return
+            self.log.debug('Pan key released - finishing the pan')
+            self._frame_operations.finish_canvas_panning()
 
         # Call parent class handler
         super().on_key_up_event(event)
 
-        # Keep the panning state active so user can continue panning
-        # Don't clear _original_frame_pixels, pan_offset_x, pan_offset_y, or _panning_active
-        # The viewport will continue to show the panned view
-
-        self.log.debug('Panned buffer committed, panning state preserved for continued panning')
-
-    def _handle_film_strip_text_input(self, event: events.HashableEvent) -> bool | None:
+    def _handle_film_strip_text_input(self, event: events.KeyEvent) -> bool | None:
         """Handle text input for film strips in text editing mode.
 
         Args:
@@ -1000,7 +969,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 return None
         return False
 
-    def _handle_ctrl_key_shortcuts(self, event: events.HashableEvent, mod: int) -> bool:  # ruff: ignore[too-many-return-statements]
+    def _handle_ctrl_key_shortcuts(self, event: events.KeyEvent, mod: int) -> bool:  # ruff: ignore[too-many-return-statements]
         """Handle Ctrl-based keyboard shortcuts (undo, redo, copy, paste, panning).
 
         Args:
@@ -1049,14 +1018,16 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             if event.key in panning_map:
                 delta_x, delta_y, direction = panning_map[event.key]
                 self.log.debug(
-                    f'Ctrl+Shift+{direction} arrow pressed - panning {direction.lower()}',
+                    'Ctrl+Shift+%s arrow pressed - panning %s',
+                    direction,
+                    direction.lower(),
                 )
                 self._frame_operations.handle_canvas_panning(delta_x=delta_x, delta_y=delta_y)
                 return True
 
         return False
 
-    def _handle_arrow_key_navigation(self, event: events.HashableEvent) -> bool:
+    def _handle_arrow_key_navigation(self, event: events.KeyEvent) -> bool:
         """Handle UP/DOWN arrow keys for animation navigation.
 
         Args:
@@ -1082,7 +1053,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         return False
 
-    def _route_to_canvas_or_parent(self, event: events.HashableEvent) -> None:
+    def _route_to_canvas_or_parent(self, event: events.KeyEvent) -> None:
         """Route keyboard event to canvas or fall back to parent handler.
 
         Args:
@@ -1090,10 +1061,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         """
         # Check if any film strip is in text editing mode before routing to canvas
-        if hasattr(self, 'film_strips'):
-            for film_strip in self.film_strips.values():
-                if hasattr(film_strip, 'editing_animation') and film_strip.editing_animation:
-                    return
+        for film_strip in self.film_strips.values():
+            if hasattr(film_strip, 'editing_animation') and film_strip.editing_animation:
+                return
 
         if hasattr(self, 'canvas') and hasattr(self.canvas, 'handle_keyboard_event'):
             self.log.debug('Routing keyboard event to canvas')
@@ -1104,9 +1074,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             super().on_key_down_event(event)
 
     @override
-    def on_key_down_event(self, event: events.HashableEvent) -> None:
+    def on_key_down_event(self, event: events.KeyEvent) -> None:
         """Handle keyboard events for frame navigation and text input."""
-        self.log.debug(f'Key down event received: key={event.key}')
+        self.log.debug('Key down event received: key=%s', event.key)
 
         # Check if debug text box is active and handle text input
         if hasattr(self, 'debug_text') and self.debug_text.is_active:
@@ -1127,7 +1097,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # arrow keys, or route to canvas
         self._handle_key_down_actions(event)
 
-    def _handle_key_down_actions(self, event: events.HashableEvent) -> None:
+    def _handle_key_down_actions(self, event: events.KeyEvent) -> None:
         """Handle remaining key-down actions after text input checks.
 
         Args:
@@ -1141,7 +1111,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
             onion_manager = get_onion_skinning_manager()
             new_state = onion_manager.toggle_global_onion_skinning()
-            self.log.debug(f'Onion skinning {"enabled" if new_state else "disabled"}')
+            self.log.debug('Onion skinning %s', 'enabled' if new_state else 'disabled')
             # Force canvas redraw to show/hide onion skinning
             if hasattr(self, 'canvas') and self.canvas:
                 self.canvas.force_redraw()
@@ -1170,6 +1140,20 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         if not self._slider_manager.is_any_controller_in_slider_mode():
             self._route_to_canvas_or_parent(event)
 
+    def start_new_undo_history(self) -> None:
+        """Forget the undo/redo history and any paint not yet recorded in it.
+
+        Called when the canvas gets another sprite (a load, a new canvas): the history's steps,
+        and paint collected but not yet submitted, belong to the sprite that was there, and
+        applying them to the new one would write the old sprite's pixels and animations into it
+        (BUGS.md #150).
+        """
+        self.undo_redo_manager.clear_history()
+        self.current_pixel_changes = []
+        self.current_pixel_changes_dict.clear()
+        self.pixel_change_timer = None
+        self.log.debug('Started a new undo history')
+
     def handle_undo(self) -> None:
         """Handle undo operation."""
         if not hasattr(self, 'undo_redo_manager'):
@@ -1193,9 +1177,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                         current_animation,
                         current_frame,
                     )
-                    # Force canvas redraw to show the undone changes
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.force_redraw()
+                    # Force canvas redraw to show the undone changes (a current frame
+                    # was read from the canvas above, so there is one)
+                    self.canvas.force_redraw()
                     return
                 self.log.warning(
                     'Frame-specific undo failed for %s[%s]',
@@ -1247,7 +1231,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             current_animation,
             current_frame,
         )
-        self.log.debug(f'Available animations: {list(animations.keys())}')
+        self.log.debug('Available animations: %s', list(animations.keys()))
 
         # Check if current animation still exists
         if current_animation not in animations:
@@ -1268,8 +1252,10 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         frames = animations[current_animation]
         if current_frame is None or current_frame < 0 or current_frame >= len(frames):
             self.log.warning(
-                f"Current frame {current_frame} is invalid for animation '{current_animation}' with"
-                f' {len(frames)} frames',
+                "Current frame %s is invalid for animation '%s' with %s frames",
+                current_frame,
+                current_animation,
+                len(frames),
             )
             # Switch to the last valid frame
             valid_frame = max(0, len(frames) - 1)
@@ -1287,12 +1273,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         # Force a complete canvas refresh to ensure everything is in sync
         self.canvas.force_redraw()
 
-        # Update film strips to reflect the current state
-        if hasattr(self, 'update_film_strips_for_frame'):
-            self.film_strip_coordinator.update_film_strips_for_frame(
-                current_animation,
-                current_frame,
-            )
+        # Update film strips to reflect the current state. Only the coordinator has this
+        # method; the old hasattr(self, ...) guard was always False (BUGS.md #98)
+        self.film_strip_coordinator.update_film_strips_for_frame(
+            current_animation,
+            current_frame,
+        )
 
     def handle_redo(self) -> None:
         """Handle redo operation."""
@@ -1317,9 +1303,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                         current_animation,
                         current_frame,
                     )
-                    # Force canvas redraw to show the redone changes
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.force_redraw()
+                    # Force canvas redraw to show the redone changes (a current frame
+                    # was read from the canvas above, so there is one)
+                    self.canvas.force_redraw()
                     return
                 self.log.warning(
                     'Frame-specific redo failed for %s[%s]',
@@ -1353,9 +1339,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Raises:
-            None
-
         """
         parser.add_argument(
             '-v',
@@ -1363,18 +1346,23 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             help='print the game version and exit',
         )
-        parser.add_argument('-s', '--size', default='32x32')
+        parser.add_argument(
+            '-s',
+            '--size',
+            default='32x32',
+            help='the canvas size in pixels, WIDTHxHEIGHT (default: 32x32)',
+        )
 
     @override
-    def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
+    def _handle_scene_key_events(self, event: events.KeyEvent) -> None:
         """Handle scene-level key events."""
-        self.log.debug(f'Scene-level key event: {event.key}')
+        self.log.debug('Scene-level key event: %s', event.key)
 
         # Call our custom keyboard handler
         self.on_key_down_event(event)
 
     @override
-    def on_drop_file_event(self, event: events.HashableEvent) -> None:
+    def on_drop_file_event(self, event: events.DropFileEvent) -> None:
         """Handle drop file event by delegating to FileIOManager."""
         self._file_io.on_drop_file_event(event)
 
@@ -1382,7 +1370,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         """Handle pygame events."""
         # Debug logging for keyboard events
         if event.type == pygame.KEYDOWN:
-            self.log.debug(f'KEYDOWN event received in handle_event: key={event.key}')
+            self.log.debug('KEYDOWN event received in handle_event: key=%s', event.key)
 
         # Handle confirmation dialog clicks first (highest priority)
         if (
@@ -1401,67 +1389,15 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                     self.confirmation_dialog = None  # Clear reference after handling
                     return  # Event handled, don't pass to other handlers
 
-        super().handle_event(event)  # type: ignore[arg-type] # ty: ignore[unresolved-attribute]
+        # No parent class defines handle_event (Scene receives events through its on_*_event
+        # methods), so the old super().handle_event(event) fallback raised AttributeError for
+        # every event the dialog did not take (BUGS.md #91). Nothing more to pass on here.
 
         if event.type == pygame.WINDOWLEAVE:
             # Notify sprites that mouse left window
             for sprite in self.all_sprites:
                 if hasattr(sprite, 'on_mouse_leave_window_event'):
                     sprite.on_mouse_leave_window_event(event)
-
-    def deflate(self: Self) -> dict[str, Any]:
-        """Deflate a sprite to a Bitmappy config file.
-
-        Returns:
-            dict: The result.
-
-        Raises:
-            StopIteration: If the RGB triplet generator produces no data.
-
-        """
-        try:
-            self.log.debug(f'Starting deflate for {self.name}')
-            self.log.debug(f'Image dimensions: {self.image.get_size()}')
-
-            # Note: This deflate method is incomplete - configparser was removed
-            # as we only support TOML format now. This needs to be reimplemented
-            # to generate TOML output using the toml library.
-            config: dict[str, Any] = {}
-
-            # Get the raw pixel data and log its size
-            pixel_string = pygame.image.tobytes(self.image, 'RGB')
-            self.log.debug(f'Raw pixel string length: {len(pixel_string)}')
-
-            # Log the first few bytes of pixel data
-            self.log.debug(f'First 12 bytes of pixel data: {list(pixel_string[:12])}')
-
-            # Create the generator and log initial state
-            raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
-            self.log.debug('Created RGB triplet generator')
-
-            # Try to get the first triplet
-            try:
-                first_triplet = next(raw_pixels)
-                self.log.debug('First RGB triplet: %s', first_triplet)
-                # Reset generator
-                raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
-            except StopIteration:
-                self.log.exception('Generator empty on first triplet!')
-                raise
-
-            # Now proceed with the rest of deflate
-            raw_pixels = list(raw_pixels)
-            self.log.debug(f'Converted {len(raw_pixels)} RGB triplets to list')
-
-            # Continue with original deflate code...
-            colors = set(raw_pixels)
-            self.log.debug(f'Found {len(colors)} unique colors')
-
-        except Exception:
-            self.log.exception('Error in deflate')
-            raise
-        else:
-            return config
 
     # ──────────────────────────────────────────────────────────────────────
     # Film strip delegation (methods extracted to film_strip_coordinator.py)
@@ -1518,60 +1454,60 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     # Color state methods (used by both keyboard and controller handlers)
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_current_color(self) -> tuple[int, ...]:
+    def get_current_color(self) -> tuple[int, int, int, int]:
         """Get the current color by delegating to SliderManager.
 
         Returns:
-            tuple: The current color from the sliders.
+            tuple: The current (red, green, blue, alpha) color from the sliders.
 
         """
         return self._slider_manager.get_current_color()
 
-    def update_color_well_from_sliders(self) -> None:
-        """Update the color well by delegating to SliderManager."""
-        self._slider_manager.update_color_well_from_sliders()
+    def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
+        """Set the editor's color (sliders, color well and canvas) via SliderManager."""
+        self._slider_manager.apply_color(red=red, green=green, blue=blue, alpha=alpha)
 
     # ──────────────────────────────────────────────────────────────────────
     # Controller event delegation (methods extracted to controllers/event_handler.py)
     # ──────────────────────────────────────────────────────────────────────
 
     @override
-    def on_controller_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_down_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button down events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_button_down_event(event)
 
     @override
-    def on_controller_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_controller_button_up_event(self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button up events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_button_up_event(event)
 
     @override
-    def on_joy_button_down_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_down_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button down events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_button_down_event(event)
 
     @override
-    def on_joy_button_up_event(self, event: events.HashableEvent) -> None:
+    def on_joy_button_up_event(self, event: events.JoyButtonEvent) -> None:
         """Handle joystick button up events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_button_up_event(event)
 
     @override
-    def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_hat_motion_event(self, event: events.JoyHatEvent) -> None:
         """Handle joystick hat motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_hat_motion_event(event)
 
     @override
-    def on_joy_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_axis_motion_event(self, event: events.JoyAxisEvent) -> None:
         """Handle joystick axis motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_axis_motion_event(event)
 
     @override
-    def on_joy_ball_motion_event(self, event: events.HashableEvent) -> None:
+    def on_joy_ball_motion_event(self, event: events.JoyBallEvent) -> None:
         """Handle joystick ball motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_ball_motion_event(event)
 
     @override
-    def on_controller_axis_motion_event(self, event: events.HashableEvent) -> None:
+    def on_controller_axis_motion_event(self, event: events.ControllerAxisEvent) -> None:
         """Handle controller axis motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_axis_motion_event(event)
 

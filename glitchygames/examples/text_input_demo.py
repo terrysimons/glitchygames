@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import KeyEvent, MouseButtonEvent
 
 import pygame
 
@@ -62,52 +62,42 @@ class Game(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Set up the game.
-
-        Args:
-            None
-
-        """
+        """Set up the game."""
         pygame.key.set_repeat(350)
 
     @override
     def update(self: Self) -> None:
-        """Update the game.
-
-        Args:
-            None
-
-        """
+        """Update the game."""
         self.input_box.update()
         assert self.screen is not None
         assert self.input_box.image is not None
         self.screen.blit(self.input_box.image, (320, 240))
 
-    def on_input_box_submit_event(self: Self, control: Any) -> None:
+    def on_input_box_submit_event(self: Self, control: InputBox) -> None:
         """Handle input box submit events.
 
         Args:
             control: The control that submitted the event.
 
         """
-        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, control.name, control.text)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle mouse button up events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.input_box.activate()
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         if self.input_box.is_active:
@@ -118,17 +108,21 @@ class Game(Scene):
             super().on_key_up_event(event)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         if self.input_box.is_active:
+            # Return submits the text (the box itself has no parent to tell)
+            if event.key == pygame.K_RETURN:
+                self.on_input_box_submit_event(control=self.input_box)
             self.input_box.on_key_down_event(event)
         else:
-            super().on_key_up_event(event)
+            # Key down, not key up: a quit key quits on its release, not its press
+            super().on_key_down_event(event)
 
 
 def main() -> None:

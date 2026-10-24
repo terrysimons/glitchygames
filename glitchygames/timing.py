@@ -232,6 +232,9 @@ class PygameTimer:
     def calibrate(self: Self) -> None:
         """Do nothing: the legacy backend has nothing to calibrate."""
 
+    def close(self: Self) -> None:
+        """Do nothing: the legacy backend holds nothing to give back."""
+
     def ns_now(self) -> int:
         """Return the current time in nanoseconds using pygame ticks.
 
@@ -318,15 +321,43 @@ class FastTimer:
                 LOG.debug('Windows timer resolution setup failed: %s', timer_error)
                 self._win_period_on = False
 
-    def __del__(self) -> None:
-        """Clean up Windows timer resolution if it was changed."""
-        if self._win_period_on and sys.platform.startswith('win'):
-            try:
-                import ctypes
+    def close(self: Self) -> None:
+        """Give back the 1 ms Windows timer resolution, if this timer asked for it (idempotent).
 
-                ctypes.windll.winmm.timeEndPeriod(1)
-            except (OSError, AttributeError) as timer_error:
-                LOG.debug('Windows timer resolution cleanup failed: %s', timer_error)
+        The engine's teardown calls it. A failure is logged at debug level, never raised.
+        """
+        release_error = self._end_windows_timer_period()
+        if release_error is not None:
+            LOG.debug('Windows timer resolution cleanup failed: %s', release_error)
+
+    def __del__(self) -> None:
+        """Give back the Windows timer resolution of a timer never closed, without logging.
+
+        A finaliser runs whenever the garbage collector does, possibly in the middle of a write
+        to the stream the log goes to, where a second write raises ``RuntimeError: reentrant
+        call``; so it does no I/O, and a failure here goes unreported (BUGS.md #188).
+        """
+        self._end_windows_timer_period()
+
+    def _end_windows_timer_period(self: Self) -> OSError | AttributeError | None:
+        """End the 1 ms Windows timer period this timer began, once.
+
+        Returns:
+            The error ending it raised, or None (ended, or nothing to end).
+
+        """
+        if not self._win_period_on:
+            return None
+        self._win_period_on = False
+        if not sys.platform.startswith('win'):
+            return None
+        try:
+            import ctypes
+
+            ctypes.windll.winmm.timeEndPeriod(1)
+        except (OSError, AttributeError) as timer_error:
+            return timer_error
+        return None
 
     def calibrate(self: Self) -> None:
         """Measure this machine's sleep model, once, if this timer was made to calibrate."""

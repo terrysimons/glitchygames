@@ -1,9 +1,13 @@
-"""Child processes: ``run_command``, the engine's one child-process launcher.
+"""Child processes: ``run_command`` and ``start_command``, the engine's child-process launchers.
 
-Used by the determinism audit's replays (glitchygames/replay/audit.py), a watched replay's
-restarts (glitchygames/replay/rebuild.py) and the replay pytest plugin
-(glitchygames/testing/replays.py). Children are started with ``subprocess.run``: an argument list,
-never a shell, with the environment in place before the child's interpreter starts.
+``run_command`` waits for its child: used by the determinism audit's replays
+(glitchygames/replay/audit.py), a watched replay's restarts (glitchygames/replay/rebuild.py),
+the replay pytest plugin (glitchygames/testing/replays.py) and the driver comparison's tools
+(scripts/build_sdl_x11.py, scripts/driver_configurations.py). ``start_command`` does not: the test
+suite's driver comparison (tests/driver_comparison.py) runs the suite on the native driver
+alongside the dummy run, and ``stop_command`` ends that child with every process it started.
+Children get an argument list, never a shell, with the environment in place before the child's
+interpreter starts.
 
 The engine's child commands are its own command line with options changed, and the helpers here
 are the one way they are changed (``without_option``, ``with_options_appended``): options are
@@ -15,17 +19,25 @@ plugin can import it at configuration time.
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs the engine's own game commands (argument list, no shell)
-from typing import TYPE_CHECKING
+import sys
+from typing import TYPE_CHECKING, TextIO
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from pathlib import Path
 
 # What run_command raises for a child that outlives its timeout (subprocess's own exception,
 # named here so callers need not import subprocess)
 TimeoutExpired = subprocess.TimeoutExpired
 # What run_command returns (subprocess's own class, named here for callers' annotations)
 CompletedProcess = subprocess.CompletedProcess
+# What start_command returns (subprocess's own class, named here for callers' annotations)
+RunningProcess = subprocess.Popen
+# How long stop_command lets a child end on its own before killing it
+STOP_GRACE_SECONDS = 10.0
 # Arguments after a bare -- are not options: appended options go before it
 END_OF_OPTIONS = '--'
 
@@ -97,6 +109,7 @@ def run_command(
     environment: Mapping[str, str],
     timeout_seconds: float | None,
     capture_output: bool = False,
+    working_directory: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
 
@@ -111,6 +124,8 @@ def run_command(
             as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
         capture_output: True to capture standard output and error together in ``stdout``;
             False to let the child write to this process's.
+        working_directory: The child's working directory (None: this process's), e.g. a
+            build's directory for SDL's configure script (scripts/build_sdl_x11.py).
 
     Returns:
         The finished process (``returncode``; ``stdout`` when captured, else None).
@@ -124,4 +139,60 @@ def run_command(
         text=True,
         check=False,
         timeout=timeout_seconds,
+        cwd=working_directory,
     )
+
+
+def start_command(
+    *, command: Sequence[str], environment: Mapping[str, str], output: TextIO
+) -> subprocess.Popen[str]:
+    """Start a command (an argument list, never a shell) as a child process; do not wait.
+
+    On POSIX the child leads a session of its own, so ``stop_command`` can end it with every
+    process it started (a pytest run's xdist workers), and a terminal's Ctrl-C reaches only this
+    process, which then stops the child.
+
+    Args:
+        command: The program and its arguments.
+        environment: The child's whole environment, in place before its interpreter starts.
+        output: Where the child's standard output and error go (an open file).
+
+    Returns:
+        The running process (``wait()`` for its ``returncode``).
+
+    """
+    return subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with the suite's own command line plus fixed flags, as an argument list (no shell)
+        list(command),
+        env=dict(environment),
+        stdout=output,
+        stderr=subprocess.STDOUT,
+        text=True,
+        # POSIX only (Windows ignores it): stop_command terminates a Windows child alone
+        start_new_session=True,
+    )
+
+
+def stop_command(*, process: subprocess.Popen[str]) -> None:
+    """End a child ``start_command`` started, with every process in its group, and reap it.
+
+    The group is asked to stop (SIGTERM; on Windows, the child is terminated) and killed if it
+    is still running after STOP_GRACE_SECONDS. A child that has already ended is only reaped.
+
+    Args:
+        process: The child.
+
+    """
+    if process.poll() is not None:
+        return
+    if sys.platform == 'win32':
+        process.terminate()
+    else:
+        os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=STOP_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        if sys.platform == 'win32':
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+        process.wait()

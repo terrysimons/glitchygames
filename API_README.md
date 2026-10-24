@@ -13,18 +13,16 @@ The API consists of two components:
 
 ### Install Dependencies
 
-The API requires the `api` extra:
+The API's dependencies (`fastapi`, `uvicorn`, `pydantic`, `httpx`, `apng`, `pillow`, `aisuite`) are part of the base install; the `api` extra is empty and kept only for compatibility:
 
 ```bash
-uv sync --extra api
+uv sync
 ```
-
-This installs: `fastapi`, `uvicorn`, `pydantic`, `httpx`, `apng`, `pillow`.
 
 For development (running tests):
 
 ```bash
-uv sync --extra api -E dev
+uv sync --extra dev
 ```
 
 ### Configure AI Provider
@@ -56,7 +54,7 @@ export SPRITE_AI_MODEL="llama3"
 | `SPRITE_DEFAULT_HEIGHT` | `16` | Default sprite height (pixels) |
 | `SPRITE_MAX_SIZE` | `64` | Maximum sprite dimension |
 | `SPRITE_PNG_SCALE` | `1` | Default PNG scale factor |
-| `GLITCHYGAMES_HOST` | `0.0.0.0` | Server bind address |
+| `GLITCHYGAMES_HOST` | `127.0.0.1` | Server bind address |
 | `GLITCHYGAMES_PORT` | `8000` | Server port |
 | `GLITCHYGAMES_RELOAD` | `false` | Enable auto-reload for development |
 
@@ -75,7 +73,7 @@ uv run uvicorn glitchygames.api.main:app --reload
 GLITCHYGAMES_HOST=127.0.0.1 GLITCHYGAMES_PORT=9000 uv run glitchygames-server
 ```
 
-On startup, the server initializes pygame in headless mode (SDL_VIDEODRIVER=dummy) for sprite rendering.
+On startup, the server initializes pygame in headless mode for sprite rendering (`RendererService` sets `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` unless they are already set).
 
 ### Interactive Documentation
 
@@ -137,10 +135,12 @@ Generate a new sprite from a text prompt.
 | `animation_duration` | float | none | Animation duration in seconds (0-60) |
 | `output_format` | list | `["toml", "png"]` | Output formats: `"toml"`, `"png"`, or both |
 | `png_scale` | int | `1` | PNG scale factor (1-10) |
-| `output_path` | string | none | Server-side directory to save files |
+| `output_path` | string | none | Server-side directory to save files, relative to `sprite_outputs/` in the server's working directory (absolute paths and paths that leave it are refused) |
 | `model` | string | none | AI model override (aisuite format) |
 
 When `frame_count > 1`, all animation frames are automatically rendered to PNG. There is no need for a separate flag.
+
+With `output_path`, the server writes `<name>.toml`, `<name>.png` and `animation-{N}-frame-{M}.png` for each rendered frame (the name is the sprite name with characters other than letters, digits, `-` and `_` replaced by `_`).
 
 **Example -- Static sprite:**
 
@@ -193,11 +193,13 @@ Each `RenderedFrameInfo` contains:
 |---|---|
 | 422 | Validation error (empty prompt, invalid dimensions, etc.) |
 | 503 | AI provider unavailable |
-| 500 | Internal server error |
+| 500 | Internal server error (including a refused `output_path`) |
+
+A generation the AI provider completes but that fails (for example, unusable TOML) answers 200 with `success: false` and `error`.
 
 #### `POST /sprites/refine` -- Refine Sprite
 
-Modify an existing sprite based on instructions. Returns the same response format as `/sprites/generate`.
+Modify an existing sprite based on instructions. Returns the same response format and error statuses as `/sprites/generate`.
 
 ```bash
 curl -X POST http://localhost:8000/sprites/refine \
@@ -209,11 +211,17 @@ curl -X POST http://localhost:8000/sprites/refine \
   }'
 ```
 
-**Additional Request Fields:**
+**Request Body:**
 
-| Field | Type | Description |
-|---|---|---|
-| `current_toml` | string | (required) Existing sprite TOML to refine |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `prompt` | string | (required) | How to modify the sprite (1-2000 chars) |
+| `current_toml` | string | (required) | Existing sprite TOML to refine |
+| `output_format` | list | `["toml", "png"]` | Output formats: `"toml"`, `"png"`, or both |
+| `png_scale` | int | `1` | PNG scale factor (1-10) |
+| `output_path` | string | none | Server-side directory to save files (as for `/sprites/generate`) |
+
+Refinement has no `width`, `height`, `frame_count`, `film_strip_count`, `animation_duration` or `model` fields.
 
 #### `POST /sprites/extract-frames` -- Extract APNG Frames
 
@@ -236,6 +244,9 @@ curl -X POST http://localhost:8000/sprites/extract-frames \
 | `loop_count` | int | Loop count (0 = infinite) |
 | `total_duration_ms` | int | Total animation duration |
 | `frames` | list[ApngFrameInfo] | Per-frame data |
+| `error` | string | Error message (if `success` is false) |
+
+Invalid base64 or APNG data answers 200 with `success: false` and `error`; any other failure is a 500.
 
 Each `ApngFrameInfo` contains:
 
@@ -289,7 +300,8 @@ Options:
   --animation-language-model MODEL
                             AI model override (aisuite format,
                             e.g., "anthropic:claude-sonnet-4-5")
-  --extract-frames PATH     Extract frames from an APNG file instead
+  --extract-frames APNG_PATH
+                            Extract frames from an APNG file instead
                             of generating a sprite
   -v, --verbose             Enable verbose output
   -q, --quiet               Suppress output except errors
@@ -331,6 +343,8 @@ uv run glitchygames-client "16x16 treasure chest" \
 uv run glitchygames-client --extract-frames sprite.apng -o ./extracted
 ```
 
+This writes `<apng name>_frame_000.png`, `_frame_001.png`, ... into `./extracted` at their original size (`--extract-scale` does not apply). Without `-o` it prints the response as JSON (frame data abbreviated unless `-v`).
+
 **Lower extract scale for smaller files:**
 
 ```bash
@@ -340,17 +354,21 @@ uv run glitchygames-client "16x16 mushroom" \
 
 ### Terminal Preview
 
-When the response includes TOML content, the client automatically displays a colorized ASCII preview of the sprite in the terminal. Static sprites show a single preview; animated sprites show all frames grouped by animation sequence.
+When the response includes TOML content, the client automatically displays a colorized ASCII preview of the sprite in the terminal. Static sprites show a single preview; animated sprites show all frames grouped by animation sequence. Without `-o`, the TOML itself is printed to stdout.
+
+### Exit Codes
+
+The client exits with an `ExitCode` (`glitchygames/exit_codes.py`; the module docstring of `glitchygames/api/client.py` lists them): `SUCCESS` (0), `GENERATION_REJECTED` (4) / `EXTRACTION_REJECTED` (5) when the server refuses the request, `SERVICE_UNAVAILABLE` (69) when it cannot be reached or answers 503, `OPTIONS_REFUSED` (64) for an unusable `--server-url`, `MISSING_INPUT` (66) / `UNUSABLE_INPUT` (65) for a missing or unreadable APNG or a malformed response, `CANNOT_WRITE_OUTPUT` (73), `INTERNAL_ERROR` (70) for a client bug, and argparse's `ARGUMENT_PARSER_ERROR` (2) for a usage error.
 
 ## Output Directory Structure
 
-When saving with `-o`, the client creates a numbered directory per sprite to avoid overwrites:
+When saving with `-o`, the client creates a numbered directory per sprite to avoid overwrites. The server is never asked to save (`output_path` is not sent):
 
 ```
 sprites/
   mushroom-001/
     mushroom.toml           # Sprite TOML definition
-    mushroom.apng           # Animated PNG (if animated)
+    mushroom.apng           # Animated PNG (if animated and PNG requested)
     extracted/
       animation-0-frame-0.png  # Individual frames (upscaled)
       animation-0-frame-1.png
@@ -358,6 +376,8 @@ sprites/
       animation-1-frame-0.png  # Second animation sequence
       animation-1-frame-1.png
 ```
+
+A static sprite's directory holds `<name>.toml` and `<name>.png` (when PNG was requested) instead of the APNG and `extracted/`.
 
 ### Frame Naming Convention
 
@@ -377,7 +397,7 @@ Each extracted frame PNG embeds metadata in its text chunks:
 | `FrameIndex` | Frame index (0-indexed) |
 | `FrameCount` | Total number of frames |
 | `DelayMs` | Frame delay in milliseconds |
-| `ExtractScale` | Scale factor applied |
+| `ExtractScale` | Scale factor applied (`--extract-scale`) |
 | `AIModel` | AI model used (if `--animation-language-model` was set) |
 
 Read metadata with PIL:
@@ -417,7 +437,7 @@ glitchygames/services/
 ### Request Flow
 
 1. Client sends HTTP request to a route endpoint
-2. Route creates service instances via `_get_services()`
+2. Route gets the cached service instances via `_get_services()` (`dependencies.py`)
 3. `SpriteGenerationService` calls the AI provider via aisuite to generate TOML
 4. `RendererService` parses the TOML and renders it to PNG using pygame (headless)
 5. Route returns the response with TOML, PNG, or both

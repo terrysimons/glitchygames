@@ -53,8 +53,15 @@ class ParallaxLayer(Sprite):
     """A full-screen background layer that scrolls relative to the camera.
 
     Scrolls at `scroll_factor` times the camera speed, creating depth
-    illusion. Static layers (scroll_factor ~0) render once; scrolling
-    layers redraw every frame.
+    illusion. The draw function is called only when what it is given changes: a static layer
+    (scroll_factor ~0) draws once, at construction; a scrolling layer redraws when its offset
+    (the snapped camera position times scroll_factor, as passed to the draw function) differs
+    from the offset it last drew, so a still camera costs no drawing. A layer whose drawing
+    changes on its own (time, randomness, game state) is `animated`: it redraws every time the
+    camera updates its layers (each frame), static or not.
+
+    A scrolling or animated layer stays `dirty = 2`, so LayeredDirty blits it every frame
+    whether or not it was redrawn; a static, non-animated one is `dirty = 1` (blitted once).
     """
 
     def __init__(
@@ -66,6 +73,7 @@ class ParallaxLayer(Sprite):
         groups: pygame.sprite.LayeredDirty[Sprite],
         screen_width: int,
         screen_height: int,
+        animated: bool = False,
     ) -> None:
         """Initialize a parallax background layer.
 
@@ -76,6 +84,9 @@ class ParallaxLayer(Sprite):
             groups: The sprite group to add this layer to.
             screen_width: Width of the display.
             screen_height: Height of the display.
+            animated: True if the drawing depends on anything but the draw function's
+                arguments, so the layer redraws on every update_scroll() (see the class
+                docstring). False (the default) redraws only when the offset changes.
 
         """
         super().__init__(
@@ -90,22 +101,29 @@ class ParallaxLayer(Sprite):
         self.image = pygame.Surface((screen_width, screen_height), pygame.SRCALPHA)
         self.scroll_factor = scroll_factor
         self.draw_function = draw_function
+        self.animated = animated
         self.is_static = math.isclose(
             scroll_factor,
             0.0,
             abs_tol=STATIC_SCROLL_THRESHOLD,
         )
+        # The (offset_x, offset_y) the draw function last drew; None until the first draw
+        self._drawn_offset: tuple[float, float] | None = None
 
         groups.change_layer(self, layer_depth)
 
         if self.is_static:
-            self.dirty = 1
+            self.dirty = 2 if animated else 1
+            self._drawn_offset = (0.0, 0.0)
             self.draw_function(self.image, 0.0, 0.0)
         else:
             self.dirty = 2
 
     def update_scroll(self, camera_x: float, camera_y: float) -> None:
-        """Recalculate the parallax offset and redraw the layer.
+        """Recalculate the parallax offset and redraw the layer if it changed (or is animated).
+
+        A static layer's offset is always (0.0, 0.0). A layer that is not animated keeps its
+        image when the offset equals the one it last drew.
 
         Args:
             camera_x: The camera's current world X position.
@@ -113,12 +131,15 @@ class ParallaxLayer(Sprite):
 
         """
         if self.is_static:
+            offset = (0.0, 0.0)
+        else:
+            offset = (camera_x * self.scroll_factor, camera_y * self.scroll_factor)
+        if not self.animated and offset == self._drawn_offset:
             return
 
-        offset_x = camera_x * self.scroll_factor
-        offset_y = camera_y * self.scroll_factor
+        self._drawn_offset = offset
         self.image.fill((0, 0, 0, 0))
-        self.draw_function(self.image, offset_x, offset_y)
+        self.draw_function(self.image, *offset)
 
     @override
     def update(self: Self) -> None:
@@ -313,8 +334,10 @@ class Camera2D:
         engine aim, no game update()), so a shake on a camera that stands still (a scene that
         never scrolls, or a follow game after game over) still decays and its rumble stops.
         The camera position does not change, so parallax layers do not scroll; while a shake
-        is running they are redrawn from the same position with the new shake offset, so
-        their shake displacement follows the shake and returns to rest with it.
+        is running they are updated from the same position with the new shake offset, so
+        their shake displacement follows the shake and returns to rest with it. Without a
+        shake only animated layers are updated (they redraw every frame; the others have
+        nothing new to draw).
 
         An engine hook (public only because the scene manager calls it from another module);
         games never call it.
@@ -330,6 +353,10 @@ class Camera2D:
             shake_x, shake_y = self.shake_effect.offset
             self._update_parallax_layers(
                 camera_x=self.world_x + shake_x, camera_y=self.world_y + shake_y
+            )
+        else:
+            self._update_parallax_layers(
+                camera_x=self.world_x, camera_y=self.world_y, animated_only=True
             )
 
     def begin_frame(self: Self) -> None:
@@ -464,22 +491,28 @@ class Camera2D:
 
         self._update_parallax_layers(camera_x=self.world_x, camera_y=self.world_y)
 
-    def _update_parallax_layers(self, *, camera_x: float, camera_y: float) -> None:
+    def _update_parallax_layers(
+        self, *, camera_x: float, camera_y: float, animated_only: bool = False
+    ) -> None:
         """Scroll every parallax layer to the given camera position, snapped to whole pixels.
 
         The position is snapped with the active default snap mode (the scene's
         PIXEL_SNAP_MODE), the same snapped camera position world sprites are drawn from, so
-        the background never shimmers against them.
+        the background never shimmers against them. Each layer redraws only if its offset
+        changed or it is animated (ParallaxLayer.update_scroll).
 
         Args:
             camera_x: Camera X used for the parallax offset.
             camera_y: Camera Y used for the parallax offset.
+            animated_only: Update only the animated layers (the camera did not move).
 
         """
         mode = active_default_snap_mode()
         snapped_camera_x = snap_to_pixel(camera_x, mode)
         snapped_camera_y = snap_to_pixel(camera_y, mode)
         for layer in self._parallax_layers:
+            if animated_only and not layer.animated:
+                continue
             layer.update_scroll(snapped_camera_x, snapped_camera_y)
 
     def _clamp_to_bounds(self) -> None:
@@ -577,8 +610,18 @@ class Camera2D:
         groups: pygame.sprite.LayeredDirty[Sprite],
         screen_width: int | None = None,
         screen_height: int | None = None,
+        animated: bool = False,
     ) -> ParallaxLayer:
         """Add a parallax background layer managed by this camera.
+
+        The draw function contract: draw_function(surface, offset_x, offset_y) draws the layer
+        onto a cleared (fully transparent) surface, where the offsets are the snapped camera
+        position times scroll_factor. By default its drawing must depend only on those
+        arguments: the camera calls it again only when the offset changes (a static layer,
+        scroll_factor ~0, is drawn once), and otherwise keeps the last drawing. A layer whose
+        drawing also depends on anything else (time, randomness, game state, such as a clock
+        showing the elapsed game time) must pass animated=True; it is then redrawn every frame,
+        whether or not the camera moved.
 
         Args:
             scroll_factor: Scroll rate (0.0=static, 1.0=foreground speed).
@@ -587,6 +630,7 @@ class Camera2D:
             groups: Sprite group for the layer.
             screen_width: Layer width (defaults to camera viewport width).
             screen_height: Layer height (defaults to camera viewport height).
+            animated: True if the drawing changes without the offset changing (see above).
 
         Returns:
             The created ParallaxLayer.
@@ -599,6 +643,7 @@ class Camera2D:
             groups=groups,
             screen_width=screen_width or self.screen_width,
             screen_height=screen_height or self.screen_height,
+            animated=animated,
         )
         self._parallax_layers.append(layer)
         return layer

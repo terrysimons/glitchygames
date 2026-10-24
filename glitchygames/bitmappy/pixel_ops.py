@@ -219,9 +219,7 @@ def render_frames_side_by_side(
             width, height = frame.get_size()
             frame_outputs.append([' ' * width] * height)
 
-    if not frame_outputs:
-        return ''
-
+    # frame_outputs has one entry per frame, and there is at least one frame
     # Calculate frame width (visible characters only, excluding ANSI codes)
     frame_width = _get_visible_width(frame_outputs[0][0]) if frame_outputs[0] else 0
     separator_width = len(separator)
@@ -349,22 +347,41 @@ def render_frame_to_ascii(frame: SpriteFrame, renderer: ASCIIRenderer) -> str:
         str: ASCII representation of the frame, or empty string on error
 
     """
+    # A frame whose pixels cannot be read or laid out renders as nothing rather than raising
     try:
-        pixels = frame.get_pixel_data()
-        if not pixels:
-            return ''
-
-        width, height = frame.get_size()
-        color_map = _build_color_to_glyph_map(pixels)
-        pixels_str = _build_ascii_grid(pixels, width, height, color_map)
-        colors_dict = _build_renderer_color_dict(pixels, color_map)
-
-        try:
-            return renderer.colorize_pixels(pixels_str, colors_dict)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-        except (AttributeError, KeyError, TypeError) as e:
-            LOG.debug(f'Error colorizing pixels: {e}')
-            return pixels_str
-
+        glyph_grid = _build_frame_glyph_grid(frame)
     except (AttributeError, IndexError, KeyError, TypeError, ValueError) as e:
         LOG.debug(f'Error rendering frame to ASCII: {e}')
         return ''
+    if glyph_grid is None:
+        return ''
+
+    pixels_str, colors_dict = glyph_grid
+    try:
+        return renderer.colorize_pixels(pixels_str, colors_dict)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+    except (AttributeError, KeyError, TypeError) as e:
+        LOG.debug(f'Error colorizing pixels: {e}')
+        return pixels_str
+
+
+def _build_frame_glyph_grid(
+    frame: SpriteFrame,
+) -> tuple[str, dict[str, tuple[int, ...]]] | None:
+    """Lay a frame's pixels out as a glyph grid, with the glyphs' colors for the renderer.
+
+    Args:
+        frame: SpriteFrame object to lay out.
+
+    Returns:
+        The glyph grid and the glyph-to-RGBA dictionary, or None when the frame has no pixels.
+
+    """
+    pixels = frame.get_pixel_data()
+    if not pixels:
+        return None
+
+    width, height = frame.get_size()
+    color_map = _build_color_to_glyph_map(pixels)
+    pixels_str = _build_ascii_grid(pixels, width, height, color_map)
+    colors_dict = _build_renderer_color_dict(pixels, color_map)
+    return pixels_str, colors_dict

@@ -1,42 +1,41 @@
 """Tests for AnimatedSprite frame addition functionality."""
 
 import pygame
-import pytest
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_SIZE_2 = 2
 TEST_SIZE_3 = 3
 
 
+def _solid_rgb(image: pygame.Surface) -> tuple[int, int, int]:
+    """Return the one RGB color an image is filled with (fails if it has more than one).
+
+    Returns:
+        tuple[int, int, int]: The image's only color.
+
+    """
+    pixels = pygame.surfarray.array3d(image).reshape(-1, 3)
+    unique_colors = {tuple(int(channel) for channel in pixel) for pixel in pixels}
+    assert len(unique_colors) == 1, f'expected one color, got {sorted(unique_colors)}'
+    (only_color,) = unique_colors
+    return only_color
+
+
 class TestAnimatedSpriteFrameAddition:
     """Test frame addition behavior in AnimatedSprite."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        self.surface1 = MockFactory.create_pygame_surface_mock(8, 8)
+        """Set up test fixtures: three solid 8x8 frames (red, green, blue)."""
+        self.surface1 = pygame.Surface((8, 8))
         self.surface1.fill((255, 0, 0))  # Red
 
-        self.surface2 = MockFactory.create_pygame_surface_mock(8, 8)
+        self.surface2 = pygame.Surface((8, 8))
         self.surface2.fill((0, 255, 0))  # Green
 
-        self.surface3 = MockFactory.create_pygame_surface_mock(8, 8)
+        self.surface3 = pygame.Surface((8, 8))
         self.surface3.fill((0, 0, 255))  # Blue
-
-    def teardown_method(self):
-        """Clean up after tests."""
-        pygame.quit()
 
     def test_single_frame_animation_stays_static(self):
         """Test that single-frame animations remain static."""
@@ -177,12 +176,14 @@ class TestAnimatedSpriteFrameAddition:
         # Update animation and verify it advances
         sprite.update(0.15)  # Should advance past first frame duration
 
-        # Should have advanced to frame 1
+        # Should have advanced to frame 1, and the sprite now draws the green frame
         assert sprite.current_frame == 1
+        assert _solid_rgb(sprite.image) == (0, 255, 0)
 
         # Update more to test looping
         sprite.update(0.15)  # Should loop back to frame 0
         assert sprite.current_frame == 0
+        assert _solid_rgb(sprite.image) == (255, 0, 0)
 
     def test_multiple_animations_frame_addition(self):
         """Test frame addition with multiple animations."""

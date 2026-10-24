@@ -9,16 +9,22 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 import pygame
 
 from glitchygames import events
+from glitchygames.backgrounds import (
+    BackgroundPattern,
+    active_default_background_pattern,
+    background_pattern_surface,
+)
 from glitchygames.camera import Camera2D
 from glitchygames.clock import frame_clock_seconds, measured_seconds
 from glitchygames.collision import CollisionManager
-from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.color import BLACK, RGB_COMPONENT_COUNT, RGBA_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.debug.overlay import OVERLAY_KEYS
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
+from glitchygames.input.input_devices import InputDevices
 from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
 from glitchygames.input.state import (
     IDLE_INPUT,
@@ -29,6 +35,7 @@ from glitchygames.input.state import (
 )
 from glitchygames.instant_replay import InstantReplayJournal
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
 from glitchygames.recording import (
@@ -70,6 +77,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.input.input_devices import InputDevice
     from glitchygames.input.rumble import RumbleDevice
     from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplayResult
@@ -82,6 +90,7 @@ if TYPE_CHECKING:
     from glitchygames.scene_start import SceneStart
     from glitchygames.sources import RedeliveredEvent
     from glitchygames.supervision import Supervisor
+    from glitchygames.transitions import Transition
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
@@ -149,6 +158,29 @@ def is_discarded_during_transition(event: pygame.event.Event) -> bool:
     return True
 
 
+def required_scene(*, next_scene: object) -> Scene | None:
+    """Return the scene to switch or transition to, refusing anything that is not a Scene.
+
+    The active scene must be a Scene (or a subclass): the scene manager reads the attributes
+    Scene declares (its camera, scene start, snap mode, frame cap, key presses) directly. None
+    stays None (a switch to None ends the run).
+
+    Args:
+        next_scene: The scene asked for.
+
+    Returns:
+        The scene, typed as a Scene, or None.
+
+    Raises:
+        TypeError: If next_scene is neither None nor a Scene.
+
+    """
+    if next_scene is None or isinstance(next_scene, Scene):
+        return next_scene
+    message = f'The next scene must be a Scene or None, not {type(next_scene).__name__}'
+    raise TypeError(message)
+
+
 class SceneManager(SceneInterface, events.EventManager):
     """Glitchy Games Scene Manager.
 
@@ -159,6 +191,8 @@ class SceneManager(SceneInterface, events.EventManager):
     _instance: ClassVar[SceneManager | None] = None
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
+    # True once __init__ ran: SceneManager() returns the singleton, whose __init__ runs again
+    _initialized: bool = False
 
     def __new__(cls) -> Self:
         """Create a new instance or return the existing singleton instance."""
@@ -169,20 +203,13 @@ class SceneManager(SceneInterface, events.EventManager):
     def __init__(self: Self) -> None:
         """Initialize the scene manager."""
         # Prevent re-initialization of singleton
-        if hasattr(self, '_initialized'):
+        if self._initialized:
             return
 
         super().__init__()
 
-        # Scene manager terminates on self.next_scene = None
-        try:
-            self.screen = pygame.display.get_surface()
-            if self.screen is None:
-                # Display not initialized yet, will be set later
-                self.screen = None
-        except pygame.error:
-            # Display surface quit or not initialized, will be set later
-            self.screen = None
+        # None until the display is initialized (set later); get_surface() never raises
+        self.screen = pygame.display.get_surface()
         self.update_type: str = 'update'
         self.fps_log_interval_ms: int = 1000
         self.target_fps: float = 0.0
@@ -201,8 +228,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._initialize_supervision()
 
         # Scene transition support
-        self._active_transition: Any = None  # Transition object during effect
-        self._pending_transition: tuple[Any, Any] | None = None  # (next_scene, transition)
+        self._active_transition: Transition | None = None  # Transition object during effect
+        # The requested switch, as its next scene and its transition
+        self._pending_transition: tuple[Scene | None, Transition] | None = None
 
         self.clock: pygame.time.Clock = pygame.time.Clock()
 
@@ -253,7 +281,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._instant_replay_journal: InstantReplayJournal | None = None
 
         # Mark as initialized to prevent re-initialization
-        self._initialized: bool = True
+        self._initialized = True
 
     def _initialize_supervision(self: Self) -> None:
         """Make the supervision state (``__init__``): supervisors, handlers, control events."""
@@ -280,8 +308,8 @@ class SceneManager(SceneInterface, events.EventManager):
         in tests.
         """
         instance = cls._instance
-        if instance is not None and hasattr(instance, '_initialized'):
-            del instance._initialized
+        if instance is not None:
+            instance._initialized = False
         cls._instance = None
 
     def update_screen(self) -> None:
@@ -310,18 +338,44 @@ class SceneManager(SceneInterface, events.EventManager):
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
             self.debug_overlay.is_visible = bool(self.OPTIONS.get('debug_overlay', False))
-        self.log.info(f'Screen update type: {self.update_type}')
-        self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
-        self.log.info(f'Target FPS: {self.target_fps}')
+        self.log.info('Screen update type: %s', self.update_type)
+        self.log.info('FPS Log Interval: %sms', self.fps_log_interval_ms)
+        self.log.info('Target FPS: %s', self.target_fps)
 
         # Configure performance manager with the same log interval and target FPS
-        try:
-            from glitchygames.performance import performance_manager
+        from glitchygames.performance import performance_manager
 
-            performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
-            performance_manager.set_target_fps(self.target_fps)
-        except ImportError:
-            pass  # Performance module not available
+        performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+        performance_manager.set_target_fps(self.target_fps)
+
+    @property
+    def input_devices(self: Self) -> InputDevices:
+        """Every joystick and game controller the game sees (glitchygames/input/input_devices.py).
+
+        The engine's; without an engine (a bare scene manager), an empty registry.
+        """
+        game_engine = self._game_engine
+        return InputDevices() if game_engine is None else game_engine.input_devices
+
+    def on_input_device_added(self: Self, *, device: InputDevice) -> None:
+        """Tell the active scene a device was connected (GameEngine, after a device event).
+
+        Args:
+            device: The device the game sees from now on.
+
+        """
+        if self.active_scene is not None:
+            self.active_scene.on_input_device_added(device=device)
+
+    def on_input_device_removed(self: Self, *, device: InputDevice) -> None:
+        """Tell the active scene a device was disconnected (GameEngine, after a device event).
+
+        Args:
+            device: The device the game no longer sees.
+
+        """
+        if self.active_scene is not None:
+            self.active_scene.on_input_device_removed(device=device)
 
     # This enables collided_sprites in sprites.py, since SceneManager is
     # not a scene, but is the entry point for event proxies.
@@ -342,13 +396,11 @@ class SceneManager(SceneInterface, events.EventManager):
     def active_scene_start(self: Self) -> SceneStart | None:
         """How the active scene began (glitchygames/scene_start.py), if captured.
 
-        None without an active scene, when its start was not captured, or for a scene stand-in
-        (a SceneInterface that is not a Scene).
+        None without an active scene, or when its start was not captured.
         """
-        start_capture = getattr(self.active_scene, 'scene_start_capture', None)
-        if isinstance(start_capture, SceneStartCapture):
-            return start_capture.start
-        return None
+        if self.active_scene is None:
+            return None
+        return self.active_scene.scene_start
 
     @property
     def instant_replay_journal(self: Self) -> InstantReplayJournal | None:
@@ -446,7 +498,8 @@ class SceneManager(SceneInterface, events.EventManager):
                     input_before=input_before,
                 )
             return
-        start = getattr(journal.scene, 'scene_start', None)
+        # The journal's scene is a Scene (InstantReplayJournal reads its scene_start as it is made)
+        start = journal.scene.scene_start
         if (
             not journal.is_recording
             and journal.scene is self.active_scene
@@ -507,25 +560,25 @@ class SceneManager(SceneInterface, events.EventManager):
         """Make the journal of a scene that offers instant replay, as it is first set up.
 
         Called before its ``setup()`` (glitchygames/instant_replay.py, rule 2). A later setup
-        (resuming it from the pause screen) keeps its journal; a scene stand-in, a scene whose
-        start is not captured and a scene a playback scope builds keep none.
+        (resuming it from the pause screen) keeps its journal; a scene whose start is not
+        captured and a scene a playback scope builds keep none.
 
         Args:
             scene: The scene being set up.
 
         """
-        # Looked up by name: a SceneInterface stand-in has neither
-        if getattr(scene, 'INSTANT_REPLAY_SECONDS', None) is None:
+        if scene.INSTANT_REPLAY_SECONDS is None:
             return
-        start = getattr(scene, 'scene_start', None)
+        start = scene.scene_start
         if start is None or start.first_logic_frame is not None or has_scoped_sources():
             return
         journal = self._instant_replay_journal
         if journal is not None and journal.scene is scene:
             return
         self._end_instant_replay_journal()
+        game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
-            scene=scene, game=getattr(self.game_engine, 'game', None)
+            scene=scene, game=game_engine.game if game_engine is not None else None
         )
 
     def _journal_frame(self: Self, *, frame_dt: float) -> None:
@@ -562,17 +615,18 @@ class SceneManager(SceneInterface, events.EventManager):
             )
             self._end_instant_replay_journal()
 
-    def _presented_scene(self: Self) -> object:
+    def _presented_scene(self: Self) -> Scene | None:
         """Return the scene the player sees: the active scene, or the scene it presents.
 
-        A pause screen presents the paused game (``Scene.debug_subject``); looked up by name,
-        as a SceneInterface stand-in has no ``debug_subject``.
+        A pause screen presents the paused game (``Scene.debug_subject``).
 
         Returns:
             The scene (None without an active scene).
 
         """
-        return getattr(self.active_scene, 'debug_subject', self.active_scene)
+        if self.active_scene is None:
+            return None
+        return self.active_scene.debug_subject
 
     def _end_instant_replay_journal(self: Self) -> None:
         """Close and drop the instant-replay journal, if one is kept (instant_replay.py, rule 9)."""
@@ -729,8 +783,8 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def request_transition(
         self: Self,
-        next_scene: SceneInterface | None,
-        transition: Any,
+        next_scene: Scene | None,
+        transition: Transition,
     ) -> None:
         """Request a scene switch with a visual transition effect.
 
@@ -742,9 +796,9 @@ class SceneManager(SceneInterface, events.EventManager):
             transition: A Transition object (FadeTransition, SlideTransition, etc.).
 
         """
-        self._pending_transition = (next_scene, transition)
+        self._pending_transition = (required_scene(next_scene=next_scene), transition)
 
-    def _start_transition(self: Self, next_scene: Any, transition: Any) -> None:
+    def _start_transition(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Capture screenshots and begin a transition effect.
 
         Args:
@@ -758,13 +812,13 @@ class SceneManager(SceneInterface, events.EventManager):
         self.previous_scene = self.active_scene
         self._clear_outgoing_scene_pending_switch()
         self._cleanup_current_scene()
-        scene = cast('Scene | None', next_scene)
+        scene = next_scene
         self._setup_new_scene(scene)
         # Its first logic frame comes after the ride, which its playback repeats the arrival of
         # (glitchygames/scene_start.py, rule 7)
-        start_capture = getattr(scene, 'scene_start_capture', None)
+        start_capture = scene.scene_start_capture if scene is not None else None
         if (
-            isinstance(start_capture, SceneStartCapture)
+            start_capture is not None
             and start_capture.start is not None
             and start_capture.start.first_logic_frame is None
         ):
@@ -790,6 +844,7 @@ class SceneManager(SceneInterface, events.EventManager):
             A copy of the screen showing the outgoing scene.
 
         """
+        # Looked up by name: player is the game's own attribute, which a scene may not have
         old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
         old_player_was_hidden = self._hide_world_player_for_capture(old_player)
 
@@ -838,6 +893,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if player is None or not is_world_positioned(player):
             return None
+        # Looked up by name: a game's world sprite need not declare hidden (World Space)
         was_hidden = bool(getattr(player, 'hidden', False))
         cast('Any', player).hidden = True
         return was_hidden
@@ -874,6 +930,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if self.active_scene and self.screen:
             camera = self.active_scene.camera
+            # Looked up by name: player is the game's own attribute, which a scene may not have
             player = getattr(self.active_scene, 'player', None)
             # A world-space player is hidden with hidden (positioning then culls it); a
             # screen-space player's visible is written directly, as it always was
@@ -886,6 +943,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 player.dirty = 0
                 camera_target = self.active_scene.camera_target()
                 if camera_target is None:
+                    # A screen-space player may have no world position: the camera snaps to 0
                     camera.snap_to(
                         target_x=getattr(player, 'world_x', 0.0),
                         target_y=getattr(player, 'world_y', 0.0),
@@ -916,8 +974,9 @@ class SceneManager(SceneInterface, events.EventManager):
     def _finalize_transition(self: Self) -> None:
         """Complete a transition and resume normal scene rendering."""
         self._active_transition = None
-        # Force a full redraw of the active scene
-        if self.active_scene:
+        # Force a full redraw of the active scene (the frame loop stops when there is none, so
+        # a transition never finishes without one)
+        if self.active_scene:  # pragma: no branch - see above
             for sprite in self.active_scene.all_sprites:
                 sprite.dirty = max(sprite.dirty, 1)
 
@@ -974,14 +1033,13 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _remove_scope_supervision(self: Self) -> None:
         """Remove the supervisors and control event handlers a playback scope's code added."""
+        # Every scope supervisor and handler is also in the live lists: add_supervisor and
+        # add_control_event_handler add to both, remove_supervisor removes from both
         for supervisor in self._scope_supervisors:
-            if supervisor in self._supervisors:
-                self._supervisors.remove(supervisor)
+            self._supervisors.remove(supervisor)
         self._scope_supervisors.clear()
         for kind, handler in self._scope_control_event_handlers:
-            handlers = self._control_event_handlers.get(kind, [])
-            if handler in handlers:
-                handlers.remove(handler)
+            self._control_event_handlers[kind].remove(handler)
         self._scope_control_event_handlers.clear()
 
     def _run_live_or_scope_code(
@@ -1103,7 +1161,9 @@ class SceneManager(SceneInterface, events.EventManager):
         active_camera = self._active_camera()
         if active_camera is not None:
             shakers.append(active_camera.shake_effect)
-        controller_manager = getattr(self.game_engine, 'controller_manager', None)
+        # None without an engine (a bare SceneManager) and in joystick mode
+        game_engine = self.game_engine
+        controller_manager = game_engine.controller_manager if game_engine is not None else None
         self.rumble.update(
             shakers=shakers,
             dt=self.dt,
@@ -1167,7 +1227,8 @@ class SceneManager(SceneInterface, events.EventManager):
         if self._live_audio is None:
             from glitchygames.audio.live import LiveAudio
 
-            channels = getattr(self.game_engine, 'live_voice_channels', ())
+            game_engine = self.game_engine
+            channels = game_engine.live_voice_channels if game_engine is not None else ()
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
 
@@ -1213,32 +1274,27 @@ class SceneManager(SceneInterface, events.EventManager):
             getattr(sprite, 'is_active', False) is True for sprite in self.active_scene.all_sprites
         )
 
-    def on_key_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: events.KeyEvent) -> None:
         """Handle the debug overlay keys, then forward key-down events as the proxy would.
 
         F3 toggles the overlay and F4 cycles its panels, unless a sprite in the active scene has
         keyboard focus (is_active), so typing into text fields is never intercepted. Every other
-        key is routed exactly as `__getattr__` routes on_*_event calls: to the active scene, or
-        to the game engine when the scene is missing or lacks the handler.
+        key goes to the active scene (every Scene has the handler, and records the press first),
+        or to the game engine when there is no active scene.
 
         Args:
-            event (events.HashableEvent): The key-down event.
+            event (KeyEvent): The key-down event.
 
         Raises:
-            AttributeError: If neither the active scene nor the game engine has a handler.
+            AttributeError: If there is no active scene and the game engine has no handler.
 
         """
         if event.key in OVERLAY_KEYS and not self._active_scene_has_focused_sprite():
             self.debug_overlay.handle_key(key=event.key)
             return
-        if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
-            # Recorded before dispatch, so a quit-key release knows this scene saw the press.
-            # Looked up by name: at runtime an active scene may be any SceneInterface stand-in
-            # without _record_key_press, but active_scene is annotated Scene, so an isinstance
-            # check would be flagged as unnecessary by the type checker
-            record_key_press = getattr(self.active_scene, '_record_key_press', None)
-            if record_key_press is not None:
-                record_key_press(key=event.key)
+        if self.active_scene is not None:
+            # Recorded before dispatch, so a quit-key release knows this scene saw the press
+            self.active_scene.record_key_press(key=event.key)
             self.active_scene.on_key_down_event(event)
         elif self.game_engine is not None and hasattr(self.game_engine, 'on_key_down_event'):
             self.game_engine.on_key_down_event(event)
@@ -1286,6 +1342,11 @@ class SceneManager(SceneInterface, events.EventManager):
                 configured update type.
 
         """
+        if self.screen is not None:
+            # Every presented frame is opaque: on a display with per-pixel alpha (cocoa) the
+            # window shows alpha 0 as black, so a pixel copied from a surface carrying alpha 0
+            # would be a black hole only on macOS (glitchygames/opacity.py, BUGS.md #142)
+            make_opaque(surface=self.screen)
         # The overlay also draws during transitions (it reflects active_scene); captures stay clean
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
@@ -1298,6 +1359,9 @@ class SceneManager(SceneInterface, events.EventManager):
             pixel_offset != (0, 0) or overlay_visible or sources_draw_overlay
         ):
             clean_frame = self.screen.copy()
+            # Copied back, never blended: on real video drivers (cocoa) the display has
+            # per-pixel alpha, and a pixel below 255 would let the overlay show through
+            clean_frame.set_alpha(None)
             if pixel_offset != (0, 0):
                 self.screen.fill(SHAKE_BORDER_COLOR)
                 self.screen.blit(clean_frame, pixel_offset)
@@ -1339,13 +1403,14 @@ class SceneManager(SceneInterface, events.EventManager):
     def switch_to_scene(self: Self, next_scene: SceneInterface | None) -> None:
         """Switch to the next scene.
 
+        The parameter keeps SceneInterface's signature, but the active scene must be a Scene
+        (or None, which ends the run): the engine reads the attributes Scene declares.
+
         Args:
-            next_scene (SceneInterface | None): The next scene to switch to.
+            next_scene (SceneInterface | None): The next scene to switch to: a Scene, or None.
 
         """
-        # Cast to Scene | None for internal use. At runtime, all scenes
-        # are Scene instances or mocks that satisfy the Scene interface.
-        scene = cast('Scene | None', next_scene)
+        scene = required_scene(next_scene=next_scene)
         if scene != self.active_scene:
             self.screen_shake.clear()  # Pause, game over and direct switches never inherit a shake
             self.rumble.clear_sustained()  # ...nor leave a controller buzzing
@@ -1378,13 +1443,10 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The scene made active.
 
         """
-        try:
-            from glitchygames.performance import performance_manager
+        from glitchygames.performance import performance_manager
 
-            if scene:  # Only track performance for real scenes, not None
-                performance_manager.set_current_scene(scene.NAME)
-        except ImportError:
-            pass  # Performance module not available
+        if scene:  # Only track performance for real scenes, not None
+            performance_manager.set_current_scene(scene.NAME)
 
     def _clear_outgoing_scene_pending_switch(self: Self) -> None:
         """Clear the pending switch of the scene being switched away from.
@@ -1396,18 +1458,21 @@ class SceneManager(SceneInterface, events.EventManager):
         request their real scene from __init__.
         """
         if self.active_scene is not None:
-            self.active_scene.next_scene = self.active_scene
+            self.active_scene.next_scene = None
 
     def _switch_to_requested_scene(self: Self) -> None:
         """Perform the plain scene switch the active scene requested via next_scene.
 
         Runs at the end of a frame, after rendering. A next_scene of None or of the active
-        scene itself means no switch is pending.
+        scene itself means no switch is pending; the scene itself is reset to None, so a game
+        that still says "stay" that way leaves no scene in a reference cycle with itself.
         """
         if self.active_scene is None:
             return
         requested_scene = self.active_scene.next_scene
-        if requested_scene is not None and requested_scene != self.active_scene:
+        if requested_scene is self.active_scene:
+            self.active_scene.next_scene = None
+        elif requested_scene is not None:
             self.switch_to_scene(requested_scene)
 
     @override
@@ -1465,16 +1530,19 @@ class SceneManager(SceneInterface, events.EventManager):
             p99 = data[int(0.99 * (count - 1))]
             p100 = data[-1]
             # Compute avg FPS and late-frame percentage over interval
-            span_ns = max(1, now_ns - getattr(self, '_jitter_interval_start_ns', now_ns))
+            span_ns = max(1, now_ns - self._jitter_interval_start_ns)
             avg_fps = (count * 1_000_000_000) / span_ns
-            late = getattr(self, '_jitter_late_frames', 0)
+            late = self._jitter_late_frames
             late_pct = (late / count) * 100.0
             self.log.info(
-                f'Timer jitter ns: p50={p50}'
-                f' p95={p95} p99={p99}'
-                f' max={p100} frames={count}'
-                f' avg_fps={avg_fps:.1f}'
-                f' late={late_pct:.1f}%',
+                'Timer jitter ns: p50=%s p95=%s p99=%s max=%s frames=%s avg_fps=%.1f late=%.1f%%',
+                p50,
+                p95,
+                p99,
+                p100,
+                count,
+                avg_fps,
+                late_pct,
             )
         self._jitter_last_log_ns = now_ns
         self._jitter_interval_start_ns = now_ns
@@ -1541,25 +1609,20 @@ class SceneManager(SceneInterface, events.EventManager):
             processing_time: Actual processing time in seconds
 
         """
-        try:
-            from glitchygames.performance import performance_manager
+        from glitchygames.performance import performance_manager
 
-            # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
-            #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
-            #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
-            #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
-            #   3. carries over from the previous scene (the clock is shared), so a new
-            #      scene's first samples are stale.
-            # The frame time _finish_frame measured with time.perf_counter() (the full
-            # start-to-start period of the frame just finished), as the doors pass it on
-            # (_performance_frame_seconds).
-            performance_frame_seconds = self._performance_frame_seconds()
-            current_fps = (
-                (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
-            )
-            performance_manager.track_fps_from_event(current_fps, processing_time)
-        except ImportError:
-            pass  # Performance module not available
+        # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
+        #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
+        #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
+        #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
+        #   3. carries over from the previous scene (the clock is shared), so a new
+        #      scene's first samples are stale.
+        # The frame time _finish_frame measured with time.perf_counter() (the full
+        # start-to-start period of the frame just finished), as the doors pass it on
+        # (_performance_frame_seconds).
+        performance_frame_seconds = self._performance_frame_seconds()
+        current_fps = (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
+        performance_manager.track_fps_from_event(current_fps, processing_time)
 
     def start(self: Self) -> None:
         """Start the scene manager.
@@ -1591,7 +1654,9 @@ class SceneManager(SceneInterface, events.EventManager):
                 continue
 
             # Frame pacing using timer backend when available
-            timer = getattr(self.game_engine, 'timer', None)
+            # None without an engine (a bare SceneManager) or before the engine made its timer
+            game_engine = self.game_engine
+            timer = game_engine.timer if game_engine is not None else None
             # The doors may pace the frame themselves (0.0: not at all, in a headless replay)
             paced_seconds = active_sources().paced_frame_seconds()
             period_ns = 0
@@ -1672,7 +1737,7 @@ class SceneManager(SceneInterface, events.EventManager):
             timer=timer,
             period_ns=period_ns,
             # The previous frame's deadline: only pacing sets it, after each frame's work
-            prev_deadline_ns=getattr(self, '_timer_prev_deadline_ns', None),
+            prev_deadline_ns=self._timer_prev_deadline_ns,
             paced_seconds=paced_seconds,
         )
 
@@ -1767,11 +1832,14 @@ class SceneManager(SceneInterface, events.EventManager):
         self._begin_scene_logic_frame()
         self._begin_journal_frame()
         frame_dt = self.dt
+        installed_frame_dt = self._installed_doors_frame_seconds(frame_dt=frame_dt)
         self._run_in_playback_scope(step=self._run_frame_contents)
         processing_seconds = measured_seconds() - work_started_seconds - self._frame_present_seconds
         session = self._playback_session
         if session is None:
-            self._end_frame_at_doors(frame_dt=frame_dt, processing_seconds=processing_seconds)
+            self._end_frame_at_doors(
+                frame_dt=installed_frame_dt, processing_seconds=processing_seconds
+            )
             self._journal_frame(frame_dt=frame_dt)
         else:
             scoped_sources = session.sources
@@ -1787,13 +1855,39 @@ class SceneManager(SceneInterface, events.EventManager):
             )
             scoped_sources.base.end_frame(
                 frame_number=self.frame_number,
-                dt=frame_dt,
+                dt=installed_frame_dt,
                 scene=self.active_scene,
                 control_events=self._frame_control_events,
                 processing_seconds=processing_seconds,
             )
         self._frame_control_events = []
         self.frame_number += 1
+
+    def _installed_doors_frame_seconds(self: Self, *, frame_dt: float) -> float:
+        """Return the frame time the installed doors gave this frame, for their ``end_frame``.
+
+        Outside a playback scope it is the frame's dt. Inside one the frame runs with the
+        played recording's dt, while the installed doors answered with the live frame time (or,
+        in a replay of the session, its recorded one): a recording of the session must hold
+        that, because the scope's first frame's time was read as the live frame before it
+        ended and advanced the live frame clock and FPS event timer (BUGS.md #196;
+        glitchygames/replay/playback.py, rule 5).
+
+        Args:
+            frame_dt: The frame's dt, read before the frame ran.
+
+        Returns:
+            Seconds.
+
+        """
+        session = self._playback_session
+        if session is None:
+            return frame_dt
+        installed_frame_seconds = session.sources.installed_frame_seconds
+        # Entering the scope asks its doors for the frame time (_enter_playback), and every
+        # later frame's time is asked as the frame before it ends (_finish_frame)
+        assert installed_frame_seconds is not None, 'the scope never asked for a frame time'
+        return installed_frame_seconds
 
     def _begin_scene_logic_frame(self: Self) -> None:
         """Complete the active scene's start as its first logic frame begins (scene_start.py).
@@ -1805,9 +1899,10 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if self._active_transition is not None:
             return
-        # Looked up by name: a SceneInterface stand-in has no capture
-        start_capture = getattr(self.active_scene, 'scene_start_capture', None)
-        if isinstance(start_capture, SceneStartCapture):
+        if self.active_scene is None:
+            return
+        start_capture = self.active_scene.scene_start_capture
+        if start_capture is not None:
             start_capture.begin_first_logic_frame(
                 fps_event_seconds=self._previous_fps_event_seconds,
                 earlier_internal_event_count=pending_code_post_count(),
@@ -1885,6 +1980,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self._process_transition_events()
             self._run_supervisor_slot()
             self._update_frame_services()
+            # A transition frame presents, so the display surface exists
+            assert self.screen is not None
             self._active_transition.render(self.screen)
             self._present_frame(full_update=True)
             if transition_done:
@@ -1916,7 +2013,9 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         live_scene = self.active_scene
-        if live_scene is None:
+        # Never None in a run: frames run only while a scene is active, and the scope is
+        # entered only while the scene that asked for it is active (_enter_requested_playback)
+        if live_scene is None:  # pragma: no cover - a guard for callers outside the frame loop
             message = f'A {request.kind} playback needs an active scene to return to'
             raise RuntimeError(message)
         session = request.begin_session(
@@ -2026,9 +2125,10 @@ class SceneManager(SceneInterface, events.EventManager):
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
-            if self._live_rumble_behind_scope is not None:
-                self.rumble = self._live_rumble_behind_scope
-                self._live_rumble_behind_scope = None
+            # _enter_playback set it right after the session, with nothing in between to fail
+            assert self._live_rumble_behind_scope is not None
+            self.rumble = self._live_rumble_behind_scope
+            self._live_rumble_behind_scope = None
             self._clear_frame_effects()
             # The display shows the playback's last frame: the live scene's first presented
             # frame updates all of it, not only its own dirty rects
@@ -2145,13 +2245,13 @@ class SceneManager(SceneInterface, events.EventManager):
         # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
         # dt_tick are placed before their first render. Scene.update() runs inside
         # _render_scene, after positioning.
-        active_camera = self._active_camera()
-        if active_camera is not None:
-            active_camera.begin_frame()
+        logic_scene = self.active_scene
+        # A scene frame runs the active scene's logic (_update_scene): there is always one
+        assert logic_scene is not None
+        logic_scene.camera.begin_frame()
         # Logic and the camera aim share one (possibly capped) dt; self.dt stays the raw frame
         # time for the frame services, pacing and FPS statistics
         scene_dt = self._scene_frame_seconds()
-        logic_scene = self.active_scene
         self._update_scene(scene_dt=scene_dt)
         self._process_events()
         self._run_supervisor_slot()
@@ -2182,30 +2282,31 @@ class SceneManager(SceneInterface, events.EventManager):
             self._switch_to_requested_scene()
 
     def _active_camera(self: Self) -> Camera2D | None:
-        """Return the active scene's camera, or None.
+        """Return the active scene's camera, or None without an active scene.
 
-        Every Scene has a camera; a scene stand-in (a SceneInterface that is not a Scene) may
-        not, and then the engine's camera steps are skipped, as _activate_scene_snap_mode
-        tolerates a stand-in without a snap mode.
+        Every Scene has a camera; without an active scene the engine's camera steps are
+        skipped.
 
         Returns:
-            The active scene's Camera2D, or None when there is none.
+            The active scene's Camera2D, or None when there is no active scene.
 
         """
-        return cast('Camera2D | None', getattr(self.active_scene, 'camera', None))
+        if self.active_scene is None:
+            return None
+        return self.active_scene.camera
 
     def _scene_frame_seconds(self: Self) -> float:
         """The dt the active scene's logic and camera aim receive this frame.
 
-        self.dt, capped at the scene's MAX_FRAME_SECONDS when it sets one (a scene stand-in
-        without the attribute is not capped). After a hitch the scene advances at most the
-        cap, while self.dt keeps the whole frame for pacing, FPS statistics and services.
+        self.dt, capped at the scene's MAX_FRAME_SECONDS when it sets one. After a hitch the
+        scene advances at most the cap, while self.dt keeps the whole frame for pacing, FPS
+        statistics and services.
 
         Returns:
             The scene's dt in seconds.
 
         """
-        cap = getattr(self.active_scene, 'MAX_FRAME_SECONDS', None)
+        cap = self.active_scene.MAX_FRAME_SECONDS if self.active_scene is not None else None
         if cap is None:
             return self.dt
         return min(self.dt, cap)
@@ -2213,14 +2314,15 @@ class SceneManager(SceneInterface, events.EventManager):
     def _aim_active_camera(self: Self, *, scene_dt: float) -> None:
         """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera).
 
+        Called only while the scene whose logic ran this frame is still active.
+
         Args:
             scene_dt: The scene's dt this frame (_scene_frame_seconds).
 
         """
-        camera = self._active_camera()
-        if camera is None:
-            return
-        aim_camera(scene=self.active_scene, camera=camera, dt=scene_dt)
+        scene = self.active_scene
+        assert scene is not None
+        aim_camera(scene=scene, camera=scene.camera, dt=scene_dt)
 
     def _advance_still_camera_shake(self: Self, *, scene_dt: float) -> None:
         """Advance the active camera's WORLD shake if nothing advanced it this frame.
@@ -2294,22 +2396,22 @@ class SceneManager(SceneInterface, events.EventManager):
         # QUIT             none
         self.quit_requested = True
 
-    def on_fps_event(self: Self, event: events.HashableEvent) -> None:
+    def on_fps_event(self: Self, event: events.FpsEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (FpsEvent): The event to handle.
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
         if self.active_scene:
             self.active_scene.on_fps_event(event)
 
-    def on_game_event(self: Self, event: events.HashableEvent) -> None:
+    def on_game_event(self: Self, event: events.GameEvent) -> None:
         """Handle game events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (GameEvent): The event to handle.
 
         """
         # GAMEEVENT is pygame.USEREVENT + 2
@@ -2471,14 +2573,15 @@ class SceneManager(SceneInterface, events.EventManager):
                 pygame.display.update()
             else:
                 pygame.display.update(self.active_scene.rects)
-        elif self.update_type == 'flip':
+        elif self.update_type == 'flip':  # pragma: no branch - --update-type: update or flip
             pygame.display.flip()
 
     def _log_quit_info(self) -> None:
         """Log quit information."""
         self.log.info(
-            f'Game Quitting: Active Scene: {self.active_scene}, '
-            f'Quit Requested: {self.quit_requested}',
+            'Game Quitting: Active Scene: %s, Quit Requested: %s',
+            self.active_scene,
+            self.quit_requested,
         )
 
     def _reset_scene_timers(self) -> None:
@@ -2491,13 +2594,13 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _log_scene_switch(self, next_scene: Scene | None) -> None:
         """Log scene switch information."""
-        self.log.info(f'Switching to scene "{next_scene}" from scene "{self.active_scene}"')
+        self.log.info('Switching to scene "%s" from scene "%s"', next_scene, self.active_scene)
 
     def _cleanup_current_scene(self) -> None:
         """Cleanup the current active scene."""
         if self.active_scene:
             self.active_scene._screenshot = self.active_scene.screenshot  # pyright: ignore[reportPrivateUsage]
-            self.log.info(f'Cleaning up active scene {self.active_scene}.')
+            self.log.info('Cleaning up active scene %s.', self.active_scene)
             self.active_scene.cleanup()
 
     def _setup_new_scene(self, next_scene: Scene | None) -> None:
@@ -2508,20 +2611,16 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if next_scene:
             self.log.info('Setting up new scene %s.', next_scene)
-            # Ensure the new scene has access to the game engine
-            if hasattr(self, 'game_engine') and self.game_engine:
+            # Ensure the new scene has access to the game engine (a bare SceneManager has none)
+            if self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             # A press recorded before the scene was left (an ESC that paused it, released in
-            # the pause scene) must not let a later release quit. Looked up by name, like
-            # _record_key_press: the scene may be a SceneInterface stand-in without it
-            forget_key_presses = getattr(next_scene, '_forget_key_presses', None)
-            if forget_key_presses is not None:
-                forget_key_presses()
+            # the pause scene) must not let a later release quit
+            next_scene.forget_key_presses()
             # Complete the scene's start before its first setup() (a later setup, resuming it
-            # from the pause screen, keeps the first); glitchygames/scene_start.py.
-            # Looked up by name: a SceneInterface stand-in has no capture
-            start_capture = getattr(next_scene, 'scene_start_capture', None)
-            if isinstance(start_capture, SceneStartCapture):
+            # from the pause screen, keeps the first); glitchygames/scene_start.py
+            start_capture = next_scene.scene_start_capture
+            if start_capture is not None:
                 start_capture.complete(scene=next_scene)
             # Before setup(), so posts and the save stores setup() opens are seen
             self._prepare_instant_replay_journal(scene=next_scene)
@@ -2537,17 +2636,14 @@ class SceneManager(SceneInterface, events.EventManager):
     def _activate_scene_snap_mode(self, scene: Scene) -> None:
         """Make the scene's PIXEL_SNAP_MODE the default for sprites without their own mode.
 
-        A scene stand-in (a SceneInterface that is not a Scene) without a PixelSnapMode gets
-        the engine default, NEAREST_HALF_UP, so the previous scene's mode never leaks into it.
+        Every scene sets one (Scene's default is NEAREST_HALF_UP), so the previous scene's
+        mode never leaks into it.
 
         Args:
             scene: The scene being activated.
 
         """
-        scene_mode = getattr(scene, 'PIXEL_SNAP_MODE', None)
-        if not isinstance(scene_mode, PixelSnapMode):
-            scene_mode = PixelSnapMode.NEAREST_HALF_UP
-        set_active_default_snap_mode(scene_mode)
+        set_active_default_snap_mode(scene.PIXEL_SNAP_MODE)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
         """Log the event types blocked when switching to the scene, on one line.
@@ -2561,8 +2657,9 @@ class SceneManager(SceneInterface, events.EventManager):
                 if pygame.event.get_blocked(event_type)
             ]
             self.log.info(
-                f'Scene {next_scene.name} blocked events: '
-                f'{", ".join(blocked_event_names) if blocked_event_names else "None"}'
+                'Scene %s blocked events: %s',
+                next_scene.name,
+                ', '.join(blocked_event_names) if blocked_event_names else 'None',
             )
 
     def _configure_active_scene(self) -> None:
@@ -2610,8 +2707,10 @@ class SceneManager(SceneInterface, events.EventManager):
             'unlimited' if self.active_scene.target_fps == 0 else f'{self.active_scene.target_fps}'
         )
         self.log.info(
-            f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-            f' at {fps_display} FPS',
+            'Rendering Scene "%s(%s)" at %s FPS',
+            self.active_scene.NAME,
+            type(self.active_scene),
+            fps_display,
         )
 
     def _setup_event_proxies(self) -> None:
@@ -2671,6 +2770,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # The most scene time an instant replay re-simulates from the scene's start before the
     # seconds it shows (plans/2026-10-19-gameplay-replay.md, section 5.4)
     MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS: ClassVar[float] = 60.0
+    # True on a game's scene class (the one given to GameEngine) to receive the window system's
+    # raw messages (SYSWMEVENT) in on_sys_wm_event; blocked by default, as SDL leaves them.
+    # See allow_every_event_type in glitchygames/events/base.py
+    NATIVE_WINDOW_MESSAGES: ClassVar[bool] = False
 
     def __init__(
         self: Self,
@@ -2721,16 +2824,18 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.scene_manager = SceneManager()
         self.name = type(self)
         self._background_color: tuple[int, ...] | None = None
+        self._background_pattern: BackgroundPattern | None = None
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
-        self.quit_requested: bool = False
-        # Keys whose key-down reached this scene and are not yet released (_record_key_press)
+        # Keys whose key-down reached this scene and are not yet released (record_key_press)
         self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
         # Logic seconds since this scene started (game_time); the scene manager adds each
         # frame's scene dt before dt_tick
         self._game_time_seconds: float = 0.0
-        self.next_scene: Scene | Self | None = self
+        # The scene to switch to at the end of this frame; None: stay (never self, which would
+        # make every scene a reference cycle that only the cycle collector frees)
+        self.next_scene: Scene | None = None
         self.rects = None
         self.screen = pygame.display.get_surface()
         assert self.screen is not None
@@ -2749,9 +2854,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         self.screen = pygame.display.get_surface()
         assert self.screen is not None
-        self.background = pygame.Surface(self.screen.get_size())
-        self.background.convert()
-        self.background_color = BLACK
+        # In the display's format (BUGS.md #143: convert() returns the converted surface)
+        self.background = pygame.Surface(self.screen.get_size()).convert()
+        # A scene that sets no background shows the default pattern (glitchygames/backgrounds.py)
+        # instead of black, which cannot be told from "nothing rendered"
+        self.background_pattern = active_default_background_pattern()
 
         # This allows us to be treated like a sprite
         self.image = self.screen
@@ -2796,6 +2903,32 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         return {}
 
     @property
+    def input_devices(self: Self) -> InputDevices:
+        """Every joystick and game controller the game sees, by instance id.
+
+        Each ``InputDevice`` reads the frame's input snapshot on its joystick layer and, for a
+        mapped pad, its controller layer; its events reach ``on_*_event`` from one layer only
+        (glitchygames/input/input_devices.py). Empty without an engine.
+        """
+        return self.scene_manager.input_devices
+
+    def on_input_device_added(self: Self, *, device: InputDevice) -> None:
+        """Called while this scene is active when a device is connected; nothing by default.
+
+        Args:
+            device: The device (``input_devices`` holds it already).
+
+        """
+
+    def on_input_device_removed(self: Self, *, device: InputDevice) -> None:
+        """Called while this scene is active when a device is disconnected; nothing by default.
+
+        Args:
+            device: The device (``input_devices`` no longer holds it).
+
+        """
+
+    @property
     def game_time(self: Self) -> float:
         """Logic seconds since this scene started: the sum of the dt its dt_tick received.
 
@@ -2827,9 +2960,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         assert self.screen is not None
-        screenshot = pygame.Surface((self.screen_width, self.screen_height))
-        screenshot.convert()
-        screenshot.blit(self.screen, (0, 0))
+        # In the display's format (BUGS.md #143: convert() returns the converted surface)
+        screenshot = pygame.Surface((self.screen_width, self.screen_height)).convert()
+        # Opaque black, then the channel-wise maximum with the screen: its red, green and blue
+        # are copied unblended and every pixel stays opaque, as the presented frame shows them
+        # (glitchygames/opacity.py). A plain blit would blend away colours under alpha 0, and on
+        # a display with per-pixel alpha (cocoa) leave alpha 0 behind: a black screenshot
+        # (BUGS.md #142)
+        screenshot.fill(BLACK)
+        screenshot.blit(self.screen, (0, 0), special_flags=pygame.BLEND_RGBA_MAX)
         return screenshot
 
     @property
@@ -2837,7 +2976,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """The background color.
 
         Returns:
-            tuple[int, ...] | None: The background color.
+            tuple[int, ...] | None: The background color, or None while the background is a
+            pattern (background_pattern).
 
         """
         return self._background_color
@@ -2846,21 +2986,68 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def background_color(self: Self, new_color: tuple[int, ...]) -> None:
         """Set the background color.
 
-        Normalizes RGB colors to RGBA by appending alpha=0 (fully transparent background).
+        The background is the frame's bottom layer, so it is opaque: an RGB colour is
+        normalized to RGBA with alpha 255. A translucent colour is refused: nothing is under the
+        background to show through it, so the dummy and x11 drivers would show it opaque while
+        cocoa, whose display has per-pixel alpha, shows alpha 0 as black (BUGS.md #142).
 
         Args:
-            new_color (tuple[int, ...]): The new background color (RGB or RGBA).
+            new_color (tuple[int, ...]): The new background color (RGB, or RGBA with alpha 255).
+
+        Raises:
+            ValueError: The colour is translucent, or has neither three nor four components.
 
         """
         if len(new_color) == RGB_COMPONENT_COUNT:
-            new_color = (*new_color, 0)
+            new_color = (*new_color, OPAQUE)
+        if len(new_color) != RGBA_COMPONENT_COUNT:
+            message = f'A scene background colour is RGB or RGBA, not {new_color!r}'
+            raise ValueError(message)
+        if new_color[-1] != OPAQUE:
+            message = (
+                f'A scene background colour must be opaque: {new_color!r} has alpha '
+                f'{new_color[-1]}, and nothing is under the background to show through it'
+            )
+            raise ValueError(message)
         self._background_color = new_color
+        self._background_pattern = None
         assert self._background_color is not None
         assert self.screen is not None
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
 
-    def transition_to(self: Self, next_scene: Any, transition: Any) -> None:
+    @property
+    def background_pattern(self: Self) -> BackgroundPattern | None:
+        """The built-in pattern the background shows (glitchygames/backgrounds.py).
+
+        A scene that sets no background gets the active default pattern (the TV test
+        pattern unless --default-background chose another).
+
+        Returns:
+            BackgroundPattern | None: The pattern, or None while the background is a colour
+            (background_color).
+
+        """
+        return self._background_pattern
+
+    @background_pattern.setter
+    def background_pattern(self: Self, new_pattern: BackgroundPattern) -> None:
+        """Show a built-in pattern as the background (it replaces any background colour).
+
+        Args:
+            new_pattern: The pattern.
+
+        """
+        self._background_pattern = new_pattern
+        self._background_color = None
+        assert self.screen is not None
+        self.background.blit(
+            background_pattern_surface(pattern=new_pattern, size=self.background.get_size()),
+            (0, 0),
+        )
+        self.all_sprites.clear(self.screen, self.background)
+
+    def transition_to(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Switch to another scene with a visual transition effect.
 
         Args:
@@ -3063,12 +3250,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             focused_sprites: List of sprites to unfocus
 
         """
+        # Every focused sprite has is_active (_get_focused_sprites)
         for sprite in focused_sprites:
-            if hasattr(sprite, 'is_active'):
-                self.log.debug(f'Unfocusing {type(sprite).__name__}')
-                sprite.is_active = False
-                if hasattr(sprite, 'on_focus_lost'):
-                    sprite.on_focus_lost()
+            self.log.debug('Unfocusing %s', type(sprite).__name__)
+            sprite.is_active = False
+            if hasattr(sprite, 'on_focus_lost'):
+                sprite.on_focus_lost()
 
     def _handle_focus_management(self, collided_sprites: list[Any]) -> None:
         """Handle focus management for mouse clicks.
@@ -3084,12 +3271,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             self.log.debug('Click outside focusable sprites - unfocusing')
             self._unfocus_sprites(focused_sprites)
 
-    def _record_key_press(self: Self, *, key: int) -> None:
+    def record_key_press(self: Self, *, key: int) -> None:
         """Note that a key-down reached this scene.
 
         SceneManager calls this for every key-down it routes to the active scene, before the
         scene's own on_key_down_event, so subclasses that override that handler are covered.
-        on_key_up_event quits only on the release of a key recorded here.
+        on_key_up_event quits only on the release of a key recorded here. Games never call it;
+        it is public only because the scene manager, another class, calls it.
 
         Args:
             key: The pygame key code.
@@ -3097,13 +3285,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self._keys_pressed_in_scene.add(key)
 
-    def _forget_key_presses(self: Self) -> None:
-        """Forget every key press recorded by _record_key_press.
+    def forget_key_presses(self: Self) -> None:
+        """Forget every key press recorded by record_key_press.
 
         SceneManager calls this whenever the scene becomes active (switched to, resumed, or
         the target of a transition), before setup(). A press whose release went to another
         scene would otherwise stay recorded, and a later release of that key (whose press was
         discarded during a transition) would quit.
+        Games never call it; it is public only because the scene manager calls it.
         """
         self._keys_pressed_in_scene.clear()
 
@@ -3114,90 +3303,90 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         post_event(pygame.event.Event(pygame.QUIT))
 
     @override
-    def on_audio_device_added_event(self: Self, event: events.HashableEvent) -> None:
+    def on_audio_device_added_event(self: Self, event: events.AudioDeviceEvent) -> None:
         """Handle audio device added events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEADDED which, iscapture
-        self.log.debug(f'{type(self)}: On Audio Device Added Event {event}')
+        self.log.debug('%s: On Audio Device Added Event %s', type(self), event)
 
     @override
-    def on_audio_device_removed_event(self: Self, event: events.HashableEvent) -> None:
+    def on_audio_device_removed_event(self: Self, event: events.AudioDeviceEvent) -> None:
         """Handle audio device removed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (AudioDeviceEvent): The event to handle.
 
         """
         # AUDIODEVICEREMOVED which, iscapture
-        self.log.debug(f'{type(self)}: On Audio Device Removed Event {event}')
+        self.log.debug('%s: On Audio Device Removed Event %s', type(self), event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerButtonEvent): The event to handle.
 
         """
         # CONTROLLERBUTTONDOWN which, button
-        self.log.debug(f'{type(self)}: On Controller Button Down Event {event}')
+        self.log.debug('%s: On Controller Button Down Event %s', type(self), event)
 
     @override
-    def on_controller_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: events.ControllerButtonEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (ControllerButtonEvent): The event to handle.
 
         """
         # CONTROLLERBUTTONUP which, button
-        self.log.debug(f'{type(self)}: On Controller Button Up Event {event}')
+        self.log.debug('%s: On Controller Button Up Event %s', type(self), event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: events.JoyButtonEvent) -> None:
         """Handle joy button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyButtonEvent): The event to handle.
 
         """
         # JOYBUTTONDOWN    joy, button
-        self.log.debug(f'{type(self)}: On Joy Button Down Event {event}')
+        self.log.debug('%s: On Joy Button Down Event %s', type(self), event)
 
     @override
-    def on_joy_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: events.JoyButtonEvent) -> None:
         """Handle joy button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (JoyButtonEvent): The event to handle.
 
         """
         # JOYBUTTONUP      joy, button
-        self.log.debug(f'{type(self)}: On Joy Button Up Event {event}')
+        self.log.debug('%s: On Joy Button Up Event %s', type(self), event)
 
     @override
-    def on_key_up_event(self, event: events.HashableEvent) -> None:
+    def on_key_up_event(self, event: events.KeyEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: On Key Up Event {event}')
+        self.log.debug('%s: On Key Up Event %s', type(self), event)
 
         # Check for focused sprites first
         focused_sprites = self._get_focused_sprites()
 
-        # Only a release whose press this scene received can quit (_record_key_press): a key
+        # Only a release whose press this scene received can quit (record_key_press): a key
         # pressed during a transition (the press is discarded) or in a scene that has since
         # been left must not quit from here. Each release consumes its press.
         event_key: int | None = getattr(event, 'key', None)
         was_pressed_in_scene = event_key is not None and event_key in self._keys_pressed_in_scene
-        if event_key is not None:
+        if event_key is not None:  # pragma: no branch - a key release always has a key
             self._keys_pressed_in_scene.discard(event_key)
 
         # Only process quit keys if no sprites are focused
@@ -3217,14 +3406,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # MENUITEM         menu, item
-        self.log.debug(f'{type(self)}: On Menu Item Event {event}')
+        self.log.debug('%s: On Menu Item Event %s', type(self), event)
 
     @override
-    def on_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.log.debug('=== Scene: Mouse Button Down ===')
@@ -3233,7 +3422,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Get sprites at click position
         collided_sprites = self._get_collided_sprites(event_pos)
-        self.log.debug(f'Collided sprites: {[type(s).__name__ for s in collided_sprites]}')
+        self.log.debug('Collided sprites: %s', [type(s).__name__ for s in collided_sprites])
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug('Focusable sprites: %s', focusable_sprites)
 
@@ -3241,13 +3430,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
-                f'Top sprite @ DOWN: {type(top_sprite).__name__}, '
-                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}',
+                'Top sprite @ DOWN: %s, active=%s, pos=%s',
+                type(top_sprite).__name__,
+                getattr(top_sprite, 'active', None),
+                event_pos,
             )
 
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
-        self.log.debug(f'Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}')
+        self.log.debug('Currently focused sprites: %s', [type(s).__name__ for s in focused_sprites])
 
         # Handle focus management
         self._handle_focus_management(collided_sprites)
@@ -3258,15 +3449,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 sprite.on_mouse_button_down_event(event)
 
     @override
-    def on_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: events.MouseMotionEvent, trigger: object) -> None:
         """Handle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drag Event: {event} {trigger}')
+        self.log.debug('%s: Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         # Optimized: Skip expensive collision detection for drag events
         # Most drag handling is done by specific sprite drag handlers
@@ -3278,23 +3469,25 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
-                f'Top sprite @ DRAG: {type(top_sprite).__name__}, '
-                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}',
+                'Top sprite @ DRAG: %s, active=%s, pos=%s',
+                type(top_sprite).__name__,
+                getattr(top_sprite, 'active', None),
+                event_pos,
             )
 
         for sprite in collided_sprites:
             sprite.on_mouse_drag_event(event, trigger)
 
     @override
-    def on_mouse_drop_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_mouse_drop_event(self: Self, event: events.MouseButtonEvent, trigger: object) -> None:
         """Handle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Drop Event: {event} {trigger}')
+        self.log.debug('%s: Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3302,15 +3495,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_mouse_drop_event(event, trigger)
 
     @override
-    def on_left_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(
+        self: Self, event: events.MouseMotionEvent, trigger: object
+    ) -> None:
         """Handle left mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} {trigger}')
+        self.log.debug('%s: Left Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites: list[Any] | None = self.sprites_at_position(pos=event_pos)
 
@@ -3318,15 +3513,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             collided_sprites[-1].on_left_mouse_drag_event(event, trigger)
 
     @override
-    def on_left_mouse_drop_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drop_event(
+        self: Self, event: events.MouseButtonEvent, trigger: object
+    ) -> None:
         """Handle left mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} {trigger}')
+        self.log.debug('%s: Left Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3336,17 +3533,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     @override
     def on_middle_mouse_drag_event(
         self: Self,
-        event: events.HashableEvent,
+        event: events.MouseMotionEvent,
         trigger: object,
     ) -> None:
         """Handle middle mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Middle Mouse Drag Event: {event} {trigger}')
+        self.log.debug('%s: Middle Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3356,17 +3553,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     @override
     def on_middle_mouse_drop_event(
         self: Self,
-        event: events.HashableEvent,
+        event: events.MouseButtonEvent,
         trigger: object,
     ) -> None:
         """Handle middle mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Middle Mouse Drop Event: {event} {trigger}')
+        self.log.debug('%s: Middle Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3374,15 +3571,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_middle_mouse_drop_event(event, trigger)
 
     @override
-    def on_right_mouse_drag_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drag_event(
+        self: Self, event: events.MouseMotionEvent, trigger: object
+    ) -> None:
         """Handle right mouse drag events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseMotionEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Right Mouse Drag Event: {event} {trigger}')
+        self.log.debug('%s: Right Mouse Drag Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3390,15 +3589,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_right_mouse_drag_event(event, trigger)
 
     @override
-    def on_right_mouse_drop_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drop_event(
+        self: Self, event: events.MouseButtonEvent, trigger: object
+    ) -> None:
         """Handle right mouse drop events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
             trigger (object): The event trigger.
 
         """
-        self.log.info(f'{type(self)}: Right Mouse Drop Event: {event} {trigger}')
+        self.log.debug('%s: Right Mouse Drop Event: %s %s', type(self), event, trigger)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
         collided_sprites = self.sprites_at_position(pos=event_pos)
 
@@ -3406,15 +3607,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_right_mouse_drop_event(event, trigger)
 
     @override
-    def on_left_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle left mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event}')
+        self.log.debug('%s: Left Mouse Button Up Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3423,15 +3624,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_left_mouse_button_up_event(event)
 
     @override
-    def on_middle_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_middle_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle middle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
+        self.log.debug('%s: Middle Mouse Button Up Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3440,15 +3641,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_middle_mouse_button_up_event(event)
 
     @override
-    def on_right_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_right_mouse_button_up_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle right mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
-        self.log.info(f'{type(self)}: Right Mouse Button Up Event: {event}')
+        self.log.info('%s: Right Mouse Button Up Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3457,11 +3658,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_right_mouse_button_up_event(event)
 
     @override
-    def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_left_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle left mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         self.log.debug('=== Scene: Left Mouse Button Down ===')
@@ -3470,13 +3671,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Get sprites at click position
         collided_sprites = self._get_collided_sprites(event_pos)
-        self.log.debug(f'Collided sprites: {[type(s).__name__ for s in collided_sprites]}')
+        self.log.debug('Collided sprites: %s', [type(s).__name__ for s in collided_sprites])
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
         self.log.debug('Focusable sprites: %s', focusable_sprites)
 
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
-        self.log.debug(f'Currently focused sprites: {[type(s).__name__ for s in focused_sprites]}')
+        self.log.debug('Currently focused sprites: %s', [type(s).__name__ for s in focused_sprites])
 
         # Handle focus management
         self._handle_focus_management(collided_sprites)
@@ -3487,15 +3688,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 sprite.on_left_mouse_button_down_event(event)
 
     @override
-    def on_middle_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_middle_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle middle mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN    pos, button
-        self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
+        self.log.debug('%s: Middle Mouse Button Down Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self.sprites_at_position(pos=event_pos)
@@ -3504,15 +3705,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             sprite.on_middle_mouse_button_down_event(event)
 
     @override
-    def on_right_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_right_mouse_button_down_event(self: Self, event: events.MouseButtonEvent) -> None:
         """Handle right mouse button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
-        self.log.info(f'{type(self)}: Right Mouse Button Down Event: {event}')
+        self.log.info('%s: Right Mouse Button Down Event: %s', type(self), event)
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
 
         collided_sprites = self._get_collided_sprites(event_pos)
@@ -3528,60 +3729,60 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Sys WM Event: {event}')
+        self.log.debug('%s: Sys WM Event: %s', type(self), event)
 
     @override
-    def on_text_editing_event(self: Self, event: events.HashableEvent) -> None:
+    def on_text_editing_event(self: Self, event: events.TextEditingEvent) -> None:
         """Handle text editing events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TextEditingEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Text Editing Event: {event}')
+        self.log.debug('%s: Text Editing Event: %s', type(self), event)
 
     @override
-    def on_text_input_event(self: Self, event: events.HashableEvent) -> None:
+    def on_text_input_event(self: Self, event: events.TextInputEvent) -> None:
         """Handle text input events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TextInputEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Text Input Event: {event}')
+        self.log.debug('%s: Text Input Event: %s', type(self), event)
 
     @override
-    def on_touch_down_event(self: Self, event: events.HashableEvent) -> None:
+    def on_touch_down_event(self: Self, event: events.TouchFingerEvent) -> None:
         """Handle touch down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TouchFingerEvent): The event to handle.
 
         """
         # TOUCHBUTTONDOWN  touch, pos, button
-        self.log.debug(f'{type(self)}: Touch Down Event: {event}')
+        self.log.debug('%s: Touch Down Event: %s', type(self), event)
 
     @override
-    def on_touch_motion_event(self: Self, event: events.HashableEvent) -> None:
+    def on_touch_motion_event(self: Self, event: events.TouchFingerEvent) -> None:
         """Handle touch motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TouchFingerEvent): The event to handle.
 
         """
         # TOUCHMOTION      touch, pos
-        self.log.debug(f'{type(self)}: Touch Motion Event: {event}')
+        self.log.debug('%s: Touch Motion Event: %s', type(self), event)
 
     @override
-    def on_touch_up_event(self: Self, event: events.HashableEvent) -> None:
+    def on_touch_up_event(self: Self, event: events.TouchFingerEvent) -> None:
         """Handle touch up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (TouchFingerEvent): The event to handle.
 
         """
         # TOUCHBUTTONUP    touch, pos
-        self.log.debug(f'{type(self)}: Touch Up Event: {event}')
+        self.log.debug('%s: Touch Up Event: %s', type(self), event)
 
     @override
     def on_user_event(self: Self, event: events.HashableEvent) -> None:
@@ -3592,7 +3793,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # USEREVENT        code
-        self.log.debug(f'{type(self)}: User Event: {event}')
+        self.log.debug('%s: User Event: %s', type(self), event)
 
     @override
     def on_video_expose_event(self: Self, event: events.HashableEvent) -> None:
@@ -3603,194 +3804,194 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # VIDEOEXPOSE      none
-        self.log.debug(f'{type(self)}: Video Expose Event: {event}')
+        self.log.debug('%s: Video Expose Event: %s', type(self), event)
 
     @override
-    def on_video_resize_event(self: Self, event: events.HashableEvent) -> None:
+    def on_video_resize_event(self: Self, event: events.VideoResizeEvent) -> None:
         """Handle video resize events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (VideoResizeEvent): The event to handle.
 
         """
         # VIDEORESIZE      size, w, h
-        self.log.debug(f'{type(self)}: Video Resize Event: {event}')
+        self.log.debug('%s: Video Resize Event: %s', type(self), event)
 
     @override
-    def on_window_close_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_close_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window close events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWCLOSE      none
-        self.log.debug(f'{type(self)}: Window Close Event: {event}')
+        self.log.debug('%s: Window Close Event: %s', type(self), event)
 
     @override
-    def on_window_enter_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_enter_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window enter events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWENTER      none
-        self.log.debug(f'{type(self)}: Window Enter Event: {event}')
+        self.log.debug('%s: Window Enter Event: %s', type(self), event)
 
     @override
-    def on_window_exposed_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_exposed_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window exposed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWEXPOSED    none
-        self.log.debug(f'{type(self)}: Window Exposed Event: {event}')
+        self.log.debug('%s: Window Exposed Event: %s', type(self), event)
 
     @override
-    def on_window_focus_gained_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_focus_gained_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window focus gained events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSGAINED none
-        self.log.debug(f'{type(self)}: Window Focus Gained Event: {event}')
+        self.log.debug('%s: Window Focus Gained Event: %s', type(self), event)
 
     @override
-    def on_window_focus_lost_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_focus_lost_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window focus lost events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWFOCUSLOST  none
-        self.log.debug(f'{type(self)}: Window Focus Lost Event: {event}')
+        self.log.debug('%s: Window Focus Lost Event: %s', type(self), event)
 
     @override
-    def on_window_hidden_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_hidden_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window hidden events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHIDDEN     none
-        self.log.debug(f'{type(self)}: Window Hidden Event: {event}')
+        self.log.debug('%s: Window Hidden Event: %s', type(self), event)
 
     @override
-    def on_window_hit_test_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_hit_test_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window hit test events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWHITTEST    pos
-        self.log.debug(f'{type(self)}: Window Hit Test Event: {event}')
+        self.log.debug('%s: Window Hit Test Event: %s', type(self), event)
 
     @override
-    def on_window_leave_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_leave_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window leave events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWLEAVE      none
-        self.log.debug(f'{type(self)}: Window Leave Event: {event}')
+        self.log.debug('%s: Window Leave Event: %s', type(self), event)
 
     @override
-    def on_window_maximized_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_maximized_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window maximized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMAXIMIZED  none
-        self.log.debug(f'{type(self)}: Window Maximized Event: {event}')
+        self.log.debug('%s: Window Maximized Event: %s', type(self), event)
 
     @override
-    def on_window_minimized_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_minimized_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window minimized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWMINIMIZED  none
-        self.log.debug(f'{type(self)}: Window Minimized Event: {event}')
+        self.log.debug('%s: Window Minimized Event: %s', type(self), event)
 
     @override
-    def on_window_moved_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_moved_event(self: Self, event: events.WindowGeometryEvent) -> None:
         """Handle window moved events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWMOVED      pos
-        self.log.debug(f'{type(self)}: Window Moved Event: {event}')
+        self.log.debug('%s: Window Moved Event: %s', type(self), event)
 
     @override
-    def on_window_resized_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_resized_event(self: Self, event: events.WindowGeometryEvent) -> None:
         """Handle window resized events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWRESIZED    size, w, h
-        self.log.debug(f'{type(self)}: Window Resized Event: {event}')
+        self.log.debug('%s: Window Resized Event: %s', type(self), event)
 
     @override
-    def on_window_restored_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_restored_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window restored events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWRESTORED   none
-        self.log.debug(f'{type(self)}: Window Restored Event: {event}')
+        self.log.debug('%s: Window Restored Event: %s', type(self), event)
 
     @override
-    def on_window_shown_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_shown_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window shown events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWSHOWN      none
-        self.log.debug(f'{type(self)}: Window Shown Event: {event}')
+        self.log.debug('%s: Window Shown Event: %s', type(self), event)
 
     @override
-    def on_window_size_changed_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_size_changed_event(self: Self, event: events.WindowGeometryEvent) -> None:
         """Handle window size changed events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowGeometryEvent): The event to handle.
 
         """
         # WINDOWSIZECHANGED size, w, h
-        self.log.debug(f'{type(self)}: Window Size Changed Event: {event}')
+        self.log.debug('%s: Window Size Changed Event: %s', type(self), event)
 
     @override
-    def on_window_take_focus_event(self: Self, event: events.HashableEvent) -> None:
+    def on_window_take_focus_event(self: Self, event: events.WindowEvent) -> None:
         """Handle window take focus events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (WindowEvent): The event to handle.
 
         """
         # WINDOWTAKEFOCUS  none
-        self.log.debug(f'{type(self)}: Window Take Focus Event: {event}')
+        self.log.debug('%s: Window Take Focus Event: %s', type(self), event)
 
     @override
     def on_quit_event(self: Self, event: events.HashableEvent) -> None:
@@ -3801,14 +4002,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # QUIT             none
-        self.log.debug(f'{type(self)}: {event}')
+        self.log.debug('%s: %s', type(self), event)
 
     @override
-    def on_fps_event(self: Self, event: events.HashableEvent) -> None:
+    def on_fps_event(self: Self, event: events.FpsEvent) -> None:
         """Handle FPS events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (FpsEvent): The event to handle.
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
@@ -3820,19 +4021,19 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         log_interval_seconds = float(self.scene_manager.fps_log_interval_ms) / 1000.0
         if current_time - self._last_fps_log_time >= log_interval_seconds:
             event_fps: float = getattr(event, 'fps', 0.0)
-            self.log.info(f'Scene "{self.NAME}" ({type(self)}) FPS: {event_fps}')
+            self.log.info('Scene "%s" (%s) FPS: %s', self.NAME, type(self), event_fps)
             self._last_fps_log_time = current_time
 
         self.fps = getattr(event, 'fps', 0.0)
 
     def load_resources(self: Self) -> None:
         """Load the scene's resources."""
-        self.log.debug(f'Implement load_resource() in {type(self)}.')
+        self.log.debug('Implement load_resource() in %s.', type(self))
 
     @override
-    def on_key_down_event(self, event: events.HashableEvent) -> None:
+    def on_key_down_event(self, event: events.KeyEvent) -> None:
         """Handle key down events."""
-        self.log.debug(f'{type(self)}: On Key Down Event {event}')
+        self.log.debug('%s: On Key Down Event %s', type(self), event)
 
         # Check if focused sprites handle the event
         if self._handle_focused_sprite_events(event):
@@ -3841,7 +4042,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Only process scene-level key events if no focused sprite handled it
         self._handle_scene_key_events(event)
 
-    def _handle_focused_sprite_events(self, event: events.HashableEvent) -> bool:
+    def _handle_focused_sprite_events(self, event: events.KeyEvent) -> bool:
         """Handle events for focused sprites.
 
         Args:
@@ -3867,17 +4068,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         return False
 
-    def _handle_scene_key_events(self, event: events.HashableEvent) -> None:
-        """Handle scene-level key events.
+    def _handle_scene_key_events(self, event: events.KeyEvent) -> None:
+        """Handle a key press no focused sprite took: a hook for scenes; the base does nothing.
+
+        Q and ESC quit on their release (on_key_up_event), once per press. BUGS.md #203: Q's
+        press here logged "Quit requested" and set a quit_requested flag nothing read.
 
         Args:
             event: The event to handle
 
         """
-        event_key: int | None = getattr(event, 'key', None)
-        if event_key == pygame.K_q:
-            self.log.info('Quit requested')
-            self.quit_requested = True
 
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox.

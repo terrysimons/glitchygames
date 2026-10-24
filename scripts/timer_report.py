@@ -54,6 +54,8 @@ DELAY_TABLE_LENGTHS_NS = (1_000_000, 2_000_000, 4_000_000, 8_000_000, 16_000_000
 DELAY_TABLE_SAMPLES = 30
 # Waits auto's real pacing is measured over: a short one and about a 60 FPS frame's
 AUTO_PACING_WAITS_NS = (3_000_000, 12_000_000)
+# cgroup v2's CPU limit: "<quota> <period>" in microseconds, or "max <period>"
+CGROUP_CPU_MAX = Path('/sys/fs/cgroup/cpu.max')
 # macOS's sysctl, by absolute path (no PATH lookup)
 SYSCTL_PATH = '/usr/sbin/sysctl'
 
@@ -91,6 +93,25 @@ def hypervisor_description() -> str:
             return f'unknown (/proc/cpuinfo: {error})'
         return f'{"yes" if " hypervisor" in flags else "no"} (/proc/cpuinfo hypervisor flag)'
     return 'unknown (no check on this OS)'
+
+
+def container_cpu_quota() -> str:
+    """Describe the container's CPU limit (cgroup v2 ``cpu.max``), which the CPU count ignores.
+
+    A container sees the host's CPUs (CircleCI's 1 vCPU Linux job reports 36); noxfile.py's
+    test session reads the same file to size its workers.
+
+    Returns:
+        E.g. '1.0 CPU', 'none (no limit)', or 'unknown (...)' where there is no such file.
+
+    """
+    try:
+        quota, period = CGROUP_CPU_MAX.read_text(encoding='utf-8').split()
+    except (OSError, ValueError) as error:
+        return f'unknown ({error.__class__.__name__}: no {CGROUP_CPU_MAX})'
+    if quota == 'max':
+        return 'none (no limit)'
+    return f'{int(quota) / int(period):.1f} CPU'
 
 
 def cpu_share() -> float:
@@ -172,7 +193,10 @@ def main() -> int:
         f'machine: {platform.platform()}, {platform.machine()}, Python {platform.python_version()}'
     )
     emit(f'hypervisor: {hypervisor_description()}')
-    emit(f'CPUs: {os.cpu_count()} reported, {os.process_cpu_count()} usable by this process')
+    emit(
+        f'CPUs: {os.cpu_count()} reported, {os.process_cpu_count()} usable by this process, '
+        f'container quota {container_cpu_quota()}'
+    )
     emit(f'cpu share of a busy loop: {cpu_share():.2f} (1.00 = a whole CPU; low = time-shared)')
     emit(
         describe(

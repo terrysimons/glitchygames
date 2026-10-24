@@ -3,11 +3,10 @@
 import math
 
 import pygame
-import pytest
 
 from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
+from glitchygames.bitmappy.film_strip_coordinator import FilmStripCoordinator
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_DURATION_0_001 = 0.001
@@ -18,25 +17,27 @@ CANVAS_WIDTH = 8
 CANVAS_HEIGHT = 8
 
 
-def _create_blank_frame_mock(width, height, duration=0.5):
-    """Create a proper SpriteFrame for use as a _create_blank_frame mock return value.
+def _solid_rgb(image):
+    """Return the one RGB color an image is filled with (fails if it has more than one).
 
     Returns:
-        object: The result.
+        tuple[int, int, int]: The image's only color.
 
     """
-    surface = MockFactory.create_pygame_surface_mock(width, height)
-    surface.fill((255, 0, 255))
-    frame = SpriteFrame(surface, duration=duration)
-    frame.pixels = [(255, 0, 255, 255)] * (width * height)
-    return frame
+    pixels = pygame.surfarray.array3d(image).reshape(-1, 3)
+    unique_colors = {tuple(int(channel) for channel in pixel) for pixel in pixels}
+    assert len(unique_colors) == 1, f'expected one color, got {sorted(unique_colors)}'
+    (only_color,) = unique_colors
+    return only_color
 
 
 def _mock_parent_scene(animated_sprite, mocker):
-    """Create a properly configured parent scene mock.
+    """Create a stand-in editor scene for the film strip, with the real frame coordinator.
 
-    Sets up canvas.animated_sprite so that film_strip._update_film_tabs()
-    can iterate _animations.keys() without hitting 'Mock is not iterable'.
+    The editor scene itself is a mock (the film strip only reads its canvas size and calls
+    on_frame_inserted), but its film_strip_coordinator is the real FilmStripCoordinator, so
+    inserted frames are the editor's real blank frames. canvas.animated_sprite is the real
+    sprite so film_strip._create_film_tabs() can iterate its animations.
 
     Returns:
         object: The result.
@@ -48,40 +49,24 @@ def _mock_parent_scene(animated_sprite, mocker):
     parent_scene.canvas.pixels_across = CANVAS_WIDTH
     parent_scene.canvas.pixels_tall = CANVAS_HEIGHT
     parent_scene.canvas.animated_sprite = animated_sprite
-    parent_scene._create_blank_frame = mocker.Mock(
-        side_effect=lambda w, h, duration=0.5: _create_blank_frame_mock(w, h, duration),
-    )
     # _insert_frame_at_tab routes through the coordinator
-    parent_scene.film_strip_coordinator._create_blank_frame = mocker.Mock(
-        side_effect=lambda w, h, duration=0.5: _create_blank_frame_mock(w, h, duration),
-    )
+    parent_scene.film_strip_coordinator = FilmStripCoordinator(parent_scene)
     return parent_scene
 
 
 class TestFilmStripFrameAddition:
     """Test film strip frame addition behavior."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-        self.surface1 = MockFactory.create_pygame_surface_mock(8, 8)
+    def setup_method(self):
+        """Set up test fixtures: three solid 8x8 frames (red, green, blue)."""
+        self.surface1 = pygame.Surface((8, 8))
         self.surface1.fill((255, 0, 0))  # Red
 
-        self.surface2 = MockFactory.create_pygame_surface_mock(8, 8)
+        self.surface2 = pygame.Surface((8, 8))
         self.surface2.fill((0, 255, 0))  # Green
 
-        self.surface3 = MockFactory.create_pygame_surface_mock(8, 8)
+        self.surface3 = pygame.Surface((8, 8))
         self.surface3.fill((0, 0, 255))  # Blue
-
-        yield
-
-        pygame.quit()
 
     def test_film_strip_reinitializes_after_frame_addition(self, mocker):
         """Test that film strip reinitializes preview animations after frame addition."""
@@ -147,8 +132,12 @@ class TestFilmStripFrameAddition:
         # Insert frame before first frame
         film_strip._insert_frame_at_tab(tab)
 
-        # Verify frame was inserted at index 0
+        # Verify frame was inserted at index 0: a blank magenta frame, then the red one
         assert len(animated_sprite._animations['idle']) == TEST_SIZE_2
+        inserted_frame, original_frame = animated_sprite._animations['idle']
+        assert original_frame is frame1
+        assert inserted_frame.image.get_size() == (CANVAS_WIDTH, CANVAS_HEIGHT)
+        assert _solid_rgb(inserted_frame.image) == (255, 0, 255)
         assert animated_sprite._is_playing
         assert animated_sprite._is_looping
 
@@ -176,8 +165,12 @@ class TestFilmStripFrameAddition:
         # Insert frame after first frame
         film_strip._insert_frame_at_tab(tab)
 
-        # Verify frame was inserted at index 1
+        # Verify frame was inserted at index 1: the red frame, then a blank magenta one
         assert len(animated_sprite._animations['idle']) == TEST_SIZE_2
+        original_frame, inserted_frame = animated_sprite._animations['idle']
+        assert original_frame is frame1
+        assert inserted_frame.image.get_size() == (CANVAS_WIDTH, CANVAS_HEIGHT)
+        assert _solid_rgb(inserted_frame.image) == (255, 0, 255)
         assert animated_sprite._is_playing
         assert animated_sprite._is_looping
 

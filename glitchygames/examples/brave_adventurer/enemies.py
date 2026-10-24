@@ -1,4 +1,10 @@
-"""Enemy sprites for Brave Adventurer: Cobra, Scarab, and Scorpion."""
+"""Enemy sprites for Brave Adventurer: Cobra, Scarab, and Scorpion.
+
+Each draws its pose in dt_tick, after its state is decided and before the scene's collision
+checks: their hitboxes are their visible pixels, so a pose drawn in update() (the render phase)
+would be a frame late for collision (the pose rule, CLAUDE.md World Space). Each also draws its
+first pose as it is made, so it has a hitbox before its first tick.
+"""
 
 from __future__ import annotations
 
@@ -71,6 +77,7 @@ class Cobra(Sprite):
         self.strike_timer: float = 0.0
         self.striking: bool = False
         self.dirty = 2  # Always redraw (animation)
+        self._draw_pose()
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -90,9 +97,10 @@ class Cobra(Sprite):
             self.striking = False
             self.strike_timer = 0.0
 
-    @override
-    def update(self: Self) -> None:
-        """Redraw the cobra with current animation state."""
+        self._draw_pose()
+
+    def _draw_pose(self: Self) -> None:
+        """Redraw the cobra with its current animation state."""
         self.image.fill((0, 0, 0, 0))
         draw_cobra(self.image, striking=self.striking, animation_timer=self.dt_timer)
 
@@ -100,8 +108,9 @@ class Cobra(Sprite):
 class Scarab(Sprite):
     """A scarab beetle that rolls across the ground at constant speed.
 
-    Scarabs move in one direction and wrap or continue off-screen. A world sprite: the
-    engine places it from the camera.
+    Scarabs roll in one direction, fall into pits (rolling on along the pit floor) and turn
+    back at stone walls (the scene's terrain collision). A world sprite: the engine places it
+    from the camera.
     """
 
     COORDINATE_SPACE = CoordinateSpace.WORLD
@@ -141,6 +150,7 @@ class Scarab(Sprite):
         self.roll_angle: float = 0.0
         self.on_ground: bool = True
         self.dirty = 2  # Always redraw (rolling animation)
+        self._draw_pose()
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -160,9 +170,10 @@ class Scarab(Sprite):
         self.world_x += self.roll_speed * dt
         self.roll_angle += abs(self.roll_speed) * dt * 0.1
 
-    @override
-    def update(self: Self) -> None:
-        """Redraw the scarab with current roll angle."""
+        self._draw_pose()
+
+    def _draw_pose(self: Self) -> None:
+        """Redraw the scarab with its current roll angle."""
         self.image.fill((0, 0, 0, 0))
         draw_scarab(self.image, self.roll_angle)
 
@@ -213,6 +224,7 @@ class Scorpion(Sprite):
         self.patrol_speed: float = self.DEFAULT_PATROL_SPEED
         self.facing_right: bool = True
         self.dirty = 2  # Always redraw (moving)
+        self._draw_pose()
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -235,8 +247,9 @@ class Scorpion(Sprite):
             self.world_x = self.origin_x
             self.facing_right = True
 
-    @override
-    def update(self: Self) -> None:
-        """Redraw the scorpion with current facing direction."""
+        self._draw_pose()
+
+    def _draw_pose(self: Self) -> None:
+        """Redraw the scorpion with its current facing direction."""
         self.image.fill((0, 0, 0, 0))
         draw_scorpion(self.image, facing_right=self.facing_right)

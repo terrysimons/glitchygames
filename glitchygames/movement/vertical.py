@@ -35,30 +35,15 @@ class Vertical:
         self.current_speed = value
 
     def up(self: Self) -> None:
-        """Move up.
-
-        Args:
-            None
-
-        """
+        """Move up."""
         self._change_speed(-self.speed.y)
 
     def down(self: Self) -> None:
-        """Move down.
-
-        Args:
-            None
-
-        """
+        """Move down."""
         self._change_speed(self.speed.y)
 
     def stop(self: Self) -> None:
-        """Stop moving.
-
-        Args:
-            None
-
-        """
+        """Stop moving."""
         self._change_speed(0)
 
     def get_movement_with_dt(self: Self, dt: float) -> float:

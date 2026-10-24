@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from glitchygames.display_mode import set_display_mode
+
 LOG = logging.getLogger(__name__)
 
 # Add the project root to the path
@@ -33,7 +35,7 @@ class TestBallCollisionEnergyTransfer:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
     def _create_ball(self, x, y, speed_x, speed_y, radius=10):
         """Create a ball sprite for testing.
@@ -57,7 +59,6 @@ class TestBallCollisionEnergyTransfer:
         # Set the speed after creation
         ball.speed.x = speed_x
         ball.speed.y = speed_y
-        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _should_skip_separating_balls(self, ball1, ball2, distance, collision_distance):
@@ -170,12 +171,18 @@ class TestBallCollisionEnergyTransfer:
 
         LOG.debug('Before collision:')
         LOG.debug(
-            f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})',
+            '  Ball 1: pos=(%s,%s) speed=(%s,%s)',
+            ball1.rect.centerx,
+            ball1.rect.centery,
+            ball1.speed.x,
+            ball1.speed.y,
         )
         LOG.debug(
-            f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})',
+            '  Ball 2: pos=(%s,%s) speed=(%s,%s)',
+            ball2.rect.centerx,
+            ball2.rect.centery,
+            ball2.speed.x,
+            ball2.speed.y,
         )
 
         # Calculate initial energy
@@ -184,9 +191,10 @@ class TestBallCollisionEnergyTransfer:
         total_initial_energy = initial_energy1 + initial_energy2
 
         LOG.debug(
-            f'  Initial energies: Ball1={initial_energy1:.1f},'
-            f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}',
+            '  Initial energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+            initial_energy1,
+            initial_energy2,
+            total_initial_energy,
         )
 
         # Simulate collision
@@ -197,12 +205,18 @@ class TestBallCollisionEnergyTransfer:
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
-                f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
+                '  Ball 1: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball1.rect.centerx,
+                ball1.rect.centery,
+                ball1.speed.x,
+                ball1.speed.y,
             )
             LOG.debug(
-                f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
+                '  Ball 2: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball2.rect.centerx,
+                ball2.rect.centery,
+                ball2.speed.x,
+                ball2.speed.y,
             )
 
             # Calculate final energy
@@ -211,16 +225,17 @@ class TestBallCollisionEnergyTransfer:
             total_final_energy = final_energy1 + final_energy2
 
             LOG.debug(
-                f'  Final energies: Ball1={final_energy1:.1f},'
-                f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}',
+                '  Final energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+                final_energy1,
+                final_energy2,
+                total_final_energy,
             )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
+            LOG.debug('  Energy changes: Ball1=%.1f, Ball2=%.1f', energy_change1, energy_change2)
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
@@ -253,12 +268,18 @@ class TestBallCollisionEnergyTransfer:
 
         LOG.debug('Before collision:')
         LOG.debug(
-            f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})',
+            '  Ball 1: pos=(%s,%s) speed=(%s,%s)',
+            ball1.rect.centerx,
+            ball1.rect.centery,
+            ball1.speed.x,
+            ball1.speed.y,
         )
         LOG.debug(
-            f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})',
+            '  Ball 2: pos=(%s,%s) speed=(%s,%s)',
+            ball2.rect.centerx,
+            ball2.rect.centery,
+            ball2.speed.x,
+            ball2.speed.y,
         )
 
         # Calculate initial energy
@@ -267,9 +288,10 @@ class TestBallCollisionEnergyTransfer:
         total_initial_energy = initial_energy1 + initial_energy2
 
         LOG.debug(
-            f'  Initial energies: Ball1={initial_energy1:.1f},'
-            f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}',
+            '  Initial energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+            initial_energy1,
+            initial_energy2,
+            total_initial_energy,
         )
 
         # Simulate collision
@@ -280,12 +302,18 @@ class TestBallCollisionEnergyTransfer:
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
-                f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
+                '  Ball 1: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball1.rect.centerx,
+                ball1.rect.centery,
+                ball1.speed.x,
+                ball1.speed.y,
             )
             LOG.debug(
-                f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
+                '  Ball 2: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball2.rect.centerx,
+                ball2.rect.centery,
+                ball2.speed.x,
+                ball2.speed.y,
             )
 
             # Calculate final energy
@@ -294,16 +322,17 @@ class TestBallCollisionEnergyTransfer:
             total_final_energy = final_energy1 + final_energy2
 
             LOG.debug(
-                f'  Final energies: Ball1={final_energy1:.1f},'
-                f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}',
+                '  Final energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+                final_energy1,
+                final_energy2,
+                total_final_energy,
             )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
+            LOG.debug('  Energy changes: Ball1=%.1f, Ball2=%.1f', energy_change1, energy_change2)
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
@@ -330,12 +359,18 @@ class TestBallCollisionEnergyTransfer:
 
         LOG.debug('Before collision:')
         LOG.debug(
-            f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})',
+            '  Ball 1: pos=(%s,%s) speed=(%s,%s)',
+            ball1.rect.centerx,
+            ball1.rect.centery,
+            ball1.speed.x,
+            ball1.speed.y,
         )
         LOG.debug(
-            f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})',
+            '  Ball 2: pos=(%s,%s) speed=(%s,%s)',
+            ball2.rect.centerx,
+            ball2.rect.centery,
+            ball2.speed.x,
+            ball2.speed.y,
         )
 
         # Calculate initial energy
@@ -344,9 +379,10 @@ class TestBallCollisionEnergyTransfer:
         total_initial_energy = initial_energy1 + initial_energy2
 
         LOG.debug(
-            f'  Initial energies: Ball1={initial_energy1:.1f},'
-            f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}',
+            '  Initial energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+            initial_energy1,
+            initial_energy2,
+            total_initial_energy,
         )
 
         # Simulate collision
@@ -357,12 +393,18 @@ class TestBallCollisionEnergyTransfer:
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
-                f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
+                '  Ball 1: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball1.rect.centerx,
+                ball1.rect.centery,
+                ball1.speed.x,
+                ball1.speed.y,
             )
             LOG.debug(
-                f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
+                '  Ball 2: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball2.rect.centerx,
+                ball2.rect.centery,
+                ball2.speed.x,
+                ball2.speed.y,
             )
 
             # Calculate final energy
@@ -371,16 +413,17 @@ class TestBallCollisionEnergyTransfer:
             total_final_energy = final_energy1 + final_energy2
 
             LOG.debug(
-                f'  Final energies: Ball1={final_energy1:.1f},'
-                f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}',
+                '  Final energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+                final_energy1,
+                final_energy2,
+                total_final_energy,
             )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
+            LOG.debug('  Energy changes: Ball1=%.1f, Ball2=%.1f', energy_change1, energy_change2)
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
@@ -415,12 +458,18 @@ class TestBallCollisionEnergyTransfer:
 
         LOG.debug('Before collision:')
         LOG.debug(
-            f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})',
+            '  Ball 1: pos=(%s,%s) speed=(%s,%s)',
+            ball1.rect.centerx,
+            ball1.rect.centery,
+            ball1.speed.x,
+            ball1.speed.y,
         )
         LOG.debug(
-            f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})',
+            '  Ball 2: pos=(%s,%s) speed=(%s,%s)',
+            ball2.rect.centerx,
+            ball2.rect.centery,
+            ball2.speed.x,
+            ball2.speed.y,
         )
 
         # Calculate initial energy
@@ -429,9 +478,10 @@ class TestBallCollisionEnergyTransfer:
         total_initial_energy = initial_energy1 + initial_energy2
 
         LOG.debug(
-            f'  Initial energies: Ball1={initial_energy1:.1f},'
-            f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}',
+            '  Initial energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+            initial_energy1,
+            initial_energy2,
+            total_initial_energy,
         )
 
         # Simulate collision
@@ -442,12 +492,18 @@ class TestBallCollisionEnergyTransfer:
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
-                f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
+                '  Ball 1: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball1.rect.centerx,
+                ball1.rect.centery,
+                ball1.speed.x,
+                ball1.speed.y,
             )
             LOG.debug(
-                f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
+                '  Ball 2: pos=(%s,%s) speed=(%.1f,%.1f)',
+                ball2.rect.centerx,
+                ball2.rect.centery,
+                ball2.speed.x,
+                ball2.speed.y,
             )
 
             # Calculate final energy
@@ -456,16 +512,17 @@ class TestBallCollisionEnergyTransfer:
             total_final_energy = final_energy1 + final_energy2
 
             LOG.debug(
-                f'  Final energies: Ball1={final_energy1:.1f},'
-                f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}',
+                '  Final energies: Ball1=%.1f, Ball2=%.1f, Total=%.1f',
+                final_energy1,
+                final_energy2,
+                total_final_energy,
             )
 
             # Check that energy was transferred
             energy_change1 = final_energy1 - initial_energy1
             energy_change2 = final_energy2 - initial_energy2
 
-            LOG.debug(f'  Energy changes: Ball1={energy_change1:.1f}, Ball2={energy_change2:.1f}')
+            LOG.debug('  Energy changes: Ball1=%.1f, Ball2=%.1f', energy_change1, energy_change2)
 
             # Assertions
             assert collision_occurred, 'Collision should have occurred'
@@ -487,12 +544,18 @@ class TestBallCollisionEnergyTransfer:
 
         LOG.debug('Balls far apart:')
         LOG.debug(
-            f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})',
+            '  Ball 1: pos=(%s,%s) speed=(%s,%s)',
+            ball1.rect.centerx,
+            ball1.rect.centery,
+            ball1.speed.x,
+            ball1.speed.y,
         )
         LOG.debug(
-            f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})',
+            '  Ball 2: pos=(%s,%s) speed=(%s,%s)',
+            ball2.rect.centerx,
+            ball2.rect.centery,
+            ball2.speed.x,
+            ball2.speed.y,
         )
 
         # Simulate collision
@@ -512,14 +575,18 @@ class TestBallCollisionEnergyTransfer:
         ball2 = self._create_ball(120, 200, 50, 0)  # 20px apart, radius=10 each
 
         LOG.debug(
-            f'Ball1 rect: x={ball1.rect.x}, y={ball1.rect.y},'
-            f' centerx={ball1.rect.centerx},'
-            f' centery={ball1.rect.centery}',
+            'Ball1 rect: x=%s, y=%s, centerx=%s, centery=%s',
+            ball1.rect.x,
+            ball1.rect.y,
+            ball1.rect.centerx,
+            ball1.rect.centery,
         )
         LOG.debug(
-            f'Ball2 rect: x={ball2.rect.x}, y={ball2.rect.y},'
-            f' centerx={ball2.rect.centerx},'
-            f' centery={ball2.rect.centery}',
+            'Ball2 rect: x=%s, y=%s, centerx=%s, centery=%s',
+            ball2.rect.x,
+            ball2.rect.y,
+            ball2.rect.centerx,
+            ball2.rect.centery,
         )
 
         # Calculate distance
@@ -528,9 +595,9 @@ class TestBallCollisionEnergyTransfer:
         distance = math.sqrt(dx * dx + dy * dy)
         collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
 
-        LOG.debug(f'Distance between centers: {distance:.1f}')
+        LOG.debug('Distance between centers: %.1f', distance)
         LOG.debug('Collision distance (sum of radii): %s', collision_distance)
-        LOG.debug(f'Should collide: {distance <= collision_distance}')
+        LOG.debug('Should collide: %s', distance <= collision_distance)
 
         # Should collide since distance (20) <= collision_distance (20)
         assert distance <= collision_distance, 'Balls should be in collision range'

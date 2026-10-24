@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests for canvas operation tracking."""
 
+import pytest
+
 from glitchygames.bitmappy.history.operations import CanvasOperationTracker, PixelChange
 from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
@@ -8,10 +10,11 @@ from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 class TestCanvasOperationTracker:
     """Test canvas operation tracking with frame-specific operations."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
+    @pytest.fixture(autouse=True)
+    def set_up_tracker(self, bitmap_editor):
+        """Set up a tracker for a real editor, on its own undo/redo manager."""
         self.manager = UndoRedoManager()
-        self.tracker = CanvasOperationTracker(self.manager)
+        self.tracker = CanvasOperationTracker(self.manager, editor=bitmap_editor)
 
     def test_add_frame_pixel_changes(self):
         """Test adding frame-specific pixel changes."""
@@ -77,3 +80,16 @@ class TestCanvasOperationTracker:
         assert operation.operation_type.value == 'canvas_flood_fill'
         assert 'Flood fill at (10, 10)' in operation.description
         assert '4 pixels' in operation.description
+
+    def test_empty_pixel_changes_add_no_history(self):
+        """A stroke that changed no pixels leaves nothing to undo."""
+        self.tracker.add_pixel_changes([])
+
+        assert len(self.manager.undo_stack) == 0
+
+    def test_empty_frame_pixel_changes_add_no_history(self):
+        """A frame stroke that changed no pixels creates no frame undo stack."""
+        self.tracker.add_frame_pixel_changes('walk_animation', 1, [])
+
+        assert ('walk_animation', 1) not in self.manager.frame_undo_stacks
+        assert len(self.manager.undo_stack) == 0

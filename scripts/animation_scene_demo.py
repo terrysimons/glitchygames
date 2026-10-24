@@ -49,7 +49,9 @@ class AnimationScene(Scene):
         assert self.animated_sprite.rect is not None
         self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
         logger.info(
-            f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
+            'Loaded: %s (%s frames)',
+            self.animated_sprite.name,
+            self.animated_sprite.frame_count,
         )
         logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 

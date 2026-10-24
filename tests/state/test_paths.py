@@ -112,6 +112,25 @@ class TestGetSaveDirectory:
         result = get_save_directory('mygame')
         assert result == Path(fake_appdata) / 'mygame'
 
+    def test_windows_without_appdata_uses_the_roaming_folder(
+        self, tmp_path: Path, mocker: object
+    ) -> None:
+        """Windows with no (or an empty) %APPDATA% falls back to ~/AppData/Roaming."""
+        import glitchygames.state.paths as paths_module
+
+        mocker.patch.object(paths_module.sys, 'platform', 'win32')  # type: ignore[union-attr]
+        mocker.patch.dict(  # type: ignore[union-attr]
+            paths_module.os.environ,
+            {'APPDATA': ''},
+            clear=True,
+        )
+        mocker.patch.object(  # type: ignore[union-attr]
+            paths_module.Path, 'home', return_value=tmp_path
+        )
+
+        result = get_save_directory('mygame')
+        assert result == tmp_path / 'AppData' / 'Roaming' / 'mygame'
+
     def test_invalid_name_raises(self) -> None:
         """Invalid app name raises ValueError."""
         with pytest.raises(ValueError, match='Invalid app_name'):

@@ -68,16 +68,18 @@ class CanvasOperations:
         )
 
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id}: Drag operation drew'
-            f' {len(drag_info["pixels_drawn"])} pixels',
+            'DEBUG: Controller %s: Drag operation drew %s pixels',
+            controller_id,
+            len(drag_info['pixels_drawn']),
         )
 
         if not drag_info['pixels_drawn']:
             return
 
         self.handler.log.debug(
-            f'Controller {controller_id}: Drag operation completed with'
-            f' {len(drag_info["pixels_drawn"])} pixels drawn',
+            'Controller %s: Drag operation completed with %s pixels drawn',
+            controller_id,
+            len(drag_info['pixels_drawn']),
         )
 
         pixel_changes = self._collect_drag_pixel_changes(controller_id, drag_info)
@@ -113,12 +115,15 @@ class CanvasOperations:
             and self.handler.editor.undo_redo_manager
         ):
             self.handler.log.debug(
-                'DEBUG: Undo stack before merging has'
-                f' {len(self.handler.editor.undo_redo_manager.undo_stack)} operations',
+                'DEBUG: Undo stack before merging has %s operations',
+                len(self.handler.editor.undo_redo_manager.undo_stack),
             )
             for i, op in enumerate(self.handler.editor.undo_redo_manager.undo_stack):
                 self.handler.log.debug(
-                    f'DEBUG:   Operation {i}: {op.operation_type} - {op.description}',
+                    'DEBUG:   Operation %s: %s - %s',
+                    i,
+                    op.operation_type,
+                    op.description,
                 )
 
         # Absorb any pending single pixel operation from canvas interface
@@ -129,15 +134,18 @@ class CanvasOperations:
         ):
             pending_count = len(self.handler.editor.current_pixel_changes)
             self.handler.log.debug(
-                f'DEBUG: Absorbing {pending_count} pending pixel(s) from canvas interface',
+                'DEBUG: Absorbing %s pending pixel(s) from canvas interface',
+                pending_count,
             )
             self.handler.log.debug(
-                f'DEBUG: Pending pixels: {self.handler.editor.current_pixel_changes}',
+                'DEBUG: Pending pixels: %s',
+                self.handler.editor.current_pixel_changes,
             )
             # Add the pending pixels to the beginning of the controller drag pixels
             pixel_changes = self.handler.editor.current_pixel_changes + pixel_changes
             self.handler.log.debug(
-                f'DEBUG: Merged pixel_changes now has {len(pixel_changes)} pixels',
+                'DEBUG: Merged pixel_changes now has %s pixels',
+                len(pixel_changes),
             )
             # Clear the pending pixels to prevent duplicate undo operation
             self.handler.editor.current_pixel_changes = []
@@ -151,12 +159,12 @@ class CanvasOperations:
                 if self.handler.editor.undo_redo_manager.undo_stack:
                     removed_operation = self.handler.editor.undo_redo_manager.undo_stack.pop()
                     self.handler.log.debug(
-                        'DEBUG: Removed single pixel operation from undo stack:'
-                        f' {removed_operation.operation_type}',
+                        'DEBUG: Removed single pixel operation from undo stack: %s',
+                        removed_operation.operation_type,
                     )
                     self.handler.log.debug(
-                        'DEBUG: Undo stack after removal has'
-                        f' {len(self.handler.editor.undo_redo_manager.undo_stack)} operations',
+                        'DEBUG: Undo stack after removal has %s operations',
+                        len(self.handler.editor.undo_redo_manager.undo_stack),
                     )
                 else:
                     self.handler.log.debug('DEBUG: No operations in undo stack to remove')
@@ -195,15 +203,19 @@ class CanvasOperations:
                 pixel_changes,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
             )
             self.handler.log.debug(
-                f'Controller {controller_id}: Submitted {len(pixel_changes)} pixel'
-                f' changes for frame {current_animation}[{current_frame}] undo/redo',
+                'Controller %s: Submitted %s pixel changes for frame %s[%s] undo/redo',
+                controller_id,
+                len(pixel_changes),
+                current_animation,
+                current_frame,
             )
         else:
             # Fall back to global tracking
             self.handler.editor.canvas_operation_tracker.add_pixel_changes(pixel_changes)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
             self.handler.log.debug(
-                f'Controller {controller_id}: Submitted {len(pixel_changes)} pixel'
-                f' changes for global undo/redo',
+                'Controller %s: Submitted %s pixel changes for global undo/redo',
+                controller_id,
+                len(pixel_changes),
             )
 
     # ------------------------------------------------------------------
@@ -227,14 +239,16 @@ class CanvasOperations:
         position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if not position or not position.is_valid:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid canvas position',
+                'DEBUG: Controller %s has no valid canvas position',
+                controller_id,
             )
             return
 
         # Get current color from the color picker
         current_color = self.handler.editor.get_current_color()
         self.handler.log.debug(
-            f'DEBUG: canvas_paint_at_controller_position() got color: {current_color}',
+            'DEBUG: canvas_paint_at_controller_position() got color: %s',
+            current_color,
         )
 
         # Check if pixel is already the selected color (debouncing)
@@ -245,8 +259,9 @@ class CanvasOperations:
             )
             if current_pixel_color == current_color:
                 self.handler.log.debug(
-                    f'DEBUG: Pixel at {position.position} is already {current_color}, skipping'
-                    f' paint',
+                    'DEBUG: Pixel at %s is already %s, skipping paint',
+                    position.position,
+                    current_color,
                 )
                 return
 
@@ -267,7 +282,9 @@ class CanvasOperations:
         )
 
         self.handler.log.debug(
-            f'DEBUG: Painted at canvas position {position.position} with color {current_color}',
+            'DEBUG: Painted at canvas position %s with color %s',
+            position.position,
+            current_color,
         )
 
     def _get_canvas_pixel_color(
@@ -292,7 +309,7 @@ class CanvasOperations:
             try:
                 return self.handler.editor.canvas.canvas_interface.get_pixel_at(x, y)
             except (IndexError, AttributeError, TypeError) as pixel_error:
-                self.handler.log.debug(f'Could not get pixel color: {pixel_error}')
+                self.handler.log.debug('Could not get pixel color: %s', pixel_error)
                 return (0, 0, 0)
 
         if (
@@ -352,14 +369,16 @@ class CanvasOperations:
             and controller_id in self.handler.controller_drags
         ):
             self.handler.log.debug(
-                f'DEBUG: No controller drags or controller {controller_id} not in controller_drags',
+                'DEBUG: No controller drags or controller %s not in controller_drags',
+                controller_id,
             )
             return
 
         drag_info = self.handler.controller_drags[controller_id]
         if not drag_info['active']:
             self.handler.log.debug(
-                f'DEBUG: Controller drag not active for controller {controller_id}',
+                'DEBUG: Controller drag not active for controller %s',
+                controller_id,
             )
             return
 
@@ -371,8 +390,9 @@ class CanvasOperations:
         }
         drag_info['pixels_drawn'].append(pixel_info)
         self.handler.log.debug(
-            f'DEBUG: Controller drag tracking pixel at {position}, total'
-            f' pixels: {len(drag_info["pixels_drawn"])}',
+            'DEBUG: Controller drag tracking pixel at %s, total pixels: %s',
+            position,
+            len(drag_info['pixels_drawn']),
         )
 
     def _canvas_erase_at_controller_position(
@@ -384,7 +404,8 @@ class CanvasOperations:
         position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if not position or not position.is_valid:
             self.handler.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid canvas position',
+                'DEBUG: Controller %s has no valid canvas position',
+                controller_id,
             )
             return
 
@@ -409,7 +430,7 @@ class CanvasOperations:
                     self.handler.editor.canvas.pixels[pixel_num] = background_color
                     self.handler.editor.canvas.dirty_pixels[pixel_num] = True
                     self.handler.editor.canvas.dirty = 1
-            self.handler.log.debug(f'DEBUG: Erased at canvas position {position.position}')
+            self.handler.log.debug('DEBUG: Erased at canvas position %s', position.position)
 
     # ------------------------------------------------------------------
     # Cursor movement
@@ -432,20 +453,21 @@ class CanvasOperations:
             old_position = position.position
             new_position = (position.position[0] + dx, position.position[1] + dy)
 
-        # Clamp to canvas bounds
+        # Clamp to canvas bounds, in canvas pixels: width/height are the canvas's on-screen
+        # size, pixel_width times larger (BUGS.md #97)
         if hasattr(self.handler.editor, 'canvas') and self.handler.editor.canvas:
-            canvas_width = getattr(self.handler.editor.canvas, 'width', 32)
-            canvas_height = getattr(self.handler.editor.canvas, 'height', 32)
+            pixels_across = getattr(self.handler.editor.canvas, 'pixels_across', 32)
+            pixels_tall = getattr(self.handler.editor.canvas, 'pixels_tall', 32)
             new_position = (
-                max(0, min(canvas_width - 1, new_position[0])),
-                max(0, min(canvas_height - 1, new_position[1])),
+                max(0, min(pixels_across - 1, new_position[0])),
+                max(0, min(pixels_tall - 1, new_position[1])),
             )
 
         # Track controller position change for undo/redo (only if position actually changed and not
         # in continuous movement)
         if (
             old_position != new_position
-            and not getattr(self.handler, '_applying_undo_redo', False)
+            and not getattr(self.handler, 'applying_undo_redo', False)
             and not self._is_controller_in_continuous_movement(controller_id)
             and hasattr(self.handler.editor, 'controller_position_operation_tracker')
         ):
@@ -473,8 +495,9 @@ class CanvasOperations:
             drag_info = self.handler.controller_drags[controller_id]
             if drag_info['active']:
                 self.handler.log.debug(
-                    f'DEBUG: Controller {controller_id}: In active drag, painting at new position'
-                    f' {new_position}',
+                    'DEBUG: Controller %s: In active drag, painting at new position %s',
+                    controller_id,
+                    new_position,
                 )
                 self.canvas_paint_at_controller_position(controller_id)
 
@@ -482,7 +505,9 @@ class CanvasOperations:
         self.handler.indicators.update_controller_canvas_visual_indicator(controller_id)
 
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id} canvas cursor moved to {new_position}',
+            'DEBUG: Controller %s canvas cursor moved to %s',
+            controller_id,
+            new_position,
         )
 
     def _is_controller_in_continuous_movement(
@@ -538,8 +563,11 @@ class CanvasOperations:
             'start_y': start_y,
         }
         self.handler.log.debug(
-            f'DEBUG: Started continuous canvas movement for controller {controller_id}, direction'
-            f' ({dx}, {dy}) (immediate first movement)',
+            'DEBUG: Started continuous canvas movement for controller %s, direction'
+            ' (%s, %s) (immediate first movement)',
+            controller_id,
+            dx,
+            dy,
         )
 
     def stop_canvas_continuous_movement(
@@ -580,7 +608,8 @@ class CanvasOperations:
 
             del self.handler.canvas_continuous_movements[controller_id]
             self.handler.log.debug(
-                f'DEBUG: Stopped continuous canvas movement for controller {controller_id}',
+                'DEBUG: Stopped continuous canvas movement for controller %s',
+                controller_id,
             )
 
     def update_canvas_continuous_movements(self) -> None:
@@ -613,8 +642,9 @@ class CanvasOperations:
             if acceleration_level != movement_data['acceleration_level']:
                 movement_data['acceleration_level'] = acceleration_level
                 self.handler.log.debug(
-                    f'DEBUG: Controller {controller_id} canvas movement acceleration level'
-                    f' {acceleration_level}',
+                    'DEBUG: Controller %s canvas movement acceleration level %s',
+                    controller_id,
+                    acceleration_level,
                 )
 
             # Check if enough time has passed for next movement
@@ -650,15 +680,17 @@ class CanvasOperations:
     ) -> None:
         """Paint a horizontal line of pixels starting from the controller's current position."""
         self.handler.log.debug(
-            f'DEBUG: canvas_paint_horizontal_line called for controller {controller_id}, distance'
-            f' {distance}',
+            'DEBUG: canvas_paint_horizontal_line called for controller %s, distance %s',
+            controller_id,
+            distance,
         )
 
         # Get controller position from mode switcher
         position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if not position or not position.is_valid:
             self.handler.log.debug(
-                f'DEBUG: No valid position found for controller {controller_id}',
+                'DEBUG: No valid position found for controller %s',
+                controller_id,
             )
             return
 
@@ -666,12 +698,15 @@ class CanvasOperations:
         current_color = self.handler.editor.get_current_color()
 
         self.handler.log.debug(
-            f'DEBUG: Painting horizontal line from ({start_x}, {start_y}) with distance {distance},'
-            f' color {current_color}',
+            'DEBUG: Painting horizontal line from (%s, %s) with distance %s, color %s',
+            start_x,
+            start_y,
+            distance,
+            current_color,
         )
 
         canvas_width, canvas_height = self._get_canvas_dimensions()
-        self.handler.log.debug(f'DEBUG: Canvas dimensions: {canvas_width}x{canvas_height}')
+        self.handler.log.debug('DEBUG: Canvas dimensions: %sx%s', canvas_width, canvas_height)
 
         # Paint pixels in a horizontal line
         for i in range(abs(distance)):
@@ -702,8 +737,10 @@ class CanvasOperations:
             (end_x, start_y),
         )
         self.handler.log.debug(
-            f'DEBUG: Updated controller {controller_id} position to ({end_x}, {start_y}) (clamped'
-            f' to canvas bounds)',
+            'DEBUG: Updated controller %s position to (%s, %s) (clamped to canvas bounds)',
+            controller_id,
+            end_x,
+            start_y,
         )
 
     def canvas_paint_vertical_line(
@@ -713,15 +750,17 @@ class CanvasOperations:
     ) -> None:
         """Paint a vertical line of pixels starting from the controller's current position."""
         self.handler.log.debug(
-            f'DEBUG: canvas_paint_vertical_line called for controller {controller_id}, distance'
-            f' {distance}',
+            'DEBUG: canvas_paint_vertical_line called for controller %s, distance %s',
+            controller_id,
+            distance,
         )
 
         # Get controller position from mode switcher
         position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if not position or not position.is_valid:
             self.handler.log.debug(
-                f'DEBUG: No valid position found for controller {controller_id}',
+                'DEBUG: No valid position found for controller %s',
+                controller_id,
             )
             return
 
@@ -729,12 +768,15 @@ class CanvasOperations:
         current_color = self.handler.editor.get_current_color()
 
         self.handler.log.debug(
-            f'DEBUG: Painting vertical line from ({start_x}, {start_y}) with distance {distance},'
-            f' color {current_color}',
+            'DEBUG: Painting vertical line from (%s, %s) with distance %s, color %s',
+            start_x,
+            start_y,
+            distance,
+            current_color,
         )
 
         canvas_width, canvas_height = self._get_canvas_dimensions()
-        self.handler.log.debug(f'DEBUG: Canvas dimensions: {canvas_width}x{canvas_height}')
+        self.handler.log.debug('DEBUG: Canvas dimensions: %sx%s', canvas_width, canvas_height)
 
         # Paint pixels in a vertical line
         for i in range(abs(distance)):
@@ -765,8 +807,10 @@ class CanvasOperations:
             (start_x, end_y),
         )
         self.handler.log.debug(
-            f'DEBUG: Updated controller {controller_id} position to ({start_x}, {end_y}) (clamped'
-            f' to canvas bounds)',
+            'DEBUG: Updated controller %s position to (%s, %s) (clamped to canvas bounds)',
+            controller_id,
+            start_x,
+            end_y,
         )
 
     def _get_canvas_dimensions(self) -> tuple[int, int]:
@@ -811,7 +855,10 @@ class CanvasOperations:
             canvas_interface = self.handler.editor.canvas.canvas_interface
             canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
             self.handler.log.debug(
-                f'DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}',
+                'DEBUG: Painted pixel at (%s, %s) with color %s',
+                pixel_x,
+                pixel_y,
+                current_color,
             )
             self._track_controller_drag_pixel(
                 controller_id,
@@ -833,15 +880,17 @@ class CanvasOperations:
     ) -> None:
         """Jump horizontally without painting pixels."""
         self.handler.log.debug(
-            f'DEBUG: canvas_jump_horizontal called for controller {controller_id}, distance'
-            f' {distance}',
+            'DEBUG: canvas_jump_horizontal called for controller %s, distance %s',
+            controller_id,
+            distance,
         )
 
         # Get controller position from mode switcher
         position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if not position or not position.is_valid:
             self.handler.log.debug(
-                f'DEBUG: No valid position found for controller {controller_id}',
+                'DEBUG: No valid position found for controller %s',
+                controller_id,
             )
             return
 
@@ -865,8 +914,12 @@ class CanvasOperations:
             (end_x, start_y),
         )
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id} jumped from ({start_x}, {start_y}) to ({end_x},'
-            f' {start_y})',
+            'DEBUG: Controller %s jumped from (%s, %s) to (%s, %s)',
+            controller_id,
+            start_x,
+            start_y,
+            end_x,
+            start_y,
         )
 
     def canvas_jump_vertical(
@@ -876,15 +929,17 @@ class CanvasOperations:
     ) -> None:
         """Jump vertically without painting pixels."""
         self.handler.log.debug(
-            f'DEBUG: canvas_jump_vertical called for controller {controller_id}, distance'
-            f' {distance}',
+            'DEBUG: canvas_jump_vertical called for controller %s, distance %s',
+            controller_id,
+            distance,
         )
 
         # Get controller position from mode switcher
         position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
         if not position or not position.is_valid:
             self.handler.log.debug(
-                f'DEBUG: No valid position found for controller {controller_id}',
+                'DEBUG: No valid position found for controller %s',
+                controller_id,
             )
             return
 
@@ -908,6 +963,10 @@ class CanvasOperations:
             (start_x, end_y),
         )
         self.handler.log.debug(
-            f'DEBUG: Controller {controller_id} jumped from ({start_x}, {start_y}) to ({start_x},'
-            f' {end_y})',
+            'DEBUG: Controller %s jumped from (%s, %s) to (%s, %s)',
+            controller_id,
+            start_x,
+            start_y,
+            start_x,
+            end_y,
         )

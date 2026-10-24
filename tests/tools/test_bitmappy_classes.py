@@ -5,7 +5,19 @@ import pytest
 
 from glitchygames.bitmappy.pixel_sprite import BitmapPixelSprite
 from glitchygames.bitmappy.scroll_arrow import ScrollArrowSprite
-from tests.mocks import MockFactory
+
+BLACK_RGB = (0, 0, 0)
+WHITE_RGB = (255, 255, 255)
+
+
+def _rgb_at(surface, x, y):
+    """Read the RGB colour of one surface pixel, ignoring alpha and the pixel format.
+
+    Returns:
+        tuple[int, int, int]: The red, green and blue components.
+
+    """
+    return tuple(surface.get_at((x, y)))[:3]
 
 
 @pytest.fixture(autouse=True)
@@ -14,17 +26,6 @@ def clear_pixel_cache():
     BitmapPixelSprite.PIXEL_CACHE.clear()
     yield
     BitmapPixelSprite.PIXEL_CACHE.clear()
-
-
-@pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The pygame mock objects.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def mock_groups():
 
 
 @pytest.fixture
-def default_pixel_sprite(pygame_mocks, mock_groups):
+def default_pixel_sprite(mock_groups):
     """Create a BitmapPixelSprite with default parameters.
 
     Returns:
@@ -59,7 +60,7 @@ def default_pixel_sprite(pygame_mocks, mock_groups):
 
 
 @pytest.fixture
-def large_pixel_sprite(pygame_mocks, mock_groups):
+def large_pixel_sprite(mock_groups):
     """Create a BitmapPixelSprite with larger dimensions.
 
     Returns:
@@ -79,7 +80,7 @@ def large_pixel_sprite(pygame_mocks, mock_groups):
 
 
 @pytest.fixture
-def default_scroll_arrow(pygame_mocks, mock_groups):
+def default_scroll_arrow(mock_groups):
     """Create a ScrollArrowSprite with default (up) direction.
 
     Returns:
@@ -110,7 +111,7 @@ class TestBitmapPixelSpriteInit:
         assert sprite.x == 0
         assert sprite.y == 0
 
-    def test_init_custom_position(self, pygame_mocks, mock_groups):
+    def test_init_custom_position(self, mock_groups):
         """Test initialization with custom x and y coordinates."""
         sprite = BitmapPixelSprite(
             x=50,
@@ -125,7 +126,7 @@ class TestBitmapPixelSpriteInit:
         assert sprite.x == 50
         assert sprite.y == 75
 
-    def test_init_custom_pixel_number(self, pygame_mocks, mock_groups):
+    def test_init_custom_pixel_number(self, mock_groups):
         """Test initialization with a specific pixel number."""
         sprite = BitmapPixelSprite(
             x=0,
@@ -137,7 +138,7 @@ class TestBitmapPixelSpriteInit:
         )
         assert sprite.pixel_number == 99
 
-    def test_init_zero_border_thickness(self, pygame_mocks, mock_groups):
+    def test_init_zero_border_thickness(self, mock_groups):
         """Test initialization with zero border thickness."""
         sprite = BitmapPixelSprite(
             x=0,
@@ -161,7 +162,7 @@ class TestBitmapPixelSpriteInit:
         """Test that the name attribute is set correctly."""
         assert default_pixel_sprite.name == 'test_pixel'
 
-    def test_init_without_name(self, pygame_mocks, mock_groups):
+    def test_init_without_name(self, mock_groups):
         """Test initialization without a name argument."""
         sprite = BitmapPixelSprite(
             x=0,
@@ -222,6 +223,13 @@ class TestBitmapPixelSpriteUpdate:
         default_pixel_sprite.update()
         cache_key = ((255, 0, 0, 255), 1)
         assert cache_key in BitmapPixelSprite.PIXEL_CACHE
+        # The pixel is drawn in its colour inside a 1px border in the sprite's grey
+        image = default_pixel_sprite.image
+        assert image.get_size() == (16, 16)
+        assert tuple(image.get_at((8, 8))) == (255, 0, 0, 255)
+        assert tuple(image.get_at((1, 1))) == (255, 0, 0, 255)
+        assert tuple(image.get_at((0, 0))) == (96, 96, 96, 255)
+        assert tuple(image.get_at((15, 15))) == (96, 96, 96, 255)
 
     def test_update_uses_cache_on_second_call(self, default_pixel_sprite):
         """Test that the second update with same color uses cached surface."""
@@ -236,7 +244,6 @@ class TestBitmapPixelSpriteUpdate:
     def test_update_different_colors_create_different_cache_entries(
         self,
         default_pixel_sprite,
-        pygame_mocks,
         mock_groups,
     ):
         """Test that different pixel colors result in different cache entries."""
@@ -251,7 +258,6 @@ class TestBitmapPixelSpriteUpdate:
 
     def test_update_same_color_different_border_creates_different_cache(
         self,
-        pygame_mocks,
         mock_groups,
     ):
         """Test that same color but different border thickness creates separate cache entries."""
@@ -278,8 +284,11 @@ class TestBitmapPixelSpriteUpdate:
         sprite_thick.update()
 
         assert len(BitmapPixelSprite.PIXEL_CACHE) == 2
+        # The thick border covers (2, 2); the thin one does not
+        assert _rgb_at(sprite_thick.image, 2, 2) == (96, 96, 96)
+        assert _rgb_at(sprite_thin.image, 2, 2) == (255, 0, 0)
 
-    def test_update_with_zero_border_thickness(self, pygame_mocks, mock_groups):
+    def test_update_with_zero_border_thickness(self, mock_groups):
         """Test update with no border does not draw border rect."""
         sprite = BitmapPixelSprite(
             x=0,
@@ -293,6 +302,9 @@ class TestBitmapPixelSpriteUpdate:
         sprite.update()
         cache_key = ((128, 128, 128, 255), 0)
         assert cache_key in BitmapPixelSprite.PIXEL_CACHE
+        # Without a border the pixel colour reaches the edge
+        assert tuple(sprite.image.get_at((0, 0))) == (128, 128, 128, 255)
+        assert tuple(sprite.image.get_at((15, 15))) == (128, 128, 128, 255)
 
     def test_update_preserves_rect_position(self, default_pixel_sprite):
         """Test that update preserves the sprite rect position."""
@@ -309,6 +321,13 @@ class TestBitmapPixelSpriteUpdate:
         default_pixel_sprite.pixel_color = (10, 20, 30, 255)
         default_pixel_sprite.update()
         assert default_pixel_sprite.image is not None
+        assert tuple(default_pixel_sprite.image.get_at((8, 8))) == (10, 20, 30, 255)
+
+    def test_update_draws_translucent_pixel_colour(self, default_pixel_sprite):
+        """A translucent pixel colour keeps its alpha in the drawn image."""
+        default_pixel_sprite.pixel_color = (10, 20, 30, 100)
+        default_pixel_sprite.update()
+        assert tuple(default_pixel_sprite.image.get_at((8, 8))) == (10, 20, 30, 100)
 
 
 class TestBitmapPixelSpriteOnPixelUpdateEvent:
@@ -403,7 +422,7 @@ class TestBitmapPixelSpriteCacheIsolation:
 class TestScrollArrowSpriteInit:
     """Test ScrollArrowSprite initialization."""
 
-    def test_init_up_direction(self, pygame_mocks, mock_groups):
+    def test_init_up_direction(self, mock_groups):
         """Test initialization with 'up' direction."""
         sprite = ScrollArrowSprite(
             x=0,
@@ -416,7 +435,7 @@ class TestScrollArrowSpriteInit:
         assert sprite.direction == 'up'
         assert sprite.name == 'Scroll up Arrow'
 
-    def test_init_down_direction(self, pygame_mocks, mock_groups):
+    def test_init_down_direction(self, mock_groups):
         """Test initialization with 'down' direction."""
         sprite = ScrollArrowSprite(
             x=0,
@@ -429,7 +448,7 @@ class TestScrollArrowSpriteInit:
         assert sprite.direction == 'down'
         assert sprite.name == 'Scroll down Arrow'
 
-    def test_init_plus_direction(self, pygame_mocks, mock_groups):
+    def test_init_plus_direction(self, mock_groups):
         """Test initialization with 'plus' direction."""
         sprite = ScrollArrowSprite(
             x=0,
@@ -458,14 +477,14 @@ class TestScrollArrowSpriteInit:
         """Test that initialization creates a valid rect."""
         assert default_scroll_arrow.rect is not None
 
-    def test_init_custom_position(self, pygame_mocks, mock_groups):
+    def test_init_custom_position(self, mock_groups):
         """Test initialization with custom x and y coordinates."""
         sprite = ScrollArrowSprite(x=100, y=200, width=20, height=20, groups=mock_groups)
         assert sprite.rect is not None
         assert sprite.rect.x == 100
         assert sprite.rect.y == 200
 
-    def test_init_custom_dimensions(self, pygame_mocks, mock_groups):
+    def test_init_custom_dimensions(self, mock_groups):
         """Test initialization with custom width and height."""
         sprite = ScrollArrowSprite(x=0, y=0, width=30, height=40, groups=mock_groups)
         assert sprite.image is not None
@@ -476,9 +495,8 @@ class TestScrollArrowSpriteInit:
 class TestScrollArrowSpriteDrawArrow:
     """Test ScrollArrowSprite _draw_arrow method."""
 
-    def test_draw_arrow_up_uses_polygon(self, pygame_mocks, mock_groups, mocker):
-        """Test that 'up' direction draws a polygon."""
-        mock_polygon = mocker.patch('pygame.draw.polygon')
+    def test_draw_arrow_up_draws_a_black_triangle_pointing_up(self, mock_groups):
+        """The 'up' arrow is a black triangle with its apex at the top, on white."""
         sprite = ScrollArrowSprite(
             x=0,
             y=0,
@@ -487,12 +505,14 @@ class TestScrollArrowSpriteDrawArrow:
             groups=mock_groups,
             direction='up',
         )
-        # _draw_arrow is called during __init__, so polygon should have been called
-        assert mock_polygon.called
+        # _draw_arrow runs during __init__
+        assert _rgb_at(sprite.image, 10, 7) == BLACK_RGB
+        assert _rgb_at(sprite.image, 6, 14) == BLACK_RGB
+        assert _rgb_at(sprite.image, 6, 6) == WHITE_RGB
+        assert _rgb_at(sprite.image, 10, 17) == WHITE_RGB
 
-    def test_draw_arrow_down_uses_polygon(self, pygame_mocks, mock_groups, mocker):
-        """Test that 'down' direction draws a polygon."""
-        mock_polygon = mocker.patch('pygame.draw.polygon')
+    def test_draw_arrow_down_draws_a_black_triangle_pointing_down(self, mock_groups):
+        """The 'down' arrow is a black triangle with its apex at the bottom, on white."""
         sprite = ScrollArrowSprite(
             x=0,
             y=0,
@@ -501,11 +521,13 @@ class TestScrollArrowSpriteDrawArrow:
             groups=mock_groups,
             direction='down',
         )
-        assert mock_polygon.called
+        assert _rgb_at(sprite.image, 10, 13) == BLACK_RGB
+        assert _rgb_at(sprite.image, 6, 6) == BLACK_RGB
+        assert _rgb_at(sprite.image, 6, 14) == WHITE_RGB
+        assert _rgb_at(sprite.image, 10, 2) == WHITE_RGB
 
-    def test_draw_arrow_plus_uses_lines(self, pygame_mocks, mock_groups, mocker):
-        """Test that 'plus' direction draws lines instead of polygon."""
-        mock_line = mocker.patch('pygame.draw.line')
+    def test_draw_arrow_plus_draws_a_black_cross(self, mock_groups):
+        """The 'plus' arrow is two crossing black lines, not a triangle."""
         sprite = ScrollArrowSprite(
             x=0,
             y=0,
@@ -514,10 +536,17 @@ class TestScrollArrowSpriteDrawArrow:
             groups=mock_groups,
             direction='plus',
         )
-        # Plus sign draws two lines (vertical + horizontal)
-        assert mock_line.call_count == 2
+        # Vertical line through x=10, horizontal line through y=10
+        assert _rgb_at(sprite.image, 10, 6) == BLACK_RGB
+        assert _rgb_at(sprite.image, 10, 14) == BLACK_RGB
+        assert _rgb_at(sprite.image, 6, 10) == BLACK_RGB
+        assert _rgb_at(sprite.image, 14, 10) == BLACK_RGB
+        # The quadrants between the lines stay white (a triangle would fill (6, 14))
+        assert _rgb_at(sprite.image, 6, 6) == WHITE_RGB
+        assert _rgb_at(sprite.image, 6, 14) == WHITE_RGB
+        assert _rgb_at(sprite.image, 14, 14) == WHITE_RGB
 
-    def test_draw_arrow_fills_white_background(self, pygame_mocks, mock_groups, mocker):
+    def test_draw_arrow_fills_white_background(self, mock_groups, mocker):
         """Test that _draw_arrow fills with white background."""
         # We can verify by checking image pixel after init
         sprite = ScrollArrowSprite(
@@ -535,6 +564,23 @@ class TestScrollArrowSpriteDrawArrow:
         assert corner_color[1] == 255
         assert corner_color[2] == 255
 
+    def test_draw_arrow_unknown_direction_draws_only_background(self, mock_groups):
+        """An unknown direction leaves a plain white square with no glyph."""
+        sprite = ScrollArrowSprite(
+            x=0,
+            y=0,
+            width=20,
+            height=20,
+            groups=mock_groups,
+            direction='sideways',
+        )
+
+        assert sprite.image is not None
+        white = sprite.image.map_rgb((255, 255, 255))
+        for pixel_y in range(20):
+            for pixel_x in range(20):
+                assert sprite.image.get_at_mapped((pixel_x, pixel_y)) == white
+
 
 class TestScrollArrowSpriteSetDirection:
     """Test ScrollArrowSprite set_direction method."""
@@ -544,11 +590,14 @@ class TestScrollArrowSpriteSetDirection:
         default_scroll_arrow.set_direction('down')
         assert default_scroll_arrow.direction == 'down'
 
-    def test_set_direction_triggers_redraw(self, default_scroll_arrow, mocker):
-        """Test that changing direction calls _draw_arrow."""
-        mocker.patch.object(default_scroll_arrow, '_draw_arrow')
+    def test_set_direction_triggers_redraw(self, default_scroll_arrow):
+        """Changing direction redraws the image: the up arrow becomes a down arrow."""
+        assert _rgb_at(default_scroll_arrow.image, 6, 14) == BLACK_RGB
+
         default_scroll_arrow.set_direction('down')
-        default_scroll_arrow._draw_arrow.assert_called_once()
+
+        assert _rgb_at(default_scroll_arrow.image, 6, 6) == BLACK_RGB
+        assert _rgb_at(default_scroll_arrow.image, 6, 14) == WHITE_RGB
 
     def test_set_direction_sets_dirty_flag(self, default_scroll_arrow):
         """Test that changing direction sets dirty=1."""
@@ -556,11 +605,14 @@ class TestScrollArrowSpriteSetDirection:
         default_scroll_arrow.set_direction('plus')
         assert default_scroll_arrow.dirty == 1
 
-    def test_set_direction_same_direction_does_not_redraw(self, default_scroll_arrow, mocker):
-        """Test that setting the same direction does not trigger a redraw."""
-        mocker.patch.object(default_scroll_arrow, '_draw_arrow')
+    def test_set_direction_same_direction_does_not_redraw(self, default_scroll_arrow):
+        """Setting the same direction leaves the image as it was (no redraw over it)."""
+        marker_color = (1, 2, 3)
+        default_scroll_arrow.image.set_at((0, 0), marker_color)
+
         default_scroll_arrow.set_direction('up')  # Same as initial direction
-        default_scroll_arrow._draw_arrow.assert_not_called()
+
+        assert _rgb_at(default_scroll_arrow.image, 0, 0) == marker_color
 
     def test_set_direction_same_direction_does_not_set_dirty(self, default_scroll_arrow):
         """Test that setting the same direction does not change dirty flag."""

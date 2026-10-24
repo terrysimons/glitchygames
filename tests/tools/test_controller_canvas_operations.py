@@ -56,13 +56,23 @@ class FakeCanvasInterface:
 class InterfaceCanvas:
     """A canvas reached through a canvas interface, like AnimatedCanvasSprite."""
 
-    def __init__(self, *, pixels_across: int = 8, pixels_tall: int = 8) -> None:
-        """Make a canvas of the given pixel size whose screen size equals its pixel size."""
+    def __init__(
+        self,
+        *,
+        pixels_across: int = 8,
+        pixels_tall: int = 8,
+        pixel_width: int = 1,
+    ) -> None:
+        """Make a canvas of the given pixel size, each pixel drawn ``pixel_width`` wide.
+
+        As on AnimatedCanvasSprite, ``width``/``height`` are the on-screen size (pixel count
+        times ``pixel_width``) and ``pixels_across``/``pixels_tall`` the pixel count.
+        """
         self.canvas_interface = FakeCanvasInterface()
         self.pixels_across = pixels_across
         self.pixels_tall = pixels_tall
-        self.width = pixels_across
-        self.height = pixels_tall
+        self.width = pixels_across * pixel_width
+        self.height = pixels_tall * pixel_width
         self.current_animation: str | None = 'idle'
         self.current_frame: int | None = 0
         self.redraw_count = 0
@@ -569,6 +579,16 @@ class TestCanvasMoveCursor:
         assert _position_of(editor) == (7, 0)
         assert editor.controller_position_operation_tracker.position_changes == []
 
+    def test_clamps_to_the_pixel_count_not_the_screen_size(self):
+        """An 8x8 canvas drawn at 16x clamps the cursor to pixel 7, not 127 (BUGS.md #97)."""
+        canvas = InterfaceCanvas(pixels_across=8, pixels_tall=8, pixel_width=16)
+        handler, editor = _make_handler(canvas=canvas, position=(6, 1))
+
+        handler.canvas._canvas_move_cursor(CONTROLLER_ID, 50, 50)
+
+        assert (canvas.width, canvas.height) == (128, 128)
+        assert _position_of(editor) == (7, 7)
+
     def test_without_a_canvas_the_move_is_not_clamped(self):
         """No canvas: nothing to clamp against."""
         handler, editor = _make_handler(position=(2, 2))
@@ -590,7 +610,7 @@ class TestCanvasMoveCursor:
     def test_no_undo_record_while_applying_undo(self):
         """A move made by undo/redo itself is not recorded again."""
         handler, editor = _make_handler(position=(2, 2))
-        handler._applying_undo_redo = True  # type: ignore[attr-defined]
+        handler.applying_undo_redo = True  # type: ignore[attr-defined]
 
         handler.canvas._canvas_move_cursor(CONTROLLER_ID, 1, 0)
 
@@ -905,3 +925,68 @@ class TestCanvasJumps:
         getattr(handler.canvas, jump_method)(CONTROLLER_ID, 8)
 
         assert position.position == (2, 2)
+
+
+class TestControllerPaintColorInTheRealEditor:
+    """Controller painting uses the same RGBA color as mouse painting, in the real editor."""
+
+    @staticmethod
+    def _editor_with_half_transparent_red():
+        """Build a real editor whose sliders pick (255, 0, 0, 128), with a canvas controller.
+
+        Returns:
+            The editor, with controller CONTROLLER_ID in canvas mode at (2, 2).
+
+        """
+        from glitchygames import events
+        from glitchygames.bitmappy.editor import BitmapEditorScene
+
+        editor = BitmapEditorScene(options={})
+        for channel_name, channel_value in (('R', 255), ('G', 0), ('B', 0), ('A', 128)):
+            editor.on_slider_event(
+                event=events.HashableEvent(0),
+                trigger=events.HashableEvent(0, name=channel_name, value=channel_value),
+            )
+        editor.mode_switcher.register_controller(CONTROLLER_ID, ControllerMode.CANVAS)
+        editor.mode_switcher.save_controller_position(CONTROLLER_ID, (2, 2))
+        return editor
+
+    def test_controller_paints_the_alpha_the_mouse_paints(self):
+        """A controller-painted pixel carries the alpha slider's value, like canvas.active_color.
+
+        The controller used to paint the RGB slider values only, so its pixels were opaque.
+        """
+        editor = self._editor_with_half_transparent_red()
+
+        editor.controller_handler.canvas_paint_at_controller_position(CONTROLLER_ID)
+
+        assert editor.canvas.active_color == (255, 0, 0, 128)
+        assert editor.canvas.canvas_interface.get_pixel_at(2, 2) == (255, 0, 0, 128)
+
+    def test_controller_lines_paint_the_alpha_too(self):
+        """Horizontal and vertical controller lines paint the RGBA color as well."""
+        editor = self._editor_with_half_transparent_red()
+        _start_drag(editor.controller_handler)
+
+        editor.controller_handler.canvas.canvas_paint_horizontal_line(CONTROLLER_ID, 2)
+        editor.controller_handler.canvas.canvas_paint_vertical_line(CONTROLLER_ID, 2)
+
+        # The horizontal line paints (2, 2) and (3, 2) and leaves the cursor at (4, 2), where
+        # the vertical line paints (4, 2) and (4, 3)
+        canvas_interface = editor.canvas.canvas_interface
+        for painted_position in ((2, 2), (3, 2), (4, 2), (4, 3)):
+            assert canvas_interface.get_pixel_at(*painted_position) == (255, 0, 0, 128)
+
+    def test_painting_a_pixel_already_that_color_is_skipped(self):
+        """A second paint of the same pixel records nothing more for undo.
+
+        The debounce compared the RGBA pixel with the RGB slider color, so it never matched
+        and every repeat paint was tracked again.
+        """
+        editor = self._editor_with_half_transparent_red()
+        drag_info = _start_drag(editor.controller_handler)
+
+        editor.controller_handler.canvas_paint_at_controller_position(CONTROLLER_ID)
+        editor.controller_handler.canvas_paint_at_controller_position(CONTROLLER_ID)
+
+        assert len(drag_info['pixels_drawn']) == 1

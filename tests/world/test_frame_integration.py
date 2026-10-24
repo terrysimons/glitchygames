@@ -39,14 +39,21 @@ from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeT
 from glitchygames.engine import GameEngine
 from glitchygames.examples import paddleslap
 from glitchygames.input.state import InputSnapshot, current_input
+from glitchygames.live_sources import LiveSources
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.process import run_command
 from glitchygames.randomness import capture_stream_states, random_stream
 from glitchygames.replay.ghosts import GhostRecorder, GhostSample, GhostSprite, GhostTrack
 from glitchygames.scene_start import SceneStart, rebuild_scene, scene_start_capture_enabled
-from glitchygames.scenes import Scene
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.sources import active_sources, advance_frame_clock, frame_clock_seconds
+from glitchygames.sources import (
+    active_sources,
+    advance_frame_clock,
+    frame_clock_seconds,
+    pop_scoped_sources,
+    push_scoped_sources,
+)
 from glitchygames.state import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.transitions import FadeTransition
@@ -103,6 +110,12 @@ class WorldSprite(pygame.sprite.DirtySprite):
     def update_nested_sprites(self) -> None:
         """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
 
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it.
+
+        On a real display the pointer can move over the test's window (x11 sends the motion).
+        """
+
 
 class ScreenSprite(pygame.sprite.DirtySprite):
     """A HUD-style sprite: no coordinate space declared, so the engine never moves it."""
@@ -117,6 +130,12 @@ class ScreenSprite(pygame.sprite.DirtySprite):
 
     def update_nested_sprites(self) -> None:
         """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it.
+
+        On a real display the pointer can move over the test's window (x11 sends the motion).
+        """
 
 
 class FollowingScene(Scene):
@@ -287,8 +306,61 @@ class HiddenOffScreenPlayerScene(OffScreenPlayerScene):
     start_hidden: ClassVar[bool] = True
 
 
+class ScreenPlayerSprite(pygame.sprite.DirtySprite):
+    """A screen-space player with no world position, drawn in PLAYER_COLOR."""
+
+    def __init__(self) -> None:
+        """Create the sprite at a fixed screen position."""
+        super().__init__()
+        self.image = pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = pygame.Rect(SCREEN_SPRITE_TOPLEFT, (SPRITE_SIZE, SPRITE_SIZE))
+
+    def update_nested_sprites(self) -> None:
+        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it.
+
+        On a real display the pointer can move over the test's window (x11 sends the motion).
+        """
+
+
+class ScreenPlayerScene(Scene):
+    """A scene whose ``player`` is screen space (a HUD-style sprite), beside a world landmark.
+
+    Transitions write a screen-space player's ``visible`` directly (the engine never culls it).
+    """
+
+    NAME = 'Screen Player'
+    VERSION = '1.0'
+    start_visible: ClassVar[int] = 1
+
+    @override
+    def setup(self: Self) -> None:
+        """Create the screen-space player and a world landmark.
+
+        The player has no world position, so the arriving capture snaps the camera to the
+        origin (where it starts) and the landmark is on screen in both captures.
+        """
+        self.player = ScreenPlayerSprite()
+        self.player.visible = self.start_visible
+        player_x, player_y = PLAYER_START
+        self.landmark = filled_world_sprite(
+            world_x=player_x + LANDMARK_OFFSET_X, world_y=player_y, color=LANDMARK_COLOR
+        )
+        self.all_sprites.add(self.player, self.landmark)
+
+
+class InvisibleScreenPlayerScene(ScreenPlayerScene):
+    """The same scene with the screen-space player made invisible by the game."""
+
+    NAME = 'Invisible Screen Player'
+    start_visible: ClassVar[int] = 0
+
+
 class CameraFreeScene(Scene):
-    """A plain scene holding one world sprite; the test removes its camera."""
+    """A plain scene holding one world sprite; it never sets its camera up."""
 
     NAME = 'Camera Free'
     VERSION = '1.0'
@@ -602,20 +674,111 @@ class TestFrameWithoutDisplay:
             assert (scene.camera.world_x, scene.camera.world_y) != camera_before
             assert scene.player.rect == player_rect_before
 
+    def test_a_scene_manager_made_before_any_display_has_no_screen(self, mocker: MockerFixture):
+        """No display surface yet: the manager starts without a screen and finds it later."""
+        display_surface = pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+        get_surface = mocker.patch.object(pygame.display, 'get_surface', return_value=None)
+        SceneManager._reset()
+        try:
+            manager = SceneManager()
+            assert manager.screen is None
+            get_surface.return_value = display_surface
+            manager.update_screen()
+            assert manager.screen is display_surface
+        finally:
+            SceneManager._reset()
 
-class TestSceneWithoutCamera:
-    """A scene stand-in without a camera runs its frames; the camera steps are skipped."""
+    def test_a_scene_switched_to_without_a_display_is_set_up_and_active(
+        self, mocker: MockerFixture
+    ):
+        """Switching scenes with no surface skips only the background redraw."""
+        with running_scene(CameraFreeScene) as manager:
+            departing_scene = manager.active_scene
+            assert isinstance(departing_scene, CameraFreeScene)
+            # A Scene needs the display to be built; the display goes away after that
+            arriving_scene = CameraFreeScene(options=departing_scene.options)
+            mocker.patch.object(pygame.display, 'get_surface', return_value=None)
+            manager.screen = None
 
-    def test_frame_runs_without_a_camera(self):
-        """No begin_frame, aim or positioning without a camera, and no crash."""
+            manager.switch_to_scene(arriving_scene)
+
+            assert manager.active_scene is arriving_scene
+            assert manager.screen is None
+            # setup() ran: its world sprite exists
+            assert arriving_scene.world_sprite.world_x == PLAYER_START[0]
+
+
+class NamelessScene(CameraFreeScene):
+    """A scene with neither a name nor a version for the window caption."""
+
+    NAME = ''
+    VERSION = ''
+
+
+class TestWindowCaption:
+    """The window caption is the scene's name and version, each only when it has one."""
+
+    @pytest.mark.parametrize(
+        ('scene_class', 'expected_caption'),
+        [(FollowingScene, 'Following v1.0'), (NamelessScene, '')],
+        ids=['name-and-version', 'neither'],
+    )
+    def test_caption_names_the_active_scene(self, scene_class: type[Scene], expected_caption: str):
+        with running_scene(scene_class) as manager:
+            assert isinstance(manager.active_scene, scene_class)
+            # pygame gives an empty tuple for an empty caption
+            assert (pygame.display.get_caption() or ('',))[0] == expected_caption
+
+
+class TestSceneRedraw:
+    """Scene.update() forces its sprites to redraw only while the scene itself is dirty."""
+
+    def test_a_clean_scene_leaves_clean_sprites_clean(self):
+        with running_scene(CameraFreeScene) as manager:
+            step(manager)
+            scene = manager.active_scene
+            assert isinstance(scene, CameraFreeScene)
+            scene.dirty = 0
+            scene.world_sprite.dirty = 0
+
+            scene.update()
+
+            assert scene.world_sprite.dirty == 0
+
+    def test_a_dirty_scene_marks_clean_sprites_dirty(self):
+        with running_scene(CameraFreeScene) as manager:
+            step(manager)
+            scene = manager.active_scene
+            assert isinstance(scene, CameraFreeScene)
+            scene.dirty = 1
+            scene.world_sprite.dirty = 0
+
+            scene.update()
+
+            assert scene.world_sprite.dirty == 1
+
+
+class TestSceneWithAnIdentityCamera:
+    """A scene that never sets its camera up runs its frames on Scene's identity camera.
+
+    Every Scene has a camera (the scene manager no longer accepts stand-ins without one); a
+    scene that never follows or moves it keeps the identity camera, so the camera steps run
+    but move nothing.
+    """
+
+    def test_frame_runs_on_the_identity_camera(self):
+        """begin_frame, aim and positioning run, and the world sprite stays where it is drawn."""
         with running_scene(CameraFreeScene) as manager:
             scene = manager.active_scene
             assert isinstance(scene, CameraFreeScene)
-            del scene.camera
+            step(manager)
             sprite_rect_before = scene.world_sprite.rect.copy()
 
             step(manager, frames=2)
 
+            assert scene.camera.follow_target is None
+            # The identity camera: world positions are screen positions
+            assert scene.camera.world_to_screen(0.0, 0.0) == (0, 0)
             assert scene.world_sprite.rect == sprite_rect_before
 
 
@@ -1093,6 +1256,53 @@ class TestTransitionCapture:
                 assert not scene.player.visible
                 assert scene.player.hidden is scene_class.start_hidden
 
+    @pytest.mark.parametrize('capture_index', [0, 1], ids=['outgoing', 'arriving'])
+    def test_screen_space_player_is_hidden_in_both_captures(
+        self, mocker: MockerFixture, capture_index: int
+    ):
+        """A screen-space player is left out of both screenshots and shown again afterwards."""
+        with running_scene(ScreenPlayerScene) as manager:
+            step(manager, frames=2)
+            departing_scene = manager.active_scene
+            assert isinstance(departing_scene, ScreenPlayerScene)
+            assert manager.screen is not None
+            assert color_pixel_count(manager.screen, PLAYER_COLOR) > 0
+
+            transition = FadeTransition(duration=TEST_FADE_SECONDS)
+            start_spy = mocker.spy(transition, 'start')
+            departing_scene.transition_to(
+                ScreenPlayerScene(options=departing_scene.options), transition
+            )
+            step(manager)
+
+            assert start_spy.call_count == 1
+            capture = start_spy.call_args.args[capture_index]
+            assert color_pixel_count(capture, PLAYER_COLOR) == 0
+            assert color_pixel_count(capture, LANDMARK_COLOR) > 0
+            arriving_scene = manager.active_scene
+            assert isinstance(arriving_scene, ScreenPlayerScene)
+            assert departing_scene.player.visible
+            assert arriving_scene.player.visible
+            # The engine never moves a screen-space player
+            assert arriving_scene.player.rect.topleft == SCREEN_SPRITE_TOPLEFT
+
+    def test_an_invisible_screen_space_player_stays_invisible_after_the_capture(self):
+        """The arriving capture gives a screen-space player back the visible it had."""
+        with running_scene(ScreenPlayerScene) as manager:
+            step(manager)
+            departing_scene = manager.active_scene
+            assert isinstance(departing_scene, ScreenPlayerScene)
+
+            departing_scene.transition_to(
+                InvisibleScreenPlayerScene(options=departing_scene.options),
+                FadeTransition(duration=TEST_FADE_SECONDS),
+            )
+            step(manager)
+
+            arriving_scene = manager.active_scene
+            assert isinstance(arriving_scene, InvisibleScreenPlayerScene)
+            assert not arriving_scene.player.visible
+
 
 class TestPaddleSlapInTheFrame:
     """PaddleSlap's world-space balls are drawn where their logic left them, every frame."""
@@ -1305,6 +1515,35 @@ class TestSupervisorHook:
             manager.remove_supervisor(supervisor=supervisor)
             step(manager, frames=1)
         assert supervisor.calls == []
+
+    def test_a_supervisor_the_scope_removed_and_the_live_game_re_added_outlives_the_scope(
+        self,
+    ) -> None:
+        """Removing a scope's supervisor forgets it was the scope's (playback.py rule 4).
+
+        The scope's code adds a supervisor and removes it again; a live supervisor then adds
+        the same one while the scope plays, which makes it the live game's. The scope's end
+        removes only what still belongs to the scope, so the supervisor keeps running after.
+        """
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            push_scoped_sources(sources=LiveSources(random_seed=RANDOM_SEED))
+            try:
+                assert manager.in_playback_scope
+                # The scope's code (its scene's setup(), say) adds it and removes it again
+                manager.add_supervisor(supervisor=supervisor)
+                manager.remove_supervisor(supervisor=supervisor)
+                # A live supervisor adds it while the scope plays: it is the live game's
+                manager._run_live_or_scope_code(
+                    is_scope_code=False,
+                    call=lambda: manager.add_supervisor(supervisor=supervisor),
+                )
+                # What the scope's end does before its doors are popped
+                manager._remove_scope_supervision()
+            finally:
+                pop_scoped_sources()
+            step(manager, frames=1)
+        assert supervisor.calls == [(0, 'CameraFreeScene')]
 
 
 class TestControlEvents:

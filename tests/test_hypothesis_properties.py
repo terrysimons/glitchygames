@@ -426,10 +426,11 @@ class TestColorPaletteGetSet:
         ),
     )
     def test_palette_size_matches_color_count(self, colors):
-        """The palette's internal size should reflect the number of colors."""
+        """Every color is readable and the index after the last one answers None (BUGS.md #103)."""
         palette = ColorPalette(colors=list(colors))
-        # _size is len(colors) - 1 per the implementation
-        assert palette._size == len(colors) - 1
+        for index, color in enumerate(colors):
+            assert palette.get_color(index) == color
+        assert palette.get_color(len(colors)) is None
 
     def test_empty_palette_returns_magenta(self):
         """An empty palette should return magenta as fallback."""

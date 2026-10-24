@@ -24,7 +24,6 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 ALL_TRIGGERS = SpeedUpTrigger.CONTINUOUS | SpeedUpTrigger.PADDLE_BOUNCE | SpeedUpTrigger.WALL_BOUNCE
 BOUNCE_TRIGGERS = SpeedUpTrigger.PADDLE_BOUNCE | SpeedUpTrigger.WALL_BOUNCE
@@ -67,25 +66,21 @@ def _fire_continuous_speed_up(ball: BallSprite) -> None:
 def _hit_top_wall(ball: BallSprite) -> None:
     """Place the ball on the top wall away from the corners and run the bounce check."""
     ball.world_x = SCREEN_CENTER_X
-    ball.world_y = 0.0
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_y = -float(ball._visible_rect().offset_y)
     ball._do_bounce()
 
 
 def _hit_left_wall(ball: BallSprite) -> None:
     """Place the ball on the left wall away from the corners and run the bounce check."""
-    ball.world_x = 0.0
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_x = -float(ball._visible_rect().offset_x)
     ball.world_y = SCREEN_CENTER_Y
     ball._do_bounce()
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallCombinedSpeedUp:
     """Test BallSprite with several speed-up triggers enabled at once."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_continuous_and_paddle_triggers_share_one_curve(self):
         """A continuous step then a paddle step land on f(2) with the angle preserved."""

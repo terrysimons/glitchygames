@@ -11,7 +11,6 @@ Run benchmarks:
 from pathlib import Path
 
 import pygame
-import pytest
 
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
@@ -25,7 +24,6 @@ from glitchygames.game_objects.ball import (
 from glitchygames.recording_history import frame_content_hash
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tracing import read_trace_result
-from tests.mocks import MockFactory
 
 # Path to the static sprite fixture
 STATIC_TOML = str(
@@ -50,14 +48,6 @@ DT_60FPS = 1.0 / 60.0
 # ---------------------------------------------------------------------------
 class TestBallPhysicsBenchmarks:
     """Benchmark BallSprite physics operations."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for ball creation."""
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def _create_ball_at_center(self):
         """Create a ball positioned at center with diagonal velocity.
@@ -129,14 +119,6 @@ class TestBallPhysicsBenchmarks:
 class TestAnimatedSpriteBenchmarks:
     """Benchmark AnimatedSprite operations."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks."""
-        if not pygame.get_init():
-            pygame.init()
-
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def _create_multi_frame_sprite(self, frame_count):
         """Create an AnimatedSprite with the given number of frames.
 
@@ -147,7 +129,7 @@ class TestAnimatedSpriteBenchmarks:
         sprite = AnimatedSprite()
         surfaces = []
         for _ in range(frame_count):
-            surface = MockFactory.create_pygame_surface_mock(8, 8)
+            surface = pygame.Surface((8, 8))
             surfaces.append(SpriteFrame(surface, duration=0.1))
         sprite._animations = {'idle': surfaces}
         sprite.frame_manager.current_animation = 'idle'
@@ -190,10 +172,7 @@ class TestAnimatedSpriteBenchmarks:
     def test_animated_sprite_play_animation(self, benchmark):
         """Benchmark switching to an animation."""
         sprite = self._create_multi_frame_sprite(10)
-        walk_frames = [
-            SpriteFrame(MockFactory.create_pygame_surface_mock(8, 8), duration=0.1)
-            for _ in range(10)
-        ]
+        walk_frames = [SpriteFrame(pygame.Surface((8, 8)), duration=0.1) for _ in range(10)]
         sprite.add_animation('walk', walk_frames)
 
         animation_names = ['idle', 'walk']

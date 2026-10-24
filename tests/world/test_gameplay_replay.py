@@ -7,6 +7,7 @@ import collections
 import gzip
 import importlib.metadata
 import json
+import logging
 import os
 import re
 import signal
@@ -14,7 +15,7 @@ import sys
 import zlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 import pygame
 import pytest
@@ -26,15 +27,23 @@ from scripts.record_golden_traces import (
     record_trace,
     replay_golden_recording,
 )
-from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY, REPLAY_FIXTURE_SUFFIX
+from scripts.record_scripted_session import (
+    REPLAY_FIXTURE_DIRECTORY,
+    REPLAY_FIXTURE_SUFFIX,
+    record_scripted_session,
+)
 
 from glitchygames import recording_history
+from glitchygames.build_info import RevisionSource, engine_source_revision
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.events import FPSEVENT
+from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.exit_codes import ExitCode
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
+from glitchygames.machine_state import current_machine_state
+from glitchygames.opacity import OPAQUE
 from glitchygames.process import run_command
 from glitchygames.recording import (
     EXTERNAL_ORIGIN,
@@ -43,6 +52,8 @@ from glitchygames.recording import (
     SCENE_START_FIELD,
     GameplayRecorder,
     RecordingSources,
+    UnrepresentableValue,
+    event_to_record,
     pending_internal_posts,
     post_event,
     post_input_event,
@@ -54,9 +65,12 @@ from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     PROCESSING_SECONDS_FIELD,
     MeasurementRun,
+    budget_seconds_for,
     frame_content_hash,
     latest_measurement_run,
     recording_content_hash,
+    recording_run_summaries,
+    run_summary,
 )
 from glitchygames.replay import audit
 from glitchygames.replay import driver as driver_module
@@ -90,15 +104,17 @@ from glitchygames.replay.driver import (
     ReplayResult,
     ReplaySources,
     apply_recorded_options,
+    apply_recorded_screen_size,
     bookmarked_copy_path,
     check_recorded_game,
+    display_size_refusal,
     write_bookmarked_copy,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.processing import machine_description
 from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebuild, ViewerState
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
     frame_clock_seconds,
@@ -109,13 +125,21 @@ from glitchygames.state import DiskSaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
-from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
+from tests.display_canvas import display_looks_entirely_black, real_display_surface
+from tests.replay.replay_helpers import (
+    replay_through_engine,
+    rewrite_recording,
+    tamper_first_sprite_rect,
+)
+from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
+from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
     RANDOM_SEED,
     RUN_ENGINE_ARGUMENTS,
     DepartureRecordedScene,
+    Marker,
     Script,
     _key,
     _schedule_quit_in_arrival,
@@ -192,6 +216,7 @@ if __name__ == '__main__':
 # digest to the --replay-digest path (the last argument), then a clean summary line
 DIGEST_WRITING_CHILD_SOURCE = """\
 import json
+import logging
 import os
 import sys
 
@@ -274,6 +299,14 @@ def record_session(
             *extra_arguments,
         )
     return recording_path
+
+
+# A watched replay of a session this test recorded live shows the debug overlay's camera panel,
+# whose mouse line appears only while the recorded window had mouse focus: the dummy driver
+# always reports focus, a real window in the background has none (tests/driver_comparison.py)
+LIVE_MOUSE_FOCUS_FRAMES_VARY = pytest.mark.frames_vary(
+    reason="the recording holds the live window's mouse focus, which the dummy driver always has"
+)
 
 
 def replay_session(
@@ -770,6 +803,192 @@ class TestInputPosts:
         assert divergence.kind == EVENT_DIVERGENCE
 
 
+# The frame the device dispatch scene's scripted presses are posted in, and the frame it quits
+DEVICE_PRESS_FRAME = 1
+DEVICE_QUIT_FRAME = 4
+# The fake hardware of the device dispatch recording: an unmapped stick and a mapped pad
+FAKE_STICK_INSTANCE_ID = 5
+FAKE_PAD_INSTANCE_ID = 9
+
+
+class DeviceDispatchScene(Scene):
+    """A game whose marker moves by the handler each gamepad press reaches, and by polling.
+
+    A joystick-layer press moves the marker right, a controller-layer press down; a frame in
+    which the pad's controller layer holds button A moves it right one pixel. So a replay that
+    dispatched a press from another layer, or read another position, moves the marker elsewhere
+    and diverges.
+    """
+
+    NAME = 'DeviceDispatch'
+    VERSION = '1.0'
+    # (layer, instance id) of every press handled, in order (reset by each run)
+    presses_handled: ClassVar[list[tuple[str, int]]] = []
+
+    def __init__(self, options=None, groups=None):
+        """Add the marker."""
+        super().__init__(options=options, groups=groups)
+        self.marker = Marker(x=0)
+        self.all_sprites.add(self.marker)
+
+    def dt_tick(self, dt):
+        """Post the scripted presses, poll the pad, and quit after DEVICE_QUIT_FRAME."""
+        frame_number = Script.start_logic_frame(dt)
+        pad = self.input_devices.get(instance_id=FAKE_PAD_INSTANCE_ID)
+        assert pad is not None
+        assert pad.controller is not None
+        if pad.controller.button(button=pygame.CONTROLLER_BUTTON_A):
+            self.marker.rect.x += 1
+        if frame_number == DEVICE_QUIT_FRAME:
+            GameEngine.quit_game()
+
+    def on_joy_button_down_event(self, event):
+        """Move right for a joystick-layer press."""
+        DeviceDispatchScene.presses_handled.append(('joystick', event.instance_id))
+        self.marker.rect.x += 10
+
+    def on_controller_button_down_event(self, event):
+        """Move down for a controller-layer press."""
+        DeviceDispatchScene.presses_handled.append(('controller', event.instance_id))
+        self.marker.rect.y += 10
+
+
+def fake_device_hardware(mocker):
+    """Fake SDL's devices under the real live devices door: an unmapped stick, a mapped pad.
+
+    The stick (device index 0) and the pad's joystick view (index 1) answer pygame's Joystick
+    surface; the pad's controller holds button A on its controller layer.
+    """
+
+    def joystick_view(*, instance_id, name):
+        return mocker.Mock(**{
+            'get_instance_id.return_value': instance_id,
+            'get_name.return_value': name,
+            'get_guid.return_value': f'guid-{instance_id}',
+            'get_numaxes.return_value': 2,
+            'get_numbuttons.return_value': 2,
+            'get_numhats.return_value': 0,
+            'get_numballs.return_value': 0,
+            'get_axis.return_value': 0.0,
+            'get_button.return_value': False,
+            'get_init.return_value': True,
+            'get_power_level.return_value': 'full',
+        })
+
+    stick = joystick_view(instance_id=FAKE_STICK_INSTANCE_ID, name='Fake Stick')
+    pad_view = joystick_view(instance_id=FAKE_PAD_INSTANCE_ID, name='Fake Pad')
+    pad_controller = mocker.Mock(**{
+        'name': 'Fake Pad',
+        'as_joystick.return_value': pad_view,
+        'attached.return_value': True,
+        'get_init.return_value': True,
+        'get_mapping.return_value': {},
+        'get_axis.return_value': 0,
+        'get_button.side_effect': lambda button: button == pygame.CONTROLLER_BUTTON_A,
+    })
+    mocker.patch('pygame.joystick.get_count', return_value=2)
+    mocker.patch('pygame.joystick.Joystick', side_effect=[stick, pad_view].__getitem__)
+    mocker.patch('pygame._sdl2.controller.get_count', return_value=2)
+    mocker.patch('pygame._sdl2.controller.is_controller', side_effect=lambda index: index == 1)
+    mocker.patch('pygame._sdl2.controller.Controller', return_value=pad_controller)
+
+
+class TestDeviceDispatchReplays:
+    """Which layer dispatches each device's events is recorded and replayed identically."""
+
+    def test_a_session_with_a_stick_and_a_pad_replays_with_the_same_dispatch(
+        self, mocker, tmp_path
+    ):
+        """Auto mode: the pad's presses arrive once (controller layer), the stick's on its own.
+
+        The recording holds the devices, the door's answers (which say the pad is mapped), both
+        layers' events and the polled positions; the replay rebuilds the registry from them,
+        drops the pad's joystick-layer copy again and polls the same positions, without
+        touching hardware.
+        """
+        recording_path = tmp_path / 'devices.jsonl.gz'
+        DeviceDispatchScene.presses_handled = []
+        with engine_run_environment(mocker):
+            fake_device_hardware(mocker)
+            Script.events_by_frame = {
+                DEVICE_PRESS_FRAME: [
+                    # SDL sends a mapped pad's press on both layers
+                    pygame.event.Event(
+                        pygame.JOYBUTTONDOWN, instance_id=FAKE_PAD_INSTANCE_ID, button=0
+                    ),
+                    pygame.event.Event(
+                        pygame.CONTROLLERBUTTONDOWN, instance_id=FAKE_PAD_INSTANCE_ID, button=0
+                    ),
+                    pygame.event.Event(
+                        pygame.JOYBUTTONDOWN, instance_id=FAKE_STICK_INSTANCE_ID, button=1
+                    ),
+                ]
+            }
+            recording_engine = build_engine(
+                scene_class=DeviceDispatchScene,
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--input-mode',
+                    'auto',
+                    '--record-trace',
+                    str(recording_path),
+                    '--random-seed',
+                    str(RANDOM_SEED),
+                ),
+            )
+            recording_engine.start()
+        recorded_presses = list(DeviceDispatchScene.presses_handled)
+        # The recording holds both layers' events (the dispatch choice is made again on replay)
+        recorded_press_types = [
+            (record['type'], record['attributes']['instance_id'])
+            for frame in read_trace_result(path=recording_path).trace['frames']
+            for batch in frame['event_batches']
+            for record in batch
+            if record['type'] in {pygame.JOYBUTTONDOWN, pygame.CONTROLLERBUTTONDOWN}
+        ]
+        assert recorded_press_types == [
+            (pygame.JOYBUTTONDOWN, FAKE_PAD_INSTANCE_ID),
+            (pygame.CONTROLLERBUTTONDOWN, FAKE_PAD_INSTANCE_ID),
+            (pygame.JOYBUTTONDOWN, FAKE_STICK_INSTANCE_ID),
+        ]
+
+        # Tripwires: a replay never opens or enumerates real hardware
+        for hardware_entry_point in (
+            'pygame.joystick.get_count',
+            'pygame.joystick.Joystick',
+            'pygame._sdl2.controller.get_count',
+            'pygame._sdl2.controller.is_controller',
+            'pygame._sdl2.controller.Controller',
+        ):
+            mocker.patch(hardware_entry_point, side_effect=AssertionError('hardware reached'))
+        DeviceDispatchScene.presses_handled = []
+        with engine_run_environment(mocker):
+            replay_engine = build_engine(
+                scene_class=DeviceDispatchScene,
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--replay-trace',
+                    str(recording_path),
+                    '--headless',
+                ),
+            )
+            with pytest.raises(SystemExit) as exit_info:
+                replay_engine.start()
+
+        assert recorded_presses == [
+            ('controller', FAKE_PAD_INSTANCE_ID),
+            ('joystick', FAKE_STICK_INSTANCE_ID),
+        ]
+        assert DeviceDispatchScene.presses_handled == recorded_presses
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert replay_engine.replay_sources is not None
+        result = replay_engine.replay_sources.result
+        assert result.divergence is None
+        assert result.end_reason == 'end_of_recording'
+        # The recorded options hold the input mode, so the replay ran in auto mode too
+        assert replay_engine.input_devices.input_mode == 'auto'
+
+
 class TestRoundTrip:
     """A recorded session replays without divergence."""
 
@@ -856,6 +1075,7 @@ class TestDivergence:
         assert result.end_reason == 'diverged'
         assert result.frames_replayed == 4
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_divergence_is_logged_and_exits_as_diverged(
         self, mocker, tmp_path, caplog, capsys
     ):
@@ -996,6 +1216,20 @@ class TestReplayDoors:
             'device_enumeration': frame['device_enumeration'],
         }
 
+    def test_a_frame_past_the_recordings_end_hands_a_rebaseline_nothing(self):
+        """A frame the recording does not have took no saves, devices or histories from it."""
+        frame = recorded_frame(frame_number=0)
+        frame['saves_opened'] = {'game': {}}
+        frame['content_hash'] = ['0123456789abcdef']
+        frame['processing_seconds'] = [0.002]
+        sources = minimal_sources(frames=[frame])
+        assert sources.recording.recorded_frame_histories(frame_index=0) == {
+            'content_hash': ['0123456789abcdef'],
+            'processing_seconds': [0.002],
+        }
+        assert sources.recording.recorded_frame_fields(frame_index=1) == {}
+        assert sources.recording.recorded_frame_histories(frame_index=1) == {}
+
     def test_recorded_options_override_all_but_the_local_ones(self):
         options = {'resolution': '640x480', 'log_level': 'debug', 'replay_trace': 'here'}
         apply_recorded_options(
@@ -1018,7 +1252,7 @@ class TestReplayDoors:
         assert {'replay_trace', 'record_trace', 'log_level'} <= REPLAY_LOCAL_OPTIONS
 
     def test_debug_events_stays_local(self):
-        """debug_events follows this run's log level, never the recording's."""
+        """debug_events follows this run's --debug-events, never the recording's."""
         options = {'debug_events': True}
         apply_recorded_options(options=options, recorded={'debug_events': False})
         assert options == {'debug_events': True}
@@ -1310,6 +1544,35 @@ class TestRefusals:
         assert len(refusals) == 1
         assert 'The recording is malformed' in refusals[0].getMessage()
 
+    @pytest.mark.parametrize(
+        ('change', 'reason'),
+        [
+            pytest.param(
+                lambda trace: trace.update(recorded_at='yesterday'),
+                "recorded_at 'yesterday' is not ISO 8601",
+                id='unreadable start time',
+            ),
+            pytest.param(
+                lambda trace: trace.pop('recorded_at'),
+                'has no recorded_at start time (found None)',
+                id='no start time',
+            ),
+        ],
+    )
+    def test_a_header_without_a_readable_start_time_is_unusable_input(
+        self, mocker, tmp_path, caplog, change, reason
+    ):
+        """The replay's wall clock starts at recorded_at: without it the recording is refused."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(recording_path=recording_path, change=change)
+        caplog.clear()
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert reason in refusals[0].getMessage()
+
     def test_unsupported_format_version_is_refused_without_a_traceback(
         self, mocker, tmp_path, caplog
     ):
@@ -1405,6 +1668,169 @@ LIVE_HEADLESS_TARGET_FPS = 64
 # whose pygame.init is a stub (pygame is already started on the worker, so nothing reads them)
 UNUSED_VIDEO_DRIVER = 'unused-video-driver'
 UNUSED_AUDIO_DRIVER = 'unused-audio-driver'
+
+
+# The window size the stand-in window manager gives a window asked for at the golden scripts'
+# 800x480, and one no recording here has
+WINDOW_MANAGER_SIZE = (800, 600)
+UNRECORDED_WINDOW_SIZE = (640, 400)
+# Enough PaddleSlap frames to compare the paddles' places (set from the screen height in frame 0)
+DISPLAY_SIZE_FRAME_COUNT = 10
+
+
+def window_manager_choosing_size(*, mocker, size: tuple[int, int]):
+    """Make every window open at `size`, whatever size is asked for (BUGS.md #191).
+
+    A stand-in for a window manager that widens, tiles or resizes a new window: the display
+    simply has another size than requested, with no warning (pygame's set_mode answers at the
+    size the window got).
+
+    Returns:
+        The patch, for ``mocker.stop`` once the window manager should step aside.
+
+    """
+    real_set_mode = pygame.display.set_mode
+
+    def set_mode_at_the_chosen_size(requested_size, flags=0, *more_arguments):
+        del requested_size
+        return real_set_mode(size, flags, *more_arguments)
+
+    return mocker.patch('pygame.display.set_mode', side_effect=set_mode_at_the_chosen_size)
+
+
+def record_paddleslap_on_a_window_of_another_size(*, mocker, path: Path) -> None:
+    """Record PaddleSlap asking for 800x480 on a window the window manager makes 800x600."""
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    window_manager = window_manager_choosing_size(mocker=mocker, size=WINDOW_MANAGER_SIZE)
+    try:
+        record_scripted_session(
+            game_key='paddleslap',
+            frame_count=DISPLAY_SIZE_FRAME_COUNT,
+            path=path,
+            exercise_controls=False,
+        )
+    finally:
+        mocker.stop(window_manager)
+
+
+class TestRecordedDisplaySize:
+    """A replay opens its window at the recorded display size, or refuses (BUGS.md #191)."""
+
+    @pytest.mark.frames_vary(
+        reason='the session runs the real frame loop: each frame moves by its measured frame time'
+    )
+    def test_a_recording_on_a_window_of_another_size_replays_at_that_size(self, mocker, tmp_path):
+        """PaddleSlap places its paddles from the display height, so the size must be the same."""
+        recording_path = tmp_path / 'rally.jsonl.gz'
+        record_paddleslap_on_a_window_of_another_size(mocker=mocker, path=recording_path)
+        header = read_trace_result(path=recording_path).trace
+        assert header['options']['resolution'] == '800x480'
+        assert header['screen_size'] == list(WINDOW_MANAGER_SIZE)
+
+        replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=recording_path)
+
+        assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
+        assert replay.result.frames_replayed == DISPLAY_SIZE_FRAME_COUNT
+
+    def test_a_window_that_does_not_open_at_the_recorded_size_is_refused(
+        self, mocker, tmp_path, caplog
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        recorded_size = read_trace_result(path=recording_path).trace['screen_size']
+        window_manager_choosing_size(mocker=mocker, size=UNRECORDED_WINDOW_SIZE)
+        caplog.clear()
+
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert refusals[0].getMessage() == (
+            f'Cannot replay {recording_path}: it was recorded on a '
+            f'{recorded_size[0]}x{recorded_size[1]} display, but the window opened at 640x400 '
+            f'(the window manager chose another size); refusing to replay it'
+        )
+
+    @pytest.mark.parametrize('format_version', [2, 3])
+    def test_a_recording_without_a_size_replays_at_its_resolution_with_a_warning(
+        self, mocker, tmp_path, caplog, format_version
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        if format_version == 2:
+            downgrade_to_version_two(recording_path=recording_path)
+        lines = gzip_lines(recording_path=recording_path)
+        header = json.loads(lines[0])
+        del header['screen_size']
+        with gzip.open(recording_path, 'wb') as recording_file:
+            recording_file.write((json.dumps(header) + '\n').encode('utf-8'))
+            recording_file.writelines(lines[1:])
+        caplog.clear()
+
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        assert engine.screen.get_size() == (320, 240)
+        warnings = [
+            record.getMessage()
+            for record in caplog.records
+            if 'does not hold the size of the display' in record.getMessage()
+        ]
+        assert warnings == [
+            (
+                'The recording does not hold the size of the display it was made on (no '
+                'screen_size in its header); the replay opens its window at the recorded '
+                '--resolution 320x240 and diverges if the recorded window had another size'
+            )
+        ]
+
+    @pytest.mark.parametrize(
+        'screen_size',
+        [[800], [800, 0], [800, '480'], [True, 480], '800x480', {'width': 800}],
+        ids=['one number', 'zero height', 'text height', 'boolean width', 'text', 'mapping'],
+    )
+    def test_a_malformed_size_is_unusable_input(self, mocker, tmp_path, caplog, screen_size):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace.update(screen_size=screen_size),
+        )
+        caplog.clear()
+
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert (
+            f'The recording header screen_size is not a positive [width, height] (found '
+            f'{screen_size!r})'
+        ) in refusals[0].getMessage()
+
+    def test_the_recorded_size_replaces_the_recorded_resolution(self):
+        options = {'resolution': '800x480'}
+
+        apply_recorded_screen_size(options=options, screen_size=WINDOW_MANAGER_SIZE)
+
+        assert options == {'resolution': '800x600'}
+
+    @pytest.mark.parametrize(
+        ('header', 'display_size', 'refused'),
+        [
+            ({'screen_size': [800, 600]}, (800, 600), False),
+            ({}, (800, 600), False),
+            ({'screen_size': [800, 600]}, (800, 480), True),
+        ],
+        ids=['same size', 'no recorded size', 'another size'],
+    )
+    def test_only_another_size_than_recorded_is_refused(self, header, display_size, refused):
+        refusal = display_size_refusal(header=header, display_size=display_size)
+
+        assert (refusal is not None) is refused
 
 
 def pygame_init_noting_drivers(mocker) -> list[tuple[str | None, str | None]]:
@@ -1556,6 +1982,24 @@ class TestHeadless:
         }
         assert len(sleep_spy.call_args_list) == len(pacing_spy.call_args_list)
         assert not capsys.readouterr().out
+
+    def test_the_scene_manager_draws_on_the_display_the_engine_opens(self, mocker):
+        """A scene manager made before the engine never keeps a display the engine replaced.
+
+        With pygame started first on a real video driver, --headless closes that display and
+        the engine opens a new one on the dummy driver; a scene manager installed before then
+        held the closed display's surface, and the first scene's background blit failed with
+        "Surface is not initialized". Closing the display here does what that restart does,
+        on any driver.
+        """
+        close_display = pygame.display.quit
+        with engine_run_environment(mocker):
+            close_display()
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=RUN_ENGINE_ARGUMENTS
+            )
+
+            assert engine.scene_manager.screen is pygame.display.get_surface()
 
     def test_headless_sets_the_dummy_drivers_before_pygame_starts(self, mocker, monkeypatch):
         monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
@@ -1773,6 +2217,109 @@ class TestHeadless:
         assert '--headless: pygame was started before the engine' not in caplog.text
 
 
+class TestHeadlessDriverRestore:
+    """--headless sets the SDL driver variables to 'dummy'; they come back when the run ends."""
+
+    def test_a_headless_run_puts_the_driver_variables_back_when_it_ends(self, mocker, monkeypatch):
+        """A process that goes on after a headless run starts pygame on its own drivers again.
+
+        The run sets both variables to 'dummy'; when it ends they are what they were before: a
+        set one gets its value back and an unset one is removed (the names are not drivers
+        pygame starts: the run started it on 'dummy').
+        """
+        with engine_run_environment(mocker):
+            monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+            monkeypatch.delenv('SDL_AUDIODRIVER')
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, '--headless')
+            )
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                'dummy',
+                'dummy',
+            )
+            engine.scene_manager.add_supervisor(supervisor=QuittingSupervisor(quit_frame=1))
+            engine.start()
+
+            assert os.environ['SDL_VIDEODRIVER'] == UNUSED_VIDEO_DRIVER
+            assert 'SDL_AUDIODRIVER' not in os.environ
+
+    def test_a_failed_teardown_still_puts_the_driver_variables_back(self, mocker, monkeypatch):
+        """The variables come back even when _shutdown raises (logged; the run's exit is 70)."""
+        with engine_run_environment(mocker):
+            monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+            monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, '--headless')
+            )
+            mocker.patch.object(
+                engine, '_shutdown', side_effect=RuntimeError('teardown failed for the test')
+            )
+
+            teardown_error = engine._tear_down_run(profiler=None, run_ended_by=None)
+
+            assert isinstance(teardown_error, RuntimeError)
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                UNUSED_VIDEO_DRIVER,
+                UNUSED_AUDIO_DRIVER,
+            )
+
+    def test_a_run_that_is_not_headless_leaves_the_driver_variables_alone(
+        self, mocker, monkeypatch
+    ):
+        """Only --headless changed them, so only a headless run puts anything back."""
+        with engine_run_environment(mocker):
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=RUN_ENGINE_ARGUMENTS
+            )
+            # Set after construction: a run that put back what it saw then would undo these
+            monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+            monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+            engine.scene_manager.add_supervisor(supervisor=QuittingSupervisor(quit_frame=1))
+            engine.start()
+
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                UNUSED_VIDEO_DRIVER,
+                UNUSED_AUDIO_DRIVER,
+            )
+
+    @pytest.mark.frames_vary(
+        reason=(
+            "it puts the run's driver back mid-test: a real-driver run ends on the canvas, a "
+            "dummy run on the engine's display"
+        )
+    )
+    def test_the_harness_puts_a_constructed_headless_engine_back_on_the_runs_drivers(
+        self, run_sdl_driver_state
+    ):
+        """A headless engine that never runs leaves 'dummy' behind; the harness undoes it.
+
+        This is what moved later tests onto the dummy drivers on a real-driver run (cocoa):
+        constructing the engine sets the variables and restarts the display and mixer on
+        'dummy', and nothing ends the run to put them back. The autouse fixture's check
+        (tests/sdl_driver_isolation.py), run here directly, puts back the run's variables,
+        display (showing the canvas) and mixer. On a dummy run the run's drivers are 'dummy'
+        already; tests/test_sdl_driver_defaults.py moves them off on any run.
+        """
+        with constructed_engine('--headless'):
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                'dummy',
+                'dummy',
+            )
+            assert pygame.display.get_driver() == 'dummy'
+
+        restore_run_sdl_drivers(
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        )
+
+        # The drivers only: the engine reserved its live voice channels on the mixer
+        assert live_sdl_driver_state().driver_names() == run_sdl_driver_state.driver_names()
+        for name, run_value in SDL_DRIVER_ENVIRONMENT_FOR_RUN.items():
+            assert os.environ[name] == run_value
+        display = real_display_surface()
+        assert display is not None
+        assert not display_looks_entirely_black(display)
+
+
 def sprite_frame(*, frame_number: int, rect: list[int]) -> dict[str, Any]:
     """Return a recorded frame of a Mock scene holding one sprite, Mock#0, at ``rect``.
 
@@ -1902,6 +2449,17 @@ class TestReplayReport:
         # A plain replay's exit is its result's, as before
         assert result.exit_code(policy=ReplayExitPolicy.RESULT) == ExitCode.SUCCESS
 
+    def test_undelivered_inputs_add_up_and_keep_the_first_frame(self):
+        """Each frame's unpumped events add to the count; the first frame noted stays first."""
+        result = ReplayResult(frames_replayed=9, frames_recorded=9)
+        result.note_undelivered_inputs(frame_index=2, count=0)
+        assert result.first_undelivered_input_frame is None
+        result.note_undelivered_inputs(frame_index=3, count=2)
+        result.note_undelivered_inputs(frame_index=6, count=1)
+        assert result.undelivered_input_count == 3
+        assert result.first_undelivered_input_frame == 3
+        assert result.has_lost_input
+
     def test_a_rebaseline_whose_frames_differ_still_succeeds(self):
         """Differing frames are the point of a rebaseline; only lost input is reported."""
         result = ReplayResult(
@@ -1943,8 +2501,17 @@ class TestRealInput:
         pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
         real_events = [
             _key(pygame.KEYDOWN, pygame.K_b, unicode='b'),
-            pygame.event.Event(pygame.MOUSEMOTION, pos=(5, 5), rel=(1, 1), buttons=(0, 0, 0)),
-            pygame.event.Event(pygame.WINDOWFOCUSLOST, window=None),
+            # Marked: on a real windowing driver (x11) the recording holds the window's own
+            # pointer motion and focus changes too, which the replay serves; only the injected
+            # ones must not arrive
+            pygame.event.Event(
+                pygame.MOUSEMOTION,
+                pos=(5, 5),
+                rel=(1, 1),
+                buttons=(0, 0, 0),
+                injected_during_replay=True,
+            ),
+            pygame.event.Event(pygame.WINDOWFOCUSLOST, window=None, injected_during_replay=True),
         ]
         engine = replay_session(
             recording_path=recording_path,
@@ -1959,11 +2526,7 @@ class TestRealInput:
         assert not any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_b for event in delivered
         )
-        assert not any(event.type == pygame.MOUSEMOTION for event in delivered)
-        assert not any(
-            event.type == pygame.WINDOWFOCUSLOST and event.dict == {'window': None}
-            for event in delivered
-        )
+        assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
     def test_closing_the_window_ends_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2025,9 +2588,15 @@ class TestRealInputBlocking:
             }
             observed['posted'] = [
                 pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q)),
+                # Marked: a recording made on a real windowing driver (x11) holds the window's
+                # own pointer motion, which the replay serves
                 pygame.event.post(
                     pygame.event.Event(
-                        pygame.MOUSEMOTION, pos=(1, 1), rel=(1, 1), buttons=(0, 0, 0)
+                        pygame.MOUSEMOTION,
+                        pos=(1, 1),
+                        rel=(1, 1),
+                        buttons=(0, 0, 0),
+                        injected_during_replay=True,
                     )
                 ),
                 pygame.event.post(
@@ -2060,9 +2629,8 @@ class TestRealInputBlocking:
         assert not any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_q for event in delivered
         )
-        assert not any(
-            event.type in {pygame.MOUSEMOTION, pygame.JOYAXISMOTION} for event in delivered
-        )
+        assert not any(event.type == pygame.JOYAXISMOTION for event in delivered)
+        assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
     def test_the_blocked_state_comes_back_after_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2102,6 +2670,13 @@ class TestRealInputBlocking:
         """Event managers call set_allowed when made (a scene's widgets make them mid-run)."""
         from glitchygames.events.joystick import JoystickEventManager
 
+        class MidRunJoystickEventManager(JoystickEventManager):
+            """A manager class with no instance yet, so constructing it runs its __init__.
+
+            Constructing JoystickEventManager itself would return the engine's shared
+            instance without initializing it again (BUGS.md #198).
+            """
+
         observed: dict[str, Any] = {'after_pumps': []}
         original_pump_events = ReplaySources.pump_events
 
@@ -2113,7 +2688,7 @@ class TestRealInputBlocking:
             return batch
 
         def make_event_manager() -> None:
-            JoystickEventManager(game=SceneManager().active_scene)
+            MidRunJoystickEventManager(game=SceneManager().active_scene)
             observed['right_after_manager'] = pygame.event.get_blocked(pygame.JOYAXISMOTION)
             observed['pumps_before_manager'] = len(observed['after_pumps'])
 
@@ -2149,6 +2724,18 @@ class TestRealInputBlocking:
             assert blocked_states() == states_before
         finally:
             pygame.event.set_allowed(pygame.MOUSEWHEEL)
+
+    def test_native_window_messages_stay_blocked_after_the_replay(self):
+        """The engine keeps SYSWMEVENT blocked; the replay's block and restore keep it so."""
+        allow_every_event_type(native_window_messages=False)
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        install_sources(sources=sources)
+        sources.pump_events()
+        assert pygame.event.get_blocked(pygame.SYSWMEVENT)
+        sources.finish_run()
+
+        assert pygame.event.get_blocked(pygame.SYSWMEVENT)
+        assert not pygame.event.get_blocked(pygame.KEYDOWN)
 
     def test_uninstalling_the_replay_restores_the_blocked_state(self):
         states_before = blocked_states()
@@ -2204,6 +2791,18 @@ class TestRealInputBlocking:
             assert not pygame.event.get_blocked(pygame.KEYDOWN)
         finally:
             pygame.event.set_allowed([pygame.KEYDOWN, pygame.KEYUP])
+
+    def test_blocking_again_while_active_keeps_the_first_snapshot(self):
+        """A second block() takes no new snapshot, so restore() still gives the original state."""
+        block = EventTypeBlock(event_types=(pygame.KEYDOWN,))
+        try:
+            block.block()
+            # Blocked by the first block(): a fresh snapshot now would say it was blocked
+            block.block()
+            block.restore()
+            assert not pygame.event.get_blocked(pygame.KEYDOWN)
+        finally:
+            pygame.event.set_allowed([pygame.KEYDOWN])
 
 
 class TestWatched:
@@ -2317,6 +2916,33 @@ class TestWatched:
         assert sources.result.end_reason == 'diverged'
         GoldenTraceSceneManager.uninstall()
 
+    def test_frames_stepped_past_a_divergence_run_but_are_not_compared(self, mocker, tmp_path):
+        """Paused at the divergence, a step runs the next frame; the result stays the first one."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        sources = harness_replay_sources(manager=manager)
+        for _ in range(4):
+            manager.dt = sources.frame_seconds(measured=0.0)
+            manager.run_frame()
+        assert sources.controls.paused
+        divergence = sources.result.divergence
+        frame_number_before_step = manager.frame_number
+        FakeMeasuredClock(mocker=mocker)
+        # The harness ran the frames without the start screen's Space: leave it now
+        sources.controls.handle_key(key=pygame.K_SPACE)
+        assert sources.controls.paused
+        assert sources.hold_frame()  # paused: the tick closes with no inner frame
+        sources.controls.handle_key(key=pygame.K_PERIOD)
+        assert not sources.hold_frame()  # the step runs one inner frame
+        manager.dt = sources.frame_seconds(measured=0.0)
+        manager.run_frame()
+        assert manager.frame_number == frame_number_before_step + 1
+        assert sources.result.end_reason == 'diverged'
+        assert sources.result.divergence is divergence
+        assert sources.result.frames_replayed == 4
+        GoldenTraceSceneManager.uninstall()
+
     def test_watched_replay_pauses_at_the_end(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -2373,6 +2999,7 @@ class TestWatched:
         assert not harness_replay_sources(manager=manager).options.wait_for_start
         GoldenTraceSceneManager.uninstall()
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_replay_waits_at_the_start_screen_until_space(self, mocker, tmp_path):
         """Only frame 0 runs before Space (its picture behind the message); F3 works while held."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2513,6 +3140,32 @@ class TestWatched:
         assert draw_spy.call_count == 1
         assert pygame.image.tobytes(manager.screen, 'RGB') == clean_frame
         assert not LiveSources(random_seed=RANDOM_SEED).draws_overlay
+        GoldenTraceSceneManager.uninstall()
+
+    def test_the_clean_frame_comes_back_exactly_on_a_display_with_per_pixel_alpha(
+        self, mocker, tmp_path
+    ):
+        """The frame under the status bar is copied back, never blended back over it.
+
+        Real video drivers (cocoa) give the display surface per-pixel alpha, and a scene's
+        pixels can hold alpha below 255 (a background Surface starts at alpha 0): blending the
+        clean copy back then left the status bar in the frame screenshots and dirty-rect
+        updates use. A per-pixel alpha screen with alpha-0 pixels shows it on any driver. The
+        frame comes back with its colours, opaque: every presented frame is made opaque first,
+        since the window shows alpha 0 as black (glitchygames/opacity.py).
+        """
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        assert manager.screen is not None
+        alpha_screen = pygame.Surface(manager.screen.get_size(), pygame.SRCALPHA)
+        alpha_screen.fill((10, 20, 30, 0))
+        manager.screen = alpha_screen
+        clean_frame_colours = pygame.image.tobytes(alpha_screen, 'RGB')
+
+        manager._present_held_frame()
+
+        assert pygame.image.tobytes(alpha_screen, 'RGB') == clean_frame_colours
+        assert (pygame.surfarray.array_alpha(alpha_screen) == OPAQUE).all()
         GoldenTraceSceneManager.uninstall()
 
 
@@ -2768,6 +3421,23 @@ class TestStepBack:
         run_until_paused(sources=sources)
         assert sources.controls.current_frame == FIRST_PAUSED_FRAME
 
+    def test_a_run_that_ends_during_its_rebuild_gives_the_music_controls_back(self, mocker):
+        """Uninstalled mid-rebuild (the run ended), pygame's music pause and unpause return."""
+        FakeMeasuredClock(mocker=mocker)
+        pygame_pause = pygame.mixer.music.pause
+        pygame_unpause = pygame.mixer.music.unpause
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=index, dt=0.01) for index in range(20)],
+            options=ReplayOptions(pause_at_frame=10),
+        )
+        install_sources(sources=sources)
+        assert not sources.hold_frame()  # rebuilding: frame 0 runs unheld
+        # The rebuild follows the game's music calls through its own wrappers
+        assert pygame.mixer.music.pause is not pygame_pause
+        reset_sources()
+        assert pygame.mixer.music.pause is pygame_pause
+        assert pygame.mixer.music.unpause is pygame_unpause
+
     def test_step_back_ends_the_run_with_a_restart_at_the_previous_frame(self, mocker):
         FakeMeasuredClock(mocker=mocker)
         sources = minimal_sources(
@@ -2806,6 +3476,7 @@ class TestStepBack:
         assert sources.stop_requested
         assert sources.result.restart_frame == 9
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_step_back_from_a_divergence_relaunches_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
@@ -3274,6 +3945,7 @@ class TestBookmarks:
         )
         assert 'Could not save bookmarks' in caplog.text
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_restart_carries_unsaved_bookmarks(self, mocker, tmp_path):
         relaunch = mocker.patch.object(
             game_engine_module, 'relaunch_replay', return_value=ExitCode.SUCCESS
@@ -3293,6 +3965,7 @@ class TestBookmarks:
         command = relaunch.call_args.kwargs['command']
         assert command[-4:] == ['--replay-trace', str(copy_path), '--replay-pause-at-frame', '3']
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_restart_whose_copy_cannot_be_saved_warns_about_the_lost_bookmarks(
         self, mocker, tmp_path, caplog
     ):
@@ -3545,7 +4218,8 @@ class TestEventMerge:
             events_by_frame={
                 1: [
                     _key(pygame.KEYDOWN, pygame.K_z, unicode='z'),
-                    pygame.event.Event(pygame.WINDOWFOCUSLOST, {}),
+                    # Marked: a real windowing driver's recording holds real focus changes
+                    pygame.event.Event(pygame.WINDOWFOCUSLOST, injected_during_replay=True),
                 ]
             },
         )
@@ -3555,7 +4229,206 @@ class TestEventMerge:
         assert not any(
             event.type == pygame.KEYDOWN and event.key == pygame.K_z for event in delivered
         )
-        assert not any(event.type == pygame.WINDOWFOCUSLOST for event in delivered)
+        assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
+
+
+# A recorded external joystick button press of a device instance, by reference
+def joystick_button_record(*, instance_id: int) -> dict[str, Any]:
+    """Return a recorded external JOYBUTTONDOWN whose ``joy`` references a joystick instance.
+
+    Returns:
+        The event record.
+
+    """
+    return {
+        'type': pygame.JOYBUTTONDOWN,
+        'name': 'JoyButtonDown',
+        'origin': EXTERNAL_ORIGIN,
+        'attributes': {
+            'instance_id': instance_id,
+            'button': 0,
+            'joy': {'__ref__': 'joystick', 'instance_id': instance_id},
+        },
+    }
+
+
+def resume_bridge_record() -> dict[str, Any]:
+    """Return a recorded resume bridge: the scene resumed in its frame after a playback scope.
+
+    Returns:
+        The bridge record (``ResumeBridge``'s fields).
+
+    """
+    return {
+        'frame_clock_seconds': 0.25,
+        'fps_event_seconds': 0.0,
+        'earlier_internal_event_count': 0,
+        'input_before': {},
+    }
+
+
+class TestRecordedBatchMerging:
+    """Each pump's batch: the recording's events merged with the replayed code's posts."""
+
+    def test_under_real_fps_a_recorded_fps_event_with_no_live_one_is_not_a_divergence(self):
+        """--replay-fps real does not compare FPS events: a recorded one may go unposted."""
+        fps_record = event_to_record(
+            event=pygame.event.Event(FPSEVENT, {'fps': 60.0}), origin=INTERNAL_ORIGIN
+        )
+        frame = {**recorded_frame(frame_number=0), 'event_batches': [[fps_record]]}
+        sources = minimal_sources(
+            frames=[frame], options=ReplayOptions(headless=True, fps_source=REAL_REPLAY_FPS)
+        )
+        install_sources(sources=sources)
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+
+        assert batch == []
+        assert sources.result.divergence is None
+
+    def test_under_real_fps_a_live_fps_event_the_recording_lacks_is_delivered(self):
+        """A live FPS event left over is delivered, and is not a divergence under real FPS."""
+        frame = {**recorded_frame(frame_number=0), 'event_batches': [[]]}
+        sources = minimal_sources(
+            frames=[frame], options=ReplayOptions(headless=True, fps_source=REAL_REPLAY_FPS)
+        )
+        install_sources(sources=sources)
+        post_event(pygame.event.Event(FPSEVENT, {'fps': 59.0}))
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+
+        assert [(event.type, event.fps) for event in batch] == [(FPSEVENT, 59.0)]
+        assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
+        assert sources.result.divergence is None
+
+    def test_a_recorded_joystick_reference_maps_to_the_opened_stand_in(self):
+        """A served joystick event carries the stand-in the replayed code opened for it."""
+        descriptor = DeviceDescriptor(
+            kind=JOYSTICK_KIND,
+            device_index=0,
+            instance_id=5,
+            name='Recorded pad',
+            guid=None,
+            axis_count=2,
+            button_count=4,
+            hat_count=0,
+            ball_count=0,
+        )
+        frame = {
+            **recorded_frame(frame_number=0),
+            'devices_opened': [descriptor.to_json()],
+            'event_batches': [[joystick_button_record(instance_id=5)]],
+        }
+        sources = minimal_sources(frames=[frame])
+        install_sources(sources=sources)
+        joystick = sources.devices().open_joystick(device_index=0)
+
+        (event,) = sources.pump_events()
+
+        assert event.type == pygame.JOYBUTTONDOWN
+        assert event.joy is joystick
+        assert event.button == 0
+        assert sources.last_batch_origins() == [EXTERNAL_ORIGIN]
+
+    def test_an_unrepresentable_recorded_value_is_injected_as_recorded_and_noted_once(self, caplog):
+        """A value the recording could not hold is delivered as its marker, logged once a type."""
+        record = {
+            'type': pygame.USEREVENT,
+            'name': 'UserEvent',
+            'origin': EXTERNAL_ORIGIN,
+            'attributes': {'sprite': {'__unrepresentable__': 'game.Sprite'}},
+        }
+        frame = {**recorded_frame(frame_number=0), 'event_batches': [[record], [record]]}
+        sources = minimal_sources(frames=[frame])
+        install_sources(sources=sources)
+
+        with caplog.at_level(logging.DEBUG, logger=driver_module.LOG.name):
+            batches = [sources.pump_events(), sources.pump_events()]
+
+        assert [event.sprite for batch in batches for event in batch] == [
+            UnrepresentableValue(type_name='game.Sprite'),
+            UnrepresentableValue(type_name='game.Sprite'),
+        ]
+        notes = [
+            record
+            for record in caplog.records
+            if 'unrepresentable game.Sprite' in record.getMessage()
+        ]
+        assert len(notes) == 1
+
+    def test_a_start_frames_redelivered_event_without_its_device_is_dropped(self, caplog):
+        """A playback's held joystick event whose device was never opened is not delivered."""
+        frame = {
+            **recorded_frame(frame_number=0),
+            'redelivered_events': [joystick_button_record(instance_id=7)],
+            'event_batches': [[]],
+        }
+        sources = minimal_sources(
+            frames=[frame], options=ReplayOptions(headless=True, serves_redelivered_events=True)
+        )
+        install_sources(sources=sources)
+
+        batch = sources.pump_events()
+
+        assert batch == []
+        assert 'instance 7 has no device; dropped' in caplog.text
+
+    def test_a_resumed_frames_redelivered_events_are_served_and_matched(self, caplog):
+        """After a scope the held events come first; a held post not made again diverges.
+
+        The held external event is served from the recording (dropped here: its device was
+        never opened); the held internal post must be posted again by the replayed code.
+        """
+        user_post = pygame.event.Event(pygame.USEREVENT, {'goal': 1})
+        resumed_frame = {
+            **recorded_frame(frame_number=1),
+            'resume_bridge': resume_bridge_record(),
+            'redelivered_events': [
+                joystick_button_record(instance_id=7),
+                event_to_record(event=user_post, origin=INTERNAL_ORIGIN),
+            ],
+            'event_batches': [[]],
+        }
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0), resumed_frame])
+        install_sources(sources=sources)
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        assert sources.frame_bridge is not None
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=1, dt=0.25, scene=None, control_events=[])
+
+        assert batch == []
+        assert 'instance 7 has no device; dropped' in caplog.text
+        divergence = sources.result.divergence
+        assert divergence is not None
+        assert (divergence.frame_number, divergence.kind, divergence.field) == (
+            1,
+            EVENT_DIVERGENCE,
+            'missing internal event',
+        )
+
+    def test_a_resumed_frames_held_post_made_again_is_delivered_first(self):
+        """The held internal post, posted again by the replayed code, comes before the batch."""
+        user_post = pygame.event.Event(pygame.USEREVENT, {'goal': 1})
+        resumed_frame = {
+            **recorded_frame(frame_number=1),
+            'resume_bridge': resume_bridge_record(),
+            'redelivered_events': [event_to_record(event=user_post, origin=INTERNAL_ORIGIN)],
+            'event_batches': [[]],
+        }
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0), resumed_frame])
+        install_sources(sources=sources)
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        post_event(user_post)
+
+        batch = sources.pump_events()
+        sources.end_frame(frame_number=1, dt=0.25, scene=None, control_events=[])
+
+        assert [(event.type, event.goal) for event in batch] == [(pygame.USEREVENT, 1)]
+        assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
+        assert sources.result.divergence is None
 
 
 class TestReferences:
@@ -4001,6 +4874,7 @@ class TestAuditReplayRuns:
         assert len(failures) == 1
         assert failures[0].exc_info is None
 
+    @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_the_digest_file_of_a_diverged_replay_ends_with_its_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=1)
@@ -4333,6 +5207,13 @@ class TestProcessingComparison:
         # Every run names its timer; nothing paced this one, so auto never measured
         assert run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert run.rebaselined_from is None
+        # The engine's commit, here from this checkout (glitchygames/build_info.py)
+        assert run.source_revision == engine_source_revision()
+        assert run.source_revision is not None
+        assert run.source_revision.source is RevisionSource.GIT_CHECKOUT
+        # The machine's state as the run started (glitchygames/machine_state.py)
+        assert run.machine_state is not None
+        assert run.machine_state == current_machine_state()
 
     def test_a_run_with_a_target_fps_says_its_frames_are_paced(self, mocker, tmp_path):
         recording_path = record_session(
@@ -4485,6 +5366,24 @@ class TestProcessingComparison:
         assert new_run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert new_run.machine == machine_description()
         assert new_run.rebaselined_from == str(recording_path)
+        # OLD's run gets its summary now, from OLD's frames; NEW's own is computed when asked
+        old_frames = read_trace_result(path=recording_path).trace['frames']
+        new_trace = read_trace_result(path=new_path).trace
+        old_run = new_trace[MEASUREMENT_RUNS_HEADER_FIELD][1]
+        expected_old_summary = run_summary(
+            frames=old_frames,
+            run_index=0,
+            budget_seconds=budget_seconds_for(header=new_trace),
+            live_run=True,
+        )
+        assert expected_old_summary is not None
+        assert expected_old_summary.frame_time is not None
+        assert old_run['summary'] == expected_old_summary.model_dump(mode='json')
+        assert new_trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['summary'] is None
+        summaries = recording_run_summaries(header=new_trace, frames=new_trace['frames'])
+        assert summaries[1] == expected_old_summary
+        assert summaries[0] is not None
+        assert summaries[0].frame_time is None
 
 
 class TestRebaselinedHeader:

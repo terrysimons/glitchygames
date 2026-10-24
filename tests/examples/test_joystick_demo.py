@@ -1,41 +1,115 @@
-"""Tests for the joystick demo's device sites (through the devices door and the snapshot)."""
+"""Test the joystick demo (glitchygames/examples/joystick_demo.py): real pygame, the real display.
+
+The demo has no console script; it runs with ``python -m glitchygames.examples.joystick_demo``.
+It draws a header and one column per device the engine sees, from the frame's input snapshot.
+Devices are hardware, so the engine here runs on stand-in devices through the real devices door
+(tests/input/stand_in_devices.py): an unmapped flight stick and a mapped game pad. Everything
+else is real: the engine and its event managers, the device registry, the demo's drawing.
+"""
 
 from __future__ import annotations
 
-from glitchygames.examples.joystick_demo import JoystickScene, TextSprite
-from glitchygames.input.devices import (
-    IS_CONTROLLER_CALL,
-    NAME_FOR_INDEX_CALL,
-    DeviceDescriptor,
-    EnumerationAnswer,
-    ReplayDeviceRegistry,
-)
+import contextlib
+import dataclasses
+from typing import TYPE_CHECKING, cast
+
+import pygame
+import pytest
+from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
+
+from glitchygames.color import BLACK, WHITE, YELLOW
+from glitchygames.events.base import HashableEvent
+from glitchygames.examples import joystick_demo
+from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
+from glitchygames.input.devices import ReplayJoystick
+from glitchygames.input.input_devices import CONTROLLER_INPUT_EVENT_TYPES, ConnectedInputDevice
 from glitchygames.input.state import InputSnapshot, set_current_input
-from glitchygames.sources import active_sources
+from tests.examples.demo_runs import engine_run_environment, run_demo_main
+from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
+
+if TYPE_CHECKING:
+    from collections.abc import Generator, Sequence
+
+    from pytest_mock import MockerFixture
+
+    from glitchygames.input.devices import DeviceDescriptor
+
+# Wide enough for two device columns
+DEMO_RESOLUTION = '800x600'
+
+PAD_LINES = [
+    'Stand-in Game Pad',
+    'GUID: 03000000cccc0000dddd000000000000',
+    'Instance 9, device index 1',
+    'Events: controller layer',
+    'Axis 0: 100',
+    'Axis 1: -200',
+    'Axis 2: 0',
+    'Axis 3: 0',
+    'Axis 4: 32767',
+    'Axis 5: 0',
+    'Buttons held: 0, 3',
+]
+STICK_LINES = [
+    'Stand-in Flight Stick',
+    'GUID: 03000000aaaa0000bbbb000000000000',
+    'Instance 5, device index 0',
+    'Events: joystick layer',
+    'Axis 0: 0.5',
+    'Axis 1: -1.0',
+    'Axis 2: 0.25',
+    'Buttons held: 1, 3',
+    'Hat 0: (1, 0)',
+]
 
 
-def _descriptor(*, kind: str) -> DeviceDescriptor:
-    """Return a recorded device at device index 0, instance id 4.
+@contextlib.contextmanager
+def running_demo(
+    *,
+    input_mode: str = 'auto',
+    descriptors: Sequence[DeviceDescriptor] = (STAND_IN_STICK, STAND_IN_PAD),
+    plugged_in_at_start: bool = True,
+) -> Generator[tuple[GoldenTraceEngine, joystick_demo.Game]]:
+    """Start the demo on the real engine (without its frame loop) with stand-in devices.
 
-    Returns:
-        The descriptor.
+    Yields:
+        The engine and the demo's scene.
 
     """
-    return DeviceDescriptor(
-        kind=kind,
-        device_index=0,
-        instance_id=4,
-        name='Pad',
-        guid=None,
-        axis_count=2,
-        button_count=1,
-        hat_count=1,
-        ball_count=0,
-    )
+    blocked_before = [
+        pygame.event.get_blocked(event_type) for event_type in range(pygame.NUMEVENTS)
+    ]
+    manager = GoldenTraceSceneManager.install()
+    try:
+        with command_line([
+            '--windowed',
+            '--resolution',
+            DEMO_RESOLUTION,
+            '--log-level',
+            'warning',
+            '--input-mode',
+            input_mode,
+        ]):
+            engine = GoldenTraceEngine(game=joystick_demo.Game)
+        install_stand_in_devices(descriptors=descriptors, plugged_in_at_start=plugged_in_at_start)
+        engine.install_game(scene_class=joystick_demo.Game)
+        scene = manager.active_scene
+        assert isinstance(scene, joystick_demo.Game)
+        yield engine, scene
+    finally:
+        pygame.event.clear()
+        GoldenTraceSceneManager.uninstall()
+        # The controller manager allows controller events, joystick mode blocks them
+        for event_type, was_blocked in enumerate(blocked_before):
+            if was_blocked:
+                pygame.event.set_blocked(event_type)
+            else:
+                pygame.event.set_allowed(event_type)
 
 
-def _set_snapshot(**device_fields) -> None:
-    """Make a snapshot holding the given device fields this frame's input."""
+def _set_device_positions() -> None:
+    """Make this frame's snapshot hold the stand-ins' positions PAD_LINES and STICK_LINES show."""
     set_current_input(
         snapshot=InputSnapshot(
             pressed_scancodes=frozenset(),
@@ -43,134 +117,352 @@ def _set_snapshot(**device_fields) -> None:
             mouse_position=(0, 0),
             mouse_buttons=(False, False, False),
             mouse_focused=True,
-            **device_fields,
+            device_axes={STAND_IN_STICK.instance_id: (0.5, -1.0, 0.25)},
+            device_buttons={STAND_IN_STICK.instance_id: (False, True, False, True)},
+            device_hats={STAND_IN_STICK.instance_id: ((1, 0),)},
+            controller_axes={STAND_IN_PAD.instance_id: (100, -200, 0, 0, 32767, 0)},
+            controller_buttons={STAND_IN_PAD.instance_id: (True, False, False, True)},
         )
     )
 
 
-def _printed_lines(*, mocker, render) -> list[str]:
-    """Run ``render`` on a text sprite whose text box records what it prints.
+def _demo_font() -> pygame.font.Font:
+    """Return the demo's font: the bundled one at the demo's size (FontManager caches it).
 
     Returns:
-        The printed lines, in order.
+        The font.
 
     """
-    text_sprite = TextSprite.__new__(TextSprite)
-    text_sprite.image = mocker.Mock()
-    text_sprite.text_box = mocker.Mock()
-    render(text_sprite)
-    return [call.args[1] for call in text_sprite.text_box.print.call_args_list]
-
-
-def test_joystick_readout_comes_from_the_snapshot(mocker):
-    """The joystick panel prints the frame's snapshot, by instance id."""
-    _set_snapshot(
-        device_axes={4: (0.5, -1.0)}, device_buttons={4: (True,)}, device_hats={4: ((1, 0),)}
-    )
-    # A device whose own reads disagree with the snapshot: only the snapshot may be read
-    joystick = mocker.Mock()
-    joystick.get_instance_id.return_value = 4
-    joystick.get_numaxes.return_value = 2
-    joystick.get_numbuttons.return_value = 1
-    joystick.get_numhats.return_value = 1
-    joystick.get_axis.return_value = 0.25
-    joystick.get_button.return_value = False
-    joystick.get_hat.return_value = (0, 0)
-
-    lines = _printed_lines(
-        mocker=mocker,
-        render=lambda text_sprite: text_sprite._render_joystick_inputs(joystick),
+    return cast(
+        'pygame.font.Font',
+        FontManager.pygame_font(
+            font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': joystick_demo.FONT_SIZE}
+        ),
     )
 
-    assert 'Axis 0 value:  0.500' in lines
-    assert 'Axis 1 value: -1.000' in lines
-    assert 'Button  0 value: True' in lines
-    assert 'Hat 0 value: (1, 0)' in lines
-    joystick.get_axis.assert_not_called()
-    joystick.get_button.assert_not_called()
-    joystick.get_hat.assert_not_called()
+
+def _demo_text(text: str, *, color: tuple[int, int, int] = WHITE) -> pygame.Surface:
+    """Render ``text`` as the demo draws it: the demo's font, not antialiased.
+
+    Returns:
+        The rendered text.
+
+    """
+    return _demo_font().render(text, antialias=False, color=color)
 
 
-def test_controller_readout_comes_from_the_snapshot_controller_layer(mocker):
-    """The controller panel prints the snapshot's controller layer, by instance id."""
-    _set_snapshot(
-        controller_axes={4: (100, -200, 0, 0, 32767, 0)},
-        controller_buttons={4: (True,) + (False,) * 14},
+def _line_height() -> int:
+    """Return the height of one line of the demo's text (its spacing included).
+
+    Returns:
+        The height in pixels.
+
+    """
+    return _demo_font().get_linesize() + joystick_demo.LINE_SPACING
+
+
+def _shows(
+    screen: pygame.Surface,
+    *,
+    text: str,
+    topleft: tuple[int, int],
+    color: tuple[int, int, int] = WHITE,
+) -> bool:
+    """Return whether ``screen`` shows ``text`` on black at ``topleft`` (any pixel format).
+
+    Returns:
+        True when every pixel of that region matches.
+
+    """
+    image = _demo_text(text, color=color)
+    expected = pygame.Surface(image.get_size())
+    expected.fill(BLACK)
+    expected.blit(image, (0, 0))
+    actual = screen.subsurface(pygame.Rect(topleft, image.get_size()))
+    return pygame.image.tobytes(expected, 'RGB') == pygame.image.tobytes(actual, 'RGB')
+
+
+def _header_line_topleft(line_number: int) -> tuple[int, int]:
+    """Return where the demo draws header line ``line_number``.
+
+    Returns:
+        The top-left corner.
+
+    """
+    return (joystick_demo.MARGIN, joystick_demo.MARGIN + line_number * _line_height())
+
+
+def _shows_column(screen: pygame.Surface, *, column: int, lines: list[str]) -> bool:
+    """Return whether ``screen`` shows a device's ``lines`` in its column (the name in yellow).
+
+    Returns:
+        True when every line is drawn where the demo draws it.
+
+    """
+    header_line_count = 5
+    columns_top = joystick_demo.MARGIN + (header_line_count + 1) * _line_height()
+    column_left = joystick_demo.MARGIN + column * joystick_demo.COLUMN_WIDTH
+    return all(
+        _shows(
+            screen,
+            text=line,
+            topleft=(column_left, columns_top + line_number * _line_height()),
+            color=YELLOW if line_number == 0 else WHITE,
+        )
+        for line_number, line in enumerate(lines)
     )
-    # A controller whose own reads disagree with the snapshot: only the snapshot may be read
-    controller = mocker.Mock()
-    controller.as_joystick.return_value.get_instance_id.return_value = 4
-    controller.get_axis.return_value = 7
-    controller.get_button.return_value = False
-    proxy = mocker.Mock(AXIS=list(range(6)), BUTTONS=list(range(15)))
 
-    lines = _printed_lines(
-        mocker=mocker,
-        render=lambda text_sprite: text_sprite._render_controller_inputs(proxy, controller),
+
+def _shows_header(screen: pygame.Surface, *, lines: list[str]) -> bool:
+    """Return whether ``screen`` shows the header ``lines`` at the top.
+
+    Returns:
+        True when every header line is drawn.
+
+    """
+    return all(
+        _shows(screen, text=line, topleft=_header_line_topleft(line_number))
+        for line_number, line in enumerate(lines)
     )
 
-    assert 'Axis 0 value: 100.000' in lines
-    assert 'Axis 4 value: 32767.000' in lines
-    assert 'Button  0 value: True' in lines
-    assert 'Button  1 value: False' in lines
-    controller.get_axis.assert_not_called()
-    controller.get_button.assert_not_called()
+
+class TestReadout:
+    """The demo draws every device's live inputs from the frame's snapshot."""
+
+    def test_every_device_gets_a_column_with_its_event_layer(self):
+        """The mapped pad shows its controller layer, the stick its joystick layer."""
+        with running_demo() as (engine, scene):
+            _set_device_positions()
+
+            scene.update()
+
+            assert scene.screen is not None
+            assert _shows_header(
+                scene.screen,
+                lines=[
+                    'Joystick Demo 1.0',
+                    'Input mode: auto',
+                    'Devices: 2',
+                    joystick_demo.NO_DEVICE_CHANGE,
+                    joystick_demo.NO_INPUT_EVENT,
+                ],
+            )
+            # The pad was added first (its controller arrived with the managers' start)
+            assert [device.instance_id for device in engine.input_devices] == [9, 5]
+            assert _shows_column(scene.screen, column=0, lines=PAD_LINES)
+            assert _shows_column(scene.screen, column=1, lines=STICK_LINES)
+
+    def test_device_lines_name_the_device_and_list_its_event_layer(self):
+        """device_lines() is the column's text: who the device is, then its positions."""
+        with running_demo() as (engine, _scene):
+            _set_device_positions()
+
+            columns = [joystick_demo.device_lines(device) for device in engine.input_devices]
+
+            assert columns == [PAD_LINES, STICK_LINES]
+
+    def test_a_device_without_a_guid_or_held_buttons_says_so(self):
+        """An unknown GUID and no held button are spelled out."""
+        no_guid_stick = dataclasses.replace(STAND_IN_STICK, guid=None)
+        device = ConnectedInputDevice(
+            descriptor=no_guid_stick,
+            joystick=ReplayJoystick(descriptor=no_guid_stick),
+            controller=None,
+        )
+        set_current_input(
+            snapshot=InputSnapshot(
+                pressed_scancodes=frozenset(),
+                modifiers=0,
+                mouse_position=(0, 0),
+                mouse_buttons=(False, False, False),
+                mouse_focused=True,
+            )
+        )
+
+        lines = joystick_demo.device_lines(device)
+
+        assert lines[1] == 'GUID: unknown'
+        assert 'Buttons held: none' in lines
+
+    def test_joystick_mode_shows_every_device_on_its_joystick_layer(self):
+        """--input-mode joystick: the pad's column is its joystick layer."""
+        with running_demo(input_mode='joystick') as (engine, scene):
+            _set_device_positions()
+
+            scene.update()
+
+            assert scene.screen is not None
+            assert _shows(
+                scene.screen, text='Input mode: joystick', topleft=_header_line_topleft(1)
+            )
+            assert [device.event_layer.kind for device in engine.input_devices] == [
+                'joystick',
+                'joystick',
+            ]
+
+    def test_without_devices_the_header_asks_for_one(self):
+        """No device: the header says so and no column is drawn."""
+        with running_demo(descriptors=()) as (_engine, scene):
+            scene.update()
+
+            assert scene.screen is not None
+            assert _shows(
+                scene.screen, text='No devices: plug one in', topleft=_header_line_topleft(2)
+            )
 
 
-def test_controller_validation_survives_pygame_without_a_name_lookup(mocker):
-    """A controller with no name to look up is still valid (BUGS.md #66)."""
-    registry = ReplayDeviceRegistry(
-        descriptors=[_descriptor(kind='controller')],
-        enumeration_answers=[
-            EnumerationAnswer(call=IS_CONTROLLER_CALL, device_index=0, value=True),
-            EnumerationAnswer(call=NAME_FOR_INDEX_CALL, device_index=0, value=None),
-        ],
-    )
-    mocker.patch.object(active_sources(), 'devices', return_value=registry)
-    real_is_controller = mocker.patch('pygame._sdl2.controller.is_controller')
-    scene = JoystickScene.__new__(JoystickScene)
+class TestHotPlug:
+    """Devices plugged in and out are reported in the header and get or lose their column."""
 
-    assert scene._is_controller_still_valid(0) is True
-    real_is_controller.assert_not_called()
+    def test_a_joystick_plugged_in_and_out_is_reported(self):
+        """The joystick's added and removed events reach the demo as device notices."""
+        with running_demo(plugged_in_at_start=False) as (engine, scene):
+            stick_id = STAND_IN_STICK.instance_id
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='g')
+            )
+            scene.update()
+            assert scene.screen is not None
+            assert _shows(
+                scene.screen,
+                text='Connected: Stand-in Flight Stick',
+                topleft=_header_line_topleft(3),
+            )
+            assert _shows(scene.screen, text='Devices: 1', topleft=_header_line_topleft(2))
+
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=stick_id)
+            )
+            scene.update()
+
+            assert _shows(
+                scene.screen,
+                text='Disconnected: Stand-in Flight Stick',
+                topleft=_header_line_topleft(3),
+            )
+            assert _shows(
+                scene.screen, text='No devices: plug one in', topleft=_header_line_topleft(2)
+            )
+
+    def test_a_game_pad_plugged_in_and_out_is_reported_once_each_way(self):
+        """A mapped pad arrives and leaves on both layers; the demo hears of it once each way."""
+        with running_demo(plugged_in_at_start=False) as (engine, scene):
+            pad_id = STAND_IN_PAD.instance_id
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEADDED, device_index=1, guid='g')
+            )
+            assert scene.last_device_change == joystick_demo.NO_DEVICE_CHANGE
+            engine.process_controller_event(
+                HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=1, guid='g')
+            )
+            assert scene.last_device_change == 'Connected: Stand-in Game Pad'
+            engine.process_controller_event(
+                HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, instance_id=pad_id)
+            )
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=pad_id)
+            )
+            assert scene.last_device_change == 'Connected: Stand-in Game Pad'
+            engine.process_controller_event(
+                HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=pad_id)
+            )
+
+            scene.update()
+
+            assert scene.screen is not None
+            assert _shows(
+                scene.screen,
+                text='Disconnected: Stand-in Game Pad',
+                topleft=_header_line_topleft(3),
+            )
 
 
-def test_controller_validation_fails_for_a_recorded_failure(mocker):
-    """A recorded enumeration failure makes the controller invalid, as it did live."""
-    registry = ReplayDeviceRegistry(
-        descriptors=[_descriptor(kind='controller')],
-        enumeration_answers=[
-            EnumerationAnswer(
-                call=IS_CONTROLLER_CALL, device_index=0, value=None, error='device gone'
-            ),
-        ],
-    )
-    mocker.patch.object(active_sources(), 'devices', return_value=registry)
-    scene = JoystickScene.__new__(JoystickScene)
+# One input event of each kind the demo reports, from the device whose event layer sends it
+REPORTED_EVENTS = [
+    (
+        HashableEvent(pygame.JOYAXISMOTION, instance_id=5, axis=0, value=0.5),
+        'on_joy_axis_motion_event from instance 5',
+    ),
+    (
+        HashableEvent(pygame.JOYBALLMOTION, instance_id=5, ball=0, rel=(1, 1)),
+        'on_joy_ball_motion_event from instance 5',
+    ),
+    (
+        HashableEvent(pygame.JOYHATMOTION, instance_id=5, hat=0, value=(0, 1)),
+        'on_joy_hat_motion_event from instance 5',
+    ),
+    (
+        HashableEvent(pygame.JOYBUTTONDOWN, instance_id=5, button=2),
+        'on_joy_button_down_event from instance 5',
+    ),
+    (
+        HashableEvent(pygame.JOYBUTTONUP, instance_id=5, button=2),
+        'on_joy_button_up_event from instance 5',
+    ),
+    (
+        HashableEvent(pygame.CONTROLLERAXISMOTION, instance_id=9, axis=0, value=1000),
+        'on_controller_axis_motion_event from instance 9',
+    ),
+    (
+        HashableEvent(pygame.CONTROLLERBUTTONDOWN, instance_id=9, button=0),
+        'on_controller_button_down_event from instance 9',
+    ),
+    (
+        HashableEvent(pygame.CONTROLLERBUTTONUP, instance_id=9, button=0),
+        'on_controller_button_up_event from instance 9',
+    ),
+]
 
-    assert scene._is_controller_still_valid(0) is False
+
+class TestInputEvents:
+    """Each press reaches the demo once, from the device's event layer, and is shown."""
+
+    @pytest.mark.parametrize(('event', 'report'), REPORTED_EVENTS)
+    def test_the_last_input_event_is_shown(self, event, report):
+        """The header's last line names the handler the event reached and its device."""
+        with running_demo() as (engine, scene):
+            dispatcher = (
+                engine.process_controller_event
+                if event.type in CONTROLLER_INPUT_EVENT_TYPES
+                else engine.process_joystick_event
+            )
+            dispatcher(event)
+            scene.update()
+
+            assert scene.screen is not None
+            assert _shows(scene.screen, text=report, topleft=_header_line_topleft(4))
+
+    def test_a_mapped_pads_joystick_layer_press_never_reaches_the_demo(self):
+        """The pad's joystick-layer copy of a press is dropped: only its controller one shows."""
+        with running_demo() as (engine, scene):
+            engine.process_joystick_event(
+                HashableEvent(pygame.JOYBUTTONDOWN, instance_id=STAND_IN_PAD.instance_id, button=0)
+            )
+            assert scene.last_input_event == joystick_demo.NO_INPUT_EVENT
+
+            engine.process_controller_event(
+                HashableEvent(
+                    pygame.CONTROLLERBUTTONDOWN, instance_id=STAND_IN_PAD.instance_id, button=0
+                )
+            )
+
+            assert scene.last_input_event == 'on_controller_button_down_event from instance 9'
 
 
-def test_joystick_device_index_lookup_opens_each_joystick_once_per_frame(mocker):
-    """Looking up several joysticks in one frame counts and opens each joystick once."""
-    registry = mocker.Mock()
-    registry.joystick_count.return_value = 2
-    registry.open_joystick.side_effect = lambda device_index: mocker.Mock(**{
-        'get_instance_id.return_value': 10 + device_index
-    })
-    mocker.patch.object(active_sources(), 'devices', return_value=registry)
-    text_sprite = TextSprite.__new__(TextSprite)
-    text_sprite.forget_joystick_indexes()
+@pytest.fixture
+def engine_run(mocker: MockerFixture) -> Generator[None]:
+    """Let the test start a real engine (see demo_runs.engine_run_environment).
 
-    def tracked(instance_id: int):
-        return mocker.Mock(**{'get_instance_id.return_value': instance_id})
+    Yields:
+        None, while the environment is in place.
 
-    assert text_sprite._find_joystick_device_id(tracked(11)) == 1
-    assert text_sprite._find_joystick_device_id(tracked(10)) == 0
-    assert text_sprite._find_joystick_device_id(tracked(99)) is None
-    assert registry.joystick_count.call_count == 1
-    assert registry.open_joystick.call_count == 2
+    """
+    yield from engine_run_environment(mocker)
 
-    # The next frame looks again
-    text_sprite.forget_joystick_indexes()
-    assert text_sprite._find_joystick_device_id(tracked(11)) == 1
-    assert registry.open_joystick.call_count == 4
+
+@pytest.mark.usefixtures('engine_run')
+def test_main_runs_the_demo_headless(mocker: MockerFixture) -> None:
+    """main() starts the demo on the real engine; it runs until quit."""
+    script = run_demo_main(mocker=mocker, module=joystick_demo, main=joystick_demo.main)
+
+    assert any(isinstance(scene, joystick_demo.Game) for scene in script.scenes_seen)

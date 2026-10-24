@@ -1,9 +1,11 @@
-"""Tests for glitchygames.bitmappy.editor_setup: placement of the AI panel and undo setup."""
+"""Tests for glitchygames.bitmappy.editor_setup: placement of the AI panel, undo and voice setup."""
 
+import logging
 from types import SimpleNamespace
 
 import pygame
 
+from glitchygames.bitmappy import editor_setup
 from glitchygames.bitmappy.editor_setup import EditorSetup
 
 SCREEN_WIDTH = 800
@@ -117,3 +119,82 @@ class TestInitUndoRedoSystem:
         assert editor.undo_redo_manager.max_history == 50
         assert editor.current_pixel_changes == []
         assert editor.pixel_change_timer is None
+
+
+class FakeVoiceEventManager:
+    """A stand-in VoiceEventManager that records commands instead of opening a microphone."""
+
+    def __init__(self, logger=None) -> None:
+        """Record the logger and start with no commands, not listening."""
+        self.logger = logger
+        self.commands = {}
+        self.listening = False
+
+    def is_available(self) -> bool:
+        """Report a microphone as available.
+
+        Returns:
+            bool: Always True.
+
+        """
+        return True
+
+    def register_command(self, phrase, callback) -> None:
+        """Remember the callback for the phrase."""
+        self.commands[phrase] = callback
+
+    def start_listening(self) -> None:
+        """Mark the manager as listening."""
+        self.listening = True
+
+
+class UnavailableVoiceEventManager(FakeVoiceEventManager):
+    """A stand-in VoiceEventManager that finds no microphone."""
+
+    def is_available(self) -> bool:
+        """Report no microphone.
+
+        Returns:
+            bool: Always False.
+
+        """
+        return False
+
+
+class TestSetupVoiceRecognition:
+    """Test EditorSetup.setup_voice_recognition with a voice manager present."""
+
+    def test_available_voice_manager_registers_commands_and_listens(self, mocker):
+        """An available voice manager gets every clear command and starts listening."""
+        mocker.patch.object(editor_setup, 'VoiceEventManager', FakeVoiceEventManager)
+        cleared = []
+        editor = SimpleNamespace(
+            log=logging.getLogger('test.editor_setup'),
+            clear_ai_sprite_box=lambda: cleared.append(True),
+        )
+
+        EditorSetup(editor=editor).setup_voice_recognition()  # type: ignore[arg-type]
+
+        voice_manager = editor.voice_manager
+        assert isinstance(voice_manager, FakeVoiceEventManager)
+        assert voice_manager.listening is True
+        assert set(voice_manager.commands) == {
+            'clear the ai sprite box',
+            'clear ai sprite box',
+            'clear ai box',
+            'clear the ai sprite',
+            'clear ai sprite',
+            'clear the ai sprite window',
+            'clear ai sprite window',
+        }
+        voice_manager.commands['clear ai box']()
+        assert cleared == [True]
+
+    def test_voice_manager_without_microphone_is_dropped(self, mocker):
+        """A voice manager that reports no microphone is discarded and never listens."""
+        mocker.patch.object(editor_setup, 'VoiceEventManager', UnavailableVoiceEventManager)
+        editor = SimpleNamespace(log=logging.getLogger('test.editor_setup'))
+
+        EditorSetup(editor=editor).setup_voice_recognition()  # type: ignore[arg-type]
+
+        assert editor.voice_manager is None

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pygame
 
+from glitchygames.display_mode import set_display_mode
+
 # Add the glitchygames directory to the path
 sys.path.insert(0, str(Path(__file__).parent / 'glitchygames'))
 
@@ -20,7 +22,7 @@ def test_logging():
     """Test the logging functionality."""
     # Initialize pygame and set a display mode so Surface.convert() works
     pygame.init()
-    pygame.display.set_mode((800, 600))
+    set_display_mode(size=(800, 600))
 
     try:
         LOG.debug('Testing ball and paddle logging...')

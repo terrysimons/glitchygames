@@ -32,8 +32,11 @@ def test_collision_physics():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny  # 0 - 0 + 0 = 0
 
     LOG.debug(
-        f'  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),'
-        f' ball2=({ball2_speed[0]}, {ball2_speed[1]})',
+        '  Before: ball1=(%s, %s), ball2=(%s, %s)',
+        ball1_speed[0],
+        ball1_speed[1],
+        ball2_speed[0],
+        ball2_speed[1],
     )
     LOG.debug(
         '  After:  ball1=(%s, %s), ball2=(%s, %s)',
@@ -63,8 +66,11 @@ def test_collision_physics():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny  # 0 - 0 + 100 = 100
 
     LOG.debug(
-        f'  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),'
-        f' ball2=({ball2_speed[0]}, {ball2_speed[1]})',
+        '  Before: ball1=(%s, %s), ball2=(%s, %s)',
+        ball1_speed[0],
+        ball1_speed[1],
+        ball2_speed[0],
+        ball2_speed[1],
     )
     LOG.debug(
         '  After:  ball1=(%s, %s), ball2=(%s, %s)',
@@ -94,12 +100,18 @@ def test_collision_physics():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny
 
     LOG.debug(
-        f'  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),'
-        f' ball2=({ball2_speed[0]}, {ball2_speed[1]})',
+        '  Before: ball1=(%s, %s), ball2=(%s, %s)',
+        ball1_speed[0],
+        ball1_speed[1],
+        ball2_speed[0],
+        ball2_speed[1],
     )
     LOG.debug(
-        f'  After:  ball1=({new_ball1_x:.1f}, {new_ball1_y:.1f}),'
-        f' ball2=({new_ball2_x:.1f}, {new_ball2_y:.1f})',
+        '  After:  ball1=(%.1f, %.1f), ball2=(%.1f, %.1f)',
+        new_ball1_x,
+        new_ball1_y,
+        new_ball2_x,
+        new_ball2_y,
     )
     LOG.debug('  Expected: ball1 should stop, ball2 should move diagonally')
 

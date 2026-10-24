@@ -108,7 +108,9 @@ class AnimationGame(Scene):
         assert self.screen is not None
         self.animated_sprite.rect.center = self.screen.get_rect().center
         self.log.info(
-            f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
+            'Loaded: %s (%s frames)',
+            self.animated_sprite.name,
+            self.animated_sprite.frame_count,
         )
         self.log.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
 

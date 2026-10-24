@@ -114,12 +114,9 @@ class BitmappyMultiControllerEnhancements:
                 new_index = (current_index + amount) % len(animations)
                 new_animation = animations[new_index]
 
-                # Preserve frame if possible
-                if new_animation in self.scene.film_strips:
-                    max_frames = len(self.scene.film_strips[new_animation].frames)
-                    new_frame = min(current_frame, max_frames - 1)
-                else:
-                    new_frame = 0
+                # Preserve frame if possible (new_animation is one of the film strips' keys)
+                max_frames = len(self.scene.film_strips[new_animation].frames)
+                new_frame = min(current_frame, max_frames - 1)
 
                 controller_selection.set_selection(new_animation, new_frame)
 

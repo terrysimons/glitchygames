@@ -15,7 +15,6 @@ from glitchygames.bitmappy.controllers.manager import (
     MultiControllerManager,
 )
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
-from tests.mocks import MockFactory
 
 
 class TestColorAssignmentOrder:
@@ -260,8 +259,8 @@ class TestShoulderButtonFunctionality:
 
     def test_shoulder_button_scrolling_integration(self, mocker):
         """Test that shoulder buttons trigger automatic scrolling."""
-        # Use centralized mock factory for film strip widget
-        mock_film_strip = MockFactory.create_optimized_scene_mock()
+        # A stand-in film strip widget
+        mock_film_strip = mocker.Mock()
         mock_film_strip.update_scroll_for_frame = mocker.Mock()
 
         # Mock the controller selection
@@ -341,8 +340,8 @@ class TestFilmStripScrolling:
 
     def test_controller_scrolling_trigger(self, mocker):
         """Test that controller navigation triggers film strip scrolling."""
-        # Use centralized mock factory for film strip widget
-        mock_film_strip = MockFactory.create_optimized_scene_mock()
+        # A stand-in film strip widget
+        mock_film_strip = mocker.Mock()
         mock_film_strip.update_scroll_for_frame = mocker.Mock()
 
         # Mock controller selection
@@ -360,8 +359,8 @@ class TestFilmStripScrolling:
 
     def test_controller_animation_switching(self, mocker):
         """Test that switching animations triggers scrolling."""
-        # Use centralized mock factory for film strip widget
-        mock_film_strip = MockFactory.create_optimized_scene_mock()
+        # A stand-in film strip widget
+        mock_film_strip = mocker.Mock()
         mock_film_strip.update_scroll_for_frame = mocker.Mock()
 
         # Mock controller selection
@@ -376,12 +375,12 @@ class TestFilmStripScrolling:
         mock_film_strip.update_scroll_for_frame('animation2', 1)
         mock_film_strip.update_scroll_for_frame.assert_called_with('animation2', 1)
 
-    def test_multiple_controller_scrolling(self):
+    def test_multiple_controller_scrolling(self, mocker):
         """Test scrolling with multiple controllers."""
-        # Use centralized mock factory for multiple film strips
+        # Stand-in film strip widgets
         mock_film_strips = {
-            'animation1': MockFactory.create_optimized_scene_mock(),
-            'animation2': MockFactory.create_optimized_scene_mock(),
+            'animation1': mocker.Mock(),
+            'animation2': mocker.Mock(),
         }
 
         # Mock multiple controller selections

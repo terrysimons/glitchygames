@@ -1,6 +1,8 @@
 """Tests for the Brave Adventurer games: death and game-over rumble, terrain hitboxes."""
 
+import hashlib
 import math
+import os
 import re
 import tomllib
 import types
@@ -8,28 +10,61 @@ from pathlib import Path
 
 import pygame
 import pytest
+from scripts.record_golden_traces import (
+    GoldenTraceEngine,
+    _golden_game,
+    command_line,
+    press,
+    release,
+)
+from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY
 
 from glitchygames.animation.state_machine import AnimationStateMachine
+from glitchygames.audio import VoiceAssistant
 from glitchygames.camera import FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples import brave_adventurer as brave_adventurer_package
 from glitchygames.examples import brave_adventurer_papyrus as papyrus_package
+from glitchygames.examples.brave_adventurer import game as brave_adventurer_game
 from glitchygames.examples.brave_adventurer.constants import (
+    COLLECTIBLE_SCORE_BONUS,
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
     DEATH_RUMBLE_LOW,
+    DISTANCE_SCORE_DIVISOR,
     GAME_OVER_RUMBLE_DURATION,
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
     GROUND_Y,
+    PIT_EDGE_COLOR,
+    PIT_FLOOR_COLOR,
+    PIT_WALL_COLOR,
+    PIT_WALL_SHADOW,
+    SCREEN_WIDTH,
     STONE_WALL_WIDTH,
 )
-from glitchygames.examples.brave_adventurer.drawing import draw_player
+from glitchygames.examples.brave_adventurer.drawing import (
+    draw_cobra,
+    draw_dunes_and_oasis,
+    draw_near_ground_details,
+    draw_player,
+    draw_pyramids,
+    draw_scarab,
+    draw_scorpion,
+    draw_sky,
+)
 from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
-from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
+from glitchygames.examples.brave_adventurer.game import (
+    MIC_BUTTON_CONTROLLER,
+    MIC_BUTTON_JOYSTICK,
+    BraveAdventurerScene,
+)
+from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager, ScreenData
 from glitchygames.examples.brave_adventurer.player import Player
 from glitchygames.examples.brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
+from glitchygames.examples.brave_adventurer_papyrus import game as papyrus_game
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     FALLING_VELOCITY_THRESHOLD as PAPYRUS_FALLING_VELOCITY_THRESHOLD,
 )
@@ -43,11 +78,19 @@ from glitchygames.examples.brave_adventurer_papyrus.enemies import (
     PapyrusScorpion,
 )
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from glitchygames.examples.brave_adventurer_papyrus.levels import PapyrusLevelManager
 from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_transparency_and_scale
+from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+    apply_transparency_and_scale,
+    prepare_papyrus_sprite,
+)
 from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
+from glitchygames.scenes import SceneManager
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
+from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
 
@@ -71,7 +114,7 @@ def adventurer_scene(request, mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 480))
+        set_display_mode(size=(800, 480))
     scene = request.param(options={'input_mode': 'joystick'})
     mocker.patch.object(scene.scene_manager.rumble, 'pulse')
     mocker.patch.object(scene, 'sounds')
@@ -391,7 +434,7 @@ class TestPapyrusFacingLeftHitbox:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
         scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
@@ -562,7 +605,7 @@ class TestPapyrusFeetAnchoring:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
         scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]
@@ -695,7 +738,7 @@ class TestPapyrusFallingTransitions:
         falling_sources = [
             transition['from'] for transition in transitions if transition['to'] == 'falling'
         ]
-        assert falling_sources == ['idle', 'jumping']
+        assert falling_sources == ['idle', 'jumping', 'running']
         for transition in transitions:
             if transition['to'] == 'falling':
                 assert transition['when'] == expected_when
@@ -707,7 +750,7 @@ class TestPapyrusFallingTransitions:
                 assert float(threshold_text) == pytest.approx(PAPYRUS_FALLING_VELOCITY_THRESHOLD)
 
     def test_falling_comes_after_other_rules_from_same_state(self, transitions):
-        for source in ('idle', 'jumping'):
+        for source in ('idle', 'jumping', 'running'):
             targets = [
                 transition['to'] for transition in transitions if transition['from'] == source
             ]
@@ -717,7 +760,7 @@ class TestPapyrusFallingTransitions:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 480))
+            set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         state_machine = scene.player.state_machine
         assert state_machine is not None
@@ -726,7 +769,7 @@ class TestPapyrusFallingTransitions:
             for transition in state_machine._transitions
             if transition.to_state == 'falling'
         ]
-        assert len(falling_conditions) == 2
+        assert len(falling_conditions) == 3
         for condition in falling_conditions:
             assert type(condition).__module__ == 'glitchygames.animation.expressions'
 
@@ -761,7 +804,7 @@ def brave_scene(mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 480))
+        set_display_mode(size=(800, 480))
     scene = BraveAdventurerScene(options={'input_mode': 'joystick'})
     mocker.patch.object(scene.scene_manager.rumble, 'pulse')
     mocker.patch.object(scene, 'sounds')
@@ -925,7 +968,7 @@ class TestPapyrusEngineWorldSpace:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
         scene.ground_sprites[:] = [
@@ -947,7 +990,7 @@ class TestPapyrusEngineWorldSpace:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         player = scene.player
         player.set_animation('running')
@@ -975,7 +1018,7 @@ class TestPapyrusEngineWorldSpace:
         if not pygame.get_init():
             pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode(SCREEN_SIZE)
+            set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         scarab = PapyrusScarab(world_x=1000.0, groups=scene.all_sprites)
 
@@ -1143,12 +1186,13 @@ class TestEngineCullingKeepsEnemiesAnimated:
         self._position(scene, camera_x=scarab.world_x - 100.0)  # back on screen
         assert scarab.visible
         assert scarab.dirty == 2
-        scene.update()
+        # The pose is drawn in dt_tick (the pose rule), which every sprite gets, culled or not
+        scarab.dt_tick(0.0)
         first_image = pygame.image.tobytes(scarab.image, 'RGBA')
 
         scarab.roll_angle = 1.2  # the wing line leans 3 px: a different picture
         self._position(scene, camera_x=scarab.world_x - 100.0)
-        scene.update()
+        scarab.dt_tick(0.0)
 
         assert scarab.dirty == 2
         assert pygame.image.tobytes(scarab.image, 'RGBA') != first_image
@@ -1219,3 +1263,1005 @@ class TestPositionalKeys:
         actions = adventurer_scene.actions
         assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
         assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
+
+
+# Pixel digests of the parallax layers as drawn by the per-column / per-row drawing code these
+# functions replaced (recorded 2026-10-22 from that code, before the cached-gradient and
+# filled-run rewrite). Key: (function name, surface size, camera offset); the layer is drawn
+# onto a cleared SRCALPHA surface with camera_y = camera offset / 2 (unused by these layers).
+# Sizes: the game's screen, an odd size, and one shorter than the horizon and the dunes.
+# Offsets are what ParallaxLayer.update_scroll passes: a snapped camera position times the
+# layer's scroll factor, so fractional, negative (a shaken camera at the left bound) and large.
+PARALLAX_DRAWING_GOLDEN_DIGESTS = {
+    ('draw_sky', (800, 480), 0.0): '54327c311f76800e3d64d596d6558789',
+    ('draw_sky', (513, 397), 0.0): '1db6d9aa7ffd1d031ced02714130a8cb',
+    ('draw_sky', (300, 240), 0.0): '6483e81a0edf0e5465a7df352feeb06f',
+    ('draw_pyramids', (800, 480), 0.0): 'f01ddcac601adb6f6df019738c08eb3e',
+    ('draw_pyramids', (800, 480), 0.3): 'f01ddcac601adb6f6df019738c08eb3e',
+    ('draw_pyramids', (800, 480), 12.3): '22093d59ffc45e1ff61a64a67b4e8b87',
+    ('draw_pyramids', (800, 480), 700.7): 'c696cd257491f13dc93896c1201bd087',
+    ('draw_pyramids', (800, 480), 2399.9): 'f01ddcac601adb6f6df019738c08eb3e',
+    ('draw_pyramids', (800, 480), 3001.5): '977c85de6310bba303411cdada9f8ee7',
+    ('draw_pyramids', (800, 480), 100000.3): 'ad12fbfea75a7ce6613ed134f651600f',
+    ('draw_pyramids', (800, 480), -0.7): 'e082d29596c5c1efaa93295397a933ab',
+    ('draw_pyramids', (800, 480), -250.0): 'b28fcb98dc50c224aa3084f764ba339f',
+    ('draw_pyramids', (513, 397), 0.0): '95e48bb56432931707c5483b2123d9c6',
+    ('draw_pyramids', (513, 397), 0.3): '95e48bb56432931707c5483b2123d9c6',
+    ('draw_pyramids', (513, 397), 12.3): 'd4deaeb8276d905cdcfda4922d16b64d',
+    ('draw_pyramids', (513, 397), 700.7): 'd0280ca820ec14ca7038f64a26f62c6c',
+    ('draw_pyramids', (513, 397), 2399.9): '95e48bb56432931707c5483b2123d9c6',
+    ('draw_pyramids', (513, 397), 3001.5): '65db89d687314e31ded4fc35e3124465',
+    ('draw_pyramids', (513, 397), 100000.3): '50da6f41b04b448e09a742ed1ebf2231',
+    ('draw_pyramids', (513, 397), -0.7): 'f8a0f3978c2b9dab42972b27ff883e84',
+    ('draw_pyramids', (513, 397), -250.0): '13cfc490cfb9f97a89a73d9c1ca417bb',
+    ('draw_pyramids', (300, 240), 0.0): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), 0.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), 12.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), 700.7): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), 2399.9): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), 3001.5): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), 100000.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), -0.7): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_pyramids', (300, 240), -250.0): '0c88d932bf1a2aa2833e27e1a7d33e1e',
+    ('draw_dunes_and_oasis', (800, 480), 0.0): 'ba2d90f47217e92dffdb74963ca19d21',
+    ('draw_dunes_and_oasis', (800, 480), 0.3): '9cbc314220d61efeb75820ad9fb654d0',
+    ('draw_dunes_and_oasis', (800, 480), 12.3): '536afc3aa0f11a126d5ba9f40254ce3f',
+    ('draw_dunes_and_oasis', (800, 480), 700.7): '2cce7ebe65bee81d957e372859cbdd9e',
+    ('draw_dunes_and_oasis', (800, 480), 2399.9): 'ba7cca61a028ec3b19117107a323f067',
+    ('draw_dunes_and_oasis', (800, 480), 3001.5): '7f81ff8548aadd0b0f717d2cdd1c926d',
+    ('draw_dunes_and_oasis', (800, 480), 100000.3): 'd5c4ffe894119641306e3d7e8e53e3dc',
+    ('draw_dunes_and_oasis', (800, 480), -0.7): 'ced9122d3378c5aa51a1216d55164c9a',
+    ('draw_dunes_and_oasis', (800, 480), -250.0): 'f5f54af860bdead369693e113fc40ec0',
+    ('draw_dunes_and_oasis', (513, 397), 0.0): '9bba35f5dd2835f263358c7c4d1bf601',
+    ('draw_dunes_and_oasis', (513, 397), 0.3): '02ef565d313a0a8eab6ee59529c604b0',
+    ('draw_dunes_and_oasis', (513, 397), 12.3): '6708d317b09c5f79f5cf424b6c143941',
+    ('draw_dunes_and_oasis', (513, 397), 700.7): 'e72c82105b12b52f44b76300025ab343',
+    ('draw_dunes_and_oasis', (513, 397), 2399.9): '15a55a6cb9d189979fcf17c8387565c1',
+    ('draw_dunes_and_oasis', (513, 397), 3001.5): '5a2026dedcfa2ff28cb44409c68c8a87',
+    ('draw_dunes_and_oasis', (513, 397), 100000.3): '05f3a94682d72fc12f56ba4dc61e71e2',
+    ('draw_dunes_and_oasis', (513, 397), -0.7): '831aee8fc61b64070c911dda138bfe89',
+    ('draw_dunes_and_oasis', (513, 397), -250.0): 'c6bb577e97846a6663c472ecbbc90e9c',
+    ('draw_dunes_and_oasis', (300, 240), 0.0): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), 0.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), 12.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), 700.7): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), 2399.9): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), 3001.5): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), 100000.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), -0.7): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_dunes_and_oasis', (300, 240), -250.0): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (800, 480), 0.0): '826d1ca7bddc505ce313524e982d1867',
+    ('draw_near_ground_details', (800, 480), 0.3): '826d1ca7bddc505ce313524e982d1867',
+    ('draw_near_ground_details', (800, 480), 12.3): 'fe2ff33a2f432eca1474d0d5057a3d73',
+    ('draw_near_ground_details', (800, 480), 700.7): '5909be69351a440e95845c7e517f3b24',
+    ('draw_near_ground_details', (800, 480), 2399.9): 'aab3e9cc76b85e71829a31db19c06eec',
+    ('draw_near_ground_details', (800, 480), 3001.5): '79ce5c6f1c25040cd665380befedb183',
+    ('draw_near_ground_details', (800, 480), 100000.3): 'e10413fe998e9d68f18f41751859bc39',
+    ('draw_near_ground_details', (800, 480), -0.7): 'af67ccad971663558a090fb7efa6c5bc',
+    ('draw_near_ground_details', (800, 480), -250.0): '99b3a0bee2b2f9301b2407696f542115',
+    ('draw_near_ground_details', (513, 397), 0.0): 'd89f1938327c889140760efe1b4ad3d3',
+    ('draw_near_ground_details', (513, 397), 0.3): 'd89f1938327c889140760efe1b4ad3d3',
+    ('draw_near_ground_details', (513, 397), 12.3): '2b3e4e4975e65fa05cb16e26fc3187aa',
+    ('draw_near_ground_details', (513, 397), 700.7): '1d99fce2cf61d26ebed40f48d9003797',
+    ('draw_near_ground_details', (513, 397), 2399.9): '160b66e2dd48675d395150879a9f3443',
+    ('draw_near_ground_details', (513, 397), 3001.5): '6e06f8a8e831e50d0e4af1c2db872cae',
+    ('draw_near_ground_details', (513, 397), 100000.3): '4541d2196ecb48dad1f2abb5d6be596d',
+    ('draw_near_ground_details', (513, 397), -0.7): '74a7d2c6792fa1ac2994c06d601f1cb1',
+    ('draw_near_ground_details', (513, 397), -250.0): '15a10c74496602b5b971c5ea480c8a25',
+    ('draw_near_ground_details', (300, 240), 0.0): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), 0.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), 12.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), 700.7): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), 2399.9): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), 3001.5): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), 100000.3): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), -0.7): 'f656f8a7837fb9588293572f43d0bfc5',
+    ('draw_near_ground_details', (300, 240), -250.0): 'f656f8a7837fb9588293572f43d0bfc5',
+}
+PARALLAX_DRAW_FUNCTIONS = {
+    'draw_sky': draw_sky,
+    'draw_pyramids': draw_pyramids,
+    'draw_dunes_and_oasis': draw_dunes_and_oasis,
+    'draw_near_ground_details': draw_near_ground_details,
+}
+
+
+def parallax_layer_digest(
+    *, function_name: str, surface_size: tuple[int, int], camera_offset: float
+) -> str:
+    """Draw one parallax layer onto a cleared SRCALPHA surface and digest its RGBA pixels.
+
+    Returns:
+        The hex digest of the drawn pixels (independent of the surface's pixel format).
+
+    """
+    surface = pygame.Surface(surface_size, pygame.SRCALPHA)
+    surface.fill((0, 0, 0, 0))
+    PARALLAX_DRAW_FUNCTIONS[function_name](surface, camera_offset, camera_offset * 0.5)
+    return hashlib.blake2b(pygame.image.tobytes(surface, 'RGBA'), digest_size=16).hexdigest()
+
+
+class TestParallaxDrawingGoldens:
+    """The parallax layers draw exactly the pixels the per-column drawing code drew."""
+
+    @pytest.mark.parametrize(
+        ('function_name', 'surface_size', 'camera_offset'),
+        list(PARALLAX_DRAWING_GOLDEN_DIGESTS),
+    )
+    def test_layer_matches_golden(self, function_name, surface_size, camera_offset):
+        digest = parallax_layer_digest(
+            function_name=function_name, surface_size=surface_size, camera_offset=camera_offset
+        )
+
+        golden_digest = PARALLAX_DRAWING_GOLDEN_DIGESTS[function_name, surface_size, camera_offset]
+        assert digest == golden_digest
+
+    @pytest.mark.parametrize('function_name', list(PARALLAX_DRAW_FUNCTIONS))
+    def test_redrawing_at_another_size_and_back_is_unchanged(self, function_name):
+        """A cache keyed by surface size never hands one size's drawing to another."""
+        first_digest = parallax_layer_digest(
+            function_name=function_name, surface_size=SCREEN_SIZE, camera_offset=12.3
+        )
+        parallax_layer_digest(
+            function_name=function_name, surface_size=(513, 397), camera_offset=12.3
+        )
+
+        assert (
+            parallax_layer_digest(
+                function_name=function_name, surface_size=SCREEN_SIZE, camera_offset=12.3
+            )
+            == first_digest
+        )
+
+    def test_sky_draws_its_gradient_once_per_size(self, mocker):
+        """The sky gradient is built once per surface size and blitted afterwards."""
+        draw_sky(pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA), 0.0, 0.0)
+        draw_line_spy = mocker.spy(pygame.draw, 'line')
+
+        draw_sky(pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA), 0.0, 0.0)
+
+        assert draw_line_spy.call_count == 0
+
+    def test_pyramids_draw_the_ground_gradient_once_per_size(self, mocker):
+        """The horizon-to-sand gradient is built once and blitted, not drawn row by row."""
+        surface = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
+        draw_pyramids(surface, 0.0, 0.0)
+        draw_line_spy = mocker.spy(pygame.draw, 'line')
+
+        draw_pyramids(surface, 40.0, 0.0)
+
+        assert draw_line_spy.call_count == 0
+
+    def test_dunes_draw_no_line_per_column(self, mocker):
+        """The dune sand is filled in runs of equal height, not one line per screen column.
+
+        At camera offset 1700 both oases are off screen, so no line is drawn at all.
+        """
+        surface = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
+        draw_line_spy = mocker.spy(pygame.draw, 'line')
+
+        draw_dunes_and_oasis(surface, 1700.0, 0.0)
+
+        assert draw_line_spy.call_count == 0
+
+
+# --- Scene behaviour the golden replays never reach (both editions unless noted) ---
+
+GAME_SCENE_CLASSES = [BraveAdventurerScene, PapyrusBraveAdventurerScene]
+BACKGROUND_COLOR = (1, 2, 3)
+
+
+def _start_display():
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        set_display_mode(size=SCREEN_SIZE)
+
+
+@pytest.fixture(params=GAME_SCENE_CLASSES)
+def real_scene(request):
+    """Each game's scene with nothing replaced: real sounds, saves, rumble and respawn.
+
+    Returns:
+        The scene.
+
+    """
+    _start_display()
+    return request.param(options={'input_mode': 'joystick'})
+
+
+def _surface_bytes(surface):
+    return pygame.image.tobytes(surface, 'RGBA')
+
+
+def _filled_surface():
+    surface = pygame.Surface(SCREEN_SIZE)
+    surface.fill(BACKGROUND_COLOR)
+    return surface
+
+
+def _joystick_button_event(event_type, button):
+    return HashableEvent(event_type, joy=0, instance_id=0, button=button)
+
+
+def _controller_button_event(event_type, button):
+    return HashableEvent(event_type, instance_id=0, button=button)
+
+
+def _player_in_the_air(scene):
+    player = _drawn_player(scene)
+    player.on_ground = False
+    player.velocity_y = 120.0
+    return player
+
+
+class TestSceneConstruction:
+    """The scene uses a sprite group it is given, or makes its own."""
+
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_a_given_group_holds_every_sprite(self, scene_class):
+        _start_display()
+        group = pygame.sprite.LayeredDirty()
+
+        scene = scene_class(options={'input_mode': 'joystick'}, groups=group)
+
+        assert scene.all_sprites is group
+        assert scene.player in group
+        assert all(enemy in group for enemy in scene.enemy_sprites)
+
+
+class TestGameOverFreezesTheWorld:
+    """After the last life, dt_tick moves nothing and a second death costs nothing."""
+
+    def test_dt_tick_after_game_over_moves_nothing(self, real_scene):
+        player = real_scene.player
+        real_scene.game_over_triggered = True
+        player.velocity_x = 200.0
+        player.velocity_y = 300.0
+        position = (player.world_x, player.world_y)
+
+        real_scene.dt_tick(FRAME_SECONDS)
+
+        assert (player.world_x, player.world_y) == position
+
+    def test_dying_again_after_game_over_costs_no_life(self, real_scene):
+        real_scene.game_over_triggered = True
+        real_scene.player.lives = 0
+
+        real_scene._player_die()
+
+        assert real_scene.player.lives == 0
+
+
+class TestFlatGroundWithoutSegments:
+    """A level without ground segments stands the player on an endless flat floor."""
+
+    def test_falling_player_lands_on_the_ground_line(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_y = float(GROUND_Y - 20)  # sunk into the floor, falling
+        player.velocity_y = 50.0
+
+        scene._resolve_player_ground_collision()
+
+        assert player.on_ground
+        assert player.velocity_y == 0.0
+        if isinstance(scene, PapyrusBraveAdventurerScene):
+            assert player.world_y == GROUND_Y - PAPYRUS_PLAYER_HEIGHT
+        else:
+            assert _player_hitbox(scene).bottom == GROUND_Y
+
+    def test_rising_player_is_not_caught_by_the_ground_line(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_y = float(GROUND_Y - 20)
+        player.velocity_y = -50.0
+
+        scene._resolve_player_ground_collision()
+
+        assert not player.on_ground
+
+    def test_no_pits_are_drawn(self, real_scene):
+        real_scene.ground_sprites[:] = []
+        surface = _filled_surface()
+        before = _surface_bytes(surface)
+
+        real_scene._draw_pits(surface)
+
+        assert _surface_bytes(surface) == before
+
+    def test_a_scarab_with_no_ground_rolls_on_the_pit_floor(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = []
+        scene.wall_sprites[:] = []
+        scarab = _make_scarab(scene)
+        scarab.world_y = float(scene.screen_height)  # fallen past the pit floor
+        scarab.velocity_y = 100.0
+        scene.enemy_sprites[:] = [scarab]
+
+        scene._resolve_enemy_terrain_collisions()
+
+        assert scarab.on_ground
+        assert scarab.velocity_y == 0.0
+        assert get_sprite_collision_rect(scarab).bottom == scene.screen_height
+
+
+class TestPitWalls:
+    """In a pit, the next segment's edge is a wall the player cannot walk through."""
+
+    PIT_RIGHT = 400
+
+    def test_walking_right_in_a_pit_stops_flush_with_the_far_edge(self, real_scene):
+        scene = real_scene
+        scene.ground_sprites[:] = [
+            types.SimpleNamespace(world_x=0.0, segment_width=300),
+            types.SimpleNamespace(world_x=float(self.PIT_RIGHT), segment_width=400),
+        ]
+        scene.wall_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_y = float(GROUND_Y + 10)  # down in the pit
+        player.velocity_y = 0.0
+        player.velocity_x = 200.0
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = _player_hitbox(scene).width
+        player.world_x = float(self.PIT_RIGHT - hitbox_width - offset_x + 3)  # 3 px into it
+
+        scene._resolve_player_ground_collision()
+
+        assert not player.on_ground
+        assert _player_hitbox(scene).right == self.PIT_RIGHT
+
+
+class TestHighScores:
+    """The last death saves the score to the game's real save files and shows the table."""
+
+    @pytest.fixture
+    def saving_scene(self, real_scene, tmp_path):
+        """The scene saving to a DiskSaveManager in tmp_path.
+
+        Returns:
+            The scene.
+
+        """
+        real_scene.saves = DiskSaveManager('brave-adventurer-test', save_dir=tmp_path)
+        return real_scene
+
+    def test_first_score_starts_the_table(self, saving_scene, tmp_path):
+        saving_scene.player.score = 120
+        saving_scene.player.lives = 1
+
+        saving_scene._player_die()
+
+        game_over_scene = saving_scene.next_scene
+        assert isinstance(game_over_scene, GameOverScene)
+        assert game_over_scene.final_score == 120
+        assert game_over_scene.high_scores == [{'score': 120}]
+        reread = DiskSaveManager('brave-adventurer-test', save_dir=tmp_path)
+        assert reread.load('high_scores') == {'scores': [{'score': 120}]}
+
+    def test_table_keeps_the_ten_best_in_descending_order(self, saving_scene, tmp_path):
+        saving_scene.saves.save(
+            'high_scores', {'scores': [{'score': score} for score in range(100, 1100, 100)]}
+        )
+        saving_scene.player.score = 550
+
+        high_scores = saving_scene._save_high_score()
+
+        expected = [{'score': score} for score in (1000, 900, 800, 700, 600, 550, 500, 400)]
+        expected += [{'score': 300}, {'score': 200}]
+        assert high_scores == expected
+        reread = DiskSaveManager('brave-adventurer-test', save_dir=tmp_path)
+        assert reread.load('high_scores') == {'scores': expected}
+
+
+class TestJumpInput:
+    """Jump from the keyboard, a controller or a joystick: only from the ground, with a sound."""
+
+    @staticmethod
+    def _press_jump(scene, source):
+        if source == 'keyboard':
+            _press_key(scene, pygame.K_SPACE)
+        elif source == 'controller':
+            scene.on_controller_button_down_event(
+                _controller_button_event(pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLER_BUTTON_A)
+            )
+        else:
+            scene.on_joy_button_down_event(
+                _joystick_button_event(pygame.JOYBUTTONDOWN, pygame.CONTROLLER_BUTTON_A)
+            )
+
+    @pytest.fixture(params=['keyboard', 'controller', 'joystick'])
+    def jump_source(self, request):
+        return request.param
+
+    @pytest.fixture
+    def jump_scene(self, adventurer_scene, jump_source):
+        """The scene bound for the jump source (the controller binds CONTROLLERBUTTON events).
+
+        Returns:
+            The scene.
+
+        """
+        if jump_source != 'controller':
+            return adventurer_scene
+        scene = type(adventurer_scene)(options={'input_mode': 'controller'})
+        scene.sounds = adventurer_scene.sounds  # the fixture's stand-in for the speakers
+        return scene
+
+    def test_jump_from_the_ground_plays_the_jump_sound(self, jump_scene, jump_source):
+        player = _drawn_player(jump_scene)
+        player.on_ground = True
+        player.velocity_y = 0.0
+
+        self._press_jump(jump_scene, jump_source)
+
+        assert player.velocity_y < 0
+        assert not player.on_ground
+        jump_scene.sounds.play_jump.assert_called_once_with()
+
+    def test_jump_in_the_air_does_nothing(self, jump_scene, jump_source):
+        player = _player_in_the_air(jump_scene)
+
+        self._press_jump(jump_scene, jump_source)
+
+        assert player.velocity_y == 120.0
+        jump_scene.sounds.play_jump.assert_not_called()
+
+    def test_an_unbound_button_does_nothing(self, jump_scene, jump_source):
+        player = _drawn_player(jump_scene)
+        player.on_ground = True
+        player.velocity_y = 0.0
+        unbound_button = pygame.CONTROLLER_BUTTON_X
+        if jump_source == 'keyboard':
+            jump_scene.on_key_down_event(key_at(key=pygame.K_F13, scancode=pygame.KSCAN_F13))
+        elif jump_source == 'controller':
+            jump_scene.on_controller_button_down_event(
+                _controller_button_event(pygame.CONTROLLERBUTTONDOWN, unbound_button)
+            )
+        else:
+            jump_scene.on_joy_button_down_event(
+                _joystick_button_event(pygame.JOYBUTTONDOWN, unbound_button)
+            )
+
+        assert player.on_ground
+        assert player.velocity_y == 0.0
+        assert jump_scene.next_scene is None
+        # No quit either (the scene manager's flag: Scene has none, BUGS.md #203)
+        assert not jump_scene.scene_manager.quit_requested
+
+
+class TestQuitKey:
+    """Q (by position) ends the run."""
+
+    @pytest.mark.parametrize('game_key', ['brave_adventurer', 'brave_adventurer_papyrus'])
+    def test_quit_position_ends_the_run(self, game_key):
+        """Through the engine's frame loop (next_scene = None never ended it)."""
+        with _golden_game(game_key, random_seed=1) as manager:
+            pygame.event.post(press(pygame.K_q))
+            pygame.event.post(release(pygame.K_q))
+            for _ in range(3):
+                manager.dt = FRAME_SECONDS
+                manager.run_frame()
+            assert manager.quit_requested
+
+
+class TestButtonsAndAxesHoldMovement:
+    """A D-pad button held moves the player until released; joystick axes move nothing."""
+
+    def test_holding_the_dpad_walks_right_until_released(self, real_scene):
+        scene = real_scene
+        player = scene.player
+        start_x = player.world_x
+        scene.on_joy_button_down_event(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+        )
+        for _ in range(10):
+            scene.dt_tick(FRAME_SECONDS)
+        assert scene.actions.is_held('move_right')
+        assert player.world_x > start_x
+
+        scene.on_joy_button_up_event(
+            _joystick_button_event(pygame.JOYBUTTONUP, pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+        )
+
+        assert not scene.actions.is_held('move_right')
+
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_releasing_a_controller_dpad_button_stops_holding(self, scene_class):
+        _start_display()
+        scene = scene_class(options={'input_mode': 'controller'})
+        dpad_right = pygame.CONTROLLER_BUTTON_DPAD_RIGHT
+        scene.on_controller_button_down_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONDOWN, dpad_right)
+        )
+        assert scene.actions.is_held('move_right')
+
+        scene.on_controller_button_up_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONUP, dpad_right)
+        )
+
+        assert not scene.actions.is_held('move_right')
+
+    def test_a_joystick_axis_moves_nothing(self, real_scene):
+        """No action is bound to an axis: tilting the stick holds no action."""
+        real_scene.on_joy_axis_motion_event(
+            HashableEvent(pygame.JOYAXISMOTION, joy=0, instance_id=0, axis=0, value=1.0)
+        )
+
+        for action in ('move_right', 'move_left', 'jump'):
+            assert not real_scene.actions.is_held(action)
+
+
+@pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
+class TestVoiceAssistantMicButton:
+    """Brave Adventurer: holding the mic button records a question, releasing it answers.
+
+    The voice assistant drives a controller's microphone and speaker (hardware), so it is a
+    stand-in here.
+    """
+
+    @pytest.fixture
+    def voice_assistant(self, mocker):
+        return mocker.create_autospec(VoiceAssistant, instance=True)
+
+    @staticmethod
+    def _controller_scene():
+        _start_display()
+        return BraveAdventurerScene(options={'input_mode': 'controller'})
+
+    def test_each_frame_collects_finished_responses(self, adventurer_scene, voice_assistant):
+        adventurer_scene.voice_assistant = voice_assistant
+
+        adventurer_scene.dt_tick(FRAME_SECONDS)
+
+        voice_assistant.update.assert_called_once_with()
+
+    def test_controller_mic_button_listens_and_answers(self, adventurer_scene, voice_assistant):
+        scene = self._controller_scene()
+        scene.voice_assistant = voice_assistant
+
+        scene.on_controller_button_down_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+        )
+        voice_assistant.start_listening.assert_called_once_with()
+        scene.on_controller_button_up_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONUP, MIC_BUTTON_CONTROLLER)
+        )
+
+        voice_assistant.stop_listening_and_respond.assert_called_once_with()
+
+    def test_joystick_mic_button_listens_and_answers(self, adventurer_scene, voice_assistant):
+        adventurer_scene.voice_assistant = voice_assistant
+
+        adventurer_scene.on_joy_button_down_event(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_JOYSTICK)
+        )
+        voice_assistant.start_listening.assert_called_once_with()
+        adventurer_scene.on_joy_button_up_event(
+            _joystick_button_event(pygame.JOYBUTTONUP, MIC_BUTTON_JOYSTICK)
+        )
+
+        voice_assistant.stop_listening_and_respond.assert_called_once_with()
+
+    def test_mic_button_without_an_assistant_does_nothing(self, adventurer_scene):
+        """No controller with a microphone was found: the mic button is ignored."""
+        controller_scene = self._controller_scene()
+        for scene in (adventurer_scene, controller_scene):
+            scene.voice_assistant = None
+            scene.dt_tick(FRAME_SECONDS)
+        controller_scene.on_controller_button_down_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+        )
+        controller_scene.on_controller_button_up_event(
+            _controller_button_event(pygame.CONTROLLERBUTTONUP, MIC_BUTTON_CONTROLLER)
+        )
+        adventurer_scene.on_joy_button_down_event(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_JOYSTICK)
+        )
+        adventurer_scene.on_joy_button_up_event(
+            _joystick_button_event(pygame.JOYBUTTONUP, MIC_BUTTON_JOYSTICK)
+        )
+
+        assert adventurer_scene.voice_assistant is None
+        assert controller_scene.voice_assistant is None
+
+
+class TestHud:
+    """The HUD draws only once setup() has loaded its font."""
+
+    def test_before_setup_nothing_is_drawn(self, real_scene):
+        surface = _filled_surface()
+        before = _surface_bytes(surface)
+
+        real_scene._draw_hud(surface)
+
+        assert _surface_bytes(surface) == before
+
+    def test_after_setup_score_and_lives_are_drawn(self, real_scene):
+        real_scene.setup()
+        surface = _filled_surface()
+        before = _surface_bytes(surface)
+
+        real_scene._draw_hud(surface)
+
+        assert _surface_bytes(surface) != before
+
+
+class TestMain:
+    """Each game's console script entry point runs the real engine (here a headless replay).
+
+    main() runs with its module's GameEngine replaced by GoldenTraceEngine: the real engine
+    opening a plain window, since SDL's dummy video driver warns "no fast renderer available"
+    for GameEngine's SCALED window, an error under pytest's filterwarnings.
+    """
+
+    @pytest.mark.parametrize(
+        ('console_script', 'game_module'),
+        [('brave-adventurer', brave_adventurer_game), ('brave-adventurer-papyrus', papyrus_game)],
+    )
+    def test_main_replays_the_golden_recording(self, mocker, console_script, game_module):
+        mocker.patch.object(game_module, 'GameEngine', GoldenTraceEngine)
+        # GameEngine._shutdown quits pygame; later tests on this worker still need it
+        mocker.patch('pygame.quit')
+        mocker.patch('pygame.display.quit')
+        # --headless sets the SDL driver variables; the test's own values come back afterwards
+        mocker.patch.dict(os.environ)
+        recording = REPLAY_FIXTURE_DIRECTORY / console_script / 'golden.jsonl.gz'
+        SceneManager._reset()  # the engine starts from a fresh scene manager, as a process does
+        try:
+            with (
+                command_line([
+                    '--log-level',
+                    'warning',
+                    '--replay-trace',
+                    str(recording),
+                    '--headless',
+                ]),
+                pytest.raises(SystemExit) as exit_info,
+            ):
+                game_module.main()
+        finally:
+            pygame.event.clear()
+            SceneManager._reset()
+
+        assert exit_info.value.code == ExitCode.SUCCESS
+
+
+class TestLevelManagers:
+    """Both editions build the same level data; an enemy type neither knows is left out."""
+
+    @pytest.mark.parametrize(
+        ('manager_class', 'scarab_class'),
+        [(LevelManager, Scarab), (PapyrusLevelManager, PapyrusScarab)],
+        ids=['LevelManager', 'PapyrusLevelManager'],
+    )
+    def test_unknown_enemy_type_is_skipped(self, manager_class, scarab_class):
+        _start_display()
+        screen = ScreenData(
+            ground_segments=[(0, 800)],
+            enemies=[('sphinx', 100, {}), ('scarab', 300, {})],
+        )
+
+        manager = manager_class(level_data=[screen], groups=pygame.sprite.LayeredDirty())
+
+        assert [type(enemy) for enemy in manager.enemy_sprites] == [scarab_class]
+
+    def test_level_width_spans_every_screen(self):
+        _start_display()
+        manager = LevelManager(level_data=LEVEL_1, groups=pygame.sprite.LayeredDirty())
+
+        last_segment = max(manager.ground_sprites, key=lambda segment: segment.world_x)
+
+        assert manager.level_width == len(LEVEL_1) * SCREEN_WIDTH
+        assert last_segment.world_x + last_segment.segment_width == manager.level_width
+
+
+class TestPlayerJump:
+    """A player in the air cannot jump again (both editions)."""
+
+    def test_jump_in_the_air_keeps_the_fall(self, real_scene):
+        player = _player_in_the_air(real_scene)
+
+        player.jump()
+
+        assert player.velocity_y == 120.0
+        assert not player.on_ground
+
+
+class TestPapyrusSpriteUtilities:
+    """The Papyrus conversions handle a sprite with no frames and a scale of 1."""
+
+    def test_a_sprite_without_frames_keeps_its_image(self):
+        _start_display()
+        sprite = AnimatedSprite(groups=pygame.sprite.LayeredDirty())
+        image = sprite.image
+
+        prepare_papyrus_sprite(sprite)
+        apply_transparency_and_scale(sprite)
+
+        assert sprite.image is image
+        assert sprite.hitbox_scale == 2
+
+    def test_scale_one_draws_a_copy_of_the_frame(self):
+        _start_display()
+        sprite = AnimatedSprite(
+            filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
+        )
+        prepare_papyrus_sprite(sprite, scale_factor=1)
+
+        apply_transparency_and_scale(sprite, scale_factor=1)
+
+        frame_image = sprite.get_current_frame().image
+        assert sprite.image is not frame_image
+        assert sprite.image.get_size() == frame_image.get_size()
+        assert _surface_bytes(sprite.image) == _surface_bytes(frame_image)
+        assert sprite.hitbox_scale == 1
+
+
+class TestCollectibleBonusIsKept:
+    """A gold scarab's bonus stays in the score: score = distance score + bonus points (#204)."""
+
+    def test_collecting_a_gold_scarab_adds_its_bonus_to_the_distance_score(self, real_scene):
+        player = real_scene.player
+        collectible = next(iter(real_scene.collectible_sprites))
+        collectible.world_x = player.world_x
+        collectible.base_world_y = player.world_y + 10.0
+
+        real_scene.dt_tick(FRAME_SECONDS)
+
+        assert collectible not in real_scene.collectible_sprites
+        assert player.bonus_points == COLLECTIBLE_SCORE_BONUS
+        distance_score = round(player.max_distance / DISTANCE_SCORE_DIVISOR)
+        assert player.score == distance_score + COLLECTIBLE_SCORE_BONUS
+
+    def test_the_bonus_survives_later_frames(self, real_scene):
+        real_scene._on_player_collect(real_scene.player, next(iter(real_scene.collectible_sprites)))
+
+        for _ in range(3):
+            real_scene.dt_tick(FRAME_SECONDS)
+
+        distance_score = round(real_scene.player.max_distance / DISTANCE_SCORE_DIVISOR)
+        assert real_scene.player.score == distance_score + COLLECTIBLE_SCORE_BONUS
+
+
+class TestRespawnStopsWalking:
+    """Respawning clears the walk target, so the fading player stands still (#206)."""
+
+    def test_a_player_walking_when_it_dies_does_not_walk_on_while_it_fades(self, real_scene):
+        player = real_scene.player
+        # Walking right as it dies: movement input is skipped while respawning, so the walk
+        # target stays whatever it was
+        player.move_right()
+
+        real_scene._respawn_player()
+        position_at_death = player.world_x
+        # The fade out lasts 0.2 s: stay inside it (before the player is repositioned)
+        for _ in range(6):
+            real_scene.dt_tick(FRAME_SECONDS)
+
+        assert player.is_respawning
+        assert player.world_x == pytest.approx(position_at_death)
+
+
+class TestVoiceAssistantNeverStartsInAReplay:
+    """A replay never touches real devices: no voice assistant is discovered in one (#208)."""
+
+    def test_live_play_discovers_the_voice_assistant(self, mocker):
+        _start_display()
+        discover = mocker.patch.object(VoiceAssistant, 'discover', return_value=None)
+
+        BraveAdventurerScene(options={'input_mode': 'joystick'})
+
+        discover.assert_called_once_with()
+
+    def test_a_replay_discovers_no_voice_assistant(self, mocker):
+        discover = mocker.patch.object(VoiceAssistant, 'discover', return_value=None)
+        mocker.patch.object(brave_adventurer_game, 'GameEngine', GoldenTraceEngine)
+        # GameEngine._shutdown quits pygame; later tests on this worker still need it
+        mocker.patch('pygame.quit')
+        mocker.patch('pygame.display.quit')
+        mocker.patch.dict(os.environ)  # --headless sets the SDL driver variables
+        recording = REPLAY_FIXTURE_DIRECTORY / 'brave-adventurer' / 'golden.jsonl.gz'
+        SceneManager._reset()
+        try:
+            with (
+                command_line([
+                    '--log-level',
+                    'warning',
+                    '--replay-trace',
+                    str(recording),
+                    '--headless',
+                ]),
+                pytest.raises(SystemExit) as exit_info,
+            ):
+                brave_adventurer_game.main()
+        finally:
+            pygame.event.clear()
+            SceneManager._reset()
+
+        assert exit_info.value.code == ExitCode.SUCCESS
+        discover.assert_not_called()
+
+
+class TestScarabInAPitIsDrawn:
+    """A scarab that rolled into a pit is drawn over the pit fill, as the player is (#209.5)."""
+
+    @pytest.mark.parametrize(
+        ('scene_class', 'scarab_class'),
+        [(BraveAdventurerScene, Scarab), (PapyrusBraveAdventurerScene, PapyrusScarab)],
+    )
+    def test_a_scarab_on_the_pit_floor_is_visible(self, scene_class, scarab_class):
+        _start_display()
+        # The pit floor is the display's bottom: the game's own 800x480 display, which the
+        # scene is rendered to (and presented, as a frame)
+        screen = set_display_mode(size=SCREEN_SIZE)
+        scene = scene_class(options={'input_mode': 'joystick'})
+        scarab = next(enemy for enemy in scene.enemy_sprites if isinstance(enemy, scarab_class))
+        # Screen 4's pit runs from world x 3550 to 3650
+        scarab.world_x = 3590.0
+        scarab.roll_speed = 0.0
+        for _ in range(60):
+            scarab.dt_tick(FRAME_SECONDS)
+            scene._resolve_enemy_terrain_collisions()
+        scene.camera.world_x = 3300.0
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=(800, 480)
+        )
+        scene.all_sprites.update()
+
+        scene.render(screen)
+
+        assert scarab.visible
+        assert scarab.rect.top > GROUND_Y  # in the pit, below the ground line
+        pit_colors = {PIT_WALL_COLOR, PIT_FLOOR_COLOR, PIT_EDGE_COLOR, PIT_WALL_SHADOW}
+        scarab_pixels = {
+            tuple(screen.get_at((x, y)))[:3]
+            for x in range(scarab.rect.left, scarab.rect.right)
+            for y in range(scarab.rect.top, min(scarab.rect.bottom, SCREEN_SIZE[1]))
+        }
+        assert scarab_pixels - pit_colors
+
+
+class TestEnemyPoseIsDrawnInDtTick:
+    """Cobra, Scarab and Scorpion draw their pose in dt_tick, before collision (#209.6).
+
+    Their hitboxes are their visible pixels, so a pose drawn in update() (the render phase) was a
+    frame late for collision, and nothing at all before the first draw.
+    """
+
+    @staticmethod
+    def _drawn(draw_function, size, **arguments):
+        surface = pygame.Surface(size, pygame.SRCALPHA)
+        draw_function(surface, **arguments)
+        return _surface_bytes(surface)
+
+    def test_a_new_enemy_already_shows_its_pose(self):
+        _start_display()
+        group = pygame.sprite.LayeredDirty()
+        cobra = Cobra(100.0, group)
+        scarab = Scarab(100.0, group)
+        scorpion = Scorpion(100.0, group)
+
+        assert _surface_bytes(cobra.image) == self._drawn(
+            draw_cobra, cobra.image.get_size(), striking=False, animation_timer=0.0
+        )
+        assert _surface_bytes(scarab.image) == self._drawn(
+            draw_scarab, scarab.image.get_size(), roll_angle=0.0
+        )
+        assert _surface_bytes(scorpion.image) == self._drawn(
+            draw_scorpion, scorpion.image.get_size(), facing_right=True
+        )
+
+    def test_cobra_dt_tick_draws_the_strike(self):
+        _start_display()
+        cobra = Cobra(100.0, pygame.sprite.LayeredDirty())
+
+        cobra.dt_tick(Cobra.STRIKE_INTERVAL)
+
+        assert cobra.striking
+        expected = self._drawn(
+            draw_cobra,
+            cobra.image.get_size(),
+            striking=True,
+            animation_timer=cobra.dt_timer,
+        )
+        assert _surface_bytes(cobra.image) == expected
+
+    def test_scarab_dt_tick_draws_the_roll(self):
+        _start_display()
+        scarab = Scarab(100.0, pygame.sprite.LayeredDirty())
+
+        scarab.dt_tick(0.5)
+
+        expected = self._drawn(draw_scarab, scarab.image.get_size(), roll_angle=scarab.roll_angle)
+        assert _surface_bytes(scarab.image) == expected
+
+    def test_scorpion_dt_tick_draws_the_turn_at_its_patrol_end(self):
+        _start_display()
+        scorpion = Scorpion(100.0, pygame.sprite.LayeredDirty(), patrol_range=10.0)
+
+        scorpion.dt_tick(1.0)
+
+        assert not scorpion.facing_right
+        expected = self._drawn(draw_scorpion, scorpion.image.get_size(), facing_right=False)
+        assert _surface_bytes(scorpion.image) == expected
+
+    def test_update_leaves_the_pose_alone(self):
+        _start_display()
+        group = pygame.sprite.LayeredDirty()
+        for enemy in (Cobra(100.0, group), Scarab(100.0, group), Scorpion(100.0, group)):
+            enemy.dt_tick(0.25)
+            pose = _surface_bytes(enemy.image)
+            enemy.image.fill((0, 0, 0, 0))
+
+            enemy.update()
+
+            assert _surface_bytes(enemy.image) == _surface_bytes(
+                pygame.Surface(enemy.image.get_size(), pygame.SRCALPHA)
+            ), type(enemy).__name__
+            assert pose != _surface_bytes(enemy.image)
+
+
+# A player running right that has just left the ground and started to fall
+RUNNING_OFF_A_LEDGE_CONTEXT = {'velocity_x': 200.0, 'velocity_y': 20.0, 'on_ground': False}
+
+
+class TestRunningOffALedgeFalls:
+    """Running off a ledge shows the falling pose in both editions (#209.7)."""
+
+    def test_primitives_player_goes_from_running_to_falling(self):
+        _start_display()
+        player = Player(world_x=100.0, world_y=300.0, groups=pygame.sprite.LayeredDirty())
+        player.state_machine.set_state(Player.RUNNING)
+
+        player.state_machine.evaluate(RUNNING_OFF_A_LEDGE_CONTEXT)
+
+        assert player.state_machine.current_state == Player.FALLING
+
+    def test_papyrus_player_goes_from_running_to_falling(self):
+        _start_display()
+        player = PapyrusPlayer(world_x=100.0, world_y=300.0, groups=pygame.sprite.LayeredDirty())
+        assert player.state_machine is not None
+        player.state_machine.set_state(PapyrusPlayer.RUNNING)
+
+        player.state_machine.evaluate(RUNNING_OFF_A_LEDGE_CONTEXT)
+
+        assert player.state_machine.current_state == PapyrusPlayer.FALLING
+
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_running_on_the_ground_stays_running(self, scene_class):
+        _start_display()
+        scene = scene_class(options={'input_mode': 'joystick'})
+        _press_key(scene, pygame.K_RIGHT)
+
+        for _ in range(30):
+            scene.dt_tick(FRAME_SECONDS)
+
+        assert scene.player.state_machine.current_state == 'running'
+
+
+class TestBraveVersionFlag:
+    """-v/--version prints the edition's name and version and exits (BUGS.md #178 item 25)."""
+
+    @pytest.mark.parametrize(
+        ('game_module', 'expected_output'),
+        [
+            (brave_adventurer_game, 'Brave Adventurer 1.0\n'),
+            (papyrus_game, 'Brave Adventurer: Papyrus Edition 1.0\n'),
+        ],
+    )
+    @pytest.mark.parametrize('version_flag', ['-v', '--version'])
+    def test_version_flag_prints_the_version_and_exits(
+        self, mocker, capsys, game_module, expected_output, version_flag
+    ):
+        mocker.patch.object(game_module, 'GameEngine', GoldenTraceEngine)
+        # A game that ignored the flag would run its loop here; the flag must exit before start()
+        start = mocker.patch.object(GoldenTraceEngine, 'start')
+        with command_line([version_flag]), pytest.raises(SystemExit) as exit_info:
+            game_module.main()
+
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert capsys.readouterr().out == expected_output
+        start.assert_not_called()

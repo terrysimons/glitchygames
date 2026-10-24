@@ -10,7 +10,10 @@ Covers uncovered regions including:
 - Multi-controller methods
 """
 
+import argparse
+import logging
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pygame
@@ -23,7 +26,6 @@ from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandl
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.models import AIRequestState, AIResponse
 from glitchygames.bitmappy.slider_manager import SliderManager
-from tests.mocks import MockFactory
 
 
 def _make_event(**kwargs):
@@ -39,26 +41,6 @@ def _make_event(**kwargs):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _ensure_pygame_init():
-    """Ensure pygame is initialized for all tests in this module."""
-    if not pygame.get_init():
-        pygame.init()
-    if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
-
-
-@pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The mock pygame patches dictionary.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 def _setup_sliders(editor, mocker):
@@ -87,7 +69,9 @@ def _setup_sliders(editor, mocker):
         bbox = mocker.Mock()
         bbox.visible = False
         bbox.rect = pygame.Rect(*bbox_rect)
-        bbox.image = mocker.Mock()
+        # A real, fully transparent surface, as setup_sliders_and_color_well gives each box
+        bbox.image = pygame.Surface(bbox.rect.size, flags=pygame.SRCALPHA, depth=32)
+        bbox.image.fill((0, 0, 0, 0))
         # Bounding boxes are now owned by the SliderManager
         setattr(slider_manager, bbox_name, bbox)
 
@@ -150,8 +134,9 @@ def _setup_editor_state(editor, mocker):
     editor.cross_area_operation_tracker = mocker.Mock()
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
+    editor.current_pixel_changes_dict = {}
     editor._is_drag_operation = False
-    editor._applying_undo_redo = False
+    editor.applying_undo_redo = False
     editor.pixel_change_timer = None
 
     editor.controller_handler = ControllerEventHandler(editor)
@@ -216,7 +201,7 @@ def _setup_ai_state(editor, mocker):
 
 
 @pytest.fixture
-def mock_editor(mocker, pygame_mocks):
+def mock_editor(mocker):
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:
@@ -302,20 +287,20 @@ class TestOnSliderEvent:
         assert mock_editor.alpha_slider.value == 128
 
     def test_slider_event_clamps_below_zero(self, mock_editor):
-        """Slider value is clamped to minimum 0."""
+        """Slider value is clamped to minimum 0; the trigger event is left unchanged."""
         trigger = _make_event(name='R', value=-10)
         event = _make_event()
         mock_editor.on_slider_event(event=event, trigger=trigger)
         assert mock_editor.red_slider.value == 0
-        assert trigger.value == 0
+        assert trigger.value == -10
 
     def test_slider_event_clamps_above_255(self, mock_editor):
-        """Slider value is clamped to maximum 255."""
+        """Slider value is clamped to maximum 255; the trigger event is left unchanged."""
         trigger = _make_event(name='G', value=300)
         event = _make_event()
         mock_editor.on_slider_event(event=event, trigger=trigger)
         assert mock_editor.green_slider.value == 255
-        assert trigger.value == 255
+        assert trigger.value == 300
 
     def test_slider_event_updates_color_well(self, mock_editor):
         """Slider event updates the color well active_color."""
@@ -1014,34 +999,13 @@ class TestSynchronizeCanvasState:
         mock_editor.canvas.animated_sprite._animations = {
             'default': [mocker.Mock(), mocker.Mock()],
         }
-        mocker.patch.object(mock_editor.film_strip_coordinator, 'update_film_strips_for_frame')
+        update_film_strips = mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'update_film_strips_for_frame'
+        )
         mock_editor._synchronize_canvas_state_after_undo()
         mock_editor.canvas.force_redraw.assert_called()
-
-
-# ===========================================================================
-# 17. Canvas Panning
-# ===========================================================================
-
-
-class TestCanvasPanning:
-    """Tests for FrameOperationManager.handle_canvas_panning."""
-
-    def test_no_canvas(self, mock_editor):
-        """Warns when canvas is not available."""
-        mock_editor.canvas = None
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
-
-    def test_delegates_to_pan_canvas(self, mock_editor):
-        """Delegates to canvas pan_canvas method."""
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=-1)
-        mock_editor.canvas.pan_canvas.assert_called_once_with(1, -1)
-
-    def test_canvas_without_pan_method(self, mock_editor):
-        """Warns when canvas does not support panning."""
-        mock_editor.canvas.pan_canvas = None
-        del mock_editor.canvas.pan_canvas
-        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
+        # BUGS.md #98: the refresh was guarded by a hasattr on the editor, always False
+        update_film_strips.assert_called_once_with('default', 0)
 
 
 class TestSingleClickTimer:
@@ -1172,18 +1136,18 @@ class TestBrushStrokeCommandUndoRedo:
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 10, (255, 0, 0))
 
     def test_execute_sets_and_resets_flag(self, mock_editor):
-        """Sets _applying_undo_redo during operation and resets after."""
+        """Sets applying_undo_redo during operation and resets after."""
         from glitchygames.bitmappy.history.commands import BrushStrokeCommand
         from glitchygames.bitmappy.history.undo_redo import OperationType
 
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
         command = BrushStrokeCommand(
             mock_editor,
             [(0, 0, (0, 0, 0), (255, 255, 255))],
             OperationType.CANVAS_PIXEL_CHANGE,
         )
         command.execute()
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
 
     def test_no_canvas_returns_false(self, mock_editor):
         """Returns False when canvas is not available."""
@@ -1218,12 +1182,12 @@ class TestFrameSelectionCommandUndoRedo:
         mock_editor.canvas.show_frame.assert_called_once_with('default', 1)
 
     def test_undo_resets_flag_after_operation(self, mock_editor):
-        """Resets _applying_undo_redo flag after undo."""
+        """Resets applying_undo_redo flag after undo."""
         from glitchygames.bitmappy.history.commands import FrameSelectionCommand
 
         command = FrameSelectionCommand(mock_editor, 'default', 0, 'default', 1)
         command.undo()
-        assert mock_editor._applying_undo_redo is False
+        assert mock_editor.applying_undo_redo is False
 
     def test_no_canvas_returns_false(self, mock_editor):
         """Returns False when canvas is not available."""
@@ -1329,22 +1293,6 @@ class TestDialogEvents:
         mock_editor.on_save_dialog_event(event)
         assert mock_editor.next_scene is not None
         assert mock_editor.dirty == 1
-
-
-# ===========================================================================
-# 23. Color Well Event
-# ===========================================================================
-
-
-class TestOnColorWellEvent:
-    """Tests for on_color_well_event."""
-
-    def test_logs_event(self, mock_editor, mocker):
-        """Logs color well event."""
-        event = _make_event()
-        trigger = mocker.Mock()
-        mock_editor.on_color_well_event(event=event, trigger=trigger)
-        # Should not raise
 
 
 # ===========================================================================
@@ -1629,13 +1577,6 @@ class TestUpdateAiSpritePosition:
 class TestVoiceRecognition:
     """Tests for EditorSetup.setup_voice_recognition."""
 
-    def test_voice_manager_not_available(self, mock_editor, mocker):
-        """Handles VoiceEventManager not being available."""
-        mocker.patch.object(bitmappy_setup, 'VoiceEventManager', None)
-        setup_delegate = bitmappy_setup.EditorSetup(editor=mock_editor)
-        setup_delegate.setup_voice_recognition()
-        assert mock_editor.voice_manager is None
-
     def test_voice_exception_handling(self, mock_editor, mocker):
         """Handles exceptions during voice setup."""
         mocker.patch.object(bitmappy_setup, 'VoiceEventManager', side_effect=ImportError)
@@ -1693,7 +1634,7 @@ class TestFramePasteCommandUndoRedo:
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
         mock_frame = mocker.Mock()
-        mock_editor.canvas.animated_sprite._animations = {'default': [mock_frame]}
+        mock_editor.canvas.animated_sprite.animation_data = {'default': [mock_frame]}
         new_pixels = [(100, 50, 25)] * 1024
         command = FramePasteCommand(
             editor=mock_editor,
@@ -1730,7 +1671,7 @@ class TestFramePasteCommandUndoRedo:
         """Returns False when animation is not found."""
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
-        mock_editor.canvas.animated_sprite._animations = {}
+        mock_editor.canvas.animated_sprite.animation_data = {}
         command = FramePasteCommand(
             editor=mock_editor,
             animation='missing',
@@ -1747,7 +1688,7 @@ class TestFramePasteCommandUndoRedo:
         """Returns False when frame index is out of range."""
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
-        mock_editor.canvas.animated_sprite._animations = {'default': [mocker.Mock()]}
+        mock_editor.canvas.animated_sprite.animation_data = {'default': [mocker.Mock()]}
         command = FramePasteCommand(
             editor=mock_editor,
             animation='default',
@@ -1765,7 +1706,7 @@ class TestFramePasteCommandUndoRedo:
         from glitchygames.bitmappy.history.commands import FramePasteCommand
 
         mock_frame = mocker.Mock()
-        mock_editor.canvas.animated_sprite._animations = {'default': [mock_frame]}
+        mock_editor.canvas.animated_sprite.animation_data = {'default': [mock_frame]}
         mock_editor.selected_animation = 'default'
         mock_editor.selected_frame = 0
         new_pixels = [(100, 50, 25)] * 10
@@ -1897,14 +1838,20 @@ class TestSliderBboxHover:
     """Tests for SliderManager._update_slider_bbox_hover."""
 
     def test_hover_shows_border(self, mock_editor, mocker):
-        """Shows border on hover."""
+        """Hovering draws a 2-pixel border in the colour and leaves the inside transparent."""
         mock_editor._slider_manager._update_slider_bbox_hover(
             'red_slider_bbox',
             is_hovered=True,
             border_color=(255, 0, 0),
         )
-        assert mock_editor._slider_manager.red_slider_bbox.visible is True
-        assert mock_editor._slider_manager.red_slider_bbox.dirty == 1
+        bbox = mock_editor._slider_manager.red_slider_bbox
+        assert bbox.visible is True
+        assert bbox.dirty == 1
+        width, height = bbox.rect.size
+        for border_pixel in ((0, 0), (1, 1), (width - 1, height - 1), (width // 2, 0)):
+            assert tuple(bbox.image.get_at(border_pixel)) == (255, 0, 0, 255)
+        # Alpha is the point here: the box must not cover the slider it surrounds
+        assert bbox.image.get_at((width // 2, height // 2)).a == 0
 
     def test_unhover_hides_border(self, mock_editor, mocker):
         """Hides border on unhover."""
@@ -1917,13 +1864,18 @@ class TestSliderBboxHover:
         assert mock_editor._slider_manager.red_slider_bbox.visible is False
 
     def test_already_visible_no_change(self, mock_editor, mocker):
-        """No change when already hovered and still hovering."""
-        mock_editor._slider_manager.red_slider_bbox.visible = True
+        """No change when already hovered and still hovering: nothing is redrawn."""
+        bbox = mock_editor._slider_manager.red_slider_bbox
+        bbox.visible = True
+        bbox.dirty = 0
         mock_editor._slider_manager._update_slider_bbox_hover(
             'red_slider_bbox',
             is_hovered=True,
             border_color=(255, 0, 0),
         )
+        assert bbox.visible is True
+        assert bbox.dirty == 0
+        assert bbox.image.get_at((0, 0)).a == 0
 
     def test_nonexistent_bbox(self, mock_editor):
         """Does nothing when bbox attribute does not exist."""
@@ -1946,13 +1898,20 @@ class TestSliderTextHoverBorder:
         """Adds white border on hover."""
         mock_editor.red_slider.text_sprite.hover_border_added = False
         del mock_editor.red_slider.text_sprite.hover_border_added
-        mock_editor.red_slider.text_sprite.image = pygame.Surface((50, 10))
+        text_image = pygame.Surface((50, 10), flags=0, depth=32)
+        text_image.fill((0, 0, 0))
+        mock_editor.red_slider.text_sprite.image = text_image
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(0, 0, 50, 10)
         mock_editor._slider_manager._update_slider_text_hover_border(
             'red_slider',
             is_text_hovered=True,
         )
         assert mock_editor.red_slider.text_sprite.hover_border_added is True
+        assert mock_editor.red_slider.text_sprite.dirty == 1
+        # A white 2-pixel border around the text, the inside left as it was
+        for border_pixel in ((0, 0), (1, 1), (49, 9), (25, 0), (0, 5)):
+            assert tuple(text_image.get_at(border_pixel))[:3] == (255, 255, 255)
+        assert tuple(text_image.get_at((25, 5)))[:3] == (0, 0, 0)
 
     def test_remove_hover_border(self, mock_editor, mocker):
         """Removes hover border when no longer hovering."""
@@ -2107,14 +2066,10 @@ class TestResetCanvasForNewFile:
         assert mock_editor.canvas.pixel_width == 20
         assert len(mock_editor.canvas.pixels) == 256
 
-    def test_resets_panning(self, mock_editor, mocker):
-        """Resets panning state."""
-        mock_editor.canvas._panning_active = True
-        mock_editor.canvas.pan_offset_x = 10
-        mock_editor.canvas.pan_offset_y = 5
+    def test_ends_the_pan_in_progress(self, mock_editor):
+        """Ends the old canvas's pan gesture."""
         mock_editor._reset_canvas_for_new_file(32, 32, 10)
-        assert mock_editor.canvas._panning_active is False
-        assert mock_editor.canvas.pan_offset_x == 0
+        mock_editor.canvas.end_panning.assert_called_once()
 
 
 # ===========================================================================
@@ -2209,19 +2164,19 @@ class TestDetectClickedSlider:
         """Detects click on red slider text sprite."""
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(270, 550, 50, 10)
         result = mock_editor._slider_manager.detect_clicked_slider((280, 555))
-        assert result == 'red'
+        assert result is mock_editor.red_slider
 
     def test_detects_green_slider(self, mock_editor):
         """Detects click on green slider text sprite."""
         mock_editor.green_slider.text_sprite.rect = pygame.Rect(270, 560, 50, 10)
         result = mock_editor._slider_manager.detect_clicked_slider((280, 565))
-        assert result == 'green'
+        assert result is mock_editor.green_slider
 
     def test_detects_blue_slider(self, mock_editor):
         """Detects click on blue slider text sprite."""
         mock_editor.blue_slider.text_sprite.rect = pygame.Rect(270, 570, 50, 10)
         result = mock_editor._slider_manager.detect_clicked_slider((280, 575))
-        assert result == 'blue'
+        assert result is mock_editor.blue_slider
 
     def test_no_slider_clicked(self, mock_editor):
         """Returns None when no slider is clicked."""
@@ -2400,11 +2355,12 @@ class TestFinalizeCanvasSetup:
     """Tests for EditorSetup._finalize_canvas_setup (static method)."""
 
     def test_starts_animation(self, mocker):
-        """Starts animation and sets WIDTH/HEIGHT."""
+        """Starts animation and leaves no class-wide canvas size (BUGS.md #110 item 2)."""
         animated_sprite = mocker.Mock()
-        options = {'size': '16x16'}
-        bitmappy_setup.EditorSetup._finalize_canvas_setup(animated_sprite, options)
+        bitmappy_setup.EditorSetup._finalize_canvas_setup(animated_sprite)
         animated_sprite.play.assert_called_once()
+        assert 'WIDTH' not in vars(bitmappy_setup.AnimatedCanvasSprite)
+        assert 'HEIGHT' not in vars(bitmappy_setup.AnimatedCanvasSprite)
 
 
 # ===========================================================================
@@ -2525,17 +2481,6 @@ class TestUpdateAiSpritePositionDuringTransition:
 class TestNewCanvasCreation:
     """Tests for _reset_canvas_for_new_file, _create_fresh_animated_sprite and on_new_file_event."""
 
-    def test_reset_canvas_without_panning_attributes(self, mock_editor):
-        """A canvas with no panning support is reset without gaining panning attributes."""
-        mock_editor.canvas = SimpleNamespace()
-
-        mock_editor._reset_canvas_for_new_file(4, 2, 8)
-
-        assert mock_editor.canvas.pixels == [(255, 0, 255, 255)] * 8
-        assert mock_editor.canvas.dirty_pixels == [True] * 8
-        assert not hasattr(mock_editor.canvas, 'pan_offset_x')
-        assert not hasattr(mock_editor.canvas, '_panning_active')
-
     def test_fresh_animated_sprite_is_one_magenta_frame(self, mock_editor):
         """The fresh sprite has a single magenta 'default' frame and a matching canvas image."""
         mock_editor._create_fresh_animated_sprite(3, 2, 10)
@@ -2620,6 +2565,15 @@ class TestRightMouseButtonSampling:
         mock_editor.on_right_mouse_button_up_event(_make_event(pos=(5, 30)))
 
         assert _slider_values(mock_editor) == (128, 64, 32, 255)
+
+    def test_sprite_without_a_right_click_handler_is_skipped(self, mock_editor, mocker):
+        """A sprite under the cursor with no right click handler lets the canvas sample."""
+        mock_editor.sprites_at_position = mocker.Mock(return_value=[SimpleNamespace()])
+        mock_editor.canvas.pixels[0] = (11, 22, 33, 44)
+
+        mock_editor.on_right_mouse_button_up_event(_make_event(pos=(1, 25)))
+
+        assert _slider_values(mock_editor) == (11, 22, 33, 44)
 
     def test_canvas_rgba_pixel_sets_all_four_sliders(self, mock_editor, mocker):
         """A right click on the canvas samples the RGBA pixel under the cursor."""
@@ -2733,9 +2687,11 @@ class TestOnLeftMouseButtonDownEvent:
     def test_clicked_slider_gets_the_click_and_drag_scroll_starts(self, mock_editor, mocker):
         """A click on a slider's text box reaches that slider, and film strip dragging starts."""
         mocker.patch.object(
-            mock_editor._slider_manager, 'detect_clicked_slider', return_value='green'
+            mock_editor._slider_manager,
+            'detect_clicked_slider',
+            return_value=mock_editor.green_slider,
         )
-        mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mocker.patch.object(mock_editor._slider_manager, 'commit_slider_text_boxes')
         mocker.patch.object(
             mock_editor.film_strip_coordinator,
             'is_mouse_in_film_strip_area',
@@ -2755,22 +2711,23 @@ class TestOnLeftMouseButtonDownEvent:
         assert mock_editor.film_strip_drag_start_offset == 3
 
     def test_missing_sliders_are_skipped(self, mock_editor, mocker):
-        """Sliders the editor does not have are neither committed nor clicked."""
+        """Sliders the editor does not have are not committed; the alpha text box is."""
         del mock_editor.red_slider
         del mock_editor.blue_slider
-        mocker.patch.object(
-            mock_editor._slider_manager, 'detect_clicked_slider', return_value='red'
-        )
-        commit = mocker.patch.object(mock_editor._slider_manager, 'commit_and_deactivate_slider')
+        mock_editor.green_slider.text_sprite.is_active = True
+        mock_editor.alpha_slider.text_sprite.is_active = True
+        mocker.patch.object(mock_editor._slider_manager, 'detect_clicked_slider', return_value=None)
         mocker.patch.object(
             mock_editor.film_strip_coordinator,
             'is_mouse_in_film_strip_area',
             return_value=False,
         )
+        event = _make_event(pos=(15, 552))
 
-        mock_editor.on_left_mouse_button_down_event(_make_event(pos=(15, 552)))
+        mock_editor.on_left_mouse_button_down_event(event)
 
-        assert [call.args[2] for call in commit.call_args_list] == ['green']
+        mock_editor.green_slider.commit_text.assert_called_once_with(event=event)
+        mock_editor.alpha_slider.commit_text.assert_called_once_with(event=event)
         assert mock_editor.is_dragging_film_strips is False
 
 
@@ -2935,6 +2892,44 @@ class TestSceneLifecycleAndUpdate:
         mock_editor.update()
 
         update_canvas.assert_not_called()
+
+    def test_animated_canvas_update_on_the_same_frame_keeps_the_last_frame(
+        self,
+        mock_editor,
+        mocker,
+    ):
+        """Two updates on the same frame leave the remembered frame unchanged."""
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'update_film_strip_animation_timing'
+        )
+        mocker.patch.object(mock_editor.controller_handler, 'render_visual_indicators')
+        mock_editor.canvas.animated_sprite.current_frame = 2
+
+        mock_editor._update_animated_canvas()
+        mock_editor._update_animated_canvas()
+
+        assert mock_editor._last_animation_frame == 2
+        assert mock_editor.canvas.update_animation.call_count == 2
+
+    def test_voice_cleanup_stops_and_drops_the_voice_manager(self, mock_editor):
+        """A running voice manager is stopped and forgotten."""
+        stopped = []
+        mock_editor.voice_manager = SimpleNamespace(stop_listening=lambda: stopped.append(True))
+
+        mock_editor._cleanup_voice_recognition()
+
+        assert stopped == [True]
+        assert mock_editor.voice_manager is None
+
+    def test_voice_cleanup_without_a_voice_manager_does_nothing(self, mock_editor, mocker):
+        """With no voice manager, cleanup logs nothing and leaves it None."""
+        mock_editor.voice_manager = None
+        log_info = mocker.patch.object(mock_editor.log, 'info')
+
+        mock_editor._cleanup_voice_recognition()
+
+        assert mock_editor.voice_manager is None
+        log_info.assert_not_called()
 
     def test_voice_cleanup_failure_is_logged_and_kept(self, mock_editor, mocker):
         """A voice manager that fails to stop is kept and the failure logged."""
@@ -3208,12 +3203,12 @@ class TestUndoRedoFallbacks:
 
 
 # ===========================================================================
-# 61. Event Handling, Drop Files and Deflate
+# 61. Event Handling and Drop Files
 # ===========================================================================
 
 
-class TestEventHandlingAndDeflate:
-    """Tests for handle_event's confirmation dialog, file drops and deflate."""
+class TestEventHandlingAndDropFiles:
+    """Tests for handle_event's confirmation dialog and file drops."""
 
     def test_confirmation_dialog_click_is_consumed(self, mock_editor, mocker):
         """A click the confirmation dialog handles closes it and stops the event."""
@@ -3232,6 +3227,75 @@ class TestEventHandlingAndDeflate:
         confirmation_dialog.handle_mouse_down.assert_called_once_with((50, 30))
         assert mock_editor.confirmation_dialog is None
 
+    def test_event_the_dialog_does_not_take_reaches_the_sprites(self, mock_editor, mocker):
+        """An event no confirmation dialog takes does not raise (BUGS.md #91).
+
+        handle_event called super().handle_event, which no parent class defines.
+        """
+        mock_editor.confirmation_dialog = None
+        leave_window_sprite = mocker.Mock()
+        mock_editor.all_sprites = [leave_window_sprite]
+        event = _make_event(type=pygame.WINDOWLEAVE)
+
+        mock_editor.handle_event(event)
+
+        leave_window_sprite.on_mouse_leave_window_event.assert_called_once_with(event)
+
+    def test_click_outside_the_confirmation_dialog_is_not_consumed(self, mock_editor, mocker):
+        """A click outside the dialog leaves it open and falls through without raising."""
+        confirmation_dialog = mocker.Mock()
+        confirmation_dialog.rect = pygame.Rect(100, 100, 200, 100)
+        mock_editor.confirmation_dialog = confirmation_dialog
+        mock_editor.all_sprites = []
+        mocker.patch.object(
+            bitmappy,
+            'current_input',
+            return_value=SimpleNamespace(mouse_position=(5, 5)),
+        )
+
+        mock_editor.handle_event(_make_event(type=pygame.MOUSEBUTTONDOWN))
+
+        confirmation_dialog.handle_mouse_down.assert_not_called()
+        assert mock_editor.confirmation_dialog is confirmation_dialog
+
+    def test_click_the_dialog_does_not_handle_keeps_it_open(self, mock_editor, mocker):
+        """A click inside the dialog that it does not handle leaves the dialog open."""
+        confirmation_dialog = mocker.Mock()
+        confirmation_dialog.rect = pygame.Rect(100, 100, 200, 100)
+        confirmation_dialog.handle_mouse_down.return_value = False
+        mock_editor.confirmation_dialog = confirmation_dialog
+        mock_editor.all_sprites = []
+        mocker.patch.object(
+            bitmappy,
+            'current_input',
+            return_value=SimpleNamespace(mouse_position=(150, 130)),
+        )
+
+        mock_editor.handle_event(_make_event(type=pygame.MOUSEBUTTONDOWN))
+
+        confirmation_dialog.handle_mouse_down.assert_called_once_with((50, 30))
+        assert mock_editor.confirmation_dialog is confirmation_dialog
+
+    def test_key_down_is_logged(self, mock_editor, caplog):
+        """A KEYDOWN reaching handle_event is logged with its key."""
+        mock_editor.confirmation_dialog = None
+
+        with caplog.at_level(logging.DEBUG, logger=mock_editor.log.name):
+            mock_editor.handle_event(_make_event(type=pygame.KEYDOWN, key=pygame.K_a))
+
+        assert f'KEYDOWN event received in handle_event: key={pygame.K_a}' in caplog.messages
+
+    def test_window_leave_skips_sprites_without_a_handler(self, mock_editor, mocker):
+        """Only sprites with a leave-window handler hear that the mouse left the window."""
+        mock_editor.confirmation_dialog = None
+        listening_sprite = mocker.Mock()
+        mock_editor.all_sprites = [SimpleNamespace(), listening_sprite]
+        event = _make_event(type=pygame.WINDOWLEAVE)
+
+        mock_editor.handle_event(event)
+
+        listening_sprite.on_mouse_leave_window_event.assert_called_once_with(event)
+
     def test_drop_file_goes_to_file_io(self, mock_editor, mocker):
         """A dropped file is handed to the file I/O manager."""
         mock_editor._file_io = mocker.Mock()
@@ -3240,21 +3304,6 @@ class TestEventHandlingAndDeflate:
         mock_editor.on_drop_file_event(event)
 
         mock_editor._file_io.on_drop_file_event.assert_called_once_with(event)
-
-    def test_deflate_returns_an_empty_config(self, mock_editor):
-        """Deflate reads the image's pixels and returns the (unimplemented) empty config."""
-        mock_editor.name = 'test sprite'
-        mock_editor.image = pygame.Surface((2, 2))
-
-        assert mock_editor.deflate() == {}
-
-    def test_deflate_of_an_empty_image_raises(self, mock_editor):
-        """Deflating an image with no pixels raises the pixel reader's ValueError."""
-        mock_editor.name = 'empty sprite'
-        mock_editor.image = pygame.Surface((0, 0))
-
-        with pytest.raises(ValueError, match='Empty pixel data'):
-            mock_editor.deflate()
 
 
 # ===========================================================================
@@ -3282,3 +3331,364 @@ class TestDelegation:
         mock_editor._submit_pixel_changes_if_ready()
 
         delegate.assert_called_once()
+
+
+class TestEditorConstructionAndArguments:
+    """Tests for BitmapEditorScene construction defaults and command line arguments."""
+
+    def test_missing_options_default_to_a_32_by_32_canvas(self, mocker):
+        """Constructing the editor with no options gives the default 32x32 size."""
+        from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+
+        mocker.patch.object(MultiControllerManager, '_instance', None)
+
+        scene = BitmapEditorScene(options=None)  # type: ignore[arg-type]
+
+        assert scene.options['size'] == '32x32'
+        assert (scene.canvas.pixels_across, scene.canvas.pixels_tall) == (32, 32)
+
+    def test_arguments_add_version_and_size(self):
+        """The editor adds --version and --size (default 32x32) to the parser."""
+        parser = argparse.ArgumentParser()
+
+        BitmapEditorScene.args(parser)
+
+        assert parser.parse_args([]).size == '32x32'
+        parsed = parser.parse_args(['--size', '16x8', '--version'])
+        assert parsed.size == '16x8'
+        assert parsed.version is True
+
+
+# ===========================================================================
+# Drawing in the real editor: undo, redo and a new canvas redraw the canvas image
+# ===========================================================================
+
+MAGENTA_RGB = (255, 0, 255)
+PAINT_RGB = (200, 10, 10)
+
+
+@pytest.fixture
+def real_editor(mocker):
+    """Build a real Bitmappy editor on the real display, with a fresh controller manager.
+
+    Returns:
+        BitmapEditorScene: The editor (one 32x32 frame of magenta).
+
+    """
+    from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+
+    mocker.patch.object(MultiControllerManager, '_instance', None)
+    return BitmapEditorScene(options={})
+
+
+def _paint_pixel(editor, *, x, y, color):
+    """Paint one canvas pixel with a real mouse press and release."""
+    from glitchygames import events
+
+    canvas = editor.canvas
+    canvas.active_color = color
+    position = (
+        canvas.rect.x + x * canvas.pixel_width + 1,
+        canvas.rect.y + y * canvas.pixel_height + 1,
+    )
+    editor.on_left_mouse_button_down_event(
+        events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1),
+    )
+    editor.on_mouse_button_up_event(
+        events.HashableEvent(pygame.MOUSEBUTTONUP, pos=position, button=1),
+    )
+
+
+def _drawn_rgb_at(editor, *, x, y):
+    """Return the RGB colour the canvas image shows at the centre of a pixel's square.
+
+    Returns:
+        tuple[int, int, int]: The drawn colour.
+
+    """
+    canvas = editor.canvas
+    center = (
+        x * canvas.pixel_width + canvas.pixel_width // 2,
+        y * canvas.pixel_height + canvas.pixel_height // 2,
+    )
+    return tuple(canvas.image.get_at(center))[:3]
+
+
+class TestCanvasRedrawInTheRealEditor:
+    """Undo, redo and a new canvas change what the real canvas image shows."""
+
+    def test_undo_and_redo_redraw_the_painted_pixel(self, real_editor):
+        """Undo draws the pixel's old colour again and redo draws the paint again."""
+        _paint_pixel(real_editor, x=3, y=4, color=(*PAINT_RGB, 255))
+        real_editor.canvas.force_redraw()
+        assert _drawn_rgb_at(real_editor, x=3, y=4) == PAINT_RGB
+
+        real_editor.handle_undo()
+        assert _drawn_rgb_at(real_editor, x=3, y=4) == MAGENTA_RGB
+
+        real_editor.handle_redo()
+        assert _drawn_rgb_at(real_editor, x=3, y=4) == PAINT_RGB
+
+    def test_new_file_draws_a_blank_canvas(self, real_editor):
+        """A new 3x2 file draws every pixel of the new canvas magenta, the old paint gone."""
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+        assert _drawn_rgb_at(real_editor, x=0, y=0) == PAINT_RGB
+
+        real_editor.on_new_file_event('3x2')
+
+        canvas = real_editor.canvas
+        assert (canvas.pixels_across, canvas.pixels_tall) == (3, 2)
+        assert canvas.image.get_size() == (3 * canvas.pixel_width, 2 * canvas.pixel_height)
+        drawn_colors = {_drawn_rgb_at(real_editor, x=x, y=y) for x in range(3) for y in range(2)}
+        assert drawn_colors == {MAGENTA_RGB}
+
+    @pytest.mark.parametrize('dimensions', ['0x16', '16x0', '-4x4'])
+    def test_non_positive_dimensions_keep_the_canvas(self, real_editor, caplog, dimensions):
+        """A zero or negative size is refused as invalid; the painted canvas stays as it was.
+
+        A zero width or height used to raise ZeroDivisionError sizing the pixels, and a
+        negative one a pygame error making the surface, crashing the editor.
+        """
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+
+        real_editor.on_new_file_event(dimensions)
+
+        canvas = real_editor.canvas
+        assert (canvas.pixels_across, canvas.pixels_tall) == (32, 32)
+        assert _drawn_rgb_at(real_editor, x=0, y=0) == PAINT_RGB
+        assert f"Invalid dimensions format '{dimensions}'" in caplog.text
+
+    def test_a_failure_building_the_canvas_is_not_reported_as_bad_dimensions(
+        self,
+        real_editor,
+        mocker,
+        caplog,
+    ):
+        """Only parsing the dimensions is guarded: a ValueError building the canvas propagates.
+
+        It used to be logged as an invalid dimensions format, hiding the real error.
+        """
+        mocker.patch.object(
+            real_editor,
+            '_create_fresh_animated_sprite',
+            side_effect=ValueError('canvas build failed'),
+        )
+
+        with pytest.raises(ValueError, match='canvas build failed'):
+            real_editor.on_new_file_event('16x16')
+
+        assert 'Invalid dimensions format' not in caplog.text
+
+
+# ===========================================================================
+# Loading another sprite or starting a new canvas starts a new undo history (BUGS.md #150)
+# ===========================================================================
+
+DARK_RGB = (0, 0, 0)
+GREEN_RGB = (0, 200, 0)
+
+
+def _write_two_animation_sprite(path, *, dark_color):
+    """Write a 2x2 sprite with animations 'idle' and 'strip_2', a dark pixel at the top left.
+
+    Args:
+        path: Where to write it.
+        dark_color: The (red, green, blue) colour of each frame's top-left pixel.
+
+    Returns:
+        The path, as a string.
+
+    """
+    red, green, blue = dark_color
+    animation_tables = ''.join(
+        f'[[animation]]\nnamespace = "{animation_name}"\n\n'
+        f'[[animation.frame]]\nnamespace = "{animation_name}"\nframe_index = 0\n'
+        'pixels = """\n#.\n..\n"""\n\n'
+        for animation_name in ('idle', 'strip_2')
+    )
+    path.write_text(
+        '[sprite]\nname = "two_by_two"\n\n'
+        f'{animation_tables}'
+        f'[colors."#"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
+        '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n',
+        encoding='utf-8',
+    )
+    return str(path)
+
+
+def _frame_pixel_data(editor):
+    """Return every frame's pixel data, by animation name and frame index.
+
+    Returns:
+        dict[str, list[list[tuple[int, ...]]]]: The pixel data.
+
+    """
+    return {
+        animation_name: [frame.get_pixel_data() for frame in frames]
+        for animation_name, frames in editor.canvas.animated_sprite.animations.items()
+    }
+
+
+class TestUndoHistoryStartsOverInTheRealEditor:
+    """A loaded sprite or a new canvas never receives the previous sprite's undo or redo."""
+
+    def test_undo_after_loading_another_sprite_leaves_it_unchanged(self, real_editor, tmp_path):
+        """Paint on A, load B with the same animation names, Ctrl+Z: B keeps its pixels.
+
+        The stroke covers the dark pixel, so undoing it onto B would write A's dark colour over
+        B's green one.
+        """
+        first_sprite = _write_two_animation_sprite(tmp_path / 'first.toml', dark_color=DARK_RGB)
+        second_sprite = _write_two_animation_sprite(
+            tmp_path / 'second.toml',
+            dark_color=GREEN_RGB,
+        )
+        real_editor.canvas.on_load_file_event(first_sprite)
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+
+        real_editor.canvas.on_load_file_event(second_sprite)
+        loaded_pixels = _frame_pixel_data(real_editor)
+        real_editor.handle_undo()
+
+        assert _frame_pixel_data(real_editor) == loaded_pixels
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_redo_after_loading_another_sprite_leaves_it_unchanged(self, real_editor, tmp_path):
+        """Paint on A and undo it, load B, Ctrl+Shift+Z: A's stroke is not redone onto B."""
+        first_sprite = _write_two_animation_sprite(tmp_path / 'first.toml', dark_color=DARK_RGB)
+        second_sprite = _write_two_animation_sprite(
+            tmp_path / 'second.toml',
+            dark_color=GREEN_RGB,
+        )
+        real_editor.canvas.on_load_file_event(first_sprite)
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+        real_editor.handle_undo()
+
+        real_editor.canvas.on_load_file_event(second_sprite)
+        loaded_pixels = _frame_pixel_data(real_editor)
+        real_editor.handle_redo()
+
+        assert _frame_pixel_data(real_editor) == loaded_pixels
+        assert not real_editor.undo_redo_manager.frame_redo_stacks
+        assert not real_editor.undo_redo_manager.can_redo()
+
+    def test_undoing_a_film_strip_change_of_the_old_sprite_is_not_applied(
+        self,
+        real_editor,
+        tmp_path,
+    ):
+        """An animation added to A is not deleted from B by Ctrl+Z after B is loaded.
+
+        A has 'idle' and 'strip_2', so the added strip is 'strip_3'; B's own 'strip_3' would
+        be the one the old 'animation added' step deleted. Adding also recorded selecting the
+        new strip (and each load records selecting its first frame), so Ctrl+Z is pressed
+        until every step A recorded would have been undone.
+        """
+        first_sprite = _write_two_animation_sprite(tmp_path / 'first.toml', dark_color=DARK_RGB)
+        real_editor.canvas.on_load_file_event(first_sprite)
+        real_editor.film_strip_coordinator._add_new_animation()
+        assert 'strip_3' in real_editor.canvas.animated_sprite.animations
+        second_sprite = tmp_path / 'second.toml'
+        second_sprite.write_text(
+            Path(first_sprite).read_text(encoding='utf-8').replace('strip_2', 'strip_3'),
+            encoding='utf-8',
+        )
+
+        steps_recorded_for_the_first_sprite = len(real_editor.undo_redo_manager.undo_stack)
+
+        real_editor.canvas.on_load_file_event(str(second_sprite))
+        for _ in range(steps_recorded_for_the_first_sprite):
+            real_editor.handle_undo()
+
+        assert list(real_editor.canvas.animated_sprite.animations) == ['idle', 'strip_3']
+
+    def test_undoing_the_first_selection_after_a_load_returns_to_the_loaded_frame(
+        self,
+        real_editor,
+        tmp_path,
+    ):
+        """The new history still knows the frame the load showed, so a selection undoes to it."""
+        real_editor.canvas.on_load_file_event(
+            _write_two_animation_sprite(tmp_path / 'loaded.toml', dark_color=GREEN_RGB),
+        )
+
+        real_editor.canvas.show_frame('strip_2', 0)
+        real_editor.handle_undo()
+
+        assert (real_editor.canvas.current_animation, real_editor.canvas.current_frame) == (
+            'idle',
+            0,
+        )
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_a_load_that_fails_keeps_the_history(self, real_editor, tmp_path):
+        """A file that cannot be loaded leaves the sprite, so its undo history stays too."""
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+
+        real_editor.canvas.on_load_file_event(str(tmp_path / 'missing.toml'))
+        real_editor.handle_undo()
+
+        real_editor.canvas.force_redraw()
+        assert _drawn_rgb_at(real_editor, x=1, y=1) == MAGENTA_RGB
+
+    def test_a_load_that_fails_after_replacing_the_sprite_still_clears_the_history(
+        self,
+        real_editor,
+        tmp_path,
+        mocker,
+    ):
+        """Once the sprite is replaced, the old history goes even if a later load step fails."""
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+        mocker.patch.object(
+            real_editor.canvas,
+            '_finalize_sprite_loading',
+            side_effect=ValueError('finalizing failed'),
+        )
+
+        real_editor.canvas.on_load_file_event(
+            _write_two_animation_sprite(tmp_path / 'second.toml', dark_color=GREEN_RGB),
+        )
+
+        assert real_editor.debug_text.text == 'Error loading sprite: finalizing failed'
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_a_stroke_unfinished_at_the_load_is_not_recorded_for_the_loaded_sprite(
+        self,
+        real_editor,
+        tmp_path,
+    ):
+        """A press on A whose release comes after B is loaded records nothing for B."""
+        second_sprite = _write_two_animation_sprite(
+            tmp_path / 'second.toml',
+            dark_color=GREEN_RGB,
+        )
+        from glitchygames import events
+
+        canvas = real_editor.canvas
+        canvas.active_color = (*PAINT_RGB, 255)
+        position = (canvas.rect.x + 1, canvas.rect.y + 1)
+        real_editor.on_left_mouse_button_down_event(
+            events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=position, button=1),
+        )
+
+        real_editor.canvas.on_load_file_event(second_sprite)
+        real_editor.on_mouse_button_up_event(
+            events.HashableEvent(pygame.MOUSEBUTTONUP, pos=(0, 0), button=1),
+        )
+
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()
+
+    def test_undo_after_a_new_canvas_leaves_it_blank(self, real_editor):
+        """Paint, start a new canvas of the same size, Ctrl+Z: the new canvas stays blank."""
+        _paint_pixel(real_editor, x=1, y=1, color=(*PAINT_RGB, 255))
+
+        real_editor.on_new_file_event('32x32')
+        new_canvas_pixels = _frame_pixel_data(real_editor)
+        real_editor.handle_undo()
+
+        assert _frame_pixel_data(real_editor) == new_canvas_pixels
+        assert not real_editor.undo_redo_manager.frame_undo_stacks
+        assert not real_editor.undo_redo_manager.can_undo()

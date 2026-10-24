@@ -2081,6 +2081,10 @@ git commit -m "Route every device construction, enumeration and poll through the
 
 ### Task 7: The saves door
 
+(As built: no `SaveStore` Protocol or `SandboxSaves`; `SaveManager` became a base class with
+`DiskSaveManager` live (`glitchygames/state/manager.py`) and `MemorySaveManager` in a replay
+(`glitchygames/state/sandbox.py`), user decision. The steps below are the plan as written.)
+
 **Files:**
 - Create: `glitchygames/state/sandbox.py`
 - Modify: `glitchygames/state/__init__.py` (export `open_saves`, `SaveStore`, `SandboxSaves`)
@@ -3409,6 +3413,9 @@ git commit -m "Record through the doors: RecordingSources writes input, devices,
 **Interfaces:**
 - Consumes: everything above.
 - Produces (exact):
+
+(Since replaced: refusals exit with `ExitCode` members, `glitchygames/exit_codes.py`; an unusable
+recording is `ExitCode.UNUSABLE_INPUT` (65), a missing one `MISSING_INPUT` (66).)
 
 ```python
 REPLAY_UNUSABLE_EXIT_CODE = 2

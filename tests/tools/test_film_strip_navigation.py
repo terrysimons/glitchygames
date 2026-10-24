@@ -3,8 +3,8 @@
 import pygame
 import pytest
 
-from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
-from tests.tools.test_film_strip_base import FilmStripTestBase
+from glitchygames import events
+from tests.tools.test_film_strip_base import FilmStripTestBase, make_real_animated_sprite
 
 # Additional test constants
 FRAME_INDEX_2 = 2
@@ -14,50 +14,33 @@ SCROLL_OFFSET_1 = 1
 SCROLL_OFFSET_0 = 0
 
 
+def key_down_event(*, key: int) -> events.HashableEvent:
+    """Build a real KEYDOWN event with no modifiers held.
+
+    Returns:
+        The event.
+
+    """
+    return events.HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0)
+
+
 class TestFilmStripNavigation(FilmStripTestBase):
     """Test film strip navigation and scrolling functionality."""
 
     @pytest.fixture(autouse=True)
-    def setup_navigation(self, mocker):
-        """Set up test fixtures for navigation testing.
-
-        Note: The base class setup_mocks fixture runs first (autouse),
-        so pygame mocks and cached objects are already available.
-        """
-        # Use the optimized setup from base class
-        self.scene, self.mock_sprite = self.setup_scene_with_sprite()
+    def setup_navigation(self, setup_real_objects):
+        """Load a real sprite with four animations ('idle', 'walk', 'jump', 'attack')."""
+        self.scene = self.create_optimized_scene()
 
         # Configure scene for navigation testing
         self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
 
-        # Set up multiple animations for navigation testing using centralized mocks
-
-        # Create additional animations using the centralized mock factory
-        walk_sprite = MockFactory.create_animated_sprite_mock(
-            config=MockSpriteConfig(animation_name='walk'),
+        # Four five-frame animations, so the strips can scroll
+        self.animated_sprite = make_real_animated_sprite(
+            frame_counts={'idle': 5, 'walk': 5, 'jump': 5, 'attack': 5},
         )
-        jump_sprite = MockFactory.create_animated_sprite_mock(
-            config=MockSpriteConfig(animation_name='jump'),
-        )
-        attack_sprite = MockFactory.create_animated_sprite_mock(
-            config=MockSpriteConfig(animation_name='attack'),
-        )
-
-        # Replace mock frame images with real pygame Surfaces for rendering
-        self._replace_mock_images_with_real_surfaces(walk_sprite)
-        self._replace_mock_images_with_real_surfaces(jump_sprite)
-        self._replace_mock_images_with_real_surfaces(attack_sprite)
-
-        # Combine animations from different sprites
-        self.mock_sprite._animations.update({
-            'walk': walk_sprite._animations['walk'],
-            'jump': jump_sprite._animations['jump'],
-            'attack': attack_sprite._animations['attack'],
-        })
-
-        # Reload the sprite to create film strips for all animations
-        self.scene.film_strip_coordinator.on_sprite_loaded(self.mock_sprite)
+        self.scene.film_strip_coordinator.on_sprite_loaded(self.animated_sprite)
 
         # Ensure canvas has proper navigation state
         self.scene.canvas.current_animation = 'idle'
@@ -66,17 +49,14 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_up_arrow_navigation(self):
         """Test UP arrow navigates to previous animation."""
         # Get the list of animations in the order they appear
-        animation_names = list(self.mock_sprite._animations.keys())
+        animation_names = list(self.animated_sprite._animations.keys())
 
         # Start at the last animation
         self.scene.canvas.current_animation = animation_names[-1]
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
 
         # Create UP arrow event
-        up_event = self._mocker.Mock()
-        up_event.key = pygame.K_UP
-        up_event.type = pygame.KEYDOWN
-        up_event.mod = 0
+        up_event = key_down_event(key=pygame.K_UP)
 
         # Handle the event
         self.scene.on_key_down_event(up_event)
@@ -89,17 +69,14 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_down_arrow_navigation(self):
         """Test DOWN arrow navigates to next animation."""
         # Get the list of animations in the order they appear
-        animation_names = list(self.mock_sprite._animations.keys())
+        animation_names = list(self.animated_sprite._animations.keys())
 
         # Start at the first animation
         self.scene.canvas.current_animation = animation_names[0]
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
 
         # Create DOWN arrow event
-        down_event = self._mocker.Mock()
-        down_event.key = pygame.K_DOWN
-        down_event.type = pygame.KEYDOWN
-        down_event.mod = 0
+        down_event = key_down_event(key=pygame.K_DOWN)
 
         # Handle the event
         self.scene.on_key_down_event(down_event)
@@ -116,10 +93,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.canvas.current_frame = FRAME_INDEX_2
 
         # Create LEFT arrow event
-        left_event = self._mocker.Mock()
-        left_event.key = pygame.K_LEFT
-        left_event.type = pygame.KEYDOWN
-        left_event.mod = 0
+        left_event = key_down_event(key=pygame.K_LEFT)
 
         # Handle the event
         self.scene.on_key_down_event(left_event)
@@ -135,10 +109,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
 
         # Create RIGHT arrow event
-        right_event = self._mocker.Mock()
-        right_event.key = pygame.K_RIGHT
-        right_event.type = pygame.KEYDOWN
-        right_event.mod = 0
+        right_event = key_down_event(key=pygame.K_RIGHT)
 
         # Handle the event
         self.scene.on_key_down_event(right_event)
@@ -150,27 +121,21 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_animation_wraparound(self):
         """Test animation navigation wraps around at boundaries."""
         # Get the list of animations in the order they appear
-        animation_names = list(self.mock_sprite._animations.keys())
+        animation_names = list(self.animated_sprite._animations.keys())
 
         # Start at the last animation
         self.scene.canvas.current_animation = animation_names[-1]
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
 
         # Navigate down (should wrap to first)
-        down_event = self._mocker.Mock()
-        down_event.key = pygame.K_DOWN
-        down_event.type = pygame.KEYDOWN
-        down_event.mod = 0
+        down_event = key_down_event(key=pygame.K_DOWN)
         self.scene.on_key_down_event(down_event)
 
         # Should wrap to first animation
         assert self.scene.canvas.current_animation == animation_names[0]
 
         # Navigate up (should wrap to last)
-        up_event = self._mocker.Mock()
-        up_event.key = pygame.K_UP
-        up_event.type = pygame.KEYDOWN
-        up_event.mod = 0
+        up_event = key_down_event(key=pygame.K_UP)
         self.scene.on_key_down_event(up_event)
 
         # Should wrap to last animation
@@ -179,7 +144,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_frame_wraparound(self):
         """Test frame navigation wraps around at boundaries."""
         # Get the number of frames for the idle animation
-        idle_frames = len(self.mock_sprite._animations['idle'])
+        idle_frames = len(self.animated_sprite._animations['idle'])
         last_frame_index = idle_frames - 1
 
         # Start at the last frame of "idle"
@@ -187,20 +152,14 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.canvas.current_frame = last_frame_index
 
         # Navigate right (should wrap to frame 0)
-        right_event = self._mocker.Mock()
-        right_event.key = pygame.K_RIGHT
-        right_event.type = pygame.KEYDOWN
-        right_event.mod = 0
+        right_event = key_down_event(key=pygame.K_RIGHT)
         self.scene.on_key_down_event(right_event)
 
         # Should wrap to frame 0
         assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
 
         # Navigate left (should wrap to last frame)
-        left_event = self._mocker.Mock()
-        left_event.key = pygame.K_LEFT
-        left_event.type = pygame.KEYDOWN
-        left_event.mod = 0
+        left_event = key_down_event(key=pygame.K_LEFT)
         self.scene.on_key_down_event(left_event)
 
         # Should wrap to last frame
@@ -285,22 +244,22 @@ class TestFilmStripNavigation(FilmStripTestBase):
         # Should not change offset since "walk" is already visible
         assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
 
-    @pytest.mark.skip(reason='Selection state management not implemented')
     def test_film_strip_selection_state(self):
-        """Test film strip selection state management."""
-        # Set current animation to "walk"
-        self.scene.canvas.current_animation = 'walk'
-        self.scene.canvas.current_frame = 1
+        """Test that the strip of the selected animation is the only one marked selected."""
+        # The editor's global selection is what update_film_strip_selection_state reads
+        self.scene.selected_animation = 'walk'
+        self.scene.selected_frame = 1
 
-        # Update selection state
         self.scene.update_film_strip_selection_state()
 
-        # Check that the correct strip is marked as selected
-        if 'walk' in self.scene.film_strips:
-            walk_strip = self.scene.film_strips['walk']
-            assert walk_strip.is_selected
-            assert walk_strip.current_animation == 'walk'
-            assert walk_strip.current_frame == 1
+        walk_strip = self.scene.film_strips['walk']
+        assert walk_strip.is_selected
+        assert walk_strip.selected_frame == 1
+        for strip_name, strip_widget in self.scene.film_strips.items():
+            # Every strip renders its own animation's sprockets
+            assert strip_widget.current_animation == strip_name
+            if strip_name != 'walk':
+                assert not strip_widget.is_selected
 
     def test_switch_to_film_strip(self):
         """Test switching to a specific film strip."""
@@ -315,16 +274,19 @@ class TestFilmStripNavigation(FilmStripTestBase):
         assert self.scene.canvas.current_animation == 'jump'
         assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
 
-    @pytest.mark.skip(reason='Selection state management not implemented')
     def test_dirty_marking_on_selection_change(self):
-        """Test that selection changes properly mark sprites as dirty."""
-        # Switch to a different strip
+        """Test that switching strips marks the old and new strip sprites for redraw."""
+        self.scene.film_strip_coordinator.switch_to_film_strip('jump', SCROLL_OFFSET_0)
+        for strip_sprite in self.scene.film_strip_sprites.values():
+            strip_sprite.dirty = 0
+
         self.scene.film_strip_coordinator.switch_to_film_strip('attack', SCROLL_OFFSET_0)
 
-        # Check that the film strip sprite is marked as dirty
-        if 'attack' in self.scene.film_strip_sprites:
-            attack_sprite = self.scene.film_strip_sprites['attack']
-            assert attack_sprite.dirty == SCROLL_OFFSET_2
+        # dirty = 1 redraws the sprite once on the next LayeredDirty.draw()
+        assert self.scene.film_strip_sprites['attack'].dirty == 1
+        assert self.scene.film_strip_sprites['jump'].dirty == 1
+        assert self.scene.film_strips['attack'].is_selected
+        assert not self.scene.film_strips['jump'].is_selected
 
     def test_keyboard_navigation_with_auto_scroll(self):
         """Test that keyboard navigation triggers auto-scroll when needed."""
@@ -342,10 +304,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.canvas.current_animation = 'idle'
 
         # Navigate down to "attack"
-        down_event = self._mocker.Mock()
-        down_event.key = pygame.K_DOWN
-        down_event.type = pygame.KEYDOWN
-        down_event.mod = 0
+        down_event = key_down_event(key=pygame.K_DOWN)
 
         for _ in range(steps_needed):
             self.scene.on_key_down_event(down_event)

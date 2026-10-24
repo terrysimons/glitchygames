@@ -1,8 +1,8 @@
 """Tests for FrameOperationManager in glitchygames/bitmappy/frame_operations.py.
 
 The manager runs against a small stand-in editor holding a real AnimatedSprite and a real
-UndoRedoManager, so the tests check what panning commits, copy/paste and pixel-change
-submission do to the frames and the undo history.
+UndoRedoManager, so the tests check what copy/paste and pixel-change submission do to the
+frames and the undo history. Panning is tested in the real editor (test_canvas_panning.py).
 """
 
 import pygame
@@ -35,7 +35,7 @@ def _make_frame(color, duration=0.5, width=FRAME_WIDTH, height=FRAME_HEIGHT):
 
 
 class _Canvas:
-    """Canvas stand-in with the panning state FrameOperationManager reads."""
+    """Canvas stand-in with the state FrameOperationManager reads."""
 
     def __init__(self, animated_sprite):
         self.animated_sprite = animated_sprite
@@ -44,16 +44,7 @@ class _Canvas:
         self.pixels = [GREEN] * PIXEL_COUNT
         self.current_animation = 'idle'
         self.current_frame = 0
-        self._frame_panning = {}
-        self.pan_requests = []
         self.redraw_count = 0
-
-    def _get_current_frame_key(self):
-        return (self.current_animation, self.current_frame)
-
-    def pan_canvas(self, delta_x, delta_y):
-        """Record a pan request."""
-        self.pan_requests.append((delta_x, delta_y))
 
 
 class _RedrawingCanvas(_Canvas):
@@ -62,24 +53,6 @@ class _RedrawingCanvas(_Canvas):
     def force_redraw(self):
         """Count redraws."""
         self.redraw_count += 1
-
-
-class _FilmStripCoordinator:
-    """Coordinator stand-in counting film strip refreshes."""
-
-    def __init__(self):
-        self.refresh_count = 0
-
-    def update_film_strips_for_animated_sprite_update(self):
-        """Count a refresh."""
-        self.refresh_count += 1
-
-
-class _FilmStrip:
-    """Film strip stand-in holding its own animated sprite."""
-
-    def __init__(self, animated_sprite):
-        self.animated_sprite = animated_sprite
 
 
 class _OperationTracker:
@@ -102,10 +75,8 @@ class _Editor:
     """Editor stand-in with the attributes FrameOperationManager reads."""
 
     def __init__(self, animated_sprite):
-        self._applying_undo_redo = False
+        self.applying_undo_redo = False
         self.canvas = _RedrawingCanvas(animated_sprite)
-        self.film_strip_coordinator = _FilmStripCoordinator()
-        self.film_strips = {}
         self.selected_animation = 'idle'
         self.selected_frame = 0
         self.undo_redo_manager = UndoRedoManager(max_history=10)
@@ -148,144 +119,6 @@ def manager(editor):
 
     """
     return FrameOperationManager(editor)
-
-
-def _activate_panning(editor):
-    editor.canvas._frame_panning[editor.canvas._get_current_frame_key()] = {'active': True}
-
-
-class TestCommitPannedBuffer:
-    """Test committing the panned canvas view back into the frames."""
-
-    def test_commit_writes_canvas_pixels_into_frame_and_film_strip(self, editor, manager):
-        """An active pan writes the canvas pixels to the frame and the film strip's copy."""
-        film_strip_sprite = AnimatedSprite()
-        film_strip_sprite.add_animation('idle', [_make_frame(RED)])
-        editor.film_strips = {'idle': _FilmStrip(film_strip_sprite)}
-        _activate_panning(editor)
-
-        manager.commit_panned_buffer()
-
-        frame = editor.canvas.animated_sprite._animations['idle'][0]
-        assert frame.pixels == [GREEN] * PIXEL_COUNT
-        assert frame.image.get_at((1, 1)) == pygame.Color(*GREEN)
-        film_strip_frame = film_strip_sprite._animations['idle'][0]
-        assert film_strip_frame.pixels == [GREEN] * PIXEL_COUNT
-        assert film_strip_frame.image.get_at((0, 0)) == pygame.Color(*GREEN)
-        assert editor.film_strip_coordinator.refresh_count == 1
-
-    def test_short_canvas_pixels_leave_the_rest_transparent(self, editor, manager):
-        """Pixels missing from the canvas list stay transparent in the built image."""
-        editor.canvas.pixels = [GREEN]
-        _activate_panning(editor)
-
-        manager.commit_panned_buffer()
-
-        image = editor.canvas.animated_sprite._animations['idle'][0].image
-        assert image.get_at((0, 0)) == pygame.Color(*GREEN)
-        assert image.get_at((1, 1)).a == 0
-
-    def test_no_canvas_commits_nothing(self, editor, manager):
-        """Without a canvas there is nothing to commit."""
-        editor.canvas = None
-
-        manager.commit_panned_buffer()
-
-        assert editor.film_strip_coordinator.refresh_count == 0
-
-    def test_frame_without_panning_state_is_left_alone(self, editor, manager):
-        """A frame that was never panned keeps its pixels."""
-        manager.commit_panned_buffer()
-
-        assert editor.canvas.animated_sprite._animations['idle'][0].pixels == [RED] * PIXEL_COUNT
-
-    def test_inactive_panning_is_left_alone(self, editor, manager):
-        """A pan that is no longer active is not committed."""
-        editor.canvas._frame_panning[editor.canvas._get_current_frame_key()] = {'active': False}
-
-        manager.commit_panned_buffer()
-
-        assert editor.canvas.animated_sprite._animations['idle'][0].pixels == [RED] * PIXEL_COUNT
-        assert editor.film_strip_coordinator.refresh_count == 0
-
-    def test_canvas_without_animated_sprite_commits_nothing(self, editor, manager):
-        """A canvas with no animated sprite has nowhere to commit."""
-        _activate_panning(editor)
-        editor.canvas.animated_sprite = None
-
-        manager.commit_panned_buffer()
-
-        assert editor.film_strip_coordinator.refresh_count == 0
-
-    def test_current_frame_out_of_range_commits_nothing(self, editor, manager):
-        """A current frame past the end of the animation is not committed."""
-        editor.canvas.current_frame = 5
-        _activate_panning(editor)
-
-        manager.commit_panned_buffer()
-
-        assert editor.film_strip_coordinator.refresh_count == 0
-
-    def test_frame_without_pixels_attribute_is_skipped(self, editor, manager):
-        """A frame object with no pixels attribute is not written to."""
-        frame_without_pixels = object()
-        editor.canvas.animated_sprite._animations['idle'][0] = frame_without_pixels
-        _activate_panning(editor)
-
-        manager.commit_panned_buffer()
-
-        assert editor.canvas.animated_sprite._animations['idle'][0] is frame_without_pixels
-        assert editor.film_strip_coordinator.refresh_count == 1
-
-    def test_film_strip_without_matching_frame_is_skipped(self, editor, manager):
-        """A film strip whose sprite lacks the frame keeps its own data."""
-        film_strip_sprite = AnimatedSprite()
-        film_strip_sprite.add_animation('walk', [_make_frame(RED)])
-        editor.film_strips = {'idle': _FilmStrip(film_strip_sprite)}
-        _activate_panning(editor)
-
-        manager.commit_panned_buffer()
-
-        assert film_strip_sprite._animations['walk'][0].pixels == [RED] * PIXEL_COUNT
-        assert editor.canvas.animated_sprite._animations['idle'][0].pixels == [GREEN] * PIXEL_COUNT
-
-    def test_film_strip_frame_without_pixels_attribute_is_skipped(self, editor, manager):
-        """A film strip frame with no pixels attribute is left alone."""
-        film_strip_sprite = AnimatedSprite()
-        frame_without_pixels = object()
-        film_strip_sprite._animations['idle'] = [frame_without_pixels]
-        editor.film_strips = {'idle': _FilmStrip(film_strip_sprite)}
-        _activate_panning(editor)
-
-        manager.commit_panned_buffer()
-
-        assert film_strip_sprite._animations['idle'][0] is frame_without_pixels
-
-
-class TestHandleCanvasPanning:
-    """Test delegating pan requests to the canvas."""
-
-    def test_pan_is_passed_to_the_canvas(self, editor, manager):
-        """A pan request reaches the canvas with its deltas."""
-        manager.handle_canvas_panning(1, -1)
-
-        assert editor.canvas.pan_requests == [(1, -1)]
-
-    def test_pan_without_canvas_warns(self, editor, manager, caplog):
-        """Without a canvas the pan is refused with a warning."""
-        editor.canvas = None
-
-        manager.handle_canvas_panning(1, 0)
-
-        assert 'No canvas available for panning' in caplog.text
-
-    def test_pan_on_canvas_without_panning_warns(self, editor, manager, caplog):
-        """A canvas with no pan_canvas method is refused with a warning."""
-        editor.canvas = object.__new__(type('PlainCanvas', (), {}))
-
-        manager.handle_canvas_panning(0, 1)
-
-        assert 'Canvas does not support panning' in caplog.text
 
 
 class TestCopyPasteFrame:

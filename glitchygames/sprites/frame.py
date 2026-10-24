@@ -14,7 +14,6 @@ import pygame
 # Imported under another name so it does not shadow SpriteFrame.opaque_bounds in reading
 from glitchygames.collision.bounds import opaque_bounds as measure_opaque_bounds
 from glitchygames.color import (
-    MAX_COLOR_CHANNEL_VALUE,
     RGBA_COMPONENT_COUNT,
 )
 
@@ -288,11 +287,9 @@ class SpriteFrame:
         extracted_pixels: list[tuple[int, int, int, int]] = []
         for y in range(height):
             for x in range(width):
+                # Surface.get_at always returns an RGBA Color
                 color = self._image.get_at((x, y))
-                if len(color) == RGBA_COMPONENT_COUNT:
-                    extracted_pixels.append((color.r, color.g, color.b, color.a))
-                else:
-                    extracted_pixels.append((color.r, color.g, color.b, MAX_COLOR_CHANNEL_VALUE))
+                extracted_pixels.append((color.r, color.g, color.b, color.a))
         return extracted_pixels  # ty: ignore[invalid-return-type]
 
     def set_pixel_data(self, pixels: Sequence[tuple[int, ...]]) -> None:

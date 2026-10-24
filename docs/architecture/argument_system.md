@@ -7,158 +7,60 @@ extend the parser with its own game-specific options.
 
 ## How Arguments Are Assembled
 
-The orchestration happens in `GameEngine.initialize_arguments()`, called from
-`GameEngine.__init__()`. The flow is:
+`GameEngine.initialize_arguments()`, called from `GameEngine.__init__()`, builds one parser from
+three layers. Here is what happens when you run Bitmappy (`uv run bitmappy`): the Engine box
+adds layers 1 and 2, the Bitmappy box layer 3, and argparse's `ArgumentParser` is outside both.
 
 ```mermaid
 sequenceDiagram
-    participant GE as GameEngine.__init__()
-    participant IA as initialize_arguments(game_class)
-    participant AP as ArgumentParser
-    participant ENGINE as GameEngine.args()
-    participant MGR as Event Manager .args() x12
-    participant GAME as game_class.args()
-    participant NS as Namespace
+    participant PARSER as ArgumentParser
+    box rgb(232,238,255) Engine
+    participant INIT as initialize_arguments
+    participant ENGINE as GameEngine.args
+    participant MANAGERS as the 12 event managers
+    end
+    box rgb(255,243,224) Bitmappy
+    participant GAME as BitmapEditorScene.args
+    end
 
-    GE->>IA: initialize_arguments(game_class)
-    IA->>AP: ArgumentParser("GameName version X.Y")
-    IA->>ENGINE: GameEngine.args(parser)
-
-    Note over ENGINE: Adds "Graphics Options" group<br/>14 arguments,<br/>and "Diagnostics Options"<br/>10 arguments
-
-    ENGINE->>MGR: AppEventManager.args(parser)
-    Note over MGR: Adds "App Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: AudioEventManager.args(parser)
-    Note over MGR: Adds "Sound Mixer Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: ControllerEventManager.args(parser)
-    Note over MGR: Adds "Controller Options" group<br/>1 argument
-
-    ENGINE->>MGR: DropEventManager.args(parser)
-    Note over MGR: Adds "Drop Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: FontManager.args(parser)
-    Note over MGR: Adds "Font Options" group<br/>7 arguments
-
-    ENGINE->>MGR: GameEventManager.args(parser)
-    Note over MGR: Adds "Game Options" group<br/>3 arguments
-
-    ENGINE->>MGR: JoystickEventManager.args(parser)
-    Note over MGR: Adds "Joystick Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: KeyboardEventManager.args(parser)
-    Note over MGR: Adds "Keyboard Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: MidiEventManager.args(parser)
-    Note over MGR: Adds "Midi Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: MouseEventManager.args(parser)
-    Note over MGR: Adds "Mouse Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: TouchEventManager.args(parser)
-    Note over MGR: Adds "Touch Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: WindowEventManager.args(parser)
-    Note over MGR: Adds "Window Options" group<br/>(empty, reserved)
-
-    ENGINE-->>IA: return parser
-
-    IA->>AP: parser.add_argument_group("GameName vX.Y Options")
-    IA->>GAME: game_class.args(game_group)
-    Note over GAME: Adds game-specific arguments<br/>to its own group
-
-    IA->>AP: parser.parse_args()
-    AP-->>NS: Namespace with all arguments
-    IA->>IA: GameEngine.OPTIONS = vars(args)
-    IA->>IA: Derive synthetic: debug_events
-    IA->>IA: Back-propagate: game.options = OPTIONS
+    INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
+    INIT->>ENGINE: GameEngine.args(parser)
+    Note over ENGINE: Layer 1<br/>Graphics Options (15)<br/>Diagnostics Options (15, 2 hidden)
+    loop for each of the 12
+        ENGINE->>MANAGERS: manager.args(parser)
+    end
+    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (1), Drop,<br/>Font (7), Game (3), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
+    INIT->>PARSER: add_argument_group("Bitmappy v1.0 Options")
+    INIT->>GAME: BitmapEditorScene.args(group)
+    Note over GAME: Layer 3<br/>-v, -s
+    INIT->>PARSER: parse_args()
+    PARSER-->>INIT: the parsed options
+    Note over INIT: GameEngine.OPTIONS = the options<br/>target_fps resolved<br/>game.options = OPTIONS
 ```
+
+Every option each layer adds is listed in the [Complete Flag Reference](#complete-flag-reference).
 
 ## The Argument Group Hierarchy
 
-Each layer adds its own `add_argument_group()`, producing clearly separated
-sections in `--help` output. The hierarchy mirrors the engine architecture.
+Each layer adds its own `add_argument_group()`, so `--help` shows clearly separated sections, in
+the order of the layers. The layers mirror the engine's architecture.
 
 ```mermaid
-flowchart TD
-    subgraph Parser["ArgumentParser: GameName version X.Y"]
-        subgraph L1["Layer 1: Graphics Options (GameEngine)"]
-            F1["-f, --target-fps"]
-            F2["--fps-log-interval-ms"]
-            F3["-w, --windowed"]
-            F4["-r, --resolution"]
-            F5["--use-gfxdraw"]
-            F6["--update-type"]
-            F7["--timer-backend"]
-            F8["--sleep-granularity-ns"]
-            F9["--windows-timer-1ms"]
-            F16["--random-seed"]
-            F17["--screen-shake-intensity, --rumble-intensity"]
-            F18["--live-voice-pool"]
-            F19["--video-driver"]
-        end
-
-        subgraph L1D["Layer 1: Diagnostics Options (GameEngine)"]
-            D1["--log-timer-jitter, --perf-trim-percent, --fps-histogram"]
-            D2["--debug-overlay"]
-            D3["--record-trace, --replay-trace, --replay-fps"]
-            D4["--audit, --replay-digest, --replay-pause-at-frame"]
-            D5["--headless"]
-        end
-
-        subgraph L2["Layer 2: Event Manager Groups"]
-            subgraph AO["App Options"]
-                AO_EMPTY["(no arguments yet)"]
-            end
-            subgraph SM["Sound Mixer Options"]
-                SM_EMPTY["(no arguments yet)"]
-            end
-            subgraph DO["Drop Options"]
-                DO_EMPTY["(no arguments yet)"]
-            end
-            subgraph CO["Controller Options"]
-                CO1["--input-mode"]
-            end
-            subgraph FO["Font Options"]
-                FO1["--font-name"]
-                FO2["--font-size"]
-                FO3["--font-bold"]
-                FO4["--font-italic"]
-                FO5["--font-antialias"]
-                FO6["--font-dpi"]
-                FO7["--font-system"]
-            end
-            subgraph GO["Game Options"]
-                GO1["-l, --log-level"]
-                GO2["--no-unhandled-events"]
-                GO3["-p, --profile"]
-            end
-            subgraph JO["Joystick Options"]
-                JO_EMPTY["(no arguments yet)"]
-            end
-            subgraph KO["Keyboard Options"]
-                KO_EMPTY["(no arguments yet)"]
-            end
-            subgraph MIO["Midi Options"]
-                MIO_EMPTY["(no arguments yet)"]
-            end
-            subgraph MO["Mouse Options"]
-                MO_EMPTY["(no arguments yet)"]
-            end
-            subgraph TO["Touch Options"]
-                TO_EMPTY["(no arguments yet)"]
-            end
-            subgraph WO["Window Options"]
-                WO_EMPTY["(no arguments yet)"]
-            end
-        end
-
-        subgraph L3["Layer 3: Game-Specific Options"]
-            GS["(varies per game)"]
-        end
+%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart TB
+    subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
+        L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options"]
+        L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options,<br/>and 9 reserved groups with no options yet"]
     end
+    subgraph GAME_ARGUMENT_LAYERS["Your game"]
+        L3["<b>Layer 3: your game</b> (its scene's args)<br/>GameName vX.Y Options"]
+    end
+    L1 --> L2 --> L3
 ```
+
+In `--help` (Bitmappy's or Paddle Slap's) the groups hold 15 Graphics, 15 Diagnostics (2 more
+hidden), 1 Controller, 7 Font and 3 Game options, then the game's own; the nine empty groups
+are left out. The [Complete Flag Reference](#complete-flag-reference) lists them all.
 
 ## How Games Add Arguments
 
@@ -169,14 +71,14 @@ informational message and continues.
 
 ```mermaid
 flowchart TD
-    subgraph Engine["GameEngine.initialize_arguments()"]
+    subgraph Engine["Engine: GameEngine.initialize_arguments()"]
         CHECK{"getattr(game, 'args', None)"}
         CHECK -->|"method exists"| GROUP["parser.add_argument_group(\nGameName vX.Y Options)"]
         GROUP --> CALL["game.args(group)"]
         CHECK -->|"None"| LOG["log.info: Game does not\nimplement arguments"]
     end
 
-    subgraph GameCode["Your Game Scene"]
+    subgraph GameCode["Your game: its scene class"]
         ARGS["@classmethod\ndef args(cls, parser):\n    parser.add_argument(...)"]
     end
 
@@ -202,8 +104,8 @@ class MyGame(Scene):
 ### Pattern: Game with Custom Options
 
 ```python
-class JoystickDemo(Scene):
-    NAME = 'Joystick Demo'
+class TimedDemo(Scene):
+    NAME = 'Timed Demo'
     VERSION = '1.0'
 
     @classmethod
@@ -232,11 +134,8 @@ flowchart TD
     PARSE["parser.parse_args()"] --> VARS["vars(args)\nNamespace -> dict"]
     VARS --> OPT["GameEngine.OPTIONS (class var)"]
 
-    OPT --> SYNTH{"log_level in\nDEBUG/CRITICAL/ERROR?"}
-    SYNTH -->|"Yes"| DEBUG_T["OPTIONS['debug_events'] = True"]
-    SYNTH -->|"No"| DEBUG_F["OPTIONS['debug_events'] = False"]
-
-    DEBUG_T & DEBUG_F --> BACKPROP["game.options = OPTIONS"]
+    OPT --> FPS["OPTIONS['target_fps'] resolved\n(--target-fps, else the game's TARGET_FPS, else 60.01)"]
+    FPS --> BACKPROP["game.options = OPTIONS"]
     BACKPROP --> SM_OPT["SceneManager.OPTIONS = OPTIONS"]
     SM_OPT --> SCENE_INIT["Scene.__init__(options=OPTIONS)"]
     SCENE_INIT --> SELF_OPT["self.options = OPTIONS"]
@@ -254,90 +153,97 @@ flowchart TD
 
 ## Complete Flag Reference
 
-### Graphics Options
+Every option, by the layer that adds it and grouped as `uv run bitmappy --help` prints it:
+each with its type and default, then its help text.
+
+### Layer 1: the engine
+
+#### Graphics Options
 
 Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `-f`, `--target-fps` | `float` | `None` (the game's `TARGET_FPS`, else 60.01) | Cap the framerate; `0` = uncapped |
-| `--fps-log-interval-ms` | `float` | `1000` | How often to log the FPS counter in ms |
-| `-w`, `--windowed` | `store_true` | `True` | Run in windowed mode (the default is already `True`, so the flag changes nothing) |
-| `-r`, `--resolution` | `str` | `800x480` | Display resolution (WxH) |
-| `--use-gfxdraw` | `store_true` | `False` | Use pygame.gfxdraw for rendering |
-| `--update-type` | `choice` | `update` | Display update method: `update` or `flip` |
-| `--timer-backend` | `choice` | `auto` | Timer backend: `auto` (the fast backend with this machine's sleep delay measured, so each sleep wakes in time), `fast` (assumes sleeps wake on time) or `pygame` (legacy) |
-| `--sleep-granularity-ns` | `int` | `1000000` | How long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only |
-| `--windows-timer-1ms` | `store_true` | `False` | On Windows, request 1ms system timer resolution |
-| `--video-driver` | `choice` | `None` | Platform-specific video driver (see below) |
-| `--random-seed` | `int` | random 64-bit | Master seed for every engine random stream |
-| `--screen-shake-intensity` | `float` | `1.0` | Screen shake strength, 0.0 (off) to 1.0 |
-| `--rumble-intensity` | `float` | `1.0` | Controller rumble strength, 0.0 (off) to 1.0 |
-| `--live-voice-pool` | `int` | `4` | Mixer channels reserved for real-time synth voices |
+- `-f, --target-fps TARGET_FPS` (`float`): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
+- `--fps-log-interval-ms FPS_LOG_INTERVAL_MS` (`float`): how often to log the FPS counter in ms (default: 1000)
+- `-w, --windowed, --no-windowed` (`bool`): run in a window; --no-windowed runs fullscreen (default: windowed)
+- `-r, --resolution RESOLUTION` (`str`): the resolution to use (default: 800x480)
+- `--use-gfxdraw` (`store_true`, default `False`): not used yet: stored, but nothing draws with pygame.gfxdraw because of it
+- `--update-type {update,flip}` (`choice`): update or flip (default: update)
+- `--timer-backend {auto,fast,pygame}` (`choice`): timer backend for draw loop pacing (default: auto, the fast backend with this machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps wake on time; pygame is the legacy backend)
+- `--sleep-granularity-ns SLEEP_GRANULARITY_NS` (`int`, default `1000000`): how long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only
+- `--windows-timer-1ms` (`store_true`, default `False`): on Windows, request 1ms system timer resolution
+- `--random-seed RANDOM_SEED` (`int`): master seed for every engine random stream (default: a random 64-bit seed, logged in recordings)
+- `--screen-shake-intensity SCREEN_SHAKE_INTENSITY` (`float`): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)
+- `--rumble-intensity RUMBLE_INTENSITY` (`float`): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
+- `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
+- `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
+- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
 
-**`--video-driver` choices by platform:**
+**`--video-driver` choices by platform** (SDL 2's video driver names, by `platform.system()`;
+`--help` above is macOS's):
 
 | Platform | Choices |
 |----------|---------|
-| Linux | `wayland`, `x11`, `dga`, `fbcon`, `directfb`, `ggi`, `vgl`, `svgalib`, `aalib` |
-| Windows | `windib`, `directx` |
-| macOS | (none currently defined; the code checks `platform.system() == 'MacOS'`, which never matches, so macOS falls through to no choices either way) |
+| macOS (`Darwin`) | `cocoa`, `offscreen`, `dummy` |
+| Windows | `windows`, `offscreen`, `dummy` |
+| Linux | `x11`, `wayland`, `kmsdrm`, `offscreen`, `dummy` |
+| any other | `offscreen`, `dummy` |
 
-### Diagnostics Options
+#### Diagnostics Options
 
 Added by `GameEngine.args()` right after the Graphics Options: how any run is watched,
-recorded, replayed or diagnosed, whatever the game. They change no game settings.
+recorded, replayed or diagnosed, whatever the game; they change no game settings. Recording and
+replay are described in [Gameplay Recording and Replay](gameplay_replay.md). Two more are hidden
+from `--help`: the watched replay's restart internals.
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--log-timer-jitter` | `store_true` | `False` | Log frame pacing jitter statistics periodically |
-| `--perf-trim-percent` | `float` | `5.0` | Percent of frames to trim from top and bottom in FPS report |
-| `--fps-histogram` | `choice` | `equal-range` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` |
-| `--debug-overlay` / `--no-debug-overlay` | `bool` | `False` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) |
-| `--record-trace` | `PATH` | `None` | Record the session to a gzip JSON Lines trace ([Gameplay Recording and Replay](gameplay_replay.md)) |
-| `--replay-trace` | `PATH` | `None` | Replay a recording exactly, reporting the first divergence |
-| `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
-| `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
-| `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
-| `--replay-pause-at-frame` | `N` (non-negative int) | `None` | With `--replay-trace`, watched: skip the start screen, rebuild frames 0 to N - 1 unpresented, then pause with frame N next (what step back restarts with; ignored with `--headless`; [step back](gameplay_replay.md#step-back-home-and-d)) |
-| `--headless` | `store_true` | `False` | Run on SDL's dummy video and audio drivers (no window, no sound); a replay also runs unpaced and prints its report to stdout ([headless runs](gameplay_replay.md#headless-runs-headless)) |
+- `--log-timer-jitter` (`store_true`, default `False`): log frame pacing jitter statistics periodically
+- `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in global FPS report
+- `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
+- `--debug-overlay, --no-debug-overlay` (`bool`, default `False`): show the debug overlay at startup (F3 toggles, F4 cycles panels)
+- `--debug-events` (`store_true`, default `False`): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)
+- `--record-trace PATH` (`PATH`): record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for inspection and later replay (default: off)
+- `--replay-trace PATH` (`PATH`): replay a --record-trace recording exactly through the engine, comparing every frame with it and reporting the first divergence (default: off)
+- `--replay-fps {recorded,real}` (`choice`, default `None` (read as `recorded`)): with --replay-trace: post FPS events from the recorded frame times (recorded, the default: exact, and compared with the recording) or from this machine's measured frame times (real: what this machine achieves; FPS events are then not compared, and sprites that draw the FPS value may diverge)
+- `--audit, --no-audit` (`bool`, default `False`): with --replay-trace: instead of replaying, replay the recording twice in fresh headless processes with different hash seeds and compare every frame with the recording and between the runs; exits 0 when both match, 3 otherwise, 70 if a run could not finish
+- `--compare-processing` (`store_true`, default `False`): with --replay-trace --headless: measure each frame's processing time (its work, without presenting or pacing) and report how it compares with the recording's (only meaningful on the machine that recorded)
+- `--max-processing-slowdown PERCENT` (`PERCENT`, default `None`): with --replay-trace --headless (implies --compare-processing): a replay that matched but took more than PERCENT longer than the recording's processing time exits 8; a recording without processing times exits 65
+- `--replay-pause-at-frame N` (`N` (non-negative int), default `None`): with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 without showing them, then pause with frame N next (what step back restarts with; ignored with --headless)
+- `--rebaseline NEW` (`NEW`, default `None`): with --replay-trace OLD and --headless: replay OLD on the current code without stopping at divergences, write the run's recording (OLD's inputs, the current sprites) to NEW, print a summary of the frames and sprites that changed and exit 0
+- `--replay-digest PATH` (`PATH`, default `None`): with --replay-trace: write a SHA-256 of every replayed frame, then the divergence, to PATH as JSON lines (used by --audit)
+- `--headless` (`store_true`, default `False`): run on SDL's dummy video and audio drivers: no window, no sound. With --replay-trace the replay also runs unpaced and prints its report to stdout (exit 0 when it matches, 1 when it diverges, 65 for a truncated recording)
 
-### Game Options
+### Layer 2: event managers and fonts
 
-Added by `GameEventManager.args()` in `glitchygames/events/game.py`.
+#### Controller Options
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `-l`, `--log-level` | `choice` | `info` | Logging level: `debug`, `info`, `warning`, `error`, `critical` |
-| `--no-unhandled-events` | `store_true` | `False` | Raise `UnhandledEventError` on unhandled events |
-| `-p`, `--profile` | `store_true` | `False` | Enable cProfile profiling |
+Added by `ControllerEventManager.args()` in `glitchygames/events/controller.py` (see
+[Event System](event_system.md#one-device-one-event-layer)).
 
-### Controller Options
+- `--input-mode {auto,joystick,controller}` (`choice`): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)
 
-Added by `ControllerEventManager.args()` in `glitchygames/events/controller.py`.
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--input-mode` | `choice` | `auto` | Gamepad input API: `auto`, `joystick` or `controller` |
-
-### Font Options
+#### Font Options
 
 Added by `FontManager.args()` in `glitchygames/fonts/font_manager.py`.
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--font-name` | `str` | `arial` | Font name |
-| `--font-size` | `int` | `14` | Font size in points |
-| `--font-bold` | `store_true` | `False` | Bold font |
-| `--font-italic` | `store_true` | `False` | Italic font |
-| `--font-antialias` | `store_true` | `False` | Enable font antialiasing |
-| `--font-dpi` | `int` | `72` | Font DPI |
-| `--font-system` | `choice` | `freetype` | Font system: `freetype` (enhanced) or `pygame` (built-in) |
+- `--font-name FONT_NAME` (`str`): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)
+- `--font-size FONT_SIZE` (`int`): size of the default font, used by text that asks for no font of its own (default: 14)
+- `--font-bold` (`store_true`, default `False`): not used yet: stored, but no text is drawn bold because of it
+- `--font-italic` (`store_true`, default `False`): not used yet: stored, but no text is drawn italic because of it
+- `--font-antialias` (`store_true`, default `False`): not used yet: stored, but each text widget chooses its own antialiasing
+- `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default resolution); the pygame font system ignores it (default: 72)
+- `--font-system {pygame,freetype}` (`choice`, default `freetype`): Font system to use: freetype (enhanced, default) or pygame (built-in)
 
-### Reserved Groups (Empty, No Arguments Yet)
+#### Game Options
 
-These groups exist as extension points. Each event manager creates its argument group
-but does not currently populate it with any flags.
+Added by `GameEventManager.args()` in `glitchygames/events/game.py`.
+
+- `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `info`): set the logging level
+- `--no-unhandled-events` (`store_true`, default `False`): fail on unhandled events
+- `-p, --profile` (`store_true`, default `False`): enable profiling
+
+#### Reserved groups (empty, no arguments yet)
+
+These event managers create their group as an extension point but add no options, so `--help`
+leaves them out.
 
 | Group Name | Source File | Manager Class |
 |------------|------------|---------------|
@@ -351,27 +257,19 @@ but does not currently populate it with any flags.
 | Touch Options | `events/touch.py` | `TouchEventManager` |
 | Window Options | `events/window.py` | `WindowEventManager` |
 
-### Synthetic Options (Not from argparse)
+### Layer 3: the game
 
-These are derived after parsing and injected into the OPTIONS dict.
+#### Bitmappy v1.0 Options
 
-| Key | Type | Derived From | Description |
-|-----|------|-------------|-------------|
-| `debug_events` | `bool` | `log_level` | Meant to be `True` for the `debug`, `critical` and `error` levels, but the code compares with upper-case names while `--log-level` is lower case, so it is always `False` (BUGS.md #74) |
+Added by `BitmapEditorScene.args()` in `glitchygames/bitmappy/editor.py`; the heading is
+`<NAME> v<VERSION> Options`.
 
-## Bitmappy Game-Specific Arguments
+- `-v, --version` (`store_true`, default `False`): print the game version and exit
+- `-s, --size SIZE` (`str`): the canvas size in pixels, WIDTHxHEIGHT (default: 32x32)
 
-Added by `BitmapEditorScene.args()` in `glitchygames/bitmappy/editor.py`.
-These appear under the heading **"Bitmappy vX.Y Options"** in `--help`.
+#### Other games
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `-v`, `--version` | `store_true` | `False` | Print the game version and exit |
-| `-s`, `--size` | `str` | `32x32` | Canvas size (WxH in pixels) |
-
-## Example Game Arguments
-
-Other games in the project demonstrate the pattern:
+The other games add their own options the same way:
 
 | Game | File | Arguments |
 |------|------|-----------|
@@ -379,91 +277,17 @@ Other games in the project demonstrate the pattern:
 | DT Demo | `glitchygames/examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
 | Clockwork Keep | `glitchygames/examples/clockwork_keep/game.py` | `--floor` (int, default 0) |
 | Brave Adventurer (both editions) | `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py` | `-v, --version` |
-| Joystick Demo | `glitchygames/examples/joystick_demo.py` | `--time` (int, default 10), `-v, --version` |
+| Joystick Demo | `glitchygames/examples/joystick_demo.py` | none (the engine's `--input-mode` chooses what it shows) |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
 
 ## What `--help` Looks Like
 
-When a user runs `uv run bitmappy --help`, argparse produces output structured
-like this (argument groups appear in registration order):
-
-```
-usage: Bitmappy version X.Y [-h] [-f TARGET_FPS] [...]
-
-options:
-  -h, --help            show this help message and exit
-
-Graphics Options:
-  -f, --target-fps      cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
-  --fps-log-interval-ms how often to log the FPS counter in ms (default: 1000)
-  -w, --windowed        run the program in windowed mode
-  -r, --resolution      the resolution to use (default: 1024x768)
-  --use-gfxdraw
-  --update-type         update or flip (default: update)
-  --timer-backend       timer backend for draw loop pacing (default: auto, the fast backend with this
-                        machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps
-                        wake on time; pygame is the legacy backend)
-  --sleep-granularity-ns how long before each frame deadline the fast backend is to wake from its sleep
-                        and spin (ns); 0 spins only
-  --windows-timer-1ms   on Windows, request 1ms system timer resolution
-  --random-seed         master seed for every engine random stream (...)
-  --screen-shake-intensity, --rumble-intensity, --live-voice-pool
-  --video-driver
-
-Diagnostics Options:
-  --log-timer-jitter    log frame pacing jitter statistics periodically
-  --perf-trim-percent   percent of frames to trim from top and bottom in global FPS report
-  --fps-histogram       FPS histogram buckets in the shutdown report (...)
-  --debug-overlay, --no-debug-overlay
-                        show the debug overlay at startup (F3 toggles, F4 cycles panels)
-  --record-trace PATH   record the session (...)
-  --replay-trace PATH   replay a --record-trace recording exactly (...)
-  --replay-fps, --audit, --no-audit, --replay-digest PATH, --replay-pause-at-frame N
-                        (replay options)
-  --headless            run on SDL's dummy video and audio drivers: no window, no sound (...)
-
-App Options:
-
-Sound Mixer Options:
-
-Controller Options:
-  --input-mode          Gamepad input API (default: auto)
-
-Drop Options:
-
-Font Options:
-  --font-name
-  --font-size
-  --font-bold
-  --font-italic
-  --font-antialias
-  --font-dpi
-  --font-system         Font system to use: freetype (enhanced, default) or pygame (built-in)
-
-Game Options:
-  -l, --log-level       set the logging level
-  --no-unhandled-events fail on unhandled events
-  -p, --profile         enable profiling
-
-Joystick Options:
-
-Keyboard Options:
-
-Midi Options:
-
-Mouse Options:
-
-Touch Options:
-
-Window Options:
-
-Bitmappy vX.Y Options:
-  -v, --version         print the game version and exit
-  -s, --size
-```
-
-The `--resolution` help text says 1024x768, but the default is `800x480` (BUGS.md #76).
+`uv run bitmappy --help` prints a usage line, the `options:` group (`-h, --help`), then each
+group in the order the layers add them: Graphics, Diagnostics, Controller, Font and Game
+Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with no arguments (App, Sound
+Mixer and the other reserved groups). Every option it prints, with its help text, is listed in
+[Complete Flag Reference](#complete-flag-reference).
 
 ## How to Add Arguments to a New Event Manager
 

@@ -4,29 +4,16 @@ import sys
 from pathlib import Path
 
 import pygame
-import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events.base import HashableEvent
 from glitchygames.sprites import Sprite
-from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestSpriteEventHandlers:
     """Test Sprite event handlers."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
 
     def test_joystick_event_handlers(self):
         """Test joystick event handlers."""
@@ -151,17 +138,6 @@ class TestSpriteEventHandlers:
 
 class TestSpriteEventHandlersExtended:
     """Test extended Sprite event handlers (controller, touch, audio, etc.)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
 
     def test_controller_event_handlers(self):
         """Test controller event handlers."""
@@ -309,17 +285,6 @@ class TestSpriteEventHandlersExtended:
 
 class TestSpriteEventHandlersWindow:
     """Test Sprite window and file-related event handler existence."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
 
     def test_file_drop_event_handlers(self):
         """Test file drop event handlers."""

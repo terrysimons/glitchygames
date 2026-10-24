@@ -3,6 +3,16 @@
 > Moved from the repository root (`FUTURE_FEATURES.md`, previously untracked) into `plans/` on
 > 2026-10-18. Newer plans: `plans/engine-audit.md` (engine roadmap), `plans/future-work.md`
 > (backlog) and `plans/2026-10-18-level-tools.md` (Glitchy Studio).
+>
+> Paths: `glitchygames/tools/bitmappy.py` and the other editor modules named below were moved into
+> the `glitchygames/bitmappy/` package by the Bitmappy refactor (#87, `4bdc966c`): the editor scene
+> is `bitmappy/editor.py`, the film strip `bitmappy/film_strip*.py`, `canvas_interfaces.py` and
+> `onion_skinning.py` keep their names, the undo/redo manager and operation trackers are
+> `bitmappy/history/undo_redo.py` and `history/operations.py`, the multi-controller manager and
+> controller selection `bitmappy/controllers/manager.py` and `controllers/selection.py`, and the
+> visual collision manager `bitmappy/indicators/collision.py`. `glitchygames/tools/` now holds only
+> the ASCII renderer (`ascii_renderer.py`, `charmap.py`, `terminal_utils.py`). Other
+> `glitchygames/tools/...` files listed under planned features were never created.
 
 This document tracks planned future features for the GlitchyGames project. Features are listed in priority order and will be implemented as time and priorities allow.
 
@@ -29,6 +39,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Implement performance warnings (FPS drops, memory usage)
   - Track sprite count and memory usage
   - Estimate CPU usage from frame times
+- **Progress**: the FPS overlay is done: the debug overlay's performance panel
+  (`glitchygames/debug/`, `--debug-overlay` / F3) shows FPS, frame time, the 1% low and a
+  frame-time graph. Warnings, sprite count and memory usage are still open.
 
 ### 3. Enhanced Metrics Collection
 - **Description**: Comprehensive performance metrics beyond basic FPS tracking
@@ -41,6 +54,71 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Audio latency tracking
   - Network performance (for multiplayer)
   - GPU utilization (if available)
+
+### 43. GlitchyGames Arcade: Showcase and Game Picker (`uv run glitchygames`) — TODO
+- **Description**: A `glitchygames` console script that opens an arcade front end. A demo reel
+  across the top plays each game's demo with sound, with the colour bars for a few seconds and
+  a beep between games. Below it, a boxed grid of the games, each tile looping its replay
+  silently; pick one to play it.
+- **Status**: TODO: design draft in `plans/2026-10-23-arcade-showcase.md`. The gallery is an
+  outer game that hosts several demo wrappers, generalising the watched replay's "game inside a
+  game". Open questions there: one engine context per wrapper in-process or child processes,
+  and timings
+- **Priority**: High (requested 2026-10-23)
+
+### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO
+- **Description**: Historical metrics from what recordings store (frame performance by run and
+  commit, a behaviour-change map from the content hashes, pacing steadiness, machine
+  comparison, gameplay analytics with game-defined stat events), richer per-frame measurements
+  (step timings, GC pauses and memory, drawing cost, audio health), run provenance (git commit,
+  machine state, a per-run summary in the header), a run ledger beyond 10 runs with graphs on
+  the docs site, and frame headroom: measured, then spent on AI and GPU work through a
+  spare-time queue whose results reach the game through the doors (recorded, served in replays)
+- **Status**: TODO: design in `plans/2026-10-23-recording-metrics.md` (Parts 0-7, all chosen by
+  the user 2026-10-23; open decisions listed there)
+  Done: Part 0 (2026-10-23): the engine's source revision, the machine's state and a run
+  summary in every run (`glitchygames/build_info.py`, `machine_state.py`, `recording_history.py`)
+  Done: Parts 1 and 2 (2026-10-23): the run ledger on gh-pages (`nox -s replay-metrics`, the docs
+  site's Replay Performance page) and `scripts/recording_report.py` (speed changes and the
+  behaviour-change map; `glitchygames/recording_metrics.py`)
+- **Priority**: High (requested 2026-10-23)
+
+### 47. Controller Layout Mapper: PlayStation-Style Pads (PS3, PS4, PS5) — TODO
+- **Description**: A game-style tool that draws a PlayStation-ish controller (PS3, PS4 and PS5
+  layouts: face buttons, D-pad, shoulders and triggers, sticks and their clicks, Start/Select or
+  Options/Share/Create, PS button, touchpad and its click on PS4/PS5, mute on PS5), points at one
+  control at a time ("press this"), and records what the pad actually sent for it: the joystick
+  layer (button, axis and direction, or hat value) and the controller layer
+  (`CONTROLLER_BUTTON_*`/`CONTROLLER_AXIS_*`) when SDL maps the pad. It writes the layout to a
+  file (TOML, like sprites) with the controller's information: name, GUID, vendor and product
+  ids, whether SDL has a mapping, the instance's button/axis/hat counts, the platform, SDL and
+  pygame versions, and when it was recorded. Skip and redo per control; a stick or trigger is
+  recorded by moving it past a threshold
+- **Why**: the same pad reports different indexes per platform, driver and connection (USB or
+  Bluetooth); recorded layouts let games and Bitmappy show the right glyphs, check or build SDL
+  mappings, and give the tests stand-in pads that match real ones (the gamepad golden replays,
+  feature #44's follow-up, need exactly that). DualSense notes: memory
+  `project_dualsense_speaker.md` (HID enable on macOS, button mappings)
+- **Status**: TODO: write the plan first (`plans/YYYY-MM-DD-controller-layout-mapper.md`):
+  drawing the three layouts, the prompt order, the file format, where layouts are stored (with
+  the engine, so tests and games can load them), and how it reads input (through the engine's
+  doors and `input_devices`, so a mapping session can itself be recorded and replayed)
+- **Priority**: Medium (requested 2026-10-23)
+
+### 48. Make `--use-gfxdraw` Draw With pygame.gfxdraw — TODO
+- **Description**: `--use-gfxdraw` (Graphics Options) is parsed and stored as
+  `GameEngine.use_gfxdraw`, but nothing reads it: the ball (`game_objects/ball.py`) and paddles
+  (`game_objects/paddle.py`) set their own `use_gfxdraw = True`, which nothing reads either
+  (BUGS.md #210). Make the option real: shapes the engine draws (the balls' circles, the paddles,
+  the primitives editions' figures) use `pygame.gfxdraw`'s anti-aliased forms (`aacircle` with
+  `filled_circle`, `aapolygon` with `filled_polygon`, ...) when it is on, and `pygame.draw`
+  otherwise
+- **Status**: TODO. To settle: which shapes switch (engine game objects only, or a shared drawing
+  helper the games use too); whether anti-aliased edges change hitboxes (they are measured from
+  visible pixels, `collision/bounds.py`) and so what golden traces and replays compare; the
+  default (off keeps today's pixels); and the per-object `use_gfxdraw` attributes, which become
+  the option's value or go away
+- **Priority**: Medium (requested 2026-10-23)
 
 ## Medium Priority Features
 
@@ -86,7 +164,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Low
 - **Implementation**:
   - Performance bottleneck visualization
-  - Frame time graph overlay
+  - Frame time graph overlay (done: the debug overlay's performance panel, `glitchygames/debug/panels.py`)
   - Performance hotspot identification
   - Memory leak detection
 
@@ -129,7 +207,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 11. Event Manager Naming Convention Refactor
 - **Description**: Refactor all event managers to use consistent `FooEventManager` naming convention instead of `FooManager`
 - **Use Case**: Improves code clarity and consistency by making it explicit that these classes manage events
-- **Status**: Planned
+- **Status**: Planned. The rename is done: every manager in `glitchygames/events/` is a
+  `*EventManager` (voice: `VoiceEventManager`; no `VoiceRecognitionManager` remains). The Vosk
+  backend item below is still open
 - **Priority**: Medium
 - **Implementation**:
   - Renamed to EventManagers:
@@ -217,6 +297,82 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
+### 44. Golden Replays Exercise Every Control, Pause and Quit ✅ COMPLETED
+- **Description**: Q did nothing in four games and no golden replay noticed (BUGS.md #202): every
+  session ended with the recorder's own `quit_requested`, and Clockwork Keep's never paused.
+  Every golden replay now pauses and resumes, presses every keyboard control its game binds, and
+  ends with the game's own quit control (2026-10-23)
+- **Status**: ✅ COMPLETED (keyboard; gamepad is the follow-up below)
+- **Implementation**:
+  - `scripts/record_scripted_session.py`: a per-game controls tail (`CONTROLS_TAIL_BUILDERS`)
+    played after the golden script's frames (session-only: the golden traces never see it); it
+    releases held keys, presses what the script does not (Brave: LEFT, SPACE; Clockwork Keep:
+    left shift + RIGHT, SPACE, W, ESC pause; Mr. Muncher: WASD, P pause; PaddleSlap: Q and ESC
+    released together, two QUITs), then the quit key; the game must quit within
+    `QUIT_WAIT_FRAMES` (`GameDidNotQuitError`); `--script-only` for demos
+  - Brave Adventurer (both editions) and Clockwork Keep build their ActionMap in a static
+    `_create_action_map(*, input_mode)` (as Mr. Muncher and PaddleSlap already did), so tests
+    read the game's own bindings
+  - `tests/replay/test_golden_replays.py`: `test_every_golden_replay_exercises_every_control`
+    (bindings from `ActionMap.to_dict()` plus the engine scenes' hard-coded keys, matched against
+    each recording's external events by receiving scene; `UNEXERCISED_CONTROLS` with reasons,
+    stale entries fail) and `test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit`
+  - Fixtures re-recorded: PaddleSlap 622 frames, Clockwork Keep 532, Brave Adventurer 472 (each
+    edition), Mr. Muncher 2072 (script cut to 1950 frames, death and take 2 still included, to
+    stay under 100 KB)
+- **Follow-up (TODO): gamepad controls in golden replays**. A supervisor can post JOYBUTTONDOWN
+  etc. with `post_input_event`, but the engine drops input events of devices it has not opened
+  (`InputDevices.dispatches`) and the dummy driver has none. A probe with the tests' stand-in
+  devices (`tests/input/stand_in_devices.py`, installed before `GameEngine.start`) moved the
+  player live, but the recording's header held no `devices`/`device_enumeration`
+  (`ReplayDeviceRegistry.take_opened_descriptors` returns only descriptors learned from a
+  recording), so the replay saw no device and diverged. Needed: a stand-in registry that reports
+  what it served (descriptors opened, enumeration answers) the way `LiveDeviceRegistry` does,
+  stand-in pads with instance ids 0 and 1 (PaddleSlap binds per instance), gamepad tails
+  (buttons, axes past their thresholds, Mr. Muncher's hat), and gamepad matching in the test
+  (then shrink `UNEXERCISED_CONTROLS`)
+
+### 42. Mr. Muncher Remade: A Maze Chase at the Movies ✅ COMPLETED
+- **Description**: The converted toy was not fun (12 px/s movement, an open field with two
+  wall pieces, munchers wandering at random, discs overlapping walls, a catch resetting only the
+  player, no end to a won game; a perfect bot cleared 87 of 211 dots in 10 minutes). It is now a
+  complete, original maze-chase game with a cinema theme (2026-10-23)
+- **Status**: ✅ COMPLETED (2026-10-23)
+- **Implementation** (`glitchygames/examples/mr_muncher/`):
+  - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
+    connected; tests check all four), tunnels at the top and bottom, a house with a door
+  - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is
+    taken at the first open junction; reversing is immediate); four munchers with their own
+    targets (chaser, ambusher, flanker, shy), scatter/chase phases, a frightened random walk on
+    the seeded stream, eyes going home and back out
+  - `levels.py`: speeds, fright length, mode schedule and bonus per reel, ramping to reel 8
+  - `game.py`: the scene (countdown 3-2-1-ACTION!, TAKE n after a death, REEL n, CUT!, THE END),
+    sprockets (10), snacks (50, a sugar rush), munchers 200/400/800/1600, the bonus reel twice a
+    reel, an extra life at 10,000, high scores through `open_saves`, the engine's pause and a
+    game-over screen, a screen shake and rumble on a catch, a projector-flutter live voice,
+    `debug_draw` marks muncher targets; `drawing.py` (velvet-and-gold maze, popcorn-bucket
+    player, fuzzball munchers, candy snacks), `scenery.py`, `sounds.py` (all original sounds)
+  - `autopilot.py`: a player bot (territory-safe BFS) used by the golden script and the tests;
+    golden replay re-recorded (then 2250 frames, 2072 since #44: countdown, pause, a snack, two munchers and the
+    bonus eaten, a death, take 2); tests `tests/examples/test_mr_muncher.py` and
+    `tests/examples/test_mr_muncher_maze_and_actors.py` (100% lines and branches)
+
+### 41. Mr. Muncher Example Game and Microphone Capture Check ✅ COMPLETED
+- **Description**: Two untracked toys brought up to the project's standards (2026-10-23): the
+  plain-pygame Pac-Man toy `scripts/mr_muncher.py` became the example game
+  `glitchygames/examples/mr_muncher/` (`uv run mr-muncher`), and `scripts/audio_test.py` became
+  `scripts/microphone_capture_check.py`
+- **Status**: ✅ COMPLETED (2026-10-23)
+- **Implementation**:
+  - Mr. Muncher: a `Scene` run by `GameEngine`; scancode `ActionMap` controls; the maze, its
+    sprockets and the munchers' turns from seeded random streams; frame-rate independent speeds;
+    sprites (compared by replays) instead of direct drawing; golden replay
+    `tests/fixtures/replays/mr-muncher/golden.jsonl.gz` (600 frames,
+    `scripts/record_golden_traces.py: mr_muncher_script`); `tests/examples/test_mr_muncher.py`
+  - Microphone check: capture `--duration` seconds (default 3) from the default or a named
+    (`--device`) capture device with miniaudio, report bytes, frames and peak/RMS levels, exit
+    with an `ExitCode`; `tests/test_microphone_capture_check.py`
+
 ### 40. Gameplay Replay ✅ COMPLETED (Parts 1-3)
 - **Description**: Replay a `--record-trace` recording exactly through the real engine
   (`--replay-trace PATH`), comparing every frame's sprites with the recording and reporting the
@@ -226,7 +382,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   nondeterminism; watching and stepping through recordings; attract-mode demos, instant replays
   and ghosts in games
 - **Status**: ✅ COMPLETED (branch `feature/gameplay-replay`: Part 1 2026-10-19, Parts 2 and 3
-  2026-10-20; final whole-branch review clean 2026-10-20; not yet pushed)
+  2026-10-20; final whole-branch review clean 2026-10-20; merged 2026-10-22 as PR #95, `bb51239d`)
 - **Priority**: High
 - **Implementation**:
   - The doors: `glitchygames/sources.py` (leaf registry), `LiveSources`, `RecordingSources`,
@@ -254,7 +410,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   #6 and #15)
 - **Use Case**: Games no longer write per-sprite camera loops or culling; shake, snapping,
   culling and follow have one place in the engine; frame statistics match what the loop did
-- **Status**: ✅ COMPLETED (branch `feature/engine-world-space`, 2026-10-18)
+- **Status**: ✅ COMPLETED (branch `feature/engine-world-space`, 2026-10-18; merged 2026-10-22 as PR #94, `cd5e5f97`)
 - **Priority**: High
 - **Implementation**:
   - `glitchygames/world.py`: `CoordinateSpace`, `WorldPositioned`, `hidden`,
@@ -1043,6 +1199,49 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Files to Create/Modify**:
   - Bitmappy film strip / animation menu (new command)
   - `tests/tools/` - Alignment tests: every mode, hitbox shift, off-canvas refusal, undo
+
+### 45. Sound Effects From a Description
+- **Description**: Describe a sound effect in words ("a short wet pop, like a bubble bursting
+  underwater", "a heavy mechanical clunk, then a slow hiss") and the engine works out how to make it:
+  an LLM (or a rule-based process) plans one or more source sounds, and a chain of audio
+  operations shapes them into the sound you asked for
+- **Use Case**: Fast, reproducible sound design for games without a sound library or audio tools;
+  iterate in plain language ("punchier", "an octave lower", "make the tail longer")
+- **Status**: Planned (requested 2026-10-23)
+- **Priority**: Medium
+- **Implementation**:
+  - **Plan from the description**: the LLM (through the existing AI client used for sprite
+    generation, `glitchygames/ai/`) returns a structured plan (a pydantic model, validated): the
+    source sounds and the operations to apply, in order. A rule-based fallback maps common words
+    (pop, click, thud, whoosh, zap, chirp) to recipes when no model is available
+  - **Source sounds**, any of:
+    - synthesized: the existing toolkit (`glitchygames/audio/synth.py` oscillators, noise,
+      envelopes, pitch curves) and `SoundRecipe`/`Tone` (`glitchygames/audio/recipes.py`)
+    - spoken: words or syllables rendered with text-to-speech (`glitchygames/audio/tts.py`)
+    - performed: the engine suggests sounds for you to make yourself ("say 'pop' with your lips
+      closed", "click your tongue twice", "say 'tsss'") and records them from the microphone
+      (the microphone capture script, `scripts/`), then trims the silence
+  - **Operations** (the shaping chain, each with parameters the plan chooses):
+    - pitch: shift by octaves or semitones, keeping the length (or resample to change both)
+    - time: stretch or compress the length without changing the pitch (phase vocoder or a
+      granular method), clip to a range, extend (loop with a crossfade, or a decaying tail)
+    - dynamics: gain, compression, limiting, hard or soft clipping (distortion), envelope
+      (attack, decay, sustain, release)
+    - tone: low-, high- and band-pass filters (the existing FIR filters), EQ
+    - layering: mix several sources with offsets (a click on top of a thud)
+  - **Iterate**: preview the result, then refine with more words; the plan is updated, not
+    regenerated from scratch, so a good result isn't lost
+  - **Save it reproducibly**: store the plan (sources and operation chain) as a TOML recipe next to
+    the rendered sound, so it can be regenerated and edited by hand; recorded sources are saved
+    as files the recipe references. Rendering must be deterministic (seeded noise through the
+    engine's random streams) so games and replays sound the same everywhere
+- **Technical Requirements**:
+  - DSP operations on numpy arrays at the mixer's format (44100 Hz, 16-bit, stereo), unit-tested
+    against known signals (a sine's pitch after a shift, a length after a stretch)
+  - A schema for the plan the LLM returns, with validation and clear errors for bad plans
+  - Microphone capture with a device choice and silence trimming
+  - An editor or command-line front end (e.g. a `glitchygames-sfx` console script, or a panel in
+    Bitmappy or Glitchy Studio)
 
 ## Notes
 

@@ -45,12 +45,12 @@ class SpriteStackInterface(abc.ABC):
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
+                    cls.log.info('%s.%s -> ✅ (callable)', subclass.__name__, attribute)
                 else:
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
+                    cls.log.info('%s.%s -> ✅ (attribute))', subclass.__name__, attribute)
                 methods.append(True)
             else:
-                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
+                cls.log.info('%s.%s -> ❌ (unimplemented)', subclass.__name__, attribute)
                 methods.append(False)
 
         # all([]) returns True, so mask it

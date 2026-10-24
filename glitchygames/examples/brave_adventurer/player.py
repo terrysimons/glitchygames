@@ -6,7 +6,6 @@ from typing import Self, override
 
 import pygame
 
-# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.collision.bounds import opaque_bounds
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer.constants import (
@@ -107,6 +106,11 @@ class Player(Sprite):
         # GroundConstraint, so we build the body manually without one.
         # World left edge: refitted to the hitbox every tick (see _fit_world_edge_to_hitbox)
         self._world_edge_bounds = BoundsConstraint(min_x=0.0)
+        # Kept so the move methods set its target directly (the body always has it)
+        self._acceleration_behavior = AccelerationBehavior(
+            acceleration=PLAYER_ACCELERATION,
+            deceleration=PLAYER_DECELERATION,
+        )
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
@@ -115,10 +119,7 @@ class Player(Sprite):
                     strength=GRAVITY,
                     terminal_velocity=MAX_FALL_SPEED,
                 ),
-                AccelerationBehavior(
-                    acceleration=PLAYER_ACCELERATION,
-                    deceleration=PLAYER_DECELERATION,
-                ),
+                self._acceleration_behavior,
             ],
             constraints=[self._world_edge_bounds],
         )
@@ -138,11 +139,15 @@ class Player(Sprite):
         falling_when = f'velocity_y > {FALLING_VELOCITY_THRESHOLD} and not on_ground'
         self.state_machine.add_transition('idle', 'falling', when=falling_when)
         self.state_machine.add_transition('jumping', 'falling', when=falling_when)
+        # Running off a ledge falls (evaluated after running's own rules, as idle's is)
+        self.state_machine.add_transition('running', 'falling', when=falling_when)
         self.state_machine.set_state(self.IDLE)
 
         # Game state
         self.lives: int = STARTING_LIVES
         self.score: int = 0
+        # Gold scarab bonuses collected; the score is the distance score plus these
+        self.bonus_points: int = 0
         self.max_distance: float = 0.0
 
         # Visual effects
@@ -286,23 +291,17 @@ class Player(Sprite):
 
     def move_right(self) -> None:
         """Start moving right with smooth acceleration."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = PLAYER_RUN_SPEED
+        self._acceleration_behavior.target_velocity_x = PLAYER_RUN_SPEED
         self.facing_right = True
 
     def move_left(self) -> None:
         """Start moving left with smooth acceleration."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = -PLAYER_RUN_SPEED
+        self._acceleration_behavior.target_velocity_x = -PLAYER_RUN_SPEED
         self.facing_right = False
 
     def stop_horizontal(self) -> None:
         """Smoothly decelerate to a stop."""
-        accel = self.physics.get_behavior(AccelerationBehavior)
-        if accel:
-            accel.target_velocity_x = 0.0
+        self._acceleration_behavior.target_velocity_x = 0.0
 
     @override
     def update(self: Self) -> None:

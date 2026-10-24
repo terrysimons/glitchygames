@@ -12,26 +12,28 @@ import pygame
 
 from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
 from glitchygames.sprites import DEFAULT_FILE_FORMAT, AnimatedSprite, SpriteFrame
-from tests.mocks import MockFactory
+
+BLUE_BACKGROUND = (0, 0, 255)
+
+
+def _composite_over_blue(image: pygame.Surface) -> list[list[list[int]]]:
+    """Blit an image onto an opaque blue surface and return what shows, row by row (RGB).
+
+    The background is a 32-bit surface without per-pixel alpha, so the result is the same
+    whatever pixel format the display has.
+
+    Returns:
+        list[list[list[int]]]: The composited RGB rows (``rows[y][x]``).
+
+    """
+    background = pygame.Surface(image.get_size(), depth=32)
+    background.fill(BLUE_BACKGROUND)
+    background.blit(image, (0, 0))
+    return pygame.surfarray.array3d(background).transpose(1, 0, 2).tolist()
 
 
 class TestAlphaModeDetection(unittest.TestCase):
     """Test automatic detection of per-pixel alpha vs indexed color modes."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-        pygame.display.set_mode((100, 100))  # Minimal display for tests
-
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers.values():
-            patcher.start()
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_indexed_color_mode_detection(self):
         """Test that sprites with only opaque colors use indexed color mode (RGB)."""
@@ -67,6 +69,12 @@ G = { red = 0, green = 255, blue = 0 }
             # All pixels should be RGB tuples (3 components)
             for pixel in pixels:
                 assert len(pixel) == 3, f'Expected RGB tuple, got {pixel}'
+
+            # The drawn image keys magenta out: the background shows through it
+            assert _composite_over_blue(sprite.image) == [
+                [[255, 0, 0], [0, 0, 255]],
+                [[0, 0, 255], [0, 255, 0]],
+            ]
 
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -105,6 +113,12 @@ G = { red = 0, green = 255, blue = 0, alpha = 200 }
             # All pixels should be RGBA tuples (4 components)
             for pixel in pixels:
                 assert len(pixel) == 4, f'Expected RGBA tuple, got {pixel}'
+
+            # The drawn image blends its translucent pixels and keys magenta out
+            assert _composite_over_blue(sprite.image) == [
+                [[128, 0, 127], [0, 0, 255]],
+                [[0, 0, 255], [0, 200, 55]],
+            ]
 
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -146,6 +160,12 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }  # Semi-transparent
             # All pixels should be RGBA tuples (4 components)
             for pixel in pixels:
                 assert len(pixel) == 4, f'Expected RGBA tuple, got {pixel}'
+
+            # Opaque red stays solid, green blends at alpha 128, magenta is keyed out
+            assert _composite_over_blue(sprite.image) == [
+                [[255, 0, 0], [0, 0, 255]],
+                [[0, 0, 255], [0, 128, 127]],
+            ]
 
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -196,6 +216,12 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }  # Semi-transparent
             assert loaded_pixels[1][:3] == MAGENTA_TRANSPARENCY_KEY  # Magenta
             assert loaded_pixels[2][:3] == MAGENTA_TRANSPARENCY_KEY  # Magenta
 
+            # The reloaded sprite draws red and green and keys magenta out
+            assert _composite_over_blue(loaded_sprite.image) == [
+                [[255, 0, 0], [0, 0, 255]],
+                [[0, 0, 255], [0, 255, 0]],
+            ]
+
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
@@ -244,6 +270,12 @@ G = { red = 0, green = 255, blue = 0, alpha = 128 }  # Semi-transparent
             assert loaded_pixels[3] == (0, 255, 0, 200)  # Green (semi-transparent)
             assert loaded_pixels[1] == (255, 0, 255, 255)  # Magenta (opaque)
             assert loaded_pixels[2] == (255, 0, 255, 255)  # Magenta (opaque)
+
+            # The reloaded sprite blends its translucent pixels; magenta is transparent
+            assert _composite_over_blue(loaded_sprite.image) == [
+                [[128, 0, 127], [0, 0, 255]],
+                [[0, 0, 255], [0, 200, 55]],
+            ]
 
         finally:
             Path(temp_path).unlink(missing_ok=True)

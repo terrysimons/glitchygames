@@ -71,12 +71,12 @@ def _render_static_sprite_ascii(
     try:
         first_anim = next(iter(sprite._animations.values()))  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
         first_frame = first_anim[0] if first_anim else None
-        if first_frame:
-            ascii_output = render_frame_to_ascii(first_frame, renderer)
-            if ascii_output:
-                LOG.info(ascii_output)
+        ascii_output = render_frame_to_ascii(first_frame, renderer) if first_frame else ''
     except (AttributeError, IndexError, KeyError, TypeError, ValueError) as e:
         LOG.debug(f'Failed to render ASCII for single-frame sprite: {e}')
+        return
+    if ascii_output:
+        LOG.info(ascii_output)
 
 
 def _render_animated_sprite_ascii(
@@ -260,29 +260,39 @@ def _process_config_file(config_file: Path, training_data: list[dict[str, Any]])
 
     """
     LOG.debug(f'Processing config file: {config_file}')
-    try:
-        if ai_training_state['format'] != 'toml':
-            LOG.warning(f"Unsupported format '{ai_training_state['format']}' for {config_file}")
-            return
+    if ai_training_state['format'] != 'toml':
+        LOG.warning(f"Unsupported format '{ai_training_state['format']}' for {config_file}")
+        return
 
+    # An unreadable or malformed sprite file is skipped: it adds no training data
+    try:
         config_data, sprite_data = parse_toml_sprite_data(config_file)
         converted_sprite_data = convert_sprite_to_alpha_format(sprite_data)
-        training_data.append(converted_sprite_data)
-
-        try:
-            from glitchygames.tools.ascii_renderer import ASCIIRenderer
-
-            renderer = ASCIIRenderer()
-            sprite = SpriteFactory.load_sprite(filename=str(config_file))
-            _log_colorized_sprite_output(config_file, config_data, sprite, renderer)
-        except (AttributeError, KeyError, TypeError, ValueError) as e:
-            LOG.warning(f'Could not create colorized output for {config_file.name}: {e}')
-            import traceback
-
-            LOG.warning(f'Traceback: {traceback.format_exc()}')
-
     except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
         LOG.warning(f'Error loading sprite config {config_file}: {e}')
+        return
+    training_data.append(converted_sprite_data)
+
+    # The colorized output is only a log: failing to make it never loses the training data.
+    # The file can vanish or lose its permissions between the parse and this second read
+    try:
+        from glitchygames.tools.ascii_renderer import ASCIIRenderer
+
+        renderer = ASCIIRenderer()
+        sprite = SpriteFactory.load_sprite(filename=str(config_file))
+        _log_colorized_sprite_output(config_file, config_data, sprite, renderer)
+    except (
+        AttributeError,
+        KeyError,
+        TypeError,
+        ValueError,
+        FileNotFoundError,
+        PermissionError,
+    ) as e:
+        LOG.warning(f'Could not create colorized output for {config_file.name}: {e}')
+        import traceback
+
+        LOG.warning(f'Traceback: {traceback.format_exc()}')
 
 
 def load_ai_training_data() -> None:

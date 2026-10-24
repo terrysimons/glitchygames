@@ -24,3 +24,9 @@ def default_sdl_drivers_to_dummy() -> tuple[str, ...]:
 
 # Runs at import, so importing this module before pygame is enough to set the defaults
 SDL_VARIABLES_DEFAULTED_AT_STARTUP = default_sdl_drivers_to_dummy()
+
+# The run's SDL driver variables, by name, as decided at startup: the test harness puts back any
+# a test changed (tests/sdl_driver_isolation.py), e.g. one that ran an engine with --headless
+SDL_DRIVER_ENVIRONMENT_FOR_RUN: dict[str, str] = {
+    name: os.environ[name] for name in SDL_DRIVER_VARIABLES
+}

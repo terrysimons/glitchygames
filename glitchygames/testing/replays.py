@@ -28,7 +28,8 @@ collected.
 The child replay is ``replay_recording_headless``, which other tests reuse: demos bundled in a
 game's package (``glitchygames/examples/<game>_demos/<name>.jsonl.gz``, listed by
 ``bundled_demo_paths``) are outside the suite's directories, so tests/replay/test_bundled_demos.py
-replays each one through it.
+replays each one through it. ``rebaseline_recording_headless`` runs the same child with
+``--rebaseline NEW`` (scripts/replay_metrics.py measures every recording through it).
 
 Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
 (this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
@@ -50,7 +51,7 @@ from typing import TYPE_CHECKING, Protocol, Self, cast, override
 import pytest
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import run_command, with_options_appended
 from glitchygames.tracing import is_bookmarked_copy
 
 if TYPE_CHECKING:
@@ -193,6 +194,37 @@ def replay_recording_headless(*, console_script: str, path: Path) -> CompletedPr
     entry_point = game_entry_point(console_script=console_script)
     return run_command(
         command=replay_command(entry_point=entry_point, recording=path),
+        environment=os.environ,
+        timeout_seconds=REPLAY_TIMEOUT_SECONDS,
+        capture_output=True,
+    )
+
+
+def rebaseline_recording_headless(
+    *, console_script: str, path: Path, new_path: Path
+) -> CompletedProcess[str]:
+    """Rebaseline a recording headless through a game's console script, in a child process.
+
+    The child is ``replay_command``'s plus ``--rebaseline NEW`` (glitchygames/replay/rebaseline.py):
+    it replays ``path`` on the current code, measuring each frame's processing time, and writes
+    the run into ``new_path``. Started and timed out as ``replay_recording_headless`` is.
+
+    Args:
+        console_script: The game's console script (``[project.scripts]``).
+        path: The recording.
+        new_path: Where the rebaselined recording goes (never ``path``: refused).
+
+    Returns:
+        The finished child: ``returncode`` is the rebaseline's ``ExitCode`` and ``stdout`` its
+        standard output and error together (the rebaseline's summary line).
+
+    """
+    entry_point = game_entry_point(console_script=console_script)
+    return run_command(
+        command=with_options_appended(
+            arguments=replay_command(entry_point=entry_point, recording=path),
+            appended=['--rebaseline', str(new_path)],
+        ),
         environment=os.environ,
         timeout_seconds=REPLAY_TIMEOUT_SECONDS,
         capture_output=True,

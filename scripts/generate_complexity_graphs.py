@@ -1,32 +1,74 @@
 #!/usr/bin/env python3
-"""Generate wily complexity graphs for documentation.
+"""Generate the wily complexity graphs for the documentation site (docs/quality/complexity.md).
 
-Produces HTML complexity graphs for the top modules ranked by cyclomatic
-complexity, then writes a markdown index page that embeds them via iframes.
+The graphs are generated, never committed: every mkdocs build (``mkdocs build``, ``serve``,
+``gh-deploy``, so ``nox -s docs-deploy`` and ``docs-serve`` too) generates them first through the
+hook scripts/mkdocs_hooks.py, which calls ``generate_if_stale`` (regenerated only when HEAD
+changed); running this script regenerates them unconditionally. The steps:
+
+1. check the current commit (HEAD) out in a temporary detached git worktree: wily checks every
+   revision it measures out in the working tree it runs in (and refuses a dirty one), so it never
+   runs in the checkout being worked in. Uncommitted changes are not measured;
+2. rank the ``glitchygames`` modules by their total cyclomatic complexity at HEAD (the sum over
+   their functions and methods, measured by radon, the library wily measures with) and keep the
+   top ``TOP_MODULE_COUNT``. (``wily rank`` ranks only the files the newest measured revision
+   changed, which graphed whatever the last commit happened to touch.);
+3. build a wily cache of the whole git history, in a temporary directory (``wily build -n``
+   with the commit count; about a minute for this repository's history);
+4. graph each metric in ``METRICS`` for all ranked modules together (one line per module), with
+   plotly.js loaded from jsDelivr at the exact version plotly wrote (wily's ``--cdn-js`` names
+   cdn.plot.ly; the graph pages would otherwise inline the whole 4.5 MB plotly.js each);
+5. write ``GRAPHS_SNIPPET_NAME``, the markdown docs/quality/complexity.md includes (pymdownx
+   snippets; mkdocs.yml's ``exclude_docs`` keeps it from becoming a page of its own). Without it
+   the page builds with its own text only, so ``mkdocs build --strict`` passes either way.
+
+The output directory is emptied first, so graphs of modules that left the ranking are never
+published.
 
 Usage:
-    python scripts/generate_complexity_graphs.py
+    uv run python scripts/generate_complexity_graphs.py
 
-Output:
-    docs/quality/complexity.md          -- Markdown page with embedded graphs
-    docs/quality/graphs/*.html          -- Individual HTML graph files
+Output (gitignored):
+    docs/quality/graphs/<metric>.html           -- one graph page per metric
+    docs/quality/graphs/complexity_graphs.md    -- the snippet complexity.md includes
+
+Exit codes: ``SUCCESS``; ``INTERNAL_ERROR`` when git, radon or wily fails (its output is logged).
 """
 
 from __future__ import annotations
 
+import json
 import logging
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - subprocess used to invoke trusted local dev tool (wily)
+import os
+import re
+import shutil
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING, TypedDict
+
+from pydantic import BaseModel, ConfigDict
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.process import TimeoutExpired, run_command
+
+if TYPE_CHECKING:
+    from collections.abc import Generator, Sequence
 
 LOG = logging.getLogger(__name__)
 
-# How many top files to graph (by cyclomatic complexity)
-TOP_N = 15
+# How many modules to graph: the highest total cyclomatic complexity first
+TOP_MODULE_COUNT = 15
 
-# Metrics to graph for each file
+# The package whose modules are ranked and graphed
+RANKED_PACKAGE = 'glitchygames'
+
+# The radon block types whose complexity a module's total sums (radon also reports each class,
+# whose complexity repeats its methods')
+RANKED_BLOCK_TYPES = frozenset({'function', 'method'})
+
+# Metrics to graph (wily metric name, page heading), one graph each
 METRICS = [
     ('maintainability.mi', 'Maintainability Index'),
     ('cyclomatic.complexity', 'Cyclomatic Complexity'),
@@ -38,190 +80,442 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = PROJECT_ROOT / 'docs' / 'quality'
 GRAPHS_DIR = DOCS_DIR / 'graphs'
 
-WILY_CMD = 'wily'
+# The markdown docs/quality/complexity.md includes from GRAPHS_DIR
+GRAPHS_SNIPPET_NAME = 'complexity_graphs.md'
+
+# The commit the graphs in GRAPHS_DIR were generated from (generate_if_stale)
+GENERATED_FROM_NAME = 'generated-from-commit.txt'
+
+# The plotly.js script plotly writes for include_plotlyjs='cdn' (plotly.io's plotly_cdn_url)...
+PLOTLY_CDN_URL_PATTERN = re.compile(
+    r'https://cdn\.plot\.ly/plotly-(?P<version>\d+\.\d+\.\d+)\.min\.js'
+)
+# ...and the same version on jsDelivr (npm package plotly.js-dist-min), which the graphs load
+JSDELIVR_PLOTLY_URL = 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@{version}/plotly.min.js'
+
+# How long one git, radon or wily graph command may take
+TOOL_TIMEOUT_SECONDS = 300.0
+# How long the wily cache build may take (about a minute for this repository's history)
+WILY_BUILD_TIMEOUT_SECONDS = 1800.0
 
 
-def ensure_wily_cache() -> bool:
-    """Check that the wily cache exists, build it if not.
+class RadonBlock(TypedDict):
+    """One function, method or class in ``radon cc --json``'s report (the fields ranked on)."""
+
+    type: str
+    complexity: int
+
+
+# ``radon cc --json``: each module's blocks, or {"error": ...} for a module radon cannot parse
+type RadonReport = dict[str, list[RadonBlock] | dict[str, str]]
+
+
+class ComplexityGraphError(Exception):
+    """A tool the graphs need (git, radon or wily) failed."""
+
+
+class ComplexityGraphs(BaseModel):
+    """What one generation produced."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    # The commit measured last (HEAD), abbreviated, and its commit date (YYYY-MM-DD)
+    commit: str
+    commit_date: str
+    # How many commits the wily cache measured (the whole history)
+    commit_count: int
+    # The graphed modules, highest total cyclomatic complexity first
+    modules: tuple[str, ...]
+    # The graph pages written, by wily metric name
+    graph_files: dict[str, str]
+
+
+def run_tool(*, command: Sequence[str], working_directory: Path, timeout_seconds: float) -> str:
+    """Run a tool and return its output (standard output and error together).
+
+    Args:
+        command: The program and its arguments.
+        working_directory: Where it runs.
+        timeout_seconds: How long it may take.
 
     Returns:
-        bool: True if the cache is ready, False on error.
+        The tool's output.
+
+    Raises:
+        ComplexityGraphError: The tool exited with a failure status or outlived its timeout.
 
     """
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
-        [WILY_CMD, 'index'],
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-        check=False,
-    )
-    if result.returncode != 0:
-        LOG.info('Wily cache not found. Building...')
-        build_result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
-            [WILY_CMD, 'build'],
+    try:
+        completed = run_command(
+            command=command,
+            environment=os.environ,
+            timeout_seconds=timeout_seconds,
             capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT,
-            check=False,
+            working_directory=working_directory,
         )
-        if build_result.returncode != 0:
-            LOG.error('Error building wily cache: %s', build_result.stderr)
-            return False
-        LOG.info('Wily cache built successfully.')
+    except TimeoutExpired as error:
+        message = f'{" ".join(command)} did not finish within {timeout_seconds:.0f} seconds'
+        raise ComplexityGraphError(message) from error
+    output = completed.stdout or ''
+    if completed.returncode != 0:
+        message = f'{" ".join(command)} failed with exit status {completed.returncode}:\n{output}'
+        raise ComplexityGraphError(message)
+    return output
+
+
+def wily_command(*, cache_directory: Path, arguments: Sequence[str]) -> list[str]:
+    """Return the command line that runs wily, with its cache in ``cache_directory``.
+
+    Args:
+        cache_directory: Where wily keeps its cache (never the default, ``~/.wily/<hash>``).
+        arguments: The wily subcommand and its arguments.
+
+    Returns:
+        The command line (this interpreter's wily module).
+
+    """
+    return [sys.executable, '-m', 'wily', '--cache', str(cache_directory), *arguments]
+
+
+@contextmanager
+def detached_checkout(*, project_root: Path, checkout_directory: Path) -> Generator[Path]:
+    """Check HEAD out in a detached git worktree; remove the worktree afterwards.
+
+    Args:
+        project_root: The repository.
+        checkout_directory: Where the worktree goes (it must not exist yet).
+
+    Yields:
+        The worktree's directory.
+
+    """
+    run_tool(
+        command=['git', 'worktree', 'add', '--detach', str(checkout_directory), 'HEAD'],
+        working_directory=project_root,
+        timeout_seconds=TOOL_TIMEOUT_SECONDS,
+    )
+    try:
+        yield checkout_directory
+    finally:
+        run_tool(
+            command=['git', 'worktree', 'remove', '--force', str(checkout_directory)],
+            working_directory=project_root,
+            timeout_seconds=TOOL_TIMEOUT_SECONDS,
+        )
+
+
+def rank_modules(*, radon_report: RadonReport, module_count: int) -> list[str]:
+    """Rank modules by their total cyclomatic complexity, highest first.
+
+    Args:
+        radon_report: ``radon cc --json`` output: each module's blocks, or ``{"error": ...}``
+            for a module radon could not parse (left out).
+        module_count: How many modules to keep.
+
+    Returns:
+        The top ``module_count`` module paths; equal totals keep path order.
+
+    """
+    totals: dict[str, int] = {}
+    for module_path, blocks in sorted(radon_report.items()):
+        if not isinstance(blocks, list):
+            LOG.warning('radon could not measure %s: %s', module_path, blocks)
+            continue
+        totals[module_path] = sum(
+            block['complexity'] for block in blocks if block['type'] in RANKED_BLOCK_TYPES
+        )
+    ranked = sorted(totals, key=lambda module_path: -totals[module_path])
+    return ranked[:module_count]
+
+
+def measure_top_modules(*, checkout: Path, report_path: Path, module_count: int) -> list[str]:
+    """Measure the checkout's ``RANKED_PACKAGE`` modules with radon and rank them.
+
+    Args:
+        checkout: The checked-out commit.
+        report_path: Where radon writes its JSON report.
+        module_count: How many modules to keep.
+
+    Returns:
+        The top modules (paths relative to the checkout, ``/``-separated).
+
+    """
+    run_tool(
+        command=[
+            sys.executable,
+            '-m',
+            'radon',
+            'cc',
+            '--json',
+            '--output-file',
+            str(report_path),
+            RANKED_PACKAGE,
+        ],
+        working_directory=checkout,
+        timeout_seconds=TOOL_TIMEOUT_SECONDS,
+    )
+    radon_report: RadonReport = json.loads(report_path.read_text(encoding='utf-8'))
+    modules = rank_modules(radon_report=radon_report, module_count=module_count)
+    # radon names modules with the platform's separator; wily's paths use /
+    return [Path(module_path).as_posix() for module_path in modules]
+
+
+def load_plotly_from_jsdelivr(*, html: str) -> str:
+    """Point a graph page's plotly.js script at jsDelivr, at the version plotly wrote.
+
+    Args:
+        html: A graph page written with plotly's ``include_plotlyjs='cdn'``.
+
+    Returns:
+        The page, loading plotly.js from jsDelivr.
+
+    Raises:
+        ComplexityGraphError: The page names no cdn.plot.ly plotly.js (plotly changed how it
+            writes the script).
+
+    """
+    rewritten, replacements = PLOTLY_CDN_URL_PATTERN.subn(
+        lambda match: JSDELIVR_PLOTLY_URL.format(version=match['version']), html
+    )
+    if replacements == 0:
+        message = 'The graph page loads no plotly.js from cdn.plot.ly: plotly changed its output'
+        raise ComplexityGraphError(message)
+    return rewritten
+
+
+def space_commits_evenly(*, html: str) -> str:
+    """Re-lay a graph page's x axis out with one evenly spaced slot per commit, oldest first.
+
+    wily plots each commit at its date, so a busy week is a sliver beside months of quiet. Its
+    x values are the commits' ISO 8601 timestamps, which sort as text in time order, so a
+    category axis in ascending order gives every commit the same width. Applied once the page
+    has loaded (``Plotly.relayout``), leaving the data wily wrote as it is.
+
+    Args:
+        html: A graph page wily wrote.
+
+    Returns:
+        The page, with the re-layout script before ``</body>``.
+
+    Raises:
+        ComplexityGraphError: The page has no ``</body>`` (wily changed its output).
+
+    """
+    body_end = '</body>'
+    if body_end not in html:
+        message = 'The graph page has no </body>: wily changed its output'
+        raise ComplexityGraphError(message)
+    script = (
+        "<script>window.addEventListener('load', function () {"
+        " document.querySelectorAll('.plotly-graph-div').forEach(function (graph) {"
+        " Plotly.relayout(graph, {'xaxis.type': 'category',"
+        " 'xaxis.categoryorder': 'category ascending',"
+        " 'xaxis.title.text': 'commits (evenly spaced, oldest first)'}); }); });</script>"
+    )
+    before, _, after = html.rpartition(body_end)
+    return f'{before}{script}{body_end}{after}'
+
+
+def graph_file_name(*, metric: str) -> str:
+    """Return the graph page's file name for a wily metric (``raw.loc`` -> ``raw_loc.html``).
+
+    Returns:
+        The file name.
+
+    """
+    return f'{metric.replace(".", "_")}.html'
+
+
+def graph_metric(
+    *, checkout: Path, cache_directory: Path, modules: Sequence[str], metric: str, output_path: Path
+) -> None:
+    """Graph one metric for the modules (one line each) into ``output_path``.
+
+    Args:
+        checkout: The checked-out commit (wily reads its wily.cfg).
+        cache_directory: The built wily cache.
+        modules: The modules to graph.
+        metric: The wily metric.
+        output_path: The graph page to write.
+
+    """
+    run_tool(
+        command=wily_command(
+            cache_directory=cache_directory,
+            arguments=['graph', *modules, '-m', metric, '-o', str(output_path), '--cdn-js'],
+        ),
+        working_directory=checkout,
+        timeout_seconds=TOOL_TIMEOUT_SECONDS,
+    )
+    html = output_path.read_text(encoding='utf-8')
+    output_path.write_text(
+        space_commits_evenly(html=load_plotly_from_jsdelivr(html=html)), encoding='utf-8'
+    )
+
+
+def graphs_snippet(*, graphs: ComplexityGraphs) -> str:
+    """Return the markdown docs/quality/complexity.md includes: the graphs and what they measure.
+
+    Returns:
+        The markdown.
+
+    """
+    module_list = ', '.join(f'`{module_path}`' for module_path in graphs.modules)
+    lines = [
+        (
+            f'Generated at commit `{graphs.commit}` ({graphs.commit_date}) from all '
+            f'{graphs.commit_count} commits. The modules, highest total cyclomatic complexity '
+            f'first: {module_list}.'
+        ),
+        '',
+    ]
+    for metric, metric_label in METRICS:
+        # The page is served at quality/complexity/ (mkdocs use_directory_urls), the graphs at
+        # quality/graphs/
+        lines.extend((
+            f'## {metric_label}',
+            '',
+            (
+                f'<iframe src="../graphs/{graphs.graph_files[metric]}" width="100%" height="600" '
+                f'frameborder="0"></iframe>'
+            ),
+            '',
+        ))
+    return '\n'.join(lines)
+
+
+def generate_complexity_graphs(
+    *, project_root: Path, graphs_directory: Path, module_count: int = TOP_MODULE_COUNT
+) -> ComplexityGraphs:
+    """Measure HEAD's history and write the graph pages and snippet into ``graphs_directory``.
+
+    Args:
+        project_root: The repository.
+        graphs_directory: Where the graph pages and snippet go (emptied first).
+        module_count: How many modules to graph.
+
+    Returns:
+        What was generated.
+
+    """
+    shutil.rmtree(graphs_directory, ignore_errors=True)
+    graphs_directory.mkdir(parents=True)
+    with tempfile.TemporaryDirectory(prefix='complexity-graphs-') as temporary_name:
+        temporary_directory = Path(temporary_name)
+        cache_directory = temporary_directory / 'wily-cache'
+        with detached_checkout(
+            project_root=project_root, checkout_directory=temporary_directory / 'checkout'
+        ) as checkout:
+            commit, commit_date = run_tool(
+                command=['git', 'log', '-1', '--format=%h %cs'],
+                working_directory=checkout,
+                timeout_seconds=TOOL_TIMEOUT_SECONDS,
+            ).split()
+            commit_count = int(
+                run_tool(
+                    command=['git', 'rev-list', '--count', 'HEAD'],
+                    working_directory=checkout,
+                    timeout_seconds=TOOL_TIMEOUT_SECONDS,
+                )
+            )
+            modules = measure_top_modules(
+                checkout=checkout,
+                report_path=temporary_directory / 'radon.json',
+                module_count=module_count,
+            )
+            LOG.info('Building the wily cache from %d commits...', commit_count)
+            run_tool(
+                command=wily_command(
+                    cache_directory=cache_directory,
+                    arguments=['build', '--max-revisions', str(commit_count)],
+                ),
+                working_directory=checkout,
+                timeout_seconds=WILY_BUILD_TIMEOUT_SECONDS,
+            )
+            graph_files: dict[str, str] = {}
+            for metric, metric_label in METRICS:
+                graph_files[metric] = graph_file_name(metric=metric)
+                graph_metric(
+                    checkout=checkout,
+                    cache_directory=cache_directory,
+                    modules=modules,
+                    metric=metric,
+                    output_path=graphs_directory / graph_files[metric],
+                )
+                LOG.info('Graphed %s', metric_label)
+    graphs = ComplexityGraphs(
+        commit=commit,
+        commit_date=commit_date,
+        commit_count=commit_count,
+        modules=tuple(modules),
+        graph_files=graph_files,
+    )
+    snippet_path = graphs_directory / GRAPHS_SNIPPET_NAME
+    snippet_path.write_text(graphs_snippet(graphs=graphs), encoding='utf-8')
+    LOG.info('Wrote %s', snippet_path)
+    return graphs
+
+
+def head_commit(*, project_root: Path) -> str:
+    """Return the current commit's hash (``git rev-parse HEAD``).
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The full commit hash.
+
+    """
+    return run_tool(
+        command=['git', 'rev-parse', 'HEAD'],
+        working_directory=project_root,
+        timeout_seconds=TOOL_TIMEOUT_SECONDS,
+    ).strip()
+
+
+def generate_if_stale(*, project_root: Path, graphs_directory: Path) -> bool:
+    """Generate the graphs unless they were already generated from the current commit.
+
+    The graphs measure committed history only, so they change only when HEAD does: the commit
+    they were made from is kept in ``GENERATED_FROM_NAME`` next to them, and a build with the
+    same HEAD (every ``mkdocs serve`` rebuild, a second ``mkdocs build``) skips the minute the
+    generation takes.
+
+    Args:
+        project_root: The repository.
+        graphs_directory: Where the graphs are (and are generated).
+
+    Returns:
+        True when the graphs were generated, False when they were current.
+
+    """
+    commit = head_commit(project_root=project_root)
+    generated_from_path = graphs_directory / GENERATED_FROM_NAME
+    if (
+        generated_from_path.is_file()
+        and generated_from_path.read_text(encoding='utf-8').strip() == commit
+    ):
+        LOG.info('Complexity graphs are current (commit %s)', commit[:12])
+        return False
+    generate_complexity_graphs(project_root=project_root, graphs_directory=graphs_directory)
+    generated_from_path.write_text(f'{commit}\n', encoding='utf-8')
     return True
 
 
-def get_top_files() -> list[str]:
-    """Get the top N files ranked by cyclomatic complexity.
-
-    Returns:
-        list[str]: File paths ranked by complexity.
-
-    """
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
-        [WILY_CMD, 'rank', '--limit', str(TOP_N), '--no-wrap', '--desc'],
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-        check=False,
-    )
-    if result.returncode != 0:
-        LOG.error('Error getting file rankings: %s', result.stderr)
-        return []
-
-    files: list[str] = []
-    # Wily rank uses Unicode box-drawing tables with possible multiline wrapping.
-    # Collect all text fragments from the first column, then join wrapped lines.
-    current_path = ''
-    for raw_line in result.stdout.strip().splitlines():
-        line = raw_line.strip()
-        # Skip header/separator/total lines
-        if not line or line.startswith(('╒', '╞', '╘', '├', '-')):
-            # Row boundary — flush any accumulated path
-            if current_path.endswith('.py') and not current_path.startswith('tests/'):
-                files.append(current_path)
-            current_path = ''
-            continue
-        # Parse table rows: │ filepath │ value │
-        if '│' in line:
-            cells = [cell.strip() for cell in line.split('│') if cell.strip()]
-            if not cells or cells[0] in {'File', 'Total', 'Maintainability Index'}:
-                continue
-            # Accumulate the first column (may be wrapped across lines)
-            current_path += cells[0]
-    # Flush last row
-    if current_path.endswith('.py') and not current_path.startswith('tests/'):
-        files.append(current_path)
-
-    return files[:TOP_N]
-
-
-def generate_graph(file_path: str, metric: str) -> bool:
-    """Generate an HTML graph for a file and metric.
-
-    Returns:
-        bool: True if the graph was created successfully.
-
-    """
-    safe_name = file_path.replace('/', '_').replace('.', '_')
-    metric_name = metric.replace('.', '_')
-    output_path = GRAPHS_DIR / f'{safe_name}_{metric_name}.html'
-
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
-        [WILY_CMD, 'graph', file_path, '-m', metric, '-o', str(output_path)],
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-        check=False,
-    )
-
-    if result.returncode != 0:
-        # Some files may not have data for all metrics — skip silently
-        return False
-
-    return output_path.exists()
-
-
-def generate_markdown_page(files: list[str], generated_graphs: dict[str, list[str]]) -> None:
-    """Generate the docs/quality/complexity.md page."""
-    lines = [
-        '# Code Complexity Metrics',
-        '',
-        (
-            'Complexity trends for the top modules, generated by '
-            '[wily](https://github.com/tonybaloney/wily).'
-        ),
-        '',
-        'Regenerate with: `nox -s code-complexity -- --graphs`',
-        '',
-    ]
-
-    for file_path in files:
-        if file_path not in generated_graphs:
-            continue
-
-        lines.extend((f'## `{file_path}`', ''))
-
-        for metric, metric_label in METRICS:
-            safe_name = file_path.replace('/', '_').replace('.', '_')
-            metric_name = metric.replace('.', '_')
-            graph_file = f'{safe_name}_{metric_name}.html'
-            graph_path = GRAPHS_DIR / graph_file
-
-            if graph_path.exists():
-                # Use site-root-relative path (mkdocs use_directory_urls
-                # serves this page at /quality/complexity/index.html)
-                lines.extend((
-                    f'### {metric_label}',
-                    '',
-                    (
-                        f'<iframe src="../graphs/{graph_file}" width="100%" height="400" '
-                        f'frameborder="0"></iframe>'
-                    ),
-                    '',
-                ))
-
-        lines.extend(('---', ''))
-
-    md_path = DOCS_DIR / 'complexity.md'
-    md_path.write_text('\n'.join(lines), encoding='utf-8')
-    LOG.info('Generated %s', md_path)
-
-
 def main() -> None:
-    """Generate complexity graphs and documentation page."""
+    """Generate the complexity graphs for the documentation site."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-
-    if not ensure_wily_cache():
-        # wily (a local tool) could not index or build its cache
+    try:
+        graphs = generate_complexity_graphs(project_root=PROJECT_ROOT, graphs_directory=GRAPHS_DIR)
+    except ComplexityGraphError as error:
+        # The failed tool's own output is the useful part; a traceback would bury it
+        sys.stderr.write(f'{error}\n')
         sys.exit(ExitCode.INTERNAL_ERROR)
-
-    GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
-
-    LOG.info('Getting top %d files by cyclomatic complexity...', TOP_N)
-    files = get_top_files()
-    if not files:
-        LOG.error('No files found. Is the wily cache populated?')
-        sys.exit(ExitCode.UNUSABLE_INPUT)
-
-    LOG.info('Found %d files. Generating graphs...', len(files))
-
-    generated_graphs: dict[str, list[str]] = {}
-    for file_path in files:
-        file_graphs: list[str] = []
-        for metric, metric_label in METRICS:
-            if generate_graph(file_path=file_path, metric=metric):
-                file_graphs.append(metric)
-                LOG.info('  %s: %s', file_path, metric_label)
-        if file_graphs:
-            generated_graphs[file_path] = file_graphs
-
-    generate_markdown_page(files=files, generated_graphs=generated_graphs)
-    total_graphs = sum(len(v) for v in generated_graphs.values())
     LOG.info(
-        'Generated %d graphs for %d files.',
-        total_graphs,
-        len(generated_graphs),
+        'Graphed %d metrics for %d modules from %d commits.',
+        len(graphs.graph_files),
+        len(graphs.modules),
+        graphs.commit_count,
     )
 
 

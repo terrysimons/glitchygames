@@ -131,7 +131,7 @@ class FakeEditor:
         self.controller_position_operation_tracker = FakePositionTracker()
         self.undo_count = 0
         self.redo_count = 0
-        self.color_well_updates = 0
+        self.slider_events: list[tuple[str, int]] = []
 
     def get_current_color(self) -> tuple[int, ...]:
         """Return the color picker's color.
@@ -151,11 +151,8 @@ class FakeEditor:
         self.redo_count += 1
 
     def on_slider_event(self, event: Any, trigger: Any) -> None:
-        """Slider events need no work here."""
-
-    def update_color_well_from_sliders(self) -> None:
-        """Count color well refreshes."""
-        self.color_well_updates += 1
+        """Record the slider events (each updates the color well)."""
+        self.slider_events.append((trigger.name, trigger.value))
 
 
 def _make_handler(*, mode: ControllerMode, position: tuple[int, int] = (10, 10)):
@@ -530,8 +527,8 @@ class TestSliderModeStrategy:
         assert editor.red_slider.value == 100
         assert handler.slider_continuous_adjustments == {}
 
-    def test_releasing_an_adjusting_button_stops_and_refreshes_the_color_well(self):
-        """Releasing a D-pad or shoulder button ends the adjustment and updates the color."""
+    def test_releasing_an_adjusting_button_stops_the_adjustment(self):
+        """Releasing a D-pad or shoulder button ends the adjustment; its step set the color."""
         handler, editor = _make_handler(mode=ControllerMode.R_SLIDER)
         strategy = _strategy(editor)
         strategy.handle_button_down(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER)
@@ -539,7 +536,7 @@ class TestSliderModeStrategy:
         strategy.handle_button_up(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER)
 
         assert handler.slider_continuous_adjustments == {}
-        assert editor.color_well_updates == 1
+        assert editor.slider_events == [('R', 108)]
 
     def test_releasing_another_button_keeps_the_adjustment(self):
         """Releasing A leaves a held adjustment running."""
@@ -550,4 +547,4 @@ class TestSliderModeStrategy:
         strategy.handle_button_up(CONTROLLER_ID, pygame.CONTROLLER_BUTTON_A)
 
         assert CONTROLLER_ID in handler.slider_continuous_adjustments
-        assert editor.color_well_updates == 0
+        assert editor.slider_events == [('R', 99)]

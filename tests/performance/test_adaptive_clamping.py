@@ -1,5 +1,6 @@
 """Tests for the adaptive clamping system."""
 
+import logging
 import math
 import re
 
@@ -8,10 +9,12 @@ import pytest
 from glitchygames.performance.adaptive_clamping import (
     FPS_HISTORY_MAX_SIZE,
     HISTOGRAM_BUCKET_COUNT,
+    LOG,
     MAX_SCENE_FRAME_TIME_HISTORY,
     AdaptiveClamping,
     FpsHistogramMode,
 )
+from tests.logged_messages import logged_messages
 
 
 class TestAdaptiveClampingSingleton:
@@ -826,21 +829,24 @@ class TestHistogramBucketing:
             for value in counter_values
         )
 
-    def test_distinct_dt_samples_give_distinct_values(self, mock_pygame_patches, mocker):
+    def test_distinct_dt_samples_give_distinct_values(self, mocker):
         """With 1/dt sampling distinct dts give distinct FPS and get_fps is never called."""
         from glitchygames.scenes.scene import SceneManager
 
         self.instance.set_current_scene('Scene')
         mocker.patch('glitchygames.performance.performance_manager', self.instance)
         manager = SceneManager()
-        mock_get_fps = mocker.patch.object(manager.clock, 'get_fps', return_value=500.0)
+        # The real pacing clock was never ticked, so its get_fps() reads 0.0: every recorded
+        # value matching 1/dt shows the FPS came from dt, not from the clock
+        assert manager.clock.get_fps() == 0.0
+        expected_fps_values = [400.0 + frame_index * 2.5 for frame_index in range(20)]
 
-        for frame_index in range(20):
-            manager.dt = 1.0 / (400.0 + frame_index * 2.5)
+        for expected_fps in expected_fps_values:
+            manager.dt = 1.0 / expected_fps
             manager._track_performance(processing_time=0.001)
 
         recorded = list(self.instance._scene_data['Scene']['fps_history'])
-        mock_get_fps.assert_not_called()
+        assert recorded == pytest.approx(expected_fps_values)
         assert len(set(recorded)) == 20
         stats = self.instance.get_shutdown_stats()
         assert sum(stats['fps_histogram'].values()) == 20
@@ -1043,7 +1049,7 @@ class TestHistogramModes:
         """Print the global shutdown histogram with a mocked logger and return its lines."""
         mock_log = mocker.patch('glitchygames.performance.adaptive_clamping.LOG')
         self.instance._log_fps_histogram(self.instance.get_shutdown_stats())
-        return [call.args[0] for call in mock_log.info.call_args_list]
+        return logged_messages(mock_log.info.call_args_list)
 
     def test_equal_range_header_and_rows_ascend(self, mocker):
         """The header states the width; rows run from the lowest FPS to the highest."""
@@ -1304,3 +1310,28 @@ class TestPerformanceManagerGlobal:
         assert hasattr(performance_manager, '_scene_data')
         assert hasattr(performance_manager, '_current_scene')
         assert hasattr(performance_manager, '_target_fps')
+
+
+class TestShutdownReportsWithoutData:
+    """The shutdown reports of a run that recorded no frames."""
+
+    def setup_method(self):
+        """Reset singleton before each test."""
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+
+    def test_global_report_is_skipped_without_frames(self, caplog):
+        """With no frames the global report prints nothing (the per-scene one says why)."""
+        with caplog.at_level(logging.INFO, logger=LOG.name):
+            self.instance.print_shutdown_report()
+
+        assert caplog.records == []
+
+    def test_per_scene_report_says_no_data_was_collected(self, caplog):
+        """With no scene data the per-scene report says so instead of printing empty tables."""
+        with caplog.at_level(logging.INFO, logger=LOG.name):
+            self.instance.print_per_scene_shutdown_report()
+
+        assert 'No scene performance data collected' in caplog.text
+        assert 'PER-SCENE PERFORMANCE REPORT' in caplog.text

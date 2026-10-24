@@ -10,6 +10,7 @@ import pygame
 # Add the glitchygames package to the path
 sys.path.insert(0, str(Path(__file__).parent / '../../../glitchygames'))
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.examples.paddleslap import Game
 
 LOG = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ def test_game_over_condition():
     """Test that Game Over is triggered when all balls are dead."""
     # Initialize pygame (minimal setup)
     pygame.init()
-    screen = pygame.display.set_mode((800, 600))
+    screen = set_display_mode(size=(800, 600))
 
     # Create a game instance
     game = Game(options={})
@@ -35,7 +36,7 @@ def test_game_over_condition():
 
     # Check that balls are marked as dead
     dead_balls = [ball for ball in game.balls if not ball.alive()]
-    LOG.debug(f'Dead balls: {len(dead_balls)}')
+    LOG.debug('Dead balls: %s', len(dead_balls))
 
     # Run a frame's logic, which removes dead balls and should trigger Game Over
     game.dt_tick(0.0)

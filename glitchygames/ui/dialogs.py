@@ -15,10 +15,11 @@ from typing import TYPE_CHECKING, Any, Self, override
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import HashableEvent, KeyEvent, MouseButtonEvent
 
 import pygame
 
+from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
 
@@ -162,6 +163,8 @@ class InputConfirmationDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+        # Black behind the dialog (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.previous_scene: Any = previous_scene
 
         # Create dialog with its own sprite group
@@ -188,13 +191,7 @@ class InputConfirmationDialogScene(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Set up the scene.
-
-        Args:
-            None
-
-
-        """
+        """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
             'on_left_mouse_button_up_event': self.on_cancel_event,
         }
@@ -206,25 +203,13 @@ class InputConfirmationDialogScene(Scene):
 
     @override
     def cleanup(self: Self) -> None:
-        """Cleanup the scene.
-
-        Args:
-            None
-
-
-        """
-        self.next_scene = self
+        """Cleanup the scene."""
+        self.next_scene = None
 
     def dismiss(self: Self) -> None:
-        """Dismiss the dialog.
-
-        Args:
-            None
-
-
-        """
+        """Dismiss the dialog."""
         # Set next scene before cleanup
-        self.previous_scene.next_scene = self.previous_scene
+        self.previous_scene.next_scene = None
         self.next_scene = self.previous_scene
 
         # Clear all sprites from our group
@@ -249,18 +234,9 @@ class InputConfirmationDialogScene(Scene):
     def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle confirm events."""
         self.log.info('Confirm: event: %s, trigger: %s', event, trigger)
-        # Get the text from input box before dismissing
-        filename = self.dialog.input_box.text
-        # Dismiss first to restore previous scene
+        # Dismiss to restore the previous scene. The save, load and new-canvas dialogs
+        # override this to hand the input box's text to the canvas.
         self.dismiss()
-        # Then trigger appropriate canvas event based on dialog type
-        if isinstance(self, SaveDialogScene):
-            self.previous_scene.canvas.on_save_file_event(filename)
-        elif isinstance(self, LoadDialogScene):
-            LOG.debug('Dialog calling canvas.on_load_file_event with filename: %s', filename)
-            self.previous_scene.canvas.on_load_file_event(filename)
-        elif isinstance(self, NewCanvasDialogScene):
-            self.previous_scene.canvas.on_new_file_event(filename)
 
     def on_input_box_submit_event(self: Self, control: object) -> None:
         """Handle the input box submit event.
@@ -272,25 +248,25 @@ class InputConfirmationDialogScene(Scene):
         """
         input_box_name = getattr(control, 'name', '')
         input_box_text = getattr(control, 'text', '')
-        self.log.info(f'{self.name} Got text input from: {input_box_name}: {input_box_text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, input_box_name, input_box_text)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle the mouse button up event.
 
         Args:
-            event (HashableEvent): The pygame event.
+            event (MouseButtonEvent): The pygame event.
 
 
         """
         self.dialog.input_box.activate()
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle the key up event.
 
         Args:
-            event (HashableEvent): The pygame event.
+            event (KeyEvent): The pygame event.
 
 
         """
@@ -302,11 +278,11 @@ class InputConfirmationDialogScene(Scene):
             super().on_key_up_event(event)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle the key down event.
 
         Args:
-            event (HashableEvent): The pygame event.
+            event (KeyEvent): The pygame event.
 
 
         """
@@ -500,6 +476,8 @@ class DeleteAnimationDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+        # Black behind the dialog (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.previous_scene: Any = previous_scene
         self.animation_name = animation_name
         self.on_confirm_callback = on_confirm_callback
@@ -547,15 +525,16 @@ class DeleteAnimationDialogScene(Scene):
 
         # Validate that the typed text matches the animation name
         if typed_text == self.animation_name:
-            LOG.info(f"DeleteAnimationDialog: User confirmed deletion of '{self.animation_name}'")
+            LOG.info("DeleteAnimationDialog: User confirmed deletion of '%s'", self.animation_name)
             # Call the callback if provided
             self.on_confirm_callback()
             # Return to previous scene
             self.scene_manager.switch_to_scene(self.previous_scene)
         else:
             LOG.warning(
-                f"DeleteAnimationDialog: Typed name '{typed_text}'"
-                f" does not match '{self.animation_name}'",
+                "DeleteAnimationDialog: Typed name '%s' does not match '%s'",
+                typed_text,
+                self.animation_name,
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
@@ -571,7 +550,7 @@ class DeleteAnimationDialogScene(Scene):
         self.scene_manager.switch_to_scene(self.previous_scene)
 
     @override
-    def on_key_down_event(self, event: HashableEvent) -> None:
+    def on_key_down_event(self, event: KeyEvent) -> None:
         """Handle the key down event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
@@ -579,7 +558,7 @@ class DeleteAnimationDialogScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self, event: HashableEvent) -> None:
+    def on_key_up_event(self, event: KeyEvent) -> None:
         """Handle the key up event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
@@ -622,6 +601,8 @@ class DeleteFrameDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
+        # Black behind the dialog (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
         self.previous_scene: Any = previous_scene
         self.animation_name = animation_name
         self.frame_index = frame_index
@@ -688,9 +669,9 @@ class DeleteFrameDialogScene(Scene):
         # Validate that the typed text is "YES"
         if typed_text == 'YES':
             LOG.info(
-                'DeleteFrameDialog: User confirmed deletion of'
-                f' frame {self.frame_index}'
-                f" from '{self.animation_name}'",
+                "DeleteFrameDialog: User confirmed deletion of frame %s from '%s'",
+                self.frame_index,
+                self.animation_name,
             )
             # Call the callback if provided
             self.on_confirm_callback()
@@ -711,7 +692,7 @@ class DeleteFrameDialogScene(Scene):
         self.scene_manager.switch_to_scene(self.previous_scene)
 
     @override
-    def on_key_down_event(self, event: HashableEvent) -> None:
+    def on_key_down_event(self, event: KeyEvent) -> None:
         """Handle the key down event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
@@ -719,7 +700,7 @@ class DeleteFrameDialogScene(Scene):
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self, event: HashableEvent) -> None:
+    def on_key_up_event(self, event: KeyEvent) -> None:
         """Handle the key up event."""
         if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)

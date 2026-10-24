@@ -51,7 +51,7 @@ class Game(Scene):
 
         self.background_color = (255, 255, 0)
 
-        self.next_scene = self
+        self.next_scene = None
 
     @classmethod
     def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:

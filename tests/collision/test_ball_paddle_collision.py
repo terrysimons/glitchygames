@@ -2,8 +2,7 @@
 
 These use real pygame surfaces so the ball's visible circle (radius 5, drawn in the middle of
 its 20x20 colorkey image) gives its real collision rect: a 10x10 box offset (5, 5) from the
-drawn position. They live under tests/collision because tests/conftest.py mocks pygame (and
-pygame.draw) for every test path containing "game_objects" or "scene".
+drawn position.
 """
 
 import math
@@ -12,6 +11,7 @@ import pygame
 import pytest
 
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects.ball import BallSprite, SpeedUpSettings, SpeedUpTrigger
 from glitchygames.game_objects.paddle import VerticalPaddle
 
@@ -28,7 +28,7 @@ def real_display():
     """Give BallSprite and VerticalPaddle a real display to convert their images against."""
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 @pytest.fixture
@@ -123,7 +123,17 @@ class TestImageFormat:
         display = pygame.display.get_surface()
         assert ball.image.get_masks() == display.get_masks()
         assert ball.image.get_bitsize() == display.get_bitsize()
-        assert ball.image.get_colorkey() == (0, 0, 0, 255)
+        # The key's alpha follows the display format (255 on dummy's XRGB, 0 on cocoa's ARGB)
+        colorkey = ball.image.get_colorkey()
+        assert colorkey is not None
+        assert colorkey[:3] == (0, 0, 0)
+        # Drawn, the corners are keyed out and the ball itself is not
+        backdrop = pygame.Surface(ball.image.get_size())
+        backdrop.fill((200, 10, 10))
+        backdrop.blit(ball.image, (0, 0))
+        assert backdrop.get_at((0, 0))[:3] == (200, 10, 10)
+        center = (ball.image.get_width() // 2, ball.image.get_height() // 2)
+        assert backdrop.get_at(center)[:3] != (200, 10, 10)
 
     def test_paddle_image_matches_display_format(self, paddle):
         """The paddle image is likewise in display format and fully drawn."""

@@ -13,7 +13,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, assert_never
 
 from glitchygames.randomness import random_stream
 
@@ -131,14 +131,15 @@ class _ActiveShake:
         return max(0.0, self.shake.duration - self.elapsed)
 
     def decay(self) -> float:
-        """Envelope multiplier for offset and rumble (exactly 0.0 when finished).
+        """Envelope multiplier for offset and rumble.
+
+        Only asked of a running shake: ScreenShake.update drops finished ones, and a new one
+        has a positive duration still to run.
 
         Returns:
             The style's decay factor at the current elapsed time.
 
         """
-        if self.finished:
-            return 0.0
         remaining_fraction = 1.0 - self.elapsed / self.shake.duration
         match self.shake.style:
             case ShakeStyle.NOISE:
@@ -147,16 +148,18 @@ class _ActiveShake:
                 return remaining_fraction
             case ShakeStyle.BOUNCE:
                 return math.exp(-self._bounce_damping * self.elapsed)
+            case _:  # pragma: no cover - every ShakeStyle is matched above
+                assert_never(self.shake.style)
 
     def offset(self) -> tuple[float, float]:
         """Current offset in pixels before intensity and the cap.
+
+        Only asked of a running shake (see ``decay``).
 
         Returns:
             The (horizontal, vertical) offset.
 
         """
-        if self.finished:
-            return (0.0, 0.0)
         magnitude = self.shake.strength * self.decay()
         unit_horizontal, unit_vertical = self._unit_direction()
         horizontal = unit_horizontal * magnitude
@@ -168,6 +171,8 @@ class _ActiveShake:
                 return (0.0, vertical)
             case ShakeAxis.BOTH:
                 return (horizontal, vertical)
+            case _:  # pragma: no cover - every ShakeAxis is matched above
+                assert_never(self.shake.axis)
 
     def _unit_direction(self) -> tuple[float, float]:
         position = self.elapsed * self.shake.frequency
@@ -187,6 +192,8 @@ class _ActiveShake:
             case ShakeStyle.BOUNCE:
                 wave = math.cos(2.0 * math.pi * position)
                 return (wave, wave)
+            case _:  # pragma: no cover - every ShakeStyle is matched above
+                assert_never(self.shake.style)
 
     def _value_noise(self, *, lattice: dict[int, float], position: float) -> float:
         """Smooth 1D value noise in [-1, 1]: random lattice values, smoothstep between them.

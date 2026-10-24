@@ -379,13 +379,13 @@ class MultiControllerManager:
         for instance_id in inactive_controllers:
             if instance_id in self.assigned_controllers:
                 del self.assigned_controllers[instance_id]
-            if instance_id in self.controllers:
-                self.controllers[instance_id].status = ControllerStatus.CONNECTED
-                self.controllers[instance_id].assigned_time = None
-                LOG.debug(
-                    'Controller %s deactivated due to inactivity',
-                    self.controllers[instance_id].controller_id,
-                )
+            # inactive_controllers was collected from self.controllers just above
+            self.controllers[instance_id].status = ControllerStatus.CONNECTED
+            self.controllers[instance_id].assigned_time = None
+            LOG.debug(
+                'Controller %s deactivated due to inactivity',
+                self.controllers[instance_id].controller_id,
+            )
 
     def get_controller_status_summary(self) -> dict[str, Any]:
         """Get a summary of all controller statuses.

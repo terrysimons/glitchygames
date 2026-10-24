@@ -6,6 +6,7 @@ import random
 import pygame
 import pytest
 
+from glitchygames.display_mode import set_display_mode
 from glitchygames.effects import shake as shake_module
 from glitchygames.effects.shake import (
     RumbleSettings,
@@ -14,6 +15,7 @@ from glitchygames.effects.shake import (
     ShakeAxis,
     ShakeStyle,
 )
+from glitchygames.opacity import OPAQUE
 from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from glitchygames.scenes import SceneManager
 
@@ -47,6 +49,14 @@ class TestShakeValidation:
     def test_intensity_range(self, value):
         with pytest.raises(ValueError, match='intensity'):
             ScreenShake(intensity=value)
+
+    @pytest.mark.parametrize('maximum_offset', [0.0, -4.0])
+    def test_maximum_offset_must_be_positive(self, maximum_offset):
+        with pytest.raises(ValueError, match='maximum_offset'):
+            ScreenShake(maximum_offset=maximum_offset)
+
+    def test_maximum_offset_is_reported_as_given(self):
+        assert ScreenShake(maximum_offset=7.5).maximum_offset == 7.5
 
 
 class TestShakeLifetime:
@@ -287,7 +297,7 @@ def scene_manager_with_screen(mocker):
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((64, 48))
+        set_display_mode(size=(96, 64))
     manager = SceneManager()
     manager.screen = pygame.Surface((64, 48))
     manager.active_scene = mocker.Mock(rects=[])
@@ -363,6 +373,39 @@ class TestScreenShakePresentation:
         # Between presents the display surface holds the unshifted frame
         assert manager.screen.get_at((10, 10))[:3] == (255, 0, 0)
         assert manager.screen.get_at((30, 1))[:3] == (0, 0, 255)
+
+    def test_shaken_frame_on_a_display_with_per_pixel_alpha_is_copied_not_blended(
+        self, scene_manager_with_screen
+    ):
+        """A shaken frame with per-pixel alpha is presented shifted, not blended away.
+
+        Real video drivers (cocoa) give the display per-pixel alpha: pixels below 255 must
+        still reach the presented frame with their colours, not blend into the border fill,
+        and opaque, since the window shows alpha 0 as black (glitchygames/opacity.py).
+        """
+        manager, flip, _update = scene_manager_with_screen
+        manager.screen = pygame.Surface(manager.screen.get_size(), pygame.SRCALPHA)
+        manager.screen.fill((0, 0, 255, 0))
+        manager.screen.set_at((10, 10), (255, 0, 0, 0))
+        manager.screen_shake.add(
+            Shake(
+                style=ShakeStyle.BOUNCE,
+                strength=4.0,
+                duration=1.0,
+                frequency=1.0,
+                axis=ShakeAxis.VERTICAL,
+            )
+        )
+        presented = {}
+
+        def capture_flip():
+            presented['marker'] = tuple(manager.screen.get_at((10, 14)))
+            presented['frame'] = tuple(manager.screen.get_at((30, 30)))
+
+        flip.side_effect = capture_flip
+        manager._present_frame(full_update=False)
+        assert presented == {'marker': (255, 0, 0, OPAQUE), 'frame': (0, 0, 255, OPAQUE)}
+        assert tuple(manager.screen.get_at((10, 10))) == (255, 0, 0, OPAQUE)
 
     def test_first_frame_after_shake_is_a_full_flip(self, scene_manager_with_screen):
         manager, flip, update = scene_manager_with_screen

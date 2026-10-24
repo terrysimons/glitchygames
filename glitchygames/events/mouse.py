@@ -4,14 +4,22 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
 
-from glitchygames.events import MOUSE_EVENTS, HashableEvent, MouseEvents, ResourceManager
+from glitchygames.events import (
+    MOUSE_EVENTS,
+    HashableEvent,
+    MouseButtonEvent,
+    MouseEvents,
+    MouseMotionEvent,
+    MouseWheelEvent,
+    ResourceManager,
+)
 
 LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())
@@ -31,6 +39,9 @@ class MouseEventManager(ResourceManager):
     class MouseEventProxy(MouseEvents, ResourceManager):  # ruff: ignore[too-many-public-methods] - one handler per mouse event type
         """Mouse manager event proxy."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         def __init__(self: Self, game: object = None) -> None:
             """Initialize the mouse manager event proxy.
 
@@ -49,55 +60,54 @@ class MouseEventManager(ResourceManager):
             self.game: Any = game
             self.proxies = [self.game, pygame.mouse]
 
-            # Diagnostics: counters for motion/drag while a button is held
-            self._motion_seq = 0
-            self._drag_seq = 0
-
         @override
-        def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
+        def on_mouse_motion_event(self: Self, event: MouseMotionEvent) -> None:
             """Handle the mouse motion event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseMotionEvent): The event to handle.
 
             """
             self.mouse_state[event.type] = event
-            # Diagnostics: sample motion rate and whether a DOWN is currently tracked
-            self._motion_seq += 1
-            try:
-                _has_down = any(
-                    getattr(e, 'type', None) == pygame.MOUSEBUTTONDOWN
-                    for e in self.mouse_state.values()
-                )
-            except RuntimeError:
-                _has_down = False
             self.game.on_mouse_motion_event(event)
 
             sprite = collided_sprites(self.game, event=event, index=-1)
 
+            # Focus follows the topmost sprite under the mouse: the sprite entered is focused
+            # (and the one left unfocused) before it gets the motion (BUGS.md #199: the focus
+            # handlers were never called)
+            sprite_under_mouse = sprite[0] if sprite else None
+            if sprite_under_mouse is not self.current_focus:
+                if sprite_under_mouse is None:
+                    self.on_mouse_unfocus_event(event, self.current_focus)
+                else:
+                    self.on_mouse_focus_event(event, sprite_under_mouse)
+
             if sprite:
-                self.log.debug(f'{type(self)}: Mouse Motion: {event}')
+                self.log.debug('%s: Mouse Motion: %s', type(self), event)
                 sprite[0].on_mouse_motion_event(event)
 
             # Caller can check the buttons.
             # Note: This probably doesn't work right because
             # we aren't keeping track of button states.
             # We should be looking at all mouse states and emitting appropriately.
-            for trigger in self.mouse_state.values():
+            # A snapshot: a drag handler may press or release a button (changing mouse_state)
+            for trigger in tuple(self.mouse_state.values()):
                 if trigger.type == pygame.MOUSEBUTTONDOWN:
                     self.on_mouse_drag_event(event, trigger)
                     self.mouse_dragging = True
 
         @override
-        def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+        def on_mouse_drag_event(
+            self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
+        ) -> None:
             """Handle the mouse drag event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseMotionEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self._drag_seq += 1
             self.game.on_mouse_drag_event(event, trigger)
 
             if trigger.button == MOUSE_BUTTON_LEFT:
@@ -114,15 +124,17 @@ class MouseEventManager(ResourceManager):
                 pass
 
         @override
-        def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+        def on_mouse_drop_event(
+            self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
+        ) -> None:
             """Handle the mouse drop event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseButtonEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
+            self.log.debug('%s: Mouse Drop: %s %s', type(self), event, trigger)
             self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
 
@@ -144,14 +156,14 @@ class MouseEventManager(ResourceManager):
         @override
         def on_left_mouse_drag_event(
             self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
+            event: MouseMotionEvent,
+            trigger: MouseButtonEvent,
         ) -> None:
             """Handle the left mouse drag event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseMotionEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
             self.game.on_left_mouse_drag_event(event, trigger)
@@ -159,77 +171,77 @@ class MouseEventManager(ResourceManager):
         @override
         def on_left_mouse_drop_event(
             self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
+            event: MouseButtonEvent,
+            trigger: MouseButtonEvent,
         ) -> None:
             """Handle the left mouse drop event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseButtonEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_left_mouse_drag_up_event(event, trigger)
+            self.game.on_left_mouse_drop_event(event, trigger)
 
         @override
         def on_middle_mouse_drag_event(
             self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
+            event: MouseMotionEvent,
+            trigger: MouseButtonEvent,
         ) -> None:
             """Handle the middle mouse drag event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseMotionEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_middle_mouse_drag_down_event(event, trigger)
+            self.game.on_middle_mouse_drag_event(event, trigger)
 
         @override
         def on_middle_mouse_drop_event(
             self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
+            event: MouseButtonEvent,
+            trigger: MouseButtonEvent,
         ) -> None:
             """Handle the middle mouse drop event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseButtonEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_middle_mouse_drag_up_event(event, trigger)
+            self.game.on_middle_mouse_drop_event(event, trigger)
 
         @override
         def on_right_mouse_drag_event(
             self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
+            event: MouseMotionEvent,
+            trigger: MouseButtonEvent,
         ) -> None:
             """Handle the right mouse drag event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseMotionEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_right_mouse_drag_down_event(event, trigger)
+            self.game.on_right_mouse_drag_event(event, trigger)
 
         @override
         def on_right_mouse_drop_event(
             self: Self,
-            event: HashableEvent,
-            trigger: HashableEvent,
+            event: MouseButtonEvent,
+            trigger: MouseButtonEvent,
         ) -> None:
             """Handle the right mouse drop event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-                trigger (pygame.event.Event): The triggering event.
+                event (MouseButtonEvent): The event to handle.
+                trigger (MouseButtonEvent): The triggering event.
 
             """
-            self.game.on_right_mouse_drag_up_event(event, trigger)
+            self.game.on_right_mouse_drop_event(event, trigger)
 
         @override
         def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
@@ -249,7 +261,7 @@ class MouseEventManager(ResourceManager):
             # Send an enter event for the new focus.
             entering_focus.on_mouse_focus_event(event, self.current_focus)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
 
-            self.log.info(f'Entered Focus: {self.current_focus}')
+            self.log.info('Entered Focus: %s', self.current_focus)
 
         @override
         def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object) -> None:
@@ -266,14 +278,14 @@ class MouseEventManager(ResourceManager):
                 leaving_focus.on_mouse_unfocus_event(event)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
                 self.current_focus = None
 
-                self.log.info(f'Left Focus: {self.previous_focus}')
+                self.log.info('Left Focus: %s', self.previous_focus)
 
         @override
-        def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+        def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the mouse button up event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.mouse_state[event.button] = event
@@ -297,53 +309,52 @@ class MouseEventManager(ResourceManager):
                 pass
 
             if self.mouse_dragging:
-                # The mouse up location is also the trigger.
+                # The mouse up location is also the trigger. Through this proxy's own drop
+                # handler, which also calls the released button's drop handler (BUGS.md #199:
+                # calling only the game's generic one, the button-specific ones never ran)
                 self.mouse_dragging = False
-                self.game.on_mouse_drop_event(event=event, trigger=event)
+                self.on_mouse_drop_event(event, event)
 
         @override
-        def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+        def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the left mouse button up event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.mouse_state[event.button] = event
             self.game.on_left_mouse_button_up_event(event)
 
         @override
-        def on_middle_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+        def on_middle_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the middle mouse button up event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_middle_mouse_button_up_event(event)
 
         @override
-        def on_right_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+        def on_right_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the right mouse button up event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_right_mouse_button_up_event(event)
 
         @override
-        def on_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+        def on_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the mouse button down event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.mouse_state[event.button] = event
-            # Reset diagnostics counters at the start of a hold
-            self._motion_seq = 0
-            self._drag_seq = 0
             # Scene-first: let scene clear focus/overlays before per-sprite handlers
             self.game.on_mouse_button_down_event(event)
 
@@ -353,67 +364,68 @@ class MouseEventManager(ResourceManager):
                 self.on_middle_mouse_button_down_event(event)
             if event.button == MOUSE_BUTTON_RIGHT:
                 self.on_right_mouse_button_down_event(event)
+            # Button 4 is the wheel turned up, 5 down (BUGS.md #199: they were swapped)
             if event.button == MOUSE_WHEEL_SCROLL_UP:
-                self.on_mouse_scroll_down_event(event)
-            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
                 self.on_mouse_scroll_up_event(event)
+            if event.button == MOUSE_WHEEL_SCROLL_DOWN:
+                self.on_mouse_scroll_down_event(event)
 
         @override
-        def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+        def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the left mouse button down event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_left_mouse_button_down_event(event)
 
         @override
-        def on_middle_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+        def on_middle_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the middle mouse button down event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_middle_mouse_button_down_event(event)
 
         @override
-        def on_right_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
+        def on_right_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the right mouse button down event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_right_mouse_button_down_event(event)
 
         @override
-        def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
+        def on_mouse_scroll_down_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the mouse scroll down event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_mouse_scroll_down_event(event)
 
         @override
-        def on_mouse_scroll_up_event(self: Self, event: HashableEvent) -> None:
+        def on_mouse_scroll_up_event(self: Self, event: MouseButtonEvent) -> None:
             """Handle the mouse scroll up event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseButtonEvent): The event to handle.
 
             """
             self.game.on_mouse_scroll_up_event(event)
 
         @override
-        def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
+        def on_mouse_wheel_event(self: Self, event: MouseWheelEvent) -> None:
             """Handle the mouse wheel event.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (MouseWheelEvent): The event to handle.
 
             """
             self.game.on_mouse_wheel_event(event)

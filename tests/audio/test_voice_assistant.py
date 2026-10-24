@@ -53,7 +53,11 @@ class RecordedThread:
 
 
 class FakeAIClient:
-    """Stands in for aisuite.Client: answers scripted replies and records the requests."""
+    """Stands in for aisuite.Client: answers scripted replies and records the requests.
+
+    A reply may be a string, an exception to raise, or a callable run during the request (to act
+    while the request is in flight) whose result is used as the reply.
+    """
 
     def __init__(self, *, replies, requests):
         """Answer from `replies` (consumed in order) and append each request to `requests`."""
@@ -66,6 +70,8 @@ class FakeAIClient:
     def _create(self, *, model, messages):
         self._requests.append({'model': model, 'messages': [dict(item) for item in messages]})
         reply = self._replies.pop(0)
+        if callable(reply):
+            reply = reply()
         if isinstance(reply, Exception):
             raise reply
         message = types.SimpleNamespace(content=reply)
@@ -326,7 +332,10 @@ class TestPipeline:
         assert ai_replies.requests[2]['messages'][1:] == [{'role': 'user', 'content': HEARD_TEXT}]
 
     def test_history_is_trimmed_to_the_last_ten_turns(self, assistant, ai_replies):
-        """With more than 20 entries only the last 20 are kept and sent."""
+        """Whole user/assistant pairs are dropped: the history sent starts with a user message.
+
+        BUGS.md #105: keeping the last 20 of 21 entries started it with an assistant message.
+        """
         assistant._conversation = [
             {'role': 'user' if index % 2 == 0 else 'assistant', 'content': f'turn {index}'}
             for index in range(20)
@@ -336,10 +345,79 @@ class TestPipeline:
         assert assistant._ask_ai('turn 20') == AI_ANSWER
 
         sent_history = ai_replies.requests[0]['messages'][1:]
-        assert len(sent_history) == 20
-        assert sent_history[0] == {'role': 'assistant', 'content': 'turn 1'}
+        assert len(sent_history) == 19
+        assert sent_history[0] == {'role': 'user', 'content': 'turn 2'}
         assert sent_history[-1] == {'role': 'user', 'content': 'turn 20'}
+        assert len(assistant._conversation) == 20
+        assert assistant._conversation[0] == {'role': 'user', 'content': 'turn 2'}
         assert assistant._conversation[-1] == {'role': 'assistant', 'content': AI_ANSWER}
+
+    def test_history_alternates_from_a_user_message_after_many_questions(
+        self, assistant, recognizer, ai_replies
+    ):
+        """Past ten questions every request still starts with the user and alternates."""
+        question_count = 15
+        ai_replies.replies.extend([f'answer {index}' for index in range(question_count)])
+
+        for _ in range(question_count):
+            assistant._run_pipeline(b'')
+
+        for request in ai_replies.requests:
+            roles = [message['role'] for message in request['messages'][1:]]
+            assert roles == ['user', 'assistant'] * (len(roles) // 2) + ['user']
+            assert len(roles) <= 19
+
+    def test_failed_repeated_question_keeps_the_earlier_exchange(
+        self, assistant, recognizer, ai_replies
+    ):
+        """A failed repeat of an earlier question removes only the repeat."""
+        ai_replies.replies.extend([AI_ANSWER, RuntimeError('rate limited')])
+
+        assistant._run_pipeline(b'')
+        assistant._run_pipeline(b'')
+
+        assert assistant._conversation == [
+            {'role': 'user', 'content': HEARD_TEXT},
+            {'role': 'assistant', 'content': AI_ANSWER},
+        ]
+
+    def test_failed_request_removes_its_question(self, assistant, recognizer, ai_replies):
+        """A failed request leaves no unanswered question, so roles keep alternating."""
+        ai_replies.replies.extend([RuntimeError('rate limited'), AI_ANSWER])
+
+        assistant._run_pipeline(b'')
+        assistant._run_pipeline(b'')
+
+        assert ai_replies.requests[1]['messages'][1:] == [{'role': 'user', 'content': HEARD_TEXT}]
+        assert assistant._conversation == [
+            {'role': 'user', 'content': HEARD_TEXT},
+            {'role': 'assistant', 'content': AI_ANSWER},
+        ]
+
+    @pytest.mark.parametrize('reply', [AI_ANSWER, RuntimeError('rate limited')])
+    def test_clearing_mid_request_leaves_no_answer_without_its_question(
+        self, assistant, recognizer, ai_replies, reply
+    ):
+        """BUGS.md #114: a clear during a request never leaves a history starting with an answer.
+
+        The answer (or failure) arrives after clear_conversation() emptied the history, so the
+        next request must carry only its own question.
+        """
+
+        def clear_then_reply():
+            assistant.clear_conversation()
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        ai_replies.replies.extend([AI_ANSWER, clear_then_reply, 'Hello again.'])
+
+        assistant._run_pipeline(b'')
+        assistant._run_pipeline(b'')
+
+        assert assistant._conversation == []
+        assistant._run_pipeline(b'')
+        assert ai_replies.requests[2]['messages'][1:] == [{'role': 'user', 'content': HEARD_TEXT}]
 
     def test_unheard_speech_reports_an_error(
         self, assistant, controller, recognizer, delivered, caplog
@@ -405,8 +483,8 @@ class TestPipeline:
         assert delivered.errors == ['No response from AI']
         assert delivered.responses == []
         assert 'AI request failed' in caplog.text
-        # The unanswered question stays in the history
-        assert assistant._conversation == [{'role': 'user', 'content': HEARD_TEXT}]
+        # The unanswered question is dropped from the history (BUGS.md #105)
+        assert assistant._conversation == []
 
     def test_without_aisuite(self, assistant, recognizer, mocker, delivered, caplog):
         """No aisuite module: a warning and 'No response from AI'."""

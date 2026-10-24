@@ -42,6 +42,19 @@ class HasPhysicsBody(Protocol):
     physics: PhysicsState
 
 
+class InspectedScene(Protocol):
+    """The scene the overlay inspects (normally a glitchygames.scenes.Scene).
+
+    The overlay reads its camera; `all_sprites` and `collisions` are optional and read with
+    getattr, so they are not members.
+    """
+
+    @property
+    def camera(self) -> Camera2D:
+        """The scene's camera, for the camera panel and the debug_draw hooks."""
+        ...
+
+
 @runtime_checkable
 class DebugDrawable(Protocol):
     """A scene or sprite that adds its own debug annotations."""

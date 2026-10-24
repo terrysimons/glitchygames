@@ -32,7 +32,11 @@ def _write_png(*, path: Path, size: tuple[int, int], fill: tuple[int, ...]) -> P
         The path written.
 
     """
-    surface = pygame.Surface(size, pygame.SRCALPHA if len(fill) == 4 else 0)
+    # Explicit depths: a plain Surface takes the display's format, which has an alpha channel
+    # on real video drivers, so an RGB fill would be saved as RGBA there
+    surface = (
+        pygame.Surface(size, pygame.SRCALPHA, 32) if len(fill) == 4 else pygame.Surface(size, 0, 24)
+    )
     surface.fill(fill)
     pygame.image.save(surface, str(path))
     return path
@@ -379,16 +383,68 @@ class TestConvertPngToBitmappy:
         assert len(rows) == 32
         assert all(row == '.' * 32 for row in rows)
 
-    def test_alpha_png_is_flattened_onto_white(self, tmp_path):
-        """A half-transparent PNG is blended onto a white background before conversion."""
-        png_path = _write_png(path=tmp_path / 'alpha.png', size=(1, 1), fill=(0, 0, 0, 0))
+    def test_transparent_pixels_map_to_the_magenta_transparency_key(self, tmp_path, caplog):
+        """A transparent pixel becomes magenta, not the white the image is flattened onto (#92)."""
+        png_path = tmp_path / 'alpha.png'
+        surface = pygame.Surface((2, 1), pygame.SRCALPHA)
+        surface.set_at((0, 0), (0, 0, 0, 0))
+        surface.set_at((1, 0), (0, 0, 0, 255))
+        pygame.image.save(surface, str(png_path))
+        editor = SimpleNamespace(canvas=SimpleNamespace(pixels_across=2, pixels_tall=1))
+        caplog.set_level(logging.INFO, logger='game')
+
+        output_path = FileIOManager(editor)._convert_png_to_bitmappy(str(png_path))
+
+        assert output_path is not None
+        data = tomllib.loads(Path(output_path).read_text(encoding='utf-8'))
+        assert data['sprite']['pixels'] == '█.\n'
+        assert data['colors'] == {
+            '█': {'red': 255, 'green': 0, 'blue': 255},
+            '.': {'red': 0, 'green': 0, 'blue': 0},
+        }
+        assert 'Found 1 transparent pixels, mapped to magenta' in caplog.text
+
+    def test_opaque_white_next_to_a_transparent_pixel_stays_white(self, tmp_path):
+        """Transparent pixels flatten to white, but opaque white pixels keep their color."""
+        png_path = tmp_path / 'white.png'
+        surface = pygame.Surface((2, 1), pygame.SRCALPHA)
+        surface.set_at((0, 0), (255, 255, 255, 255))
+        surface.set_at((1, 0), (0, 0, 0, 0))
+        pygame.image.save(surface, str(png_path))
+        editor = SimpleNamespace(canvas=SimpleNamespace(pixels_across=2, pixels_tall=1))
+
+        output_path = FileIOManager(editor)._convert_png_to_bitmappy(str(png_path))
+
+        assert output_path is not None
+        data = tomllib.loads(Path(output_path).read_text(encoding='utf-8'))
+        assert data['sprite']['pixels'] == '.█\n'
+        assert data['colors']['.'] == {'red': 255, 'green': 255, 'blue': 255}
+
+    def test_transparency_survives_resizing_to_the_canvas(self, tmp_path):
+        """A resized alpha PNG keeps its transparent half transparent (#92)."""
+        png_path = tmp_path / 'wide.png'
+        surface = pygame.Surface((4, 2), pygame.SRCALPHA)
+        surface.fill((0, 0, 0, 255))
+        surface.fill((0, 0, 0, 0), pygame.Rect(0, 0, 2, 2))
+        pygame.image.save(surface, str(png_path))
+        editor = SimpleNamespace(canvas=SimpleNamespace(pixels_across=2, pixels_tall=1))
+
+        output_path = FileIOManager(editor)._convert_png_to_bitmappy(str(png_path))
+
+        assert output_path is not None
+        data = tomllib.loads(Path(output_path).read_text(encoding='utf-8'))
+        assert data['sprite']['pixels'] == '█.\n'
+
+    def test_opaque_pixels_of_an_alpha_png_keep_their_color(self, tmp_path):
+        """An alpha PNG whose pixels are all opaque converts without magenta."""
+        png_path = _write_png(path=tmp_path / 'opaque.png', size=(1, 1), fill=(9, 8, 7, 255))
         editor = SimpleNamespace(canvas=SimpleNamespace(pixels_across=1, pixels_tall=1))
 
         output_path = FileIOManager(editor)._convert_png_to_bitmappy(str(png_path))
 
         assert output_path is not None
         data = tomllib.loads(Path(output_path).read_text(encoding='utf-8'))
-        assert data['colors'] == {'.': {'red': 255, 'green': 255, 'blue': 255}}
+        assert data['colors'] == {'.': {'red': 9, 'green': 8, 'blue': 7}}
 
     def test_unreadable_png_returns_none(self, tmp_path):
         """A file that pygame cannot load converts to nothing."""
@@ -401,32 +457,51 @@ class TestConvertPngToBitmappy:
 class TestDetectPngTransparency:
     """Test _detect_png_transparency."""
 
-    def test_opaque_surface_has_no_transparency(self, tmp_path):
-        """A surface without per-pixel alpha is not transparent."""
-        has_transparency, original_image = FileIOManager(
-            SimpleNamespace()
-        )._detect_png_transparency(pygame.Surface((1, 1)), str(tmp_path / 'unused.png'))
-
-        assert (has_transparency, original_image) == (False, None)
-
-    def test_alpha_surface_and_alpha_file_have_transparency(self, tmp_path):
-        """An alpha surface whose file also has alpha returns the file's image."""
+    def test_flattened_image_of_an_alpha_file_has_transparency(self, tmp_path):
+        """The flattened (opaque) image of an alpha file is transparent: the file decides (#92)."""
         png_path = _write_png(path=tmp_path / 'alpha.png', size=(1, 1), fill=(5, 5, 5, 0))
 
         has_transparency, original_image = FileIOManager(
             SimpleNamespace()
-        )._detect_png_transparency(pygame.Surface((1, 1), pygame.SRCALPHA), str(png_path))
+        )._detect_png_transparency(pygame.Surface((1, 1)), str(png_path))
 
         assert has_transparency is True
         assert original_image is not None
         assert original_image.get_at((0, 0)).a == 0
 
-    def test_alpha_surface_with_an_opaque_file_has_no_transparency(self, tmp_path):
-        """An alpha surface whose file has no alpha channel is not transparent."""
+    def test_original_image_is_scaled_to_the_converted_size(self, tmp_path):
+        """The alpha image returned lines up with the resized image's pixels."""
+        png_path = _write_png(path=tmp_path / 'alpha.png', size=(4, 4), fill=(5, 5, 5, 0))
+
+        _, original_image = FileIOManager(SimpleNamespace())._detect_png_transparency(
+            pygame.Surface((2, 3)),
+            str(png_path),
+        )
+
+        assert original_image is not None
+        assert original_image.get_size() == (2, 3)
+
+    def test_opaque_file_has_no_transparency(self, tmp_path):
+        """A file without an alpha channel is not transparent."""
         png_path = _write_png(path=tmp_path / 'opaque.png', size=(1, 1), fill=(5, 5, 5))
 
         result = FileIOManager(SimpleNamespace())._detect_png_transparency(
-            pygame.Surface((1, 1), pygame.SRCALPHA),
+            pygame.Surface((1, 1)),
+            str(png_path),
+        )
+
+        assert result == (False, None)
+
+    def test_alpha_channel_with_only_opaque_pixels_has_no_transparency(self, tmp_path):
+        """An alpha channel alone is not transparency: no pixel is below the threshold.
+
+        Paint programs often export RGBA files whose pixels are all opaque, and a pygame
+        Surface takes the display's format, which has alpha on real video drivers (cocoa).
+        """
+        png_path = _write_png(path=tmp_path / 'opaque-rgba.png', size=(2, 2), fill=(5, 5, 5, 255))
+
+        result = FileIOManager(SimpleNamespace())._detect_png_transparency(
+            pygame.Surface((2, 2)),
             str(png_path),
         )
 

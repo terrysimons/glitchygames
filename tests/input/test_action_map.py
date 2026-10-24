@@ -181,6 +181,36 @@ class TestStateTracking:
         actions.begin_frame()
         assert actions.just_pressed('jump') is False
 
+    def test_dt_tick_sees_a_press_when_it_reads_before_begin_frame(self) -> None:
+        """The frame order: dt_tick runs, then the frame's events (BUGS.md #209 item 11).
+
+        A press handled in frame N's event phase is seen by frame N + 1's dt_tick when that
+        dt_tick reads just_pressed first and calls begin_frame after; calling begin_frame first
+        (as the docstring used to say) clears the press before dt_tick reads it.
+        """
+
+        def frame_reading_first(actions: ActionMap, *, events_after: list) -> bool:
+            seen = actions.just_pressed('jump')
+            actions.begin_frame()
+            for event in events_after:
+                actions.handle_event(event)
+            return seen
+
+        def frame_clearing_first(actions: ActionMap, *, events_after: list) -> bool:
+            actions.begin_frame()
+            seen = actions.just_pressed('jump')
+            for event in events_after:
+                actions.handle_event(event)
+            return seen
+
+        for frame, expected in ((frame_reading_first, True), (frame_clearing_first, False)):
+            actions = ActionMap()
+            actions.bind('jump', keyboard=pygame.K_SPACE)
+            # Frame N: its dt_tick sees nothing, then its events bring the press
+            assert frame(actions, events_after=[_key_down(pygame.K_SPACE)]) is False
+            # Frame N + 1's dt_tick
+            assert frame(actions, events_after=[]) is expected
+
     def test_is_held_while_down(self) -> None:
         """is_held is True while the key is held down."""
         actions = ActionMap()
@@ -496,6 +526,17 @@ class TestUnbindAndClear:
         assert actions.get_action(_key_down(pygame.K_SPACE)) is None
         assert actions.get_action(_button_down(pygame.CONTROLLER_BUTTON_A)) is None
 
+    def test_unbind_keeps_other_actions_on_a_shared_key(self) -> None:
+        """A key bound to two actions keeps the action that was not unbound."""
+        actions = ActionMap()
+        actions.bind('jump', keyboard=pygame.K_SPACE)
+        actions.bind('confirm', keyboard=pygame.K_SPACE)
+
+        actions.unbind('jump')
+
+        assert actions.get_action(_key_down(pygame.K_SPACE)) == 'confirm'
+        assert actions.get_actions(_key_down(pygame.K_SPACE)) == ['confirm']
+
     def test_clear_removes_everything(self) -> None:
         """Clear removes all bindings and state."""
         actions = ActionMap()
@@ -553,6 +594,93 @@ class TestPersistence:
         # Restored uses default joystick mode, so feed a joystick axis event
         restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.7))
         assert restored.is_held('move_right') is True
+
+    def test_joystick_mode_gamepad_buttons_survive_a_round_trip(self) -> None:
+        """A gamepad button bound in joystick mode (the default) is saved and restored.
+
+        to_dict() kept only KEYDOWN and CONTROLLERBUTTONDOWN bindings, so a joystick-mode
+        button (JOYBUTTONDOWN) was dropped, and the restored action had no gamepad button.
+        """
+        original = ActionMap()
+        original.bind('jump', keyboard=pygame.K_SPACE, controller_button=0, instance_id=2)
+        original.bind('mute', joystick_button=15)
+
+        restored = ActionMap.from_dict(original.to_dict())
+
+        assert restored.get_action(_joy_button_down(0, joy=2)) == 'jump'
+        assert restored.get_action(_joy_button_down(0, joy=3)) is None
+        assert restored.get_action(_joy_button_down(15)) == 'mute'
+        assert restored.to_dict() == original.to_dict()
+
+    def test_instance_ids_are_saved_and_restored(self) -> None:
+        original = ActionMap(input_mode='controller')
+        original.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A, instance_id=1)
+        original.bind('steer', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.5), instance_id=1)
+
+        data = original.to_dict()
+
+        assert data == {
+            'jump': [{'type': 'ControllerButtonDown', 'code': 0, 'instance_id': 1}],
+            'steer': [
+                {
+                    'type': 'AxisMotion',
+                    'axis': pygame.CONTROLLER_AXIS_LEFTX,
+                    'threshold': 0.5,
+                    'instance_id': 1,
+                }
+            ],
+        }
+        restored = ActionMap.from_dict(data)
+        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.9, joy=2))
+        assert restored.is_held('steer') is False
+        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.9, joy=1))
+        assert restored.is_held('steer') is True
+
+    def test_an_action_with_keys_and_axes_lists_both(self) -> None:
+        original = ActionMap()
+        original.bind(
+            'move_right',
+            keyboard=pygame.K_RIGHT,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.3),
+        )
+        original.bind('move_right', controller_axis=(pygame.CONTROLLER_AXIS_RIGHTX, 0.3))
+
+        assert [entry['type'] for entry in original.to_dict()['move_right']] == [
+            'KeyDown',
+            'AxisMotion',
+            'AxisMotion',
+        ]
+
+    def test_from_dict_skips_malformed_entries(self) -> None:
+        """Non-list actions, non-dict entries and incomplete or unknown entries bind nothing."""
+        data: dict[str, object] = {
+            'not_a_list': {'type': 'KeyDown', 'code': pygame.K_a},
+            'jump': [
+                'not a dict',
+                {'type': 'AxisMotion', 'axis': pygame.CONTROLLER_AXIS_LEFTX},
+                {'type': 'KeyDown'},
+                {'type': 'MouseButtonDown', 'code': 1},
+                {'type': 'KeyDown', 'code': pygame.K_SPACE},
+            ],
+        }
+
+        restored = ActionMap.from_dict(data)
+
+        assert restored.to_dict() == {'jump': [{'type': 'KeyDown', 'code': pygame.K_SPACE}]}
+
+    def test_default_axes_fill_actions_the_file_leaves_out(self) -> None:
+        defaults = ActionMap()
+        defaults.bind('move_right', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.3))
+        defaults.bind('jump', controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.5))
+
+        restored = ActionMap.from_dict(
+            {'jump': [{'type': 'KeyDown', 'code': pygame.K_SPACE}]}, defaults=defaults
+        )
+
+        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.7))
+        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTY, -0.9))
+        assert restored.is_held('move_right') is True
+        assert restored.is_held('jump') is False
 
 
 def _positional_key_down(*, key: int, scancode: int) -> HashableEvent:
@@ -684,3 +812,55 @@ class TestQwertyScancodes:
             type=pygame.KEYDOWN, key=pygame.K_a, scancode=qwerty_scancode(key=pygame.K_a), mod=0
         )
         assert actions.get_action(press) == 'move_left'
+
+
+class TestAutoMode:
+    """'auto' (the default, the engine's --input-mode default) binds both event families.
+
+    The engine dispatches each device's events from one layer only (a mapped pad's controller
+    events, any other device's joystick events), so each press reaches the map once.
+    """
+
+    def test_default_mode_is_auto(self) -> None:
+        """A map made without an input mode answers both families."""
+        actions = ActionMap()
+        actions.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+
+        assert actions.get_action(_button_down(pygame.CONTROLLER_BUTTON_A)) == 'jump'
+        assert actions.get_action(_joy_button_down(pygame.CONTROLLER_BUTTON_A)) == 'jump'
+
+    def test_auto_mode_tracks_buttons_from_either_family(self) -> None:
+        """A controller press and a joystick release of the same button pair up."""
+        actions = ActionMap(input_mode='auto')
+        actions.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+
+        actions.handle_event(_button_down(pygame.CONTROLLER_BUTTON_A))
+        assert actions.is_held('jump') is True
+        actions.handle_event(_joy_button_up(pygame.CONTROLLER_BUTTON_A))
+        assert actions.is_held('jump') is False
+
+    def test_auto_mode_reads_both_axis_families(self) -> None:
+        """Controller axes (int scale) and joystick axes (float scale) both drive the action."""
+        actions = ActionMap(input_mode='auto')
+        actions.bind('move_right', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.3))
+
+        actions.handle_event(_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 20000))
+        assert actions.is_held('move_right') is True
+        actions.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.0))
+        assert actions.is_held('move_right') is False
+
+    def test_an_auto_mode_map_survives_a_round_trip_without_doubling(self) -> None:
+        """Saving writes both families; loading binds each event once."""
+        original = ActionMap()
+        original.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+
+        restored = ActionMap.from_dict(original.to_dict())
+
+        assert restored.get_actions(_joy_button_down(pygame.CONTROLLER_BUTTON_A)) == ['jump']
+        assert restored.get_actions(_button_down(pygame.CONTROLLER_BUTTON_A)) == ['jump']
+        assert restored.to_dict() == original.to_dict()
+
+    def test_an_unknown_input_mode_is_refused(self) -> None:
+        """Only InputMode's modes are accepted."""
+        with pytest.raises(ValueError, match='gamepad'):
+            ActionMap(input_mode='gamepad')

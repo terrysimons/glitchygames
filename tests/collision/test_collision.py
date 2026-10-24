@@ -15,6 +15,7 @@ from glitchygames.collision import (
 from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 
 
@@ -343,6 +344,24 @@ class TestCollisionManager:
         assert len(hits) == 1
         assert hits[0] == (player, enemy_near)
 
+    def test_check_single_never_reports_a_sprite_against_itself(self):
+        """A sprite that is also in the layer it is checked against skips itself."""
+        manager = CollisionManager()
+        player_layer = manager.add_layer('players')
+
+        player = FakeSprite(world_x=100.0, world_y=100.0)
+        partner = FakeSprite(world_x=110.0, world_y=110.0)
+        player_layer.add(player)
+        player_layer.add(partner)
+
+        hits: list[tuple] = []
+        manager.check_single(
+            player,
+            'players',
+            callback=lambda sprite_a, sprite_b: hits.append((sprite_a, sprite_b)),
+        )
+        assert hits == [(player, partner)]
+
     def test_hitbox_sprite_uses_hitbox_for_collision(self):
         """Sprites with TOML hitboxes use them for collision detection."""
         manager = CollisionManager()
@@ -610,27 +629,25 @@ class TestRedrawnGameSprites:
         """Brave Adventurer's sprites convert against a real display."""
         pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
     def test_cobra_hitbox_follows_first_draw_and_strike(self):
-        """Brave Adventurer's Cobra: blank before update(), then idle, then striking pose."""
+        """Brave Adventurer's Cobra: idle as it is made, then the strike pose dt_tick draws.
+
+        The pose is drawn when the cobra is made and in dt_tick (before collision), never in
+        update(), so its hitbox is never a blank image's or a frame behind (BUGS.md #209.6).
+        """
         from glitchygames.examples.brave_adventurer.enemies import Cobra
 
         cobra = Cobra(500.0, pygame.sprite.LayeredDirty())
-        full_rect = get_sprite_collision_rect(cobra)
-        assert full_rect.size == cobra.image.get_size()
-
-        cobra.update()
         idle_rect = get_sprite_collision_rect(cobra)
         idle_visible = cobra.image.get_bounding_rect()
         assert idle_rect.size == idle_visible.size
-        assert idle_rect.topleft == (
-            full_rect.x + idle_visible.x,
-            full_rect.y + idle_visible.y,
-        )
+        assert idle_visible.size != cobra.image.get_size()  # drawn, not a blank image
 
-        cobra.striking = True
-        cobra.update()
+        cobra.dt_tick(Cobra.STRIKE_INTERVAL)
+
+        assert cobra.striking
         striking_visible = cobra.image.get_bounding_rect()
         assert striking_visible != idle_visible
         assert get_sprite_collision_rect(cobra).size == striking_visible.size
@@ -644,7 +661,7 @@ class TestPapyrusHitboxScale:
         """Papyrus sprites load TOML art and convert against a real display."""
         pygame.init()
         if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+            set_display_mode(size=(800, 600))
 
     def test_scaled_papyrus_player_collides_at_twice_the_toml_hitbox(self):
         """After its first tick the player's collision rect is the TOML hitbox times 2."""

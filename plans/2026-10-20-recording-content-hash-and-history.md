@@ -1,7 +1,7 @@
 # Recording Content Hashes and Measurement History — Design
 
 - **Date:** 2026-10-20
-- **Status:** Implemented 2026-10-21 on `feature/gameplay-replay` (uncommitted), hashing option
+- **Status:** Implemented 2026-10-21 on `feature/gameplay-replay` (committed in `34c99ff`, merged with PR #95), hashing option
   "Better" (below), per `plans/2026-10-21-recording-content-hash-and-history-implementation.md`.
   Contract: `glitchygames/recording_history.py`; user docs: `docs/architecture/gameplay_replay.md`
   ("Content hashes and measurement history"). Still open: a git commit per run (see "Open

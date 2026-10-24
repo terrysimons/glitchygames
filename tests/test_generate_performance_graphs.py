@@ -1,0 +1,279 @@
+"""scripts/generate_performance_graphs.py graphs the run ledger for the docs site.
+
+Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md. The published ledger
+comes from a throwaway repository whose ``origin`` has a ``gh-pages`` branch (built as
+tests/test_replay_metrics.py builds it); the pending rows are a file in tmp_path.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import TYPE_CHECKING
+
+import pytest
+from mkdocs.exceptions import PluginError
+from scripts import mkdocs_hooks
+from scripts.generate_performance_graphs import (
+    LEDGER_NAME,
+    PLOTLY_JS_URL,
+    SNIPPET_NAME,
+    generate_performance_page,
+    graph_page_name,
+    recording_charts,
+)
+
+from glitchygames.recording_history import FrameTimeSummary
+from glitchygames.recording_metrics import (
+    FrameProfile,
+    LedgerOrigin,
+    LedgerRow,
+    ledger_text,
+    parse_ledger,
+    performance_series,
+)
+from tests.test_recording_metrics import (
+    NEWER_COMMIT,
+    OLDER_COMMIT,
+    ledger_row,
+    run,
+    with_uncommitted_changes,
+)
+from tests.test_replay_metrics import clone_with_published_ledger
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+GOLDEN = 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
+DEMO = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+OLDER_COMMITTED_AT = '2026-10-22T12:00:00-07:00'
+OLDER_PROFILE = FrameProfile(
+    frame_count=4, max_microseconds=(100, 200, None, 400), scene_runs=((0, 'Game'), (3, 'Pause'))
+)
+NEWER_PROFILE = FrameProfile(
+    frame_count=4, max_microseconds=(150, 250, 350, 450), scene_runs=((0, 'Game'),)
+)
+
+
+def page_charts(*, path: Path) -> dict:
+    """Return the charts a graph page plots.
+
+    Returns:
+        The charts' JSON.
+
+    """
+    match = re.search(r'const charts = (.*);\n', path.read_text(encoding='utf-8'))
+    assert match is not None
+    return json.loads(match.group(1))
+
+
+def live_row() -> LedgerRow:
+    """Return a paced live run of the golden replay with its frame times.
+
+    Returns:
+        The row.
+
+    """
+    row = ledger_row(commit=OLDER_COMMIT, committed_at=OLDER_COMMITTED_AT)
+    assert row.summary is not None
+    frame_time = FrameTimeSummary(
+        p50_seconds=0.0166, p99_seconds=0.0168, max_seconds=0.018, late_frames=0
+    )
+    return row.model_copy(
+        update={
+            'origin': LedgerOrigin.RECORDING,
+            'run': run(
+                commit=OLDER_COMMIT,
+                committed_at=OLDER_COMMITTED_AT,
+                measured_at='2026-10-22T20:00:00+00:00',
+                processing_paced=True,
+                rebaselined_from=None,
+            ),
+            'summary': row.summary.model_copy(update={'frame_time': frame_time}),
+        }
+    )
+
+
+def published_and_pending(*, tmp_path: Path) -> tuple[Path, Path, list[LedgerRow]]:
+    """Publish an older measurement and a live run; leave newer ones (and a copy) pending.
+
+    Returns:
+        The clone (its origin/gh-pages publishes the ledger), the pending file and the rows.
+
+    """
+    older = ledger_row(
+        commit=OLDER_COMMIT,
+        committed_at=OLDER_COMMITTED_AT,
+        measured_at='2026-10-22T21:00:00+00:00',
+        p50=0.001,
+    ).model_copy(update={'profile': OLDER_PROFILE})
+    newer = ledger_row(p50=0.002).model_copy(
+        update={
+            'run': with_uncommitted_changes(run(commit=NEWER_COMMIT)),
+            'profile': NEWER_PROFILE,
+        }
+    )
+    demo = ledger_row(recording=DEMO)
+    clone = clone_with_published_ledger(
+        tmp_path=tmp_path, ledger=ledger_text(rows=[older, live_row()]) + 'unreadable\n'
+    )
+    pending = tmp_path / 'pending.jsonl'
+    pending.write_text(ledger_text(rows=[newer, older, demo]), encoding='utf-8')
+    return clone, pending, [older, live_row(), newer, demo]
+
+
+def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path):
+    """The merged ledger, one graph page per recording and the snippet are written."""
+    clone, pending, rows = published_and_pending(tmp_path=tmp_path)
+    metrics = tmp_path / 'docs' / 'quality' / 'metrics'
+
+    page = generate_performance_page(
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=pending,
+        include_uncommitted_changes=True,
+    )
+
+    assert (page.rows, page.published_rows, page.pending_rows) == (4, 2, 3)
+    assert page.unreadable_lines == 1
+    merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
+    assert {row.key for row in merged} == {row.key for row in rows}
+    assert page.graph_pages == ('paddleslap-rally.html', 'paddleslap-golden.html')
+    assert set(page.written) == {LEDGER_NAME, SNIPPET_NAME, *page.graph_pages}
+    golden_page = (metrics / 'paddleslap-golden.html').read_text(encoding='utf-8')
+    assert PLOTLY_JS_URL in golden_page
+    charts = page_charts(path=metrics / 'paddleslap-golden.html')
+    assert charts['commits'] == ['abc1234', 'def5678']
+    assert [trace['name'] for trace in charts['frame_time']] == [
+        'Apple M4 Max, paced live run: p50',
+        'Apple M4 Max, paced live run: p99',
+        'Apple M4 Max, paced live run: max',
+    ]
+    p50 = charts['processing'][0]
+    assert (p50['x'], p50['y']) == (['abc1234', 'def5678'], [1.0, 2.0])
+    assert 'uncommitted changes' in p50['customdata'][1]
+    snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    assert 'Generated from 4 ledger rows (2 published, 3 pending)' in snippet
+    assert '`def5678 (uncommitted changes)`' in snippet
+    assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
+    assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
+
+    (heatmap,) = charts['heatmaps']
+    assert heatmap['name'] == 'Apple M4 Max, unpaced replay'
+    assert heatmap['y'] == ['abc1234', 'def5678']
+    assert heatmap['x'] == [0, 1, 2, 3]
+    assert heatmap['z'] == [[0.1, 0.2, None, 0.4], [0.15, 0.25, 0.35, 0.45]]
+    assert heatmap['customdata'][0][3] == 'frames 3-3, scene Pause, max 0.400 ms'
+    assert heatmap['customdata'][0][2] == 'frames 2-2, scene Game, not timed'
+    assert 'whether the work changed' in golden_page
+
+    again = generate_performance_page(
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=pending,
+        include_uncommitted_changes=True,
+    )
+    assert again.written == ()
+
+
+def test_a_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
+    """The merged ledger, the table and every graph lose the trial; the rest is kept."""
+    clone, pending, rows = published_and_pending(tmp_path=tmp_path)
+    metrics = tmp_path / 'metrics'
+
+    page = generate_performance_page(
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=pending,
+        include_uncommitted_changes=False,
+    )
+
+    assert page.rows == 3
+    merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
+    assert not any(row.from_uncommitted_changes for row in merged)
+    assert len(merged) == len(rows) - 1
+    charts = page_charts(path=metrics / 'paddleslap-golden.html')
+    assert charts['commits'] == ['abc1234']
+    assert charts['heatmaps'][0]['y'] == ['abc1234']
+    snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    assert 'uncommitted changes' not in snippet
+    assert 'Generated from 3 ledger rows' in snippet
+
+
+def test_pages_of_recordings_that_left_the_ledger_are_removed(tmp_path):
+    """A stale graph page is removed; an empty ledger says how to measure."""
+    metrics = tmp_path / 'metrics'
+    metrics.mkdir()
+    (metrics / 'gone-golden.html').write_text('old', encoding='utf-8')
+
+    page = generate_performance_page(
+        project_root=tmp_path,
+        metrics_directory=metrics,
+        pending_path=tmp_path / 'none.jsonl',
+        include_uncommitted_changes=False,
+    )
+
+    assert page.removed == ('gone-golden.html',)
+    assert not (metrics / 'gone-golden.html').exists()
+    assert 'No measurements yet' in (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    assert not (metrics / LEDGER_NAME).read_text(encoding='utf-8')
+
+
+def test_a_series_without_a_budget_has_no_over_budget_trace():
+    """Uncapped recordings have no frame budget: nothing to count."""
+    row = ledger_row()
+    assert row.summary is not None
+    uncapped = row.model_copy(
+        update={'summary': row.summary.model_copy(update={'frames_over_budget': None})}
+    )
+    charts = recording_charts(series_list=performance_series(rows=[uncapped]))
+    assert charts['over_budget'] == []
+    assert charts['frame_time'] == []
+    # Rows without a profile have no heatmap line
+    assert charts['heatmaps'] == []
+
+
+def test_graph_page_names():
+    """The console script and the recording's name, without the suffix."""
+    assert graph_page_name(recording=GOLDEN, console_script='mr-muncher') == (
+        'mr-muncher-golden.html'
+    )
+
+
+@pytest.mark.parametrize(
+    ('command', 'shows_uncommitted_changes'),
+    [('gh-deploy', False), ('build', True), ('serve', True), (None, False)],
+)
+def test_the_mkdocs_hook_shows_trials_only_in_a_local_build(
+    tmp_path, mocker, command, shows_uncommitted_changes
+):
+    """gh-deploy (or no startup event) publishes without them; build and serve show them."""
+    clone, pending, _ = published_and_pending(tmp_path=tmp_path)
+    performance_script = mkdocs_hooks.load_performance_script()
+    metrics = tmp_path / 'metrics'
+    mocker.patch.object(performance_script, 'PROJECT_ROOT', clone)
+    mocker.patch.object(performance_script, 'METRICS_DIR', metrics)
+    mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', pending)
+    # Restored after the test: on_startup sets it for the whole mkdocs invocation
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', None)
+    if command is not None:
+        mkdocs_hooks.on_startup(command=command, dirty=False)
+
+    mkdocs_hooks.generate_performance_graphs()
+
+    snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    assert ('uncommitted changes' in snippet) is shows_uncommitted_changes
+    assert mkdocs_hooks.load_performance_script() is performance_script
+
+
+def test_the_mkdocs_hook_stops_the_build_when_a_file_cannot_be_written(tmp_path, mocker):
+    """An unwritable metrics directory becomes mkdocs's PluginError."""
+    performance_script = mkdocs_hooks.load_performance_script()
+    blocking_file = tmp_path / 'metrics'
+    blocking_file.write_text('a file, not a directory', encoding='utf-8')
+    mocker.patch.object(performance_script, 'PROJECT_ROOT', tmp_path)
+    mocker.patch.object(performance_script, 'METRICS_DIR', blocking_file)
+    mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', tmp_path / 'none.jsonl')
+
+    with pytest.raises(PluginError, match='Could not generate the performance graphs'):
+        mkdocs_hooks.generate_performance_graphs()

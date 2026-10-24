@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.bitmappy.film_strip_layout import render_label_text
 from glitchygames.clock import frame_clock_milliseconds
-from glitchygames.color import RGB_COMPONENT_COUNT
-from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.film_strip import FilmStripWidget
@@ -117,42 +116,47 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
 
     def _draw_frame_number(self, surface: pygame.Surface, frame_index: int) -> None:
         """Draw the frame number at the bottom center of the frame."""
+        # Thumbnail text is decoration: a font failure must never stop the film strip drawing
         try:
-            # Create font for frame number
-            font = pygame.font.Font(None, 12)  # Small font size
-
-            # Get total frames for current animation
-            total_frames = 1  # Default fallback
-            if (
-                hasattr(self.widget, 'animated_sprite')
-                and self.widget.animated_sprite
-                and hasattr(self.widget, 'current_animation')
-                and self.widget.current_animation
-                and self.widget.current_animation in self.widget.animated_sprite.animations
-            ):
-                total_frames = len(
-                    self.widget.animated_sprite.animations[self.widget.current_animation]
-                )
-
-            # Render frame number text in format "current+1/total"
-            frame_text = f'{frame_index + 1}/{total_frames}'
-            text_surface = font.render(
-                frame_text,
-                antialias=True,
-                color=(255, 255, 255),
-            )  # White text
-            text_rect = text_surface.get_rect()
-
-            # Position at bottom center of the frame (like animation preview)
-            target_rect = pygame.Rect(0, 0, self.widget.frame_width, self.widget.frame_height)
-            text_rect.centerx = target_rect.centerx
-            text_rect.bottom = target_rect.bottom - 2  # Small margin from bottom edge
-
-            # Draw text
-            surface.blit(text_surface, text_rect)
+            self._render_frame_number(surface, frame_index)
         except Exception:
             # Log font rendering failures
             LOG.exception('Font rendering failed')
+
+    def _render_frame_number(self, surface: pygame.Surface, frame_index: int) -> None:
+        """Render the "current/total" frame number at the bottom center of the frame."""
+        # Create font for frame number
+        font = pygame.font.Font(None, 12)  # Small font size
+
+        # Get total frames for current animation
+        total_frames = 1  # Default fallback
+        if (
+            hasattr(self.widget, 'animated_sprite')
+            and self.widget.animated_sprite
+            and hasattr(self.widget, 'current_animation')
+            and self.widget.current_animation
+            and self.widget.current_animation in self.widget.animated_sprite.animations
+        ):
+            total_frames = len(
+                self.widget.animated_sprite.animations[self.widget.current_animation]
+            )
+
+        # Render frame number text in format "current+1/total"
+        frame_text = f'{frame_index + 1}/{total_frames}'
+        text_surface = font.render(
+            frame_text,
+            antialias=True,
+            color=(255, 255, 255),
+        )  # White text
+        text_rect = text_surface.get_rect()
+
+        # Position at bottom center of the frame (like animation preview)
+        target_rect = pygame.Rect(0, 0, self.widget.frame_width, self.widget.frame_height)
+        text_rect.centerx = target_rect.centerx
+        text_rect.bottom = target_rect.bottom - 2  # Small margin from bottom edge
+
+        # Draw text
+        surface.blit(text_surface, text_rect)
 
     def _draw_onion_skinning_indicator(
         self,
@@ -161,38 +165,47 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         frame_index: int,
     ) -> None:
         """Draw onion skinning indicator on the frame thumbnail."""
+        # The indicator is decoration: a failure must never stop the film strip drawing
         try:
-            # Import onion skinning manager
-            from .onion_skinning import get_onion_skinning_manager
-
-            # Check if this frame has onion skinning enabled
-            onion_manager = get_onion_skinning_manager()
-            is_onion_skinned = onion_manager.is_frame_onion_skinned(animation_name, frame_index)
-
-            if is_onion_skinned:
-                # Draw a small semi-transparent overlay in the top-right corner
-                overlay_size = 12
-                overlay_x = self.widget.frame_width - overlay_size - 2  # 2 pixels from right edge
-                overlay_y = 2  # 2 pixels from top edge
-
-                # Create semi-transparent surface for overlay
-                overlay_surface = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
-                overlay_surface.fill((255, 255, 0, 128))  # Semi-transparent yellow
-
-                # Draw a small circle or square to indicate onion skinning
-                pygame.draw.circle(
-                    overlay_surface,
-                    (255, 255, 0, 200),
-                    (overlay_size // 2, overlay_size // 2),
-                    overlay_size // 2 - 1,
-                )
-
-                # Blit the overlay to the frame surface
-                surface.blit(overlay_surface, (overlay_x, overlay_y))
-
+            self._render_onion_skinning_indicator(surface, animation_name, frame_index)
         except Exception:
             # Log onion skinning indicator failures
             LOG.exception('Onion skinning indicator rendering failed')
+
+    def _render_onion_skinning_indicator(
+        self,
+        surface: pygame.Surface,
+        animation_name: str,
+        frame_index: int,
+    ) -> None:
+        """Render the onion skinning overlay in the top-right corner of an onion-skinned frame."""
+        # Import onion skinning manager
+        from .onion_skinning import get_onion_skinning_manager
+
+        # Check if this frame has onion skinning enabled
+        onion_manager = get_onion_skinning_manager()
+        is_onion_skinned = onion_manager.is_frame_onion_skinned(animation_name, frame_index)
+
+        if is_onion_skinned:
+            # Draw a small semi-transparent overlay in the top-right corner
+            overlay_size = 12
+            overlay_x = self.widget.frame_width - overlay_size - 2  # 2 pixels from right edge
+            overlay_y = 2  # 2 pixels from top edge
+
+            # Create semi-transparent surface for overlay
+            overlay_surface = pygame.Surface((overlay_size, overlay_size), pygame.SRCALPHA)
+            overlay_surface.fill((255, 255, 0, 128))  # Semi-transparent yellow
+
+            # Draw a small circle or square to indicate onion skinning
+            pygame.draw.circle(
+                overlay_surface,
+                (255, 255, 0, 200),
+                (overlay_size // 2, overlay_size // 2),
+                overlay_size // 2 - 1,
+            )
+
+            # Blit the overlay to the frame surface
+            surface.blit(overlay_surface, (overlay_x, overlay_y))
 
     def get_frame_image_for_rendering(
         self,
@@ -258,10 +271,9 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 r, g, b = color[0], color[1], color[2]
                 if (r, g, b) == (255, 0, 255):
                     rgba_surface.set_at((x, y), (255, 0, 255, 0))  # Transparent magenta
-                elif len(color) == RGB_COMPONENT_COUNT:
-                    rgba_surface.set_at((x, y), (r, g, b, 255))  # Full opacity
                 else:
-                    rgba_surface.set_at((x, y), color)  # Keep original RGBA
+                    # Surface.get_at always returns an RGBA Color: keep it as it is
+                    rgba_surface.set_at((x, y), color)
 
         return rgba_surface
 
@@ -403,8 +415,11 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
                 if current_frame_idx >= len(frames) or current_frame_idx < 0:
                     LOG.error(
                         'FilmStripWidget: CRITICAL - Invalid preview '
-                        f'frame index {current_frame_idx} for animation '
-                        f"'{anim_name}' with {len(frames)} frames",
+                        'frame index %s for animation '
+                        "'%s' with %s frames",
+                        current_frame_idx,
+                        anim_name,
+                        len(frames),
                     )
                     # Reset to frame 0 if invalid
                     current_frame_idx = 0
@@ -557,12 +572,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             self.render_editing_label(label_surface, anim_rect)
         else:
             # Add animation name text
-            font = FontManager.get_font()
-            text = font.render(anim_name, fgcolor=(255, 255, 255), size=12)
-            if isinstance(text, tuple):  # freetype returns (surface, rect)
-                text, text_rect = text
-            else:  # pygame.font returns surface
-                text_rect = text.get_rect()
+            text, text_rect = render_label_text(text=anim_name, color=(255, 255, 255))
             text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
             label_surface.blit(text, text_rect)
 
@@ -590,16 +600,11 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             self.widget.cursor_visible = not self.widget.cursor_visible
             self.widget.cursor_blink_time = current_time
 
-        font = FontManager.get_font()
         text_color = (200, 220, 255)  # Light blue for editing
         display_text = self.widget.editing_text
 
         if display_text:
-            text = font.render(display_text, fgcolor=text_color, size=12)
-            if isinstance(text, tuple):  # freetype returns (surface, rect)
-                text, text_rect = text
-            else:  # pygame.font returns surface
-                text_rect = text.get_rect()
+            text, text_rect = render_label_text(text=display_text, color=text_color)
             text_rect.center = (anim_rect.width // 2, anim_rect.height // 2)
             label_surface.blit(text, text_rect)
 
@@ -639,9 +644,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         if not self.widget.animated_sprite:
             return
 
-        # Debug: Track render calls
-        if not hasattr(self.widget, 'render_count'):
-            self.widget.render_count = 0
+        # Debug: Track render calls (render_count starts at 0 in FilmStripWidget.__init__)
         self.widget.render_count += 1
 
         # Debug: Print render count every 50 renders
@@ -699,44 +702,6 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         # Draw multi-controller indicators using new unified system
         self.draw_multi_controller_indicators_new(surface)
 
-    def get_active_controller_selections(self) -> list[dict[str, Any]]:
-        """Get active controller selections for the current animation.
-
-        Returns:
-            List of dicts with controller_id, frame, and color.
-
-        """
-        selections: list[dict[str, Any]] = []
-        if not (
-            hasattr(self.widget, 'parent_scene')
-            and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'controller_selections')
-        ):
-            return selections
-
-        for (
-            controller_id,
-            controller_selection,
-        ) in self.widget.parent_scene.controller_selections.items():
-            if not controller_selection.is_active():
-                continue
-            animation, frame = controller_selection.get_selection()
-            if animation != self.widget.current_animation:
-                continue
-            # Get controller color
-            controller_info = None
-            for info in self.widget.parent_scene.multi_controller_manager.controllers.values():
-                if info.controller_id == controller_id:
-                    controller_info = info
-                    break
-            if controller_info:
-                selections.append({
-                    'controller_id': controller_id,
-                    'frame': frame,
-                    'color': controller_info.color,
-                })
-        return selections
-
     def draw_multi_controller_indicators_new(self, surface: pygame.Surface) -> None:
         """Draw multi-controller indicators using the controller selections system."""
         # Check if this film strip has any selections
@@ -755,66 +720,24 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             keyboard_animation = self.widget.parent_scene.selected_animation
             keyboard_frame = self.widget.parent_scene.selected_frame
 
-        # Get controller selections from the parent scene
+        # Get controller selections from the editor's controller handler: per animation, a
+        # dict keyed by controller id, already filtered to controllers in film strip mode
+        # with a real colour (VisualIndicators._update_film_strip_controller_selections)
         controller_selections: list[dict[str, Any]] = []
         if (
             hasattr(self.widget, 'parent_scene')
             and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'film_strip_controller_selections')
+            and hasattr(self.widget.parent_scene, 'controller_handler')
         ):
-            # Use the pre-filtered controller selections from the parent scene
-            controller_selections = self.widget.parent_scene.film_strip_controller_selections.get(
-                self.widget.current_animation,
-                [],
+            selections_by_animation = (
+                self.widget.parent_scene.controller_handler.film_strip_controller_selections
+            )
+            controller_selections = list(
+                selections_by_animation.get(self.widget.current_animation, {}).values(),
             )
 
         # Draw all indicators using the existing system
         # (collision avoidance handles both keyboard and controllers)
-        self.draw_multi_controller_indicators(
-            surface,
-            keyboard_animation,
-            keyboard_frame,
-            controller_selections,
-        )
-
-    def draw_triforce_indicator(self, surface: pygame.Surface) -> None:
-        """Draw triangle indicators for keyboard and multi-controller selections."""
-        LOG.debug(
-            f'Drawing triforce indicator for animation: {self.widget.current_animation}',
-        )
-
-        # Check if this film strip has any selections
-        if not self.widget.animated_sprite or not self.widget.current_animation:
-            LOG.debug('No animated sprite or current animation')
-            return
-
-        # Get keyboard selection info
-        keyboard_animation = ''
-        keyboard_frame = -1
-        if (
-            hasattr(self.widget, 'parent_scene')
-            and self.widget.parent_scene
-            and hasattr(self.widget.parent_scene, 'selected_animation')
-            and hasattr(self.widget.parent_scene, 'selected_frame')
-        ):
-            keyboard_animation = self.widget.parent_scene.selected_animation
-            keyboard_frame = self.widget.parent_scene.selected_frame
-            # Only print if state changed
-            if (
-                hasattr(self.widget.parent_scene, '_last_debug_keyboard_animation')
-                and hasattr(self.widget.parent_scene, '_last_debug_keyboard_frame')
-                and (
-                    self.widget.parent_scene._last_debug_keyboard_animation != keyboard_animation
-                    or self.widget.parent_scene._last_debug_keyboard_frame != keyboard_frame
-                )
-            ):
-                self.widget.parent_scene._last_debug_keyboard_animation = keyboard_animation
-                self.widget.parent_scene._last_debug_keyboard_frame = keyboard_frame
-
-        # Get multi-controller selections
-        controller_selections = self.get_active_controller_selections()
-
-        # Draw all indicators
         self.draw_multi_controller_indicators(
             surface,
             keyboard_animation,
@@ -917,11 +840,8 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         # Sort controllers by color order (Red, Green, Blue, Yellow)
         controller_selections.sort(key=lambda s: self._color_priority(s['color']))
 
-        # Calculate total number of indicators
+        # Calculate total number of indicators (never 0: frame groups are never empty)
         total_indicators = len(controller_selections) + (1 if keyboard_selection else 0)
-
-        if total_indicators == 0:
-            return  # Nothing to draw
 
         # Define spacing between indicators (in pixels)
         indicator_spacing = 8  # 8 pixels between triangle centers
@@ -1002,42 +922,50 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         anim_name: str,
     ) -> None:
         """Draw the current frame index on the animation preview."""
+        # Preview text is decoration: a font failure must never stop the film strip drawing
         try:
-            # Get the current frame index for this animation
-            current_frame_idx = self.widget.animation.get_current_preview_frame(anim_name)
-
-            # Get total frames for this animation
-            total_frames = 1  # Default fallback
-            if (
-                hasattr(self.widget, 'animated_sprite')
-                and self.widget.animated_sprite
-                and anim_name in self.widget.animated_sprite.animations
-            ):
-                total_frames = len(self.widget.animated_sprite.animations[anim_name])
-
-            # Create font for frame index
-            font = pygame.font.Font(None, 14)  # Slightly larger than frame numbers
-
-            # Render frame index text in format "current+1/total"
-            frame_text = f'{current_frame_idx + 1}/{total_frames}'
-            text_surface = font.render(
-                frame_text,
-                antialias=True,
-                color=(255, 255, 255),
-            )  # White text
-            text_rect = text_surface.get_rect()
-
-            # Position at bottom center of the preview
-            text_x = preview_rect.x + (preview_rect.width - text_rect.width) // 2
-            text_y = (
-                preview_rect.y + preview_rect.height - text_rect.height - 4
-            )  # 4 pixels from bottom
-
-            # Draw text
-            surface.blit(text_surface, (text_x, text_y))
+            self._render_preview_frame_index(surface, preview_rect, anim_name)
         except Exception:
             # Log font rendering failures
             LOG.exception('Font rendering failed')
+
+    def _render_preview_frame_index(
+        self,
+        surface: pygame.Surface,
+        preview_rect: pygame.Rect,
+        anim_name: str,
+    ) -> None:
+        """Render the "current/total" frame index at the bottom center of the preview."""
+        # Get the current frame index for this animation
+        current_frame_idx = self.widget.animation.get_current_preview_frame(anim_name)
+
+        # Get total frames for this animation
+        total_frames = 1  # Default fallback
+        if (
+            hasattr(self.widget, 'animated_sprite')
+            and self.widget.animated_sprite
+            and anim_name in self.widget.animated_sprite.animations
+        ):
+            total_frames = len(self.widget.animated_sprite.animations[anim_name])
+
+        # Create font for frame index
+        font = pygame.font.Font(None, 14)  # Slightly larger than frame numbers
+
+        # Render frame index text in format "current+1/total"
+        frame_text = f'{current_frame_idx + 1}/{total_frames}'
+        text_surface = font.render(
+            frame_text,
+            antialias=True,
+            color=(255, 255, 255),
+        )  # White text
+        text_rect = text_surface.get_rect()
+
+        # Position at bottom center of the preview
+        text_x = preview_rect.x + (preview_rect.width - text_rect.width) // 2
+        text_y = preview_rect.y + preview_rect.height - text_rect.height - 4  # 4 pixels from bottom
+
+        # Draw text
+        surface.blit(text_surface, (text_x, text_y))
 
     def _draw_triangle_preview(self, surface: pygame.Surface, center_x: int, center_y: int) -> None:
         """Draw a triangle for the preview with different color."""
@@ -1105,28 +1033,28 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         total_width = self.widget.rect.width - 20  # Leave 10px margin on each side
 
         # Calculate how many sprockets fit and center them (same as bottom)
+        # (at least 1: the 10px margins take at most 2 spacings off a width of 0 or more)
         num_sprockets = (total_width // sprocket_spacing) + 3
-        if num_sprockets > 0:
-            # Calculate the total space the sprockets will occupy
-            sprockets_width = (num_sprockets - 1) * sprocket_spacing
-            # Center the sprockets within the available space
-            start_x = 10 + (total_width - sprockets_width) // 2
+        # Calculate the total space the sprockets will occupy
+        sprockets_width = (num_sprockets - 1) * sprocket_spacing
+        # Center the sprockets within the available space
+        start_x = 10 + (total_width - sprockets_width) // 2
 
-            # Draw sprockets across the entire width, skipping label area
-            for i in range(num_sprockets):
-                x = start_x + (i * sprocket_spacing)
-                # Skip the label area
-                if x < label_left or x > label_right:
-                    # Draw rounded rectangle instead of circle
-                    # Add top margin for delete button
-                    top_margin = 20  # Space for the [-] delete button at the top
-                    rect = pygame.Rect(
-                        x - 3,
-                        7 + top_margin - 20,
-                        6,
-                        6,
-                    )  # 6x6 rectangle centered at (x, 10 + top_margin - 20)
-                    pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
+        # Draw sprockets across the entire width, skipping label area
+        for i in range(num_sprockets):
+            x = start_x + (i * sprocket_spacing)
+            # Skip the label area
+            if x < label_left or x > label_right:
+                # Draw rounded rectangle instead of circle
+                # Add top margin for delete button
+                top_margin = 20  # Space for the [-] delete button at the top
+                rect = pygame.Rect(
+                    x - 3,
+                    7 + top_margin - 20,
+                    6,
+                    6,
+                )  # 6x6 rectangle centered at (x, 10 + top_margin - 20)
+                pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
         # Draw two sets of sprockets along the bottom edge
         # - same distance from bottom as top sprockets are from top
@@ -1138,26 +1066,26 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         total_width = self.widget.rect.width - 20  # Leave 10px margin on each side
 
         # Calculate how many sprockets fit and center them (add three more)
+        # (at least 1: the 10px margins take at most 2 spacings off a width of 0 or more)
         num_sprockets = (total_width // sprocket_spacing) + 3
-        if num_sprockets > 0:
-            # Calculate the total space the sprockets will occupy
-            sprockets_width = (num_sprockets - 1) * sprocket_spacing
-            # Center the sprockets within the available space
-            start_x = 10 + (total_width - sprockets_width) // 2
+        # Calculate the total space the sprockets will occupy
+        sprockets_width = (num_sprockets - 1) * sprocket_spacing
+        # Center the sprockets within the available space
+        start_x = 10 + (total_width - sprockets_width) // 2
 
-            # Draw bottom sprockets
-            for i in range(num_sprockets):
-                x = start_x + (i * sprocket_spacing)
-                # Skip the label area
-                if x < label_left or x > label_right:
-                    # Draw rounded rectangle instead of circle
-                    rect = pygame.Rect(
-                        x - 3,
-                        bottom_sprocket_y - 5,
-                        6,
-                        6,
-                    )  # 6x6 rectangle 5 pixels above first set
-                    pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
+        # Draw bottom sprockets
+        for i in range(num_sprockets):
+            x = start_x + (i * sprocket_spacing)
+            # Skip the label area
+            if x < label_left or x > label_right:
+                # Draw rounded rectangle instead of circle
+                rect = pygame.Rect(
+                    x - 3,
+                    bottom_sprocket_y - 5,
+                    6,
+                    6,
+                )  # 6x6 rectangle 5 pixels above first set
+                pygame.draw.rect(surface, sprocket_color, rect, border_radius=3)
 
     def render_removal_button(
         self,
@@ -1178,14 +1106,18 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             or not self.widget.removal_button_layouts
         ):
             LOG.debug(
-                f'FilmStripWidget: No removal button layouts for {anim_name}[{frame_idx}]',
+                'FilmStripWidget: No removal button layouts for %s[%s]',
+                anim_name,
+                frame_idx,
             )
             return
 
         button_key = (anim_name, frame_idx)
         if button_key not in self.widget.removal_button_layouts:
             LOG.debug(
-                f'FilmStripWidget: No removal button layout for {anim_name}[{frame_idx}]',
+                'FilmStripWidget: No removal button layout for %s[%s]',
+                anim_name,
+                frame_idx,
             )
             return
 
@@ -1198,14 +1130,17 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
             and len(self.widget.animated_sprite.animations[anim_name]) <= 1
         ):
             LOG.debug(
-                'FilmStripWidget: Skipping removal button for '
-                f'{anim_name}[{frame_idx}] - only one frame',
+                'FilmStripWidget: Skipping removal button for %s[%s] - only one frame',
+                anim_name,
+                frame_idx,
             )
             return
 
         LOG.debug(
-            'FilmStripWidget: Rendering removal button for '
-            f'{anim_name}[{frame_idx}] at {button_rect}',
+            'FilmStripWidget: Rendering removal button for %s[%s] at %s',
+            anim_name,
+            frame_idx,
+            button_rect,
         )
 
         # Check if this removal button is being hovered

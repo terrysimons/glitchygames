@@ -17,12 +17,17 @@ from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     PROCESSING_SECONDS_FIELD,
     FrameContent,
+    FrameTimeSummary,
     MeasurementRun,
+    RunSummary,
     UnclassifiedFrameFieldError,
     add_frame_histories,
+    budget_seconds_for,
     frame_content_hash,
     latest_measurement_run,
     recording_content_hash,
+    recording_run_summaries,
+    run_summary,
     stacked_history,
     stacked_measurement_runs,
 )
@@ -248,3 +253,187 @@ class TestMeasurementRuns:
     def test_a_run_is_read_only_and_closed(self):
         with pytest.raises(ValueError, match='Extra inputs'):
             MeasurementRun.model_validate({**measurement_run().to_json(), 'extra': 1})
+
+
+def timed_frames(*, run_times: list[list[object]], dt: float = 1 / 60) -> list[dict[str, Any]]:
+    """Frames whose processing_seconds histories are the given lists (newest run first).
+
+    Returns:
+        The frames, each in scene ``Game`` except frame 2 (``Pause``).
+
+    """
+    return [
+        {
+            'frame': index,
+            'scene': 'Pause' if index == 2 else 'Game',
+            'dt': dt,
+            PROCESSING_SECONDS_FIELD: history,
+        }
+        for index, history in enumerate(run_times)
+    ]
+
+
+class TestRunSummaries:
+    """A run's processing times at a glance (RunSummary), for tools that should not scan frames."""
+
+    def test_percentiles_worst_frame_and_budget(self):
+        # Frame i took (i + 1) ms: 1 ms to 100 ms
+        frames = timed_frames(run_times=[[(index + 1) / 1000] for index in range(100)])
+
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=1 / 60, live_run=False)
+
+        assert summary == RunSummary(
+            measured_frames=100,
+            total_processing_seconds=5.05,
+            p50_processing_seconds=0.05,
+            p95_processing_seconds=0.095,
+            p99_processing_seconds=0.099,
+            max_processing_seconds=0.1,
+            worst_frame=99,
+            worst_frame_scene='Game',
+            budget_seconds=1 / 60,
+            # 17 ms to 100 ms are over a 16.7 ms budget
+            frames_over_budget=84,
+            frame_time=None,
+        )
+
+    def test_each_run_reads_its_own_index_and_skips_frames_without_a_time(self):
+        frames = timed_frames(
+            run_times=[[0.001, 0.009], [None, 0.002], [0.003, 0.004], [True], ['slow', 0.001]]
+        )
+
+        newest = run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=False)
+        older = run_summary(frames=frames, run_index=1, budget_seconds=None, live_run=False)
+
+        assert newest is not None
+        assert older is not None
+        assert (newest.measured_frames, newest.max_processing_seconds) == (2, 0.003)
+        assert (newest.worst_frame, newest.worst_frame_scene) == (2, 'Pause')
+        assert (older.measured_frames, older.max_processing_seconds, older.worst_frame) == (
+            4,
+            0.009,
+            0,
+        )
+        assert newest.frames_over_budget is None
+
+    def test_a_tie_names_the_first_frame_and_a_frame_without_a_scene_names_none(self):
+        frames = [
+            {'frame': 7, PROCESSING_SECONDS_FIELD: [0.002]},
+            {PROCESSING_SECONDS_FIELD: [0.002]},
+        ]
+
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=False)
+
+        assert summary is not None
+        assert (summary.worst_frame, summary.worst_frame_scene) == (7, None)
+
+    @pytest.mark.parametrize(
+        'frames', [[], [{'frame': 0}], [{'frame': 0, PROCESSING_SECONDS_FIELD: 'fast'}]]
+    )
+    def test_no_times_no_summary(self, frames):
+        assert run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=True) is None
+
+    def test_the_live_run_summarises_its_frame_times(self):
+        frames = timed_frames(run_times=[[0.001]] * 4, dt=1 / 60)
+        frames[3]['dt'] = 0.05
+
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=1 / 60, live_run=True)
+
+        assert summary is not None
+        assert summary.frame_time == FrameTimeSummary(
+            p50_seconds=0.016667, p99_seconds=0.05, max_seconds=0.05, late_frames=1
+        )
+
+    def test_frame_times_need_a_dt_and_count_late_frames_only_with_a_budget(self):
+        no_dt = [{'frame': 0, PROCESSING_SECONDS_FIELD: [0.001], 'dt': True}]
+        uncapped = timed_frames(run_times=[[0.001]])
+
+        assert run_summary(frames=no_dt, run_index=0, budget_seconds=None, live_run=True) == (
+            run_summary(frames=no_dt, run_index=0, budget_seconds=None, live_run=False)
+        )
+        summary = run_summary(frames=uncapped, run_index=0, budget_seconds=None, live_run=True)
+        assert summary is not None
+        assert summary.frame_time is not None
+        assert summary.frame_time.late_frames is None
+
+    @pytest.mark.parametrize(
+        ('header', 'expected'),
+        [
+            ({'options': {'target_fps': 60.0}}, 1 / 60),
+            ({'options': {'target_fps': 0.0}}, None),
+            ({'options': {'target_fps': True}}, None),
+            ({'options': 'none'}, None),
+            ({}, None),
+        ],
+    )
+    def test_the_budget_comes_from_the_recorded_target_fps(self, header, expected):
+        assert budget_seconds_for(header=header) == expected
+
+
+class TestSummariesWhenRunsStack:
+    """Earlier runs get their summaries when the next run stacks (their headers came first)."""
+
+    def test_every_earlier_run_without_one_gets_its_summary(self):
+        frames = timed_frames(run_times=[[0.002, 0.001], [0.004, 0.003]])
+        stored = {'measured_frames': 1, 'kept': 'as it was'}
+        previous = [
+            {**measurement_run().to_json(), 'rebaselined_from': 'older.jsonl.gz'},
+            {**measurement_run().to_json(), 'summary': stored},
+            'unreadable',
+        ]
+
+        runs = stacked_measurement_runs(
+            newest=measurement_run(),
+            previous=previous,
+            previous_frame_count=2,
+            previous_frames=frames,
+            budget_seconds=None,
+        )
+
+        assert runs[0]['summary'] is None
+        assert runs[1]['summary'] == run_summary(
+            frames=frames, run_index=0, budget_seconds=None, live_run=False
+        ).model_dump(mode='json')
+        assert runs[2]['summary'] == stored
+        assert runs[3] == 'unreadable'
+
+    def test_a_run_with_no_times_in_the_frames_gets_none(self):
+        runs = stacked_measurement_runs(
+            newest=measurement_run(),
+            previous=[measurement_run().to_json()],
+            previous_frame_count=1,
+            previous_frames=[{'frame': 0}],
+        )
+
+        assert runs[1]['summary'] is None
+
+    def test_every_runs_summary_is_read_stored_or_computed(self):
+        frames = timed_frames(run_times=[[0.002, 0.001]])
+        stored = run_summary(frames=frames, run_index=1, budget_seconds=None, live_run=True)
+        assert stored is not None
+        header = {
+            MEASUREMENT_RUNS_HEADER_FIELD: [
+                {**measurement_run().to_json(), 'rebaselined_from': 'old.jsonl.gz'},
+                {**measurement_run().to_json(), 'summary': stored.model_dump(mode='json')},
+                {**measurement_run().to_json(), 'summary': {'not': 'a summary'}},
+                'unreadable',
+            ]
+        }
+
+        summaries = recording_run_summaries(header=header, frames=frames)
+
+        assert summaries == [
+            run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=False),
+            stored,
+            None,
+            None,
+        ]
+        assert recording_run_summaries(header={}, frames=frames) == []
+
+    def test_a_header_from_before_summaries_reads_without_one(self):
+        latest = latest_measurement_run(
+            header={MEASUREMENT_RUNS_HEADER_FIELD: [measurement_run().to_json()]}
+        )
+
+        assert latest is not None
+        assert latest.summary is None

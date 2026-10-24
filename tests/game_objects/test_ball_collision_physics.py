@@ -10,7 +10,7 @@ from glitchygames.collision.layers import CollisionManager
 from glitchygames.examples.paddleslap import Game
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
-from tests.game_objects.ball_helpers import drawn_position
+from tests.game_objects.ball_helpers import drawn_position, place_ball_center
 
 LOG = logging.getLogger(__name__)
 
@@ -34,7 +34,6 @@ class TestBallCollisionPhysics:
         ball.rect.x = x
         ball.rect.y = y
         ball.speed = Speed(speed_x, speed_y)
-        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _simulate_collision(self, ball1, ball2):
@@ -53,8 +52,9 @@ class TestBallCollisionPhysics:
         collision_distance = 20.0  # 10px radius each ball
         if distance > collision_distance or distance < 0.001:
             LOG.debug(
-                f'DEBUG: No collision - distance={distance:.2f},'
-                f' collision_distance={collision_distance}',
+                'DEBUG: No collision - distance=%.2f, collision_distance=%s',
+                distance,
+                collision_distance,
             )
             return None
 
@@ -468,7 +468,6 @@ class TestBallCollisionEnergyTransfer:
         ball.rect.x = x
         ball.rect.y = y
         ball.speed = Speed(speed_x, speed_y)
-        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _simulate_collision(self, ball1, ball2):
@@ -548,12 +547,17 @@ MOVING_PAIR_SPEEDS = ((100.0, 100.0), (100.0, 300.0), (300.0, 100.0), (300.0, 30
 SWEEP_FRAME_DT = 1 / 60
 SWEEP_MEETING_POINT = (400.0, 240.0)
 SWEEP_MINIMUM_TIME_TO_MEET = 0.3  # seconds
-SWEEP_MINIMUM_STARTING_GAP = 40.0  # pixels between centers; collision distance is 20
+SWEEP_MINIMUM_STARTING_GAP = 40.0  # pixels between centers; collision distance is 10
 SWEEP_FRAMES_AFTER_COLLISION = 30
+# How far inside the collision distance the centres are on the first frame they could touch
+SWEEP_CONTACT_INSET = 2.0  # pixels
 SWEEP_BALL_SIZE = 20
 # Ball centers live on integer pixels, so the collision normal the game computes can
 # be a few degrees off the ideal one. Allow 10% of the relative speed (plus 1 px/s)
 # of velocity error for that rounding; real bugs produce errors far larger than this.
+# The visible circles are only 10 px across, so this holds because the balls are first
+# sampled SWEEP_CONTACT_INSET inside the collision distance (8 px apart): at 3 px or
+# less apart, a pixel of rounding turns the normal by 10 degrees or more.
 SWEEP_VELOCITY_TOLERANCE_FRACTION = 0.1
 SWEEP_CONSERVATION_TOLERANCE = 1e-6
 
@@ -568,7 +572,7 @@ class _CollisionSweepHarness:
     """Runs two real BallSprites through the real PaddleSlap per-frame collision path.
 
     It runs the ball-ball physics step (_handle_ball_collisions) only, not the playability
-    rule PaddleSlap's update() applies afterwards (_keep_collided_balls_playable), so the
+    rule PaddleSlap's dt_tick applies afterwards (_keep_collided_balls_playable), so the
     sweeps check exact equal-mass elastic physics: swapped velocities, a mover that stops
     dead, and conserved momentum and energy.
     """
@@ -577,38 +581,54 @@ class _CollisionSweepHarness:
         self,
         first_velocity: tuple[float, float],
         second_velocity: tuple[float, float],
+        *,
+        meet_on_frame: bool = False,
     ) -> None:
-        relative_speed = math.dist(first_velocity, second_velocity)
-        time_to_meet = max(
-            SWEEP_MINIMUM_TIME_TO_MEET,
-            SWEEP_MINIMUM_STARTING_GAP / relative_speed,
-        )
-
         self.game = Game.__new__(Game)
         self.game.collisions = CollisionManager()
         self.game.collisions.add_layer('balls')
         self.game._ball_collision_cooldowns = {}
 
-        self.first_ball = self._create_ball_aimed_at_meeting_point(first_velocity, time_to_meet)
-        self.second_ball = self._create_ball_aimed_at_meeting_point(second_velocity, time_to_meet)
-        self.collision_distance = SWEEP_BALL_SIZE
+        self.first_ball = self._create_ball(first_velocity)
+        self.second_ball = self._create_ball(second_velocity)
+        # The game's own threshold: the visible circles' radii, not the image size
+        _, _, _, self.collision_distance = Game._calculate_ball_distance(
+            self.first_ball, self.second_ball
+        )
+
+        # The centres reach the meeting point a fraction of a frame after a whole frame,
+        # chosen so that on that whole frame they are SWEEP_CONTACT_INSET inside the
+        # collision distance, still on the line of their relative velocity. The game
+        # computes the contact normal from whole-pixel centres (up to about a pixel off
+        # each way), so the normal's error shrinks as the contact distance grows. Without
+        # the phase, a pair could first be sampled a few pixels apart (or, meeting exactly
+        # on a frame, centred on the same point, where no normal exists and the game skips
+        # the pair) and the frames either side are a full step away.
+        relative_speed = math.dist(first_velocity, second_velocity)
+        minimum_time_to_meet = max(
+            SWEEP_MINIMUM_TIME_TO_MEET,
+            SWEEP_MINIMUM_STARTING_GAP / relative_speed,
+        )
+        # meet_on_frame puts the meeting exactly on a frame (the pass-through pin below)
+        contact_distance = 0.0 if meet_on_frame else self.collision_distance - SWEEP_CONTACT_INSET
+        time_to_meet = (
+            math.ceil(minimum_time_to_meet / SWEEP_FRAME_DT) * SWEEP_FRAME_DT
+            + contact_distance / relative_speed
+        )
+        self._aim_at_meeting_point(ball=self.first_ball, time_to_meet=time_to_meet)
+        self._aim_at_meeting_point(ball=self.second_ball, time_to_meet=time_to_meet)
+
         self.maximum_frames_to_collision = round(time_to_meet / SWEEP_FRAME_DT) + 30
         # Balls whose rect the last collision step wrote directly (see step())
         self.rects_written_by_collisions: list[str] = []
 
-    def _create_ball_aimed_at_meeting_point(
-        self,
-        velocity: tuple[float, float],
-        time_to_meet: float,
-    ) -> BallSprite:
-        """Place a ball so its center reaches SWEEP_MEETING_POINT after time_to_meet.
+    def _create_ball(self, velocity: tuple[float, float]) -> BallSprite:
+        """Create a ball with the given velocity, registered in the 'balls' collision layer.
 
         Returns:
-            BallSprite: The positioned ball, registered in the 'balls' collision layer.
+            BallSprite: The ball (placed later by _aim_at_meeting_point).
 
         """
-        center_x = SWEEP_MEETING_POINT[0] - velocity[0] * time_to_meet
-        center_y = SWEEP_MEETING_POINT[1] - velocity[1] * time_to_meet
         ball = BallSprite(
             width=SWEEP_BALL_SIZE,
             height=SWEEP_BALL_SIZE,
@@ -616,11 +636,18 @@ class _CollisionSweepHarness:
             bounce_top_bottom=True,
             bounce_left_right=True,
         )
-        ball.world_x = center_x - SWEEP_BALL_SIZE / 2
-        ball.world_y = center_y - SWEEP_BALL_SIZE / 2
         ball.speed = Speed(velocity[0], velocity[1])
         self.game.collisions.get_layer('balls').add(ball)
         return ball
+
+    @staticmethod
+    def _aim_at_meeting_point(*, ball: BallSprite, time_to_meet: float) -> None:
+        """Place a ball so its visible center reaches SWEEP_MEETING_POINT after time_to_meet."""
+        place_ball_center(
+            ball,
+            center_x=SWEEP_MEETING_POINT[0] - ball.speed.x * time_to_meet,
+            center_y=SWEEP_MEETING_POINT[1] - ball.speed.y * time_to_meet,
+        )
 
     def center_distance(self) -> float:
         """Return the distance between ball centers, as the game measures it (integer rects)."""
@@ -761,9 +788,11 @@ def _assert_balls_separate_and_stay_apart(
 def _run_collision_sweep_case(
     first_velocity: tuple[float, float],
     second_velocity: tuple[float, float],
+    *,
+    meet_on_frame: bool = False,
 ) -> None:
     """Collide two balls aimed at the same point and verify the result against physics."""
-    harness = _CollisionSweepHarness(first_velocity, second_velocity)
+    harness = _CollisionSweepHarness(first_velocity, second_velocity, meet_on_frame=meet_on_frame)
     case_description = (
         f'first ball velocity=({first_velocity[0]:.1f}, {first_velocity[1]:.1f}), '
         f'second ball velocity=({second_velocity[0]:.1f}, {second_velocity[1]:.1f})'
@@ -836,4 +865,38 @@ class TestBallCollisionSweepMovingPair:
         _run_collision_sweep_case(
             first_velocity=_velocity_from_angle(first_angle, first_speed),
             second_velocity=_velocity_from_angle(second_angle, second_speed),
+        )
+
+
+# Head-on pairs closing at 10 px a frame (300 px/s each at 60 FPS), the visible circles' whole
+# collision distance (10). Aimed to meet exactly on a frame, the frame before has them just
+# touching (distance 10, no AABB overlap), the meeting frame has their centres on the same
+# pixel (no contact normal, skipped) and the frame after has them touching on the far side:
+# they pass through each other untouched.
+FRAME_ALIGNED_HEAD_ON_ANGLES_DEGREES = (0, 15, 45, 90)
+FRAME_ALIGNED_HEAD_ON_SPEED = 300.0
+
+
+class TestBallCollisionSweepFrameAlignedMeeting:
+    """Balls whose centres would coincide on a frame must still collide (they do not)."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            'Production bug: PaddleSlap ball-ball collision is sampled once per frame '
+            '(Game._handle_ball_collisions, no swept test), so balls closing at the collision '
+            'distance (10 px, the visible radius-5 circles) or more per frame can skip from '
+            'touching to coincident centres (skipped: no normal) to touching on the far side, '
+            'and pass through each other'
+        ),
+    )
+    @pytest.mark.parametrize(
+        'first_angle', FRAME_ALIGNED_HEAD_ON_ANGLES_DEGREES, ids='first{:03d}deg'.format
+    )
+    def test_head_on_balls_meeting_on_a_frame_collide(self, first_angle):
+        """Two head-on balls aimed to meet exactly on a frame swap velocities."""
+        _run_collision_sweep_case(
+            first_velocity=_velocity_from_angle(first_angle, FRAME_ALIGNED_HEAD_ON_SPEED),
+            second_velocity=_velocity_from_angle(first_angle + 180, FRAME_ALIGNED_HEAD_ON_SPEED),
+            meet_on_frame=True,
         )

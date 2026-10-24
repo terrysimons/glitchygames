@@ -21,7 +21,6 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
 MULTIPLIER_1_15 = 1.15
@@ -49,14 +48,8 @@ def _curve_value(curve: SpeedUpCurve, multiplier: float, completed_steps: int) -
     return 1.0 + growth * math.log1p(completed_steps)
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpriteSpeedUp:
     """Test BallSprite.speed_up with the EXPONENTIAL curve (constant percentage steps)."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_speed_up_applies_correct_multiplier(self):
         """Test that speed_up applies the exact multiplier configured."""
@@ -209,14 +202,8 @@ class TestSpeedUpSettingsValidation:
         assert settings.multiplier == 1.0
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpeedUpBehavior:
     """Axes, caps, triggers, and the step counter on a real ball."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_default_settings_never_trigger(self):
         """With default settings no bounce or timer speeds the ball up."""
@@ -419,14 +406,8 @@ def _schedule_sweep_cases():
     ]
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestContinuousSpeedUpSchedule:
     """Each SpeedUpSchedule matches its rule and the properties that make it useful."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @staticmethod
     def _run(schedule: SpeedUpSchedule, interval: float, durations: list[float]) -> int:
@@ -542,14 +523,8 @@ def _fire_trigger(ball: BallSprite, trigger: SpeedUpTrigger) -> None:
         ball._advance_continuous_speed_up(ball.speed_up_settings.interval)
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpeedUpSweep:
     """Each configuration follows its curve on the configured axes from every heading."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.mark.parametrize(
         ('trigger', 'curve', 'axes', 'angle', 'speed'), _speed_up_sweep_cases()

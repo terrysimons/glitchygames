@@ -38,14 +38,14 @@ def run_frame_rate_tests():
     all_results = []
 
     for scenario_name, enable_collisions, enable_bouncing in scenarios:
-        LOG.debug(f'\n{"=" * 60}')
-        LOG.debug(f'SCENARIO: {scenario_name}')
-        LOG.debug(f'{"=" * 60}')
+        LOG.debug('\n%s', '=' * 60)
+        LOG.debug('SCENARIO: %s', scenario_name)
+        LOG.debug('%s', '=' * 60)
 
         scenario_results = []
 
         for fps, duration, test_name in test_configs:
-            LOG.debug(f'\n--- {test_name} ---')
+            LOG.debug('\n--- %s ---', test_name)
 
             # Create test instance
             test = MultiBallTestBase(
@@ -75,37 +75,42 @@ def run_frame_rate_tests():
 
             # Print summary
             LOG.info(
-                f'\n📊 SUMMARY: {alive}/5 balls alive,'
-                f' {wall_bounces} wall bounces,'
-                f' {ball_collisions} ball collisions',
+                '\n📊 SUMMARY: %s/5 balls alive, %s wall bounces, %s ball collisions',
+                alive,
+                wall_bounces,
+                ball_collisions,
             )
-            LOG.info(f'⏱️  Test completed in {test_time:.2f} seconds')
+            LOG.info('⏱️  Test completed in %.2f seconds', test_time)
 
         # Print scenario summary
-        LOG.info(f'\n📈 {scenario_name} Results Summary:')
+        LOG.info('\n📈 %s Results Summary:', scenario_name)
         for result in scenario_results:
             fps_str = f'{result["fps"]:.0f}' if result['fps'] != float('inf') else '∞'
             LOG.debug(
-                f'  {fps_str} FPS: {result["alive"]}/5 alive,'
-                f' {result["wall_bounces"]} wall bounces,'
-                f' {result["ball_collisions"]} ball collisions',
+                '  %s FPS: %s/5 alive, %s wall bounces, %s ball collisions',
+                fps_str,
+                result['alive'],
+                result['wall_bounces'],
+                result['ball_collisions'],
             )
 
     # Print overall summary
-    LOG.debug(f'\n{"=" * 60}')
+    LOG.debug('\n%s', '=' * 60)
     LOG.info('OVERALL RESULTS SUMMARY')
-    LOG.debug(f'{"=" * 60}')
+    LOG.debug('%s', '=' * 60)
 
     for scenario_name, _, _ in scenarios:
-        LOG.debug(f'\n{scenario_name}:')
+        LOG.debug('\n%s:', scenario_name)
         scenario_data = [r for r in all_results if r['scenario'] == scenario_name]
 
         for result in scenario_data:
             fps_str = f'{result["fps"]:.0f}' if result['fps'] != float('inf') else '∞'
             LOG.debug(
-                f'  {fps_str} FPS: {result["alive"]}/5 alive,'
-                f' {result["wall_bounces"]} wall bounces,'
-                f' {result["ball_collisions"]} ball collisions',
+                '  %s FPS: %s/5 alive, %s wall bounces, %s ball collisions',
+                fps_str,
+                result['alive'],
+                result['wall_bounces'],
+                result['ball_collisions'],
             )
 
     return all_results
@@ -116,16 +121,19 @@ if __name__ == '__main__':
 
     # Final analysis
     LOG.info('\n🎯 FINAL ANALYSIS:')
-    LOG.debug(f'Total tests run: {len(results)}')
+    LOG.debug('Total tests run: %s', len(results))
 
     # Check for any failures
     failures = [r for r in results if r['alive'] < 5]
     if failures:
-        LOG.debug(f'⚠️  {len(failures)} tests had ball deaths')
+        LOG.debug('⚠️  %s tests had ball deaths', len(failures))
         for failure in failures:
             fps_str = f'{failure["fps"]:.0f}' if failure['fps'] != float('inf') else '∞'
             LOG.debug(
-                f'  - {failure["scenario"]} @ {fps_str} FPS: {failure["alive"]}/5 balls alive',
+                '  - %s @ %s FPS: %s/5 balls alive',
+                failure['scenario'],
+                fps_str,
+                failure['alive'],
             )
     else:
         LOG.info('✅ All tests passed - all balls survived in all scenarios!')

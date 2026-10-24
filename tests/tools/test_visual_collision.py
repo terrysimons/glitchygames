@@ -1,5 +1,7 @@
 """Tests for visual collision functionality and coverage."""
 
+import pytest
+
 from glitchygames.bitmappy.indicators.collision import (
     IndicatorShape,
     LocationType,
@@ -244,9 +246,9 @@ class TestVisualCollisionManagerModifiers:
         manager = VisualCollisionManager()
         manager.add_controller_indicator(0, 0, (255, 0, 0), (10, 10))
 
-        manager.set_indicator_shape(0, IndicatorShape.DIAMOND)
+        manager.set_indicator_shape(0, IndicatorShape.CIRCLE)
 
-        assert manager.indicators[0].shape == IndicatorShape.DIAMOND
+        assert manager.indicators[0].shape == IndicatorShape.CIRCLE
 
     def test_set_indicator_size(self):
         """Test setting indicator size."""
@@ -432,21 +434,6 @@ class TestUpdateCollisionGroupsSlider:
         assert len(groups[10, 10]) == 2
 
 
-class TestGetCollisionGroupsForLocationDefault:
-    """Test _get_collision_groups_for_location default case (line 347)."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.manager = VisualCollisionManager()
-
-    def test_unknown_location_returns_default_groups(self):
-        """Test that unknown location type returns default collision_groups (line 347)."""
-        # Pass None location type to hit the default return
-        result = self.manager._get_collision_groups_for_location(None)  # type: ignore[arg-type]
-
-        assert result is self.manager.collision_groups
-
-
 class TestApplyCollisionAvoidanceSingleController:
     """Test _apply_collision_avoidance with single controller (line 364)."""
 
@@ -516,6 +503,32 @@ class TestApplyCollisionAvoidanceSliderAndFallback:
             0,
             0,
         ) or self.manager.film_strip_indicators[1].offset != (0, 0)
+
+
+class TestCachedOffsetsForAGrowingGroup:
+    """A position's cached offsets were computed for the group's size at the time."""
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            'position_cache is keyed by position only: a third controller at a position cached '
+            'for two falls back to offset (0, 0), on top of the first controller'
+        ),
+    )
+    def test_third_controller_at_a_cached_position_gets_its_own_offset(self):
+        """Three controllers on one canvas pixel get three different offsets."""
+        manager = VisualCollisionManager()
+        for controller_id in range(3):
+            manager.add_controller_indicator(
+                controller_id=controller_id,
+                instance_id=100 + controller_id,
+                color=(255, 0, 0),
+                position=(10, 10),
+                location_type=LocationType.CANVAS,
+            )
+
+        offsets = [indicator.offset for indicator in manager.canvas_indicators.values()]
+        assert len(set(offsets)) == len(offsets)
 
 
 class TestCalculateOffsetsLargeCount:
@@ -593,10 +606,6 @@ class TestGetCollisionSummaryWithCollisions:
             color=(0, 255, 0),
             position=(10, 10),
         )
-
-        # Force the main collision_groups to be populated
-        # The collision groups are location-specific, so populate manually
-        self.manager.collision_groups[10, 10] = [0, 1]
 
         summary = self.manager.get_collision_summary()
 
@@ -681,3 +690,108 @@ class TestHiddenIndicatorsSkipCollisionAvoidance:
 
         assert manager.canvas_collision_groups == {(40, 40): [0]}
         assert manager.canvas_indicators[0].offset == (0, 0)
+
+
+class TestCollisionSummaryCountsLocationGroups:
+    """get_collision_summary counts the collision groups each location keeps."""
+
+    def test_indicators_sharing_a_canvas_position_are_one_collision_group(self):
+        """Two canvas indicators at one position and one alone make two groups, one colliding."""
+        manager = VisualCollisionManager()
+        manager.add_controller_indicator(0, 100, (255, 0, 0), (10, 10), LocationType.CANVAS)
+        manager.add_controller_indicator(1, 101, (0, 255, 0), (10, 10), LocationType.CANVAS)
+        manager.add_controller_indicator(2, 102, (0, 0, 255), (40, 40), LocationType.CANVAS)
+
+        summary = manager.get_collision_summary()
+
+        assert summary['collision_groups'] == 2
+        assert summary['groups_with_collisions'] == 1
+
+    def test_groups_in_different_locations_are_all_counted(self):
+        """Collisions on the film strip and the slider both count."""
+        manager = VisualCollisionManager()
+        manager.add_controller_indicator(0, 100, (255, 0, 0), (10, 10), LocationType.FILM_STRIP)
+        manager.add_controller_indicator(1, 101, (0, 255, 0), (10, 10), LocationType.FILM_STRIP)
+        manager.add_controller_indicator(2, 102, (0, 0, 255), (5, 5), LocationType.SLIDER)
+        manager.add_controller_indicator(3, 103, (9, 9, 9), (5, 5), LocationType.SLIDER)
+
+        summary = manager.get_collision_summary()
+
+        assert summary['collision_groups'] == 2
+        assert summary['groups_with_collisions'] == 2
+
+
+class TestClearAllIndicatorsClearsEveryLocation:
+    """clear_all_indicators removes the indicators from every location, not only the main dict."""
+
+    def test_cleared_indicators_no_longer_collide_with_new_ones(self):
+        """A new indicator where cleared ones stood gets no collision-avoidance offset."""
+        manager = VisualCollisionManager()
+        manager.add_controller_indicator(0, 100, (255, 0, 0), (10, 10), LocationType.CANVAS)
+        manager.add_controller_indicator(1, 101, (0, 255, 0), (10, 10), LocationType.CANVAS)
+
+        manager.clear_all_indicators()
+        indicator = manager.add_controller_indicator(
+            2, 102, (0, 0, 255), (10, 10), LocationType.CANVAS
+        )
+
+        assert manager.get_indicators_by_location(LocationType.CANVAS) == {2: indicator}
+        assert indicator.offset == (0, 0)
+        assert manager.get_collision_summary()['groups_with_collisions'] == 0
+
+    def test_every_location_is_empty_after_clearing(self):
+        """No location keeps indicators or collision groups after clearing."""
+        manager = VisualCollisionManager()
+        for location_type in LocationType:
+            manager.add_controller_indicator(0, 100, (255, 0, 0), (10, 10), location_type)
+            manager.add_controller_indicator(1, 101, (0, 255, 0), (10, 10), location_type)
+
+        manager.clear_all_indicators()
+
+        for location_type in LocationType:
+            assert manager.get_indicators_by_location(location_type) == {}
+        assert manager.film_strip_collision_groups == {}
+        assert manager.canvas_collision_groups == {}
+        assert manager.slider_collision_groups == {}
+
+
+class TestIndicatorChangesForUnknownControllers:
+    """Changing or removing an indicator of a controller with none changes nothing."""
+
+    def test_setters_ignore_a_controller_without_an_indicator(self):
+        """Visibility, color, shape and size changes for an unknown controller are ignored."""
+        manager = VisualCollisionManager()
+        indicator = manager.add_controller_indicator(0, 100, (255, 0, 0), (10, 10))
+
+        manager.set_indicator_visibility(7, visible=False)
+        manager.set_indicator_color(7, (1, 2, 3))
+        manager.set_indicator_shape(7, IndicatorShape.CIRCLE)
+        manager.set_indicator_size(7, 99)
+
+        assert list(manager.indicators) == [0]
+        assert indicator.is_visible is True
+        assert indicator.color == (255, 0, 0)
+        assert indicator.shape == IndicatorShape.TRIANGLE
+        assert indicator.size == VisualCollisionManager.DEFAULT_SIZE
+
+    def test_removing_a_slider_indicator_already_removed_from_its_location(self):
+        """An indicator removed from its slider location can still be removed entirely."""
+        manager = VisualCollisionManager()
+        manager.add_controller_indicator(0, 100, (255, 0, 0), (10, 10), LocationType.SLIDER)
+        manager.remove_controller_indicator_for_location(0, LocationType.SLIDER)
+
+        manager.remove_controller_indicator(0)
+
+        assert manager.indicators == {}
+        assert manager.slider_indicators == {}
+
+    def test_removing_a_slider_indicator_that_is_not_there_keeps_the_others(self):
+        """Removing an absent slider indicator leaves the other slider indicators."""
+        manager = VisualCollisionManager()
+        indicator = manager.add_controller_indicator(
+            0, 100, (255, 0, 0), (10, 10), LocationType.SLIDER
+        )
+
+        manager.remove_controller_indicator_for_location(5, LocationType.SLIDER)
+
+        assert manager.slider_indicators == {0: indicator}

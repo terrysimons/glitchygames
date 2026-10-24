@@ -6,7 +6,7 @@ alwaysApply: true
 //
 // Rule: Always use pytest's `assert` statements for your test verifications, rather than unittest or plain `assert` style from other frameworks.
 //
-// Rule: When mocking, use the centralized mocks provided by the project whenever possible or appropriate.
+// Rule: Use real pygame, the real display and real files (tmp_path); there are no shared mocks. Patch only what cannot run in a test (hardware, network, third-party tools, the clock, injected failures) with targeted pytest-mock mocker calls, and assert on what is drawn (pixels), not on draw calls.
 //
 // Rule: Run linting checks after running tests for any modified files.
 //

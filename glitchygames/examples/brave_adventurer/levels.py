@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from glitchygames.examples.brave_adventurer.constants import (
     SCREEN_WIDTH,
 )
+from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
 from glitchygames.examples.brave_adventurer.terrain import (
     GoldScarab,
     GroundSegment,
@@ -214,8 +215,6 @@ class LevelManager:
 
     def _build(self) -> None:
         """Create all sprites from level data."""
-        # Import enemies here to avoid circular imports
-        # (enemies module will be created in Phase 4)
         enemy_class_map = self._get_enemy_class_map()
 
         for screen_index, screen in enumerate(self.level_data):
@@ -262,26 +261,18 @@ class LevelManager:
     def _get_enemy_class_map(self) -> dict[str, type]:
         """Return a mapping of enemy type names to their classes.
 
-        Uses lazy import to avoid circular dependency with the enemies module.
+        Subclasses override it to build other sprites from the same level data (the Papyrus
+        edition's TOML enemies).
 
         Returns:
             Dict mapping string names to enemy sprite classes.
 
         """
-        try:
-            from glitchygames.examples.brave_adventurer.enemies import (
-                Cobra,
-                Scarab,
-                Scorpion,
-            )
-        except ImportError:
-            return {}
-        else:
-            return {
-                'cobra': Cobra,
-                'scarab': Scarab,
-                'scorpion': Scorpion,
-            }
+        return {
+            'cobra': Cobra,
+            'scarab': Scarab,
+            'scorpion': Scorpion,
+        }
 
     @property
     def level_width(self) -> int:

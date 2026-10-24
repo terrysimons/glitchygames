@@ -1,16 +1,22 @@
-# Pallete Config Files
-Palette files contain RGBA values in [Python's CongigParser](https://docs.python.org/3/library/configparser.html) format.  
-The `[default]` section defines the properties of the palette and the number of colors it contains.
+# Palette Config Files
+Palette files (`<name>.palette`) contain RGBA values in [Python's ConfigParser](https://docs.python.org/3/library/configparser.html) format.
+The `[default]` section defines the properties of the palette: `colors` (required) is the number of colors it contains;
+`name` and `description` are informational and are not read by the loader.
+
+`ColorPalette(colors=None, filename='<name>')` looks for `<name>.palette` in this directory, then in the running
+script's directory, then in that directory's `resources/` folder. `PaletteUtility.load_palette_from_file()` loads a
+palette file from any path.
 
 ## RGB(A) Values
-Each color in the palette has it's own section with the zero-based color index as the section title.  Each color section 
-contains a `red`, `green`, and `blue` key/value pair.  There is also an optional `alpha` ket to set transparency.
+Each color in the palette has its own section with the zero-based color index as the section title.  Each color section
+contains a `red`, `green`, and `blue` key/value pair (a missing one reads as 0).  There is also an optional `alpha` key
+to set transparency (default 255, opaque).
 
 ### Example
 ```cfg
-[palette]
+[default]
 name = My Palette
-info = My favorite colors
+description = My favorite colors
 colors = 2
 
 [0]

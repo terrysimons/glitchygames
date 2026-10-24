@@ -7,7 +7,7 @@ glitchygames.color provides color utilities like palettes, helpers to do color c
 
 [glitchygames.engine](./engine/index.md)
 
-The glitchygame.engine module handles game initialization, event routing, minimal event loop that calls into the active scene's update method.
+The glitchygames.engine module handles game initialization, event routing, minimal event loop that calls into the active scene's update method.
 
 To start your game, pass your main Scene class to the engine.
 
@@ -79,47 +79,129 @@ When we run `./bitrotadventures.py` with the `-h` flag, we can see our command l
 
 ```sh
 $ ./bitrotadventures.py -h
-pygame 2.5.2 (SDL 2.28.3, Python 3.12.1)
-Hello from the pygame community. https://www.pygame.org/contribute.html
-usage: Bitrot Adventures version 0.0.0 [-h] [-f TARGET_FPS] [--fps-refresh-rate FPS_REFRESH_RATE] [-w] [-r RESOLUTION]
-                                       [--use-gfxdraw] [--update-type {update,flip}] [--video-driver {}] [--font-name FONT_NAME]
-                                       [--font-size FONT_SIZE] [--font-bold] [--font-italic] [--font-antialias]
-                                       [--font-dpi FONT_DPI] [-l {debug,info,warning,error,critical}] [--no-unhandled-events] [-p]
-                                       [-s SOME_GAME_SPECIFIC_OPTION]
+pygame-ce 2.5.8 (SDL 2.32.10, Python 3.14.8)
+usage: Bitrot Adventures version 0.0.0 [-h] [-f TARGET_FPS] [--fps-log-interval-ms FPS_LOG_INTERVAL_MS]
+                                       [-w | --windowed | --no-windowed] [-r RESOLUTION] [--use-gfxdraw]
+                                       [--update-type {update,flip}] [--timer-backend {auto,fast,pygame}]
+                                       [--sleep-granularity-ns SLEEP_GRANULARITY_NS] [--windows-timer-1ms] [--log-timer-jitter]
+                                       [--perf-trim-percent PERF_TRIM_PERCENT] [--fps-histogram {equal-range,target-relative}]
+                                       [--debug-overlay | --no-debug-overlay] [--debug-events] [--record-trace PATH]
+                                       [--replay-trace PATH] [--replay-fps {recorded,real}] [--audit | --no-audit]
+                                       [--compare-processing] [--max-processing-slowdown PERCENT] [--replay-pause-at-frame N]
+                                       [--rebaseline NEW] [--replay-digest PATH] [--random-seed RANDOM_SEED]
+                                       [--screen-shake-intensity SCREEN_SHAKE_INTENSITY] [--rumble-intensity RUMBLE_INTENSITY]
+                                       [--live-voice-pool LIVE_VOICE_POOL] [--default-background {test-pattern,channel-3}]
+                                       [--video-driver {cocoa,offscreen,dummy}] [--headless]
+                                       [--input-mode {auto,joystick,controller}] [--font-name FONT_NAME] [--font-size FONT_SIZE]
+                                       [--font-bold] [--font-italic] [--font-antialias] [--font-dpi FONT_DPI]
+                                       [--font-system {pygame,freetype}] [-l {debug,info,warning,error,critical}]
+                                       [--no-unhandled-events] [-p] [-s SOME_GAME_SPECIFIC_OPTION]
 
 options:
   -h, --help            show this help message and exit
 
 Graphics Options:
-  -f TARGET_FPS, --target-fps TARGET_FPS
-                        cap the framerate (default: infinite)
-  --fps-refresh-rate FPS_REFRESH_RATE
-                        how often to update the FPS counter in ms (default: 1000)
-  -w, --windowed        run the program in windowed mode
-  -r RESOLUTION, --resolution RESOLUTION
-                        the resolution to use (default: 1024x768)
-  --use-gfxdraw
+  -f, --target-fps TARGET_FPS
+                        cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
+  --fps-log-interval-ms FPS_LOG_INTERVAL_MS
+                        how often to log the FPS counter in ms (default: 1000)
+  -w, --windowed, --no-windowed
+                        run in a window; --no-windowed runs fullscreen (default: windowed)
+  -r, --resolution RESOLUTION
+                        the resolution to use (default: 800x480)
+  --use-gfxdraw         not used yet: stored, but nothing draws with pygame.gfxdraw because of it
   --update-type {update,flip}
                         update or flip (default: update)
-  --video-driver {}
+  --timer-backend {auto,fast,pygame}
+                        timer backend for draw loop pacing (default: auto, the fast backend with this machine's sleep delay
+                        measured, so each sleep wakes in time; fast assumes sleeps wake on time; pygame is the legacy backend)
+  --sleep-granularity-ns SLEEP_GRANULARITY_NS
+                        how long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins
+                        only
+  --windows-timer-1ms   on Windows, request 1ms system timer resolution
+  --random-seed RANDOM_SEED
+                        master seed for every engine random stream (default: a random 64-bit seed, logged in recordings)
+  --screen-shake-intensity SCREEN_SHAKE_INTENSITY
+                        screen shake strength from 0.0 (off) to 1.0 (default: 1.0)
+  --rumble-intensity RUMBLE_INTENSITY
+                        controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
+  --live-voice-pool LIVE_VOICE_POOL
+                        mixer channels reserved for real-time synth voices (default: 4)
+  --default-background {test-pattern,channel-3}
+                        the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default:
+                        test-pattern)
+  --video-driver {cocoa,offscreen,dummy}
+                        not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
+
+Diagnostics Options:
+  --log-timer-jitter    log frame pacing jitter statistics periodically
+  --perf-trim-percent PERF_TRIM_PERCENT
+                        percent of frames to trim from top and bottom in global FPS report
+  --fps-histogram {equal-range,target-relative}
+                        FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to
+                        max, default) or target-relative (10% steps of the target FPS)
+  --debug-overlay, --no-debug-overlay
+                        show the debug overlay at startup (F3 toggles, F4 cycles panels)
+  --debug-events        log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one
+                        instead)
+  --record-trace PATH   record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for
+                        inspection and later replay (default: off)
+  --replay-trace PATH   replay a --record-trace recording exactly through the engine, comparing every frame with it and
+                        reporting the first divergence (default: off)
+  --replay-fps {recorded,real}
+                        with --replay-trace: post FPS events from the recorded frame times (recorded, the default: exact, and
+                        compared with the recording) or from this machine's measured frame times (real: what this machine
+                        achieves; FPS events are then not compared, and sprites that draw the FPS value may diverge)
+  --audit, --no-audit   with --replay-trace: instead of replaying, replay the recording twice in fresh headless processes with
+                        different hash seeds and compare every frame with the recording and between the runs; exits 0 when both
+                        match, 3 otherwise, 70 if a run could not finish
+  --compare-processing  with --replay-trace --headless: measure each frame's processing time (its work, without presenting or
+                        pacing) and report how it compares with the recording's (only meaningful on the machine that recorded)
+  --max-processing-slowdown PERCENT
+                        with --replay-trace --headless (implies --compare-processing): a replay that matched but took more than
+                        PERCENT longer than the recording's processing time exits 8; a recording without processing times exits
+                        65
+  --replay-pause-at-frame N
+                        with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 without showing them, then
+                        pause with frame N next (what step back restarts with; ignored with --headless)
+  --rebaseline NEW      with --replay-trace OLD and --headless: replay OLD on the current code without stopping at divergences,
+                        write the run's recording (OLD's inputs, the current sprites) to NEW, print a summary of the frames and
+                        sprites that changed and exit 0
+  --replay-digest PATH  with --replay-trace: write a SHA-256 of every replayed frame, then the divergence, to PATH as JSON lines
+                        (used by --audit)
+  --headless            run on SDL's dummy video and audio drivers: no window, no sound. With --replay-trace the replay also
+                        runs unpaced and prints its report to stdout (exit 0 when it matches, 1 when it diverges, 65 for a
+                        truncated recording)
+
+Controller Options:
+  --input-mode {auto,joystick,controller}
+                        Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any
+                        other device joystick events; joystick: every device sends joystick events; controller: mapped pads
+                        only)
 
 Font Options:
   --font-name FONT_NAME
+                        Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any
+                        other name is looked up among the system's fonts)
   --font-size FONT_SIZE
-  --font-bold
-  --font-italic
-  --font-antialias
-  --font-dpi FONT_DPI
+                        size of the default font, used by text that asks for no font of its own (default: 14)
+  --font-bold           not used yet: stored, but no text is drawn bold because of it
+  --font-italic         not used yet: stored, but no text is drawn italic because of it
+  --font-antialias      not used yet: stored, but each text widget chooses its own antialiasing
+  --font-dpi FONT_DPI   the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default
+                        resolution); the pygame font system ignores it (default: 72)
+  --font-system {pygame,freetype}
+                        Font system to use: freetype (enhanced, default) or pygame (built-in)
 
 Game Options:
-  -l {debug,info,warning,error,critical}, --log-level {debug,info,warning,error,critical}
+  -l, --log-level {debug,info,warning,error,critical}
                         set the logging level
   --no-unhandled-events
                         fail on unhandled events
   -p, --profile         enable profiling
 
 Bitrot Adventures v0.0.0 Options:
-  -s SOME_GAME_SPECIFIC_OPTION, --some-game-specific-option SOME_GAME_SPECIFIC_OPTION
+  -s, --some-game-specific-option SOME_GAME_SPECIFIC_OPTION
                         foo help
 ```
 
@@ -129,7 +211,7 @@ The glitchygames.events module extends the pygame event subsystem by giving you 
 
 This can be especially useful for porting games to glitchygames, but there are some advantages to using glitchygames' event subsystem.
 
-The glitchygames.events subsystem dynamically detects events that your game does not handle and can suppress them automatically.  This helps mitigate the overhead introduced by processing pygame events into on_*_event handlers.
+The glitchygames.events subsystem detects events that your game does not handle: each type is reported once (with `--debug-events`), raised as an error under `--no-unhandled-events`, and counted in a table the engine logs at shutdown. See [Event System](../architecture/event_system.md).
 
 Note that if you bypass the glitchygames game engine event processing, you'll lose some functionality like `esc` and `q` to quit, along with  on_*_event handler support.
 
@@ -162,12 +244,20 @@ The glitchygames.pixels module provides common pixel manipulation operations suc
 
 [glitchygames.sprites](./sprites/index.md)
 
-The glitchygames.sprites module provides extended subclasses for sprite handling that will enable glitchygames to provide common tools and file formats that are human readible and templatable in addition to common sprite sheet formats and other goodies.
+The glitchygames.sprites module provides extended subclasses for sprite handling that will enable glitchygames to provide common tools and file formats that are human readable and templatable in addition to common sprite sheet formats and other goodies.
 
 
 [glitchygames.ui](./ui/index.md)
 
-The glichtchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...
+The glitchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...
+
+Also in the reference: [glitchygames.audio](./audio/index.md) (synthesis, recipes, live voices),
+[glitchygames.collision](./collision/index.md) (layers and hitbox-aware detection),
+[glitchygames.effects](./effects/index.md) (easing, tweens, screen shake),
+[glitchygames.input](./input/index.md) (action maps, devices, the per-frame input snapshot, rumble),
+[glitchygames.physics](./physics/index.md), [glitchygames.replay](./replay/index.md) (gameplay replay),
+[glitchygames.state](./state/index.md) (saves) and [glitchygames.transitions](./transitions/index.md)
+(scene transitions).
 
 <!-- ::: glitchygames
     options:

@@ -35,32 +35,18 @@ class _UndoRedoFilmStripCoordinator:
         """No-op."""
 
 
-class _UndoRedoFrameManager:
-    """Mock frame manager for undo/redo expected behavior tests."""
+def _undo_redo_animated_sprite():
+    """Build the canvas's real AnimatedSprite.
 
-    def __init__(self):
-        self.current_animation = 'strip_1'
-        self.current_frame = 0
+    Returns:
+        AnimatedSprite: One blank frame in 'strip_1', which it shows.
 
-
-class _UndoRedoAnimatedSprite:
-    """Mock animated sprite for undo/redo expected behavior tests."""
-
-    def __init__(self):
-        # Start with one frame in strip_1
-        initial_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-        self._animations = {'strip_1': [initial_frame]}
-        self._is_playing = False
-        self.frame_manager = _UndoRedoFrameManager()
-
-    def add_frame(self, animation_name, frame, index=None):
-        """Mock frame addition."""
-        if animation_name not in self._animations:
-            self._animations[animation_name] = []
-        if index is not None:
-            self._animations[animation_name].insert(index, frame)
-        else:
-            self._animations[animation_name].append(frame)
+    """
+    sprite = AnimatedSprite()
+    sprite.add_animation('strip_1', [SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)])
+    sprite.frame_manager.current_animation = 'strip_1'
+    sprite.frame_manager.current_frame = 0
+    return sprite
 
 
 class _UndoRedoCanvasInterface:
@@ -82,7 +68,7 @@ class _UndoRedoCanvas:
         self.current_animation = 'strip_1'
         self.current_frame = 0
         self.canvas_interface = _UndoRedoCanvasInterface(scene=scene)
-        self.animated_sprite = _UndoRedoAnimatedSprite()
+        self.animated_sprite = _undo_redo_animated_sprite()
         self._scene = scene
 
     def show_frame(self, animation, frame):
@@ -101,7 +87,7 @@ class _UndoRedoMockScene:
     """Mock scene for undo/redo expected behavior tests."""
 
     def __init__(self):
-        self._applying_undo_redo = False
+        self.applying_undo_redo = False
         self.canvas = _UndoRedoCanvas(scene=self)
         self.undo_redo_manager = UndoRedoManager(max_history=50)
         self.canvas_operation_tracker = CanvasOperationTracker(

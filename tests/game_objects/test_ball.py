@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+import pygame
 import pytest
 
 import glitchygames.game_objects.ball as ball_module
@@ -23,6 +24,7 @@ from glitchygames.game_objects.ball import (
     snap_to_pixel,
 )
 from glitchygames.game_objects.paddle import VerticalPaddle
+from glitchygames.game_objects.sounds import SFX, load_sound
 from glitchygames.movement import Speed
 from glitchygames.randomness import (
     RANDOM_STREAM_KIND,
@@ -31,9 +33,10 @@ from glitchygames.randomness import (
     stream_seed,
 )
 from tests.game_objects.ball_helpers import drawn_position
-from tests.mocks.test_mock_factory import MockFactory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+
 SERVE_STREAM_TEST_SEED = 31
 SIZE_20 = 20
 SIZE_30 = 30
@@ -59,11 +62,6 @@ def _assert_within_spawn_area(ball: BallSprite) -> None:
 class TestBallSpriteInitialization:
     """Test BallSprite initialization and basic properties."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_ball_sprite_initialization_defaults(self):
         """Test BallSprite initialization with default parameters."""
         ball = BallSprite()
@@ -81,17 +79,16 @@ class TestBallSpriteInitialization:
         assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(ServeSettings().speed)
         assert ball.dirty == SPEED_2
 
-    def test_ball_sprite_initialization_custom(self, mocker):
+    def test_ball_sprite_initialization_custom(self):
         """Test BallSprite initialization with custom parameters."""
-        groups = mocker.Mock()
-        mocker.patch('pygame.mixer.Sound')
+        groups = pygame.sprite.LayeredDirty()
         ball = BallSprite(
             x=100,
             y=200,
             width=30,
             height=30,
             groups=groups,
-            collision_sound='test.wav',
+            collision_sound=SFX.BOUNCE,
         )
 
         # Position is set by reset() during initialization, so it will be random
@@ -101,27 +98,23 @@ class TestBallSpriteInitialization:
         assert ball.height == SIZE_30
         # groups() returns a list, so we need to check the content
         assert groups in ball.groups()
+        assert ball in groups
+        assert isinstance(ball.snd, pygame.mixer.Sound)
 
     def test_ball_sprite_initialization_without_groups(self):
         """Test BallSprite initialization creates default groups when None provided."""
         ball = BallSprite()
 
         # Should create a LayeredDirty group
-        assert ball.groups() is not None
+        assert len(ball.groups()) == 1
+        assert isinstance(ball.groups()[0], pygame.sprite.LayeredDirty)
 
-    def test_ball_sprite_initialization_with_collision_sound(self, mocker):
-        """Test BallSprite initialization with collision sound."""
-        mock_sound = mocker.Mock()
-        mock_sound_class = mocker.patch(
-            'glitchygames.game_objects.sounds.pygame.mixer.Sound',
-            return_value=mock_sound,
-        )
+    def test_ball_sprite_initialization_with_collision_sound(self):
+        """Test BallSprite initialization loads the collision sound from the bundled files."""
+        ball = BallSprite(collision_sound=SFX.SLAP)
 
-        ball = BallSprite(collision_sound='bounce.wav')
-
-        mock_sound_class.assert_called_once()
-        assert hasattr(ball, 'snd')
-        assert ball.snd == mock_sound
+        assert isinstance(ball.snd, pygame.mixer.Sound)
+        assert ball.snd.get_raw() == load_sound(SFX.SLAP).get_raw()
 
     def test_ball_sprite_initialization_without_collision_sound(self):
         """Test BallSprite initialization without collision sound."""
@@ -134,11 +127,6 @@ class TestBallSpriteInitialization:
 class TestBallSpriteColor:
     """Test BallSprite color property and setter."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_ball_color_getter(self):
         """Test ball color getter returns correct color."""
         ball = BallSprite()
@@ -146,9 +134,8 @@ class TestBallSpriteColor:
 
         assert ball.color == (255, 0, 0)
 
-    def test_ball_color_setter(self, mocker):
-        """Test ball color setter updates color and redraws."""
-        mock_draw_circle = mocker.patch('pygame.draw.circle')
+    def test_ball_color_setter(self):
+        """The color setter redraws the ball's radius-5 circle, centred, in the new color."""
         ball = BallSprite()
         ball.width = 20
         ball.height = 20
@@ -156,80 +143,82 @@ class TestBallSpriteColor:
         ball.color = (0, 255, 0)
 
         assert ball._color == (0, 255, 0)
-        # draw.circle is called twice - once during initialization and once in setter
-        assert mock_draw_circle.call_count == SPEED_2
-        # Check the last call (the setter call)
         assert ball.image is not None
-        mock_draw_circle.assert_any_call(ball.image, (0, 255, 0), (10, 10), 5, 0)
+        # The image holds exactly what pygame draws for that circle on a black (colorkey) 20x20
+        expected = pygame.Surface((20, 20))
+        pygame.draw.circle(expected, (0, 255, 0), (10, 10), 5, 0)
+        assert pygame.image.tobytes(ball.image, 'RGB') == pygame.image.tobytes(expected, 'RGB')
+        # Only the circle is visible: its box is the 10x10 square centred in the image
+        assert ball.image.get_bounding_rect() == pygame.Rect(5, 5, 10, 10)
+
+    def test_ball_image_is_a_white_circle_by_default(self):
+        """A new ball draws a white radius-5 circle; the rest of its image is the colorkey."""
+        ball = BallSprite()
+
+        colorkey = ball.image.get_colorkey()
+        assert colorkey is not None
+        assert colorkey[:3] == (0, 0, 0)
+        assert tuple(ball.image.get_at((10, 10)))[:3] == (255, 255, 255)
+        assert ball.image.get_bounding_rect() == pygame.Rect(5, 5, 10, 10)
 
 
 class TestBallSpriteBounce:
     """Test BallSprite bounce functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_do_bounce_top_wall(self, mocker):
+    def test_do_bounce_top_wall(self):
         """Test ball bounces off top wall."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        assert ball.rect is not None
-        ball.world_y = -5.0  # Above screen
+        ball.snd = load_sound(SFX.BOUNCE)
+        limits = _playfield_limits(ball)
+        ball.world_y = limits.minimum_y - 5.0  # visible edge 5 px above the screen
         ball.speed.y = -2
-        ball.snd = mocker.Mock()
 
         ball._do_bounce()
 
-        # Ball reflects off top boundary preserving overshoot: world_y = -(-5) = 5
-        assert ball.world_y >= 0  # Ball is inside boundary
+        # Ball reflects off top boundary preserving overshoot: 5 px inside
+        assert ball.world_y == limits.minimum_y + 5.0
         assert drawn_position(ball)[1] == snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
         assert ball.speed.y == SPEED_2  # Reversed
-        ball.snd.play.assert_called_once()
+        assert ball.snd.get_num_channels() == 1  # the bounce sound is playing
 
-    def test_do_bounce_bottom_wall(self, mocker):
+    def test_do_bounce_bottom_wall(self):
         """Test ball bounces off bottom wall."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         ball.screen_height = 600
         ball.height = 20
-        assert ball.rect is not None
-        ball.world_y = 590.0  # Below screen (590 + 20 = 610 >= 600)
+        ball.snd = load_sound(SFX.BOUNCE)
+        limits = _playfield_limits(ball)
+        ball.world_y = limits.maximum_y + 10.0  # visible edge 10 px below the screen
         ball.speed.y = 2
-        ball.snd = mocker.Mock()
 
         ball._do_bounce()
 
-        # Ball reflects off bottom boundary preserving overshoot
-        boundary = float(ball.screen_height - ball.height)  # 580.0
-        assert ball.world_y <= boundary  # Ball is inside boundary
+        # Ball reflects off bottom boundary preserving overshoot: 10 px inside
+        assert ball.world_y == limits.maximum_y - 10.0
         assert drawn_position(ball)[1] == snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
         assert ball.speed.y == SPEED_NEG_2  # Reversed
-        ball.snd.play.assert_called_once()
+        assert ball.snd.get_num_channels() == 1  # the bounce sound is playing
 
     def test_do_bounce_no_sound(self, mocker):
         """Test ball bounces without sound when no sound loaded."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        assert ball.rect is not None
-        ball.world_y = -5.0  # Above screen
+        limits = _playfield_limits(ball)
+        ball.world_y = limits.minimum_y - 5.0  # visible edge 5 px above the screen
         ball.speed.y = -2
         # No snd attribute set
 
         ball._do_bounce()
 
         # Ball reflects off top boundary preserving overshoot
-        assert ball.world_y >= 0  # Ball is inside boundary
+        assert ball.world_y == limits.minimum_y + 5.0  # Ball is inside boundary
         assert drawn_position(ball)[1] == snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
         assert ball.speed.y == SPEED_2
 
     def test_do_bounce_no_collision(self, mocker):
         """Test ball doesn't bounce when not at walls."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        assert ball.rect is not None
-        ball.rect.y = 100
+        ball.world_x = 300.0
+        ball.world_y = 100.0
         ball.speed.y = 2
         original_speed = ball.speed.y
 
@@ -242,14 +231,8 @@ class TestBallSpriteBounce:
 class TestBallSpriteReset:
     """Test BallSprite reset functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def test_ball_reset_position(self, mocker):
         """Test ball reset places the ball at the random position it draws, inside the margin."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         randint = mocker.patch.object(
             random_stream(ball_module.SERVE_RANDOM_STREAM), 'randint', side_effect=[173, 70]
@@ -257,16 +240,18 @@ class TestBallSpriteReset:
 
         ball.reset()
 
-        assert drawn_position(ball) == (173, 70)
+        # The random position is where the visible circle's top-left lands
+        drawn_position(ball)
+        visible_rect = get_sprite_collision_rect(ball)
+        assert visible_rect.topleft == (173, 70)
         margin = ball.serve_settings.spawn_margin
         assert randint.call_args_list == [
-            mocker.call(margin, ball.screen_width - ball.width - margin),
-            mocker.call(margin, ball.screen_height - ball.height - margin),
+            mocker.call(margin, ball.screen_width - visible_rect.width - margin),
+            mocker.call(margin, ball.screen_height - visible_rect.height - margin),
         ]
 
     def test_ball_reset_draws_from_the_serve_stream(self, mocker):
         """reset() draws its position from random_stream('ball.serve') of the run's seed."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         reset_streams(seed=SERVE_STREAM_TEST_SEED)
 
@@ -278,14 +263,15 @@ class TestBallSpriteReset:
             )
         )
         margin = ball.serve_settings.spawn_margin
-        assert drawn_position(ball) == (
-            reference_generator.randint(margin, ball.screen_width - ball.width - margin),
-            reference_generator.randint(margin, ball.screen_height - ball.height - margin),
+        drawn_position(ball)
+        visible_rect = get_sprite_collision_rect(ball)
+        assert visible_rect.topleft == (
+            reference_generator.randint(margin, ball.screen_width - visible_rect.width - margin),
+            reference_generator.randint(margin, ball.screen_height - visible_rect.height - margin),
         )
 
     def test_ball_reset_direction(self, mocker):
         """Test ball.direction reports the served heading (0 = right, 90 = down)."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite(
             serve_settings=ServeSettings(
                 horizontal=ServeHorizontalDirection.LEFT,
@@ -302,7 +288,6 @@ class TestBallSpriteReset:
 
     def test_ball_reset_direction_range(self, mocker):
         """Test ball reset direction is within expected range."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
 
         # Test multiple resets to ensure direction is in valid range
@@ -365,14 +350,8 @@ def _serve_outcome_cases():
     ]
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestServeSettings:
     """ServeSettings controls serve speed, angle band, directions, and spawn area."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_defaults_are_pong_style(self):
         """Default serves: 15-60 degrees from horizontal, any diagonal, 250 px/s."""
@@ -540,8 +519,8 @@ def _playfield_limits(ball: BallSprite) -> PlayfieldLimits:
     """Return where the ball's visible collision rect touches each wall.
 
     The ball's walls are its visible pixels (its collision rect), offset from its drawn
-    position. With pygame mocked the circle is not drawn, so the visible rect is the whole
-    image (offset 0) and the limits are 0 and screen size minus image size.
+    position: the radius-5 circle is centred in the image, so the visible rect is inset from
+    the image's edges.
 
     Returns:
         PlayfieldLimits: The world positions of wall contact.
@@ -631,18 +610,12 @@ def _wall_bounce_sweep_cases():
     return cases
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpriteWallBounceSpeed:
     """Wall bounces only change speed through the configured WALL_BOUNCE speed-up.
 
     Replaces tests of the removed legacy BallSprite.bounce(), which applied a hidden,
     hardcoded 1.1x speed-up that bypassed speed_up_settings.
     """
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.mark.parametrize(
         'speed_ups_enabled', [False, True], ids=['no_speed_up', 'wall_speed_up']
@@ -713,9 +686,7 @@ class TestBallSpriteWallBounceSpeed:
     @pytest.mark.parametrize(
         'walls', [(wall,) for wall in INTO_WALL_DIRECTIONS] + list(CORNERS), ids='+'.join
     )
-    def test_ball_past_wall_is_put_back_inside_without_bouncing(
-        self, mocker, walls, overshoot, motion
-    ):
+    def test_ball_past_wall_is_put_back_inside_without_bouncing(self, walls, overshoot, motion):
         """A ball found past a wall but not moving into it is moved inside, not bounced.
 
         No velocity change, no sound, and no WALL_BOUNCE speed-up; only the position is
@@ -726,7 +697,7 @@ class TestBallSpriteWallBounceSpeed:
             bounce_left_right=True,
             speed_up_settings=SpeedUpSettings(triggers=SpeedUpTrigger.WALL_BOUNCE),
         )
-        ball.snd = mocker.Mock()
+        ball.snd = load_sound(SFX.BOUNCE)
         away_x = -sum(INTO_WALL_DIRECTIONS[wall][0] for wall in walls)
         away_y = -sum(INTO_WALL_DIRECTIONS[wall][1] for wall in walls)
         velocity = (away_x * 200.0, away_y * 200.0) if motion == 'away' else (0.0, 0.0)
@@ -737,7 +708,7 @@ class TestBallSpriteWallBounceSpeed:
 
         assert (ball.speed.x, ball.speed.y) == velocity
         assert ball.speed_up_count == 0
-        ball.snd.play.assert_not_called()
+        assert ball.snd.get_num_channels() == 0  # no bounce sound
         assert (ball.world_x, ball.world_y) == pytest.approx(
             _expected_position_after_bounce(ball, walls, overshoot)
         )
@@ -769,18 +740,9 @@ class TestBallSpriteWallBounceSpeed:
 class TestBallSpriteUpdate:
     """Test BallSprite update functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_ball_update_movement(self, mocker):
+    def test_ball_update_movement(self):
         """Test ball update moves the ball."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        assert ball.rect is not None
-        ball.rect.x = 100
-        ball.rect.y = 100
         ball.world_x = 100.0  # Sub-pixel position must also be set
         ball.world_y = 100.0
         ball.speed.x = 2
@@ -790,82 +752,69 @@ class TestBallSpriteUpdate:
 
         # With speed=2,3 and dt=0.016, movement should be (0.032, 0.048)
         # world_x = 100.032, world_y = 100.048, both round to 100
-        assert ball.rect.x == 100  # No visible movement due to rounding
-        assert ball.rect.y == 100  # No visible movement due to rounding
+        assert (ball.world_x, ball.world_y) == pytest.approx((100.032, 100.048))
+        assert drawn_position(ball) == (100, 100)  # No visible movement due to rounding
 
-    def test_ball_update_left_wall_bounce(self, mocker):
+    def test_ball_update_left_wall_bounce(self):
         """Test ball bounces off left wall."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         assert ball.rect is not None
-        ball.rect.x = -25  # Left of screen (less than -width)
         ball.world_x = -25.0  # Sub-pixel position must also be set
         ball.direction = 45
         ball.speed.x = -2
 
-        mock_kill = mocker.patch.object(ball, 'kill')
+        assert ball.alive()
         ball.dt_tick(0.016)  # Use dt_tick instead of update
 
         # Should kill() when ball goes off-screen (no direction change for left/right)
-        mock_kill.assert_called_once()
+        assert not ball.alive()
         expected_direction = 45  # Direction should remain unchanged
         assert ball.direction == expected_direction
 
-    def test_ball_update_right_wall_bounce(self, mocker):
+    def test_ball_update_right_wall_bounce(self):
         """Test ball bounces off right wall."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         ball.screen_width = 800
         ball.width = 20
         assert ball.rect is not None
-        ball.rect.x = 810  # Right of screen
         ball.world_x = 810.0  # Sub-pixel position must also be set
         ball.direction = 45
         ball.speed.x = 2
 
-        mock_kill = mocker.patch.object(ball, 'kill')
+        assert ball.alive()
         ball.dt_tick(0.016)  # Use dt_tick instead of update
 
         # Should kill() when ball goes off-screen (no direction change for left/right)
-        mock_kill.assert_called_once()
+        assert not ball.alive()
         expected_direction = 45  # Direction should remain unchanged
         assert ball.direction == expected_direction
 
-    def test_ball_update_reset_on_exit(self, mocker):
+    def test_ball_update_reset_on_exit(self):
         """Test ball resets when exiting screen."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         assert ball.rect is not None
-        ball.rect.x = 1000  # Way off screen
         ball.world_x = 1000.0  # Sub-pixel position must also be set
-        ball.rect.y = 100
         ball.world_y = 100.0
 
-        mock_kill = mocker.patch.object(ball, 'kill')
+        assert ball.alive()
         ball.dt_tick(0.016)  # Use dt_tick instead of update
-        mock_kill.assert_called_once()
+        assert not ball.alive()
 
     def test_ball_update_no_kill_on_vertical_exit(self, mocker):
         """Test ball does NOT kill when exiting screen vertically (only horizontal exits kill)."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        assert ball.rect is not None
-        ball.rect.x = 100
         ball.world_x = 100.0  # Sub-pixel position must also be set
-        ball.rect.y = 1000  # Way off screen
-        ball.world_y = 1000.0
+        ball.world_y = 1000.0  # Way off screen
         ball.screen_height = 600  # Set screen height so ball is off screen
         ball.speed.y = 0  # Don't move vertically
 
         # Mock _do_bounce to not interfere with the test
         mocker.patch.object(ball, '_do_bounce')
-        mock_kill = mocker.patch.object(ball, 'kill')
         ball.dt_tick(0.016)  # Use dt_tick instead of update
-        mock_kill.assert_not_called()  # Should NOT be called for vertical exits
+        assert ball.alive()  # Should NOT be killed for vertical exits
 
     def test_ball_update_calls_do_bounce(self, mocker):
         """Test ball dt_tick calls _do_bounce."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
 
         mock_do_bounce = mocker.patch.object(ball, '_do_bounce')
@@ -876,14 +825,8 @@ class TestBallSpriteUpdate:
 class TestBallSpriteIntegration:
     """Test BallSprite integration scenarios."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_ball_full_game_cycle(self, mocker):
+    def test_ball_full_game_cycle(self):
         """Test complete ball game cycle."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite()
 
         # Initial state
@@ -897,29 +840,20 @@ class TestBallSpriteIntegration:
         drawn_x, drawn_y = drawn_position(ball)
         assert drawn_x != original_x or drawn_y != original_y
 
-    def test_ball_with_sound_integration(self, mocker):
+    def test_ball_with_sound_integration(self):
         """Test ball with sound integration."""
-        mocker.patch('pygame.draw.circle')
-        mock_sound = mocker.Mock()
-        mocker.patch(
-            'glitchygames.game_objects.ball.game_objects.load_sound',
-            return_value=mock_sound,
-        )
-
-        ball = BallSprite(collision_sound='bounce.wav')
-        assert ball.rect is not None
-        ball.rect.y = -5  # Trigger top wall bounce
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball = BallSprite(collision_sound=SFX.BOUNCE)
+        # Trigger top wall bounce: the visible circle 5 px above the screen
+        ball.world_y = _playfield_limits(ball).minimum_y - 5.0
         ball.speed.y = -2
 
         ball.dt_tick(0.016)  # Use dt_tick instead of update
 
-        # Sound should have been played
-        mock_sound.play.assert_called()
+        # Sound should be playing
+        assert ball.snd.get_num_channels() == 1
 
-    def test_ball_speed_progression(self, mocker):
+    def test_ball_speed_progression(self):
         """Test ball speed increases with each speed-up (replaces the legacy bounce() test)."""
-        mocker.patch('pygame.draw.circle')
         ball = BallSprite(speed_up_settings=SpeedUpSettings(multiplier=MULTIPLIER_1_1))
         original_speed = ball.speed.x
 
@@ -954,7 +888,7 @@ class TestBallSpeedUpExponentialBoth:
             ),
         )
 
-    def test_speed_up_exponential_both(self, mock_pygame_patches):
+    def test_speed_up_exponential_both(self):
         """Test speed_up scales both components by the exponential multiplier."""
         ball = self._create_ball()
         ball.speed.x = 150.0
@@ -969,7 +903,7 @@ class TestBallSpeedUpExponentialBoth:
         assert ball.speed.y == pytest.approx(original_y * MULTIPLIER_1_1)
         assert ball.speed_up_count == 1
 
-    def test_speed_up_exponential_both_with_zero_speeds(self, mock_pygame_patches):
+    def test_speed_up_exponential_both_with_zero_speeds(self):
         """Test speed_up exponential on both axes when speeds are zero."""
         ball = self._create_ball()
         ball.speed.x = 0
@@ -984,7 +918,7 @@ class TestBallSpeedUpExponentialBoth:
 class TestContinuousSpeedUpExponentialY:
     """Test continuous exponential speed-up on the Y axis only."""
 
-    def test_continuous_exponential_y_speed_up(self, mock_pygame_patches):
+    def test_continuous_exponential_y_speed_up(self):
         """Test the CONTINUOUS trigger with an EXPONENTIAL curve on Y_ONLY."""
         ball = BallSprite(
             x=100,
@@ -1015,7 +949,7 @@ class TestContinuousSpeedUpExponentialY:
 class TestContinuousSpeedUpLinear:
     """Test continuous linear speed-up on both axes."""
 
-    def test_continuous_linear_speed_up(self, mock_pygame_patches):
+    def test_continuous_linear_speed_up(self):
         """Test the CONTINUOUS trigger with a LINEAR curve on BOTH axes."""
         ball = BallSprite(
             x=100,
@@ -1044,7 +978,7 @@ class TestContinuousSpeedUpLinear:
 class TestPaddleBounceTriggerExponentialBoth:
     """Test the PADDLE_BOUNCE trigger scaling both axes exponentially."""
 
-    def test_paddle_bounce_scales_both_axes(self, mock_pygame_patches):
+    def test_paddle_bounce_scales_both_axes(self):
         """Test on_paddle_bounce speeds up both components when PADDLE_BOUNCE is set."""
         ball = BallSprite(
             x=100,
@@ -1069,7 +1003,7 @@ class TestPaddleBounceTriggerExponentialBoth:
 class TestTriggeredSpeedUpNotConfigured:
     """Test _apply_triggered_speed_up with a trigger that is not configured."""
 
-    def test_unconfigured_trigger_does_nothing(self, mock_pygame_patches):
+    def test_unconfigured_trigger_does_nothing(self):
         """Test that a trigger missing from settings.triggers leaves speed unchanged."""
         ball = BallSprite(
             x=100,
@@ -1106,88 +1040,79 @@ class TestBallBoundaryCollisions:
             bounce_left_right=True,
         )
 
-    def test_bottom_collision_with_speed_magnitude(self, mock_pygame_patches):
+    def test_bottom_collision_with_speed_magnitude(self):
         """Test bottom collision reflects Y speed (lines 685->694)."""
         ball = self._create_ball_with_left_right_bounce()
         ball.speed.x = 100.0
         ball.speed.y = 100.0  # Moving downward
 
-        # Position ball at bottom boundary (must set world_y for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.y = ball.screen_height - ball.height
-        ball.world_y = float(ball.screen_height - ball.height)
+        # The visible circle's bottom edge touches the bottom wall
+        ball.world_y = _playfield_limits(ball).maximum_y
 
         ball._do_bounce()
 
         # Y speed should be negative (upward) after bottom bounce
         assert ball.speed.y < 0
 
-    def test_left_collision_with_sound(self, mock_pygame_patches, mocker):
+    def test_left_collision_with_sound(self):
         """Test left collision plays sound (line 708)."""
         ball = self._create_ball_with_left_right_bounce()
-        ball.snd = mocker.Mock()
+        ball.snd = load_sound(SFX.BOUNCE)
         ball.speed.x = -100.0
         ball.speed.y = 50.0
 
-        # Position ball at left boundary (must set world_x for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.x = 0
-        ball.world_x = 0.0
+        # The visible circle's left edge touches the left wall
+        ball.world_x = _playfield_limits(ball).minimum_x
 
         ball._do_bounce()
 
-        ball.snd.play.assert_called()
+        assert ball.snd.get_num_channels() == 1  # the bounce sound is playing
         # X speed should be positive (rightward)
         assert ball.speed.x > 0
 
-    def test_left_collision_with_speed_magnitude(self, mock_pygame_patches):
+    def test_left_collision_with_speed_magnitude(self):
         """Test left collision reflects X speed (lines 715->724)."""
         ball = self._create_ball_with_left_right_bounce()
         ball.speed.x = -100.0
         ball.speed.y = 50.0
-
-        assert ball.rect is not None
-        ball.rect.x = 0
-        ball.world_x = 0.0  # Sub-pixel position must also be set
+        limits = _playfield_limits(ball)
+        ball.world_x = limits.minimum_x
 
         ball._do_bounce()
 
         assert ball.speed.x > 0
-        assert ball.world_x >= 0  # Ball is inside boundary
-        assert ball.rect.x == round(ball.world_x)
+        assert ball.world_x >= limits.minimum_x  # Ball is inside boundary
+        assert drawn_position(ball)[0] == round(ball.world_x)
+        assert get_sprite_collision_rect(ball).left >= 0
 
-    def test_right_collision_with_sound(self, mock_pygame_patches, mocker):
+    def test_right_collision_with_sound(self):
         """Test right collision plays sound (line 736)."""
         ball = self._create_ball_with_left_right_bounce()
-        ball.snd = mocker.Mock()
+        ball.snd = load_sound(SFX.BOUNCE)
         ball.speed.x = 100.0
         ball.speed.y = 50.0
 
-        # Position ball at right boundary (must set world_x for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.x = ball.screen_width - ball.width
-        ball.world_x = float(ball.screen_width - ball.width)
+        # The visible circle's right edge touches the right wall
+        ball.world_x = _playfield_limits(ball).maximum_x
 
         ball._do_bounce()
 
-        ball.snd.play.assert_called()
+        assert ball.snd.get_num_channels() == 1  # the bounce sound is playing
 
-    def test_right_collision_with_speed_magnitude(self, mock_pygame_patches):
+    def test_right_collision_with_speed_magnitude(self):
         """Test right collision reflects X speed (lines 743->752)."""
         ball = self._create_ball_with_left_right_bounce()
         ball.speed.x = 100.0
         ball.speed.y = 50.0
-
-        assert ball.rect is not None
-        ball.rect.x = ball.screen_width - ball.width
-        ball.world_x = float(ball.screen_width - ball.width)  # Sub-pixel position
+        limits = _playfield_limits(ball)
+        ball.world_x = limits.maximum_x
 
         ball._do_bounce()
 
         assert ball.speed.x < 0
-        boundary = float(ball.screen_width - ball.width)
-        assert ball.world_x <= boundary  # Ball is inside boundary
-        assert ball.rect.x == round(ball.world_x)
+        assert ball.world_x <= limits.maximum_x  # Ball is inside boundary
+        assert drawn_position(ball)[0] == round(ball.world_x)
+        assert get_sprite_collision_rect(ball).right <= ball.screen_width
 
 
 class TestCornerCollisions:
@@ -1244,22 +1169,22 @@ class TestCornerCollisions:
         assert abs(ball.world_x - corner_x) > 0
         assert abs(ball.world_y - corner_y) > 0
 
-    def test_top_left_corner_collision(self, mock_pygame_patches):
+    def test_top_left_corner_collision(self):
         """Test top-left corner collision."""
         ball = self._create_bouncing_ball()
         self._assert_corner_bounce(ball, corner=('top', 'left'), speed_x=-100.0, speed_y=-100.0)
 
-    def test_top_right_corner_collision(self, mock_pygame_patches):
+    def test_top_right_corner_collision(self):
         """Test top-right corner collision."""
         ball = self._create_bouncing_ball()
         self._assert_corner_bounce(ball, corner=('top', 'right'), speed_x=100.0, speed_y=-100.0)
 
-    def test_bottom_left_corner_collision(self, mock_pygame_patches):
+    def test_bottom_left_corner_collision(self):
         """Test bottom-left corner collision."""
         ball = self._create_bouncing_ball()
         self._assert_corner_bounce(ball, corner=('bottom', 'left'), speed_x=-100.0, speed_y=100.0)
 
-    def test_bottom_right_corner_collision(self, mock_pygame_patches):
+    def test_bottom_right_corner_collision(self):
         """Test bottom-right corner collision."""
         ball = self._create_bouncing_ball()
         self._assert_corner_bounce(ball, corner=('bottom', 'right'), speed_x=100.0, speed_y=100.0)
@@ -1268,7 +1193,7 @@ class TestCornerCollisions:
 class TestDtTickMovementMismatch:
     """Test dt_tick movement mismatch logging (line 553)."""
 
-    def test_dt_tick_basic_movement(self, mock_pygame_patches):
+    def test_dt_tick_basic_movement(self):
         """Test dt_tick applies movement correctly."""
         ball = BallSprite(x=100, y=100)
         ball.speed.x = 200.0
@@ -1297,7 +1222,7 @@ class TestPaddleCollisionSpeedCap:
     20x20 image; the visible-pixel geometry is covered in test_ball_paddle_collision.py.
     """
 
-    def test_paddle_collision_caps_speed(self, mock_pygame_patches):
+    def test_paddle_collision_caps_speed(self):
         """Test that paddle collision caps speed at the configured max_speed."""
         ball = BallSprite(
             x=100,
@@ -1322,7 +1247,7 @@ class TestPaddleCollisionSpeedCap:
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude <= 500.0 + 0.01  # max_speed = 500.0
 
-    def test_paddle_collision_without_max_speed_does_not_cap(self, mock_pygame_patches):
+    def test_paddle_collision_without_max_speed_does_not_cap(self):
         """Test that default settings (max_speed=None) leave a fast ball uncapped."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
         paddle = _speed_cap_paddle(x=90)
@@ -1338,11 +1263,11 @@ class TestPaddleCollisionSpeedCap:
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude == pytest.approx(math.sqrt(2) * 1000.0)
 
-    def test_paddle_collision_with_sound(self, mock_pygame_patches, mocker):
+    def test_paddle_collision_with_sound(self):
         """Test paddle collision plays paddle's sound."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
         paddle = _speed_cap_paddle(x=120)
-        paddle.snd = mocker.Mock()
+        paddle.snd = load_sound(SFX.SLAP)
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0
@@ -1353,9 +1278,9 @@ class TestPaddleCollisionSpeedCap:
 
         assert ball.handle_paddle_collision(paddle) is True
 
-        paddle.snd.play.assert_called_once()
+        assert paddle.snd.get_num_channels() == 1  # the paddle's sound is playing
 
-    def test_paddle_collision_triggers_on_paddle_collision(self, mock_pygame_patches, mocker):
+    def test_paddle_collision_triggers_on_paddle_collision(self, mocker):
         """Test paddle collision calls on_paddle_collision if it exists."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
 
@@ -1377,7 +1302,7 @@ class TestPaddleCollisionSpeedCap:
 class TestBallMovementMismatchWarning:
     """Test dt_tick movement mismatch logging (line 553)."""
 
-    def test_dt_tick_movement_mismatch_detection(self, mock_pygame_patches, mocker):
+    def test_dt_tick_movement_mismatch_detection(self, mocker):
         """Test that movement mismatch is detected when rect changes unexpectedly.
 
         Covers line 553 where delta doesn't match expected movement.
@@ -1396,21 +1321,24 @@ class TestBallMovementMismatchWarning:
         ball.speed.x = 0.0
         ball.speed.y = -200.0  # Moving up fast
 
-        # Position ball so the bounce mirrors its world_y back inside
-        ball.world_y = -5.0
+        # Put the visible circle 5 px past the top wall, so the bounce mirrors it back inside
+        limits = _playfield_limits(ball)
+        ball.world_y = limits.minimum_y - 5.0
 
         # dt_tick moves world_y further up (more negative), then _do_bounce mirrors it inside
         ball.dt_tick(0.016)
 
-        # After the bounce the ball moves down and is drawn inside the screen
+        # After the bounce the ball moves down and its visible circle is drawn inside the screen
         assert ball.speed.y > 0
-        assert drawn_position(ball)[1] >= 0
+        assert ball.world_y >= limits.minimum_y
+        drawn_position(ball)
+        assert get_sprite_collision_rect(ball).top >= 0
 
 
 class TestBallHandlePaddleCollisionMiss:
     """Test handle_paddle_collision with a paddle the ball does not touch."""
 
-    def test_far_paddle_is_not_a_collision(self, mock_pygame_patches):
+    def test_far_paddle_is_not_a_collision(self):
         """A paddle far from the ball returns False and leaves the ball's velocity alone."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
         ball.world_x = 100.0
@@ -1426,7 +1354,7 @@ class TestBallHandlePaddleCollisionMiss:
 class TestBallBottomBounceZeroSpeed:
     """Test bottom collision when speed magnitude is zero (line 685->694)."""
 
-    def test_bottom_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
+    def test_bottom_collision_zero_magnitude_no_reflection(self):
         """Test that bottom collision with zero speed skips reflection.
 
         Covers the branch at 685->694 where speed_magnitude == 0 and the
@@ -1447,17 +1375,13 @@ class TestBallBottomBounceZeroSpeed:
 
         log = logging.getLogger('game')
 
-        # Position ball at bottom
-        assert ball.rect is not None
-        ball.rect.y = ball.screen_height - ball.height
-
         ball._handle_bottom_collision(log)
 
         # Speed should remain zero
         assert ball.speed.x == pytest.approx(0.0)
         assert ball.speed.y == pytest.approx(0.0)
 
-    def test_left_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
+    def test_left_collision_zero_magnitude_no_reflection(self):
         """Test that left collision with zero speed skips reflection.
 
         Covers branch 715->724 where speed_magnitude == 0.
@@ -1477,14 +1401,11 @@ class TestBallBottomBounceZeroSpeed:
 
         log = logging.getLogger('game')
 
-        assert ball.rect is not None
-        ball.rect.x = 0
-
         ball._handle_left_collision(log)
 
         assert ball.speed.x == pytest.approx(0.0)
 
-    def test_right_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
+    def test_right_collision_zero_magnitude_no_reflection(self):
         """Test that right collision with zero speed skips reflection.
 
         Covers branch 743->752 where speed_magnitude == 0.
@@ -1503,9 +1424,6 @@ class TestBallBottomBounceZeroSpeed:
         import logging
 
         log = logging.getLogger('game')
-
-        assert ball.rect is not None
-        ball.rect.x = ball.screen_width - ball.width
 
         ball._handle_right_collision(log)
 
@@ -1606,14 +1524,8 @@ class TestSnapToPixel:
         assert game_objects_package.snap_to_pixel is pixel_snap_module.snap_to_pixel
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpritePixelSnapping:
     """The engine draws the ball at world_x/world_y snapped with the ball's pixel snap mode."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_default_mode_is_nearest_half_up(self):
         """Balls default to NEAREST_HALF_UP for smooth, unbiased motion."""

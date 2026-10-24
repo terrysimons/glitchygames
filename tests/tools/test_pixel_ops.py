@@ -248,3 +248,26 @@ class TestRenderFrameToAscii:
         frame.get_pixel_data.side_effect = ValueError('bad frame')
 
         assert not render_frame_to_ascii(frame=frame, renderer=PassThroughRenderer())  # type: ignore[arg-type]
+
+    def test_renderer_bug_outside_the_colouring_fallback_propagates(self, mocker):
+        """A renderer error the plain-glyph fallback does not cover is raised, not hidden.
+
+        Only reading and laying out the frame turns errors into an empty string; the renderer's
+        colouring falls back to plain glyphs for AttributeError, KeyError and TypeError only.
+        """
+        frame = make_frame(pixels=[(10, 10, 10, 255), (20, 20, 20, 255)], width=2, height=1)
+        renderer = PassThroughRenderer()
+        mocker.patch.object(renderer, 'colorize_pixels', side_effect=ValueError('renderer bug'))
+
+        with pytest.raises(ValueError, match='renderer bug'):
+            render_frame_to_ascii(frame=frame, renderer=renderer)  # type: ignore[arg-type]
+
+    def test_frame_without_pixels_gives_empty_string(self, mocker):
+        """A frame with no pixel data renders as an empty string without colouring anything."""
+        frame = mocker.Mock()
+        frame.get_pixel_data.return_value = []
+        renderer = PassThroughRenderer()
+        colorize = mocker.spy(renderer, 'colorize_pixels')
+
+        assert not render_frame_to_ascii(frame=frame, renderer=renderer)  # type: ignore[arg-type]
+        assert colorize.call_count == 0

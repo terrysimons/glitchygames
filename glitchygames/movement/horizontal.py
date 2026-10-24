@@ -35,30 +35,15 @@ class Horizontal:
         self.current_speed = value
 
     def left(self: Self) -> None:
-        """Move left.
-
-        Args:
-            None
-
-        """
+        """Move left."""
         self._change_speed(-self.speed.x)
 
     def right(self: Self) -> None:
-        """Move right.
-
-        Args:
-            None
-
-        """
+        """Move right."""
         self._change_speed(self.speed.x)
 
     def stop(self: Self) -> None:
-        """Stop moving.
-
-        Args:
-            None
-
-        """
+        """Stop moving."""
         self._change_speed(0)
 
     def get_movement_with_dt(self: Self, dt: float) -> float:

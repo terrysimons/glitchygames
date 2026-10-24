@@ -139,10 +139,21 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
 - ``event_batches``: the batches the installed doors' pump returned, which the scope pumps once
   per pump of the frame: the player's real input (only the scope's exit check sees it), the
   window's QUIT, and the playback scene's own posts (internal). Replaying the session therefore
-  replays the exit press and the scene's posts as they happened.
+  replays the exit press and the scene's posts as they happened. The live game's input posts
+  (``post_input_event``) of SDL types are recorded external and are the player's input in the
+  scope too (glitchygames/replay/playback.py, rule 5), so a replay of the session, run without
+  the supervisor that posted them, serves them to the same exit check (BUGS.md #196). Their
+  input posts of any other type (a game event) are recorded external too: the scope holds
+  them and they reach the live game after it, and a replay of the session, which serves them
+  from the recording, holds them by that recorded origin and delivers them after the scope
+  the same way.
 - ``input_changes``: the player's polled input (the scope reads the installed doors' snapshot
   every frame, then serves the recording's to the scene).
-- ``dt``: the frame times the frames ran with, which are the played recording's.
+- ``dt``: the installed doors' frame times (the live measurements), not the played
+  recording's that the frames ran with (the scope serves those, and serves them again when the
+  session is replayed). The scope's first frame's time was read as the live frame before it
+  ended and advanced the live frame clock and FPS event timer, so a replay of the session must
+  be served it there (BUGS.md #196).
 - The sprites: the active scene's, which is the playback scene.
 - ``control_events``: a ``playback`` marker (``{"kind": "playback", "source": <"demo" or
   "instant">, "frames": <frames to play>}``; glitchygames/supervision.py) on the frame the
@@ -166,8 +177,9 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
   (``sources.discard_scope_posts``), so the recording never holds them, and a replay of the
   session drops them the same way. The posts the live game's own supervisors and handlers made
   during the scope (``live_game_posts``) are posted again as it ends, so the next frame's
-  ``event_batches`` hold them as internal events, once each; a replay of the session posts
-  them again the same way.
+  ``event_batches`` hold them, once each; a replay of the session posts them again the same
+  way. Their input posts of SDL types are not among them: those were the player's input
+  (above), held, if at all, with the player's events.
 
 Polled input
 ------------
@@ -239,7 +251,6 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     add_frame_histories,
 )
-from glitchygames.scene_start import SceneStart, SceneStartCapture
 from glitchygames.sources import (
     frame_clock_seconds,
     has_scoped_sources,
@@ -255,10 +266,12 @@ if TYPE_CHECKING:
 
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
+    from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
     from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
     from glitchygames.supervision import ControlEvent
+    from glitchygames.tracing import JsonValue
 
 LOG = logging.getLogger('game.recording')
 LOG.addHandler(logging.NullHandler())
@@ -549,6 +562,10 @@ def post_input_event(event: pygame.event.Event) -> bool:
     serves the recorded event whether or not it runs the poster again; a copy the replayed
     code posts (a supervisor the game's own setup() added) is dropped, so the game gets it
     once. Use ``post_event`` for the game's own posts, which a replay expects it to make again.
+    Any event type may be posted, custom game events included. While a playback scope plays,
+    an input post of an SDL type is the player's input (a press ends a demo); any other
+    reaches the game after the scope, live and replayed alike (glitchygames/replay/playback.py,
+    rule 5; BUGS.md #196).
 
     Args:
         event: The event to post.
@@ -589,7 +606,7 @@ def _non_finite_float_name(value: float) -> str:
     return 'inf' if value > 0 else '-inf'
 
 
-def _json_safe_scalar(value: float | str | None) -> Any:
+def _json_safe_scalar(value: float | str | None) -> JsonValue:
     if value is None or isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -601,7 +618,7 @@ def _json_safe_scalar(value: float | str | None) -> Any:
     return {FLOAT_TAG: _non_finite_float_name(value)}
 
 
-def _json_safe_number(value: numbers.Real | np.generic) -> Any:
+def _json_safe_number(value: numbers.Real | np.generic) -> JsonValue:
     """Store a number that is not a Python bool, int or float (a numpy scalar) as one.
 
     ``numbers.Integral`` and ``numbers.Real`` cover numpy's integer and floating scalars;
@@ -621,7 +638,7 @@ def _json_safe_number(value: numbers.Real | np.generic) -> Any:
     return _json_safe_object(value)
 
 
-def _json_safe_container(value: JsonSafeContainer) -> Any:
+def _json_safe_container(value: JsonSafeContainer) -> JsonValue:
     if isinstance(value, list):
         return {LIST_TAG: [json_safe_value(item) for item in value]}
     if isinstance(value, dict):
@@ -665,7 +682,7 @@ def recorded_start_time(*, header: Mapping[str, Any]) -> datetime | None:
     return start if start.tzinfo is not None else start.replace(tzinfo=UTC)
 
 
-def json_safe_value(value: object) -> Any:
+def json_safe_value(value: object) -> JsonValue:
     """Convert an event attribute value to a JSON-safe form ``value_from_json`` reverses.
 
     Args:
@@ -1585,11 +1602,10 @@ class RecordingSources:
         # Scoped doors serve this frame (a playback scope): its scene is not the session's
         if has_scoped_sources():
             return None
-        # Looked up by name, as SceneManager._setup_new_scene does: a SceneInterface stand-in
-        # has no capture
-        start_capture = getattr(scene, 'scene_start_capture', None)
+        # None while scene starts are not captured (live play)
+        start_capture = scene.scene_start_capture
         if (
-            not isinstance(start_capture, SceneStartCapture)
+            start_capture is None
             or start_capture.start is None
             or start_capture.start.first_logic_frame is None
         ):

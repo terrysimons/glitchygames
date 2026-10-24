@@ -21,6 +21,7 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 import pygame
 
 from glitchygames import pixel_snap, randomness, sources
+from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -32,7 +33,22 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
-from tests.mocks import MockFactory
+from tests.display_canvas import (
+    CANVAS_PATTERN,
+    TEST_DISPLAY_SIZE,
+    display_looks_entirely_black,
+    present_display,
+    real_display_surface,
+    show_canvas,
+    show_canvas_on_new_display,
+)
+from tests.garbage_collection import process_peak_memory_collector
+from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
+from tests.sdl_driver_isolation import (
+    SdlDriverState,
+    live_sdl_driver_state,
+    restore_run_sdl_drivers,
+)
 from tests.signal_handlers import preserved_signal_handlers
 
 
@@ -41,9 +57,10 @@ def _load_lazy_pygame_modules() -> None:
 
     pygame imports `sndarray` and `surfarray` lazily: the module body runs on the first
     attribute access. `sndarray` does `from pygame import mixer` there, so if that first access
-    happens inside a test that patched `pygame.mixer` (MockFactory's pygame patches do), the
-    mock is bound into `pygame.sndarray` for the rest of the process and every later
-    `pygame.sndarray.make_sound` returns a Mock. Loading them here binds the real modules.
+    happens inside a test that patched `pygame.mixer` (e.g. `mocker.patch('pygame.mixer', ...)`),
+    the mock is bound into `pygame.sndarray` for the rest of the process and every later
+    `pygame.sndarray.make_sound` returns a Mock. Loading them here binds the real modules
+    (tests/world/test_mock_isolation.py checks this).
     """
     for lazy_module, attribute_name in (
         (pygame.sndarray, 'make_sound'),
@@ -53,6 +70,10 @@ def _load_lazy_pygame_modules() -> None:
 
 
 _load_lazy_pygame_modules()
+
+# The test display rule (tests/display_canvas.py): every test starts on the canvas pattern, and
+# a test whose last frame is entirely black fails as a rendering bug
+BLACK_FRAME_EXPECTED_MARKER = 'black_frame_expected'
 
 
 @pytest.fixture(scope='session')
@@ -92,7 +113,12 @@ def _restore_patched_logging_globals() -> list[str]:
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
-    """Fail any test that replaces process-wide logging globals.
+    """Run the test on the canvas, show what it drew, and fail it on a logging or black-frame bug.
+
+    The test display rule (tests/display_canvas.py): a fixture that set a new display mode
+    (a fresh, black display) and drew nothing gets the canvas again before the test body, and
+    after the body the display is presented and a last frame that looks entirely black fails
+    the test (_fail_on_entirely_black_frame).
 
     Patching e.g. 'some.module.logging.getLogger' replaces logging.getLogger for the
     whole process, not just that module. pytest's own logging plugin calls
@@ -107,7 +133,15 @@ def pytest_runtest_call(item):
         object: The wrapped hook's result.
 
     """
-    result = yield
+    display_surface = real_display_surface()
+    if display_surface is not None and display_looks_entirely_black(display_surface):
+        show_canvas()
+    try:
+        result = yield
+    finally:
+        # Show what the test drew (a test that only draws, never presents, is visible too)
+        if real_display_surface() is not None:
+            present_display()
     replaced_globals = _restore_patched_logging_globals()
     if replaced_globals:
         pytest.fail(
@@ -116,45 +150,67 @@ def pytest_runtest_call(item):
             "constructor 'logger' argument) or patch the module's own logger object.",
             pytrace=False,
         )
+    _fail_on_entirely_black_frame(item=item)
     return result
 
 
-def pytest_configure(config):
-    """Configure pytest to enable strict event handling for all tests."""
-    # This ensures that unhandled events cause tests to fail, catching bugs
-    # The no_unhandled_events flag is enabled globally in mock_game fixture
+def _fail_on_entirely_black_frame(
+    *, item: pytest.Item, display_surface: pygame.Surface | None = None
+) -> None:
+    """Fail a test whose last frame looks entirely black: a rendering bug (the display rule).
 
+    Every test starts on the canvas pattern (ensure_pygame_graceful_quit), so a black display at
+    the end of the test body was drawn, or set up, by the test. This runs in pytest_runtest_call,
+    before fixture teardown, so no teardown step can leave a black frame behind to trip it.
+    It judges what the window shows (display_looks_entirely_black): on a display with per-pixel
+    alpha (cocoa's) alpha 0 shows black whatever the colour. A test whose last frame is black by
+    definition opts out with @pytest.mark.black_frame_expected(reason=...).
 
-@pytest.fixture(autouse=True)
-def setup_conditional_pygame_mocks(request, mocker):
-    """Set up pygame mocks conditionally based on test file.
-
-    Uses pytest-mock's mocker fixture for automatic cleanup — no manual
-    teardown needed.
-
-    Yields:
-        dict: The mock pygame patches dictionary, or an empty dict if no mocks are needed.
+    Args:
+        item: The test that just ran.
+        display_surface: The frame judged; None for the real display (tests of the guard pass
+            a surface with per-pixel alpha, which the dummy display does not have).
 
     """
-    # Check if this is a scene test or game objects test that needs mocks
-    test_file = str(request.node.fspath)
-    needs_mocks = 'scene' in test_file.lower() or 'game_objects' in test_file.lower()
+    if item.get_closest_marker(BLACK_FRAME_EXPECTED_MARKER) is not None:
+        return
+    if display_surface is None:
+        display_surface = real_display_surface()
+    if display_surface is None or not display_looks_entirely_black(display_surface):
+        return
+    pytest.fail(
+        f"rendering bug: the test's last frame looks entirely black ({item.nodeid}). Tests "
+        'start on the canvas pattern and scenes that set no background show it (tests/'
+        'display_canvas.py); something in this test drew black (or, on a display with '
+        'per-pixel alpha, alpha 0) over everything.',
+        pytrace=False,
+    )
 
-    if needs_mocks:
-        # Ensure pygame is properly initialized for mocks
-        import pygame
 
-        if not pygame.get_init():
-            pygame.init()
-        # Ensure display mode is set (needed after pygame.quit() from other tests)
-        if pygame.display.get_surface() is None:
-            pygame.display.set_mode((800, 600))
+# This process's collector (None on Windows and real audio drivers), made as the session starts
+_PEAK_MEMORY_COLLECTOR = process_peak_memory_collector(
+    audio_driver=SDL_DRIVER_ENVIRONMENT_FOR_RUN['SDL_AUDIODRIVER']
+)
 
-        # Use mocker-based mocks — cleanup is automatic
-        yield MockFactory.setup_pygame_mocks_with_mocker(mocker)
-    else:
-        # No mocks needed for this test
-        yield {}
+
+def pytest_runtest_logfinish(nodeid, location):
+    """Free the finished test's garbage when memory climbs (tests/garbage_collection.py).
+
+    By now pytest has dropped the test's fixture values, so its scene and sprites are garbage.
+    """
+    if _PEAK_MEMORY_COLLECTOR is not None:
+        _PEAK_MEMORY_COLLECTOR.after_test()
+
+
+def pytest_configure(config):
+    """Configure pytest to enable strict event handling for all tests, and register markers."""
+    # This ensures that unhandled events cause tests to fail, catching bugs
+    # The no_unhandled_events flag is enabled globally in mock_game fixture
+    config.addinivalue_line(
+        'markers',
+        f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame looks entirely black by "
+        'definition (e.g. a fade to black), so the black-frame guard skips it',
+    )
 
 
 def _reset_all_singleton_instances():
@@ -265,6 +321,18 @@ def reset_default_snap_mode():
 
 
 @pytest.fixture(autouse=True)
+def reset_default_background_pattern():
+    """Start and end each test with the canvas pattern as the default scene background.
+
+    The default is process-global (glitchygames/backgrounds.py) and GameEngine sets it from
+    --default-background; without this, one test's engine would change the next test's scenes.
+    """
+    set_active_default_background_pattern(pattern=CANVAS_PATTERN)
+    yield
+    set_active_default_background_pattern(pattern=CANVAS_PATTERN)
+
+
+@pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset all singletons before each test to prevent contamination."""
     _reset_all_singleton_instances()
@@ -292,29 +360,6 @@ def mock_game_args(mocker):
     mock_args.unknown_args = []
     mock_args.log_level = 'INFO'  # Add missing log_level attribute
     return mock_args
-
-
-@pytest.fixture
-def mock_pygame_patches(mocker):
-    """Set up pygame mocks for testing.
-
-    Uses pytest-mock's mocker fixture for automatic cleanup — no manual
-    teardown needed.
-
-    Returns:
-        object: The result.
-
-    """
-    # Ensure pygame is properly initialized for mocks
-    import pygame
-
-    if not pygame.get_init():
-        pygame.init()
-    # Ensure display mode is set (needed after pygame.quit() from other tests)
-    if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
-
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 @pytest.fixture
@@ -389,82 +434,71 @@ def mock_game_with_args(mock_game: type[Scene]):
     return MockGameWithArgs
 
 
-@pytest.fixture
-def mock_surface():
-    """Create a mock pygame surface for testing.
-
-    Returns:
-        object: The result.
-
-    """
-    return MockFactory.create_pygame_surface_mock(32, 32)
-
-
-@pytest.fixture
-def mock_joystick_manager():
-    """Create a mock joystick manager for testing.
-
-    Returns:
-        object: The result.
-
-    """
-    return MockFactory.create_joystick_manager_mock(joystick_count=0)  # No joysticks by default
-
-
-@pytest.fixture
-def mock_managers(mocker):
-    """Create mock managers for testing.
-
-    Returns:
-        object: The result.
-
-    """
-    return {
-        'joystick_manager': mocker.Mock(),
-        'font_manager': mocker.Mock(),
-        'game_manager': mocker.Mock(),
-        'keyboard_manager': mocker.Mock(),
-        'midi_manager': mocker.Mock(),
-        'mouse_manager': mocker.Mock(),
-        'window_manager': mocker.Mock(),
-        'audio_manager': mocker.Mock(),
-        'controller_manager': mocker.Mock(),
-        'drop_manager': mocker.Mock(),
-        'touch_manager': mocker.Mock(),
-    }
-
-
-@pytest.fixture(autouse=True)
-def ensure_pygame_graceful_quit():
-    """Ensure pygame is properly initialized before tests and gracefully quit after.
-
-    This fixture handles the common case where a previous test may have called
-    pygame.quit(), leaving the subsystem in an uninitialized state. It ensures
-    pygame is initialized before each test and gracefully shuts it down afterward,
-    preventing segfaults and resource leaks across test boundaries.
-    """
-    import pygame
-
-    # Ensure pygame is initialized before the test runs
+def _start_pygame_and_the_test_display() -> None:
+    """Start pygame and open the test display, unless they are already running."""
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
         with contextlib.suppress(pygame.error):
-            pygame.display.set_mode((800, 600))
+            pygame.display.set_mode(TEST_DISPLAY_SIZE)
+
+
+@pytest.fixture(scope='session')
+def run_sdl_driver_state() -> SdlDriverState:
+    """The drivers this run's display and mixer run on, read before any test body ran.
+
+    Set up in the first test's setup (ensure_pygame_graceful_quit asks for it), while the SDL
+    driver variables are still the run's (tests/sdl_defaults.py): every later test is put back
+    on these drivers (tests/sdl_driver_isolation.py).
+
+    Returns:
+        SdlDriverState: The run's live video and audio drivers and the mixer's format.
+
+    """
+    _start_pygame_and_the_test_display()
+    return live_sdl_driver_state()
+
+
+@pytest.fixture(autouse=True)
+def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
+    """Give every test an initialized pygame showing the canvas pattern; isolate its sound.
+
+    pygame stays initialized for the whole run: quitting and re-initializing it after every
+    test cost about 30 ms per test (most of a serial run). Before each test, pygame and the
+    800x600 display are started again if a test quit them, and the canvas is drawn and presented
+    (the test display rule, tests/display_canvas.py). After each test, every mixer
+    channel is stopped, so no sound plays on into the next test (audibly, on a real audio
+    driver), and a display a test resized is set back to the default size, showing the canvas.
+    The SDL driver variables, display and mixer a test moved off the run's drivers (an engine
+    run with --headless moves them to 'dummy') are put back on them, showing the canvas
+    (tests/sdl_driver_isolation.py); a test that changed none of them costs a few reads.
+
+    Args:
+        run_sdl_driver_state: The drivers the run's display and mixer run on.
+
+    """
+    # Ensure pygame is initialized before the test runs
+    _start_pygame_and_the_test_display()
+    # SDL's own default (and the engine's, unless a game opts in): no window-system messages.
+    # Blocked through pygame so get_blocked tells the truth: pygame-ce reports SYSWMEVENT as
+    # allowed while SDL ignores it, so a test that snapshots and restores the blocked types
+    # would otherwise enable it, and real X servers then fill later tests' queues with it
+    pygame.event.set_blocked(pygame.SYSWMEVENT)
+    # The canvas: a test that draws nothing shows the pattern, and no test sees an earlier
+    # test's drawing (the guard in pytest_runtest_call fails a test that ends on all black)
+    show_canvas()
 
     yield
 
-    # Graceful cleanup: quit pygame subsystems that may hold resources,
-    # then reinitialize so the next test starts with a clean state.
-    try:
-        if pygame.get_init():
-            pygame.quit()
-    except pygame.error:
-        pass  # Already quit or never initialized
-
-    # Reinitialize for the next test
-    try:
-        pygame.init()
-        pygame.display.set_mode((800, 600))
-    except pygame.error:
-        pass  # Headless environment
+    if pygame.mixer.get_init() is not None:
+        pygame.mixer.stop()
+    restore_run_sdl_drivers(
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+    )
+    with contextlib.suppress(pygame.error):
+        surface = pygame.display.get_surface() if pygame.get_init() else None
+        if surface is not None and surface.get_size() != TEST_DISPLAY_SIZE:
+            # Shown at once: a window set_mode resizes is black until presented, and on a real
+            # driver it would stay black (under the last scene's caption) while the worker waits
+            # for its next test, or for the run to end
+            show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)

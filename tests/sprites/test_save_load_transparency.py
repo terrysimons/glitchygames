@@ -8,28 +8,10 @@ import pygame
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
-from tests.mocks.test_mock_factory import MockFactory
 
 
 class TestSaveLoadTransparency(unittest.TestCase):
     """Test save/load functionality with proper transparency handling."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        # Initialize pygame properly
-        if not pygame.get_init():
-            pygame.init()
-
-        # Set up a minimal display for pygame surfaces
-        pygame.display.set_mode((100, 100))
-
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers.values():
-            patcher.start()
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_single_frame_rgb_save_load(self):
         """Test saving and loading a single frame sprite with RGB (indexed color) mode."""
@@ -172,6 +154,17 @@ class TestSaveLoadTransparency(unittest.TestCase):
             # Check transparent pixels (should be magenta)
             assert loaded_pixels[1][:3] == (255, 0, 255)  # Magenta at (0,1)
             assert loaded_pixels[2][:3] == (255, 0, 255)  # Magenta at (1,0)
+
+            # Drawn over opaque blue (a 32-bit surface without per-pixel alpha, so the
+            # display's pixel format does not matter): white is solid, red blends at alpha
+            # 128 and magenta is transparent
+            background = pygame.Surface((2, 2), depth=32)
+            background.fill((0, 0, 255))
+            background.blit(loaded_sprite.image, (0, 0))
+            assert pygame.surfarray.array3d(background).transpose(1, 0, 2).tolist() == [
+                [[255, 255, 255], [0, 0, 255]],
+                [[0, 0, 255], [128, 0, 127]],
+            ]
 
             # Verify TOML content
             toml_content = Path(temp_path).read_text(encoding='utf-8')

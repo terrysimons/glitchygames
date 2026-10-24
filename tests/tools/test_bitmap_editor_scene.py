@@ -13,14 +13,15 @@ from glitchygames.bitmappy.constants import (
     JOYSTICK_HAT_DOWN,
     JOYSTICK_HAT_LEFT,
     JOYSTICK_HAT_RIGHT,
+    JOYSTICK_HAT_UP,
     JOYSTICK_LEFT_SHOULDER_BUTTON,
 )
 from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.bitmappy.slider_manager import SliderManager
+from glitchygames.display_mode import set_display_mode
 from glitchygames.events import HashableEvent
-from tests.mocks import MockFactory
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -33,22 +34,11 @@ def _ensure_pygame_init():
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode((800, 600))
+        set_display_mode(size=(800, 600))
 
 
 @pytest.fixture
-def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests.
-
-    Returns:
-        dict: The pygame mock objects.
-
-    """
-    return MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-
-@pytest.fixture
-def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
+def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:
@@ -113,7 +103,7 @@ def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
     editor._is_drag_operation = False
-    editor._applying_undo_redo = False
+    editor.applying_undo_redo = False
 
     # -- Editor setup delegate --
     editor._setup = EditorSetup(editor=editor)
@@ -164,95 +154,73 @@ class TestGetCurrentColor:
     """Tests for get_current_color()."""
 
     def test_returns_color_from_sliders(self, mock_editor):
-        """Test that slider values are returned as an RGB tuple."""
+        """Test that slider values are returned as an RGBA tuple, alpha included."""
         mock_editor.red_slider.value = 100
         mock_editor.green_slider.value = 150
         mock_editor.blue_slider.value = 200
+        mock_editor.alpha_slider.value = 128
         result = mock_editor.get_current_color()
-        assert result == (100, 150, 200)
+        assert result == (100, 150, 200, 128)
 
     def test_returns_white_when_no_sliders(self, mock_editor):
-        """Test fallback to white when sliders are missing."""
+        """Test fallback to opaque white when sliders are missing."""
         del mock_editor.red_slider
         del mock_editor.green_slider
         del mock_editor.blue_slider
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
+
+    def test_returns_white_without_the_alpha_slider(self, mock_editor):
+        """Test fallback to opaque white when only the alpha slider is missing."""
+        del mock_editor.alpha_slider
+        result = mock_editor.get_current_color()
+        assert result == (255, 255, 255, 255)
 
     def test_returns_white_on_value_error(self, mock_editor):
         """Test fallback to white when slider values raise ValueError."""
         mock_editor.red_slider.value = 'invalid'
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
 
     def test_returns_white_on_attribute_error(self, mock_editor):
         """Test fallback to white when slider has no .value attribute."""
         mock_editor.red_slider = object()  # No .value attribute
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
 
     def test_zero_slider_values(self, mock_editor):
-        """Test that zero slider values produce black."""
+        """Test that zero slider values produce transparent black."""
         mock_editor.red_slider.value = 0
         mock_editor.green_slider.value = 0
         mock_editor.blue_slider.value = 0
+        mock_editor.alpha_slider.value = 0
         result = mock_editor.get_current_color()
-        assert result == (0, 0, 0)
+        assert result == (0, 0, 0, 0)
 
     def test_max_slider_values(self, mock_editor):
-        """Test that max slider values produce white."""
+        """Test that max slider values produce opaque white."""
         mock_editor.red_slider.value = 255
         mock_editor.green_slider.value = 255
         mock_editor.blue_slider.value = 255
+        mock_editor.alpha_slider.value = 255
         result = mock_editor.get_current_color()
-        assert result == (255, 255, 255)
+        assert result == (255, 255, 255, 255)
 
 
-class TestUpdateColorWellFromSliders:
-    """Tests for update_color_well_from_sliders()."""
+class TestApplyColor:
+    """Tests for apply_color()."""
 
-    def test_updates_color_well_active_color(self, mock_editor):
-        """Test that color well receives RGBA from sliders."""
-        mock_editor.red_slider.value = 10
-        mock_editor.green_slider.value = 20
-        mock_editor.blue_slider.value = 30
-        mock_editor.alpha_slider.value = 200
-        mock_editor.update_color_well_from_sliders()
+    def test_sets_sliders_color_well_and_canvas(self, mock_editor):
+        """Test that the sliders, the color well and the canvas take the RGBA color."""
+        mock_editor.apply_color(red=10, green=20, blue=30, alpha=200)
+        assert (
+            mock_editor.red_slider.value,
+            mock_editor.green_slider.value,
+            mock_editor.blue_slider.value,
+            mock_editor.alpha_slider.value,
+        ) == (10, 20, 30, 200)
         assert mock_editor.color_well.active_color == (10, 20, 30, 200)
-
-    def test_marks_color_well_dirty(self, mock_editor):
-        """Test that color well dirty flag is set."""
-        mock_editor.update_color_well_from_sliders()
-        assert mock_editor.color_well.dirty == 1
-
-    def test_marks_scene_dirty(self, mock_editor):
-        """Test that the scene dirty flag is set."""
-        mock_editor.dirty = 0
-        mock_editor.update_color_well_from_sliders()
-        assert mock_editor.dirty == 1
-
-    def test_calls_force_redraw_if_available(self, mock_editor):
-        """Test that force_redraw() is called when color_well has it."""
-        mock_editor.update_color_well_from_sliders()
-        mock_editor.color_well.force_redraw.assert_called_once()
-
-    def test_no_color_well_does_not_crash(self, mock_editor):
-        """Test graceful handling when color_well is None."""
-        mock_editor.color_well = None
-        mock_editor.update_color_well_from_sliders()  # Should not raise
-
-    def test_no_color_well_attribute_does_not_crash(self, mock_editor):
-        """Test graceful handling when color_well attribute is missing."""
-        del mock_editor.color_well
-        mock_editor.update_color_well_from_sliders()  # Should not raise
-
-    def test_fallback_slider_values_when_missing(self, mock_editor):
-        """Test that missing sliders default to 0."""
-        del mock_editor.red_slider
-        del mock_editor.alpha_slider
-        mock_editor.update_color_well_from_sliders()
-        # red and alpha default to 0
-        assert mock_editor.color_well.active_color == (0, 64, 32, 0)
+        assert mock_editor.canvas.active_color == (10, 20, 30, 200)
 
 
 class TestInitializeSliderValues:
@@ -1012,7 +980,7 @@ class TestTrackControllerModeChange:
 
     def test_skips_during_undo_redo(self, mock_editor, mocker):
         """Test that mode changes are not tracked during undo/redo application."""
-        mock_editor.controller_handler._applying_undo_redo = True
+        mock_editor.controller_handler.applying_undo_redo = True
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
         mock_editor.controller_handler._track_controller_mode_change(0, new_mode)
@@ -1027,7 +995,7 @@ class TestTrackControllerModeChange:
 
     def test_tracks_mode_change(self, mock_editor, mocker):
         """Test that mode change is tracked properly."""
-        mock_editor._applying_undo_redo = False
+        mock_editor.applying_undo_redo = False
         old_mode = mocker.Mock()
         old_mode.value = 'film_strip'
         new_mode = mocker.Mock()
@@ -1042,7 +1010,7 @@ class TestTrackControllerModeChange:
 
     def test_no_old_mode_does_not_track(self, mock_editor, mocker):
         """Test that no tracking happens when old mode is None."""
-        mock_editor._applying_undo_redo = False
+        mock_editor.applying_undo_redo = False
         mock_editor.mode_switcher.get_controller_mode.return_value = None
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
@@ -1175,18 +1143,11 @@ class TestJoystickEventHandlers:
         event.value = (1, 0)  # Right direction tuple
         mock_editor.on_joy_hat_motion_event(event)
 
-    def test_on_joy_hat_motion_event_integer_up(self, mock_editor, mocker):
-        """Test hat motion with integer bitmask for up direction."""
+    def test_on_joy_hat_motion_event_up(self, mock_editor, mocker):
+        """Test hat motion for the up direction (pygame's (x, y) tuple)."""
         event = mocker.Mock()
         event.hat = 0
-        event.value = 1  # Up
-        mock_editor.on_joy_hat_motion_event(event)
-
-    def test_on_joy_hat_motion_event_integer_below_threshold(self, mock_editor, mocker):
-        """Test hat motion with integer value below threshold."""
-        event = mocker.Mock()
-        event.hat = 0
-        event.value = 0  # Center/no movement
+        event.value = JOYSTICK_HAT_UP
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_on_joy_button_down_event_a_button(self, mock_editor, mocker):
@@ -1320,34 +1281,25 @@ class TestPaintAndTrackPixel:
 class TestResetCanvasForNewFile:
     """Tests for _reset_canvas_for_new_file()."""
 
-    def test_resets_dimensions(self, mock_editor, mocker):
+    def test_resets_dimensions(self, mock_editor):
         """Test that canvas dimensions are reset."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
         mock_editor._reset_canvas_for_new_file(16, 16, 8)
         assert mock_editor.canvas.pixels_across == 16
         assert mock_editor.canvas.pixels_tall == 16
         assert mock_editor.canvas.pixel_width == 8
         assert mock_editor.canvas.pixel_height == 8
 
-    def test_fills_with_magenta(self, mock_editor, mocker):
+    def test_fills_with_magenta(self, mock_editor):
         """Test that canvas pixels are filled with magenta transparent."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
         mock_editor._reset_canvas_for_new_file(4, 4, 2)
         assert len(mock_editor.canvas.pixels) == 16
         assert all(pixel == (255, 0, 255, 255) for pixel in mock_editor.canvas.pixels)
         assert all(dirty is True for dirty in mock_editor.canvas.dirty_pixels)
 
-    def test_resets_panning(self, mock_editor, mocker):
-        """Test that panning state is reset."""
-        mock_editor.canvas.reset_panning = mocker.Mock()
-        mock_editor.canvas._panning_active = True
-        mock_editor.canvas.pan_offset_x = 50
-        mock_editor.canvas.pan_offset_y = 30
+    def test_ends_the_pan_in_progress(self, mock_editor):
+        """Test that a pan gesture of the old canvas is ended."""
         mock_editor._reset_canvas_for_new_file(32, 32, 4)
-        mock_editor.canvas.reset_panning.assert_called_once()
-        assert mock_editor.canvas._panning_active is False
-        assert mock_editor.canvas.pan_offset_x == 0
-        assert mock_editor.canvas.pan_offset_y == 0
+        mock_editor.canvas.end_panning.assert_called_once()
 
 
 # ===========================================================================
@@ -1452,21 +1404,21 @@ class TestJoyHatMotionDirections:
     """Tests for on_joy_hat_motion_event direction handling."""
 
     def test_hat_right_direction(self, mock_editor, mocker):
-        """Test hat right direction (bitmask 2)."""
+        """Test hat right direction ((1, 0))."""
         event = mocker.Mock()
         event.hat = 0
         event.value = JOYSTICK_HAT_RIGHT
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_hat_down_direction(self, mock_editor, mocker):
-        """Test hat down direction (bitmask 4)."""
+        """Test hat down direction ((0, -1))."""
         event = mocker.Mock()
         event.hat = 0
         event.value = JOYSTICK_HAT_DOWN
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_hat_left_direction(self, mock_editor, mocker):
-        """Test hat left direction (bitmask 8)."""
+        """Test hat left direction ((-1, 0))."""
         event = mocker.Mock()
         event.hat = 0
         event.value = JOYSTICK_HAT_LEFT

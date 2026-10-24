@@ -467,11 +467,8 @@ class MultiControllerPerformanceOptimizer:
         # Optimize visual manager
         self.optimized_visual_manager.optimize_positioning()
 
-        # Check if performance improved
-        if any(
-            results[key] > 0 for key in ['controllers_cleaned', 'memory_cleaned', 'cache_cleared']
-        ):
-            results['performance_improved'] = True
+        # Performance improved: at least the cache was cleared (cache_cleared is 1)
+        results['performance_improved'] = True
 
         # Record performance
         duration = measured_seconds() - start_time

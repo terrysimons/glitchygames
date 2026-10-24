@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 import pygame.midi
@@ -14,7 +14,7 @@ from glitchygames.events import MIDI_EVENTS
 if TYPE_CHECKING:
     import argparse
 
-from glitchygames.events import HashableEvent, MidiEvents, ResourceManager
+from glitchygames.events import MidiEvent, MidiEvents, ResourceManager
 
 log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
@@ -26,26 +26,26 @@ class MidiEventManager(ResourceManager):
     class MidiEventProxy(MidiEvents, ResourceManager):
         """Proxy for MIDI events."""
 
+        # A proxy belongs to its manager: each construction is a new one (ResourceManager)
+        SHARES_INSTANCE: ClassVar[bool] = False
+
         def __init__(self: Self, game: object) -> None:
             """Initialize the MIDI event proxy with a game object."""
             super().__init__(game)
             self.game: Any = game
             # Proxy to game first, then pygame.midi for subsystem queries
-            # (get_count, get_device_info, get_default_input_id, etc.)
-            try:
-                self.proxies = [self.game, pygame.midi]
-            except AttributeError:
-                # pygame.midi may not be available on all platforms
-                self.proxies = [self.game]
+            # (get_count, get_device_info, get_default_input_id, etc.).
+            # pygame.midi is imported at module top, so it is always available here.
+            self.proxies = [self.game, pygame.midi]
 
         @override
-        def on_midi_in_event(self: Self, event: HashableEvent) -> None:
+        def on_midi_in_event(self: Self, event: MidiEvent) -> None:
             """Forward MIDI input events to the game object."""
             if hasattr(self.game, 'on_midi_in_event'):
                 self.game.on_midi_in_event(event)
 
         @override
-        def on_midi_out_event(self: Self, event: HashableEvent) -> None:
+        def on_midi_out_event(self: Self, event: MidiEvent) -> None:
             """Forward MIDI output events to the game object."""
             if hasattr(self.game, 'on_midi_out_event'):
                 self.game.on_midi_out_event(event)

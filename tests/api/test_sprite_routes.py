@@ -469,6 +469,45 @@ class TestOutputDirFunctionality:
             output_path = temp_root / 'refined'
             assert any(output_path.iterdir())
 
+    @pytest.mark.parametrize(
+        'route',
+        [
+            ('/sprites/generate', 'generate_sprite', {'prompt': '16x16 red heart'}),
+            (
+                '/sprites/refine',
+                'refine_sprite',
+                {'prompt': 'make it blue', 'current_toml': "[sprite]\nname = 'test'"},
+            ),
+        ],
+        ids=['generate', 'refine'],
+    )
+    @pytest.mark.parametrize('output_path', ['/etc/sprites', '../outside'])
+    def test_a_bad_output_path_is_a_400(
+        self, client, mock_generation_result, mocker, route, output_path
+    ):
+        """A refused output_path answers 400, not 500 (BUGS.md #200 item 3).
+
+        _save_sprite_files raises HTTPException(400); the endpoint's `except Exception` caught
+        it and answered 500 'Internal server error'.
+        """
+        endpoint, service_method, request_fields = route
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mocker.patch(
+                'glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', Path(temp_dir).resolve()
+            )
+            mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
+            mock_gen_service = mocker.MagicMock()
+            getattr(mock_gen_service, service_method).return_value = mock_generation_result
+            mock_services.return_value = (mock_gen_service, mocker.MagicMock())
+
+            response = client.post(
+                endpoint,
+                json={**request_fields, 'output_format': ['toml'], 'output_path': output_path},
+            )
+
+            assert response.status_code == 400
+            assert 'Internal server error' not in response.json()['detail']
+
 
 class TestApngExtractFramesEndpoint:
     """Test suite for APNG frame extraction endpoint."""

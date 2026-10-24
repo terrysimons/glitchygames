@@ -14,8 +14,8 @@ import dataclasses
 import errno
 import gzip
 import json
+import logging
 import math
-import types
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -69,6 +69,8 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
 )
+from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
+from glitchygames.scenes import Scene
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
 from glitchygames.tracing import TraceFormatError, TraceWriter, read_trace_result
@@ -111,7 +113,10 @@ class FakeGroup:
 
 
 def _scene(*sprites: FakeSprite) -> Any:
-    return types.SimpleNamespace(all_sprites=FakeGroup(*sprites))
+    """A real scene (capturing no scene start) whose sprite group holds these sprites."""
+    scene = Scene(options={})
+    scene.all_sprites = FakeGroup(*sprites)
+    return scene
 
 
 def _lines(path: Path) -> list[dict[str, Any]]:
@@ -142,6 +147,12 @@ def no_tracked_posts(mocker):
 def event_queue(monkeypatch):
     """Initialize pygame's display (dummy driver) so events can be posted; empty the queue.
 
+    On a real driver (the native run of the driver comparison) the run's window is on screen,
+    so the operating system can deliver its own events mid-test (a MOUSEMOTION when the mouse
+    crosses the window broke an origin test, 2026-10-23): every real input and window type is
+    blocked, except KEYDOWN, which these tests post, and each type's blocked state is put back
+    afterwards.
+
     Yields:
         None, with an empty queue.
 
@@ -149,9 +160,18 @@ def event_queue(monkeypatch):
     if not pygame.display.get_init():
         monkeypatch.setenv('SDL_VIDEODRIVER', 'dummy')
         pygame.display.init()
+    operating_system_events = EventTypeBlock(
+        event_types=[
+            event_type for event_type in REAL_INPUT_EVENT_TYPES if event_type != pygame.KEYDOWN
+        ]
+    )
+    operating_system_events.block()
     pygame.event.clear()
-    yield
-    pygame.event.clear()
+    try:
+        yield
+    finally:
+        pygame.event.clear()
+        operating_system_events.restore()
 
 
 class TestJsonSafeValue:
@@ -296,6 +316,15 @@ class TestJsonSafeValue:
         assert encoded == {'__unrepresentable__': GAMEPAD_TYPE_NAME}
         assert _json_round_trip(Gamepad()) == UnrepresentableValue(type_name=GAMEPAD_TYPE_NAME)
 
+    def test_a_numpy_scalar_with_no_plain_form_is_unrepresentable(self):
+        """A numpy complex scalar unwraps to a Python complex, which JSON cannot hold."""
+        encoded = json_safe_value(np.complex128(1 + 2j))
+
+        assert encoded == {'__unrepresentable__': 'numpy.complex128'}
+        assert _json_round_trip(np.complex128(1 + 2j)) == UnrepresentableValue(
+            type_name='numpy.complex128'
+        )
+
     def test_unrepresentable_value_inside_a_container(self):
         """A sprite inside a payload dict marks only itself; the rest of the payload is kept."""
         value = {'menu_item': Gamepad(), 'index': 2}
@@ -365,6 +394,9 @@ class TestEventRecords:
             pygame.event.Event(pygame.JOYAXISMOTION, instance_id=2, axis=1, value=-0.25),
             pygame.event.Event(pygame.USEREVENT + 3, payload={'nested': [1, (2,)]}),
             pygame.event.Event(pygame.QUIT),
+            # A game that opts in to the window system's messages records them: on x11 pygame
+            # gives the raw XEvent as bytes
+            pygame.event.Event(pygame.SYSWMEVENT, event=b'\x1c\x00\x00\x00\xf6\x30'),
         ],
     )
     def test_event_round_trips_through_json(self, event):
@@ -607,6 +639,31 @@ class TestRecorderWriteFailures:
         recorder.close()
         assert recorder.write_failed is True
         assert 'could not be written' in caplog.text
+
+    def test_a_close_that_fails_after_a_failed_frame_write_is_logged_once(
+        self, tmp_path, mocker, caplog
+    ):
+        """After a failed frame write the close fails too: one error line, not two."""
+        recorder = GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={})
+        real_close = TraceWriter.close
+
+        def close_then_fail(writer: TraceWriter) -> None:
+            real_close(writer)
+            raise OSError(errno.ENOSPC, 'No space left on device')
+
+        mocker.patch.object(TraceWriter, 'close', autospec=True, side_effect=close_then_fail)
+        mocker.patch.object(
+            TraceWriter, 'write_frame', side_effect=OSError(errno.ENOSPC, 'No space left on device')
+        )
+        with caplog.at_level(logging.ERROR, logger=recording.LOG.name):
+            with pytest.raises(RecordingWriteError):
+                recorder.record_frame(dt=0.01, scene=None)
+            recorder.close()
+
+        assert recorder.write_failed is True
+        error_records = [record for record in caplog.records if record.levelno == logging.ERROR]
+        assert len(error_records) == 1
+        assert 'could not be written' in error_records[0].getMessage()
 
 
 class TestFrameHistories:
@@ -928,8 +985,39 @@ def _end_frame(sources: RecordingSources, *, frame_number: int) -> None:
     sources.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
 
 
+class OverlayDrawingSources(LiveSources):
+    """Live doors that draw an overlay of their own: a white top-left pixel."""
+
+    @property
+    def draws_overlay(self) -> bool:
+        """These doors draw an overlay."""
+        return True
+
+    def draw_overlay(self, *, surface: pygame.Surface) -> None:
+        """Mark the top-left pixel white."""
+        surface.set_at((0, 0), (255, 255, 255))
+
+
 class TestRecordingSources:
     """RecordingSources records what passes through the doors it wraps."""
+
+    def test_the_overlay_is_the_inner_doors_and_is_not_recorded(self, tmp_path):
+        """The wrapped doors draw their overlay on the surface; nothing of it is recorded."""
+        path = tmp_path / 'unit.jsonl.gz'
+        recorder = GameplayRecorder(path=path, header={'game_class': 'Unit'})
+        sources = RecordingSources(inner=OverlayDrawingSources(random_seed=1), recorder=recorder)
+        surface = pygame.Surface((4, 4))
+        surface.fill((0, 0, 0))
+
+        sources.draw_overlay(surface=surface)
+        _end_frame(sources, frame_number=0)
+        recorder.close()
+
+        assert sources.draws_overlay
+        assert tuple(surface.get_at((0, 0))) == (255, 255, 255, 255)
+        assert tuple(surface.get_at((1, 1))) == (0, 0, 0, 255)
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert 'overlay' not in json.dumps(frame)
 
     def test_recording_sources_write_only_non_empty_fields(self, tmp_path):
         """A frame with no control events has no control_events field."""
@@ -1101,8 +1189,8 @@ class TestRecordingSources:
         recorder.close()
         assert sources.captures_scene_starts is False
 
-    def test_a_scene_stand_in_has_no_scene_start(self, tmp_path):
-        """A SceneInterface stand-in without a start capture is recorded without scene_start."""
+    def test_a_scene_without_a_start_capture_has_no_scene_start(self, tmp_path):
+        """A scene made while starts were not captured is recorded without scene_start."""
         path = tmp_path / 'unit.jsonl.gz'
         sources, recorder, _inner = _recording_sources(path=path)
         sources.end_frame(
@@ -1130,8 +1218,14 @@ class TestRecordingSources:
 
 # Calls that read (or drain) SDL's event queue. Only the doors' event pumps may use them, each
 # named by (file relative to the package, qualified function name); GameEngine._pump_events
-# reads through the active sources. A new pump (e.g. a replay's) is added here on purpose
-_PUMP_SEAMS = frozenset({('live_sources.py', 'LiveSources.pump_events')})
+# reads through the active sources. A new pump (e.g. a replay's) is added here on purpose.
+# set_display_mode only pumps (pygame.event.pump), before the first frame, so the window system's
+# answer to a resize is processed: it reads and drops nothing, and the events it moves into SDL's
+# queue are read by the doors' pump on the first frame (glitchygames/display_mode.py)
+_PUMP_SEAMS = frozenset({
+    ('live_sources.py', 'LiveSources.pump_events'),
+    ('display_mode.py', 'set_display_mode'),
+})
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
 _EVENT_MODULE_NAMES = frozenset({'event', 'fastevent'})
 _GETATTR_MINIMUM_ARGUMENTS = 2

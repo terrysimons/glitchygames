@@ -11,13 +11,8 @@ from typing import cast
 import pygame
 import pytest
 
-# Import the original SpriteFactory before mocking
-import glitchygames.sprites
 from glitchygames.sprites import BitmappySprite, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
-
-original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 
 # Constants for magic values
 EXPECTED_ERROR_COUNT_2 = 2
@@ -26,17 +21,8 @@ EXPECTED_ERROR_COUNT_2 = 2
 class TestTOMLOnlySupport:
     """Test that only TOML format is supported after cleanup."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
     def setup_method(self):
         """Set up test fixtures."""
-        # Ensure pygame is properly initialized for mocks
-        if not pygame.get_init():
-            pygame.init()
-
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
 
@@ -59,7 +45,7 @@ class TestTOMLOnlySupport:
         unknown_format = SpriteFactory.detect_file_format('test.unknown')
         assert unknown_format == 'unknown'
 
-    def test_static_sprite_toml_save_load(self, mocker):
+    def test_static_sprite_toml_save_load(self):
         """Test that static sprites can save and load in TOML format."""
         # Create a test sprite
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='test_toml')
@@ -82,20 +68,19 @@ class TestTOMLOnlySupport:
         assert 'red =' in content  # Should have color definitions
 
         # Load it back
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
         assert loaded_sprite.name == 'test_toml'
         # Check that the sprite was loaded correctly
         assert hasattr(loaded_sprite, 'image')
         assert loaded_sprite.image is not None
         assert loaded_sprite.image.get_size() == (2, 2)
+        # The loaded image draws the saved pixels (red, green / blue, white)
+        assert pygame.surfarray.array3d(loaded_sprite.image).transpose(1, 0, 2).tolist() == [
+            [[255, 0, 0], [0, 255, 0]],
+            [[0, 0, 255], [255, 255, 255]],
+        ]
 
-    def test_animated_sprite_toml_save_load(self, mocker):
+    def test_animated_sprite_toml_save_load(self):
         """Test that animated sprites can save and load in TOML format."""
         # Create an animated sprite
         animated_sprite = AnimatedSprite()
@@ -128,15 +113,15 @@ class TestTOMLOnlySupport:
         assert 'red =' in content  # Should have color definitions
 
         # Load it back
-        # Temporarily disable the centralized mock for this test
-        # by patching with the original method
-        mocker.patch(
-            'glitchygames.sprites.SpriteFactory.load_sprite',
-            original_sprite_factory_load_sprite,
-        )
         loaded_sprite = SpriteFactory.load_sprite(filename=str(toml_file))
         assert loaded_sprite.name == 'test_animated_toml'
         assert 'test_anim' in loaded_sprite.animations
+        # Both frames come back and draw their own color
+        frame_colors = [
+            pygame.surfarray.array3d(frame.image).reshape(-1, 3).tolist()
+            for frame in loaded_sprite.animations['test_anim']
+        ]
+        assert frame_colors == [[[255, 0, 0]] * 4, [[0, 255, 0]] * 4]
 
     def test_yaml_format_rejected(self, mocker):
         """Test that YAML format is properly rejected."""
@@ -148,7 +133,7 @@ class TestTOMLOnlySupport:
 
         yaml_file = self.temp_path / 'test.yaml'
 
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(sprite, 'log')
         # Should raise error when trying to save as YAML
         with pytest.raises(ValueError, match='Unsupported format'):
@@ -172,7 +157,7 @@ class TestTOMLOnlySupport:
 
         ini_file = self.temp_path / 'test.ini'
 
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(sprite, 'log')
         # Should raise error when trying to save as INI
         with pytest.raises(ValueError, match='Unsupported format'):
@@ -241,7 +226,7 @@ class TestTOMLOnlySupport:
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
 
-        # Use centralized mocks to suppress logs during successful runs
+        # Patch the sprite's logger to check what it logs (and keep the output quiet)
         mock_log = mocker.patch.object(sprite, 'log')
         # Test error message for unsupported format
         with pytest.raises(ValueError, match='Unsupported format'):

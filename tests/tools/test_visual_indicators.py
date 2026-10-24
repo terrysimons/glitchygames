@@ -202,13 +202,8 @@ class TestUpdateControllerCanvasVisualIndicator:
 
         assert not hasattr(editor, 'visual_collision_manager')
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason='visual_indicators.py:53 looks up controller info by controller id, but '
-        'MultiControllerManager.get_controller_info expects an instance id',
-    )
     def test_controller_whose_instance_id_differs_gets_indicator(self, handler, editor):
-        """A controller whose instance id is not its controller id still gets an indicator."""
+        """A controller whose instance id is not its controller id still gets one (#96)."""
         add_controller(editor=editor, controller_id=0, mode=ControllerMode.CANVAS)
         controller_info = editor.multi_controller_manager.controllers.pop(0)
         controller_info.instance_id = 7
@@ -237,6 +232,25 @@ class TestUpdateControllerVisualIndicatorForMode:
         # Once for the canvas mode itself and once to clear old canvas markers
         assert editor.canvas.redraw_count == 2
         assert all(strip.dirty_mark_count == 1 for strip in editor.film_strips.values())
+
+    def test_controllers_with_swapped_instance_ids_get_their_own_colors(self, handler, editor):
+        """Each controller's indicator uses its own info, found by controller id (#96)."""
+        add_controller(editor=editor, controller_id=0, mode=ControllerMode.CANVAS, color=RED)
+        add_controller(editor=editor, controller_id=1, mode=ControllerMode.CANVAS, color=BLUE)
+        first_info = editor.multi_controller_manager.controllers.pop(0)
+        second_info = editor.multi_controller_manager.controllers.pop(1)
+        first_info.instance_id = 1
+        second_info.instance_id = 0
+        editor.multi_controller_manager.controllers[1] = first_info
+        editor.multi_controller_manager.controllers[0] = second_info
+
+        handler.indicators.update_controller_visual_indicator_for_mode(
+            controller_id=0, new_mode=ControllerMode.CANVAS
+        )
+
+        indicator = editor.visual_collision_manager.indicators[0]
+        assert indicator.color == RED
+        assert indicator.instance_id == 1
 
     def test_slider_mode_marks_sliders_and_scene_dirty(self, handler, editor):
         """Entering a slider mode marks every slider's text and the scene dirty."""
@@ -828,14 +842,6 @@ class TestDrawVisualIndicator:
 
         assert screen.get_at((25, 20))[:3] == RED
         assert screen.get_at((20, 15))[:3] == BLACK
-
-    def test_unsupported_shape_draws_nothing(self, handler, screen):
-        """A diamond has no drawing, so the screen stays black."""
-        handler.indicators._draw_visual_indicator(
-            screen=screen, indicator=self.make_indicator(IndicatorShape.DIAMOND)
-        )
-
-        assert pygame.transform.average_color(screen)[:3] == BLACK
 
     def test_hidden_indicator_draws_nothing(self, handler, screen):
         """A hidden indicator is not drawn."""

@@ -13,6 +13,7 @@ import pytest
 
 from glitchygames.camera import Camera2D
 from glitchygames.collision.detection import snapped_world_position
+from glitchygames.display_mode import set_display_mode
 from glitchygames.effects.shake import ScreenShake
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.pixel_snap import (
@@ -520,7 +521,7 @@ def ball_display() -> None:
     """Give BallSprite a real display to create its image against."""
     pygame.init()
     if pygame.display.get_surface() is None:
-        pygame.display.set_mode(BALL_DISPLAY_SIZE)
+        set_display_mode(size=BALL_DISPLAY_SIZE)
 
 
 @pytest.mark.usefixtures('ball_display')

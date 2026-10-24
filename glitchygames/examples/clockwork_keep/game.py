@@ -51,6 +51,7 @@ from glitchygames.examples.clockwork_keep.constants import (
     GEAR_LED,
     GEAR_PLATFORM,
     GEAR_PLATFORM_TOP,
+    GROUND_SNAP_TOLERANCE,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
     LAYER_COLLECTIBLES,
@@ -67,10 +68,10 @@ from glitchygames.examples.clockwork_keep.drawing import (
 from glitchygames.examples.clockwork_keep.levels import ALL_FLOORS, FloorData
 from glitchygames.examples.clockwork_keep.player import Tinker
 from glitchygames.examples.clockwork_keep.sounds import ALL_RECIPES
-from glitchygames.examples.clockwork_keep.terrain import Elevator, Platform
+from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
-from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import Sprite
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
@@ -81,7 +82,13 @@ if TYPE_CHECKING:
     import argparse
 
     from glitchygames.audio.live import LiveVoice
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import (
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+        WindowEvent,
+    )
     from glitchygames.transitions import Transition
 
 log = logging.getLogger('game')
@@ -191,8 +198,10 @@ class ClockworkKeepScene(Scene):
 
     NAME = 'Clockwork Keep'
     VERSION = '1.0'
-    # Cap dt to prevent physics tunneling after focus loss (Cmd-Tab, etc.): 50 ms = 20 fps
-    # minimum. The engine caps the dt dt_tick and the camera aim receive.
+    # Cap dt so a hitch (focus loss, Cmd-Tab, ...) advances the game at most 50 ms (20 fps).
+    # The engine caps the dt dt_tick and the camera aim receive. A capped tick still moves a
+    # falling Tinker 40 px, so the ground check sweeps the fall (_resolve_ground_collision)
+    # rather than relying on the cap to keep it from passing through a platform
     MAX_FRAME_SECONDS = 0.05
 
     def __init__(
@@ -253,9 +262,10 @@ class ClockworkKeepScene(Scene):
         )
 
         # Background parallax
+        shows_clock = _FLOOR_BACKGROUNDS[self.floor_index] is draw_clock_background
         bg_func = (
             self._draw_timed_clock_background
-            if _FLOOR_BACKGROUNDS[self.floor_index] is draw_clock_background
+            if shows_clock
             else _FLOOR_BACKGROUNDS[self.floor_index]
         )
         self.camera.add_background_layer(
@@ -263,40 +273,18 @@ class ClockworkKeepScene(Scene):
             draw_function=bg_func,
             layer_depth=LAYER_FAR_BACKGROUND,
             groups=self.all_sprites,
+            # The clock's hands show the floor's elapsed game time, not just the camera offset,
+            # so that layer redraws every frame; the other floors' walls depend on camera_y only
+            animated=shows_clock,
         )
 
-        # Build terrain
-        self.platform_sprites: list[Platform] = []
-        self.elevator_sprites: list[Elevator] = []
-        self.collectible_sprites: list[CogCollectible] = []
-
-        for platform_x, platform_y, platform_width in self.floor_data.platforms:
-            platform = Platform(
-                world_x=float(platform_x),
-                world_y=float(platform_y),
-                width=platform_width,
-                platform_color=platform_color,
-                top_color=top_color,
-                groups=self.all_sprites,
-            )
-            self.platform_sprites.append(platform)
-
-        for elevator_x, elevator_y in self.floor_data.elevators:
-            elevator = Elevator(
-                world_x=float(elevator_x),
-                world_y=float(elevator_y),
-                groups=self.all_sprites,
-            )
-            self.elevator_sprites.append(elevator)
-
-        for cog_x, cog_y, cog_type in self.floor_data.collectibles:
-            cog = CogCollectible(
-                world_x=float(cog_x),
-                world_y=float(cog_y),
-                cog_type=cog_type,
-                groups=self.all_sprites,
-            )
-            self.collectible_sprites.append(cog)
+        # Build terrain (in this order: sprites of one layer draw in the order they are added)
+        self.platform_sprites: list[Platform] = self._build_platforms(
+            platform_color=platform_color, top_color=top_color
+        )
+        self.elevator_sprites: list[Elevator] = self._build_elevators()
+        self.moving_gear_sprites: list[MovingGear] = self._build_moving_gears()
+        self.collectible_sprites: list[CogCollectible] = self._build_collectibles()
 
         # Player
         self.player = Tinker(
@@ -316,6 +304,16 @@ class ClockworkKeepScene(Scene):
 
         # Game state
         self.game_over_triggered: bool = False
+        # The moving gear the player stood on after the last ground collision, if any
+        self.riding_gear: MovingGear | None = None
+        # The platform the player stood on after the last ground collision, if any
+        self.supporting_platform: Platform | None = None
+        # The top floor's highest platform: standing on it wins the game (None on the floors
+        # below, which an elevator leaves)
+        self.victory_platform: Platform | None = self._find_victory_platform()
+        # Where the player's world y was before this tick moved it: the ground check sweeps
+        # the fall from there (None outside dt_tick: no sweep)
+        self._player_world_y_before_tick: float | None = None
 
         # Sound
         self.sounds = SoundBank(ALL_RECIPES)
@@ -327,41 +325,95 @@ class ClockworkKeepScene(Scene):
         self.saves: SaveManager = open_saves(app_name='clockwork-keep')
 
         # Input
-        input_mode = self.options.get('input_mode', 'joystick')
-        self.actions = ActionMap(input_mode=input_mode)
-        # Every control binds a physical key position (a scancode: the same place on every
-        # keyboard layout), pause and quit included (ActionMap module docstring)
-        self.actions.bind(
-            'move_right',
-            scancode=pygame.KSCAN_RIGHT,
-            controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
-        )
-        self.actions.bind(
-            'move_left',
-            scancode=pygame.KSCAN_LEFT,
-            controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
-        )
-        self.actions.bind(
-            'jump',
-            scancode=pygame.KSCAN_SPACE,
-            controller_button=pygame.CONTROLLER_BUTTON_A,
-        )
-        self.actions.bind('jump', scancode=pygame.KSCAN_UP)
-        self.actions.bind(
-            'interact',
-            scancode=pygame.KSCAN_W,
-            controller_button=pygame.CONTROLLER_BUTTON_Y,
-        )
-        self.actions.bind(
-            'run',
-            scancode=pygame.KSCAN_LSHIFT,
-            controller_button=pygame.CONTROLLER_BUTTON_X,
-        )
-        self.actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
-        self.actions.bind('quit', scancode=pygame.KSCAN_Q)
+        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
 
         # HUD
         self.hud_font: pygame.font.Font | None = None
+
+    def _build_platforms(
+        self: Self, *, platform_color: tuple[int, int, int], top_color: tuple[int, int, int]
+    ) -> list[Platform]:
+        """Build the floor's platforms from its level data.
+
+        Args:
+            platform_color: The floor theme's platform body color.
+            top_color: The floor theme's platform top edge color.
+
+        Returns:
+            The platforms, in level-data order.
+
+        """
+        return [
+            Platform(
+                world_x=float(platform_x),
+                world_y=float(platform_y),
+                width=platform_width,
+                platform_color=platform_color,
+                top_color=top_color,
+                groups=self.all_sprites,
+            )
+            for platform_x, platform_y, platform_width in self.floor_data.platforms
+        ]
+
+    def _build_elevators(self: Self) -> list[Elevator]:
+        """Build the floor's elevators from its level data.
+
+        Returns:
+            The elevators, in level-data order.
+
+        """
+        return [
+            Elevator(world_x=float(elevator_x), world_y=float(elevator_y), groups=self.all_sprites)
+            for elevator_x, elevator_y in self.floor_data.elevators
+        ]
+
+    def _build_moving_gears(self: Self) -> list[MovingGear]:
+        """Build the floor's moving gear platforms from its level data.
+
+        Returns:
+            The moving gears, in level-data order.
+
+        """
+        return [
+            MovingGear(
+                world_x=float(gear_data.world_x),
+                world_y=float(gear_data.world_y),
+                groups=self.all_sprites,
+                move_range_x=gear_data.move_range_x,
+                move_range_y=gear_data.move_range_y,
+                speed=gear_data.speed,
+                size=gear_data.size,
+            )
+            for gear_data in self.floor_data.moving_gears
+        ]
+
+    def _build_collectibles(self: Self) -> list[CogCollectible]:
+        """Build the floor's cogs from its level data.
+
+        Returns:
+            The cogs, in level-data order.
+
+        """
+        return [
+            CogCollectible(
+                world_x=float(cog_x),
+                world_y=float(cog_y),
+                cog_type=cog_type,
+                groups=self.all_sprites,
+            )
+            for cog_x, cog_y, cog_type in self.floor_data.collectibles
+        ]
+
+    def _find_victory_platform(self: Self) -> Platform | None:
+        """Return the platform that wins the game: the top floor's highest one.
+
+        Returns:
+            The victory platform, or None on a floor below the top.
+
+        """
+        if self.floor_index < len(ALL_FLOORS) - 1:
+            return None
+        return min(self.platform_sprites, key=lambda platform: platform.world_y)
 
     @staticmethod
     def _starting_floor_index(*, floor_index: int | None, options: dict[str, Any] | None) -> int:
@@ -448,12 +500,22 @@ class ClockworkKeepScene(Scene):
 
         self._process_movement_input()
 
+        world_y_before_tick = self.player.world_y
+
         # Tick all sprites
         for sprite in self.all_sprites:
             sprite.dt_tick(dt)
 
+        # A gear carries its rider before collision, so the rider is still on it to land
+        carried_y = self._ride_moving_gear()
+
+        # The ground check sweeps the fall from where the player was, carried by its gear (the
+        # ride is not part of the fall; BUGS.md #205)
+        self._player_world_y_before_tick = world_y_before_tick + carried_y
+
         # Ground collision
         self._resolve_ground_collision()
+        self._player_world_y_before_tick = None
         self._play_land_on_touchdown()
 
         # Pit death
@@ -463,8 +525,60 @@ class ClockworkKeepScene(Scene):
         ):
             self._player_die()
 
-        # Collectibles
+        # Collectibles (before the victory check, so the cog above the top platform counts)
         self._check_collectibles()
+
+        # Victory: standing on the top floor's highest platform
+        if (
+            self.victory_platform is not None
+            and self.supporting_platform is self.victory_platform
+            and not self.player.is_respawning
+        ):
+            self._win()
+
+    @staticmethod
+    def _create_action_map(*, input_mode: str) -> ActionMap:
+        """Bind the controls: arrows, SPACE, W, left shift, ESC, Q by position; D-pad, A, Y, X.
+
+        Args:
+            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+
+        Returns:
+            The action map (the golden replays' controls check reads it too).
+
+        """
+        actions = ActionMap(input_mode=input_mode)
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause and quit included (ActionMap module docstring)
+        actions.bind(
+            'move_right',
+            scancode=pygame.KSCAN_RIGHT,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+        )
+        actions.bind(
+            'move_left',
+            scancode=pygame.KSCAN_LEFT,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
+        )
+        actions.bind(
+            'jump',
+            scancode=pygame.KSCAN_SPACE,
+            controller_button=pygame.CONTROLLER_BUTTON_A,
+        )
+        actions.bind('jump', scancode=pygame.KSCAN_UP)
+        actions.bind(
+            'interact',
+            scancode=pygame.KSCAN_W,
+            controller_button=pygame.CONTROLLER_BUTTON_Y,
+        )
+        actions.bind(
+            'run',
+            scancode=pygame.KSCAN_LSHIFT,
+            controller_button=pygame.CONTROLLER_BUTTON_X,
+        )
+        actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
+        actions.bind('quit', scancode=pygame.KSCAN_Q)
+        return actions
 
     # --- Movement ---
 
@@ -491,25 +605,29 @@ class ClockworkKeepScene(Scene):
         _, player_offset_y = collision_rect_offset(self.player)
         feet_below_world_y = player_offset_y + player_rect.height
         player_bottom = self.player.world_y + feet_below_world_y
+        # Where the feet were before this tick moved them (the swept fall starts there)
+        feet_start = self._feet_before_tick(player_bottom=player_bottom)
 
         self.player.on_ground = False
+        self.supporting_platform = None
 
         for platform in self.platform_sprites:
             plat_top = platform.world_y
             plat_left = platform.world_x
             plat_right = platform.world_x + platform.rect.width
 
-            # Player must be above or at platform level and within horizontal bounds
+            # Player must be falling onto the platform and within horizontal bounds
             if (
-                self.player.velocity_y >= 0
-                and player_bottom >= plat_top
-                and player_bottom <= plat_top + 20
+                self._feet_reach_surface(
+                    player_bottom=player_bottom, feet_start=feet_start, surface_top=plat_top
+                )
                 and player_rect.right > plat_left
                 and player_rect.left < plat_right
             ):
                 self.player.world_y = plat_top - feet_below_world_y
                 self.player.velocity_y = 0.0
                 self.player.on_ground = True
+                self.supporting_platform = platform
                 break
 
         # Also check elevators as ground
@@ -519,16 +637,114 @@ class ClockworkKeepScene(Scene):
             elev_right = elevator.world_x + elevator.rect.width
 
             if (
-                self.player.velocity_y >= 0
-                and player_bottom >= elev_top
-                and player_bottom <= elev_top + 20
+                self._feet_reach_surface(
+                    player_bottom=player_bottom, feet_start=feet_start, surface_top=elev_top
+                )
                 and player_rect.right > elev_left
                 and player_rect.left < elev_right
             ):
                 self.player.world_y = elev_top - feet_below_world_y
                 self.player.velocity_y = 0.0
                 self.player.on_ground = True
+                self.supporting_platform = None
                 break
+
+        self.riding_gear = None
+        if not self.player.on_ground:
+            self._land_on_moving_gear(
+                player_rect=player_rect, player_bottom=player_bottom, feet_start=feet_start
+            )
+
+    def _feet_before_tick(self: Self, *, player_bottom: float) -> float:
+        """Return where the feet were before this tick moved them (no higher than now).
+
+        Outside dt_tick there is no previous position: the feet start where they are.
+
+        Args:
+            player_bottom: The world y of the player's feet (its hitbox bottom) now.
+
+        Returns:
+            The world y the swept fall starts from.
+
+        """
+        if self._player_world_y_before_tick is None:
+            return player_bottom
+        return min(
+            player_bottom,
+            player_bottom - (self.player.world_y - self._player_world_y_before_tick),
+        )
+
+    def _feet_reach_surface(
+        self: Self, *, player_bottom: float, feet_start: float, surface_top: float
+    ) -> bool:
+        """Whether a falling (or standing) player's feet land on a surface this tick.
+
+        The feet land when they end the tick at or below the surface's top and started it no
+        more than GROUND_SNAP_TOLERANCE below it: the fall is swept from where the feet were,
+        so a long tick at terminal speed (40 px in a capped 50 ms tick) cannot carry them
+        through a platform (BUGS.md #205). Without a previous position (outside dt_tick) the
+        feet must end within the tolerance, as before the sweep.
+
+        Args:
+            player_bottom: The world y of the player's feet (its hitbox bottom) now.
+            feet_start: Where the feet were before this tick (_feet_before_tick).
+            surface_top: The world y of the surface's top.
+
+        Returns:
+            True if the feet land on the surface.
+
+        """
+        if self.player.velocity_y < 0 or player_bottom < surface_top:
+            return False
+        return feet_start <= surface_top + GROUND_SNAP_TOLERANCE
+
+    def _land_on_moving_gear(
+        self: Self, *, player_rect: pygame.Rect, player_bottom: float, feet_start: float
+    ) -> None:
+        """Stand the player on the moving gear its hitbox lands on, if any.
+
+        A gear supports like a platform, by the gear's collision rect (its visible pixels):
+        the player's feet go on its drawn top, so they never float or sink while it moves.
+
+        Args:
+            player_rect: The player's collision rect (world coordinates).
+            player_bottom: The world y of the player's feet (its hitbox bottom).
+            feet_start: Where the feet were before this tick (_feet_before_tick).
+
+        """
+        _, player_offset_y = collision_rect_offset(self.player)
+        feet_below_world_y = player_offset_y + player_rect.height
+        for moving_gear in self.moving_gear_sprites:
+            gear_rect = get_sprite_collision_rect(moving_gear)
+            if (
+                self._feet_reach_surface(
+                    player_bottom=player_bottom, feet_start=feet_start, surface_top=gear_rect.top
+                )
+                and player_rect.right > gear_rect.left
+                and player_rect.left < gear_rect.right
+            ):
+                self.player.world_y = gear_rect.top - feet_below_world_y
+                self.player.velocity_y = 0.0
+                self.player.on_ground = True
+                self.riding_gear = moving_gear
+                return
+
+    def _ride_moving_gear(self: Self) -> float:
+        """Carry the player by the gear it stands on: as far as the gear moved this tick.
+
+        Runs after every sprite's dt_tick (so the gear has moved) and before ground
+        collision, which then finds the player on the gear again. A jump clears on_ground,
+        so a player leaving the gear is not carried.
+
+        Returns:
+            How far down the gear carried the player (0.0 when it rode no gear).
+
+        """
+        if self.riding_gear is None or not self.player.on_ground:
+            return 0.0
+        self.player.world_x += self.riding_gear.moved_x
+        self.player.world_y += self.riding_gear.moved_y
+        return self.riding_gear.moved_y
 
     def _play_land_on_touchdown(self: Self) -> None:
         """Play land on the frame the player touches down.
@@ -609,8 +825,8 @@ class ClockworkKeepScene(Scene):
         next_floor = self.floor_index + 1
         log.info('Elevator activated! Floor %d → %d', self.floor_index, next_floor)
 
-        # Use the current floor's wall colors for the shaft
-        _platform_color, _top_color, _led_color = _FLOOR_THEMES[self.floor_index]
+        # The shaft walls take the current floor's platform colours (body and top edge)
+        platform_color, top_color, _led_color = _FLOOR_THEMES[self.floor_index]
 
         next_scene = ClockworkKeepScene(
             floor_index=next_floor,
@@ -621,8 +837,8 @@ class ClockworkKeepScene(Scene):
         transition = ElevatorTransition(
             duration=ELEVATOR_RIDE_DURATION,
             easing=ELEVATOR_RIDE_EASING,
-            wall_color=_FLOOR_THEMES[self.floor_index][0],
-            wall_accent=_FLOOR_THEMES[self.floor_index][1],
+            wall_color=platform_color,
+            wall_accent=top_color,
             player_surface=self.player.image,
             on_update=self._update_elevator_motor,
         )
@@ -705,6 +921,28 @@ class ClockworkKeepScene(Scene):
         self.shake(ELEVATOR_STOP_BOUNCE, targets=ShakeTarget.SCREEN)
         self.shake(ELEVATOR_STOP_RATTLE, targets=ShakeTarget.SCREEN)
 
+    # --- Victory ---
+
+    def _win(self: Self) -> None:
+        """Reaching the top of the Clock Face: save the score and show the victory screen.
+
+        dt_tick returns early once game_over_triggered is set, so this runs once.
+        """
+        self.game_over_triggered = True
+        log.info('Victory! Score: %d', self.player.score)
+        # The floor (and its camera) stand still from here on: stop following
+        self.camera.follow(target=None)
+        self.sounds.play('victory')
+        self._save_high_score()
+        # A shake still running would carry into the fade; end it first (as at game over)
+        self.scene_manager.screen_shake.clear()
+        victory = ClockworkKeepVictoryScene(
+            final_score=self.player.score,
+            high_scores=self._load_high_scores(),
+            options=self.options,
+        )
+        self.transition_to(victory, FadeTransition(duration=1.0))
+
     # --- Death / Respawn ---
 
     def _player_die(self: Self) -> None:
@@ -748,6 +986,8 @@ class ClockworkKeepScene(Scene):
             self.player.world_x = spawn_x
             self.player.world_y = spawn_y
             self.player.on_ground = True
+            # The spawn point stands on no gear: the gear faded out on carries no one
+            self.riding_gear = None
             self.player.is_respawning = False
             self.tweens.tween(
                 target=self.player,
@@ -801,7 +1041,7 @@ class ClockworkKeepScene(Scene):
     # --- Input handlers ---
 
     @override
-    def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
+    def on_window_focus_lost_event(self: Self, event: WindowEvent) -> None:
         """Auto-pause when the window loses focus (Cmd-Tab, etc.).
 
         Args:
@@ -813,7 +1053,7 @@ class ClockworkKeepScene(Scene):
             self.next_scene = PauseScene(options=self.options)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key presses.
 
         Args:
@@ -827,12 +1067,14 @@ class ClockworkKeepScene(Scene):
         elif action == 'pause':
             self.next_scene = PauseScene(options=self.options)
         elif action == 'quit':
-            self.next_scene = None
+            # A QUIT event ends the run (next_scene = None does not: the scene manager reads it
+            # as no switch pending)
+            self.scene_manager.quit()
         elif action is None:
             super().on_key_down_event(event)
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key releases.
 
         Args:
@@ -842,7 +1084,7 @@ class ClockworkKeepScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button presses.
 
         Args:
@@ -855,7 +1097,7 @@ class ClockworkKeepScene(Scene):
             self._try_jump()
 
     @override
-    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
         """Handle joystick button releases.
 
         Args:
@@ -865,7 +1107,7 @@ class ClockworkKeepScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
         """Handle joystick axis motion.
 
         Args:
@@ -875,7 +1117,7 @@ class ClockworkKeepScene(Scene):
         self.actions.handle_event(event)
 
     @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button presses.
 
         Args:
@@ -888,7 +1130,7 @@ class ClockworkKeepScene(Scene):
             self._try_jump()
 
     @override
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
         """Handle controller button releases.
 
         Args:
@@ -907,8 +1149,9 @@ class ClockworkKeepScene(Scene):
             screen: Display surface.
 
         """
-        if self.background_color is not None:
-            screen.fill(self.background_color)
+        # Set in __init__ (the setter takes no None); the getter is typed for before Scene.__init__
+        assert self.background_color is not None
+        screen.fill(self.background_color)
         self.all_sprites.clear(screen, self.background)
         self.all_sprites.draw(screen)
         self._draw_hud(screen)
@@ -947,6 +1190,30 @@ class ClockworkKeepScene(Scene):
         screen.blit(shadow, (floor_x + 1, 11))
         text = self.hud_font.render(floor_text, antialias, HUD_TEXT_COLOR)
         screen.blit(text, (floor_x, 10))
+
+
+class ClockworkKeepVictoryScene(GameOverScene):
+    """The end of the climb: GameOverScene's score and high scores under a VICTORY! title.
+
+    Space starts a new climb and Esc quits, as on the game-over screen.
+    """
+
+    VICTORY_TITLE_COLOR = (255, 200, 50)  # The Clock Face's brass LED
+
+    @override
+    def setup(self: Self) -> None:
+        """Lay out the game-over screen, then replace its GAME OVER title with VICTORY!."""
+        super().setup()
+        assert self.text_sprite is not None, 'GameOverScene.setup() makes the title'
+        title_center_x, title_center_y = self.text_sprite.rect.center
+        self.text_sprite.kill()
+        self.text_sprite = TextSprite(
+            'VICTORY!',
+            (round(title_center_x), round(title_center_y)),
+            color=self.VICTORY_TITLE_COLOR,
+            font_size=48,
+        )
+        self.all_sprites.add(self.text_sprite)
 
 
 def main() -> None:

@@ -18,7 +18,6 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.mocks.test_mock_factory import MockFactory
 
 RELATIVE_TOLERANCE = 1e-12
 PROGRESSION_STEPS = 20
@@ -48,18 +47,13 @@ def _magnitude(ball: BallSprite) -> float:
 def _bounce_off_top_wall(ball: BallSprite) -> None:
     """Put the ball just past the top wall and run the real boundary bounce."""
     ball.world_x = WALL_TEST_X
-    ball.world_y = -WALL_OVERSHOOT
+    # The ball's visible circle is inset in its image; walls meet the circle (the collision rect)
+    ball.world_y = -float(ball._visible_rect().offset_y) - WALL_OVERSHOOT
     ball._do_bounce()
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallExponentialSpeedUp:
     """Test exponential speed-up functionality."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_exponential_x_speed_up(self):
         """Test X_ONLY exponential speed-up scales only the horizontal component."""
@@ -277,14 +271,8 @@ class TestBallExponentialSpeedUp:
         assert ball.speed.y == pytest.approx(50.0 * 1.2, rel=RELATIVE_TOLERANCE)
 
 
-@pytest.mark.usefixtures('pygame_mocks')
 class TestBallExponentialCurveProperties:
     """Test the EXPONENTIAL curve over many steps: closed form, constant ratio, caps, reset."""
-
-    @pytest.fixture
-    def pygame_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     @pytest.mark.parametrize('multiplier', [1.01, 1.1, 1.25, 1.5, 2.0])
     @pytest.mark.parametrize(

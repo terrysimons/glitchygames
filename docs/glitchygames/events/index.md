@@ -1,16 +1,8 @@
-## ::: glitchygames.events
+::: glitchygames.events
     options:
       heading_level: 2
       inherited_members: true
       show_submodules: true
-  ::: glitchygames.events.audio
-      options:
-        heading_level: 2
-        inherited_members: false
-        show_submodules: false
-
-
-
 
 <!-- ::: glitchygames.events.audio.AudioEventManager
     options:

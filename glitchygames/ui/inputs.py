@@ -6,14 +6,16 @@ This module contains the InputBox, InputDialog, and ConfirmDialog widget classes
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, cast, override
 
 import pygame
 from pygame import Rect
 
 from glitchygames.clock import frame_clock_seconds
 from glitchygames.fonts import FontManager, GameFont
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import current_input
+from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
     Sprite,
@@ -25,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Protocol
 
-    from glitchygames.events.base import HashableEvent
+    from glitchygames.events.base import HashableEvent, KeyEvent, MouseButtonEvent
 
     class RectProtocol(Protocol):
         """Parent that exposes a rect for positioning."""
@@ -93,7 +95,13 @@ class InputBox(Sprite):
         self.rect.y = y + self.offset_y
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
-        self.font = pygame.font.SysFont('Times', 14)
+        # The bundled default font, loaded from its file through FontManager (cached): never a
+        # system font scan (BUGS.md #156). It is a pygame.font font: render() below takes
+        # (text, antialias, color).
+        self.font = cast(
+            'pygame.font.Font',
+            FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}),
+        )
         self.text = text
         self.text_image = self.font.render(self.text, True, self.color)  # ruff: ignore[boolean-positional-value-in-call]
         self.is_active = False
@@ -107,22 +115,12 @@ class InputBox(Sprite):
         self.dirty = 2
 
     def activate(self: Self) -> None:
-        """Activate the input box.
-
-        Args:
-            None
-
-        """
+        """Activate the input box."""
         self.is_active = True
         self.dirty = 2
 
     def deactivate(self: Self) -> None:
-        """Deactivate the input box.
-
-        Args:
-            None
-
-        """
+        """Deactivate the input box."""
         self.is_active = False
         self.dirty = 0
 
@@ -138,16 +136,13 @@ class InputBox(Sprite):
             if callback:
                 callback(event=self)
             else:
-                self.log.info(f'{self.name}: Submitted "{self.text}" but no parent is configured.')
+                self.log.info(
+                    '%s: Submitted "%s" but no parent is configured.', self.name, self.text
+                )
 
     @override
     def update(self: Self) -> None:
-        """Update the input box.
-
-        Args:
-            None
-
-        """
+        """Update the input box."""
         self.image.fill((0, 0, 0))
         self.image.blit(self.text_image, (4, 4))
 
@@ -160,6 +155,10 @@ class InputBox(Sprite):
             self.cursor.midleft = self.cursor_rect.midright
 
             pygame.draw.rect(self.image, self.color, self.cursor)
+
+        # The text was alpha-blended onto the image, which leaves alpha 0 on a surface in the
+        # format of a display with per-pixel alpha (cocoa's): a black hole in the window
+        make_opaque(surface=self.image)
 
     @override
     def render(self: Self, screen: pygame.Surface | None = None) -> None:
@@ -181,11 +180,11 @@ class InputBox(Sprite):
         self.activate()
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
         self.log.info('INPUT BOX EVENT: %s', event)
@@ -196,7 +195,7 @@ class InputBox(Sprite):
                 self.deactivate()
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events."""
         if self.is_active:
             if event.key == pygame.K_RETURN:
@@ -327,12 +326,7 @@ class InputDialog(BitmappySprite):
 
     @override
     def update_nested_sprites(self: Self) -> None:
-        """Update the nested sprites.
-
-        Args:
-            None
-
-        """
+        """Update the nested sprites."""
         self.cancel_button.dirty = self.dirty
         self.confirm_button.dirty = self.dirty
 
@@ -386,7 +380,7 @@ class InputDialog(BitmappySprite):
         """
         if self.parent:
             self.parent.on_confirm_event(event=event, trigger=trigger)
-        self.log.info(f'{self.name}: Got confirm event!')
+        self.log.info('%s: Got confirm event!', self.name)
 
     def on_cancel_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle cancel events.
@@ -398,7 +392,7 @@ class InputDialog(BitmappySprite):
         """
         if self.parent:
             self.parent.on_cancel_event(event=event, trigger=trigger)
-        self.log.info(f'{self.name}: Got cancel event!')
+        self.log.info('%s: Got cancel event!', self.name)
 
     def on_input_box_cancel_event(self: Self, control: object) -> None:
         """Handle input box cancel events.
@@ -409,7 +403,7 @@ class InputDialog(BitmappySprite):
         """
         control_name = getattr(control, 'name', '')
         control_text = getattr(control, 'text', '')
-        self.log.info(f'{self.name} Got text input from: {control_name}: {control_text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, control_name, control_text)
         self.on_cancel_event(event=control, trigger=control)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     def on_input_box_submit_event(self: Self, event: HashableEvent) -> None:
@@ -419,18 +413,18 @@ class InputDialog(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.info(f'{self.name} Got text input from: {event.name}: {event.text}')
+        self.log.info('%s Got text input from: %s: %s', self.name, event.name, event.text)
         self.on_confirm_event(event=event, trigger=event)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (MouseButtonEvent): The event to handle.
 
         """
-        self.log.debug(f'{self.name} Got mouse button up event: {event}')
+        self.log.debug('%s Got mouse button up event: %s', self.name, event)
         # Only activate if click was within input box bounds
         if self.input_box.rect.collidepoint(event.pos):
             self.input_box.activate()
@@ -438,14 +432,14 @@ class InputDialog(BitmappySprite):
             self.input_box.deactivate()
 
     @override
-    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (KeyEvent): The event to handle.
 
         """
-        self.log.info(f'Got Event: {event} from {self.parent}')
+        self.log.info('Got Event: %s from %s', event, self.parent)
 
         if self.input_box.is_active:
             self.input_box.on_key_up_event(event)
@@ -455,7 +449,7 @@ class InputDialog(BitmappySprite):
             super().on_key_up_event(event)
 
     @override
-    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
         """Handle key down events."""
         if event.key == pygame.K_TAB:
             self.input_box.activate()

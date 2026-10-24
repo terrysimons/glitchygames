@@ -34,14 +34,6 @@ PLAYER_WIDTH = 28
 PLAYER_HEIGHT = 44
 
 # ---------------------------------------------------------------------------
-# Enemy dimensions
-# ---------------------------------------------------------------------------
-STEAM_SPRITE_WIDTH = 24
-STEAM_SPRITE_HEIGHT = 24
-GEAR_GOLEM_WIDTH = 32
-GEAR_GOLEM_HEIGHT = 36
-
-# ---------------------------------------------------------------------------
 # Terrain dimensions
 # ---------------------------------------------------------------------------
 PLATFORM_HEIGHT = 12
@@ -57,25 +49,20 @@ COG_SIZE = 16
 # Camera (vertical only — no horizontal scroll)
 # ---------------------------------------------------------------------------
 CAMERA_LEAD_X = 0
-CAMERA_LEAD_Y = 200  # Look ahead upward
+# The player's top stays 200 px below the screen's top: a little less view above the player
+# than below it on the 480 px screen
+CAMERA_LEAD_Y = 200
 
-# Parallax scroll factors (vertical)
+# Parallax scroll factor of the floor's background (vertical)
 PARALLAX_FAR = 0.1
-PARALLAX_MID = 0.3
-PARALLAX_NEAR = 0.7
 
 # ---------------------------------------------------------------------------
 # Layer depths (for LayeredDirty rendering order)
 # ---------------------------------------------------------------------------
 LAYER_FAR_BACKGROUND = 0
-LAYER_MID_BACKGROUND = 1
-LAYER_NEAR_BACKGROUND = 2
-LAYER_WALLS = 3
 LAYER_TERRAIN = 4
 LAYER_COLLECTIBLES = 5
-LAYER_ENEMIES = 6
 LAYER_PLAYER = 7
-LAYER_HUD = 8
 
 # ---------------------------------------------------------------------------
 # Animation
@@ -89,7 +76,6 @@ ARM_SWING_AMPLITUDE = 2
 # ---------------------------------------------------------------------------
 STARTING_LIVES = 3
 PIT_DEATH_THRESHOLD = 100
-INVINCIBILITY_DURATION = 1.5
 ELEVATOR_SNAP_TOLERANCE = 5
 GROUND_SNAP_TOLERANCE = 20
 
@@ -97,12 +83,6 @@ GROUND_SNAP_TOLERANCE = 20
 COG_BRONZE_POINTS = 10
 COG_SILVER_POINTS = 50
 COG_GOLD_POINTS = 100
-
-# Platform spacing — vertical gap between platforms for comfortable jumping
-# Normal jump reaches ~96px, running jump ~140px
-PLATFORM_GAP_EASY = 60  # Comfortable walking jump
-PLATFORM_GAP_MEDIUM = 80  # Needs a good jump or short run
-PLATFORM_GAP_HARD = 100  # Needs a running jump
 
 # ---------------------------------------------------------------------------
 # Floor themes: (bg_color, platform_color, platform_top, wall_color,
@@ -155,12 +135,6 @@ PLAYER_WRENCH = (160, 160, 170)
 # ---------------------------------------------------------------------------
 HUD_TEXT_COLOR = (240, 220, 180)
 HUD_SHADOW_COLOR = (40, 30, 20)
-
-# ---------------------------------------------------------------------------
-# DualSense mic button
-# ---------------------------------------------------------------------------
-MIC_BUTTON_CONTROLLER = 15
-MIC_BUTTON_JOYSTICK = 16
 
 # ---------------------------------------------------------------------------
 # Elevator ride feel (tuned by eye and ear)

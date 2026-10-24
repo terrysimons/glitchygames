@@ -47,32 +47,18 @@ class _FilmStripCoordinator:
         """No-op."""
 
 
-class _FilmStripFrameManager:
-    """Mock frame manager for film strip undo/redo tests."""
+def _film_strip_animated_sprite():
+    """Build the canvas's real AnimatedSprite, matching _create_test_sprite.
 
-    def __init__(self):
-        self.current_animation = 'strip_1'
-        self.current_frame = 0
+    Returns:
+        AnimatedSprite: One blank frame in 'strip_1', which it shows.
 
-
-class _FilmStripAnimatedSprite:
-    """Mock animated sprite for film strip undo/redo tests."""
-
-    def __init__(self):
-        # Start with one frame in strip_1, matching _create_test_sprite
-        initial_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-        self._animations = {'strip_1': [initial_frame]}
-        self._is_playing = False
-        self.frame_manager = _FilmStripFrameManager()
-
-    def add_frame(self, animation_name, frame, index=None):
-        """Mock frame addition."""
-        if animation_name not in self._animations:
-            self._animations[animation_name] = []
-        if index is not None:
-            self._animations[animation_name].insert(index, frame)
-        else:
-            self._animations[animation_name].append(frame)
+    """
+    sprite = AnimatedSprite()
+    sprite.add_animation('strip_1', [SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)])
+    sprite.frame_manager.current_animation = 'strip_1'
+    sprite.frame_manager.current_frame = 0
+    return sprite
 
 
 class _FilmStripCanvas:
@@ -82,7 +68,7 @@ class _FilmStripCanvas:
         self.current_animation = 'strip_1'
         self.current_frame = 0
         self.canvas_interface = _FilmStripCanvasInterface()
-        self.animated_sprite = _FilmStripAnimatedSprite()
+        self.animated_sprite = _film_strip_animated_sprite()
         self._scene = scene
 
     def show_frame(self, animation, frame):
@@ -101,7 +87,7 @@ class _FilmStripMockScene:
     """Mock scene for film strip undo/redo tests."""
 
     def __init__(self):
-        self._applying_undo_redo = False
+        self.applying_undo_redo = False
         self.canvas = _FilmStripCanvas(scene=self)
         self.undo_redo_manager = UndoRedoManager(max_history=50)
         self.canvas_operation_tracker = CanvasOperationTracker(

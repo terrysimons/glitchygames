@@ -17,7 +17,7 @@ replay compares each frame's sprites with the recording. Tooling and in-game pla
 **Spec:** `plans/2026-10-19-gameplay-replay.md`
 
 **Status:** Done on `feature/gameplay-replay` (Parts 1-3, then the final whole-branch review and
-its fix rounds, clean 2026-10-20; not yet pushed). Steps were executed subagent-driven, so the
+its fix rounds, clean 2026-10-20; merged 2026-10-22 as PR #95, `bb51239d`). Steps were executed subagent-driven, so the
 checkboxes below were not ticked. Follow-ups: `plans/future-work.md` ("Gameplay replay" and
 "Gameplay replay wrap-up").
 
@@ -138,6 +138,14 @@ leaves, never the reverse. The one function-level import is `active_sources()` c
 imports each door module first and alone in a fresh interpreter.
 
 ## Cross-part interfaces (exact names every part uses)
+
+As built, a few of these changed (the code is the reference): `saves()` returns a `SaveManager`
+(no `SaveStore` Protocol or `SandboxSaves`; see `glitchygames/state/sandbox.py` above);
+`opened_save_stores` is `EngineSources.opened_save_namespaces`; `ReplaySources.for_playback`
+is `playback_replay_sources(...)` (`glitchygames/replay/driver.py`), which
+`PlaybackSources` (`glitchygames/replay/playback.py`) wrap as the scope's doors; there is no `FrameInputListener`:
+the scene manager and `GameEngine._pump_events` feed the `InstantReplayJournal`
+(`glitchygames/instant_replay.py`) directly.
 
 ```python
 # glitchygames/sources.py — the final EngineSources (the task that adds each member in comments)

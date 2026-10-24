@@ -7,13 +7,12 @@ format changes, and integration with slider input formatting.
 import sys
 from pathlib import Path
 
-import pytest
+import pygame
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import TabControlSprite
-from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
 TEST_X_POS = 10
@@ -21,22 +20,72 @@ TEST_Y_POS = 20
 TEST_WIDTH = 100
 TEST_HEIGHT = 30
 TEST_TAB_COUNT = 2
+TAB_WIDTH = TEST_WIDTH // TEST_TAB_COUNT
+
+
+def _surface_in_cocoa_format(size):
+    """A surface in the format a plain pygame.Surface takes on cocoa: alpha mask, no SRCALPHA.
+
+    Alpha-blending text onto such a surface leaves alpha 0, which the window shows as black
+    (glitchygames/opacity.py). Built explicitly, so the rule is tested on the dummy driver too.
+
+    Returns:
+        pygame.Surface: The surface.
+
+    """
+    return pygame.Surface(size, depth=32, masks=(0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000))
+
+
+class _TabParent:
+    """A slider-like parent that records the tab changes it is told about."""
+
+    def __init__(self):
+        self.slider_input_format = '%d'
+        self.tab_changes = []
+
+    def on_tab_change_event(self, tab):
+        self.tab_changes.append(tab)
+
+
+def _mouse_down_event(position):
+    """Build a real left mouse button down event at a position.
+
+    Returns:
+        pygame.event.Event: The event.
+    """
+    return pygame.event.Event(pygame.MOUSEBUTTONDOWN, pos=position, button=1)
+
+
+def _rgb_at(surface, position):
+    """Return the RGB colour of one pixel (the alpha is not the point here).
+
+    Returns:
+        tuple: The (red, green, blue) colour.
+    """
+    return tuple(surface.get_at(position))[:3]
+
+
+def _text_pixel_count(surface, tab_index, text_color):
+    """Count the text-coloured pixels inside one tab's inner area (border excluded).
+
+    Returns:
+        int: The number of pixels in the text colour.
+    """
+    left = tab_index * TAB_WIDTH + 1
+    rgb_pixels = pygame.surfarray.pixels3d(surface)
+    inner_area = rgb_pixels[left : left + TAB_WIDTH - 2, 1 : TEST_HEIGHT - 1]
+    count = int((inner_area == text_color).all(axis=2).sum())
+    del inner_area, rgb_pixels
+    return count
 
 
 class TestTabControlSpriteFunctionality:
     """Test TabControlSprite functionality."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self.mock_display = MockFactory.create_pygame_display_mock()
-        self.mock_surface = MockFactory.create_pygame_surface_mock()
-
-    def test_tab_control_initialization(self, mocker):
+    def test_tab_control_initialization(self):
         """Test TabControlSprite initialization."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         # Act
@@ -54,18 +103,15 @@ class TestTabControlSpriteFunctionality:
         # Dirty flag is set to 1 by default in DirtySprite
         assert tab_control.dirty == 1
 
-    def test_tab_control_click_handling(self, mocker):
+    def test_tab_control_click_handling(self):
         """Test TabControlSprite click handling."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
-        parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
-        # Create mock event
-        event = mocker.Mock()
-        event.pos = (60, 35)  # Click on second tab (hex)
+        event = _mouse_down_event((60, 35))  # Click on second tab (hex)
 
         # Act
         tab_control.on_left_mouse_button_down_event(event)
@@ -73,21 +119,18 @@ class TestTabControlSpriteFunctionality:
         # Assert
         assert tab_control.active_tab == 1
         assert tab_control.dirty == TEST_TAB_COUNT
-        parent.on_tab_change_event.assert_called_once_with('%X')
+        assert parent.tab_changes == ['%X']
 
-    def test_tab_control_click_first_tab(self, mocker):
+    def test_tab_control_click_first_tab(self):
         """Test TabControlSprite click on first tab."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%X'
-        parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
         tab_control.active_tab = 1  # Start on second tab
 
-        # Create mock event
-        event = mocker.Mock()
-        event.pos = (35, 35)  # Click on first tab (decimal)
+        event = _mouse_down_event((35, 35))  # Click on first tab (decimal)
 
         # Act
         tab_control.on_left_mouse_button_down_event(event)
@@ -95,20 +138,17 @@ class TestTabControlSpriteFunctionality:
         # Assert
         assert tab_control.active_tab == 0
         assert tab_control.dirty == TEST_TAB_COUNT
-        parent.on_tab_change_event.assert_called_once_with('%d')
+        assert parent.tab_changes == ['%d']
 
-    def test_tab_control_click_outside_bounds(self, mocker):
+    def test_tab_control_click_outside_bounds(self):
         """Test TabControlSprite click outside bounds."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
-        parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
-        # Create mock event
-        event = mocker.Mock()
-        event.pos = (200, 200)  # Click outside bounds
+        event = _mouse_down_event((200, 200))  # Click outside bounds
 
         # Act
         tab_control.on_left_mouse_button_down_event(event)
@@ -117,33 +157,46 @@ class TestTabControlSpriteFunctionality:
         assert tab_control.active_tab == 0
         # Dirty flag remains 1 (default) when clicking outside bounds
         assert tab_control.dirty == 1
-        parent.on_tab_change_event.assert_not_called()
+        assert parent.tab_changes == []
 
-    def test_tab_control_update_rendering(self, mocker):
-        """Test TabControlSprite update and rendering."""
+    def test_tab_control_update_rendering(self):
+        """Test update draws both tabs, the active one highlighted, with their labels."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
         tab_control.dirty = 2
 
-        # Mock surface for rendering
-        mock_surface = mocker.Mock()
-        tab_control.image = mock_surface
-
         # Act
         tab_control.update()
 
-        # Assert - should call render method
-        # Note: The actual rendering logic would be tested in integration tests
-        # Dirty flag behavior depends on the actual implementation
-        assert tab_control.dirty >= 0  # Should be a valid dirty flag value
+        # Assert: border, active (first) and inactive (second) backgrounds
+        image = tab_control.image
+        assert _rgb_at(image, (0, 0)) == tab_control.border_color
+        assert _rgb_at(image, (TAB_WIDTH, 0)) == tab_control.border_color
+        assert _rgb_at(image, (2, 2)) == tab_control.active_color
+        assert _rgb_at(image, (TAB_WIDTH + 2, 2)) == tab_control.inactive_color
+        # Each tab's label is drawn in the text colour
+        assert _text_pixel_count(image, 0, tab_control.text_color) > 0
+        assert _text_pixel_count(image, 1, tab_control.text_color) > 0
 
-    def test_tab_control_tab_calculation(self, mocker):
+    def test_tab_control_update_highlights_the_newly_active_tab(self):
+        """Test clicking the second tab redraws it as the active one."""
+        parent = _TabParent()
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
+        tab_control.update()
+
+        tab_control.on_left_mouse_button_down_event(_mouse_down_event((60, 35)))
+        tab_control.update()
+
+        assert _rgb_at(tab_control.image, (2, 2)) == tab_control.inactive_color
+        assert _rgb_at(tab_control.image, (TAB_WIDTH + 2, 2)) == tab_control.active_color
+
+    def test_tab_control_tab_calculation(self):
         """Test TabControlSprite tab position calculation."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -156,10 +209,10 @@ class TestTabControlSpriteFunctionality:
         assert tab_control.rect.height == TEST_HEIGHT
         assert len(tab_control.tabs) == TEST_TAB_COUNT
 
-    def test_tab_control_active_tab_property(self, mocker):
+    def test_tab_control_active_tab_property(self):
         """Test TabControlSprite active tab property."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -171,26 +224,25 @@ class TestTabControlSpriteFunctionality:
         assert tab_control.active_tab == 1
         assert tab_control.tabs[tab_control.active_tab] == '%X'
 
-    def test_tab_control_parent_integration(self, mocker):
+    def test_tab_control_parent_integration(self):
         """Test TabControlSprite integration with parent."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
-        parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Act - simulate tab change
         tab_control.active_tab = 1
-        tab_control.on_left_mouse_button_down_event(mocker.Mock(pos=(60, 35)))
+        tab_control.on_left_mouse_button_down_event(_mouse_down_event((60, 35)))
 
         # Assert
-        parent.on_tab_change_event.assert_called_once_with('%X')
+        assert parent.tab_changes == ['%X']
 
-    def test_tab_control_dirty_flag_management(self, mocker):
+    def test_tab_control_dirty_flag_management(self):
         """Test TabControlSprite dirty flag management."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -201,16 +253,17 @@ class TestTabControlSpriteFunctionality:
         # Assert
         assert tab_control.dirty == TEST_TAB_COUNT
 
-        # Act - update should handle dirty flag appropriately
+        # Act - a dirty tab control draws its tabs on update
+        tab_control.image.fill((1, 2, 3, 255))
         tab_control.update()
 
-        # Assert - dirty flag behavior depends on implementation
-        assert tab_control.dirty >= 0  # Should be a valid dirty flag value
+        # Assert - the placeholder fill was replaced by the tabs
+        assert _rgb_at(tab_control.image, (2, 2)) == tab_control.active_color
 
-    def test_tab_control_tab_text_content(self, mocker):
+    def test_tab_control_tab_text_content(self):
         """Test TabControlSprite tab text content."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -219,10 +272,10 @@ class TestTabControlSpriteFunctionality:
         assert tab_control.tabs[0] == '%d'  # Decimal format
         assert tab_control.tabs[1] == '%X'  # Hex format
 
-    def test_tab_control_rect_properties(self, mocker):
+    def test_tab_control_rect_properties(self):
         """Test TabControlSprite rect properties."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -234,22 +287,57 @@ class TestTabControlSpriteFunctionality:
         assert tab_control.rect.width == TEST_WIDTH
         assert tab_control.rect.height == TEST_HEIGHT
 
-    def test_tab_control_click_boundary_conditions(self, mocker):
+    def test_tab_control_click_boundary_conditions(self):
         """Test TabControlSprite click boundary conditions."""
         # Arrange
-        parent = mocker.Mock()
+        parent = _TabParent()
         parent.slider_input_format = '%d'
-        parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Test click on exact boundary
-        event = mocker.Mock()
-        event.pos = (60, 35)  # Right on the boundary between tabs
+        event = _mouse_down_event((60, 35))  # Right on the boundary between tabs
 
         # Act
         tab_control.on_left_mouse_button_down_event(event)
 
         # Assert - should select second tab
         assert tab_control.active_tab == 1
-        parent.on_tab_change_event.assert_called_once_with('%X')
+        assert parent.tab_changes == ['%X']
+
+
+class TestTabControlSpriteWithRealSurfaces:
+    """TabControlSprite redraw rules on real pygame surfaces."""
+
+    def test_click_outside_the_tabs_changes_nothing(self):
+        parent = _TabParent()
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
+        tab_control.dirty = 0
+
+        tab_control.on_left_mouse_button_down_event(_mouse_down_event((200, 200)))
+
+        assert tab_control.active_tab == 0
+        assert tab_control.dirty == 0
+        assert parent.tab_changes == []
+
+    def test_update_draws_nothing_while_clean(self):
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=_TabParent())
+        tab_control.update()  # The first update draws the tabs
+        drawn_pixels = pygame.image.tobytes(tab_control.image, 'RGBA')
+        tab_control.image.fill((1, 2, 3, 255))
+        tab_control.dirty = 0
+
+        tab_control.update()
+
+        assert pygame.image.tobytes(tab_control.image, 'RGBA') != drawn_pixels
+        assert tab_control.image.get_at((0, 0)) == (1, 2, 3, 255)
+
+    def test_the_image_stays_opaque_under_its_text_in_the_cocoa_format(self):
+        """The tab text is blended onto the image, which is then opaque: no black on cocoa."""
+        tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=_TabParent())
+        tab_control.image = _surface_in_cocoa_format((TEST_WIDTH, TEST_HEIGHT))
+        tab_control.dirty = 1
+
+        tab_control.update()
+
+        assert (pygame.surfarray.array_alpha(tab_control.image) == 255).all()

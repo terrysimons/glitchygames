@@ -4,10 +4,11 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 `feature/gameplay-replay` sessions (2026-10-17 to 2026-10-20) and not done yet. One line per item, with where it is detailed. Review, then promote items into
 `plans/engine-audit.md`, a plan, or BUGS.md, or delete them.
 
-## Gameplay replay wrap-up (needs the user)
+## Gameplay replay wrap-up (done)
 
-`feature/gameplay-replay` is done, reviewed and committed (97 commits on `80134d1` up to
-`34c99ff`, the 2026-10-20/21 close-out), not pushed. What is left waits on the user:
+Merged 2026-10-22: `feature/engine-world-space` as PR #94 (`cd5e5f97`) and
+`feature/gameplay-replay` as PR #95 (`bb51239d`), both with GitHub's "Squash and merge"; the
+local branches are deleted. The decisions made on the way, for the record:
 
 - ~~**Decide `--rebaseline`'s exit code when input was not delivered.**~~ **Done** 2026-10-20
   (the user chose a new code): `ExitCode.REBASELINE_INPUT_LOST` (7); NEW is still written, and
@@ -29,11 +30,10 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
     processing-time comparison was built instead (below).
   - Live supervisors' posts made during a scope are re-posted after it, behind the events the
     scope held: **kept** (it is what lets a supervisor end a playback and then post).
-- **Push the branch, open the PR and merge it with GitHub's "Squash and merge"** (the user's
-  workflow: no squashing in the branch, so no backup branch is needed). GitHub makes one
-  commit on `main` and leaves the branch's commits alone, so the hashes BUGS.md, this file and
-  the plans cite (`fead138`, `77ed933` and others) stay valid while the branch exists, and on
-  the PR's Commits tab after the branch is deleted.
+- ~~**Push the branch, open the PR and merge it with GitHub's "Squash and merge"**~~ **Done**
+  2026-10-22 (PR #95). The branch's commit hashes that BUGS.md, this file and the plans cite
+  (`fead138`, `77ed933` and others) stay on PR #95's Commits tab (and on
+  `origin/feature/gameplay-replay` until it is deleted).
 - ~~**Delete the plan workspace**~~ **Done** 2026-10-20, after an audit put everything worth
   keeping into the plans, docs and module docstrings (the plans stay in `plans/`).
 - ~~**Review and commit the close-out fixes**~~ **Done** 2026-10-21 (`34c99ff`): BUGS.md #79,
@@ -67,7 +67,7 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `glitchygames/sprites/animated.py` (loader), `glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
-| `FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels | `glitchygames/bitmappy/history/commands.py:~512` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). |
+| ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
 | Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
 | The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
 | PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `glitchygames/examples/paddleslap.py` | Pre-existing, self-correcting next frame. |
@@ -86,8 +86,9 @@ Suggested during the `feature/debug-overlay`, `feature/engine-world-space` and
 - **Level tools / Glitchy Studio (#11):** `plans/2026-10-18-level-tools.md` and sub-plans A–E
   (tilemap format with object layers, Mapsmith, Tilesmith, Bitmappy updates, Galimore import). Each
   needs a brainstormed spec before implementation.
-- BUGS.md #19 (ruff PLW0717, overly broad `try` blocks; rule temporarily disabled) is still active:
-  62 sites left, all in Bitmappy (see Lint ignores cleanup below).
+- ~~BUGS.md #19 (ruff PLW0717, overly broad `try` blocks; rule temporarily disabled) is still active:
+  62 sites left, all in Bitmappy (see Lint ignores cleanup below).~~ **Done** 2026-10-22
+  (`8dc652f2`): every site narrowed, the ignore removed, BUGS.md #19 resolved.
 
 ## World space follow-ups (feature/engine-world-space final review)
 
@@ -260,9 +261,11 @@ Follow-ups (not in any plan yet):
   wraps the installed doors.
 - Bugs found during the replay core and not fixed (BUGS.md, Active): #67 (Bitmappy's
   joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
-  (`ControllerEventManager` keys controllers by device index but routes events by instance id),
-  #72 (`MultiControllerEnhancements` stores a duration where a timestamp is expected), #73
-  (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False),
+  (`ControllerEventManager` keys controllers by device index but routes events by instance id;
+  resolved 2026-10-22 with #181),
+  #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected), #73
+  (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False;
+  resolved 2026-10-23: it is the `--debug-events` flag now),
   #75 (`pygame_needs_fastevents` compares major and minor separately).
 
 ## Headless capture to raw files and a frame/audio ready latch — groundwork for an external control API
@@ -369,6 +372,20 @@ only replays; Part 2 Task 1).
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
 - Vsync-locked presentation to remove the remaining beat between 60.01 FPS and a 60 Hz display.
+- Bitmappy frame cost (measured 2026-10-22, headless, mouse sweeping with the button held half
+  the time, `time_bitmappy_drag`-style harness): median 0.88 -> 0.55 ms, mean 1.25 -> 0.70 ms per
+  frame after caching the slider gradients (a dirty slider update 120-160 -> 3.3 us), cheaper
+  canvas redraws (595 -> 124 us: per-pixel lookups hoisted, the grid as 1 px fills, no empty
+  onion layer) and dropping per-frame debug logging. Next steps for the canvas: cache the
+  background and grid and draw only pixels on top; then a changed-pixels-only redraw (needs real
+  dirty tracking: BUGS.md #178 item 15, hover cells, onion layers, controller boxes wider than
+  small cells). `_has_active_controllers_in_canvas_mode` in `canvas_interfaces.py` is now used only
+  by its own tests (dead code to remove after a look). `_redraw_animated_sprite` and
+  `_get_current_frame_pixels` still build debug-log arguments (`list(frames.keys())`,
+  `frame_pixels[:3]`) on every redraw.
+- Cache parsed sprite TOML by path: Brave Adventurer Papyrus parses `PapyrusGoldScarab`'s TOML
+  once per collectible while building a level (46 times, 3 frames each; found counting log calls,
+  2026-10-22). Load time only; every instance gets the same frames.
 - **Audit defensive attribute lookups for CPU (user request, 2026-10-21), the engine first.**
   Look for `getattr(self, 'name', default)` / `hasattr` on the engine's own attributes, values
   computed when they may go unused, and conditional chains re-evaluated every frame. Declare
@@ -380,6 +397,22 @@ only replays; Part 2 Task 1).
   `sprites/bitmappy_sprite.py`. Measure the per-frame paths (`SceneManager._run_frame_steps`,
   the event dispatch) before and after; keep a lookup only where an attribute really may not
   exist (a duck-typed game object), with a comment saying so.
+  Done 2026-10-22: the engine's own state is declared and read directly (SceneManager's
+  `_initialized`, jitter and pacing fields, the engine's `timer`, `controller_manager`,
+  `live_voice_channels` and `game`; AnimatedSprite's `_animation_order` (None until a file is
+  loaded; `has_own_animation_order`), `_color_order` and `_colors_with_per_pixel_alpha`;
+  BitmappySprite's `pixels`, `pixels_across` and `pixels_tall`), which also fixed BUGS.md #167.
+  Kept, with comments: lookups on game-optional attributes (`player`, `TARGET_FPS`, `args`,
+  `icon`, `hidden`, `draw_offset`, `pixel_snap_mode`, `TRIM_TRANSPARENT_HITBOX`), on any sprite
+  in a group. The scene lookups went too (the user's choice, 2026-10-22, "Require Scene"): the
+  active scene must be a `Scene` (`switch_to_scene` and `request_transition` refuse anything else
+  with a TypeError, `scenes.scene.required_scene`), so `scene_start_capture`, `debug_subject`,
+  `camera`, `MAX_FRAME_SECONDS`, `PIXEL_SNAP_MODE`, `INSTANT_REPLAY_SECONDS` and the key-press
+  journal (`record_key_press`/`forget_key_presses`, now public for the scene manager) are read
+  directly, as are the recorder's scene start and `world.aim_camera`'s scene. The gain is a few tens of nanoseconds per frame (a `getattr` with a
+  default costs ~16-25 ns, a direct read ~5-17 ns); the per-sprite helpers (`resolve_snap_mode`,
+  `is_world_positioned`, `screen_position_for`, collision) make about 1,200 lookups per Brave
+  Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites.
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
@@ -481,7 +514,24 @@ only replays; Part 2 Task 1).
   blocks outside Bitmappy narrowed. Left, carried forward by the user's choice (2026-10-21):
   Bitmappy's 62 `PLW0717` sites (`glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py`,
   `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
-- **Tests that never run in CI** (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
+  Phase 3 done 2026-10-22 (ignore removed); phase 4: 151 of 152 typed, the last (`events/base.py`'s
+  `__getattr__`) waiting on the typed events plan (see the plan); phase 5 done (all logging lazy,
+  ignore removed). Phase 4 done 2026-10-22 too (`a8cbd953`): the global `ANN401` ignore is gone,
+  and `HashableEvent.__getattr__` keeps a per-file ignore with its reason.
+- ~~**Unified input devices**~~ **Done 2026-10-22:**
+  [`plans/2026-10-22-unified-input-devices.md`](2026-10-22-unified-input-devices.md): one
+  `InputDevice` per physical device so joysticks and controllers run together (BUGS.md #181
+  resolved). Follow-ups in BUGS.md #184 (rumble through `InputDevice`, a playback scope's device
+  events, a hardware check).
+- ~~**Typed events** (proposed 2026-10-22, for review)~~ **Done 2026-10-22** (`a8cbd953`):
+  [`plans/2026-10-22-typed-events.md`](2026-10-22-typed-events.md): per-family `HashableEvent`
+  subclasses so handlers get real field types (`glitchygames/events/base.py`; events immutable).
+- ~~**Tests that never run in CI**~~ **Done** by 2026-10-22 (`d1afcb9b`, `6861d0c5`, `80b1900f`,
+  `1411160d`; no `pytest.skip` is left in those files): the placeholders were rewritten or removed, the voice and mixed-content tests run,
+  `test_transparency_fix.py` is deleted, and the indicator update test runs on one thread (the
+  collision manager's callers never call it off the main thread, so no BUGS.md entry); only the
+  OS-specific skips in the last item remain, as intended. The audit as written
+  (audited 2026-10-21 with `CI=true uv run pytest -rs`; documented
   only, nothing changed). Every collected test runs in CI, but these skip on every CI OS or are
   never collected:
   - 18 Bitmappy placeholders that skip as not implemented: frame insertion and spacing

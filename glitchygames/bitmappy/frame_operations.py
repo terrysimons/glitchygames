@@ -1,6 +1,6 @@
 """Frame operations for the Bitmappy editor.
 
-Handles frame copy/paste, canvas panning commits, pixel change submission,
+Handles frame copy/paste, canvas panning, pixel change submission,
 and single-click timer logic. Extracted from BitmapEditorScene to reduce
 class complexity.
 """
@@ -10,14 +10,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-import pygame
-
 from glitchygames.clock import frame_clock_seconds
 
 from .constants import (
     PIXEL_CHANGE_DEBOUNCE_SECONDS,
 )
-from .history.commands import FramePasteCommand
+from .history.commands import CanvasPanCommand, FramePasteCommand
 
 if TYPE_CHECKING:
     from .protocols import EditorContext
@@ -26,7 +24,7 @@ if TYPE_CHECKING:
 class FrameOperationManager:
     """Manages frame operations for the Bitmappy editor.
 
-    Handles frame copy/paste, canvas panning commits, pixel change
+    Handles frame copy/paste, canvas panning, pixel change
     submission, and single-click debounce timing. Operates on editor
     state via the editor reference passed at construction time.
     """
@@ -46,157 +44,62 @@ class FrameOperationManager:
         self._frame_clipboard: dict[str, Any] | None = None
 
     # ──────────────────────────────────────────────────────────────────────
-    # Surface building
-    # ──────────────────────────────────────────────────────────────────────
-
-    def _build_surface_from_canvas_pixels(self) -> pygame.Surface:
-        """Build a pygame Surface from the current canvas pixel data.
-
-        Returns:
-            A new SRCALPHA surface with the canvas pixels rendered onto it.
-
-        """
-        surface = pygame.Surface(
-            (self.editor.canvas.pixels_across, self.editor.canvas.pixels_tall),
-            pygame.SRCALPHA,
-        )
-        for y in range(self.editor.canvas.pixels_tall):
-            for x in range(self.editor.canvas.pixels_across):
-                pixel_num = y * self.editor.canvas.pixels_across + x
-                if pixel_num < len(self.editor.canvas.pixels):
-                    color = self.editor.canvas.pixels[pixel_num]
-                    surface.set_at((x, y), color)
-        return surface
-
-    # ──────────────────────────────────────────────────────────────────────
-    # Panning commit
-    # ──────────────────────────────────────────────────────────────────────
-
-    def _commit_panned_frame_pixels(self, current_animation: str, current_frame: int) -> None:
-        """Commit panned pixel data to the animation frame and its surface.
-
-        Args:
-            current_animation: Name of the current animation.
-            current_frame: Index of the current frame.
-
-        """
-        frame = self.editor.canvas.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-        if not hasattr(frame, 'pixels'):
-            return
-
-        # The current self.editor.canvas.pixels already has the panned view
-        frame.pixels = list(self.editor.canvas.pixels)
-
-        # Also update the frame.image surface for film strip thumbnails with alpha support
-        frame.image = self._build_surface_from_canvas_pixels()
-        self.log.debug(
-            'Committed panned pixels and image to frame %s[%s]',
-            current_animation,
-            current_frame,
-        )
-
-    def _commit_panned_film_strip_frame(self, current_animation: str, current_frame: int) -> None:
-        """Commit panned pixel data to the film strip's animation frame.
-
-        Args:
-            current_animation: Name of the current animation.
-            current_frame: Index of the current frame.
-
-        """
-        if not (
-            hasattr(self.editor, 'film_strips')
-            and self.editor.film_strips
-            and current_animation in self.editor.film_strips
-        ):
-            return
-
-        film_strip = self.editor.film_strips[current_animation]
-        if not (
-            hasattr(film_strip, 'animated_sprite')
-            and film_strip.animated_sprite
-            and current_animation in film_strip.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            and current_frame < len(film_strip.animated_sprite._animations[current_animation])  # type: ignore[reportPrivateUsage]
-        ):
-            return
-
-        # Update the film strip's animated sprite frame data
-        film_strip_frame = film_strip.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-        if not hasattr(film_strip_frame, 'pixels'):
-            return
-
-        film_strip_frame.pixels = list(self.editor.canvas.pixels)
-
-        # Also update the film strip frame's image surface with alpha support
-        film_strip_frame.image = self._build_surface_from_canvas_pixels()
-        self.log.debug(
-            'Updated film strip animated sprite frame %s[%s] with pixels and image',
-            current_animation,
-            current_frame,
-        )
-
-    def commit_panned_buffer(self) -> None:
-        """Commit the panned buffer back to the real frame data."""
-        if not hasattr(self.editor, 'canvas') or not self.editor.canvas:
-            return
-
-        # Get current frame key
-        frame_key = self.editor.canvas._get_current_frame_key()  # type: ignore[reportPrivateUsage]
-
-        # Check if this frame has active panning
-        if frame_key not in self.editor.canvas._frame_panning:  # type: ignore[reportPrivateUsage]
-            self.log.debug('No panning state for current frame')
-            return
-
-        frame_state = self.editor.canvas._frame_panning[frame_key]  # type: ignore[reportPrivateUsage]
-        if not frame_state['active']:
-            self.log.debug('No active panning to commit')
-            return
-
-        # Commit the current panned pixels back to the frame
-        if not (
-            hasattr(self.editor.canvas, 'animated_sprite') and self.editor.canvas.animated_sprite
-        ):
-            self.log.debug('Panned buffer committed, panning state preserved for continued panning')
-            return
-
-        current_animation = self.editor.canvas.current_animation
-        current_frame = self.editor.canvas.current_frame
-
-        animations = self.editor.canvas.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-        if not (
-            current_animation in animations and current_frame < len(animations[current_animation])
-        ):
-            self.log.debug('Panned buffer committed, panning state preserved for continued panning')
-            return
-
-        self._commit_panned_frame_pixels(current_animation, current_frame)
-        self._commit_panned_film_strip_frame(current_animation, current_frame)
-
-        # Update the film strip to reflect the pixel data changes
-        self.editor.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
-        self.log.debug('Updated film strip for frame %s[%s]', current_animation, current_frame)
-
-    # ──────────────────────────────────────────────────────────────────────
-    # Canvas panning
+    # Canvas panning (see glitchygames/bitmappy/panning.py)
     # ──────────────────────────────────────────────────────────────────────
 
     def handle_canvas_panning(self, delta_x: int, delta_y: int) -> None:
-        """Handle canvas panning with the given delta values.
+        """Move the shown frame's pixels one step (Ctrl+Shift+Arrow).
+
+        A gesture still in progress on another frame (the frame was switched while the
+        keys were held) is finished first, so it stays undoable.
 
         Args:
             delta_x: Horizontal panning delta (-1, 0, or 1)
             delta_y: Vertical panning delta (-1, 0, or 1)
 
         """
-        if not hasattr(self.editor, 'canvas') or not self.editor.canvas:
+        canvas = self.editor.canvas
+        if not canvas:
             self.log.warning('No canvas available for panning')
             return
 
-        # Delegate to canvas panning method
-        if hasattr(self.editor.canvas, 'pan_canvas'):
-            self.editor.canvas.pan_canvas(delta_x, delta_y)
-        else:
-            self.log.warning('Canvas does not support panning')
+        session = canvas.pan_session
+        if session is not None and not session.is_for(
+            animation=canvas.current_animation,
+            frame_index=canvas.current_frame,
+        ):
+            self.finish_canvas_panning()
+
+        canvas.pan_canvas(delta_x, delta_y)
+
+    def finish_canvas_panning(self) -> None:
+        """End the pan gesture in progress and record it as one undoable step.
+
+        The frame already holds the panned pixels (each step writes them), so finishing
+        only pushes the undo command. A gesture that left the frame as it was records
+        nothing.
+        """
+        canvas = self.editor.canvas
+        if not canvas:
+            return
+
+        session = canvas.end_panning()
+        if session is None or not session.changed_the_frame:
+            return
+
+        pan_command = CanvasPanCommand(
+            editor=self.editor,
+            animation=session.animation,
+            frame=session.frame_index,
+            old_pixels=session.pixels_before,
+            new_pixels=session.panned_pixels,
+        )
+        self.editor.undo_redo_manager.push_frame_command(
+            session.animation,
+            session.frame_index,
+            pan_command,
+        )
+        self.log.debug('Recorded pan of %s[%s] for undo', session.animation, session.frame_index)
 
     # ──────────────────────────────────────────────────────────────────────
     # Frame copy/paste

@@ -23,6 +23,8 @@ from .film_strip_sprite import FilmStripSprite
 from .scroll_arrow import ScrollArrowSprite
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from .protocols import EditorContext
 
 
@@ -248,7 +250,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         # Debug: Check if film strip sprite was added to groups
         self.log.debug(
-            f'Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}',
+            'Created film strip sprite for %s, groups: %s',
+            anim_name,
+            film_strip_sprite.groups(),
         )
         LOG.debug(
             f'DEBUG: Film strip sprite {anim_name} added to {len(film_strip_sprite.groups())}'
@@ -359,22 +363,40 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         """
         try:
-            pixel_data = frame.get_pixel_data()
-            if not pixel_data:
-                return
-
-            width, height = frame.get_size()
-            surface = pygame.Surface((width, height), pygame.SRCALPHA)
-
-            for i, color in enumerate(pixel_data):
-                if i < width * height:
-                    surface.set_at((i % width, i // width), color)
-
-            frame.image = surface
-            LOG.debug(f'DEBUG: Created image for frame {frame_idx} from pixel data')
-
+            surface = self._surface_from_frame_pixel_data(frame)
         except pygame.error, AttributeError, TypeError, ValueError, IndexError:
             LOG.exception(f'DEBUG: Failed to create image for frame {frame_idx}')
+            return
+
+        if surface is None:
+            return
+
+        frame.image = surface
+        LOG.debug(f'DEBUG: Created image for frame {frame_idx} from pixel data')
+
+    @staticmethod
+    def _surface_from_frame_pixel_data(frame: SpriteFrame) -> pygame.Surface | None:
+        """Paint a frame's pixel data onto a new surface of the frame's size.
+
+        Args:
+            frame: The sprite frame object.
+
+        Returns:
+            The painted surface, or None when the frame has no pixel data.
+
+        """
+        pixel_data = frame.get_pixel_data()
+        if not pixel_data:
+            return None
+
+        width, height = frame.get_size()
+        surface = pygame.Surface((width, height), pygame.SRCALPHA)
+
+        for i, color in enumerate(pixel_data):
+            if i < width * height:
+                surface.set_at((i % width, i // width), color)
+
+        return surface
 
     def _create_default_magenta_frame(self, frame: SpriteFrame, frame_idx: int) -> None:
         """Create a default magenta frame image and pixel data.
@@ -389,14 +411,11 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             surface = pygame.Surface((width, height), pygame.SRCALPHA)
             surface.fill((255, 0, 255, 255))
             frame.image = surface
-
-            pixel_data = [(255, 0, 255, 255)] * (width * height)
-            frame.set_pixel_data(pixel_data)
-
-            LOG.debug(f'DEBUG: Created default magenta frame for frame {frame_idx}')
-
+            frame.set_pixel_data([(255, 0, 255, 255)] * (width * height))
         except pygame.error, AttributeError, TypeError, ValueError:
             LOG.exception(f'DEBUG: Failed to create default frame for frame {frame_idx}')
+        else:
+            LOG.debug(f'DEBUG: Created default magenta frame for frame {frame_idx}')
 
     def _ensure_frames_have_image_data(self, animated_sprite: AnimatedSprite) -> None:
         """Ensure all frames in the animated sprite have proper image data.
@@ -458,9 +477,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             self.editor.selected_frame = 0
 
             # Mark all film strips as dirty so they redraw with correct selection state
-            if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-                for strip_widget in self.editor.film_strips.values():
-                    strip_widget.mark_dirty()
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
 
     def update_film_strip_visibility(self) -> None:
         """Update which film strips are visible based on scroll offset."""
@@ -502,26 +520,22 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         # Show only the visible strips and position them in fixed slots
         for i in range(start_index, end_index):
-            if i < len(animation_names):
-                anim_name = animation_names[i]
-                if (
-                    anim_name in self.editor.film_strips
-                    and anim_name in self.editor.film_strip_sprites
-                ):
-                    film_strip = self.editor.film_strips[anim_name]
-                    film_strip_sprite = self.editor.film_strip_sprites[anim_name]
+            anim_name = animation_names[i]
+            if anim_name in self.editor.film_strips and anim_name in self.editor.film_strip_sprites:
+                film_strip = self.editor.film_strips[anim_name]
+                film_strip_sprite = self.editor.film_strip_sprites[anim_name]
 
-                    # Position in fixed slot (0 or 1)
-                    slot_index = i - start_index
-                    fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
+                # Position in fixed slot (0 or 1)
+                slot_index = i - start_index
+                fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
 
-                    # Update positions
-                    film_strip.rect.y = fixed_y
-                    film_strip_sprite.rect.y = fixed_y
-                    film_strip_sprite.visible = True
+                # Update positions
+                film_strip.rect.y = fixed_y
+                film_strip_sprite.rect.y = fixed_y
+                film_strip_sprite.visible = True
 
-                    # Mark as dirty to ensure redraw after repositioning
-                    film_strip.mark_dirty()
+                # Mark as dirty to ensure redraw after repositioning
+                film_strip.mark_dirty()
 
         # Update scroll arrows
         self.update_scroll_arrows()
@@ -573,6 +587,27 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                 self.editor.scroll_up_arrow.visible = should_show
                 self.editor.scroll_up_arrow.dirty = 1
 
+    @staticmethod
+    def _unused_animation_name(*, animation_names: Iterable[str]) -> str:
+        """Return the first ``strip_<number>`` name, from the animation count + 1 up, not in use.
+
+        Starting at the count + 1 keeps the familiar ``strip_2``, ``strip_3``, ... when nothing
+        was deleted or renamed; after a delete (or with a loaded sprite's own names) that name can
+        still be in use, so the number goes up until the name is free.
+
+        Args:
+            animation_names: The names of the sprite's animations.
+
+        Returns:
+            str: A name no animation uses.
+
+        """
+        names_in_use = set(animation_names)
+        strip_number = len(names_in_use) + 1
+        while f'strip_{strip_number}' in names_in_use:
+            strip_number += 1
+        return f'strip_{strip_number}'
+
     def _add_new_animation(self, insert_after_index: int | None = None) -> None:
         """Add a new animation (film strip) and scroll to it.
 
@@ -587,76 +622,78 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         ):
             return
 
-        # Create a new animation (film strip)
-        new_animation_name = f'strip_{len(self.editor.canvas.animated_sprite._animations) + 1}'  # type: ignore[reportPrivateUsage]
+        # Create a new animation (film strip) under a name no animation uses yet: storing it
+        # under a name in use would silently replace that animation's frames (BUGS.md #169)
+        new_animation_name = self._unused_animation_name(
+            animation_names=self.editor.canvas.animated_sprite.animation_data.keys(),
+        )
 
         # Create a blank frame for the new animation using the canonical helper
-        if hasattr(self.editor, 'canvas') and self.editor.canvas:
-            # Get the canvas pixel dimensions (same as original canvas)
-            pixels_across = self.editor.canvas.pixels_across
-            pixels_tall = self.editor.canvas.pixels_tall
+        # Get the canvas pixel dimensions (same as original canvas)
+        pixels_across = self.editor.canvas.pixels_across
+        pixels_tall = self.editor.canvas.pixels_tall
 
-            # Use the shared helper to create a blank frame with proper SRCALPHA support
-            animated_frame = self._create_blank_frame(pixels_across, pixels_tall, duration=1.0)
+        # Use the shared helper to create a blank frame with proper SRCALPHA support
+        animated_frame = self._create_blank_frame(pixels_across, pixels_tall, duration=1.0)
 
-            # Insert the new animation at the specified position
-            if insert_after_index is not None:
-                # Get current animations as a list to maintain order
-                current_animations = list(self.editor.canvas.animated_sprite._animations.items())  # type: ignore[reportPrivateUsage]
+        # Insert the new animation at the specified position
+        if insert_after_index is not None:
+            # Get current animations as a list to maintain order
+            current_animations = list(self.editor.canvas.animated_sprite._animations.items())  # type: ignore[reportPrivateUsage]
 
-                # Create new ordered dict with the new animation inserted
-                new_animations = {}
-                for i, (anim_name, frames) in enumerate(current_animations):
-                    new_animations[anim_name] = frames
-                    if i == insert_after_index:
-                        # Insert the new animation after this one
-                        new_animations[new_animation_name] = [animated_frame]
-
-                # If we didn't insert yet (insert_after_index >= len), add at end
-                if insert_after_index >= len(current_animations):
+            # Create new ordered dict with the new animation inserted
+            new_animations = {}
+            for i, (anim_name, frames) in enumerate(current_animations):
+                new_animations[anim_name] = frames
+                if i == insert_after_index:
+                    # Insert the new animation after this one
                     new_animations[new_animation_name] = [animated_frame]
 
-                # Replace the animations dict
-                self.editor.canvas.animated_sprite._animations = new_animations  # type: ignore[reportPrivateUsage]
-            else:
-                # Add at the end (original behavior)
-                self.editor.canvas.animated_sprite._animations[new_animation_name] = [  # type: ignore[reportPrivateUsage]
-                    animated_frame,
-                ]
+            # If we didn't insert yet (insert_after_index >= len), add at end
+            if insert_after_index >= len(current_animations):
+                new_animations[new_animation_name] = [animated_frame]
 
-            # Track animation creation for undo/redo
-            if hasattr(self.editor, 'film_strip_operation_tracker'):
-                # Set flag to prevent frame selection tracking during animation creation
-                self._creating_animation = True
-                try:
-                    # Create animation data for undo/redo
-                    animation_data = {
-                        'frames': [
-                            {
-                                'width': animated_frame.image.get_width(),
-                                'height': animated_frame.image.get_height(),
-                                'pixels': animated_frame.pixels.copy()
-                                if hasattr(animated_frame, 'pixels')
-                                else [],
-                                'duration': animated_frame.duration,
-                            },
-                        ],
-                        'frame_count': 1,
-                    }
+            # Replace the animations dict
+            self.editor.canvas.animated_sprite._animations = new_animations  # type: ignore[reportPrivateUsage]
+        else:
+            # Add at the end (original behavior)
+            self.editor.canvas.animated_sprite._animations[new_animation_name] = [  # type: ignore[reportPrivateUsage]
+                animated_frame,
+            ]
 
-                    # Track animation addition for undo/redo
-                    self.editor.film_strip_operation_tracker.add_animation_added(
-                        new_animation_name,
-                        animation_data,
-                    )
-                finally:
-                    self._creating_animation = False
+        # Track animation creation for undo/redo
+        if hasattr(self.editor, 'film_strip_operation_tracker'):
+            # Set flag to prevent frame selection tracking during animation creation
+            self._creating_animation = True
+            try:
+                # Create animation data for undo/redo
+                animation_data = {
+                    'frames': [
+                        {
+                            'width': animated_frame.image.get_width(),
+                            'height': animated_frame.image.get_height(),
+                            'pixels': animated_frame.pixels.copy()
+                            if hasattr(animated_frame, 'pixels')
+                            else [],
+                            'duration': animated_frame.duration,
+                        },
+                    ],
+                    'frame_count': 1,
+                }
 
-            # Add just the new strip incrementally instead of rebuilding all strips
-            self._add_single_film_strip(new_animation_name, [animated_frame])
+                # Track animation addition for undo/redo
+                self.editor.film_strip_operation_tracker.add_animation_added(
+                    new_animation_name,
+                    animation_data,
+                )
+            finally:
+                self._creating_animation = False
 
-            # Select, scroll to, and activate the new animation
-            self._activate_new_animation(new_animation_name)
+        # Add just the new strip incrementally instead of rebuilding all strips
+        self._add_single_film_strip(new_animation_name, [animated_frame])
+
+        # Select, scroll to, and activate the new animation
+        self._activate_new_animation(new_animation_name)
 
     def _add_single_film_strip(
         self,
@@ -735,8 +772,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self.editor.selected_frame = 0
 
         # Notify the canvas to switch to the new frame
-        if hasattr(self.editor, 'canvas') and self.editor.canvas:
-            self._notify_canvas_of_new_animation(new_animation_name)
+        self._notify_canvas_of_new_animation(new_animation_name)
 
     def _notify_canvas_of_new_animation(self, new_animation_name: str) -> None:
         """Switch the canvas to display the new animation and force a redraw.
@@ -812,14 +848,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self.editor.canvas.animated_sprite.forget_animation_settings(animation_name)
         self.log.info('Deleted animation: %s at index %s', animation_name, deleted_index)
 
-        # Switch to the first remaining animation and select the previous frame
+        # Switch to the first remaining animation and select the previous frame (one always
+        # remains: the last animation is never deleted, see the check above)
         remaining_animations = list(self.editor.canvas.animated_sprite._animations.keys())  # type: ignore[reportPrivateUsage]
-        if remaining_animations:
-            self._select_animation_after_deletion(remaining_animations, animation_name)
-            return
-
-        # No remaining animations - clear selection
-        self._handle_no_remaining_animations(remaining_animations, all_animations, deleted_index)
+        self._select_animation_after_deletion(remaining_animations, animation_name)
 
     def _capture_animation_deletion_for_undo(self, animation_name: str) -> None:
         """Capture animation data for undo/redo before deletion.
@@ -896,6 +928,15 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         max_frame = len(self.editor.canvas.animated_sprite._animations[new_animation]) - 1  # type: ignore[reportPrivateUsage]
         target_frame = min(target_frame, max_frame)
 
+        # Recreate film strips to reflect the deletion first: on_sprite_loaded resets the
+        # canvas and the selection to frame 0 of the first animation, so the frame computed
+        # above is shown after it, not before (BUGS.md #99: it was always lost)
+        self.log.debug(
+            'Recreating film strips after animation deletion. Remaining animations: %s',
+            remaining_animations,
+        )
+        self.on_sprite_loaded(self.editor.canvas.animated_sprite)
+
         self.editor.canvas.show_frame(new_animation, target_frame)
 
         # Update selection state
@@ -908,13 +949,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             new_animation,
             deleted_animation_name,
         )
-
-        # Recreate film strips to reflect the deletion
-        self.log.debug(
-            'Recreating film strips after animation deletion. Remaining animations: %s',
-            remaining_animations,
-        )
-        self.on_sprite_loaded(self.editor.canvas.animated_sprite)
 
     def _handle_no_remaining_animations(
         self,
@@ -1003,8 +1037,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Set the dialog's background to the screenshot
         confirmation_scene.background = self.editor.screenshot
 
-        # Switch to the confirmation dialog scene
-        self.game_engine.scene_manager.switch_to_scene(confirmation_scene)  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+        # Switch to the confirmation dialog at the end of the frame, as the editor's other
+        # dialogs do. The coordinator has no game_engine (BUGS.md #90: switching through it
+        # raised AttributeError, so no unconfirmed delete ever opened its dialog)
+        self.editor.next_scene = confirmation_scene
 
     def _show_delete_frame_confirmation(self, animation_name: str, frame_index: int) -> None:
         """Show confirmation dialog before deleting a frame.
@@ -1073,8 +1109,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Set the dialog's background to the screenshot
         confirmation_scene.background = self.editor.screenshot
 
-        # Switch to the confirmation dialog scene
-        self.game_engine.scene_manager.switch_to_scene(confirmation_scene)  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
+        # Switch to the confirmation dialog at the end of the frame, as the editor's other
+        # dialogs do. The coordinator has no game_engine (BUGS.md #90: switching through it
+        # raised AttributeError, so no unconfirmed delete ever opened its dialog)
+        self.editor.next_scene = confirmation_scene
 
     def is_mouse_in_film_strip_area(self, mouse_pos: tuple[int, int]) -> bool:
         """Check if mouse position is within the film strip area.
@@ -1094,7 +1132,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         for anim_name, film_strip_sprite in self.editor.film_strip_sprites.items():
             if film_strip_sprite.rect.collidepoint(mouse_pos):
                 self.log.debug(
-                    f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}",
+                    "Mouse %s is in film strip '%s' at %s",
+                    mouse_pos,
+                    anim_name,
+                    film_strip_sprite.rect,
                 )
                 return True
 
@@ -1212,7 +1253,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Clear existing film strips
         LOG.debug(f'DEBUG: Checking film_strips - hasattr: {hasattr(self, "film_strips")}')
         if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-            self.log.debug(f'Clearing {len(self.editor.film_strips)} existing film strips')
+            self.log.debug('Clearing %s existing film strips', len(self.editor.film_strips))
             LOG.debug(f'DEBUG: Clearing {len(self.editor.film_strips)} existing film strips')
             for film_strip_sprite in self.editor.film_strip_sprites.values():
                 film_strip_sprite.kill()
@@ -1222,8 +1263,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         # Create new film strips for the loaded sprite
         if loaded_sprite and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
             self.log.debug(
-                f'Creating new film strips for loaded sprite with {len(loaded_sprite._animations)}'  # type: ignore[reportPrivateUsage]
-                f' animations',
+                'Creating new film strips for loaded sprite with %s animations',
+                len(loaded_sprite.animation_data),
             )
             LOG.debug(
                 f'DEBUG: _on_sprite_loaded recreating {len(loaded_sprite._animations)} film strips',  # type: ignore[reportPrivateUsage]
@@ -1256,8 +1297,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
                 # Initialize pixels if needed (for mock sprites)
                 self.log.debug(
-                    f'Checking canvas pixels: has_pixels={hasattr(self.editor.canvas, "pixels")},'
-                    f' is_list={isinstance(getattr(self.editor.canvas, "pixels", None), list)}',
+                    'Checking canvas pixels: has_pixels=%s, is_list=%s',
+                    hasattr(self.editor.canvas, 'pixels'),
+                    isinstance(getattr(self.editor.canvas, 'pixels', None), list),
                 )
                 if not hasattr(self.editor.canvas, 'pixels') or not isinstance(
                     self.editor.canvas.pixels,
@@ -1271,7 +1313,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                     ] * pixel_count  # Magenta background
                     self.editor.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(
-                        f'Canvas pixels initialized: len={len(self.editor.canvas.pixels)}',
+                        'Canvas pixels initialized: len=%s',
+                        len(self.editor.canvas.pixels),
                     )
 
             LOG.debug('DEBUG: About to call _create_film_strips (second call)')
@@ -1340,14 +1383,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         ):
             self.log.debug('BitmapEditorScene: Using canvas.animated_sprite for rename')
             return self.editor.canvas.animated_sprite
-        if (
-            hasattr(self.editor, 'canvas')
-            and self.editor.canvas
-            and hasattr(self.editor.canvas, 'animated_sprite')
-            and self.editor.canvas.animated_sprite
-        ):
-            self.log.debug('BitmapEditorScene: Using self.editor.canvas.animated_sprite for rename')
-            return self.editor.canvas.animated_sprite
         return None
 
     def _rename_animation_in_sprite(
@@ -1411,7 +1446,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         strip_widget.animated_sprite._animations[new_name] = widget_frames  # type: ignore[reportPrivateUsage]
 
         # Update animation order
-        if hasattr(strip_widget.animated_sprite, '_animation_order'):
+        if strip_widget.animated_sprite.has_own_animation_order:
             strip_widget.animated_sprite._animation_order = [new_name]  # type: ignore[reportPrivateUsage]
 
             # Update frame manager
@@ -1442,25 +1477,39 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             # Update bounding box (rect) after layout recalculation
             if hasattr(strip_widget, '_update_height'):
                 strip_widget._update_height()  # type: ignore[reportPrivateUsage]
-            # Update film strip sprite rect if it exists
-            if (
-                hasattr(self.editor, 'film_strip_sprites')
-                and new_name in self.editor.film_strip_sprites
-            ):
-                film_strip_sprite = self.editor.film_strip_sprites[new_name]
-                film_strip_sprite.rect.height = strip_widget.rect.height
-                film_strip_sprite.rect.width = strip_widget.rect.width
-                # Update sprite surface size
-                film_strip_sprite.image = pygame.Surface(
-                    (strip_widget.rect.width, strip_widget.rect.height),
-                    pygame.SRCALPHA,
-                )
-                film_strip_sprite.dirty = 1
+            self._resize_film_strip_sprite_to_widget(strip_widget, new_name)
         except (AttributeError, KeyError, TypeError, pygame.error) as e:
             self.log.warning('FilmStripWidget layout update failed after rename: %s', e)
         # Ensure redraw
         if hasattr(strip_widget, 'mark_dirty'):
             strip_widget.mark_dirty()
+
+    def _resize_film_strip_sprite_to_widget(
+        self,
+        strip_widget: FilmStripWidget,
+        animation_name: str,
+    ) -> None:
+        """Size an animation's film strip sprite, if it has one, to its widget's rect.
+
+        Args:
+            strip_widget: The FilmStripWidget whose rect gives the size.
+            animation_name: The animation whose film strip sprite to resize.
+
+        """
+        if not (
+            hasattr(self.editor, 'film_strip_sprites')
+            and animation_name in self.editor.film_strip_sprites
+        ):
+            return
+        film_strip_sprite = self.editor.film_strip_sprites[animation_name]
+        film_strip_sprite.rect.height = strip_widget.rect.height
+        film_strip_sprite.rect.width = strip_widget.rect.width
+        # Update sprite surface size
+        film_strip_sprite.image = pygame.Surface(
+            (strip_widget.rect.width, strip_widget.rect.height),
+            pygame.SRCALPHA,
+        )
+        film_strip_sprite.dirty = 1
 
     def _rename_in_film_strips_dict(self, old_name: str, new_name: str) -> None:
         """Rename an animation in the film_strips and film_strip_sprites dictionaries.
@@ -1995,9 +2044,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             self.editor.selected_frame = 0
 
             # Mark all film strips as dirty so they redraw with correct selection state
-            if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-                for strip_widget in self.editor.film_strips.values():
-                    strip_widget.mark_dirty()
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
 
     def _navigate_frame(self, direction: int) -> None:
         """Navigate to the next or previous frame in the current animation.
@@ -2120,9 +2168,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             self.editor.selected_frame = 0
 
             # Mark all film strips as dirty so they redraw with correct selection state
-            if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-                for strip_widget in self.editor.film_strips.values():
-                    strip_widget.mark_dirty()
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
 
     def update_film_strips_for_frame(self, animation: str, frame: int) -> None:
         """Update film strips when frame changes."""
@@ -2133,7 +2180,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         )
         if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
             strip_keys = list(self.editor.film_strips.keys())
-            self.log.debug(f'Found {len(self.editor.film_strips)} film strips: {strip_keys}')
+            self.log.debug('Found %s film strips: %s', len(self.editor.film_strips), strip_keys)
             # Update the film strip for the current animation
             if animation in self.editor.film_strips:
                 film_strip = self.editor.film_strips[animation]
@@ -2145,8 +2192,9 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                 film_strip.update_layout()
                 film_strip.mark_dirty()
                 self.log.debug(
-                    f'Film strip updated: current_animation={film_strip.current_animation},'
-                    f' current_frame={film_strip.current_frame}',
+                    'Film strip updated: current_animation=%s, current_frame=%s',
+                    film_strip.current_animation,
+                    film_strip.current_frame,
                 )
             else:
                 self.log.debug('Animation %s not found in film strips', animation)
