@@ -20,6 +20,7 @@ nav:
     - Code Complexity: "quality/complexity.md"
     - Replay Performance: "quality/performance.md"
     - Driver Comparison: "quality/driver_comparison.md"
+    - Upstream Issues: "quality/upstream_issues.md"
     - Galimore Survey: "galimore.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"

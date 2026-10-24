@@ -441,6 +441,15 @@ only replays; Part 2 Task 1).
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
 
+## Upstream issues to file
+
+`docs/quality/upstream_issues.md` holds each one with its evidence, reproduction, workaround and
+drafted issue text. Not posted yet:
+
+- griffe's `_dataclass_parameters` and mkdocstrings-python's `_test_existing_template` caches
+  keep every `mkdocs serve` rebuild alive (BUGS.md #213; worked around in
+  `scripts/mkdocs_hooks.py`'s `on_post_build`).
+
 ## Code quality
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
@@ -501,7 +510,7 @@ only replays; Part 2 Task 1).
   - path-based code and tests: the doors guard (`tests/test_engine_doors.py` scans the package
     directory), the randomness guard, the recording guard, `glitchygames/sprites` asset lookups,
     bundled demos, golden harness and fixture paths, `scripts/` that reference `glitchygames/…`;
-  - PyInstaller specs (`scripts/bitmappy.spec`, `glitchygames/bitmappy.spec`), mkdocs/mkdocstrings
+  - the PyInstaller spec (`bitmappy.spec`, at the root), mkdocs/mkdocstrings
     source paths, CLAUDE.md, docs and plans that name `glitchygames/...` file paths;
   - verify: `uv sync`, full suite, lint/type checks, mkdocs strict, `nox -s build` (wheel contents
     unchanged apart from paths; assets still included), golden traces and golden replay fixtures
