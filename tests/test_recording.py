@@ -69,6 +69,7 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
 )
+from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.scenes import Scene
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
@@ -146,6 +147,12 @@ def no_tracked_posts(mocker):
 def event_queue(monkeypatch):
     """Initialize pygame's display (dummy driver) so events can be posted; empty the queue.
 
+    On a real driver (the native run of the driver comparison) the run's window is on screen,
+    so the operating system can deliver its own events mid-test (a MOUSEMOTION when the mouse
+    crosses the window broke an origin test, 2026-10-23): every real input and window type is
+    blocked, except KEYDOWN, which these tests post, and each type's blocked state is put back
+    afterwards.
+
     Yields:
         None, with an empty queue.
 
@@ -153,9 +160,18 @@ def event_queue(monkeypatch):
     if not pygame.display.get_init():
         monkeypatch.setenv('SDL_VIDEODRIVER', 'dummy')
         pygame.display.init()
+    operating_system_events = EventTypeBlock(
+        event_types=[
+            event_type for event_type in REAL_INPUT_EVENT_TYPES if event_type != pygame.KEYDOWN
+        ]
+    )
+    operating_system_events.block()
     pygame.event.clear()
-    yield
-    pygame.event.clear()
+    try:
+        yield
+    finally:
+        pygame.event.clear()
+        operating_system_events.restore()
 
 
 class TestJsonSafeValue:
