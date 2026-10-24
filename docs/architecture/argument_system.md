@@ -7,73 +7,48 @@ extend the parser with its own game-specific options.
 
 ## How Arguments Are Assembled
 
-The orchestration happens in `GameEngine.initialize_arguments()`, called from
-`GameEngine.__init__()`. The flow is:
+`GameEngine.initialize_arguments()`, called from `GameEngine.__init__()`, builds one parser from
+three layers. Here is what happens when you run Bitmappy (`uv run bitmappy`):
 
 ```mermaid
 sequenceDiagram
-    participant GE as GameEngine.__init__()
-    participant IA as initialize_arguments(game_class)
-    participant AP as ArgumentParser
-    participant ENGINE as GameEngine.args()
-    participant MGR as Event Manager .args() x12
-    participant GAME as game_class.args()
-    participant NS as Namespace
+    participant INIT as initialize_arguments
+    participant PARSER as ArgumentParser
+    participant ENGINE as GameEngine.args
+    participant MANAGERS as the 12 event managers
+    participant GAME as BitmapEditorScene.args
 
-    GE->>IA: initialize_arguments(game_class)
-    IA->>AP: ArgumentParser("GameName version X.Y")
-    IA->>ENGINE: GameEngine.args(parser)
-
-    Note over ENGINE: Adds "Graphics Options" group<br/>15 arguments,<br/>and "Diagnostics Options"<br/>16 arguments (2 hidden:<br/>replay restart internals)
-
-    ENGINE->>MGR: AppEventManager.args(parser)
-    Note over MGR: Adds "App Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: AudioEventManager.args(parser)
-    Note over MGR: Adds "Sound Mixer Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: ControllerEventManager.args(parser)
-    Note over MGR: Adds "Controller Options" group<br/>1 argument
-
-    ENGINE->>MGR: DropEventManager.args(parser)
-    Note over MGR: Adds "Drop Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: FontManager.args(parser)
-    Note over MGR: Adds "Font Options" group<br/>7 arguments
-
-    ENGINE->>MGR: GameEventManager.args(parser)
-    Note over MGR: Adds "Game Options" group<br/>3 arguments
-
-    ENGINE->>MGR: JoystickEventManager.args(parser)
-    Note over MGR: Adds "Joystick Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: KeyboardEventManager.args(parser)
-    Note over MGR: Adds "Keyboard Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: MidiEventManager.args(parser)
-    Note over MGR: Adds "Midi Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: MouseEventManager.args(parser)
-    Note over MGR: Adds "Mouse Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: TouchEventManager.args(parser)
-    Note over MGR: Adds "Touch Options" group<br/>(empty, reserved)
-
-    ENGINE->>MGR: WindowEventManager.args(parser)
-    Note over MGR: Adds "Window Options" group<br/>(empty, reserved)
-
-    ENGINE-->>IA: return parser
-
-    IA->>AP: parser.add_argument_group("GameName vX.Y Options")
-    IA->>GAME: game_class.args(game_group)
-    Note over GAME: Adds game-specific arguments<br/>to its own group
-
-    IA->>AP: parser.parse_args()
-    AP-->>NS: Namespace with all arguments
-    IA->>IA: GameEngine.OPTIONS = vars(args)
-    IA->>IA: Derive synthetic: debug_events
-    IA->>IA: Back-propagate: game.options = OPTIONS
+    INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
+    INIT->>ENGINE: GameEngine.args(parser)
+    Note over ENGINE: Layer 1<br/>Graphics Options (15)<br/>Diagnostics Options (14, 2 hidden)
+    loop for each of the 12
+        ENGINE->>MANAGERS: manager.args(parser)
+    end
+    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (1), Drop,<br/>Font (7), Game (3), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
+    INIT->>PARSER: add_argument_group("Bitmappy v1.0 Options")
+    INIT->>GAME: BitmapEditorScene.args(group)
+    Note over GAME: Layer 3<br/>-v, -s
+    INIT->>PARSER: parse_args()
+    PARSER-->>INIT: the parsed options
+    Note over INIT: GameEngine.OPTIONS = the options<br/>target_fps resolved, debug_events derived<br/>game.options = OPTIONS
 ```
+
+### What each layer adds (Bitmappy's `--help`)
+
+`uv run bitmappy --help` lists every option, grouped by the layer that added it. Bitmappy adds
+only two of its own; everything else every game gets from the engine.
+
+| Layer | Group | Options |
+|---|---|---|
+| 1, the engine | Graphics Options | `-f/--target-fps`, `--fps-log-interval-ms`, `-w/--windowed`, `-r/--resolution`, `--use-gfxdraw`, `--update-type`, `--timer-backend`, `--sleep-granularity-ns`, `--windows-timer-1ms`, `--random-seed`, `--screen-shake-intensity`, `--rumble-intensity`, `--live-voice-pool`, `--default-background`, `--video-driver` |
+| 1, the engine | Diagnostics Options | `--log-timer-jitter`, `--perf-trim-percent`, `--fps-histogram`, `--debug-overlay`, `--record-trace`, `--replay-trace`, `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`, `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless` (2 more are hidden: the watched replay's restart internals) |
+| 2, event managers | Controller Options | `--input-mode` |
+| 2, fonts | Font Options | `--font-name`, `--font-size`, `--font-bold`, `--font-italic`, `--font-antialias`, `--font-dpi`, `--font-system` |
+| 2, event managers | Game Options | `-l/--log-level`, `--no-unhandled-events`, `-p/--profile` |
+| 2, event managers | App, Sound Mixer, Drop, Joystick, Keyboard, Midi, Mouse, Touch, Window | none yet (`--help` leaves empty groups out) |
+| 3, the game | Bitmappy v1.0 Options | `-v/--version`, `-s/--size` (the canvas size, `WIDTHxHEIGHT`, default `32x32`) |
+
+What each option does is in the [Complete Flag Reference](#complete-flag-reference).
 
 ## The Argument Group Hierarchy
 

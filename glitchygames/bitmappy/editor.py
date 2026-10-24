@@ -1330,7 +1330,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             help='print the game version and exit',
         )
-        parser.add_argument('-s', '--size', default='32x32')
+        parser.add_argument(
+            '-s',
+            '--size',
+            default='32x32',
+            help='the canvas size in pixels, WIDTHxHEIGHT (default: 32x32)',
+        )
 
     @override
     def _handle_scene_key_events(self, event: events.KeyEvent) -> None:
