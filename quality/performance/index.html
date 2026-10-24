@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
         <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
     
       <script>
         // Current page data
@@ -160,11 +161,23 @@ and kind of run is its own line.</p>
   frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
   short hash). A frame's budget at 60 FPS is 16.7 ms.</li>
 <li><strong>Frames over budget</strong>: frames whose processing alone took longer than the budget.</li>
-<li><strong>Live frame time</strong>: for the runs that recorded a session live (paced, in a window), how long
-  each frame really took, start to start: how steady pacing was. Replays have none.</li>
+<li>
+<p><strong>Live frame time</strong>: for the runs that recorded a session live (paced, in a window), how long
+  each frame really took, start to start: how steady pacing was. Replays have none.</p>
+</li>
+<li>
+<p><strong>Slowest frame across the recording, by commit</strong>: a heatmap per machine. Each column is a
+  stretch of the recording (about 1% of it, start to end) and each row a commit; the colour is
+  the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
+  shows time only: whether the work itself changed (frames whose content hash differs) is what
+  <code>scripts/recording_report.py</code> shows. Measurements from before per-frame profiles have no row.</p>
+</li>
 </ul>
-<p>Hover a point for the commit's date, when it was measured and whether the checkout had
-uncommitted changes (a trial: <code>nox -s replay-metrics -- --allow-dirty</code>).</p>
+<p>Hover a point for the commit's date and when it was measured.</p>
+<p>Measurements made on a checkout with uncommitted changes (a trial: <code>nox -s replay-metrics --
+--allow-dirty</code>) are never published: the published site leaves them out, while a local build
+(<code>mkdocs build</code>, <code>mkdocs serve</code>, <code>nox -s docs-serve</code>) shows them, labelled "uncommitted
+changes". They stay in the pending file after a deploy, so they remain visible locally only.</p>
 <h2 id="where-the-numbers-come-from">Where the numbers come from<a class="headerlink" href="#where-the-numbers-come-from" title="Permanent link">#</a></h2>
 <ol>
 <li><code>nox -s replay-metrics</code> measures every recording not yet measured for the current commit on
@@ -181,8 +194,101 @@ work, by their content hash), and where behaviour changed (the frames whose cont
 differs, with both runs' commits). Design:
 <code>plans/2026-10-23-recording-metrics.md</code> (Parts 1 and 2).</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 0 ledger rows (0 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
-<p>No measurements yet: <code>nox -s replay-metrics</code> measures the recordings on this machine.</p>
+<p>Generated from 12 ledger rows (0 published, 12 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Recording</th>
+<th>Machine</th>
+<th>Commit</th>
+<th style="text-align: right;">Frames</th>
+<th style="text-align: right;">p50 ms</th>
+<th style="text-align: right;">p99 ms</th>
+<th style="text-align: right;">Max ms</th>
+<th style="text-align: right;">Over budget</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b7d5bd5</code></td>
+<td style="text-align: right;">450</td>
+<td style="text-align: right;">0.071</td>
+<td style="text-align: right;">0.136</td>
+<td style="text-align: right;">0.292</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b7d5bd5</code></td>
+<td style="text-align: right;">472</td>
+<td style="text-align: right;">1.653</td>
+<td style="text-align: right;">2.176</td>
+<td style="text-align: right;">3.499</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/brave-adventurer/golden.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b7d5bd5</code></td>
+<td style="text-align: right;">472</td>
+<td style="text-align: right;">1.595</td>
+<td style="text-align: right;">1.978</td>
+<td style="text-align: right;">3.874</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b7d5bd5</code></td>
+<td style="text-align: right;">532</td>
+<td style="text-align: right;">0.397</td>
+<td style="text-align: right;">0.685</td>
+<td style="text-align: right;">2.670</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b7d5bd5</code></td>
+<td style="text-align: right;">2072</td>
+<td style="text-align: right;">0.613</td>
+<td style="text-align: right;">0.808</td>
+<td style="text-align: right;">3.065</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b7d5bd5</code></td>
+<td style="text-align: right;">622</td>
+<td style="text-align: right;">0.077</td>
+<td style="text-align: right;">0.197</td>
+<td style="text-align: right;">2.534</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="glitchygamesexamplespaddleslap_demosrallyjsonlgz"><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code><a class="headerlink" href="#glitchygamesexamplespaddleslap_demosrallyjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/paddleslap-rally.html" width="100%" height="1550" frameborder="0"></iframe>
+
+<h2 id="testsfixturesreplaysbrave-adventurer-papyrusgoldenjsonlgz"><code>tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysbrave-adventurer-papyrusgoldenjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/brave-adventurer-papyrus-golden.html" width="100%" height="1550" frameborder="0"></iframe>
+
+<h2 id="testsfixturesreplaysbrave-adventurergoldenjsonlgz"><code>tests/fixtures/replays/brave-adventurer/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysbrave-adventurergoldenjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/brave-adventurer-golden.html" width="100%" height="1550" frameborder="0"></iframe>
+
+<h2 id="testsfixturesreplaysclockwork-keepgoldenjsonlgz"><code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysclockwork-keepgoldenjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/clockwork-keep-golden.html" width="100%" height="1550" frameborder="0"></iframe>
+
+<h2 id="testsfixturesreplaysmr-munchergoldenjsonlgz"><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysmr-munchergoldenjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/mr-muncher-golden.html" width="100%" height="1550" frameborder="0"></iframe>
+
+<h2 id="testsfixturesreplayspaddleslapgoldenjsonlgz"><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplayspaddleslapgoldenjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/paddleslap-golden.html" width="100%" height="1550" frameborder="0"></iframe>
               
             </div>
           </div><footer>
@@ -226,7 +332,7 @@ differs, with both runs' commits). Design:
     <script>var base_url = "../..";</script>
     <script src="../../js/theme_extra.js"></script>
     <script src="../../js/theme.js"></script>
-      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       <script src="../../js/mermaid-init.js"></script>
       <script src="../../search/main.js"></script>
     <script>

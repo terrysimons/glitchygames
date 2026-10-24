@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
         <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
     
       <script>
         // Current page data
@@ -190,7 +191,7 @@ scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame
         SM-&gt;&gt;SM: _update_frame_services() (shake, rumble)
         SM-&gt;&gt;SM: _aim_active_camera() (camera_target / follow)
         SM-&gt;&gt;SM: _position_active_world_sprites() (world sprites' rect, culling)
-        SM-&gt;&gt;SM: _render_scene() (BitmapEditorScene.update: animation, controllers, AI; then draw)
+        SM-&gt;&gt;SM: _render_scene() (BitmapEditorScene.update: animation, controllers, AI, then draw)
         SM-&gt;&gt;SM: _advance_still_camera_shake() (WORLD shake nothing advanced)
         SM-&gt;&gt;SM: _present_frame() (overlay, display update)
         SM-&gt;&gt;SM: _finish_frame() (pace, then set dt once from perf_counter)
@@ -505,7 +506,7 @@ and X redoes in film strip and canvas modes.</p>
     <script>var base_url = "../..";</script>
     <script src="../../js/theme_extra.js"></script>
     <script src="../../js/theme.js"></script>
-      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       <script src="../../js/mermaid-init.js"></script>
       <script src="../../search/main.js"></script>
     <script>

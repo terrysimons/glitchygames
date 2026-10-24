@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
         <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
     
       <script>
         // Current page data
@@ -192,27 +193,27 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>glitchygames/templates/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-21">21</a></span>
-<span class="normal"><a href="#__codelineno-0-22">22</a></span>
-<span class="normal"><a href="#__codelineno-0-23">23</a></span>
-<span class="normal"><a href="#__codelineno-0-24">24</a></span>
-<span class="normal"><a href="#__codelineno-0-25">25</a></span>
-<span class="normal"><a href="#__codelineno-0-26">26</a></span>
-<span class="normal"><a href="#__codelineno-0-27">27</a></span>
-<span class="normal"><a href="#__codelineno-0-28">28</a></span>
-<span class="normal"><a href="#__codelineno-0-29">29</a></span>
-<span class="normal"><a href="#__codelineno-0-30">30</a></span>
-<span class="normal"><a href="#__codelineno-0-31">31</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">template</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22"></a><span class="w">    </span><span class="sd">"""Build the project from the template, using cookiecutter."""</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24"></a>        <span class="c1"># The templates can be from remote repositories also.  Use a .repo file to name the repo</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25"></a>        <span class="k">with</span> <span class="n">Path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span> <span class="o">/</span> <span class="s1">'.repo'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26"></a>            <span class="c1"># Without the line's newline, which cookiecutter would take as part of the</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a>            <span class="c1"># location (BUGS.md #107)</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28"></a>            <span class="n">template_loc</span> <span class="o">=</span> <span class="n">fh</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29"></a>    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30"></a>        <span class="n">template_loc</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span><span class="p">)</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31"></a>    <span class="n">cookiecutter</span><span class="p">(</span><span class="n">template_loc</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-21">21</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-22">22</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-23">23</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-24">24</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-25">25</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-26">26</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-28">28</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-29">29</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#glitchygames.templates.build--source--__codelineno-0-31">31</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.templates.build--source--__codelineno-0-21" name="glitchygames.templates.build--source--__codelineno-0-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">template</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-22" name="glitchygames.templates.build--source--__codelineno-0-22"></a><span class="w">    </span><span class="sd">"""Build the project from the template, using cookiecutter."""</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-23" name="glitchygames.templates.build--source--__codelineno-0-23"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-24" name="glitchygames.templates.build--source--__codelineno-0-24"></a>        <span class="c1"># The templates can be from remote repositories also.  Use a .repo file to name the repo</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-25" name="glitchygames.templates.build--source--__codelineno-0-25"></a>        <span class="k">with</span> <span class="n">Path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span> <span class="o">/</span> <span class="s1">'.repo'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-26" name="glitchygames.templates.build--source--__codelineno-0-26"></a>            <span class="c1"># Without the line's newline, which cookiecutter would take as part of the</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-27" name="glitchygames.templates.build--source--__codelineno-0-27"></a>            <span class="c1"># location (BUGS.md #107)</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-28" name="glitchygames.templates.build--source--__codelineno-0-28"></a>            <span class="n">template_loc</span> <span class="o">=</span> <span class="n">fh</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-29" name="glitchygames.templates.build--source--__codelineno-0-29"></a>    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-30" name="glitchygames.templates.build--source--__codelineno-0-30"></a>        <span class="n">template_loc</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span><span class="p">)</span>
+<a id="glitchygames.templates.build--source--__codelineno-0-31" name="glitchygames.templates.build--source--__codelineno-0-31"></a>    <span class="n">cookiecutter</span><span class="p">(</span><span class="n">template_loc</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -258,23 +259,23 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>glitchygames/templates/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-10">10</a></span>
-<span class="normal"><a href="#__codelineno-0-11">11</a></span>
-<span class="normal"><a href="#__codelineno-0-12">12</a></span>
-<span class="normal"><a href="#__codelineno-0-13">13</a></span>
-<span class="normal"><a href="#__codelineno-0-14">14</a></span>
-<span class="normal"><a href="#__codelineno-0-15">15</a></span>
-<span class="normal"><a href="#__codelineno-0-16">16</a></span>
-<span class="normal"><a href="#__codelineno-0-17">17</a></span>
-<span class="normal"><a href="#__codelineno-0-18">18</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_templates</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="w">    </span><span class="sd">"""Return a list of templates.</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12"></a>
-<a id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="sd">        list: The templates.</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15"></a>
-<a id="__codelineno-0-16" name="__codelineno-0-16"></a><span class="sd">    """</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17"></a>    <span class="n">contents</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">iterdir</span><span class="p">()]</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">contents</span> <span class="k">if</span> <span class="n">Path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'__'</span><span class="p">)]</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-10">10</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-11">11</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-12">12</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-13">13</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-14">14</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-15">15</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-16">16</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-17">17</a></span>
+<span class="normal"><a href="#glitchygames.templates.get_templates--source--__codelineno-0-18">18</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.templates.get_templates--source--__codelineno-0-10" name="glitchygames.templates.get_templates--source--__codelineno-0-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_templates</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-11" name="glitchygames.templates.get_templates--source--__codelineno-0-11"></a><span class="w">    </span><span class="sd">"""Return a list of templates.</span>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-12" name="glitchygames.templates.get_templates--source--__codelineno-0-12"></a>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-13" name="glitchygames.templates.get_templates--source--__codelineno-0-13"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-14" name="glitchygames.templates.get_templates--source--__codelineno-0-14"></a><span class="sd">        list: The templates.</span>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-15" name="glitchygames.templates.get_templates--source--__codelineno-0-15"></a>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-16" name="glitchygames.templates.get_templates--source--__codelineno-0-16"></a><span class="sd">    """</span>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-17" name="glitchygames.templates.get_templates--source--__codelineno-0-17"></a>    <span class="n">contents</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">iterdir</span><span class="p">()]</span>
+<a id="glitchygames.templates.get_templates--source--__codelineno-0-18" name="glitchygames.templates.get_templates--source--__codelineno-0-18"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">contents</span> <span class="k">if</span> <span class="n">Path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'__'</span><span class="p">)]</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -332,27 +333,27 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>glitchygames/templates/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-21">21</a></span>
-<span class="normal"><a href="#__codelineno-0-22">22</a></span>
-<span class="normal"><a href="#__codelineno-0-23">23</a></span>
-<span class="normal"><a href="#__codelineno-0-24">24</a></span>
-<span class="normal"><a href="#__codelineno-0-25">25</a></span>
-<span class="normal"><a href="#__codelineno-0-26">26</a></span>
-<span class="normal"><a href="#__codelineno-0-27">27</a></span>
-<span class="normal"><a href="#__codelineno-0-28">28</a></span>
-<span class="normal"><a href="#__codelineno-0-29">29</a></span>
-<span class="normal"><a href="#__codelineno-0-30">30</a></span>
-<span class="normal"><a href="#__codelineno-0-31">31</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-21" name="__codelineno-0-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">template</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22"></a><span class="w">    </span><span class="sd">"""Build the project from the template, using cookiecutter."""</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24"></a>        <span class="c1"># The templates can be from remote repositories also.  Use a .repo file to name the repo</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25"></a>        <span class="k">with</span> <span class="n">Path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span> <span class="o">/</span> <span class="s1">'.repo'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26"></a>            <span class="c1"># Without the line's newline, which cookiecutter would take as part of the</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27"></a>            <span class="c1"># location (BUGS.md #107)</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28"></a>            <span class="n">template_loc</span> <span class="o">=</span> <span class="n">fh</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29"></a>    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30"></a>        <span class="n">template_loc</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span><span class="p">)</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31"></a>    <span class="n">cookiecutter</span><span class="p">(</span><span class="n">template_loc</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-21">21</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-22">22</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-23">23</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-24">24</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-25">25</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-26">26</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-28">28</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-29">29</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.build--source--__codelineno-0-31">31</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.templates.game.build--source--__codelineno-0-21" name="glitchygames.templates.game.build--source--__codelineno-0-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="n">template</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-22" name="glitchygames.templates.game.build--source--__codelineno-0-22"></a><span class="w">    </span><span class="sd">"""Build the project from the template, using cookiecutter."""</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-23" name="glitchygames.templates.game.build--source--__codelineno-0-23"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-24" name="glitchygames.templates.game.build--source--__codelineno-0-24"></a>        <span class="c1"># The templates can be from remote repositories also.  Use a .repo file to name the repo</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-25" name="glitchygames.templates.game.build--source--__codelineno-0-25"></a>        <span class="k">with</span> <span class="n">Path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span> <span class="o">/</span> <span class="s1">'.repo'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-26" name="glitchygames.templates.game.build--source--__codelineno-0-26"></a>            <span class="c1"># Without the line's newline, which cookiecutter would take as part of the</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-27" name="glitchygames.templates.game.build--source--__codelineno-0-27"></a>            <span class="c1"># location (BUGS.md #107)</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-28" name="glitchygames.templates.game.build--source--__codelineno-0-28"></a>            <span class="n">template_loc</span> <span class="o">=</span> <span class="n">fh</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-29" name="glitchygames.templates.game.build--source--__codelineno-0-29"></a>    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-30" name="glitchygames.templates.game.build--source--__codelineno-0-30"></a>        <span class="n">template_loc</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">template</span><span class="p">)</span>
+<a id="glitchygames.templates.game.build--source--__codelineno-0-31" name="glitchygames.templates.game.build--source--__codelineno-0-31"></a>    <span class="n">cookiecutter</span><span class="p">(</span><span class="n">template_loc</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -398,23 +399,23 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>glitchygames/templates/game.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-10">10</a></span>
-<span class="normal"><a href="#__codelineno-0-11">11</a></span>
-<span class="normal"><a href="#__codelineno-0-12">12</a></span>
-<span class="normal"><a href="#__codelineno-0-13">13</a></span>
-<span class="normal"><a href="#__codelineno-0-14">14</a></span>
-<span class="normal"><a href="#__codelineno-0-15">15</a></span>
-<span class="normal"><a href="#__codelineno-0-16">16</a></span>
-<span class="normal"><a href="#__codelineno-0-17">17</a></span>
-<span class="normal"><a href="#__codelineno-0-18">18</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_templates</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="w">    </span><span class="sd">"""Return a list of templates.</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12"></a>
-<a id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="sd">        list: The templates.</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15"></a>
-<a id="__codelineno-0-16" name="__codelineno-0-16"></a><span class="sd">    """</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17"></a>    <span class="n">contents</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">iterdir</span><span class="p">()]</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">contents</span> <span class="k">if</span> <span class="n">Path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'__'</span><span class="p">)]</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-10">10</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-11">11</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-12">12</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-13">13</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-14">14</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-15">15</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-16">16</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-17">17</a></span>
+<span class="normal"><a href="#glitchygames.templates.game.get_templates--source--__codelineno-0-18">18</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.templates.game.get_templates--source--__codelineno-0-10" name="glitchygames.templates.game.get_templates--source--__codelineno-0-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_templates</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-11" name="glitchygames.templates.game.get_templates--source--__codelineno-0-11"></a><span class="w">    </span><span class="sd">"""Return a list of templates.</span>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-12" name="glitchygames.templates.game.get_templates--source--__codelineno-0-12"></a>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-13" name="glitchygames.templates.game.get_templates--source--__codelineno-0-13"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-14" name="glitchygames.templates.game.get_templates--source--__codelineno-0-14"></a><span class="sd">        list: The templates.</span>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-15" name="glitchygames.templates.game.get_templates--source--__codelineno-0-15"></a>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-16" name="glitchygames.templates.game.get_templates--source--__codelineno-0-16"></a><span class="sd">    """</span>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-17" name="glitchygames.templates.game.get_templates--source--__codelineno-0-17"></a>    <span class="n">contents</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">path</span><span class="o">.</span><span class="n">iterdir</span><span class="p">()]</span>
+<a id="glitchygames.templates.game.get_templates--source--__codelineno-0-18" name="glitchygames.templates.game.get_templates--source--__codelineno-0-18"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">contents</span> <span class="k">if</span> <span class="n">Path</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'__'</span><span class="p">)]</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -478,7 +479,7 @@
     <script>var base_url = "../..";</script>
     <script src="../../js/theme_extra.js"></script>
     <script src="../../js/theme.js"></script>
-      <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
       <script src="../../js/mermaid-init.js"></script>
       <script src="../../search/main.js"></script>
     <script>

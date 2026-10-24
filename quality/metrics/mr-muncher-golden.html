@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tests/fixtures/replays/mr-muncher/golden.jsonl.gz performance</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --grid: #e4e3df;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #33332f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #33332f;
+}
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: system-ui, sans-serif;
+  margin: 0 16px;
+}
+h2 { font-size: 1.05rem; margin: 1.2rem 0 0.2rem; }
+p { color: var(--text-secondary); margin: 0.2rem 0; font-size: 0.9rem; }
+.chart { width: 100%; height: 320px; }
+</style>
+</head>
+<body>
+<h2>Processing time per frame (ms): p50 solid, p99 dashed, max dotted</h2>
+<div class="chart" id="processing"></div>
+<h2>Frames over budget</h2>
+<div class="chart" id="over_budget"></div>
+<h2>Live frame time (ms): how steady pacing was</h2>
+<div class="chart" id="frame_time"></div>
+<h2>Slowest frame across the recording, by commit (ms)</h2>
+<p>Each cell is the slowest frame of a stretch of the recording (about 1% of it). The heatmap
+shows time only: whether the work changed (a frame whose content hash differs) is what the
+behaviour-change map shows (<code>scripts/recording_report.py</code>).</p>
+<div id="heatmaps"></div>
+<script>
+const charts = {"commits":["b7d5bd5"],"processing":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p50","x":["b7d5bd5"],"y":[0.613],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 2072 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p99","x":["b7d5bd5"],"y":[0.808],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 2072 frames"],"meta":0,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: max","x":["b7d5bd5"],"y":[3.065],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 2072 frames"],"meta":0,"line":{"width":2,"dash":"dot"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"over_budget":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay","x":["b7d5bd5"],"y":[0.0],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 2072 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"frame_time":[],"heatmaps":[{"type":"heatmap","name":"Apple M4 Max, unpaced replay","x":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"y":["b7d5bd5"],"z":[[0.744,0.674,0.659,0.639,0.618,0.65,0.707,0.663,0.698,0.627,1.114,0.703,0.752,0.993,0.769,0.669,0.927,0.662,0.939,0.718,0.672,0.987,0.715,0.726,0.965,0.693,0.701,0.928,0.687,3.002,0.098,1.052,0.942,0.664,0.722,0.707,0.754,0.746,0.69,0.711,0.744,0.694,0.671,0.666,0.665,0.717,0.617,0.641,0.684,0.681,0.702,0.775,0.68,0.718,0.683,0.705,0.608,0.798,0.731,0.72,0.7,0.732,0.698,0.708,0.732,0.715,0.665,0.627,0.64,0.655,0.681,0.688,0.595,0.655,0.594,0.613,0.589,0.603,0.595,0.786,0.605,0.603,0.593,0.6,0.722,1.354,0.69,0.701,0.947,0.655,0.685,0.904,0.69,0.948,0.619,0.665,0.91,3.065,1.069,0.774]],"customdata":[["frames 0-19, scene MrMuncherScene, max 0.744 ms","frames 20-40, scene MrMuncherScene, max 0.674 ms","frames 41-61, scene MrMuncherScene, max 0.659 ms","frames 62-81, scene MrMuncherScene, max 0.639 ms","frames 82-102, scene MrMuncherScene, max 0.618 ms","frames 103-123, scene MrMuncherScene, max 0.650 ms","frames 124-144, scene MrMuncherScene, max 0.707 ms","frames 145-164, scene MrMuncherScene, max 0.663 ms","frames 165-185, scene MrMuncherScene, max 0.698 ms","frames 186-206, scene MrMuncherScene, max 0.627 ms","frames 207-226, scene MrMuncherScene, max 1.114 ms","frames 227-247, scene MrMuncherScene, max 0.703 ms","frames 248-268, scene MrMuncherScene, max 0.752 ms","frames 269-289, scene MrMuncherScene, max 0.993 ms","frames 290-309, scene MrMuncherScene, max 0.769 ms","frames 310-330, scene MrMuncherScene, max 0.669 ms","frames 331-351, scene MrMuncherScene, max 0.927 ms","frames 352-371, scene MrMuncherScene, max 0.662 ms","frames 372-392, scene MrMuncherScene, max 0.939 ms","frames 393-413, scene MrMuncherScene, max 0.718 ms","frames 414-434, scene MrMuncherScene, max 0.672 ms","frames 435-454, scene MrMuncherScene, max 0.987 ms","frames 455-475, scene MrMuncherScene, max 0.715 ms","frames 476-496, scene MrMuncherScene, max 0.726 ms","frames 497-517, scene MrMuncherScene, max 0.965 ms","frames 518-537, scene MrMuncherScene, max 0.693 ms","frames 538-558, scene MrMuncherScene, max 0.701 ms","frames 559-579, scene MrMuncherScene, max 0.928 ms","frames 580-599, scene MrMuncherScene, max 0.687 ms","frames 600-620, scene PauseScene, max 3.002 ms","frames 621-641, scene PauseScene, max 0.098 ms","frames 642-662, scene PauseScene, max 1.052 ms","frames 663-682, scene MrMuncherScene, max 0.942 ms","frames 683-703, scene MrMuncherScene, max 0.664 ms","frames 704-724, scene MrMuncherScene, max 0.722 ms","frames 725-744, scene MrMuncherScene, max 0.707 ms","frames 745-765, scene MrMuncherScene, max 0.754 ms","frames 766-786, scene MrMuncherScene, max 0.746 ms","frames 787-807, scene MrMuncherScene, max 0.690 ms","frames 808-827, scene MrMuncherScene, max 0.711 ms","frames 828-848, scene MrMuncherScene, max 0.744 ms","frames 849-869, scene MrMuncherScene, max 0.694 ms","frames 870-889, scene MrMuncherScene, max 0.671 ms","frames 890-910, scene MrMuncherScene, max 0.666 ms","frames 911-931, scene MrMuncherScene, max 0.665 ms","frames 932-952, scene MrMuncherScene, max 0.717 ms","frames 953-972, scene MrMuncherScene, max 0.617 ms","frames 973-993, scene MrMuncherScene, max 0.641 ms","frames 994-1014, scene MrMuncherScene, max 0.684 ms","frames 1015-1035, scene MrMuncherScene, max 0.681 ms","frames 1036-1055, scene MrMuncherScene, max 0.702 ms","frames 1056-1076, scene MrMuncherScene, max 0.775 ms","frames 1077-1097, scene MrMuncherScene, max 0.680 ms","frames 1098-1117, scene MrMuncherScene, max 0.718 ms","frames 1118-1138, scene MrMuncherScene, max 0.683 ms","frames 1139-1159, scene MrMuncherScene, max 0.705 ms","frames 1160-1180, scene MrMuncherScene, max 0.608 ms","frames 1181-1200, scene MrMuncherScene, max 0.798 ms","frames 1201-1221, scene MrMuncherScene, max 0.731 ms","frames 1222-1242, scene MrMuncherScene, max 0.720 ms","frames 1243-1262, scene MrMuncherScene, max 0.700 ms","frames 1263-1283, scene MrMuncherScene, max 0.732 ms","frames 1284-1304, scene MrMuncherScene, max 0.698 ms","frames 1305-1325, scene MrMuncherScene, max 0.708 ms","frames 1326-1345, scene MrMuncherScene, max 0.732 ms","frames 1346-1366, scene MrMuncherScene, max 0.715 ms","frames 1367-1387, scene MrMuncherScene, max 0.665 ms","frames 1388-1407, scene MrMuncherScene, max 0.627 ms","frames 1408-1428, scene MrMuncherScene, max 0.640 ms","frames 1429-1449, scene MrMuncherScene, max 0.655 ms","frames 1450-1470, scene MrMuncherScene, max 0.681 ms","frames 1471-1490, scene MrMuncherScene, max 0.688 ms","frames 1491-1511, scene MrMuncherScene, max 0.595 ms","frames 1512-1532, scene MrMuncherScene, max 0.655 ms","frames 1533-1553, scene MrMuncherScene, max 0.594 ms","frames 1554-1573, scene MrMuncherScene, max 0.613 ms","frames 1574-1594, scene MrMuncherScene, max 0.589 ms","frames 1595-1615, scene MrMuncherScene, max 0.603 ms","frames 1616-1635, scene MrMuncherScene, max 0.595 ms","frames 1636-1656, scene MrMuncherScene, max 0.786 ms","frames 1657-1677, scene MrMuncherScene, max 0.605 ms","frames 1678-1698, scene MrMuncherScene, max 0.603 ms","frames 1699-1718, scene MrMuncherScene, max 0.593 ms","frames 1719-1739, scene MrMuncherScene, max 0.600 ms","frames 1740-1760, scene MrMuncherScene, max 0.722 ms","frames 1761-1780, scene MrMuncherScene, max 1.354 ms","frames 1781-1801, scene MrMuncherScene, max 0.690 ms","frames 1802-1822, scene MrMuncherScene, max 0.701 ms","frames 1823-1843, scene MrMuncherScene, max 0.947 ms","frames 1844-1863, scene MrMuncherScene, max 0.655 ms","frames 1864-1884, scene MrMuncherScene, max 0.685 ms","frames 1885-1905, scene MrMuncherScene, max 0.904 ms","frames 1906-1925, scene MrMuncherScene, max 0.690 ms","frames 1926-1946, scene MrMuncherScene, max 0.948 ms","frames 1947-1967, scene MrMuncherScene, max 0.619 ms","frames 1968-1988, scene MrMuncherScene, max 0.665 ms","frames 1989-2008, scene MrMuncherScene, max 0.910 ms","frames 2009-2029, scene MrMuncherScene, max 3.065 ms","frames 2030-2050, scene PauseScene, max 1.069 ms","frames 2051-2071, scene MrMuncherScene, max 0.774 ms"]],"hoverongaps":false,"hovertemplate":"%{y}: %{customdata}<extra><\/extra>","colorbar":{"title":{"text":"ms"}}}]};
+const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  && document.documentElement.dataset.theme !== 'light';
+const palette = dark ? ["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"] : ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const style = getComputedStyle(document.documentElement);
+const ink = style.getPropertyValue('--text-primary').trim();
+const muted = style.getPropertyValue('--text-secondary').trim();
+const grid = style.getPropertyValue('--grid').trim();
+const empty = {
+  processing: 'No measurements with a known commit yet.',
+  over_budget: 'No measurements with a frame budget yet.',
+  frame_time: 'No live runs with a known commit yet: the recordings were made before runs '
+    + 'named their commit.',
+};
+for (const name of ['processing', 'over_budget', 'frame_time']) {
+  const traces = charts[name];
+  const element = document.getElementById(name);
+  if (traces.length === 0) {
+    element.outerHTML = '<p>' + empty[name] + '</p>';
+    continue;
+  }
+  for (const trace of traces) {
+    trace.line.color = palette[trace.meta % palette.length];
+    trace.marker.color = trace.line.color;
+  }
+  Plotly.newPlot(element, traces, {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 56, r: 16, t: 40, b: 48 },
+    hovermode: 'closest',
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { color: muted } },
+    xaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: charts.commits,
+      title: { text: 'commit' }, gridcolor: grid, linecolor: grid,
+    },
+    yaxis: { rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid },
+  }, { responsive: true, displaylogo: false });
+}
+const heatmapScale = dark
+  ? [[0, '#1d2b3f'], [1, '#9cc4f5']]
+  : [[0, '#e8f0fb'], [1, '#0d3b7a']];
+const heatmapContainer = document.getElementById('heatmaps');
+if (charts.heatmaps.length === 0) {
+  heatmapContainer.outerHTML = '<p>No measurements with a per-frame profile yet.</p>';
+}
+for (const heatmap of charts.heatmaps) {
+  const heading = document.createElement('p');
+  heading.textContent = heatmap.name;
+  const element = document.createElement('div');
+  element.className = 'chart';
+  heatmapContainer.append(heading, element);
+  heatmap.colorscale = heatmapScale;
+  Plotly.newPlot(element, [heatmap], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 72, r: 16, t: 8, b: 48 },
+    xaxis: { title: { text: 'position in the recording (start to end)' }, showgrid: false },
+    yaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: heatmap.y,
+      title: { text: 'commit' },
+    },
+  }, { responsive: true, displaylogo: false });
+}
+</script>
+</body>
+</html>

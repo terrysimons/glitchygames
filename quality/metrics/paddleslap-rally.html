@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>glitchygames/examples/paddleslap_demos/rally.jsonl.gz performance</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --grid: #e4e3df;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #33332f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #33332f;
+}
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: system-ui, sans-serif;
+  margin: 0 16px;
+}
+h2 { font-size: 1.05rem; margin: 1.2rem 0 0.2rem; }
+p { color: var(--text-secondary); margin: 0.2rem 0; font-size: 0.9rem; }
+.chart { width: 100%; height: 320px; }
+</style>
+</head>
+<body>
+<h2>Processing time per frame (ms): p50 solid, p99 dashed, max dotted</h2>
+<div class="chart" id="processing"></div>
+<h2>Frames over budget</h2>
+<div class="chart" id="over_budget"></div>
+<h2>Live frame time (ms): how steady pacing was</h2>
+<div class="chart" id="frame_time"></div>
+<h2>Slowest frame across the recording, by commit (ms)</h2>
+<p>Each cell is the slowest frame of a stretch of the recording (about 1% of it). The heatmap
+shows time only: whether the work changed (a frame whose content hash differs) is what the
+behaviour-change map shows (<code>scripts/recording_report.py</code>).</p>
+<div id="heatmaps"></div>
+<script>
+const charts = {"commits":["b7d5bd5"],"processing":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p50","x":["b7d5bd5"],"y":[0.071],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 450 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: p99","x":["b7d5bd5"],"y":[0.136],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 450 frames"],"meta":0,"line":{"width":2,"dash":"dash"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"},{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay: max","x":["b7d5bd5"],"y":[0.292],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 450 frames"],"meta":0,"line":{"width":2,"dash":"dot"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"over_budget":[{"type":"scatter","mode":"lines+markers","name":"Apple M4 Max, unpaced replay","x":["b7d5bd5"],"y":[0.0],"customdata":["committed 2026-10-23, measured 2026-10-24T02:07, 450 frames"],"meta":0,"line":{"width":2,"dash":"solid"},"marker":{"size":8},"hovertemplate":"%{x}: %{y}<br>%{customdata}<extra>%{fullData.name}<\/extra>"}],"frame_time":[],"heatmaps":[{"type":"heatmap","name":"Apple M4 Max, unpaced replay","x":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"y":["b7d5bd5"],"z":[[0.26,0.056,0.055,0.059,0.052,0.083,0.075,0.067,0.061,0.049,0.053,0.058,0.285,0.118,0.072,0.066,0.068,0.082,0.081,0.078,0.08,0.071,0.081,0.078,0.078,0.076,0.117,0.08,0.078,0.079,0.079,0.083,0.071,0.084,0.078,0.085,0.1,0.097,0.062,0.08,0.107,0.085,0.079,0.08,0.068,0.078,0.08,0.086,0.085,0.076,0.078,0.079,0.082,0.111,0.081,0.079,0.08,0.079,0.082,0.087,0.08,0.084,0.078,0.085,0.076,0.078,0.079,0.118,0.085,0.08,0.078,0.076,0.077,0.081,0.088,0.086,0.086,0.292,0.101,0.105,0.096,0.115,0.096,0.095,0.086,0.097,0.095,0.095,0.096,0.094,0.098,0.097,0.094,0.097,0.136,0.094,0.089,0.097,0.094,0.09]],"customdata":[["frames 0-3, scene Game, max 0.260 ms","frames 4-8, scene Game, max 0.056 ms","frames 9-12, scene Game, max 0.055 ms","frames 13-17, scene Game, max 0.059 ms","frames 18-21, scene Game, max 0.052 ms","frames 22-26, scene Game, max 0.083 ms","frames 27-30, scene Game, max 0.075 ms","frames 31-35, scene Game, max 0.067 ms","frames 36-39, scene Game, max 0.061 ms","frames 40-44, scene Game, max 0.049 ms","frames 45-48, scene Game, max 0.053 ms","frames 49-53, scene Game, max 0.058 ms","frames 54-57, scene Game, max 0.285 ms","frames 58-62, scene Game, max 0.118 ms","frames 63-66, scene Game, max 0.072 ms","frames 67-71, scene Game, max 0.066 ms","frames 72-75, scene Game, max 0.068 ms","frames 76-80, scene Game, max 0.082 ms","frames 81-84, scene Game, max 0.081 ms","frames 85-89, scene Game, max 0.078 ms","frames 90-93, scene Game, max 0.080 ms","frames 94-98, scene Game, max 0.071 ms","frames 99-102, scene Game, max 0.081 ms","frames 103-107, scene Game, max 0.078 ms","frames 108-111, scene Game, max 0.078 ms","frames 112-116, scene Game, max 0.076 ms","frames 117-120, scene Game, max 0.117 ms","frames 121-125, scene Game, max 0.080 ms","frames 126-129, scene Game, max 0.078 ms","frames 130-134, scene Game, max 0.079 ms","frames 135-138, scene Game, max 0.079 ms","frames 139-143, scene Game, max 0.083 ms","frames 144-147, scene Game, max 0.071 ms","frames 148-152, scene Game, max 0.084 ms","frames 153-156, scene Game, max 0.078 ms","frames 157-161, scene Game, max 0.085 ms","frames 162-165, scene Game, max 0.100 ms","frames 166-170, scene Game, max 0.097 ms","frames 171-174, scene Game, max 0.062 ms","frames 175-179, scene Game, max 0.080 ms","frames 180-183, scene Game, max 0.107 ms","frames 184-188, scene Game, max 0.085 ms","frames 189-192, scene Game, max 0.079 ms","frames 193-197, scene Game, max 0.080 ms","frames 198-201, scene Game, max 0.068 ms","frames 202-206, scene Game, max 0.078 ms","frames 207-210, scene Game, max 0.080 ms","frames 211-215, scene Game, max 0.086 ms","frames 216-219, scene Game, max 0.085 ms","frames 220-224, scene Game, max 0.076 ms","frames 225-228, scene Game, max 0.078 ms","frames 229-233, scene Game, max 0.079 ms","frames 234-237, scene Game, max 0.082 ms","frames 238-242, scene Game, max 0.111 ms","frames 243-246, scene Game, max 0.081 ms","frames 247-251, scene Game, max 0.079 ms","frames 252-255, scene Game, max 0.080 ms","frames 256-260, scene Game, max 0.079 ms","frames 261-264, scene Game, max 0.082 ms","frames 265-269, scene Game, max 0.087 ms","frames 270-273, scene Game, max 0.080 ms","frames 274-278, scene Game, max 0.084 ms","frames 279-282, scene Game, max 0.078 ms","frames 283-287, scene Game, max 0.085 ms","frames 288-291, scene Game, max 0.076 ms","frames 292-296, scene Game, max 0.078 ms","frames 297-300, scene Game, max 0.079 ms","frames 301-305, scene Game, max 0.118 ms","frames 306-309, scene Game, max 0.085 ms","frames 310-314, scene Game, max 0.080 ms","frames 315-318, scene Game, max 0.078 ms","frames 319-323, scene Game, max 0.076 ms","frames 324-327, scene Game, max 0.077 ms","frames 328-332, scene Game, max 0.081 ms","frames 333-336, scene Game, max 0.088 ms","frames 337-341, scene Game, max 0.086 ms","frames 342-345, scene Game, max 0.086 ms","frames 346-350, scene Game, max 0.292 ms","frames 351-354, scene Game, max 0.101 ms","frames 355-359, scene Game, max 0.105 ms","frames 360-363, scene Game, max 0.096 ms","frames 364-368, scene Game, max 0.115 ms","frames 369-372, scene Game, max 0.096 ms","frames 373-377, scene Game, max 0.095 ms","frames 378-381, scene Game, max 0.086 ms","frames 382-386, scene Game, max 0.097 ms","frames 387-390, scene Game, max 0.095 ms","frames 391-395, scene Game, max 0.095 ms","frames 396-399, scene Game, max 0.096 ms","frames 400-404, scene Game, max 0.094 ms","frames 405-408, scene Game, max 0.098 ms","frames 409-413, scene Game, max 0.097 ms","frames 414-417, scene Game, max 0.094 ms","frames 418-422, scene Game, max 0.097 ms","frames 423-426, scene Game, max 0.136 ms","frames 427-431, scene Game, max 0.094 ms","frames 432-435, scene Game, max 0.089 ms","frames 436-440, scene Game, max 0.097 ms","frames 441-444, scene Game, max 0.094 ms","frames 445-449, scene Game, max 0.090 ms"]],"hoverongaps":false,"hovertemplate":"%{y}: %{customdata}<extra><\/extra>","colorbar":{"title":{"text":"ms"}}}]};
+const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  && document.documentElement.dataset.theme !== 'light';
+const palette = dark ? ["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"] : ["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"];
+const style = getComputedStyle(document.documentElement);
+const ink = style.getPropertyValue('--text-primary').trim();
+const muted = style.getPropertyValue('--text-secondary').trim();
+const grid = style.getPropertyValue('--grid').trim();
+const empty = {
+  processing: 'No measurements with a known commit yet.',
+  over_budget: 'No measurements with a frame budget yet.',
+  frame_time: 'No live runs with a known commit yet: the recordings were made before runs '
+    + 'named their commit.',
+};
+for (const name of ['processing', 'over_budget', 'frame_time']) {
+  const traces = charts[name];
+  const element = document.getElementById(name);
+  if (traces.length === 0) {
+    element.outerHTML = '<p>' + empty[name] + '</p>';
+    continue;
+  }
+  for (const trace of traces) {
+    trace.line.color = palette[trace.meta % palette.length];
+    trace.marker.color = trace.line.color;
+  }
+  Plotly.newPlot(element, traces, {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 56, r: 16, t: 40, b: 48 },
+    hovermode: 'closest',
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { color: muted } },
+    xaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: charts.commits,
+      title: { text: 'commit' }, gridcolor: grid, linecolor: grid,
+    },
+    yaxis: { rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid },
+  }, { responsive: true, displaylogo: false });
+}
+const heatmapScale = dark
+  ? [[0, '#1d2b3f'], [1, '#9cc4f5']]
+  : [[0, '#e8f0fb'], [1, '#0d3b7a']];
+const heatmapContainer = document.getElementById('heatmaps');
+if (charts.heatmaps.length === 0) {
+  heatmapContainer.outerHTML = '<p>No measurements with a per-frame profile yet.</p>';
+}
+for (const heatmap of charts.heatmaps) {
+  const heading = document.createElement('p');
+  heading.textContent = heatmap.name;
+  const element = document.createElement('div');
+  element.className = 'chart';
+  heatmapContainer.append(heading, element);
+  heatmap.colorscale = heatmapScale;
+  Plotly.newPlot(element, [heatmap], {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: ink },
+    margin: { l: 72, r: 16, t: 8, b: 48 },
+    xaxis: { title: { text: 'position in the recording (start to end)' }, showgrid: false },
+    yaxis: {
+      type: 'category', categoryorder: 'array', categoryarray: heatmap.y,
+      title: { text: 'commit' },
+    },
+  }, { responsive: true, displaylogo: false });
+}
+</script>
+</body>
+</html>
