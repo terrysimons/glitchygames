@@ -120,8 +120,31 @@ def _lint_dead_code(session: nox.Session) -> None:
     session.run('vulture', 'glitchygames', 'vulture_whitelist.py', '--min-confidence=80')
 
 
+# Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
+# Re-check every entry when dependencies are upgraded and remove it once upstream allows the fix
+# (pip-audit says nothing about an ignore that no longer matches). Checked 2026-10-23.
+_IGNORED_VULNERABILITIES: dict[str, str] = {
+    # google-cloud-aiplatform 1.71.1 (also PYSEC-2026-2500, GHSA-wh2j-26j7-9728): predictable
+    # bucket names in Vertex AI Experiments, fixed in 1.133.0. vertexai 1.71.1, the newest, pins
+    # google-cloud-aiplatform==1.71.1, and aisuite 0.2.0, the newest, needs vertexai (its Google
+    # backend). The engine never uses Vertex AI Experiments
+    'CVE-2026-2473': 'google-cloud-aiplatform 1.71.1, pinned by vertexai (aisuite)',
+    # filelock 3.32.7, fixed in 4.2.1: the SQLite-backed ReadWriteLock/AsyncReadWriteLock (all
+    # platforms) and, on Windows, the soft locks and the read-write lock's database path. safety
+    # 3.8.1, the newest (nox -s safety-scan), requires filelock<4.0; forcing filelock 4 moves the
+    # lock back to safety 3.2.3. Only tools use filelock (safety, virtualenv, huggingface-hub);
+    # the engine never imports it
+    'CVE-2026-112907': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
+    'CVE-2026-112913': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
+    'CVE-2026-112940': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
+}
+
+
 def _lint_cves(session: nox.Session) -> None:
-    """Audit dependencies for known CVEs with pip-audit."""
+    """Audit every locked dependency (all extras) for known CVEs with pip-audit.
+
+    Ignores only ``_IGNORED_VULNERABILITIES``, each documented with why it cannot be fixed yet.
+    """
     import tempfile
 
     # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
@@ -138,20 +161,24 @@ def _lint_cves(session: nox.Session) -> None:
             'export',
             '--quiet',
             '--no-emit-project',
+            # The extras too (dev tools, aisuite and its SDKs): what `uv sync --all-extras` installs
+            '--all-extras',
             '--output-file',
             tmp_path,
             external=True,
         )
+        ignore_arguments = [
+            argument
+            for vulnerability in _IGNORED_VULNERABILITIES
+            for argument in ('--ignore-vuln', vulnerability)
+        ]
         session.run(
             'pip-audit',
             '--requirement',
             tmp_path,
             '--require-hashes',
             '--disable-pip',
-            '--ignore-vuln',
-            'CVE-2026-2473',
-            '--ignore-vuln',
-            'CVE-2026-4539',
+            *ignore_arguments,
         )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
