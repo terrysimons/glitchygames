@@ -77,90 +77,31 @@ sequenceDiagram
 
 ## The Argument Group Hierarchy
 
-Each layer adds its own `add_argument_group()`, producing clearly separated
-sections in `--help` output. The hierarchy mirrors the engine architecture.
+Each layer adds its own `add_argument_group()`, so `--help` shows clearly separated sections, in
+the order of the layers. The layers mirror the engine's architecture.
 
 ```mermaid
-flowchart TD
-    subgraph Parser["ArgumentParser: GameName version X.Y"]
-        subgraph L1["Layer 1: Graphics Options (GameEngine)"]
-            F1["-f, --target-fps"]
-            F2["--fps-log-interval-ms"]
-            F3["-w, --windowed"]
-            F4["-r, --resolution"]
-            F5["--use-gfxdraw"]
-            F6["--update-type"]
-            F7["--timer-backend"]
-            F8["--sleep-granularity-ns"]
-            F9["--windows-timer-1ms"]
-            F16["--random-seed"]
-            F17["--screen-shake-intensity, --rumble-intensity"]
-            F18["--live-voice-pool"]
-            F20["--default-background"]
-            F19["--video-driver"]
-        end
-
-        subgraph L1D["Layer 1: Diagnostics Options (GameEngine)"]
-            D1["--log-timer-jitter, --perf-trim-percent, --fps-histogram"]
-            D2["--debug-overlay"]
-            D3["--record-trace, --replay-trace, --replay-fps"]
-            D4["--audit, --replay-digest, --replay-pause-at-frame"]
-            D6["--compare-processing, --max-processing-slowdown, --rebaseline"]
-            D5["--headless"]
-        end
-
-        subgraph L2["Layer 2: Event Manager Groups"]
-            subgraph AO["App Options"]
-                AO_EMPTY["(no arguments yet)"]
-            end
-            subgraph SM["Sound Mixer Options"]
-                SM_EMPTY["(no arguments yet)"]
-            end
-            subgraph DO["Drop Options"]
-                DO_EMPTY["(no arguments yet)"]
-            end
-            subgraph CO["Controller Options"]
-                CO1["--input-mode"]
-            end
-            subgraph FO["Font Options"]
-                FO1["--font-name"]
-                FO2["--font-size"]
-                FO3["--font-bold"]
-                FO4["--font-italic"]
-                FO5["--font-antialias"]
-                FO6["--font-dpi"]
-                FO7["--font-system"]
-            end
-            subgraph GO["Game Options"]
-                GO1["-l, --log-level"]
-                GO2["--no-unhandled-events"]
-                GO3["-p, --profile"]
-            end
-            subgraph JO["Joystick Options"]
-                JO_EMPTY["(no arguments yet)"]
-            end
-            subgraph KO["Keyboard Options"]
-                KO_EMPTY["(no arguments yet)"]
-            end
-            subgraph MIO["Midi Options"]
-                MIO_EMPTY["(no arguments yet)"]
-            end
-            subgraph MO["Mouse Options"]
-                MO_EMPTY["(no arguments yet)"]
-            end
-            subgraph TO["Touch Options"]
-                TO_EMPTY["(no arguments yet)"]
-            end
-            subgraph WO["Window Options"]
-                WO_EMPTY["(no arguments yet)"]
-            end
-        end
-
-        subgraph L3["Layer 3: Game-Specific Options"]
-            GS["(varies per game)"]
-        end
-    end
+%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart TB
+    L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options"]
+    L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options,<br/>and 9 reserved groups with no options yet"]
+    L3["<b>Layer 3: your game</b> (its scene's args)<br/>GameName vX.Y Options"]
+    L1 --> L2 --> L3
 ```
+
+| Group | Layer | Options | What they cover |
+|---|---|---|---|
+| Graphics Options | 1 | 15 | frame rate, window and resolution, timing, random seed, shake, rumble, voices, background, video driver |
+| Diagnostics Options | 1 | 14, plus 2 hidden | debug overlay, timer jitter and FPS reports, recording, replay, audit, rebaseline, processing comparison, headless |
+| Controller Options | 2 | 1 | `--input-mode` |
+| Font Options | 2 | 7 | font name, size, style, antialiasing, DPI, system fonts |
+| Game Options | 2 | 3 | log level, profiling, unhandled events |
+| App, Sound Mixer, Drop, Joystick, Keyboard, Midi, Mouse, Touch, Window | 2 | 0 | reserved; `--help` leaves empty groups out |
+| GameName vX.Y Options | 3 | the game's | whatever the game adds (Paddle Slap: `-v`, `-b`, `--ball-spawn-mode`) |
+
+The counts are what `uv run paddleslap --help` shows; the two hidden diagnostics options are the
+watched replay's restart internals. Every option is listed in the
+[Complete Flag Reference](#complete-flag-reference).
 
 ## How Games Add Arguments
 
