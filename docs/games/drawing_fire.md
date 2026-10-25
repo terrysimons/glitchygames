@@ -4,7 +4,8 @@ Drawing Fire is a stick-figure battle drawn in pencil on paper, the way a child 
 written as one of the engine's example games. Two armies face each other across a hilly field:
 the **Pencil Platoon** in pencil yellow on the left and the **Graphite Brigade** in graphite grey
 on the right, both straight off a school pencil. The computer plays every soldier. When one army
-is wiped out the winner is announced on the paper, and a new battle starts on its own. At any
+is wiped out the winner is announced on the paper (when both fall at once, nobody wins), and a
+new battle starts on its own. At any
 moment one or two local players can **join**: press START (Enter on the keyboard), choose a side
 and a soldier, and fight as him. A player whose soldier dies takes over another soldier of his
 side, and a player who has had enough holds Back (Escape) to leave.
@@ -93,7 +94,7 @@ bound in an `ActionMap`: `players.py` reads every control from the frame's polle
 | Move | A or the left arrow, D or the right arrow | Left stick |
 | Aim | The mouse: the soldier aims from his chest at the pointer | Right stick, at any angle (the aim stays put while the stick rests) |
 | Fire | Left mouse button (held: he fires whenever his pistol is ready) | Right trigger, or the right shoulder button |
-| Leave | Hold Escape for a second (60 frames) | Hold Back for a second, or unplug the controller |
+| Leave | Hold Escape for a second (`LEAVE_HOLD_SECONDS`, timed by the frames' `dt`, so at 30 fps too) | Hold Back for a second, or unplug the controller |
 | Quit the game | Q (on its release) | |
 | Debug seats view | F3 (the engine's debug overlay) | |
 
@@ -111,8 +112,8 @@ anyone: players drop into and out of them, and the next one starts on its own.
 | `glitchygames/examples/drawing_fire/battle.py` | The rules: `Battle`, `Soldier`, `Sandbag`, `Bullet`, `Intent`, `Side`, `ARMY_NAMES`, the events `SoldierKilled` and `SandbagFlattened`, and the tuned numbers |
 | `glitchygames/examples/drawing_fire/terrain.py` | `Terrain` (a ground y for every x) and `build_terrain` (flat paper with a few seeded hills) |
 | `glitchygames/examples/drawing_fire/drivers.py` | The computer driver: `muster_battle` (a battle and every soldier's memory and own random stream), `computer_intents`, `computer_intent`, `ComputerSoldier` |
-| `glitchygames/examples/drawing_fire/players.py` | Player input: `Device`, `KEYBOARD`, `connected_devices`, `device_intent` (a device's input as an `Intent`), `Button`, `ButtonEdges` (presses and holds per device) |
-| `glitchygames/examples/drawing_fire/seats.py` | `Seats`: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; `PlayerSeat`, `Stage`, `SideChoice`, `LEAVE_HOLD_FRAMES` |
+| `glitchygames/examples/drawing_fire/players.py` | Player input: `Device`, `KEYBOARD`, `connected_devices`, `device_intent` (a device's input as an `Intent`), `Button`, `ButtonEdges` (presses, and holds in frames and seconds, per device) |
+| `glitchygames/examples/drawing_fire/seats.py` | `Seats`: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; `PlayerSeat`, `Stage`, `SideChoice`, `LEAVE_HOLD_SECONDS` |
 | `glitchygames/examples/drawing_fire/swatches.py` | Swatches, the mechanic this game proves (written to move into the engine) |
 | `glitchygames/examples/drawing_fire/drawing.py` | The pencil look: `wobble`, the terrain, sandbags, soldiers in their liveries (`ARMY_LIVERIES`), bullets, the HUD and the victory banner |
 | `glitchygames/examples/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
@@ -128,9 +129,10 @@ anyone: players drop into and out of them, and the next one starts on its own.
 Drawing Fire has one scene, `DrawingFireScene`, and one sheet of paper: the field never scrolls.
 Its `dt_tick(dt)` does everything that decides what happens, in this order:
 
-1. **Input.** It reads the frame's snapshot (`current_input()`), updates `ButtonEdges` (how many
-   frames each device has held START, BACK, LEFT and RIGHT) and lists the connected devices (the
-   keyboard first, then each controller by id).
+1. **Input.** It reads the frame's snapshot (`current_input()`), updates `ButtonEdges` with it and
+   the frame's `dt` (how many frames, and how many seconds, each device has held START, BACK,
+   LEFT and RIGHT) and lists the connected devices (the keyboard first, then each controller by
+   id).
 2. **Seats.** `Seats.update` plays the joins, side and soldier choices and leaves
    ([Seats](#seats-joining-dying-and-leaving)).
 3. **Drivers.** In a battle, the computer decides an `Intent` (move, aim, fire) for **every**
@@ -140,12 +142,16 @@ Its `dt_tick(dt)` does everything that decides what happens, in this order:
    the soldier: it moves soldiers (sandbags stop them), fires pistols that are ready, flies the
    bullets, and returns what happened. A `SoldierKilled` moves a player whose soldier it was to
    another soldier.
-5. **The winner.** When one army is gone, the phase becomes `VICTORY` and the banner shows for
-   `VICTORY_SECONDS` (3 s). Then `start_battle()` builds the next battle: new terrain, sandbags
-   and soldiers from fresh seeded streams, and every joined player chooses a soldier again.
+5. **The winner.** When the battle is over (`Battle.over`: an army is gone), the phase becomes
+   `VICTORY` and the banner shows for `VICTORY_SECONDS` (3 s): the winner's name, or, when both
+   armies fell in the same step (`Battle.winner` is None), a draw's two lines, "Nobody wins!"
+   and "Everybody loses!" (`DRAW_LINES`). The bullets still in flight are cleared and nobody is
+   drawn mid-stride, so the picture holds still. Then `start_battle()` builds the next battle:
+   new terrain, sandbags and soldiers from fresh seeded streams, and every joined player chooses
+   a soldier again. Seats treat a draw as they treat a win.
 
 `render(screen)` draws it all from the model, straight onto the screen: the paper and ground (on
-the background, drawn once per battle), the sandbags, the fallen and then the standing soldiers,
+the background, pencilled once per battle and blitted whole each frame), the sandbags, the fallen and then the standing soldiers,
 the bullets, the HUD, the seats' note, cards and highlight, and the banner. The soldiers are not
 sprites in `all_sprites`.
 
@@ -164,8 +170,10 @@ pistol. The numbers were tuned with the simulation (design section 4.7):
 | `WALK_SPEED` | 60 px/s | |
 | `SANDBAG_HEIGHT`, `SANDBAG_WIDTH` | 34 px, 48 px | A sandbag blocks walking while it stands |
 | `SAND_PER_HIT` | 0.25 | A sandbag loses sand per hit, sags, and is flattened at none |
+| `MUZZLE_DISTANCE` | 12 px | The muzzle is this far out from the chest; a bullet never hits a sandbag its shooter stood inside or within this distance of when he fired (his own cover: `Bullet.ignored_sandbags`) |
 
-With these, 200 seeded battles end 112 to 88 for the Platoon, lasting 47 s on average. Hills
+With these, 200 seeded battles end 110 to 90 for the Platoon, lasting 47 s on average, and
+1,000 end 555 to 445 (53 s on average), none of them drawn. Hills
 block bullets, so the computer neither stands nor fires until the ground leaves a clear line to
 its target.
 
@@ -175,7 +183,8 @@ its target.
 soldier targets the nearest enemy (and keeps him unless another is nearer by
 `TARGET_SWITCH_MARGIN`), advances until the enemy is within his own stand-off distance, takes
 cover behind a sandbag when the enemy is in range and in sight, shoots a sandbag that blocks his
-way, keeps his spacing from his friends, and fires when his pistol is ready, after a reaction
+way (from `SANDBAG_SHOT_DISTANCE`, beyond his muzzle's reach, since his shots never hit a bag he
+stands by; nearer than that he first steps back), keeps his spacing from his friends, and fires when his pistol is ready, after a reaction
 delay, with an aim error held for the whole shot. A soldier crowded by a friend of higher
 priority walks on to get off his spot, but never past the enemy's front: within `MELEE_PIXELS`
 of it he steps back instead, so friends do not follow a player who walks through the enemy's
@@ -204,10 +213,10 @@ stateDiagram-v2
     ChoosingSoldier --> Waiting : the battle is over, or no soldier is free
     Waiting --> ChoosingSoldier : the next battle starts
     Playing --> ChoosingSoldier : the next battle starts
-    ChoosingSide --> [*] : BACK held 60 frames, or unplugged
-    ChoosingSoldier --> [*] : BACK held 60 frames, or unplugged
-    Playing --> [*] : BACK held 60 frames, or unplugged
-    Waiting --> [*] : BACK held 60 frames, or unplugged
+    ChoosingSide --> [*] : BACK held a second, or unplugged
+    ChoosingSoldier --> [*] : BACK held a second, or unplugged
+    Playing --> [*] : BACK held a second, or unplugged
+    Waiting --> [*] : BACK held a second, or unplugged
 ```
 
 - Each device does at most one thing a frame, so the START that opens a seat never also confirms
@@ -221,7 +230,7 @@ stateDiagram-v2
 
 ## Swatches: the mechanic this game proves
 
-The soldier sprite is drawn once, in neutral colours. Its file lists the parts that can be
+The soldier sprite is drawn once, in the Pencil Platoon's livery. Its file lists the parts that can be
 recoloured, beside its palette:
 
 ```toml
@@ -276,9 +285,11 @@ right arrow moves the side card to the Platoon and Enter confirms it, D and A mo
 highlight and keypad Enter takes soldier 7 at frame 131. The player fires with the left mouse
 button (held, let go, held again), the mouse following the nearest enemy (`DrawingFireMouse`),
 walks right with D, steps back with the left arrow and A, then walks through the Brigade's line
-with the right arrow and stands there. He is shot down at frame 809 and takes over soldier 1,
-then dies and takes over again at frames 1303 (soldier 4) and 1394 (soldier 0). He holds Escape
-from frame 1500 and leaves at frame 1560, and soldier 0 goes back to the computer. The
+with the right arrow and stands there. He is shot down at frame 657 and takes over soldier 1,
+then dies and takes over again at frames 754 (soldier 6) and 840 (soldier 2). At frame 1232
+soldier 2, the Platoon's last, falls: P1 waits, the Graphite Brigade wins, and three seconds
+later the next battle starts with P1 choosing a Platoon soldier again. He holds Escape (for
+`LEAVE_HOLD_SECONDS` and ten frames more) from frame 1500 and leaves at frame 1561. The
 controls tail (`drawing_fire_controls`) then quits with Q. With the tail, the fixture holds 1,614
 frames.
 
@@ -293,8 +304,9 @@ none of the battle. Instead the scene posts an internal `GAMEEVENT` (`post_event
 soldier killed (`SOLDIER_KILLED_SUBTYPE`: his id, side and driver) and every seat log entry
 (`SEAT_CHANGED_SUBTYPE`: the change, the player, his soldier and the panel's text). The recording
 holds them, and a replay in which the battle plays out differently misses one and diverges
-("missing internal event"). `DrawingFireScene.on_game_event` takes its own subtypes as the
-markers they are. `test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover` checks that
+("missing internal event"). `DrawingFireScene.setup()` registers its own subtypes
+(`DRAWING_FIRE_EVENT_SUBTYPES`) with the scene manager, with a callback (`_take_marker`) that
+does nothing: they are markers for recordings. `test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover` checks that
 the fixture holds the player's death and takeover.
 
 `tests/replay/test_golden_replays.py` checks that every control the game reads is exercised: its
@@ -319,12 +331,12 @@ The tests use real pygame on the dummy driver; what is drawn is checked by its p
 
 | File | What it pins |
 |---|---|
-| `tests/examples/drawing_fire/test_battle.py` | Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling), hits and deaths, sandbags losing sand, sandbag placement, the winner |
+| `tests/examples/drawing_fire/test_battle.py` | Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw |
 | `tests/examples/drawing_fire/test_terrain.py` | Seeded hills over a flat baseline, any screen width, the ground between pixels |
 | `tests/examples/drawing_fire/test_drivers.py` | The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream |
 | `tests/examples/drawing_fire/test_players.py` | Keyboard and mouse, and controller, input as intents; dead zones; button edges |
 | `tests/examples/drawing_fire/test_seats.py` | Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players |
 | `tests/examples/drawing_fire/test_swatches.py` | Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache |
 | `tests/examples/drawing_fire/test_drawing.py` | The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner |
-| `tests/examples/drawing_fire/test_game.py` | The scene: battles, victory and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
+| `tests/examples/drawing_fire/test_game.py` | The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
 | `tests/examples/drawing_fire/test_simulation.py` | `scripts/simulate_drawing_fire.py`'s headless battles |

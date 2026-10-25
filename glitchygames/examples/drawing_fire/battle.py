@@ -146,6 +146,10 @@ class Bullet:
     velocity_y: float
     side: Side
     distance_left: float
+    # The sandbags (by index) the shooter stood inside or within MUZZLE_DISTANCE of when he
+    # fired: his own cover, which the bullet never hits (R24). Without this, the muzzle of a
+    # soldier at his cover spot is already inside the bag, and his shots wear down his own cover
+    ignored_sandbags: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -299,8 +303,17 @@ class Battle:
         return self.soldiers[soldier_id]
 
     @property
+    def over(self) -> bool:
+        """Whether the battle has ended: either side, or both (a draw), has no living soldiers."""
+        return not self.living(Side.PLATOON) or not self.living(Side.BRIGADE)
+
+    @property
     def winner(self) -> Side | None:
-        """The side with soldiers left when the other has none (None while both fight)."""
+        """The side with soldiers left when the other has none.
+
+        None while both fight, and in a draw (both armies fell in the same step): ``over``
+        tells the two apart.
+        """
         platoon_alive = bool(self.living(Side.PLATOON))
         brigade_alive = bool(self.living(Side.BRIGADE))
         if platoon_alive and not brigade_alive:
@@ -356,9 +369,29 @@ class Battle:
                     velocity_y=-BULLET_SPEED * math.sin(soldier.aim_angle),
                     side=soldier.side,
                     distance_left=PISTOL_RANGE,
+                    ignored_sandbags=self._own_cover(soldier),
                 )
             )
             soldier.cooldown = PISTOL_COOLDOWN
+
+    def _own_cover(self, soldier: Soldier) -> frozenset[int]:
+        """Find the sandbags a soldier's shot never hits: those he stands inside or next to.
+
+        A sandbag counts when the soldier stands inside its width or within MUZZLE_DISTANCE of
+        its nearer edge (judged when he fires), so his muzzle may already be inside it.
+
+        Args:
+            soldier: The soldier firing.
+
+        Returns:
+            The sandbags' indices.
+
+        """
+        return frozenset(
+            index
+            for index, sandbag in enumerate(self.sandbags)
+            if abs(soldier.x - sandbag.x) - sandbag.width / 2 <= MUZZLE_DISTANCE
+        )
 
     def _stop_at_sandbags(self, start_x: float, target_x: float) -> float:
         """Stop a walk at the edge of a sandbag that is tall enough to block it.
@@ -426,7 +459,7 @@ class Battle:
         if bullet.y >= self.terrain.ground_y(bullet.x):
             return True
         for index, sandbag in enumerate(self.sandbags):
-            if self._sandbag_is_hit(bullet, sandbag):
+            if index not in bullet.ignored_sandbags and self._sandbag_is_hit(bullet, sandbag):
                 sandbag.sand = max(0.0, sandbag.sand - SAND_PER_HIT)
                 if sandbag.flattened:
                     events.append(SandbagFlattened(index=index))

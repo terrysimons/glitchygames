@@ -11,7 +11,7 @@ from glitchygames.examples.drawing_fire.battle import Battle, Side
 from glitchygames.examples.drawing_fire.players import KEYBOARD, Button, ButtonEdges, Device
 from glitchygames.examples.drawing_fire.seats import (
     COMPUTER_DRIVER_NAME,
-    LEAVE_HOLD_FRAMES,
+    LEAVE_HOLD_SECONDS,
     SEAT_LOG_LENGTH,
     PlayerSeat,
     SeatLogEntry,
@@ -31,6 +31,30 @@ CONTROLLER_AXIS_COUNT = 6
 CONTROLLER_BUTTON_COUNT = 21
 CONTROLLER = Device(controller_id=3)
 SECOND_CONTROLLER = Device(controller_id=4)
+# The rig's frames advance this many seconds (60 frames a second), and the browser's 30
+RIG_FRAME_SECONDS = 1 / 60
+BROWSER_FRAME_SECONDS = 1 / 30
+
+
+def frames_to_leave(frame_seconds: float) -> int:
+    """Count the frames BACK must be held, at this frame rate, to reach LEAVE_HOLD_SECONDS.
+
+    The frames' seconds are added up as ButtonEdges adds them, in floating point: sixty
+    sixtieths come to just over a second, but thirty thirtieths to just under one.
+
+    Returns:
+        The frame count.
+
+    """
+    held_seconds = 0.0
+    frames = 0
+    while held_seconds < LEAVE_HOLD_SECONDS:
+        held_seconds += frame_seconds
+        frames += 1
+    return frames
+
+
+HOLD_FRAMES_TO_LEAVE = frames_to_leave(RIG_FRAME_SECONDS)
 
 KEYBOARD_SCANCODES = {
     Button.START: pygame.KSCAN_RETURN,
@@ -88,8 +112,15 @@ def button_snapshot(*, held: dict[Device, set[Button]], controllers: tuple[Devic
 class SeatsRig:
     """Seats over a flat battle, fed frame by frame with buttons held on real snapshots."""
 
-    def __init__(self, *, controllers: tuple[Device, ...] = (), seed: int = SEATS_SEED) -> None:
+    def __init__(
+        self,
+        *,
+        controllers: tuple[Device, ...] = (),
+        seed: int = SEATS_SEED,
+        frame_seconds: float = RIG_FRAME_SECONDS,
+    ) -> None:
         """Seat nobody yet; the keyboard and these controllers are plugged in."""
+        self.frame_seconds = frame_seconds
         self.seats = Seats(random=random.Random(seed))
         self.edges = ButtonEdges()
         self.battle = flat_battle()
@@ -99,12 +130,12 @@ class SeatsRig:
     def frame(self, held: dict[Device, set[Button]] | None = None) -> None:
         """Run one frame of the seats with these buttons held."""
         snapshot = button_snapshot(held=held or {}, controllers=self.controllers)
-        self.edges.update(snapshot)
+        self.edges.update(snapshot, dt=self.frame_seconds)
         devices = (KEYBOARD, *self.controllers)
         self.seats.update(
             edges=self.edges, devices=devices, battle=self.battle, seconds=self.seconds
         )
-        self.seconds += 1 / 60
+        self.seconds += self.frame_seconds
 
     def tap(self, device: Device, button: Button) -> None:
         """Press a button for one frame, then let it go."""
@@ -343,7 +374,7 @@ def test_a_death_with_no_free_soldier_waits():
     rig.frame()
     assert seat.stage is Stage.WAITING
     # P2 leaves: his soldier is the next free one, and P1 takes him
-    for _ in range(LEAVE_HOLD_FRAMES):
+    for _ in range(HOLD_FRAMES_TO_LEAVE):
         rig.frame({CONTROLLER: {Button.BACK}})
     assert rig.seats.seat_of(CONTROLLER) is None
     assert second_seat.name not in rig.seats.players
@@ -381,11 +412,11 @@ def test_a_chooser_whose_last_free_soldier_is_taken_waits():
 
 
 def test_holding_back_leaves_and_returns_the_soldier_to_the_computer():
-    """BACK held for LEAVE_HOLD_FRAMES frames frees the seat and its name."""
+    """BACK held for LEAVE_HOLD_SECONDS frees the seat and its name."""
     rig = SeatsRig()
     rig.join(KEYBOARD)
     soldier_id = rig.take_highlighted(KEYBOARD)
-    for _ in range(LEAVE_HOLD_FRAMES - 1):
+    for _ in range(HOLD_FRAMES_TO_LEAVE - 1):
         rig.frame({KEYBOARD: {Button.BACK}})
     assert rig.seats.driver_of(soldier_id) == 'P1'
     rig.frame({KEYBOARD: {Button.BACK}})
@@ -399,6 +430,24 @@ def test_holding_back_leaves_and_returns_the_soldier_to_the_computer():
     seat = rig.seats.seat_of(KEYBOARD)
     assert seat is not None
     assert seat.name == 'P1'
+
+
+def test_the_leave_hold_is_a_second_at_any_frame_rate():
+    """At the browser's 30 frames a second BACK is held half as many frames: still a second."""
+    rig = SeatsRig(frame_seconds=BROWSER_FRAME_SECONDS)
+    browser_frames = frames_to_leave(BROWSER_FRAME_SECONDS)
+    assert browser_frames < HOLD_FRAMES_TO_LEAVE
+    assert browser_frames * BROWSER_FRAME_SECONDS == pytest.approx(
+        LEAVE_HOLD_SECONDS, abs=BROWSER_FRAME_SECONDS
+    )
+    rig.join(KEYBOARD)
+    soldier_id = rig.take_highlighted(KEYBOARD)
+    for _ in range(browser_frames - 1):
+        rig.frame({KEYBOARD: {Button.BACK}})
+    assert rig.seats.driver_of(soldier_id) == 'P1'
+    rig.frame({KEYBOARD: {Button.BACK}})
+    assert rig.seats.seat_of(KEYBOARD) is None
+    assert rig.seats.driver_of(soldier_id) == COMPUTER_DRIVER_NAME
 
 
 def test_an_unplugged_controller_leaves():
@@ -436,7 +485,7 @@ def test_the_seat_log_keeps_the_last_entries():
     for _ in range(SEAT_LOG_LENGTH):
         rig.tap(KEYBOARD, Button.START)
         rig.tap(KEYBOARD, Button.START)
-        for _ in range(LEAVE_HOLD_FRAMES):
+        for _ in range(HOLD_FRAMES_TO_LEAVE):
             rig.frame({KEYBOARD: {Button.BACK}})
         rig.frame()
     assert len(rig.seats.log) == SEAT_LOG_LENGTH
@@ -606,6 +655,20 @@ def test_two_choosers_start_on_different_soldiers():
     assert second_seat.highlighted_soldier_id != first_seat.highlighted_soldier_id
 
 
+def test_a_draw_ends_the_battle_for_a_chooser_as_a_win_does():
+    """Both armies fall at once: a player choosing a soldier waits for the next battle."""
+    rig = SeatsRig()
+    seat = rig.join(KEYBOARD, side_presses=1)
+    assert seat.stage is Stage.CHOOSING_SOLDIER
+    for soldier in rig.battle.soldiers:
+        soldier.health = 0
+    assert rig.battle.over
+    assert rig.battle.winner is None
+    rig.frame()
+    assert seat.stage is Stage.WAITING
+    assert rig.log_texts()[-1] == 'P1 waits for the next battle'
+
+
 def test_a_leave_after_the_victory_hands_no_one_the_soldier():
     """Once the battle is won, a leaver's soldier is not handed to a waiting player."""
     rig = SeatsRig(controllers=(CONTROLLER,))
@@ -621,7 +684,7 @@ def test_a_leave_after_the_victory_hands_no_one_the_soldier():
     for soldier in rig.battle.living(Side.BRIGADE):
         rig.kill(soldier.soldier_id)
     assert rig.battle.winner is Side.PLATOON
-    for _ in range(LEAVE_HOLD_FRAMES):
+    for _ in range(HOLD_FRAMES_TO_LEAVE):
         rig.frame({CONTROLLER: {Button.BACK}})
     assert rig.seats.seat_of(CONTROLLER) is None
     assert seat.stage is Stage.WAITING
@@ -633,22 +696,22 @@ def test_a_leave_after_the_victory_hands_no_one_the_soldier():
 def test_back_held_since_leaving_does_not_leave_the_next_seat():
     """START pressed while BACK is still held from leaving opens a seat that BACK cannot leave.
 
-    BACK has to be let go first; held again for LEAVE_HOLD_FRAMES, it leaves.
+    BACK has to be let go first; held again for LEAVE_HOLD_SECONDS, it leaves.
     """
     rig = SeatsRig()
     rig.tap(KEYBOARD, Button.START)
-    for _ in range(LEAVE_HOLD_FRAMES):
+    for _ in range(HOLD_FRAMES_TO_LEAVE):
         rig.frame({KEYBOARD: {Button.BACK}})
     assert rig.seats.seat_of(KEYBOARD) is None
     rig.frame({KEYBOARD: {Button.BACK, Button.START}})
     seat = rig.seats.seat_of(KEYBOARD)
     assert seat is not None
     assert not seat.back_released
-    for _ in range(LEAVE_HOLD_FRAMES):
+    for _ in range(HOLD_FRAMES_TO_LEAVE):
         rig.frame({KEYBOARD: {Button.BACK}})
     assert rig.seats.seat_of(KEYBOARD) is seat
     rig.frame()
     assert seat.back_released
-    for _ in range(LEAVE_HOLD_FRAMES):
+    for _ in range(HOLD_FRAMES_TO_LEAVE):
         rig.frame({KEYBOARD: {Button.BACK}})
     assert rig.seats.seat_of(KEYBOARD) is None

@@ -61,7 +61,7 @@ from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire.game import DrawingFireScene
-from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_FRAMES, Stage
+from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.examples.mr_muncher.autopilot import Autopilot
 from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.examples.mr_muncher.maze import Direction
@@ -140,12 +140,15 @@ MR_MUNCHER_RESUME_FRAME = 660
 
 # Drawing Fire: the keyboard player's seat name (the first seat opened); the frames before
 # which the left mouse button goes down (True) or up (False); the frame the script starts
-# holding Escape (after the player's first death) and how much longer than the seats'
-# LEAVE_HOLD_FRAMES it holds it
+# holding Escape (after the player's first death) and how many frames longer than the seats'
+# LEAVE_HOLD_SECONDS (counted in frames of FRAME_SECONDS) it holds it, so a little over a second
 DRAWING_FIRE_PLAYER_NAME = 'P1'
 DRAWING_FIRE_FIRE_BUTTON_CHANGES: dict[int, bool] = {150: True, 380: False, 400: True, 600: False}
 DRAWING_FIRE_LEAVE_FRAME = 1500
 DRAWING_FIRE_LEAVE_SPARE_FRAMES = 10
+DRAWING_FIRE_LEAVE_HOLD_FRAMES = (
+    math.ceil(LEAVE_HOLD_SECONDS / FRAME_SECONDS) + DRAWING_FIRE_LEAVE_SPARE_FRAMES
+)
 # The mouse follows its target only once the target's chest is more than this many pixels from
 # it, as a hand on a mouse does (and so a walking target is not a motion every frame)
 DRAWING_FIRE_AIM_SLACK_PIXELS = 8
@@ -707,7 +710,7 @@ def drawing_fire_script() -> InputScript:
     script.tap(
         DRAWING_FIRE_LEAVE_FRAME,
         pygame.K_ESCAPE,
-        held_frames=LEAVE_HOLD_FRAMES + DRAWING_FIRE_LEAVE_SPARE_FRAMES,
+        held_frames=DRAWING_FIRE_LEAVE_HOLD_FRAMES,
     )
     return script
 

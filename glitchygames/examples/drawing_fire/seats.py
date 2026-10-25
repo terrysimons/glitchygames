@@ -28,8 +28,9 @@ if TYPE_CHECKING:
     from glitchygames.examples.drawing_fire.battle import Battle, Soldier
     from glitchygames.examples.drawing_fire.players import ButtonEdges, Device
 
-# BACK held this many frames (a second at 60 fps) leaves
-LEAVE_HOLD_FRAMES = 60
+# BACK held this long (s) leaves: timed by the seconds the frames advance, never by counting
+# frames, so it is a second at 30 frames a second (the browser) as at 60
+LEAVE_HOLD_SECONDS = 1.0
 # The seat log keeps this many of the latest joins, takeovers and leaves
 SEAT_LOG_LENGTH = 8
 # driver_of names the computer this way
@@ -204,11 +205,11 @@ class Seats:
 
         """
         for seat in list(self.players.values()):
-            back_frames = edges.held_frames(seat.device, Button.BACK)
-            if back_frames == 0:
+            if edges.held_frames(seat.device, Button.BACK) == 0:
                 seat.back_released = True
             if seat.device not in devices or (
-                seat.back_released and back_frames >= LEAVE_HOLD_FRAMES
+                seat.back_released
+                and edges.held_seconds(seat.device, Button.BACK) >= LEAVE_HOLD_SECONDS
             ):
                 self._leave(seat, battle=battle, seconds=seconds)
         for device in devices:
@@ -351,12 +352,14 @@ class Seats:
     ) -> bool:
         """Send a chooser to WAITING when the battle is over or his side has no free soldier.
 
+        A battle is over once it is won or drawn (``Battle.over``).
+
         Returns:
             Whether he now waits.
 
         """
         assert seat.side is not None  # only a player with a side chooses a soldier
-        if battle.winner is not None:
+        if battle.over:
             text = f'{seat.name} waits for the next battle'
         elif not self.free_soldiers(seat.side, battle=battle):
             text = f'{seat.name} waits for a soldier'
@@ -383,8 +386,9 @@ class Seats:
             ),
             None,
         )
-        # After a win the battle is over: a waiter waits for the next battle, not this soldier
-        if waiting is not None and battle.winner is None and battle.soldier(seat.soldier_id).alive:
+        # After a win or a draw the battle is over: a waiter waits for the next battle, not this
+        # soldier
+        if waiting is not None and not battle.over and battle.soldier(seat.soldier_id).alive:
             waiting.stage = Stage.PLAYING
             waiting.soldier_id = seat.soldier_id
             self._record(

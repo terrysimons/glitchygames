@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from glitchygames.examples.drawing_fire.battle import (
+    MUZZLE_DISTANCE,
     PISTOL_RANGE,
     Battle,
     Intent,
@@ -43,6 +44,10 @@ TARGET_SWITCH_MARGIN = 30.0
 SANDBAG_SEEK_DISTANCE = 90.0
 # ...and stops once he is this close to its near edge (px)
 SANDBAG_COVER_DISTANCE = 8.0
+# A sandbag that blocks his way is shot from beyond his muzzle: he stops this far from its near
+# edge (px). A shot fired within MUZZLE_DISTANCE of a bag never hits it (it is his own cover:
+# battle.Bullet.ignored_sandbags), so from his cover spot he could never wear it down
+SANDBAG_SHOT_DISTANCE = MUZZLE_DISTANCE + SANDBAG_COVER_DISTANCE
 # Soldiers of one army stand at least this far apart (px): a soldier crowded by a friend of
 # higher priority walks on, and a queue behind a sandbag forms this far apart, so an army
 # never piles onto one spot
@@ -188,11 +193,15 @@ def computer_intent(
     if (
         cover is not None
         and (not can_see or distance > PISTOL_RANGE)
-        and cover[1] <= SANDBAG_COVER_DISTANCE
+        and cover[1] <= SANDBAG_SHOT_DISTANCE
     ):
         middle_y = battle.terrain.ground_y(cover[0].x) - cover[0].height / 2
         # Every shot, at a sandbag or a soldier, is aimed with the held error and then redraws it
         aim_angle = math.atan2(chest_y - middle_y, cover[0].x - chest_x) + mind.aim_error
+        # Within MUZZLE_DISTANCE of the bag his shots would never hit it, so he steps back from
+        # it first, holding his fire
+        if cover[1] <= MUZZLE_DISTANCE:
+            return Intent(move=-direction, aim_angle=aim_angle, fire=False)
         if ready:
             mind.aim_error = random.gauss(0.0, AIM_ERROR_RADIANS)
         return Intent(move=0.0, aim_angle=aim_angle, fire=ready)

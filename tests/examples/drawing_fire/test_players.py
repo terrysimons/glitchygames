@@ -24,6 +24,9 @@ FULL_DEFLECTION = 32767
 MOST_NEGATIVE = -32768
 SOLDIER_POSITION = (400.0, 300.0)
 CONTROLLER = Device(controller_id=CONTROLLER_ID)
+# A frame of the browser's 30 frames a second: a power of two's worth of seconds would add up
+# exactly, this one does not, as a real frame's seconds do not
+FRAME_SECONDS = 1 / 30
 
 
 def controller_snapshot(*, axes: dict[int, int] | None = None, buttons: set[int] | None = None):
@@ -168,6 +171,19 @@ def test_the_keyboard_aims_at_the_mouse():
     assert math.pi / 2 < keyboard_intent(snapshot).aim_angle < math.pi
 
 
+def test_a_mouse_exactly_on_the_chest_keeps_the_last_aim():
+    """The mouse on the soldier's chest points nowhere: the aim stays, never snapping right."""
+    on_the_chest = (round(SOLDIER_POSITION[0]), round(SOLDIER_POSITION[1]))
+    snapshot = keyboard_snapshot(mouse_position=on_the_chest)
+    last_aim = 2.0
+
+    intent = device_intent(
+        device=KEYBOARD, snapshot=snapshot, soldier_position=SOLDIER_POSITION, last_aim=last_aim
+    )
+
+    assert intent.aim_angle == last_aim
+
+
 def test_the_keyboard_aims_right_at_a_mouse_on_the_soldier_row():
     """The keyboard aims right at a mouse on the soldier row."""
     snapshot = keyboard_snapshot(mouse_position=(500, 300))
@@ -205,9 +221,9 @@ def test_start_is_pressed_once_per_press():
     edges = ButtonEdges()
     held = controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_START})
 
-    edges.update(held)
+    edges.update(held, dt=FRAME_SECONDS)
     first_frame = edges.pressed(CONTROLLER, Button.START)
-    edges.update(held)
+    edges.update(held, dt=FRAME_SECONDS)
     second_frame = edges.pressed(CONTROLLER, Button.START)
 
     assert first_frame
@@ -220,23 +236,38 @@ def test_held_frames_count_up_and_reset_on_release():
     held = controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_BACK})
     released = controller_snapshot()
 
-    edges.update(held)
-    edges.update(held)
-    edges.update(held)
+    edges.update(held, dt=FRAME_SECONDS)
+    edges.update(held, dt=FRAME_SECONDS)
+    edges.update(held, dt=FRAME_SECONDS)
     counted = edges.held_frames(CONTROLLER, Button.BACK)
-    edges.update(released)
+    edges.update(released, dt=FRAME_SECONDS)
 
     assert counted == 3
     assert edges.held_frames(CONTROLLER, Button.BACK) == 0
     assert not edges.pressed(CONTROLLER, Button.BACK)
 
 
+def test_held_seconds_add_up_each_frames_seconds_and_reset_on_release():
+    """A held button counts the seconds each frame advanced, whatever the frame rate."""
+    edges = ButtonEdges()
+    held = controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_BACK})
+
+    edges.update(held, dt=0.25)
+    edges.update(held, dt=0.5)
+    counted = edges.held_seconds(CONTROLLER, Button.BACK)
+    edges.update(controller_snapshot(), dt=0.25)
+
+    assert counted == 0.75
+    assert edges.held_seconds(CONTROLLER, Button.BACK) == 0.0
+    assert edges.held_seconds(CONTROLLER, Button.START) == 0.0
+
+
 def test_a_vanished_device_reads_as_all_buttons_up():
     """A vanished device reads as all buttons up."""
     edges = ButtonEdges()
-    edges.update(controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_START}))
+    edges.update(controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_START}), dt=FRAME_SECONDS)
 
-    edges.update(keyboard_snapshot())
+    edges.update(keyboard_snapshot(), dt=FRAME_SECONDS)
 
     assert edges.held_frames(CONTROLLER, Button.START) == 0
     assert not edges.pressed(CONTROLLER, Button.START)
@@ -254,14 +285,22 @@ def test_the_dpad_and_the_left_stick_press_left_and_right():
     """The dpad and the left stick press left and right."""
     edges = ButtonEdges()
 
-    edges.update(controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_DPAD_LEFT}))
+    edges.update(
+        controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_DPAD_LEFT}), dt=FRAME_SECONDS
+    )
     dpad_left = edges.pressed(CONTROLLER, Button.LEFT)
-    edges.update(controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_DPAD_RIGHT}))
+    edges.update(
+        controller_snapshot(buttons={pygame.CONTROLLER_BUTTON_DPAD_RIGHT}), dt=FRAME_SECONDS
+    )
     dpad_right = edges.pressed(CONTROLLER, Button.RIGHT)
-    edges.update(controller_snapshot())
-    edges.update(controller_snapshot(axes={pygame.CONTROLLER_AXIS_LEFTX: MOST_NEGATIVE}))
+    edges.update(controller_snapshot(), dt=FRAME_SECONDS)
+    edges.update(
+        controller_snapshot(axes={pygame.CONTROLLER_AXIS_LEFTX: MOST_NEGATIVE}), dt=FRAME_SECONDS
+    )
     stick_left = edges.pressed(CONTROLLER, Button.LEFT)
-    edges.update(controller_snapshot(axes={pygame.CONTROLLER_AXIS_LEFTX: FULL_DEFLECTION}))
+    edges.update(
+        controller_snapshot(axes={pygame.CONTROLLER_AXIS_LEFTX: FULL_DEFLECTION}), dt=FRAME_SECONDS
+    )
     stick_right = edges.pressed(CONTROLLER, Button.RIGHT)
 
     assert (dpad_left, dpad_right, stick_left, stick_right) == (True, True, True, True)
@@ -271,12 +310,14 @@ def test_the_keyboard_buttons():
     """The keyboard buttons."""
     edges = ButtonEdges()
 
-    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_RETURN, pygame.KSCAN_ESCAPE}))
+    edges.update(
+        keyboard_snapshot(scancodes={pygame.KSCAN_RETURN, pygame.KSCAN_ESCAPE}), dt=FRAME_SECONDS
+    )
     return_start = edges.pressed(KEYBOARD, Button.START)
     escape_back = edges.pressed(KEYBOARD, Button.BACK)
-    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_A}))
+    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_A}), dt=FRAME_SECONDS)
     a_left = edges.pressed(KEYBOARD, Button.LEFT)
-    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_RIGHT}))
+    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_RIGHT}), dt=FRAME_SECONDS)
     arrow_right = edges.pressed(KEYBOARD, Button.RIGHT)
 
     assert return_start
@@ -289,7 +330,7 @@ def test_keypad_enter_alone_presses_start():
     """Keypad enter alone presses start."""
     edges = ButtonEdges()
 
-    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_KP_ENTER}))
+    edges.update(keyboard_snapshot(scancodes={pygame.KSCAN_KP_ENTER}), dt=FRAME_SECONDS)
 
     assert edges.pressed(KEYBOARD, Button.START)
 

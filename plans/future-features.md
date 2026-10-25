@@ -1059,6 +1059,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
     soldiers sprites would let a replay catch a divergence in where they walk too
   - its golden replay fixture is about 185 KB, over the 100 KB the others keep: the scene start
     records the state of every random stream (19 Mersenne Twisters, twice)
+  - its controls in an `ActionMap` (design 4.6): the MVP reads START, BACK, LEFT, RIGHT and fire
+    straight from the polled input in `players.py` (ruling R21 accepts that for the MVP). Move
+    them into an `ActionMap` bound by scancode and controller button once the engine's
+    controller layout work (#47) lands, so the bindings follow the pad's layout
 - **Status**: TODO
 
 ### 26. Water Physics Level System

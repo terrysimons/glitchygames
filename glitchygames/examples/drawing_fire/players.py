@@ -136,7 +136,8 @@ def device_intent(
         device: The device driving the soldier.
         snapshot: This frame's input.
         soldier_position: The soldier's screen position (the keyboard aims from it at the mouse).
-        last_aim: The previous aim angle, kept while a controller's aim stick rests.
+        last_aim: The previous aim angle, kept while a controller's aim stick rests or the mouse
+            is exactly on the soldier's chest.
 
     Returns:
         The intent. Move is -1..1, aim is radians (0 right, pi / 2 up), fire is a bool.
@@ -148,10 +149,16 @@ def device_intent(
         )
     soldier_x, soldier_y = soldier_position
     mouse_x, mouse_y = snapshot.mouse_position
+    # A mouse exactly on the chest points nowhere (atan2(0, 0) would snap the aim right), so
+    # the aim stays where it was
+    if (mouse_x, mouse_y) == (soldier_x, soldier_y):
+        aim_angle = last_aim
+    else:
+        # Screen y grows downward, so up is soldier_y - mouse_y
+        aim_angle = math.atan2(soldier_y - mouse_y, mouse_x - soldier_x)
     return Intent(
         move=_keyboard_move(snapshot=snapshot),
-        # Screen y grows downward, so up is soldier_y - mouse_y
-        aim_angle=math.atan2(soldier_y - mouse_y, mouse_x - soldier_x),
+        aim_angle=aim_angle,
         fire=snapshot.mouse_buttons[LEFT_MOUSE_BUTTON_INDEX],
     )
 
@@ -188,19 +195,28 @@ def _keyboard_buttons_down(*, snapshot: InputSnapshot) -> frozenset[Button]:
 
 
 class ButtonEdges:
-    """Tracks, per device and button, how many frames each has been held.
+    """Tracks, per device and button, how many frames and seconds each has been held.
 
-    ``update`` is called once per frame with that frame's snapshot. A device missing from a
-    snapshot (a controller unplugged) reads as all buttons up.
+    ``update`` is called once per frame with that frame's snapshot and the seconds the frame
+    advances. A device missing from a snapshot (a controller unplugged) reads as all buttons up.
     """
 
     def __init__(self) -> None:
         """Start with nothing held."""
         self._held_frame_counts: dict[tuple[Device, Button], int] = {}
+        self._held_seconds: dict[tuple[Device, Button], float] = {}
 
-    def update(self, snapshot: InputSnapshot) -> None:
-        """Count this frame's held buttons on every connected device."""
+    def update(self, snapshot: InputSnapshot, *, dt: float) -> None:
+        """Count this frame's held buttons on every connected device.
+
+        Args:
+            snapshot: This frame's input.
+            dt: The seconds this frame advances: a button down this frame has been held for
+                them too (so a hold is timed the same at 30 and at 60 frames a second).
+
+        """
         held_frame_counts: dict[tuple[Device, Button], int] = {}
+        held_seconds: dict[tuple[Device, Button], float] = {}
         for device in connected_devices(snapshot):
             if device.controller_id is None:
                 buttons_down = _keyboard_buttons_down(snapshot=snapshot)
@@ -212,7 +228,9 @@ class ButtonEdges:
                 held_frame_counts[device, button] = (
                     self._held_frame_counts.get((device, button), 0) + 1
                 )
+                held_seconds[device, button] = self._held_seconds.get((device, button), 0.0) + dt
         self._held_frame_counts = held_frame_counts
+        self._held_seconds = held_seconds
 
     def pressed(self, device: Device, button: Button) -> bool:
         """Return whether the button went down this frame (up the frame before).
@@ -231,3 +249,12 @@ class ButtonEdges:
 
         """
         return self._held_frame_counts.get((device, button), 0)
+
+    def held_seconds(self, device: Device, button: Button) -> float:
+        """Return how long the button has been held so far, in the seconds the frames advanced.
+
+        Returns:
+            The seconds; 0.0 when the button is up.
+
+        """
+        return self._held_seconds.get((device, button), 0.0)

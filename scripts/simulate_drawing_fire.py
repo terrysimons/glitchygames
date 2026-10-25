@@ -1,8 +1,9 @@
 """Play Drawing Fire battles headless (computer against computer) and report how they go.
 
 It seeds the engine, builds each battle the way the game does and steps it with the computer
-driver, with no window. One line is printed per seed, then a summary: wins per army and the
-mean and longest battle. Use it to tune the battle's numbers.
+driver, with no window. One line is printed per seed, then a summary: wins per army, draws
+(both armies fell in the same step), battles given up at the time limit, and the mean and
+longest battle. Use it to tune the battle's numbers.
 
 Usage:
     uv run python scripts/simulate_drawing_fire.py [--seeds N] [--soldiers-per-side N]
@@ -39,6 +40,18 @@ class SimulationResult:
     seconds: float
     survivors: int
 
+    @property
+    def drawn(self) -> bool:
+        """Whether both armies fell (in the same step): no winner, and nobody left."""
+        return self.winner is None and self.survivors == 0
+
+    @property
+    def outcome(self) -> str:
+        """The result in words: the winning army, a draw, or no winner (the time limit)."""
+        if self.winner is not None:
+            return ARMY_NAMES[self.winner]
+        return 'draw' if self.drawn else 'no winner'
+
 
 def simulate(
     *,
@@ -47,7 +60,7 @@ def simulate(
     frame_seconds: float = 1 / 60,
     max_seconds: float = MAX_BATTLE_SECONDS,
 ) -> SimulationResult:
-    """Play one battle, computer against computer, until a winner or the time limit.
+    """Play one battle, computer against computer, until it is over or the time limit.
 
     Args:
         seed: The engine's master seed.
@@ -56,7 +69,7 @@ def simulate(
         max_seconds: The game seconds after which the battle is given up.
 
     Returns:
-        How the battle ended (no winner when it hit the limit).
+        How the battle ended (no winner in a draw, or when it hit the limit).
 
     """
     seed_engine_random(seed=seed)
@@ -66,7 +79,7 @@ def simulate(
         height=FIELD_HEIGHT,
         soldiers_per_side=soldiers_per_side,
     )
-    while battle.winner is None and battle.seconds < max_seconds:
+    while not battle.over and battle.seconds < max_seconds:
         battle.step(
             dt=frame_seconds, intents=computer_intents(battle=battle, minds=minds, streams=streams)
         )
@@ -100,17 +113,20 @@ def main(arguments: Sequence[str] | None = None) -> int:
         for seed in range(options.seeds)
     ]
     for result in results:
-        winner = 'no winner' if result.winner is None else ARMY_NAMES[result.winner]
         sys.stdout.write(
-            f'seed {result.seed}: {winner}, {result.seconds:.1f}s, {result.survivors} left\n'
+            f'seed {result.seed}: {result.outcome}, {result.seconds:.1f}s, '
+            f'{result.survivors} left\n'
         )
     wins = {side: sum(1 for result in results if result.winner is side) for side in Side}
+    draws = sum(1 for result in results if result.drawn)
+    unfinished = sum(1 for result in results if result.winner is None and not result.drawn)
     durations = [result.seconds for result in results]
     mean_seconds = sum(durations) / len(durations) if durations else 0.0
     longest_seconds = max(durations, default=0.0)
     sys.stdout.write(
         f'wins: {ARMY_NAMES[Side.PLATOON]} ({Side.PLATOON.value}) {wins[Side.PLATOON]}, '
         f'{ARMY_NAMES[Side.BRIGADE]} ({Side.BRIGADE.value}) {wins[Side.BRIGADE]}; '
+        f'draws {draws}; no winner {unfinished}; '
         f'mean {mean_seconds:.1f}s, longest {longest_seconds:.1f}s\n'
     )
     return 0

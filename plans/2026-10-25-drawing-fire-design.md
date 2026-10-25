@@ -1,7 +1,8 @@
 # Drawing Fire: Design
 
 - **Date:** 2026-10-25
-- **Status:** Design, from a brainstorm with the user. Not yet approved for building.
+- **Status:** Design, from a brainstorm with the user. Approved for building by the user on
+  2026-10-25; the MVP (section 4) is built.
 - **Pictures** (the brainstorm's sketches, in the session's scratchpad; to be copied into
   `docs/` with the first build): `army-scene.png` (the original idea), `army-scene-2.png`
   (tunnels, supply drop, debug seats), `army-scene-3.png` (joining by parachute),
@@ -263,6 +264,16 @@ later. **(user)**
   fix, the same 1,000 seeds: Platoon 521, Brigade 479, mean 51.5 s, longest 437.4 s). The
   Platoon's lean was there before the fix and grows a little with it; worth watching, not yet
   a reason to retune.
+- **After the final review's fixes** (rulings R23 and R24: a battle in which both armies fall in
+  the same step is a draw, "Nobody wins!"; a bullet never hits a sandbag its shooter stood inside
+  or within `MUZZLE_DISTANCE` of when he fired, so a soldier at his cover spot no longer wears
+  down his own cover, and the computer shoots a sandbag blocking his way from
+  `SANDBAG_SHOT_DISTANCE`, beyond his muzzle's reach, stepping back to it first): 200 seeds,
+  Platoon 110, Brigade 90, no draws; mean 47.0 s, shortest 19.7 s, longest 421.2 s, all ended.
+  1,000 seeds: Platoon 555, Brigade 445, no draws; mean 52.6 s, shortest 18.2 s, longest
+  450.9 s, all ended. The simulation steps at 60 fps; at the browser's hitch cap (0.05 s steps)
+  the reviewer's 300 seeds also held no draw, so a draw is rare, but it no longer freezes the
+  game.
 - **Driver rules the simulation forced** (my call):
   - Hills block bullets, so a soldier neither stands nor fires until the ground leaves a clear
     line to his target (otherwise whole armies stood on either side of a hill, firing into it).
@@ -273,6 +284,9 @@ later. **(user)**
   - He keeps his target unless another enemy is nearer by `TARGET_SWITCH_MARGIN` (30 px), so near
     ties cannot restart his reaction delay every frame.
   - A soldier blocked by a sandbag with the enemy in sight but out of range shoots the sandbag.
+  - He shoots a blocking sandbag from beyond his muzzle's reach (`SANDBAG_SHOT_DISTANCE`), since
+    a shot fired within `MUZZLE_DISTANCE` of a bag never hits it (R24); nearer, he steps back
+    first.
 - **Spread:** each soldier draws his stand-off once, from his own stream, as a fraction of the
   pistol range in `STAND_OFF_FRACTION_RANGE` (0.6 to 0.9), so an army does not stand on one x.
 - **Spacing** (my call): an army piled onto one x because every soldier stopped at the first x

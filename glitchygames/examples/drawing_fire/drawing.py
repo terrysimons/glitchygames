@@ -21,6 +21,7 @@ from glitchygames.examples.drawing_fire.battle import (
 from glitchygames.examples.drawing_fire.swatches import (
     RecoloredFrames,
     Scheme,
+    SwatchError,
     load_frames,
     load_swatch_sets,
 )
@@ -28,6 +29,7 @@ from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
     from glitchygames.examples.drawing_fire.battle import Battle, Bullet, Sandbag, Soldier
@@ -72,6 +74,8 @@ HATCH_SLANT_PIXELS = 7
 # The sprite (16x22) is drawn this many times larger: 44 px tall, with its chest 20 px above the
 # feet, which is where the battle puts a soldier's chest
 SPRITE_SCALE = 2
+# The soldier sprite's swatch set that is recoloured into each army's livery
+LIVERY_SWATCH_SET = 'livery'
 # A soldier facing left uses the animation named with this added (the frames, mirrored)
 FACING_LEFT_SUFFIX = '_left'
 # The sprite's top rows are empty, above the helmet
@@ -117,6 +121,8 @@ BANNER_HEIGHT_FRACTION = 1 / 4
 # Letters wander more than lines do
 BANNER_WOBBLE_SCALE = 2.0
 BANNER_UNDERLINE_WIDTH = 3
+# A banner's further lines are lettered under its first, this far apart (px)
+BANNER_LINE_GAP_PIXELS = 4
 
 # A 32-bit hash: the primes mix x, y and the salt (Teschner et al., "Optimized Spatial Hashing
 # for Collision Detection of Deformable Objects", 2003) and the finalizer spreads the bits
@@ -309,7 +315,18 @@ def load_soldier_frames(*, path: Path) -> RecoloredFrames:
     Returns:
         The frames, drawn SPRITE_SCALE times larger, in any scheme's colours on demand.
 
+    Raises:
+        SwatchError: The file has no ``LIVERY_SWATCH_SET`` swatch set (Bitmappy's save drops
+            [swatches], so a sprite saved there loses it).
+
     """
+    swatch_sets = load_swatch_sets(path=path)
+    if LIVERY_SWATCH_SET not in swatch_sets:
+        message = (
+            f'{path}: no {LIVERY_SWATCH_SET!r} swatch set (the soldier is recoloured into each '
+            "army's livery by it; a save from Bitmappy drops [swatches])"
+        )
+        raise SwatchError(message)
     scaled: dict[str, tuple[pygame.Surface, ...]] = {}
     for namespace, animation_frames in load_frames(path=path).items():
         scaled[namespace] = tuple(
@@ -322,7 +339,7 @@ def load_soldier_frames(*, path: Path) -> RecoloredFrames:
         scaled[namespace + FACING_LEFT_SUFFIX] = tuple(
             pygame.transform.flip(frame, flip_x=True, flip_y=False) for frame in scaled[namespace]
         )
-    return RecoloredFrames(frames=scaled, swatch_set=load_swatch_sets(path=path)['livery'])
+    return RecoloredFrames(frames=scaled, swatch_set=swatch_sets[LIVERY_SWATCH_SET])
 
 
 def draw_soldier(  # ruff: ignore[too-many-arguments] - the walk and the clock go with the soldier
@@ -546,18 +563,27 @@ def _banner_surface(text: str) -> pygame.Surface:
     return banner
 
 
-def draw_banner(surface: pygame.Surface, text: str) -> None:
-    """Show a hand-lettered message across the middle of the sky.
+def draw_banner(surface: pygame.Surface, lines: Sequence[str]) -> None:
+    """Show a hand-lettered message across the middle of the sky, a line at a time.
+
+    The first line is centred BANNER_HEIGHT_FRACTION down the screen (where a one-line banner
+    always is); each further line is centred under the one before it. Every line is lettered
+    and kept on its own (``_banner_surface``, cached by its text).
 
     Args:
         surface: Where to draw.
-        text: The message (the victory announcement).
+        lines: The message's lines: the winner's one line, or a draw's two.
 
     """
-    banner = _banner_surface(text)
-    surface.blit(
-        banner,
-        banner.get_rect(
-            center=(surface.get_width() // 2, round(surface.get_height() * BANNER_HEIGHT_FRACTION))
-        ),
-    )
+    centre_x = surface.get_width() // 2
+    previous: pygame.Rect | None = None
+    for text in lines:
+        banner = _banner_surface(text)
+        if previous is None:
+            rect = banner.get_rect(
+                center=(centre_x, round(surface.get_height() * BANNER_HEIGHT_FRACTION))
+            )
+        else:
+            rect = banner.get_rect(midtop=(centre_x, previous.bottom + BANNER_LINE_GAP_PIXELS))
+        surface.blit(banner, rect)
+        previous = rect

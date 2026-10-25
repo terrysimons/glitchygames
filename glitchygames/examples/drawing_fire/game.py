@@ -1,9 +1,9 @@
 """Drawing Fire: a pencil-on-paper stick-figure battle.
 
 This cut is the battlefield (paper, and the ground with its hills) and a battle the computer
-plays, the winner announced and the next battle started on its own. Players join it at any time
-(``seats``): START on the keyboard (Enter) or a controller chooses a side and takes over one of
-its soldiers. ``drawing`` and ``seat_drawing`` draw it all in pencil.
+plays, the winner (or a draw) announced and the next battle started on its own. Players join
+it at any time (``seats``): START on the keyboard (Enter) or a controller chooses a side and
+takes over one of its soldiers. ``drawing`` and ``seat_drawing`` draw it all in pencil.
 """
 
 from __future__ import annotations
@@ -74,8 +74,10 @@ if TYPE_CHECKING:
 
 PAPER_COLOR = (251, 248, 239)
 SOLDIER_SPRITE_PATH = Path(__file__).parent / 'sprites' / 'soldier.toml'
-# How long the winner is announced before the next battle starts (s)
+# How long the winner (or a draw) is announced before the next battle starts (s)
 VICTORY_SECONDS = 3.0
+# The announcement when both armies fall in the same step: two lines, one under the other
+DRAW_LINES = ('Nobody wins!', 'Everybody loses!')
 SECONDS_PER_MINUTE = 60
 PANEL_SEPARATOR = ' · '
 # Drawing Fire's GAMEEVENT subtypes. The scene posts one (an internal event) for every soldier
@@ -88,7 +90,7 @@ DRAWING_FIRE_EVENT_SUBTYPES = frozenset({SOLDIER_KILLED_SUBTYPE, SEAT_CHANGED_SU
 # The soldier_id a seat change without a soldier carries (an event attribute is never None)
 NO_SOLDIER_ID = -1
 # The sign before the computer soldiers' count in the panel
-COMPUTER_COUNT_MARK = '×'  # ruff: ignore[ambiguous-unicode-character-string] - intended
+COMPUTER_COUNT_MARK = '×'  # ruff: ignore[ambiguous-unicode-character-string] - a multiplication sign, the panel's count of computer soldiers ("CPU", the sign, then the count)
 
 
 def seats_panel_lines(seats: Seats, battle: Battle) -> list[str]:
@@ -143,7 +145,7 @@ def _seat_label(seat: PlayerSeat) -> str:
 
 
 class Phase(enum.Enum):
-    """Where the scene is: fighting, or announcing the winner."""
+    """Where the scene is: fighting, or announcing the winner (or a draw)."""
 
     BATTLE = 'battle'
     VICTORY = 'victory'
@@ -175,7 +177,8 @@ class DrawingFireScene(Scene):
         self.background_color = PAPER_COLOR
         self.battle_number = 0
         self.phase = Phase.BATTLE
-        self.victory_message = ''
+        # The announcement's lines (none while the battle is fought)
+        self.victory_lines: tuple[str, ...] = ()
         self.victory_seconds = 0.0
         # The soldier sprite, scaled once and recoloured once per army
         self.soldier_frames = load_soldier_frames(path=SOLDIER_SPRITE_PATH)
@@ -213,11 +216,11 @@ class DrawingFireScene(Scene):
         self.minds: dict[int, ComputerSoldier] = minds
         self.soldier_streams: dict[int, Random] = streams
         self.phase = Phase.BATTLE
-        self.victory_message = ''
+        self.victory_lines = ()
         self.victory_seconds = 0.0
         self.walking_soldier_ids = set()
-        # The ground is pencilled onto clean paper, under every sprite (it never changes in a
-        # battle, and LayeredDirty repaints the background, so it has to be on the background)
+        # The ground is pencilled onto clean paper once a battle (it never changes in one): the
+        # background, with the ground on it, is what render starts every frame from
         self.background.fill(PAPER_COLOR)
         draw_terrain(self.background, self.terrain)
         # Joined players choose a soldier of their side again
@@ -235,7 +238,7 @@ class DrawingFireScene(Scene):
         """
         super().dt_tick(dt)
         snapshot = current_input()
-        self.button_edges.update(snapshot)
+        self.button_edges.update(snapshot, dt=dt)
         self.devices = connected_devices(snapshot)
         self.seats.update(
             edges=self.button_edges,
@@ -272,16 +275,26 @@ class DrawingFireScene(Scene):
                 for soldier in self.battle.soldiers
                 if soldier.alive and soldier.x != walked_from[soldier.soldier_id]
             }
-            winner = self.battle.winner
-            if winner is not None:
-                self.phase = Phase.VICTORY
-                self.victory_message = f'{ARMY_NAMES[winner]} wins!'
+            if self.battle.over:
+                self._end_battle()
         else:
             self.victory_seconds += dt
             if self.victory_seconds >= VICTORY_SECONDS:
                 self.start_battle()
         for entry in self.seats.take_new_entries():
             _post_seat_changed(entry)
+
+    def _end_battle(self: Self) -> None:
+        """Announce the winner, or a draw when both armies fell in the same step.
+
+        The picture holds still for the announcement: the bullets still in flight are gone and
+        nobody is drawn mid-stride.
+        """
+        winner = self.battle.winner
+        self.phase = Phase.VICTORY
+        self.victory_lines = DRAW_LINES if winner is None else (f'{ARMY_NAMES[winner]} wins!',)
+        self.battle.bullets = []
+        self.walking_soldier_ids = set()
 
     def _post_soldier_killed(self: Self, event: SoldierKilled) -> None:
         """Post a soldier's death as an internal event: who he was, and who drove him.
@@ -312,9 +325,9 @@ class DrawingFireScene(Scene):
             screen: The display surface.
 
         """
+        # The scene has no sprites (everything is pencilled here each frame), so the paper and
+        # ground are blitted whole, once, and no sprite group repaints the background over them
         screen.blit(self.background, (0, 0))
-        self.all_sprites.clear(screen, self.background)
-        self.all_sprites.draw(screen)
         for sandbag in self.battle.sandbags:
             draw_sandbag(screen, sandbag, self.terrain)
         # The fallen are drawn first, so the standing are never hidden behind them
@@ -332,8 +345,8 @@ class DrawingFireScene(Scene):
             draw_bullet(screen, bullet)
         draw_hud(screen, self.battle)
         self._render_seats(screen)
-        if self.victory_message:
-            draw_banner(screen, self.victory_message)
+        if self.victory_lines:
+            draw_banner(screen, self.victory_lines)
         self.rects = None  # The whole screen is presented
 
     def _render_seats(self: Self, screen: pygame.Surface) -> None:
@@ -398,6 +411,8 @@ class DrawingFireScene(Scene):
 
         """
         if event.key == pygame.K_ESCAPE:
+            # The release still consumes its press, as the base handler's does
+            self._keys_pressed_in_scene.discard(event.key)
             return
         super().on_key_up_event(event)
 

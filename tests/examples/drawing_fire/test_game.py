@@ -17,11 +17,14 @@ from glitchygames.examples.drawing_fire.battle import (
     SAND_PER_HIT,
     SOLDIERS_PER_SIDE,
     WALK_SPEED,
+    Battle,
     Bullet,
     Side,
 )
 from glitchygames.examples.drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
+from glitchygames.examples.drawing_fire.drivers import ComputerSoldier
 from glitchygames.examples.drawing_fire.game import (
+    DRAW_LINES,
     NO_SOLDIER_ID,
     PAPER_COLOR,
     SEAT_CHANGED_SUBTYPE,
@@ -42,6 +45,7 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     seats_panel_rect,
 )
 from glitchygames.examples.drawing_fire.seats import PlayerSeat, SeatChange, SeatLogEntry, Stage
+from glitchygames.examples.drawing_fire.terrain import Terrain
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 
@@ -128,16 +132,75 @@ def test_a_win_announces_the_army_then_the_next_battle_starts(scene):
     kill_army(scene, Side.BRIGADE)
     scene.dt_tick(1 / 60)
     assert scene.phase is Phase.VICTORY
-    assert scene.victory_message == f'{ARMY_NAMES[Side.PLATOON]} wins!'
+    assert scene.victory_lines == (f'{ARMY_NAMES[Side.PLATOON]} wins!',)
     scene.dt_tick(VICTORY_SECONDS / 2)
     assert scene.battle_number == 1
     assert scene.phase is Phase.VICTORY
     scene.dt_tick(VICTORY_SECONDS)
     assert scene.battle_number == 2
     assert scene.phase is Phase.BATTLE
-    assert not scene.victory_message
+    assert not scene.victory_lines
     assert len(scene.battle.living(Side.BRIGADE)) == SOLDIERS_PER_SIDE
     assert scene.terrain != first_terrain
+
+
+def last_two_standing_face_to_face(scene):
+    """Leave one soldier a side, at health 1, facing each other on flat ground, ready to fire.
+
+    The scene's battle is swapped for a one-a-side battle on flat ground (ids 0 and 1, whose
+    minds and streams the scene already has), each soldier's target set and his reaction done.
+    """
+    flat = Terrain(width=SCREEN_SIZE[0], height=SCREEN_SIZE[1], ground=(400.0,) * SCREEN_SIZE[0])
+    battle = Battle(terrain=flat, soldiers_per_side=1, sandbag_xs=())
+    platoon, brigade = battle.soldiers
+    platoon.x, brigade.x = 300.0, 500.0
+    platoon.health = brigade.health = 1
+    scene.battle = battle
+    scene.terrain = flat
+    scene.minds[platoon.soldier_id] = ComputerSoldier(target_id=brigade.soldier_id)
+    scene.minds[brigade.soldier_id] = ComputerSoldier(target_id=platoon.soldier_id)
+
+
+def test_a_draw_announces_nobody_wins_then_the_next_battle_starts(scene, mocker):
+    """The last two soldiers shoot each other at once: a two-line draw banner, then battle 2."""
+    last_two_standing_face_to_face(scene)
+    lettered = mocker.spy(drawing_module, '_banner_surface')
+    for _ in range(60):
+        scene.dt_tick(1 / 60)
+        if scene.phase is Phase.VICTORY:
+            break
+    assert scene.phase is Phase.VICTORY
+    assert scene.battle.over
+    assert scene.battle.winner is None
+    assert scene.victory_lines == DRAW_LINES == ('Nobody wins!', 'Everybody loses!')
+    scene.render(scene.screen)
+    assert [call.args[0] for call in lettered.call_args_list] == list(DRAW_LINES)
+    scene.dt_tick(VICTORY_SECONDS)
+    assert scene.battle_number == 2
+    assert scene.phase is Phase.BATTLE
+    assert not scene.victory_lines
+
+
+def test_the_victory_picture_holds_still(scene):
+    """At the win, the bullets in flight are gone and nobody is drawn mid-stride."""
+    for _ in range(30):
+        scene.dt_tick(1 / 60)
+    assert scene.walking_soldier_ids
+    scene.battle.bullets.append(
+        Bullet(
+            x=400.0,
+            y=60.0,
+            velocity_x=600.0,
+            velocity_y=0.0,
+            side=Side.PLATOON,
+            distance_left=100.0,
+        )
+    )
+    kill_army(scene, Side.BRIGADE)
+    scene.dt_tick(1 / 60)
+    assert scene.phase is Phase.VICTORY
+    assert not scene.battle.bullets
+    assert not scene.walking_soldier_ids
 
 
 def test_the_victory_message_is_drawn_on_the_paper(scene, mocker):
@@ -550,7 +613,7 @@ def test_seats_draw_only_from_their_own_stream(scene):
     }
     edges = scene.button_edges
     for held in ({pygame.KSCAN_RETURN}, set(), {pygame.KSCAN_RETURN}, set()):
-        edges.update(keyboard_input(scancodes=held))
+        edges.update(keyboard_input(scancodes=held), dt=1 / 60)
         scene.seats.update(
             edges=edges, devices=(KEYBOARD,), battle=scene.battle, seconds=scene.game_time
         )
@@ -582,6 +645,8 @@ def test_releasing_escape_never_quits_but_q_does(scene):
         pygame.event.Event(pygame.KEYUP, key=pygame.K_ESCAPE, scancode=pygame.KSCAN_ESCAPE, mod=0)
     )
     assert pygame.event.get(eventtype=pygame.QUIT) == []
+    # The release still consumes its press, as every other key's does
+    assert pygame.K_ESCAPE not in scene._keys_pressed_in_scene
     scene.record_key_press(key=pygame.K_q)
     scene.on_key_up_event(
         pygame.event.Event(pygame.KEYUP, key=pygame.K_q, scancode=pygame.KSCAN_Q, mod=0)
@@ -632,8 +697,8 @@ def test_the_panel_lists_each_army_its_drivers_and_the_seat_log(scene):
         )
     )
     assert seats_panel_lines(scene.seats, scene.battle) == [
-        'PLATOON  P1 · CPU ×7',  # ruff: ignore[ambiguous-unicode-character-string]
-        'BRIGADE  CPU ×8',  # ruff: ignore[ambiguous-unicode-character-string]
+        'PLATOON  P1 · CPU ×7',  # ruff: ignore[ambiguous-unicode-character-string] - the panel's count sign, a multiplication sign (COMPUTER_COUNT_MARK)
+        'BRIGADE  CPU ×8',  # ruff: ignore[ambiguous-unicode-character-string] - the panel's count sign, a multiplication sign (COMPUTER_COUNT_MARK)
         '0:04  P1 START → random → PLATOON',
     ]
 
@@ -646,7 +711,7 @@ def test_the_panel_counts_only_living_soldiers_and_formats_minutes(scene):
     )
     lines = seats_panel_lines(scene.seats, scene.battle)
     first_platoon_count = living_count(scene, Side.PLATOON)
-    assert lines[0] == f'PLATOON  CPU ×{first_platoon_count}'  # ruff: ignore[ambiguous-unicode-character-string]
+    assert lines[0] == f'PLATOON  CPU ×{first_platoon_count}'  # ruff: ignore[ambiguous-unicode-character-string] - the panel's count sign, a multiplication sign (COMPUTER_COUNT_MARK)
     assert lines[-1] == '1:15  P1 left'
 
 
@@ -665,7 +730,7 @@ def test_an_army_with_no_computer_soldiers_shows_only_its_players(scene):
 def test_an_army_with_neither_players_nor_soldiers_shows_no_computer_soldiers(scene):
     """A wiped-out army with no players still gets its line, CPU count 0."""
     kill_army(scene, Side.BRIGADE)
-    expected = 'BRIGADE  CPU ×0'  # ruff: ignore[ambiguous-unicode-character-string]
+    expected = 'BRIGADE  CPU ×0'  # ruff: ignore[ambiguous-unicode-character-string] - the panel's count sign, a multiplication sign (COMPUTER_COUNT_MARK)
     assert expected in seats_panel_lines(scene.seats, scene.battle)
 
 
@@ -679,8 +744,8 @@ def test_waiting_and_choosing_players_are_listed_on_their_side_marked(scene):
     )
     scene.seats.players['P4'] = PlayerSeat(name='P4', device=Device(controller_id=4))
     lines = seats_panel_lines(scene.seats, scene.battle)
-    assert lines[0] == 'PLATOON  P3 (choosing) · CPU ×8'  # ruff: ignore[ambiguous-unicode-character-string]
-    assert lines[1] == 'BRIGADE  P2 (waiting) · CPU ×8'  # ruff: ignore[ambiguous-unicode-character-string]
+    assert lines[0] == 'PLATOON  P3 (choosing) · CPU ×8'  # ruff: ignore[ambiguous-unicode-character-string] - the panel's count sign, a multiplication sign (COMPUTER_COUNT_MARK)
+    assert lines[1] == 'BRIGADE  P2 (waiting) · CPU ×8'  # ruff: ignore[ambiguous-unicode-character-string] - the panel's count sign, a multiplication sign (COMPUTER_COUNT_MARK)
     assert len(lines) == 2
 
 

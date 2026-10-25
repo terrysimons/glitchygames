@@ -25,7 +25,9 @@ from glitchygames.examples.drawing_fire.battle import (
 from glitchygames.examples.drawing_fire.drawing import (
     ARMY_COLORS,
     ARMY_LIVERIES,
+    BANNER_HEIGHT_FRACTION,
     FACING_LEFT_SUFFIX,
+    LIVERY_SWATCH_SET,
     PENCIL_COLOR,
     SPRITE_SCALE,
     WOBBLE_PIXELS,
@@ -40,7 +42,7 @@ from glitchygames.examples.drawing_fire.drawing import (
     text_surface,
     wobble,
 )
-from glitchygames.examples.drawing_fire.swatches import load_swatch_sets
+from glitchygames.examples.drawing_fire.swatches import SwatchError, load_swatch_sets
 from glitchygames.examples.drawing_fire.terrain import Terrain
 from glitchygames.fonts import FontManager
 
@@ -89,6 +91,36 @@ def terrain():
 def battle(terrain):
     """A one-a-side battle on flat ground."""
     return Battle(terrain=terrain, soldiers_per_side=1, sandbag_xs=())
+
+
+def without_swatches(text: str) -> str:
+    """Drop a sprite file's [swatches] tables, as a save from Bitmappy does.
+
+    Returns:
+        The file's text without them.
+
+    """
+    kept_lines: list[str] = []
+    in_swatches = False
+    for line in text.splitlines():
+        if line.startswith('['):
+            in_swatches = line.startswith('[swatches')
+        if not in_swatches:
+            kept_lines.append(line)
+    return '\n'.join(kept_lines) + '\n'
+
+
+def test_a_soldier_sprite_without_its_livery_swatches_names_the_file_and_the_set(tmp_path):
+    """A sprite with no livery swatch set fails with a SwatchError, not a bare KeyError."""
+    path = tmp_path / 'soldier.toml'
+    path.write_text(without_swatches(SOLDIER_PATH.read_text(encoding='utf-8')), encoding='utf-8')
+    assert load_swatch_sets(path=path) == {}
+
+    with pytest.raises(SwatchError) as raised:
+        load_soldier_frames(path=path)
+
+    assert str(path) in str(raised.value)
+    assert repr(LIVERY_SWATCH_SET) in str(raised.value)
 
 
 @pytest.fixture(scope='module')
@@ -432,16 +464,38 @@ def test_the_hud_font_and_text_are_made_once(paper, battle, mocker):
 
 def test_the_banner_is_hand_lettered_in_the_sky(paper):
     """The message is pencilled in the middle of the sky, the same each time."""
-    draw_banner(paper, 'Pencil Platoon wins!')
+    draw_banner(paper, ('Pencil Platoon wins!',))
     first = pygame.image.tobytes(paper, 'RGB')
     sky = pygame.Rect(SCREEN_SIZE[0] // 4, 40, SCREEN_SIZE[0] // 2, SCREEN_SIZE[1] // 3)
     assert PENCIL_COLOR in pixels_in(paper, sky)
     paper.fill(PAPER)
-    draw_banner(paper, 'Pencil Platoon wins!')
+    draw_banner(paper, ('Pencil Platoon wins!',))
     assert pygame.image.tobytes(paper, 'RGB') == first
     paper.fill(PAPER)
-    draw_banner(paper, 'Graphite Brigade wins!')
+    draw_banner(paper, ('Graphite Brigade wins!',))
     assert pygame.image.tobytes(paper, 'RGB') != first
+
+
+def test_a_two_line_banner_letters_its_second_line_under_the_first(paper):
+    """The first line is where a one-line banner is; the second is pencilled under it."""
+    draw_banner(paper, ('Nobody wins!',))
+    one_line = paper.copy()
+    first_line_bottom = (
+        _banner_surface('Nobody wins!')
+        .get_rect(center=(SCREEN_SIZE[0] // 2, round(SCREEN_SIZE[1] * BANNER_HEIGHT_FRACTION)))
+        .bottom
+    )
+    under = pygame.Rect(0, first_line_bottom, SCREEN_SIZE[0], SCREEN_SIZE[1] // 2)
+    assert PENCIL_COLOR not in pixels_in(one_line, under)
+    paper.fill(PAPER)
+
+    draw_banner(paper, ('Nobody wins!', 'Everybody loses!'))
+
+    above = pygame.Rect(0, 0, SCREEN_SIZE[0], first_line_bottom)
+    assert pygame.image.tobytes(paper.subsurface(above), 'RGB') == pygame.image.tobytes(
+        one_line.subsurface(above), 'RGB'
+    )
+    assert PENCIL_COLOR in pixels_in(paper, under)
 
 
 def test_the_banner_font_and_lettering_are_made_once(paper, mocker):
@@ -449,11 +503,11 @@ def test_the_banner_font_and_lettering_are_made_once(paper, mocker):
     mocker.patch.dict(FontManager._font_cache, clear=True)
     _banner_surface.cache_clear()
     font_constructor = mocker.spy(pygame.font, 'Font')
-    draw_banner(paper, 'Pencil Platoon wins!')
+    draw_banner(paper, ('Pencil Platoon wins!',))
     assert font_constructor.call_count == 1
     rendered = mocker.spy(drawing_module, '_font')
-    draw_banner(paper, 'Pencil Platoon wins!')
-    draw_banner(paper, 'Pencil Platoon wins!')
+    draw_banner(paper, ('Pencil Platoon wins!',))
+    draw_banner(paper, ('Pencil Platoon wins!',))
     assert font_constructor.call_count == 1
     assert rendered.call_count == 0
 

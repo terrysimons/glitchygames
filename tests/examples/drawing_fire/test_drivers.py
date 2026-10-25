@@ -7,6 +7,7 @@ import math
 import random
 
 from glitchygames.examples.drawing_fire.battle import (
+    MUZZLE_DISTANCE,
     PISTOL_COOLDOWN,
     PISTOL_RANGE,
     SAND_PER_HIT,
@@ -23,6 +24,7 @@ from glitchygames.examples.drawing_fire.drivers import (
     AIM_ERROR_RADIANS,
     REACTION_SECONDS_RANGE,
     SANDBAG_COVER_DISTANCE,
+    SANDBAG_SHOT_DISTANCE,
     SOLDIER_SPACING,
     STAND_OFF_FRACTION_RANGE,
     TARGET_SWITCH_MARGIN,
@@ -49,6 +51,11 @@ NEAR_TIE_PIXELS = 7.5
 HILL_LEFT = 300
 HILL_RIGHT = 500
 HILL_HEIGHT = 120.0
+# Where a soldier stands to shoot a sandbag that blocks his way: between his muzzle's reach and
+# the shooting distance, from the bag's near edge (px)
+SHOOTING_SPOT_DISTANCE = (MUZZLE_DISTANCE + SANDBAG_SHOT_DISTANCE) / 2
+# Ten seconds is long enough to shoot a blocking bag down (stepped STEPS_PER_SECOND a second)
+BAG_SHOOTING_SECONDS = 10
 
 
 def small_battle(*, sandbag_xs: tuple[float, ...] = ()) -> Battle:
@@ -311,7 +318,7 @@ def test_stopped_at_a_sandbag_with_the_enemy_hidden_he_shoots_the_sandbags_middl
     bag_x = 240.0
     battle = hill_battle(sandbag_x=bag_x)
     soldier = battle.soldiers[0]
-    soldier.x = bag_x - SANDBAG_WIDTH / 2 - SANDBAG_COVER_DISTANCE / 2
+    soldier.x = bag_x - SANDBAG_WIDTH / 2 - SHOOTING_SPOT_DISTANCE
     bag = battle.sandbags[0]
     chest_x, chest_y = soldier.chest
     middle_y = FLAT_GROUND_Y - bag.height / 2
@@ -328,6 +335,38 @@ def test_stopped_at_a_sandbag_with_the_enemy_hidden_he_shoots_the_sandbags_middl
     assert not computer_intent(
         soldier=soldier, battle=battle, random=random.Random(1), mind=mind
     ).fire
+
+
+def test_too_near_a_blocking_sandbag_to_hit_it_he_steps_back_holding_fire():
+    """Within his muzzle's reach his shots never hit the bag (his own cover), so he backs off."""
+    bag_x = 240.0
+    battle = hill_battle(sandbag_x=bag_x)
+    soldier = battle.soldiers[0]
+    soldier.x = bag_x - SANDBAG_WIDTH / 2 - SANDBAG_COVER_DISTANCE / 2
+    intent = computer_intent(
+        soldier=soldier, battle=battle, random=random.Random(1), mind=ComputerSoldier(target_id=1)
+    )
+    assert intent.move == -1.0
+    assert not intent.fire
+
+
+def test_the_computers_shots_wear_down_a_sandbag_that_blocks_his_way():
+    """Walking up to a blocking bag with the enemy behind a hill, he shoots it down and walks on.
+
+    His own cover is never hit by his shots (battle.Bullet.ignored_sandbags), so this checks
+    that a bag ahead of him, the one he means to shoot, still is.
+    """
+    bag_x = 240.0
+    battle = hill_battle(sandbag_x=bag_x)
+    soldier = battle.soldiers[0]
+    bag = battle.sandbags[0]
+    mind = ComputerSoldier(target_id=1)
+    stream = random.Random(1)
+    for _ in range(BAG_SHOOTING_SECONDS * STEPS_PER_SECOND):
+        intent = computer_intent(soldier=soldier, battle=battle, random=stream, mind=mind)
+        battle.step(dt=1 / STEPS_PER_SECOND, intents={soldier.soldier_id: intent})
+    assert not bag.blocks_walking
+    assert soldier.x > bag_x
 
 
 def test_once_the_sandbag_is_low_enough_to_walk_over_he_walks_on():
@@ -348,7 +387,7 @@ def test_blocked_by_a_sandbag_with_the_enemy_in_sight_but_out_of_range_he_shoots
     """Pushing into a bag forever is no use: he shoots it when the enemy is too far to shoot."""
     battle = small_battle(sandbag_xs=(240.0,))
     soldier = battle.soldiers[0]
-    soldier.x = 240.0 - SANDBAG_WIDTH / 2 - SANDBAG_COVER_DISTANCE / 2
+    soldier.x = 240.0 - SANDBAG_WIDTH / 2 - SHOOTING_SPOT_DISTANCE
     battle.soldiers[1].x = soldier.x + PISTOL_RANGE + 100.0
     battle.seconds = AFTER_REACTION_SECONDS
     intent = computer_intent(
@@ -553,7 +592,7 @@ def test_soldiers_queue_a_spacing_apart_behind_a_sandbag_that_blocks_them():
     battle.soldiers[3].x = 799.0
     head, follower = battle.soldiers[0], battle.soldiers[1]
     near_edge = bag_x - SANDBAG_WIDTH / 2
-    head.x = near_edge - SANDBAG_COVER_DISTANCE / 2
+    head.x = near_edge - SHOOTING_SPOT_DISTANCE
     follower.x = head.x - SOLDIER_SPACING + 1.0
     # The enemy is far out of range, so cover is no place to stand yet: only the queue holds him
     battle.seconds = AFTER_REACTION_SECONDS

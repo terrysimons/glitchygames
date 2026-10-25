@@ -9,9 +9,11 @@ import pytest
 
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
+    MUZZLE_DISTANCE,
     PISTOL_COOLDOWN,
     PISTOL_DAMAGE,
     PISTOL_RANGE,
+    SAND_PER_HIT,
     SANDBAG_HEIGHT,
     SANDBAG_MAX_GROUND_VARIATION,
     SANDBAG_WIDTH,
@@ -353,6 +355,74 @@ def test_a_fast_bullet_cannot_tunnel_through_a_soldier():
     battle, shooter, target = duel(distance=200)
     battle.step(dt=0.3, intents={shooter.soldier_id: Intent(fire=True)})
     assert target.health == SOLDIER_HEALTH - 1
+
+
+def test_two_last_soldiers_shooting_each_other_at_once_is_a_draw():
+    """One soldier a side at health 1 fire at each other in the same step: both fall, a draw."""
+    battle, shooter, target = duel(distance=200)
+    shooter.health = target.health = 1
+    intents = {
+        shooter.soldier_id: Intent(aim_angle=0.0, fire=True),
+        target.soldier_id: Intent(aim_angle=math.pi, fire=True),
+    }
+    killed_at: dict[int, float] = {}
+    for _ in range(round(1.0 / TIME_STEP)):
+        for event in battle.step(dt=TIME_STEP, intents=intents):
+            assert isinstance(event, SoldierKilled)
+            killed_at[event.soldier_id] = battle.seconds
+        if battle.over:
+            break
+    assert killed_at.keys() == {shooter.soldier_id, target.soldier_id}
+    assert len(set(killed_at.values())) == 1  # in the same step
+    assert battle.over
+    assert battle.winner is None
+
+
+def test_the_battle_is_over_once_either_army_has_fallen():
+    """Over with one side gone (a win) or both (a draw); not while both fight."""
+    battle = flat_battle(soldiers_per_side=1)
+    assert not battle.over
+    battle.soldier(1).health = 0
+    assert battle.over
+    battle.soldier(0).health = 0
+    assert battle.over
+    battle.soldier(1).health = 1
+    assert battle.over
+
+
+def test_a_soldier_firing_from_cover_never_hits_his_own_sandbag():
+    """Level fire from just behind a bag (his muzzle inside it) leaves it full and hits beyond."""
+    bag_x = 300.0
+    battle, shooter, target = duel(distance=200, sandbag_xs=(bag_x,))
+    # His cover spot: a few pixels from the bag's near edge, within his muzzle's reach
+    shooter.x = bag_x - SANDBAG_WIDTH / 2 - MUZZLE_DISTANCE / 2
+    target.x = shooter.x + 200.0
+    assert bag_x - SANDBAG_WIDTH / 2 < shooter.muzzle[0]
+    run(
+        battle,
+        seconds=PISTOL_COOLDOWN + BULLET_FLIGHT_SLACK_SECONDS,
+        intents={shooter.soldier_id: Intent(aim_angle=0.0, fire=True)},
+    )
+    assert battle.sandbags[0].sand == 1.0
+    assert target.health == SOLDIER_HEALTH - 2 * PISTOL_DAMAGE
+
+
+def test_a_bullet_ignores_only_the_sandbags_its_shooter_stood_by():
+    """His own cover is judged when he fires: a bag farther than his muzzle's reach is hit."""
+    near_x = 300.0
+    battle, shooter, _target = duel(distance=400, sandbag_xs=(near_x, near_x + 150.0))
+    shooter.x = near_x - SANDBAG_WIDTH / 2 - MUZZLE_DISTANCE
+    battle.step(dt=TIME_STEP, intents={shooter.soldier_id: Intent(aim_angle=0.0, fire=True)})
+    assert battle.bullets[0].ignored_sandbags == frozenset({0})
+    run(battle, seconds=1.0, intents={})
+    assert battle.sandbags[0].sand == 1.0
+    assert battle.sandbags[1].sand == 1.0 - SAND_PER_HIT
+    shooter.x = near_x - SANDBAG_WIDTH / 2 - MUZZLE_DISTANCE - 1.0
+    shooter.cooldown = 0.0
+    battle.step(dt=TIME_STEP, intents={shooter.soldier_id: Intent(aim_angle=0.0, fire=True)})
+    # A pixel farther back, the bag is beyond his muzzle: the shot hits it at once
+    assert not battle.bullets
+    assert battle.sandbags[0].sand == 1.0 - SAND_PER_HIT
 
 
 def test_the_winner_is_the_army_left_standing():

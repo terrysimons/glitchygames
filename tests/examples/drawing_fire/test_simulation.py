@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from scripts import simulate_drawing_fire
-from scripts.simulate_drawing_fire import MAX_BATTLE_SECONDS, simulate
+from scripts.simulate_drawing_fire import MAX_BATTLE_SECONDS, SimulationResult, simulate
 
 from glitchygames.examples.drawing_fire.battle import SOLDIERS_PER_SIDE, Side
 from glitchygames.examples.drawing_fire.drivers import computer_intents, muster_battle
@@ -51,6 +51,19 @@ def test_a_battle_that_hits_the_time_limit_has_no_winner():
     )
     assert result.winner is None
     assert result.survivors == 2 * TEST_SOLDIERS_PER_SIDE
+
+
+def test_a_result_names_its_outcome_a_win_a_draw_or_no_winner():
+    """A winner is named; nobody left is a draw; both armies still fighting is no winner."""
+    won = SimulationResult(seed=0, winner=Side.PLATOON, seconds=40.0, survivors=3)
+    drawn = SimulationResult(seed=1, winner=None, seconds=40.0, survivors=0)
+    unfinished = SimulationResult(seed=2, winner=None, seconds=600.0, survivors=5)
+    assert (won.outcome, drawn.outcome, unfinished.outcome) == (
+        'Pencil Platoon',
+        'draw',
+        'no winner',
+    )
+    assert (won.drawn, drawn.drawn, unfinished.drawn) == (False, True, False)
 
 
 def test_the_simulation_prints_a_summary(capsys):
@@ -107,7 +120,7 @@ def test_an_army_never_stands_piled_on_one_spot():
         )
         overlapped_seconds: dict[tuple[int, int], float] = {}
         longest = 0.0
-        while battle.winner is None and battle.seconds < MAX_BATTLE_SECONDS:
+        while not battle.over and battle.seconds < MAX_BATTLE_SECONDS:
             battle.step(
                 dt=TEST_FRAME_SECONDS,
                 intents=computer_intents(battle=battle, minds=minds, streams=streams),
