@@ -40,7 +40,7 @@ SEAT_PADDING_PIXELS = 6
 SEAT_LINE_GAP_PIXELS = 1
 NOTE_TITLE_FONT_SIZE = 18
 NOTE_FONT_SIZE = 13
-NOTE_LINES = ('Press START to join!', 'Enter on the keyboard', 'and take over a soldier')
+NOTE_LINES = ('Press START to enlist!', 'Enter on the keyboard', 'and become a soldier')
 NOTE_TAPE_SIZE = (36, 8)
 # A card holds a title and three lines (the side card is the tallest)
 CARD_SIZE = (160, 80)
@@ -57,6 +57,12 @@ SIDE_CHOICE_WASHES: dict[SideChoice, Color] = {
     SideChoice.PLATOON: ARMY_COLORS[Side.PLATOON],
     SideChoice.BRIGADE: ARMY_COLORS[Side.BRIGADE],
 }
+# What a playing player holds to leave, named for his device (the keyboard's Escape, a
+# controller's Back): leaving takes a held second (seats.LEAVE_HOLD_SECONDS), which nothing
+# else on screen says
+LEAVE_KEY_NAMES = {'keyboard': 'Esc', 'controller': 'Back'}
+# While BACK is held, a bar along the card's foot (inside its bottom padding) fills toward leaving
+LEAVE_BAR_HEIGHT_PIXELS = 3
 
 # The highlight is a hand-drawn ring round the soldier's body, his chooser's name above it
 HIGHLIGHT_CENTER_ABOVE_FEET = 18
@@ -81,8 +87,11 @@ SEAT_TAG_PADDING_PIXELS = 2
 SEAT_TAG_ABOVE_FEET_PIXELS = 64
 # Soldiers stand 20 px apart, closer than a tag is wide: every second soldier's tag is raised
 SEAT_TAG_STAGGER_PIXELS = 16
-# The panel sits in the bottom-right corner, opposite the join note, and holds about 8 log lines
-SEATS_PANEL_MARGIN_PIXELS = 10
+# The panel hangs at the top centre, in the sky over the field (the ground lies at 78% of the
+# height), just under the engine's DEBUG mode line (glitchygames/debug/panels.py draws it at the
+# top centre). The bottom corners belong to the join note and the players' cards, the top corners
+# to the army HUD and the engine's camera and FPS readouts. It holds about 8 log lines.
+SEATS_PANEL_TOP_PIXELS = 32
 SEATS_PANEL_PADDING_PIXELS = 6
 # The bundled font has no arrow glyph (it draws an empty box), so the panel spells it out
 PANEL_ARROW = '→'
@@ -151,7 +160,7 @@ def _blit_lines(
 
 
 def draw_join_prompt(surface: pygame.Surface) -> None:
-    """Stick the "Press START to join!" note on the paper, taped at the top.
+    """Stick the "Press START to enlist!" note on the paper, taped at the top.
 
     Args:
         surface: Where to draw.
@@ -170,19 +179,37 @@ def draw_join_prompt(surface: pygame.Surface) -> None:
     )
 
 
-def draw_seat_card(
-    surface: pygame.Surface, seat: PlayerSeat, *, slot: int, battle_over: bool
-) -> None:
-    """Draw the index card of a player not yet playing.
+def leave_hint(seat: PlayerSeat) -> str:
+    """Tell a playing player how to leave, naming his device's key.
 
-    It shows his side choice, how to choose a soldier, or that he waits (the scene gives a
-    playing player no card).
+    Returns:
+        E.g. ``hold Esc to leave`` for the keyboard, ``hold Back to leave`` for a controller.
+
+    """
+    device_kind = 'keyboard' if seat.device.controller_id is None else 'controller'
+    return f'hold {LEAVE_KEY_NAMES[device_kind]} to leave'
+
+
+def draw_seat_card(
+    surface: pygame.Surface,
+    seat: PlayerSeat,
+    *,
+    slot: int,
+    battle_over: bool,
+    leave_progress: float = 0.0,
+) -> None:
+    """Draw a player's index card.
+
+    It shows his side choice, how to choose a soldier, that he waits, or (playing) how to leave.
+    While he holds BACK, a bar along its foot fills toward leaving.
 
     Args:
         surface: Where to draw.
         seat: The player.
         slot: Which card in the row it is.
         battle_over: Whether the battle is over (a waiting player waits for the next one).
+        leave_progress: How far his hold of BACK has gone toward leaving (0.0 to 1.0,
+            ``Seats.leave_progress``).
 
     """
     card = seat_card_rect(surface, slot=slot)
@@ -192,6 +219,8 @@ def draw_seat_card(
         texts = (f'{seat.name}: choose a side', *SIDE_CHOICE_TEXTS.values())
     elif seat.stage is Stage.CHOOSING_SOLDIER:
         texts = (f'{seat.name}: choose a soldier', 'LEFT / RIGHT to look', 'START takes him')
+    elif seat.stage is Stage.PLAYING:
+        texts = (f'{seat.name}: playing', leave_hint(seat))
     else:
         reason = 'for the next battle' if battle_over else 'for a free soldier'
         texts = (f'{seat.name}: waiting', reason)
@@ -218,6 +247,14 @@ def draw_seat_card(
             ],
         )
     _blit_lines(surface, lines, topleft=(text_left, card.top + SEAT_PADDING_PIXELS))
+    if leave_progress > 0:
+        bar = pygame.Rect(
+            card.left + SEAT_PADDING_PIXELS,
+            card.bottom - SEAT_PADDING_PIXELS + 1,
+            round((card.width - 2 * SEAT_PADDING_PIXELS) * min(leave_progress, 1.0)),
+            LEAVE_BAR_HEIGHT_PIXELS,
+        )
+        pygame.draw.rect(surface=surface, color=PENCIL_COLOR, rect=bar)
 
 
 def draw_soldier_highlight(surface: pygame.Surface, soldier: Soldier, *, name: str) -> None:
@@ -290,7 +327,7 @@ def _panel_line(line: str) -> pygame.Surface:
 
 
 def seats_panel_rect(surface: pygame.Surface, *, lines: Sequence[str]) -> pygame.Rect:
-    """Find where the seats panel goes: the bottom-right corner, sized to its lines.
+    """Find where the seats panel goes: the top centre, under the DEBUG line, sized to its lines.
 
     Args:
         surface: Where the panel is drawn.
@@ -306,10 +343,7 @@ def seats_panel_rect(surface: pygame.Surface, *, lines: Sequence[str]) -> pygame
         2 * SEATS_PANEL_PADDING_PIXELS
     )
     panel = pygame.Rect(0, 0, width, height)
-    panel.bottomright = (
-        surface.get_width() - SEATS_PANEL_MARGIN_PIXELS,
-        surface.get_height() - SEATS_PANEL_MARGIN_PIXELS,
-    )
+    panel.midtop = (surface.get_width() // 2, SEATS_PANEL_TOP_PIXELS)
     return panel
 
 

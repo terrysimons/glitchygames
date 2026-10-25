@@ -432,6 +432,28 @@ def test_holding_back_leaves_and_returns_the_soldier_to_the_computer():
     assert seat.name == 'P1'
 
 
+def test_leave_progress_rises_with_the_hold_and_counts_only_a_hold_that_can_leave():
+    """Leave progress is the share of the second held: 0 up, rising, and 0 for a stale hold."""
+    rig = SeatsRig()
+    rig.join(KEYBOARD)
+    rig.take_highlighted(KEYBOARD)
+    seat = rig.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    assert Seats.leave_progress(seat, edges=rig.edges) == 0.0
+    rig.frame({KEYBOARD: {Button.BACK}})
+    one_frame = Seats.leave_progress(seat, edges=rig.edges)
+    assert one_frame == pytest.approx(RIG_FRAME_SECONDS / LEAVE_HOLD_SECONDS)
+    for _ in range(HOLD_FRAMES_TO_LEAVE // 2 - 1):
+        rig.frame({KEYBOARD: {Button.BACK}})
+    assert Seats.leave_progress(seat, edges=rig.edges) == pytest.approx(0.5, abs=one_frame)
+    rig.frame()
+    assert Seats.leave_progress(seat, edges=rig.edges) == 0.0
+    # BACK held since before a seat opened cannot leave it, so it shows no progress either
+    stale = PlayerSeat(name='P2', device=KEYBOARD, back_released=False)
+    rig.frame({KEYBOARD: {Button.BACK}})
+    assert Seats.leave_progress(stale, edges=rig.edges) == 0.0
+
+
 def test_the_leave_hold_is_a_second_at_any_frame_rate():
     """At the browser's 30 frames a second BACK is held half as many frames: still a second."""
     rig = SeatsRig(frame_seconds=BROWSER_FRAME_SECONDS)

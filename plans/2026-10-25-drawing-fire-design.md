@@ -74,7 +74,8 @@ long vision built in steps, starting with a small MVP (section 4).
 - They take over a soldier on the field, or parachute in from the next plane (section 3.5).
   **(user)**
 - The prompt "Press START to join" is always visible, in the game or on the fourth wall.
-  **(user)** Drawn as a sticky note on the paper with an arrow at the plane's glowing door, and
+  **(user)** The note reads "Press START to enlist!", then "Enter on the keyboard / and become
+  a soldier" (the user's wording, 2026-10-25, after playing the MVP). Drawn as a sticky note on the paper with an arrow at the plane's glowing door, and
   a three-panel how-to strip in a corner: press START, you jump, you're in. (my call)
 - Joining must visibly cause the parachute-in. Computer soldiers parachute in too. **(user)**
 - A player's chute is striped, with a pennant; computer chutes are plain. (my call)

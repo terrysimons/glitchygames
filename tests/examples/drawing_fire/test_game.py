@@ -24,6 +24,7 @@ from glitchygames.examples.drawing_fire.battle import (
 from glitchygames.examples.drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
 from glitchygames.examples.drawing_fire.drivers import ComputerSoldier
 from glitchygames.examples.drawing_fire.game import (
+    COMPUTER_COUNT_MARK,
     DRAW_LINES,
     NO_SOLDIER_ID,
     PAPER_COLOR,
@@ -32,6 +33,7 @@ from glitchygames.examples.drawing_fire.game import (
     VICTORY_SECONDS,
     DrawingFireScene,
     Phase,
+    held_keys_line,
     seats_panel_lines,
 )
 from glitchygames.examples.drawing_fire.players import KEYBOARD, Device
@@ -40,11 +42,19 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     NOTE_COLOR,
     SEAT_TAG_ABOVE_FEET_PIXELS,
     SEAT_TAG_STAGGER_PIXELS,
+    SEATS_PANEL_TOP_PIXELS,
     join_note_rect,
+    leave_hint,
     seat_card_rect,
     seats_panel_rect,
 )
-from glitchygames.examples.drawing_fire.seats import PlayerSeat, SeatChange, SeatLogEntry, Stage
+from glitchygames.examples.drawing_fire.seats import (
+    LEAVE_HOLD_SECONDS,
+    PlayerSeat,
+    SeatChange,
+    SeatLogEntry,
+    Stage,
+)
 from glitchygames.examples.drawing_fire.terrain import Terrain
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
@@ -418,7 +428,7 @@ def test_the_join_prompt_shows_while_a_device_is_unseated(scene):
 
 
 def test_a_player_choosing_a_side_sees_the_side_card(scene):
-    """START opens a card beside the note; the soldier choice keeps a card, playing has none."""
+    """START opens a card beside the note; it stays through the soldier choice and the play."""
     card = seat_card_rect(scene.screen, slot=0)
     scene.render(scene.screen)
     assert CARD_COLOR not in colors_in(scene.screen, card)
@@ -434,7 +444,42 @@ def test_a_player_choosing_a_side_sees_the_side_card(scene):
     assert CARD_COLOR in colors_in(scene.screen, card)
     keyboard_tap(scene, pygame.KSCAN_RETURN)
     scene.render(scene.screen)
-    assert CARD_COLOR not in colors_in(scene.screen, card)
+    # Playing, the card tells him how to leave
+    assert scene.seats.players['P1'].stage is Stage.PLAYING
+    assert CARD_COLOR in colors_in(scene.screen, card)
+
+
+def test_the_leave_hint_names_the_players_own_key():
+    """The keyboard player is told to hold Esc; a controller player, Back."""
+    assert leave_hint(PlayerSeat(name='P1', device=KEYBOARD)) == 'hold Esc to leave'
+    controller = Device(controller_id=CONTROLLER_ID)
+    assert leave_hint(PlayerSeat(name='P2', device=controller)) == 'hold Back to leave'
+
+
+def test_holding_back_fills_the_cards_foot_toward_leaving(scene):
+    """While a playing player holds Escape, a bar fills along his card's foot; up, it is gone."""
+    keyboard_joins_and_plays(scene)
+    card = seat_card_rect(scene.screen, slot=0)
+    # The bar's rows, inside the card's pencil border (the bar sits in the bottom padding)
+    foot = pygame.Rect(card.left + 2, card.bottom - 5, card.width - 4, 3)
+    left_half = pygame.Rect(foot.left, foot.top, foot.width // 2, foot.height)
+    right_half = pygame.Rect(foot.centerx + 2, foot.top, foot.width // 2 - 4, foot.height)
+    scene.render(scene.screen)
+    assert PENCIL_COLOR not in colors_in(scene.screen, left_half)
+    # Hold a third of the leave time: the bar reaches into the left half only
+    tick_with(
+        scene,
+        keyboard_input(scancodes=(pygame.KSCAN_ESCAPE,)),
+        frames=round(LEAVE_HOLD_SECONDS * 60 / 3),
+    )
+    scene.render(scene.screen)
+    assert PENCIL_COLOR in colors_in(scene.screen, left_half)
+    assert PENCIL_COLOR not in colors_in(scene.screen, right_half)
+    # Let go before the second: he stays, and the bar is gone
+    tick_with(scene, keyboard_input())
+    scene.render(scene.screen)
+    assert scene.seats.players['P1'].stage is Stage.PLAYING
+    assert PENCIL_COLOR not in colors_in(scene.screen, left_half)
 
 
 def test_a_waiting_player_has_a_card(scene):
@@ -781,20 +826,78 @@ def test_the_debug_overlay_tags_every_living_soldier_and_draws_the_panel(scene):
         assert pink_in(scene, tag_area_over(soldier, raised=rank % 2))
     # Where the fallen soldier stood there is no tag (a sliver, clear of his neighbours' tags)
     assert not pink_in(scene, tag_area_over(scene.battle.soldier(0), raised=0, width=4))
-    corner = pygame.Rect(0, 0, 200, 100)
-    corner.bottomright = scene.screen.get_rect().bottomright
-    assert pink_in(scene, corner)
+    top_centre = pygame.Rect(0, 0, 200, 100)
+    top_centre.midtop = (scene.screen.get_width() // 2, 0)
+    assert pink_in(scene, top_centre)
     assert not pink_in(scene, join_note_rect(scene.screen))
     assert before.get_at((0, 0)) == scene.screen.get_at((0, 0))
 
 
-def test_the_panel_does_not_cover_the_join_note_or_cards(scene):
-    """The panel's corner is the bottom right; the note and cards sit at the bottom left."""
-    panel = seats_panel_rect(scene.screen, lines=['0:04  P1 START → random → PLATOON'] * 10)
-    assert panel.right <= scene.screen.get_width()
-    assert panel.bottom <= scene.screen.get_height()
+def test_held_keys_line_names_the_held_keys_and_mouse_buttons():
+    """The held-keys line names keys by scancode (in scancode order), then the mouse buttons."""
+    snapshot = InputSnapshot(
+        pressed_scancodes=frozenset({pygame.KSCAN_ESCAPE, pygame.KSCAN_A}),
+        modifiers=0,
+        mouse_position=(0, 0),
+        mouse_buttons=(True, False, True),
+        mouse_focused=True,
+    )
+    assert held_keys_line(snapshot) == 'held: A ESCAPE mouse left mouse right'
+
+
+def test_held_keys_line_says_when_nothing_is_held():
+    """With no key or button held, the line says so instead of trailing off."""
+    assert held_keys_line(keyboard_input()) == 'held: (nothing)'
+
+
+def test_held_keys_line_shows_an_unnamed_scancode_as_its_number():
+    """A scancode pygame has no KSCAN_ name for is shown as its number, never dropped."""
+    unnamed = 499
+    assert not any(
+        getattr(pygame, name) == unnamed for name in dir(pygame) if name.startswith('KSCAN_')
+    )
+    assert held_keys_line(keyboard_input(scancodes=(unnamed,))) == 'held: 499'
+
+
+def test_the_debug_panel_ends_with_the_held_keys(scene):
+    """debug_draw's panel has one more line than the seats: the keys this frame's input holds."""
+    keyboard_joins_and_plays(scene)
+    set_current_input(snapshot=keyboard_input(scancodes=(pygame.KSCAN_ESCAPE,)))
+    seat_lines = seats_panel_lines(scene.seats, scene.battle)
+    with_held_keys = seats_panel_rect(scene.screen, lines=[*seat_lines, 'held: ESCAPE'])
+    without_held_keys = seats_panel_rect(scene.screen, lines=seat_lines)
+    assert with_held_keys.bottom > without_held_keys.bottom
+    scene.render(scene.screen)
+    scene.debug_draw(
+        scene.screen, Camera2D(screen_width=SCREEN_SIZE[0], screen_height=SCREEN_SIZE[1])
+    )
+    # The panel's outline runs along the bottom of the taller panel, the one with the held keys
+    outline_row = pygame.Rect(
+        with_held_keys.left, with_held_keys.bottom - 1, with_held_keys.width, 1
+    )
+    assert pink_in(scene, outline_row)
+
+
+def test_the_panel_hangs_in_the_sky_clear_of_the_note_cards_and_hills(scene):
+    """The panel is at the top centre, under the DEBUG line; the note and cards are at the bottom.
+
+    A full log (two army lines, eight log lines, the held keys) still ends above the raised tag
+    of a soldier standing on this battle's highest ground.
+    """
+    full_log = [
+        f'PLATOON  P1 · P2 · CPU {COMPUTER_COUNT_MARK}6',
+        f'BRIGADE  CPU {COMPUTER_COUNT_MARK}8',
+    ]
+    full_log += ['0:04  P1 START → random → PLATOON'] * 8
+    full_log += ['held: A ESCAPE mouse left']
+    panel = seats_panel_rect(scene.screen, lines=full_log)
+    assert scene.screen.get_rect().contains(panel)
+    assert panel.top >= SEATS_PANEL_TOP_PIXELS
     assert not panel.colliderect(join_note_rect(scene.screen))
-    assert not panel.colliderect(seat_card_rect(scene.screen, slot=1))
+    for slot in range(3):
+        assert not panel.colliderect(seat_card_rect(scene.screen, slot=slot))
+    highest_ground = min(scene.battle.terrain.ground)
+    assert panel.bottom < highest_ground - SEAT_TAG_ABOVE_FEET_PIXELS - SEAT_TAG_STAGGER_PIXELS
 
 
 def test_the_panel_spells_arrows_the_font_cannot_draw(scene):
