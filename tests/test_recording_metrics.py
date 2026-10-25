@@ -45,7 +45,10 @@ from glitchygames.recording_metrics import (
     performance_series,
     processing_comparisons,
     publishable_rows,
+    read_row_files,
+    row_file_name,
     short_commit,
+    write_row_files,
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace
 
@@ -600,3 +603,64 @@ class TestPublishing:
         assert trial.from_uncommitted_changes
         assert changed_run.from_uncommitted_changes
         assert publishable_rows(rows=[clean, trial, changed_run]) == [clean]
+
+
+TREE = '0123456789abcdef0123456789abcdef01234567'
+
+
+class TestRowFiles:
+    """Measured rows as tracked files (quality/replay-ledger/): one file per row, never edited."""
+
+    def test_a_row_round_trips_through_its_file(self, tmp_path):
+        row = ledger_row().model_copy(update={'code_tree': TREE})
+
+        (path,) = write_row_files(rows=[row], directory=tmp_path)
+
+        assert path.parent == tmp_path
+        assert read_row_files(directory=tmp_path) == [row]
+
+    def test_file_names_differ_by_recording_machine_and_time(self):
+        rows = [
+            ledger_row(),
+            ledger_row(measured_at='2026-10-23T21:00:00+00:00'),
+            ledger_row(recording='tests/fixtures/replays/mr-muncher/golden.jsonl.gz'),
+        ]
+
+        names = {row_file_name(row=row) for row in rows}
+
+        assert len(names) == len(rows)
+        assert all(name.endswith('.json') and '/' not in name for name in names)
+
+    def test_the_code_tree_leads_the_file_name(self):
+        """Rows of one measured code sort together."""
+        row = ledger_row().model_copy(update={'code_tree': TREE})
+
+        assert row_file_name(row=row).startswith(TREE[:12])
+
+    def test_reading_returns_every_row_in_name_order(self, tmp_path):
+        rows = [ledger_row(measured_at=f'2026-10-23T2{hour}:00:00+00:00') for hour in (3, 1, 2)]
+        write_row_files(rows=rows, directory=tmp_path)
+
+        assert [row.run.measured_at for row in read_row_files(directory=tmp_path)] == [
+            '2026-10-23T21:00:00+00:00',
+            '2026-10-23T22:00:00+00:00',
+            '2026-10-23T23:00:00+00:00',
+        ]
+
+    def test_a_missing_directory_has_no_rows(self, tmp_path):
+        assert read_row_files(directory=tmp_path / 'none') == []
+
+    def test_a_row_written_before_code_trees_still_reads(self):
+        """Published history rows have no code_tree."""
+        legacy = ledger_row().model_dump(mode='json')
+        legacy.pop('code_tree', None)
+
+        assert LedgerRow.model_validate(legacy).code_tree is None
+
+    def test_a_row_naming_its_code_tree_measured_that_code_exactly(self):
+        """The hook measures staged (uncommitted) code, but the tree says exactly which."""
+        row = ledger_row().model_copy(
+            update={'code_tree': TREE, 'allowed_uncommitted_changes': True}
+        )
+
+        assert not row.from_uncommitted_changes

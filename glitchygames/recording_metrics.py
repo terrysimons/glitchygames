@@ -31,6 +31,7 @@ import json
 import logging
 import math
 import os
+import re
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -700,6 +701,9 @@ class LedgerRow(BaseModel):
             uncommitted changes (``--allow-dirty``).
         profile: The run's per-frame times, bucketed (``FrameProfile``), for a measured run;
             None for a run the recording held and rows from before profiles.
+        code_tree: The code the run measured, as a git tree without the ledger
+            (scripts/code_tree.py), for a run the measuring pre-commit hook made; None for
+            every other row (it names its code by commit instead).
 
     """
 
@@ -716,10 +720,17 @@ class LedgerRow(BaseModel):
     rebaseline_exit: str | None
     allowed_uncommitted_changes: bool
     profile: FrameProfile | None = None
+    code_tree: str | None = None
 
     @property
     def from_uncommitted_changes(self: Self) -> bool:
-        """Whether the row measured other code than its commit: a trial or a changed checkout."""
+        """Whether the row measured other code than its commit: a trial or a changed checkout.
+
+        A row naming its code tree measured exactly that code (the pre-commit hook measures
+        the staged code, uncommitted by definition), so it never counts.
+        """
+        if self.code_tree is not None:
+            return False
         return self.allowed_uncommitted_changes or self.measured_uncommitted_changes
 
     @property
@@ -782,6 +793,74 @@ def parse_ledger(*, text: str) -> LedgerParse:
         except ValueError:
             unreadable += 1
     return LedgerParse(rows=tuple(rows), unreadable_lines=unreadable)
+
+
+# Row files: how many of a code tree's characters lead a row file's name
+ROW_FILE_TREE_CHARACTERS = 12
+# The name part of a row file for a row without a code tree (published history)
+ROW_FILE_HISTORY_PREFIX = 'history'
+ROW_FILE_SUFFIX = '.json'
+
+
+def _file_name_part(text: str) -> str:
+    """Return ``text`` as a file-name part: letters and digits, runs of anything else as ``-``.
+
+    Returns:
+        The part, lower case.
+
+    """
+    return re.sub(r'[^A-Za-z0-9]+', '-', text).strip('-').lower()
+
+
+def row_file_name(*, row: LedgerRow) -> str:
+    """Return the file a row is kept in (quality/replay-ledger/): unique per row, never reused.
+
+    ``<code tree, 12>-<machine>-<measured at>-<recording>.json``: the code tree leads, so one
+    measured code's rows sort together (``history`` for a row without one).
+
+    Returns:
+        The file name.
+
+    """
+    tree = (
+        ROW_FILE_HISTORY_PREFIX
+        if row.code_tree is None
+        else row.code_tree[:ROW_FILE_TREE_CHARACTERS]
+    )
+    recording = _file_name_part(row.recording.removesuffix('.jsonl.gz'))
+    measured_at = re.sub(r'[^0-9]', '', row.run.measured_at)
+    return f'{tree}-{_file_name_part(row.run.machine)}-{measured_at}-{recording}{ROW_FILE_SUFFIX}'
+
+
+def write_row_files(*, rows: Iterable[LedgerRow], directory: Path) -> list[Path]:
+    """Write each row to its own file in ``directory`` (made if missing), in the ledger's format.
+
+    Returns:
+        The files written.
+
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for row in rows:
+        path = directory / row_file_name(row=row)
+        path.write_text(ledger_text(rows=[row]), encoding='utf-8')
+        paths.append(path)
+    return paths
+
+
+def read_row_files(*, directory: Path) -> list[LedgerRow]:
+    """Read every row file in ``directory``, in file-name order (none when it is missing).
+
+    Returns:
+        The rows; an unreadable file is skipped as ``parse_ledger`` skips a line.
+
+    """
+    if not directory.is_dir():
+        return []
+    rows: list[LedgerRow] = []
+    for path in sorted(directory.glob(f'*{ROW_FILE_SUFFIX}')):
+        rows.extend(parse_ledger(text=path.read_text(encoding='utf-8')).rows)
+    return rows
 
 
 def ledger_text(*, rows: Iterable[LedgerRow]) -> str:

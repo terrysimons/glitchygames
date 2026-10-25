@@ -35,6 +35,7 @@ from glitchygames.recording_metrics import (
     publishable_rows,
     published_ledger_text,
     read_ledger_file,
+    read_row_files,
 )
 from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.test_recording_metrics import ledger_row
@@ -161,6 +162,77 @@ class TestTheRecordings:
             PROJECT_ROOT / 'tests/fixtures/replays/mr-muncher/golden.jsonl.gz',
         ) in (recordings)
         assert all(console_script for console_script, _ in recordings)
+
+
+class TestMeasuringIntoRowFiles:
+    """The pre-commit hook's measurement: row files naming the code tree measured."""
+
+    TREE = '0123456789abcdef0123456789abcdef01234567'
+    OTHER_TREE = 'fedcba9876543210fedcba9876543210fedcba98'
+
+    def measure_tree(self, *, project_root, recordings, pending, rows_directory, code_tree):
+        """Measure the recordings for a code tree into row files (the hook's measure call).
+
+        Returns:
+            What was measured.
+
+        """
+        return measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=clean_revision().model_copy(update={'uncommitted_changes': True}),
+                force=False,
+                allow_dirty=True,
+                code_tree=code_tree,
+                rows_directory=rows_directory,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+
+    def test_a_measurement_writes_row_files_naming_the_code_tree(self, tmp_path):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        pending = tmp_path / 'pending.jsonl'
+        rows_directory = tmp_path / 'replay-ledger'
+
+        result = self.measure_tree(
+            project_root=project_root,
+            recordings=recordings,
+            pending=pending,
+            rows_directory=rows_directory,
+            code_tree=self.TREE,
+        )
+
+        assert result.exit_code == ExitCode.SUCCESS
+        assert not pending.exists()
+        rows = read_row_files(directory=rows_directory)
+        measured = [row for row in rows if row.origin == LedgerOrigin.REPLAY_METRICS]
+        recorded = [row for row in rows if row.origin == LedgerOrigin.RECORDING]
+        # Only the run just measured names the code tree: the recording's own runs are history
+        assert [row.code_tree for row in measured] == [self.TREE]
+        assert recorded
+        assert all(row.code_tree is None for row in recorded)
+        assert not measured[0].from_uncommitted_changes
+
+    def test_the_same_code_tree_is_measured_once_per_machine(self, tmp_path):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        arguments = {
+            'project_root': project_root,
+            'recordings': recordings,
+            'pending': tmp_path / 'pending.jsonl',
+            'rows_directory': tmp_path / 'replay-ledger',
+        }
+        self.measure_tree(**arguments, code_tree=self.TREE)
+
+        again = self.measure_tree(**arguments, code_tree=self.TREE)
+        other_code = self.measure_tree(**arguments, code_tree=self.OTHER_TREE)
+
+        assert again.measured == ()
+        assert len(again.skipped) == 1
+        assert len(other_code.measured) == 1
 
 
 class TestMeasuring:
@@ -405,6 +477,33 @@ class TestTheCommandLine:
         )
         assert not pending.exists()
         assert 'Not measuring' in capsys.readouterr().out
+
+    def test_the_hooks_command_line_writes_row_files_naming_the_tree(self, tmp_path, mocker):
+        """Measure --allow-dirty --code-tree TREE --rows-directory DIR, as the hook runs it."""
+        dirty = source_revision().model_copy(update={'uncommitted_changes': True})
+        mocker.patch.object(replay_metrics, 'source_revision', return_value=dirty)
+        rows_directory = tmp_path / 'replay-ledger'
+        tree = '0123456789abcdef0123456789abcdef01234567'
+
+        exit_code = run(
+            arguments=[
+                'measure',
+                '--pending',
+                str(tmp_path / 'pending.jsonl'),
+                '--allow-dirty',
+                '--code-tree',
+                tree,
+                '--rows-directory',
+                str(rows_directory),
+                '--only',
+                'paddleslap_demos',
+            ]
+        )
+
+        assert exit_code == ExitCode.SUCCESS
+        trees = {row.code_tree for row in read_row_files(directory=rows_directory)}
+        assert tree in trees
+        assert not (tmp_path / 'pending.jsonl').exists()
 
     def test_allow_dirty_and_skip_dirty_together_are_refused(self, capsys):
         with pytest.raises(SystemExit) as exit_info:
