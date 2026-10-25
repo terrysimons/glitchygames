@@ -45,7 +45,9 @@ move it, and START takes him:
 ![Choosing a soldier](drawing_fire/choose.png)
 
 The debug seats view (F3): a tag over every soldier names his driver, and a panel lists each
-army's drivers and the latest joins, takeovers and leaves:
+army's drivers and the latest joins, takeovers and leaves. Its last line, `held:`, names the
+keys and mouse buttons the game sees held this frame (from `current_input()`), so a key the
+browser keeps from the game shows up missing while you hold it:
 
 ![The debug seats view](drawing_fire/debug-seats.png)
 

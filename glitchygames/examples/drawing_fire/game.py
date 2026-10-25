@@ -71,6 +71,7 @@ if TYPE_CHECKING:
     from glitchygames.examples.drawing_fire.players import Device
     from glitchygames.examples.drawing_fire.seats import PlayerSeat
     from glitchygames.examples.drawing_fire.terrain import Terrain
+    from glitchygames.input.state import InputSnapshot
 
 PAPER_COLOR = (251, 248, 239)
 SOLDIER_SPRITE_PATH = Path(__file__).parent / 'sprites' / 'soldier.toml'
@@ -91,6 +92,54 @@ DRAWING_FIRE_EVENT_SUBTYPES = frozenset({SOLDIER_KILLED_SUBTYPE, SEAT_CHANGED_SU
 NO_SOLDIER_ID = -1
 # The sign before the computer soldiers' count in the panel
 COMPUTER_COUNT_MARK = '×'  # ruff: ignore[ambiguous-unicode-character-string] - a multiplication sign, the panel's count of computer soldiers ("CPU", the sign, then the count)
+# The panel's last line: what the frame's input snapshot holds (held_keys_line)
+HELD_KEYS_LABEL = 'held:'
+NOTHING_HELD = '(nothing)'
+MOUSE_BUTTON_NAMES = ('mouse left', 'mouse middle', 'mouse right')
+
+
+def _scancode_names() -> dict[int, str]:
+    """Name each SDL scancode by its pygame KSCAN_ constant (Escape -> 'ESCAPE').
+
+    Where two constants share a value, the alphabetically first name is kept, so the names
+    never depend on dir()'s order.
+
+    Returns:
+        The names by scancode.
+
+    """
+    names: dict[int, str] = {}
+    for constant in sorted(name for name in dir(pygame) if name.startswith('KSCAN_')):
+        names.setdefault(getattr(pygame, constant), constant.removeprefix('KSCAN_'))
+    return names
+
+
+SCANCODE_NAMES = _scancode_names()
+
+
+def held_keys_line(snapshot: InputSnapshot) -> str:
+    """Name the keys and mouse buttons this frame's input snapshot holds, for the debug panel.
+
+    It shows what the game itself reads (the snapshot ``current_input()`` returns), so a key the
+    browser or SDL keeps from the game (Escape seemed to be, in the browser build, 2026-10-25) is
+    visibly missing while it is held. Keys are listed by scancode, in scancode order; an unnamed
+    scancode is shown as its number.
+
+    Args:
+        snapshot: The frame's input.
+
+    Returns:
+        The line, e.g. ``held: A ESCAPE mouse left``, or ``held: (nothing)``.
+
+    """
+    names = [
+        SCANCODE_NAMES.get(scancode, str(scancode))
+        for scancode in sorted(snapshot.pressed_scancodes)
+    ]
+    names.extend(
+        name for name, held in zip(MOUSE_BUTTON_NAMES, snapshot.mouse_buttons, strict=True) if held
+    )
+    return f'{HELD_KEYS_LABEL} {" ".join(names) or NOTHING_HELD}'
 
 
 def seats_panel_lines(seats: Seats, battle: Battle) -> list[str]:
@@ -372,7 +421,7 @@ class DrawingFireScene(Scene):
                     draw_soldier_highlight(screen, highlighted, name=seat.name)
 
     def debug_draw(self: Self, surface: pygame.Surface, camera: Camera2D) -> None:
-        """Tag every living soldier with who drives him and list the seats (the debug overlay).
+        """Tag every living soldier with who drives him, list the seats and the held keys (debug).
 
         The field never scrolls, so a soldier's world position is his screen position and the
         camera is not used.
@@ -395,7 +444,12 @@ class DrawingFireScene(Scene):
                 text=self.seats.driver_of(soldier.soldier_id),
                 at=(soldier.x, soldier.y - SEAT_TAG_ABOVE_FEET_PIXELS - raised),
             )
-        draw_seats_panel(surface, lines=seats_panel_lines(self.seats, self.battle))
+        # The last line shows what this frame's input holds (a key kept from the game shows up
+        # missing while it is held)
+        draw_seats_panel(
+            surface,
+            lines=[*seats_panel_lines(self.seats, self.battle), held_keys_line(current_input())],
+        )
 
     @override
     def on_key_up_event(self: Self, event: KeyEvent) -> None:

@@ -32,6 +32,7 @@ from glitchygames.examples.drawing_fire.game import (
     VICTORY_SECONDS,
     DrawingFireScene,
     Phase,
+    held_keys_line,
     seats_panel_lines,
 )
 from glitchygames.examples.drawing_fire.players import KEYBOARD, Device
@@ -786,6 +787,49 @@ def test_the_debug_overlay_tags_every_living_soldier_and_draws_the_panel(scene):
     assert pink_in(scene, corner)
     assert not pink_in(scene, join_note_rect(scene.screen))
     assert before.get_at((0, 0)) == scene.screen.get_at((0, 0))
+
+
+def test_held_keys_line_names_the_held_keys_and_mouse_buttons():
+    """The held-keys line names keys by scancode (in scancode order), then the mouse buttons."""
+    snapshot = InputSnapshot(
+        pressed_scancodes=frozenset({pygame.KSCAN_ESCAPE, pygame.KSCAN_A}),
+        modifiers=0,
+        mouse_position=(0, 0),
+        mouse_buttons=(True, False, True),
+        mouse_focused=True,
+    )
+    assert held_keys_line(snapshot) == 'held: A ESCAPE mouse left mouse right'
+
+
+def test_held_keys_line_says_when_nothing_is_held():
+    """With no key or button held, the line says so instead of trailing off."""
+    assert held_keys_line(keyboard_input()) == 'held: (nothing)'
+
+
+def test_held_keys_line_shows_an_unnamed_scancode_as_its_number():
+    """A scancode pygame has no KSCAN_ name for is shown as its number, never dropped."""
+    unnamed = 499
+    assert not any(
+        getattr(pygame, name) == unnamed for name in dir(pygame) if name.startswith('KSCAN_')
+    )
+    assert held_keys_line(keyboard_input(scancodes=(unnamed,))) == 'held: 499'
+
+
+def test_the_debug_panel_ends_with_the_held_keys(scene):
+    """debug_draw's panel has one more line than the seats: the keys this frame's input holds."""
+    keyboard_joins_and_plays(scene)
+    set_current_input(snapshot=keyboard_input(scancodes=(pygame.KSCAN_ESCAPE,)))
+    seat_lines = seats_panel_lines(scene.seats, scene.battle)
+    with_held_keys = seats_panel_rect(scene.screen, lines=[*seat_lines, 'held: ESCAPE'])
+    without_held_keys = seats_panel_rect(scene.screen, lines=seat_lines)
+    assert with_held_keys.top < without_held_keys.top
+    scene.render(scene.screen)
+    scene.debug_draw(
+        scene.screen, Camera2D(screen_width=SCREEN_SIZE[0], screen_height=SCREEN_SIZE[1])
+    )
+    # The panel's outline runs along the top of the taller panel, the one with the held keys
+    outline_row = pygame.Rect(with_held_keys.left, with_held_keys.top, with_held_keys.width, 1)
+    assert pink_in(scene, outline_row)
 
 
 def test_the_panel_does_not_cover_the_join_note_or_cards(scene):
