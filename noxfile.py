@@ -310,12 +310,18 @@ def docs_deploy(session: nox.Session) -> None:
     play/. Run it from what should be published (usually main after a merge); a warning stops
     it before anything is pushed.
 
+    ``--no-measure`` skips the measurement (CircleCI's deploy after a merge to main: its machines
+    vary, so their timings would be noise in the run ledger); the published ledger and any
+    pending rows are still merged and published.
+
     Usage:
         nox -s docs-deploy                  # Measure, build (graphs included) and push gh-pages
         nox -s docs-deploy -- --build-only  # Measure and build into site/; no push
+        nox -s docs-deploy -- --no-measure  # Build and push without measuring (CI)
     """
     _install_from_lockfile(session)
     build_only = '--build-only' in session.posargs
+    measure = '--no-measure' not in session.posargs
     # A deploy publishes the merged ledger in place of the published one, so it must start from
     # what gh-pages holds now: only a build tolerates a failed fetch
     session.run(
@@ -326,7 +332,8 @@ def docs_deploy(session: nox.Session) -> None:
         external=True,
         success_codes=_GIT_FETCH_STATUSES if build_only else [0],
     )
-    _replay_metrics(session, 'measure', '--skip-dirty')
+    if measure:
+        _replay_metrics(session, 'measure', '--skip-dirty')
     # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
     session.run('python', 'scripts/build_browser_bundle.py', 'all')
     if build_only:

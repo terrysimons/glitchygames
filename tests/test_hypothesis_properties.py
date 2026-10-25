@@ -647,3 +647,12 @@ class TestSpeedInPlaceMultiplication:
         original_id = id(speed)
         speed *= scalar
         assert id(speed) == original_id
+
+
+def test_the_suite_runs_hypothesis_without_its_deadline():
+    """No example fails for being slow (BUGS.md #157): conftest.py loads a deadline-free profile.
+
+    Hypothesis's 200 ms default deadline is a speed heuristic: on a loaded machine (two suites at
+    once, a busy CI host) correct examples exceeded it (the palette round trip took 277 ms).
+    """
+    assert settings().deadline is None

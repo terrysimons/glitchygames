@@ -20,6 +20,19 @@ parameters:
   NOX_VERSION:
     type: string
     default: "2026.7.11"
+  # uv itself, installed before anything reads uv.lock: keep this at the version uv.lock pins
+  # (tests/test_ci_config.py checks both). Never the newest release unpinned: uv < 0.13.4
+  # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
+  UV_VERSION:
+    type: string
+    default: "0.13.5"
+  # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
+  # access to this repository, its private half in this CircleCI project's SSH keys): the
+  # deploy-docs job loads it with add_ssh_keys
+  DOCS_DEPLOY_KEY_FINGERPRINT:
+    type: string
+    # "CircleCI docs deploy" (read-write), added 2026-10-25
+    default: "SHA256:hrFdSe6hsyMQCDqSs1m1/3U9ujOZ6XJok7D7Ib41vgc"
 
 orbs:
   win: circleci/windows@5.1.1
@@ -63,7 +76,8 @@ commands:
           command: |
             set -euo pipefail
 
-            curl -LsSf https://astral.sh/uv/install.sh | sh
+            # The installer for one uv version (https://docs.astral.sh/uv/getting-started/installation/)
+            curl -LsSf https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh | sh
             export PATH="$HOME/.local/bin:$PATH"
 
             uv --version
@@ -278,8 +292,9 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
 
-            # Install uv
-            irm https://astral.sh/uv/install.ps1 | iex
+            # Install uv: the installer for one uv version
+            # (https://docs.astral.sh/uv/getting-started/installation/)
+            irm https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1 | iex
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
 
             uv --version
@@ -330,6 +345,68 @@ jobs:
       - save-uv-cache-windows
 
 
+  # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
+  # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
+  # replays (CI machines vary; their timings would be noise in the run ledger). On macOS, the
+  # fastest job: it starts as soon as macOS passes, alongside the Linux and Windows jobs
+  deploy-docs:
+    macos:
+      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
+    resource_class: m4pro.medium
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+
+    steps:
+      - checkout
+      - run:
+          name: "Check out the pygame-ce submodule (the browser games' wheel is built from it)"
+          command: |
+            set -euo pipefail
+            git submodule update --init third_party/pygame-ce
+            git -C third_party/pygame-ce rev-parse HEAD > .pygame-ce-commit
+      - add_ssh_keys:
+          fingerprints:
+            - "<< pipeline.parameters.DOCS_DEPLOY_KEY_FINGERPRINT >>"
+      - restore-uv-cache-posix
+      # The Pyodide toolchain (about 2 GB; pinned in the build script) and the wheel it built
+      # from the submodule's commit (scripts/build_browser_bundle.py reuses it when
+      # dist-pyodide/build-info.json names that commit)
+      - restore_cache:
+          keys:
+            - pyodide-toolchain-v1-{{ arch }}-{{ checksum "third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh" }}
+      - restore_cache:
+          keys:
+            - pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
+      - install-deps-posix
+      - run:
+          name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
+          no_output_timeout: 60m
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            git config user.name "CircleCI docs deploy"
+            git config user.email "docs-deploy@circleci.invalid"
+            # Push with the deploy key: CircleCI's checkout key is read-only and is offered
+            # first otherwise. add_ssh_keys writes ~/.ssh/id_<type>_<fingerprint>
+            deploy_key=$(find ~/.ssh -maxdepth 1 -type f -name 'id_*_*' ! -name '*.pub' | head -1)
+            if [ -z "$deploy_key" ]; then
+              echo "No deploy key from add_ssh_keys in ~/.ssh: is DOCS_DEPLOY_KEY_FINGERPRINT set?" >&2
+              ls -la ~/.ssh >&2
+              exit 1
+            fi
+            export GIT_SSH_COMMAND="ssh -i $deploy_key -o IdentitiesOnly=yes"
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s docs-deploy -- --no-measure
+      - save_cache:
+          key: pyodide-toolchain-v1-{{ arch }}-{{ checksum "third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh" }}
+          paths:
+            - ~/.cache/glitchygames-pyodide-build
+      - save_cache:
+          key: pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
+          paths:
+            - third_party/pygame-ce/dist-pyodide
+      - save-uv-cache-posix
+
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
@@ -344,3 +421,12 @@ workflows:
       - build-and-test-windows:
           context:
             - SAFETY_API_KEY
+      # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
+      # its pull request), one deploy at a time so two quick merges cannot race gh-pages
+      - deploy-docs:
+          requires:
+            - build-and-test-macos
+          filters:
+            branches:
+              only: main
+          serial-group: << pipeline.project.slug >>/deploy-docs

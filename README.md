@@ -213,6 +213,7 @@ The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid 
 | `--debug-overlay` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) | `False` |
 | `--debug-events` | Log a warning the first time each unhandled event type arrives | `False` |
 | `--headless` | Run on SDL's dummy video and audio drivers (no window, no sound) | `False` |
+| `--list-input-devices` | Print every joystick and game controller the game would see (index, instance id, name, GUID, whether SDL maps it as a game controller, its axes, buttons, hats and balls; how many SDL counted before its queue was pumped, and each device added or removed while listening, with when), then exit without running the game. At a terminal, when none is found it asks you to plug one in and waits (Ctrl-C stops). Refused with `--replay-trace` or `--record-trace` | `False` |
 | `--record-trace PATH` | Record the session to a gzip JSON Lines trace for later replay | off |
 | `--replay-trace PATH` | Replay a recording through the engine, comparing every frame | off |
 

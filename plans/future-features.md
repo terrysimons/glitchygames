@@ -120,6 +120,56 @@ This document tracks planned future features for the GlitchyGames project. Featu
   the option's value or go away
 - **Priority**: Medium (requested 2026-10-23)
 
+### 52. Golden Replays With Debugging On: Same Gameplay, Measured Cost — TODO
+- **Goal**: show that turning debugging on never changes gameplay, and measure what it costs
+  (2026-10-24, the user's idea: parametrize runs on debug off and on, the "on" runs keeping the
+  books)
+- **Approach**: parametrize the golden replays (not the whole suite: most tests draw no frame)
+  over debug off and on (the debug overlay and each of its panels: collision, physics, camera,
+  performance; `--debug-events`). The "on" variants must still match every recorded frame (a
+  divergence is a bug: debugging changed gameplay), and they keep the books through the existing
+  run ledger (`glitchygames/recording_metrics.py`, `nox -s replay-metrics`): one more row per
+  recording per run, tagged with what debugging was on, so the performance page
+  (docs/quality/performance.md) graphs the off and on series side by side across commits and
+  machines. Later: the games' own tests (`games/<game>/tests`, after the workspace-packages
+  plan) take the same parametrization
+- **Open questions**:
+  - the overlay is drawn when a frame is presented (`SceneManager._present_frame`); headless
+    replays do not present, so the overlay may need drawing without presenting, or the measured
+    run presents on the dummy driver
+  - a replay applies the recorded run's options: the debug options must become replay-local, as
+    `--replay-fps` is (`REPLAY_LOCAL_OPTIONS`)
+  - whether each panel is its own parametrized case (likely: their costs differ)
+- **Status**: TODO
+
+### 53. A CRT Power-On Startup Sequence — TODO
+- **Goal**: the engine's startup looks like an analogue CRT switching on, showing the configured
+  default background (`--default-background`: the TV test pattern's colour bars, or the channel
+  3 blue VCR screen; glitchygames/backgrounds.py), flickering like a real set before it settles
+  and the game's first scene appears (the user's idea, 2026-10-24)
+- **Sequence** (about a second; each stage's timing a constant):
+  1. black, then a bright dot in the centre (the electron beam before deflection)
+  2. the dot stretches into a thin horizontal line (horizontal sweep), then opens vertically
+     into the full picture (vertical sweep), brightest along the line as it opens
+  3. warm-up: brightness overshoots and sags, the picture flickers (a few uneven frames of
+     brightness, a frame or two of vertical roll or jitter), slight bloom and scanlines, a
+     brief degauss-style colour wobble
+  4. settles into the steady pattern, then the first scene's frame replaces it
+- **Possible extras**: the power-on sound (a synth recipe: the click, the high whine, the static
+  crackle; glitchygames/audio/recipes.py), a matching CRT power-off collapse when the game quits
+- **Rules it must keep**:
+  - visual only, before frame 0: never in recordings, screenshots or golden traces, and it
+    changes no game state, random stream or clock a replay serves
+  - skipped where it would get in the way: `--headless`, replays and audits, the tests (the
+    test display rule expects the canvas: tests/display_canvas.py), the browser bundles if it
+    delays their first frame noticeably; any key or button skips it
+  - an option to turn it off (and probably one to force it on for a replay watched by a person)
+  - drawn from the background pattern the run is configured with, at the display's size
+    (`BackgroundPattern`, cached per size), opaque on cocoa (glitchygames/opacity.py)
+- **Where**: the engine already paints a new display with the default background before the
+  first frame (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
+- **Status**: TODO
+
 ## Medium Priority Features
 ### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — IN PROGRESS
 - **Description**: A CI pipeline (on the fork `terrysimons/pygame-ce`) that builds our patched
@@ -368,6 +418,29 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Performance Optimization**: Efficient calculation of dampening effects
 
 ## Recently Completed Features
+
+### 51. `--list-input-devices`: Every Joystick and Game Controller the Game Would See ✅ COMPLETED
+- **Description**: An engine option (every game has it) that lists the devices SDL offers and
+  exits, instead of guessing from a game's behaviour why a pad does or does not work (2026-10-24)
+- **Status**: ✅ COMPLETED
+- **Implementation**:
+  - `glitchygames/input/device_listing.py`: starts the joystick and controller subsystems,
+    counts the devices before SDL's queue is pumped, listens for `LISTEN_SECONDS` (1 s; macOS
+    reports connected pads as device-added events) keeping each device added/removed event with
+    its time, opens each device through the devices door (as a game controller when SDL maps it)
+    and prints its index, instance id, name, GUID, mapping and axes, buttons, hats and balls; a
+    device that cannot be opened is listed with SDL's error. At a terminal (stdin and stdout),
+    finding none prints `NO_DEVICES_PROMPT` and waits for the first device added. The count
+    before pumping and the event times tell a pad SDL knew at startup from one it reported only
+    later (the suspected "already plugged in is not seen" bug)
+  - `GameEngine._run_game` runs it in place of the game (the scene is never built, nothing
+    recorded) and the run ends `SUCCESS`; `--replay-trace` and `--record-trace` with it are
+    refused (`OPTIONS_REFUSED`)
+  - Tests: `tests/input/test_device_listing.py` (stand-in devices through the door),
+    `tests/engine/test_engine_lifecycle.py::TestListInputDevices`
+- **Follow-up**: a `--watch` mode printing devices as they connect and disconnect (offered and
+  not chosen yet); once the "already plugged in" question is settled, the prompt only shows when
+  nothing is connected at all
 
 ### 44. Golden Replays Exercise Every Control, Pause and Quit ✅ COMPLETED
 - **Description**: Q did nothing in four games and no golden replay noticed (BUGS.md #202): every

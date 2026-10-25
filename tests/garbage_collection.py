@@ -67,23 +67,19 @@ class PeakMemoryCollector:
         return True
 
 
-def process_peak_memory_collector(*, audio_driver: str | None) -> PeakMemoryCollector | None:
-    """Return this process's collector: for a run on the dummy audio driver, off Windows.
+def process_peak_memory_collector() -> PeakMemoryCollector | None:
+    """Return this process's collector, off Windows: every run's, the native coreaudio run too.
 
-    Only dummy-audio runs collect. A local run's native child (cocoa with coreaudio, next to
-    the dummy run) stalled about 30 s at a time and lost its mixer (``mixer not initialized``)
-    with these collections, though neither run alone did (BUGS.md #212); CI runs dummy drivers,
-    and its memory is what this is for.
-
-    Args:
-        audio_driver: The run's ``SDL_AUDIODRIVER``.
+    A local run's native child (cocoa with coreaudio, next to the dummy run) once stalled about
+    30 s at a time and lost its mixer with these collections, so only dummy-audio runs
+    collected. That no longer reproduces in any configuration tried, the original command
+    included (BUGS.md #212's record), so every run's memory is bounded again.
 
     Returns:
-        The collector, or None: another audio driver, or Windows (no ``resource`` module; its
-        CI has the memory).
+        The collector, or None on Windows (no ``resource`` module; its CI has the memory).
 
     """
-    if resource is None or audio_driver != 'dummy':
+    if resource is None:
         return None
     # ru_maxrss is bytes on macOS and kibibytes on Linux
     scale = 1 if sys.platform == 'darwin' else 1024

@@ -12,6 +12,7 @@ import importlib
 import logging
 import os
 import sys
+import threading
 import types
 import weakref
 from typing import TYPE_CHECKING
@@ -22,8 +23,10 @@ from mkdocs.exceptions import PluginError
 from scripts import generate_complexity_graphs, mkdocs_hooks
 from scripts.generate_complexity_graphs import (
     GENERATED_FROM_NAME,
+    GENERATION_LOCK_NAME,
     GRAPHS_SNIPPET_NAME,
     METRICS,
+    STAGING_DIRECTORY_PREFIX,
     ComplexityGraphError,
     ComplexityGraphs,
     RadonReport,
@@ -357,6 +360,84 @@ def test_generate_if_stale_generates_once_per_commit(fixture_repository, tmp_pat
     assert (graphs_directory / GRAPHS_SNIPPET_NAME).is_file()
 
 
+def test_two_generations_at_once_both_succeed_and_only_one_generates(fixture_repository, tmp_path):
+    """Two builds generating into one directory at once (BUGS.md #214): one waits, then skips.
+
+    A running ``mkdocs serve`` and the pre-push hook's ``mkdocs build`` both saw a new HEAD;
+    each rewrote the other's pages in place and one failed ("plotly changed its output").
+    """
+    graphs_directory = tmp_path / 'graphs'
+    outcomes: list[bool] = []
+    errors: list[Exception] = []
+
+    def generate() -> None:
+        try:
+            outcomes.append(
+                generate_if_stale(
+                    project_root=fixture_repository, graphs_directory=graphs_directory
+                )
+            )
+        # The race's failures: a page rewritten by the other build, or removed under it
+        except (ComplexityGraphError, OSError) as error:
+            errors.append(error)
+
+    builds = [threading.Thread(target=generate) for _ in range(2)]
+    for build in builds:
+        build.start()
+    for build in builds:
+        build.join(timeout=600)
+
+    assert errors == []
+    assert sorted(outcomes) == [False, True]
+    for metric, _label in METRICS:
+        html = (graphs_directory / graph_file_name(metric=metric)).read_text(encoding='utf-8')
+        assert 'cdn.jsdelivr.net/npm/plotly.js-dist-min@' in html
+        assert 'cdn.plot.ly' not in html
+
+
+def test_the_published_graphs_stay_whole_while_new_ones_are_made(
+    fixture_repository, tmp_path, mocker
+):
+    """Wily graphs into staging: published pages are replaced only once the new ones are done."""
+    graphs_directory = tmp_path / 'graphs'
+    graphs_directory.mkdir()
+    published_page = graphs_directory / graph_file_name(metric=METRICS[0][0])
+    published_page.write_text("the previous generation's page", encoding='utf-8')
+    real_graph_metric = generate_complexity_graphs.graph_metric
+    seen_while_graphing: list[str] = []
+
+    def graph_metric_watching(**arguments) -> None:
+        seen_while_graphing.append(published_page.read_text(encoding='utf-8'))
+        # Into the staging directory, never straight into the published one
+        assert arguments['output_path'].parent != graphs_directory
+        real_graph_metric(**arguments)
+
+    mocker.patch.object(generate_complexity_graphs, 'graph_metric', graph_metric_watching)
+
+    generate_if_stale(project_root=fixture_repository, graphs_directory=graphs_directory)
+
+    assert seen_while_graphing == ["the previous generation's page"] * len(METRICS)
+    assert 'cdn.jsdelivr.net' in published_page.read_text(encoding='utf-8')
+
+
+def test_a_generation_cleans_up_after_one_that_crashed(fixture_repository, tmp_path):
+    """A crashed generation's staging directory is removed by the next one, nothing else left."""
+    graphs_directory = tmp_path / 'graphs'
+    leftover = graphs_directory / f'{STAGING_DIRECTORY_PREFIX}crashed'
+    leftover.mkdir(parents=True)
+    (leftover / 'half_a_graph.html').write_text('<html>', encoding='utf-8')
+
+    generate_if_stale(project_root=fixture_repository, graphs_directory=graphs_directory)
+
+    assert not leftover.exists()
+    published = {path.name for path in graphs_directory.iterdir()}
+    expected = {graph_file_name(metric=metric) for metric, _label in METRICS}
+    assert published - {GENERATION_LOCK_NAME} == expected | {
+        GRAPHS_SNIPPET_NAME,
+        GENERATED_FROM_NAME,
+    }
+
+
 def test_the_mkdocs_hook_generates_the_graphs_before_a_build(fixture_repository, tmp_path, mocker):
     """Mkdocs's on_pre_build generates the graphs through the script it loads by path."""
     graph_script = mkdocs_hooks.load_graph_script()
@@ -420,7 +501,7 @@ def module_with_a_filled_cache(*, name: str) -> tuple[types.ModuleType, weakref.
     def cached_lookup(argument: CachedArgument) -> int:
         return id(argument)
 
-    module.cached_lookup = cached_lookup
+    module.__dict__['cached_lookup'] = cached_lookup
     sys.modules[name] = module
     argument = CachedArgument()
     cached_lookup(argument)

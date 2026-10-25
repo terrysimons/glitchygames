@@ -7,6 +7,7 @@ cause (a teardown or an event manager that breaks) are simulated with targeted m
 """
 
 import asyncio
+import itertools
 import logging
 import os
 import signal
@@ -30,10 +31,12 @@ from glitchygames.events.keyboard import KeyboardEventManager
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.exit_codes import ExitCode
 from glitchygames.host import HostSources
+from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources
 from glitchygames.timing import FastTimer
+from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -504,3 +507,83 @@ class TestHostedRuns:
         calibrate.assert_not_called()
         assert isinstance(engine.timer, FastTimer)
         assert engine.timer.pacing_timer().sleep_model is None
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestListInputDevices:
+    """--list-input-devices replaces the run (glitchygames/input/device_listing.py)."""
+
+    def test_the_listing_replaces_the_game(self, mocker, capsys):
+        """The devices are printed and the run ends normally; the game's scene is never built."""
+        engine = build_engine(
+            mocker, game=GameWhoseConstructorRaises, extra_arguments=('--list-input-devices',)
+        )
+        install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
+        # A clock past the settling time at its second reading: one pump, no wait
+        mocker.patch.object(
+            device_listing, 'measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
+        )
+
+        frames_started = mocker.spy(engine.scene_manager, 'start')
+
+        engine.start()
+
+        frames_started.assert_not_called()
+        output = capsys.readouterr().out.splitlines()
+        assert '  index 1  instance 9  Stand-in Game Pad' in output
+        assert '  index 0  instance 5  Stand-in Flight Stick' in output
+        assert output[-1] == '2 devices (1 game controller, 1 joystick only)'
+
+    def test_an_async_run_lists_too_and_runs_no_frames(self, mocker, capsys):
+        """start_async (a browser host) lists the devices and ends without a frame."""
+        engine = build_engine(
+            mocker, game=GameWhoseConstructorRaises, extra_arguments=('--list-input-devices',)
+        )
+        install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
+        mocker.patch.object(
+            device_listing, 'measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
+        )
+        ticks, wait_for_tick = async_ticks()
+
+        asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        assert ticks == []
+        assert capsys.readouterr().out.splitlines()[-1] == (
+            '2 devices (1 game controller, 1 joystick only)'
+        )
+
+    @pytest.mark.parametrize(
+        ('stdin_is_a_terminal', 'stdout_is_a_terminal'), [(False, True), (True, False)]
+    )
+    def test_it_never_prompts_without_a_terminal(
+        self, mocker, stdin_is_a_terminal, stdout_is_a_terminal
+    ):
+        """A script, a pipe or CI gets the listing at once: no prompt, so no wait."""
+        mocker.patch.object(sys.stdin, 'isatty', return_value=stdin_is_a_terminal)
+        mocker.patch.object(sys.stdout, 'isatty', return_value=stdout_is_a_terminal)
+
+        assert game_engine_module.input_device_prompt() is None
+
+    def test_at_a_terminal_it_prompts_on_stdout(self, mocker, capsys):
+        """At a terminal the prompt is written to stdout as its own line."""
+        mocker.patch.object(sys.stdin, 'isatty', return_value=True)
+        mocker.patch.object(sys.stdout, 'isatty', return_value=True)
+        prompt = game_engine_module.input_device_prompt()
+        assert prompt is not None
+
+        prompt(device_listing.NO_DEVICES_PROMPT)
+
+        assert capsys.readouterr().out == f'{device_listing.NO_DEVICES_PROMPT}\n'
+
+    @pytest.mark.parametrize('flag', ['--replay-trace', '--record-trace'])
+    def test_it_is_refused_with_a_replay_or_a_recording(self, mocker, tmp_path, caplog, flag):
+        """There is no run to replay or record: OPTIONS_REFUSED, naming the option."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--list-input-devices', flag, str(tmp_path / 'run.jsonl.gz')),
+            )
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        assert f'Cannot list input devices with {flag}: the listing replaces the run' in caplog.text

@@ -489,6 +489,17 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 exc_info=True,
             )
             return
+        tracked_proxy = self.controllers.get(controller_proxy.instance_id)
+        if tracked_proxy is not None:
+            # SDL reports a pad connected at startup twice: in the startup count (opened in
+            # __init__) and as an added event on the first pump. Keep the proxy the game may
+            # already have set state on; the second open shares SDL's reference-counted handle
+            self.log.debug(
+                'Controller instance %s is already tracked; keeping its proxy',
+                controller_proxy.instance_id,
+            )
+            tracked_proxy.on_controller_device_added_event(event)
+            return
         self.controllers[controller_proxy.instance_id] = controller_proxy
 
         # The controller proxy overrides the controller object
