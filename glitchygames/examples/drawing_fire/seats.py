@@ -67,9 +67,13 @@ class PlayerSeat:
     stage: Stage = Stage.CHOOSING_SIDE
     side: Side | None = None
     soldier_id: int | None = None
-    # Which of his side's computer soldiers (left to right) the highlight is on
-    highlight_index: int = 0
+    # The soldier the highlight is on while he chooses: kept by id, so it stays on that soldier
+    # whoever overtakes him or dies beside him
+    highlighted_soldier_id: int | None = None
     side_choice: SideChoice = SideChoice.RANDOM
+    # Whether BACK has been up since the seat opened: a BACK still held from leaving a seat
+    # never counts toward leaving this one
+    back_released: bool = True
 
 
 @dataclass(frozen=True)
@@ -135,6 +139,10 @@ class Seats:
     def highlighted_soldier(self, seat: PlayerSeat, *, battle: Battle) -> Soldier | None:
         """Find the soldier a choosing player's highlight is on.
 
+        While the highlighted soldier is free, it is him. Once he dies or is taken, it is the
+        free soldier nearest where he stands (and with no highlight yet, the one nearest the
+        field's middle).
+
         Returns:
             The soldier, or None when the player has no side or it has no free soldier.
 
@@ -142,9 +150,18 @@ class Seats:
         if seat.side is None:
             return None
         candidates = self.free_soldiers(seat.side, battle=battle)
-        if not candidates:
-            return None
-        return candidates[seat.highlight_index % len(candidates)]
+        for candidate in candidates:
+            if candidate.soldier_id == seat.highlighted_soldier_id:
+                return candidate
+        if seat.highlighted_soldier_id is None:
+            near_x = battle.terrain.width / 2
+        else:
+            near_x = battle.soldier(seat.highlighted_soldier_id).x
+        return min(
+            candidates,
+            key=lambda soldier: (abs(soldier.x - near_x), soldier.soldier_id),
+            default=None,
+        )
 
     def update(
         self, *, edges: ButtonEdges, devices: Sequence[Device], battle: Battle, seconds: float
@@ -162,16 +179,18 @@ class Seats:
 
         """
         for seat in list(self.players.values()):
-            if (
-                seat.device not in devices
-                or edges.held_frames(seat.device, Button.BACK) >= LEAVE_HOLD_FRAMES
+            back_frames = edges.held_frames(seat.device, Button.BACK)
+            if back_frames == 0:
+                seat.back_released = True
+            if seat.device not in devices or (
+                seat.back_released and back_frames >= LEAVE_HOLD_FRAMES
             ):
                 self._leave(seat, battle=battle, seconds=seconds)
         for device in devices:
             seat = self.seat_of(device)
             if seat is None:
                 if edges.pressed(device, Button.START):
-                    self._open_seat(device)
+                    self._open_seat(device, back_held=edges.held_frames(device, Button.BACK) > 0)
             elif seat.stage is Stage.CHOOSING_SIDE:
                 self._choose_side(seat, edges=edges, battle=battle, seconds=seconds)
             elif seat.stage is Stage.CHOOSING_SOLDIER:
@@ -215,19 +234,22 @@ class Seats:
             battle: The new battle.
 
         """
-        for seat in self.players.values():
-            if seat.side is not None:
-                seat.stage = Stage.CHOOSING_SOLDIER
-                seat.soldier_id = None
-                seat.highlight_index = self._middle_index(seat.side, battle=battle)
+        choosers = [seat for seat in self.players.values() if seat.side is not None]
+        for seat in choosers:
+            seat.stage = Stage.CHOOSING_SOLDIER
+            seat.soldier_id = None
+            seat.highlighted_soldier_id = None
+        # One at a time, so each chooser starts on a soldier no one before him is on
+        for seat in choosers:
+            seat.highlighted_soldier_id = self._starting_soldier_id(seat, battle=battle)
 
-    def _open_seat(self, device: Device) -> None:
+    def _open_seat(self, device: Device, *, back_held: bool) -> None:
         """Seat a device under the lowest free name, on the side card at Random."""
         number = 1
         while f'{PLAYER_NAME_PREFIX}{number}' in self.players:
             number += 1
         name = f'{PLAYER_NAME_PREFIX}{number}'
-        self.players[name] = PlayerSeat(name=name, device=device)
+        self.players[name] = PlayerSeat(name=name, device=device, back_released=not back_held)
 
     def _choose_side(
         self, seat: PlayerSeat, *, edges: ButtonEdges, battle: Battle, seconds: float
@@ -248,7 +270,7 @@ class Seats:
             self._record(seconds=seconds, text=f'{seat.name} START → {side.name}')
         seat.side = side
         seat.stage = Stage.CHOOSING_SOLDIER
-        seat.highlight_index = self._middle_index(side, battle=battle)
+        seat.highlighted_soldier_id = self._starting_soldier_id(seat, battle=battle)
         self._wait_if_nothing_to_choose(seat, battle=battle, seconds=seconds)
 
     def _choose_soldier(
@@ -257,11 +279,17 @@ class Seats:
         """Move the highlight with LEFT and RIGHT; START takes the highlighted soldier."""
         if self._wait_if_nothing_to_choose(seat, battle=battle, seconds=seconds):
             return
-        seat.highlight_index += _left_right_step(edges=edges, device=seat.device)
-        if not edges.pressed(seat.device, Button.START):
-            return
+        assert seat.side is not None  # only a player with a side chooses a soldier
         soldier = self.highlighted_soldier(seat, battle=battle)
         assert soldier is not None  # _wait_if_nothing_to_choose found a free soldier
+        # LEFT and RIGHT step from where he is among the free soldiers, left to right
+        step = _left_right_step(edges=edges, device=seat.device)
+        if step:
+            candidates = self.free_soldiers(seat.side, battle=battle)
+            soldier = candidates[(candidates.index(soldier) + step) % len(candidates)]
+        seat.highlighted_soldier_id = soldier.soldier_id
+        if not edges.pressed(seat.device, Button.START):
+            return
         seat.stage = Stage.PLAYING
         seat.soldier_id = soldier.soldier_id
         self._record(seconds=seconds, text=f'{seat.name} took soldier {soldier.soldier_id}')
@@ -301,25 +329,39 @@ class Seats:
             ),
             None,
         )
-        if waiting is not None and battle.soldier(seat.soldier_id).alive:
+        # After a win the battle is over: a waiter waits for the next battle, not this soldier
+        if waiting is not None and battle.winner is None and battle.soldier(seat.soldier_id).alive:
             waiting.stage = Stage.PLAYING
             waiting.soldier_id = seat.soldier_id
             self._record(seconds=seconds, text=f'{waiting.name} took soldier {seat.soldier_id}')
 
-    def _middle_index(self, side: Side, *, battle: Battle) -> int:
-        """Find where the highlight starts: the free soldier nearest the field's middle.
+    def _starting_soldier_id(self, seat: PlayerSeat, *, battle: Battle) -> int | None:
+        """Find where a chooser's highlight starts: the free soldier nearest the field's middle.
+
+        A soldier another chooser of his side is on is passed over while another is free, so
+        two rings (and their names) are never drawn over one soldier.
 
         Returns:
-            His index among the side's free soldiers (0 when there are none).
+            The soldier's id, or None when his side has no free soldier.
 
         """
-        candidates = self.free_soldiers(side, battle=battle)
+        assert seat.side is not None  # only a player with a side chooses a soldier
+        candidates = self.free_soldiers(seat.side, battle=battle)
+        others_on = {
+            other.highlighted_soldier_id
+            for other in self.players.values()
+            if other is not seat
+            and other.stage is Stage.CHOOSING_SOLDIER
+            and other.side is seat.side
+        }
+        unclaimed = [soldier for soldier in candidates if soldier.soldier_id not in others_on]
         middle = battle.terrain.width / 2
-        return min(
-            range(len(candidates)),
-            key=lambda index: abs(candidates[index].x - middle),
-            default=0,
+        start = min(
+            unclaimed or candidates,
+            key=lambda soldier: (abs(soldier.x - middle), soldier.soldier_id),
+            default=None,
         )
+        return None if start is None else start.soldier_id
 
     def _record(self, *, seconds: float, text: str) -> None:
         """Add an entry to the seat log."""

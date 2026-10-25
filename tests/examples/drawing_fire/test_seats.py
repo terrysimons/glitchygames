@@ -505,3 +505,135 @@ def test_two_players_on_the_same_side():
         assert rig.battle.soldier(soldier_id).side is Side.PLATOON
     drivers = {rig.seats.driver_of(soldier.soldier_id) for soldier in rig.battle.soldiers}
     assert drivers == {'P1', 'P2', COMPUTER_DRIVER_NAME}
+
+
+def platoon_chooser(rig: SeatsRig) -> tuple[PlayerSeat, int]:
+    """The keyboard player joins the Platoon and is choosing a soldier.
+
+    Returns:
+        His seat and the id of the soldier his highlight is on.
+
+    """
+    seat = rig.join(KEYBOARD, side_presses=1)
+    assert seat.stage is Stage.CHOOSING_SOLDIER
+    assert seat.highlighted_soldier_id is not None
+    return seat, seat.highlighted_soldier_id
+
+
+def free_platoon_ids_left_to_right(rig: SeatsRig) -> list[int]:
+    """The Platoon's free soldiers' ids, left to right.
+
+    Returns:
+        The ids.
+
+    """
+    return [
+        soldier.soldier_id for soldier in rig.seats.free_soldiers(Side.PLATOON, battle=rig.battle)
+    ]
+
+
+def test_the_highlight_stays_on_its_soldier_when_another_overtakes_him():
+    """Two free soldiers swap places: the highlight keeps its soldier, and steps from his place."""
+    rig = SeatsRig()
+    seat, highlighted_id = platoon_chooser(rig)
+    order = free_platoon_ids_left_to_right(rig)
+    left_neighbour = rig.battle.soldier(order[order.index(highlighted_id) - 1])
+    highlighted = rig.battle.soldier(highlighted_id)
+    left_neighbour.x, highlighted.x = highlighted.x, left_neighbour.x
+    rig.frame()
+    assert seat.highlighted_soldier_id == highlighted_id
+    # RIGHT now goes to his old left neighbour, who stands to his right
+    rig.tap(KEYBOARD, Button.RIGHT)
+    assert seat.highlighted_soldier_id == left_neighbour.soldier_id
+
+
+def test_a_death_left_of_the_highlight_does_not_move_it():
+    """The soldier left of the highlighted one dies: the highlight stays where it is."""
+    rig = SeatsRig()
+    seat, highlighted_id = platoon_chooser(rig)
+    order = free_platoon_ids_left_to_right(rig)
+    rig.kill(order[order.index(highlighted_id) - 1])
+    rig.frame()
+    assert seat.highlighted_soldier_id == highlighted_id
+    highlighted = rig.seats.highlighted_soldier(seat, battle=rig.battle)
+    assert highlighted is not None
+    assert highlighted.soldier_id == highlighted_id
+
+
+def test_the_highlighted_soldiers_death_moves_the_highlight_to_his_nearest_neighbour():
+    """The highlighted soldier dies: the highlight moves to the free soldier nearest him."""
+    rig = SeatsRig()
+    seat, highlighted_id = platoon_chooser(rig)
+    fallen = rig.battle.soldier(highlighted_id)
+    rig.kill(highlighted_id)
+    nearest = min(
+        rig.seats.free_soldiers(Side.PLATOON, battle=rig.battle),
+        key=lambda soldier: abs(soldier.x - fallen.x),
+    )
+    highlighted = rig.seats.highlighted_soldier(seat, battle=rig.battle)
+    assert highlighted is not None
+    assert highlighted.soldier_id == nearest.soldier_id
+    rig.frame()
+    assert seat.highlighted_soldier_id == nearest.soldier_id
+
+
+def test_two_choosers_start_on_different_soldiers():
+    """A second chooser of a side starts on another free soldier, in this battle and the next."""
+    rig = SeatsRig(controllers=(CONTROLLER,))
+    first_seat, first_id = platoon_chooser(rig)
+    second_seat = rig.join(CONTROLLER, side_presses=1)
+    assert second_seat.highlighted_soldier_id is not None
+    assert second_seat.highlighted_soldier_id != first_id
+    rig.battle = flat_battle()
+    rig.seats.battle_started(battle=rig.battle)
+    assert first_seat.highlighted_soldier_id == nearest_the_middle(rig.battle, Side.PLATOON)
+    assert second_seat.highlighted_soldier_id is not None
+    assert second_seat.highlighted_soldier_id != first_seat.highlighted_soldier_id
+
+
+def test_a_leave_after_the_victory_hands_no_one_the_soldier():
+    """Once the battle is won, a leaver's soldier is not handed to a waiting player."""
+    rig = SeatsRig(controllers=(CONTROLLER,))
+    seat = rig.join(KEYBOARD, side_presses=1)
+    first_soldier = rig.take_highlighted(KEYBOARD)
+    rig.join(CONTROLLER, side_presses=1)
+    second_soldier = rig.take_highlighted(CONTROLLER)
+    for soldier in rig.battle.living(Side.PLATOON):
+        if soldier.soldier_id not in {first_soldier, second_soldier}:
+            soldier.health = 0
+    rig.kill(first_soldier)
+    assert seat.stage is Stage.WAITING
+    for soldier in rig.battle.living(Side.BRIGADE):
+        rig.kill(soldier.soldier_id)
+    assert rig.battle.winner is Side.PLATOON
+    for _ in range(LEAVE_HOLD_FRAMES):
+        rig.frame({CONTROLLER: {Button.BACK}})
+    assert rig.seats.seat_of(CONTROLLER) is None
+    assert seat.stage is Stage.WAITING
+    assert seat.soldier_id is None
+    assert rig.seats.driver_of(second_soldier) == COMPUTER_DRIVER_NAME
+    assert rig.log_texts()[-1] == 'P2 left'
+
+
+def test_back_held_since_leaving_does_not_leave_the_next_seat():
+    """START pressed while BACK is still held from leaving opens a seat that BACK cannot leave.
+
+    BACK has to be let go first; held again for LEAVE_HOLD_FRAMES, it leaves.
+    """
+    rig = SeatsRig()
+    rig.tap(KEYBOARD, Button.START)
+    for _ in range(LEAVE_HOLD_FRAMES):
+        rig.frame({KEYBOARD: {Button.BACK}})
+    assert rig.seats.seat_of(KEYBOARD) is None
+    rig.frame({KEYBOARD: {Button.BACK, Button.START}})
+    seat = rig.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    assert not seat.back_released
+    for _ in range(LEAVE_HOLD_FRAMES):
+        rig.frame({KEYBOARD: {Button.BACK}})
+    assert rig.seats.seat_of(KEYBOARD) is seat
+    rig.frame()
+    assert seat.back_released
+    for _ in range(LEAVE_HOLD_FRAMES):
+        rig.frame({KEYBOARD: {Button.BACK}})
+    assert rig.seats.seat_of(KEYBOARD) is None

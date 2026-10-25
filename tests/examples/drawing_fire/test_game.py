@@ -416,7 +416,13 @@ def test_a_new_battle_highlights_a_soldier_in_it(scene):
     seat = keyboard_joins_and_plays(scene)
     scene.start_battle()
     assert seat.stage is Stage.CHOOSING_SOLDIER
+    highlighted = scene.seats.highlighted_soldier(seat, battle=scene.battle)
+    assert highlighted is not None
+    assert highlighted.soldier_id == seat.highlighted_soldier_id
+    above_head = pygame.Rect(0, 0, 40, 40)
+    above_head.midbottom = (round(highlighted.x), round(highlighted.y) - HELMET_TOP_PIXELS - 8)
     scene.render(scene.screen)
+    assert PENCIL_COLOR in colors_in(scene.screen, above_head)
 
 
 def test_a_joined_player_plays_the_next_battle(scene):
