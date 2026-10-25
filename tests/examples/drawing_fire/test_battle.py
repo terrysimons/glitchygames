@@ -9,8 +9,8 @@ import pytest
 
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
+    PISTOL_DAMAGE,
     PISTOL_RANGE,
-    SAND_PER_HIT,
     SANDBAG_HEIGHT,
     SANDBAG_WIDTH,
     SOLDIER_HEALTH,
@@ -160,10 +160,13 @@ def test_a_shot_sandbag_loses_sand_and_flattens():
     muzzle_x, muzzle_y = shooter.muzzle
     aim_at_the_foot = -math.atan2(FLAT_GROUND_Y - 2.0 - muzzle_y, bag.x - muzzle_x)
     intents = {shooter.soldier_id: Intent(aim_angle=aim_at_the_foot, fire=True)}
-    while not bag.flattened:
+    max_steps = round(10.0 / TIME_STEP)  # bounded, so a regression fails instead of hanging
+    for _ in range(max_steps):
         events.extend(battle.step(dt=TIME_STEP, intents=intents))
         if not sand_after_each_hit or bag.sand != sand_after_each_hit[-1]:
             sand_after_each_hit.append(bag.sand)
+        if bag.flattened:
+            break
     assert sand_after_each_hit == [1.0, 0.75, 0.5, 0.25, 0.0]
     assert events == [SandbagFlattened(index=0)]
     assert bag.height == 0.0
@@ -172,7 +175,28 @@ def test_a_shot_sandbag_loses_sand_and_flattens():
     run(battle, seconds=1.0, intents={shooter.soldier_id: Intent(fire=True)})
     assert target.health < SOLDIER_HEALTH
     assert bag.sand == 0.0
-    assert SAND_PER_HIT == 0.25
+
+
+def test_a_fresh_sandbag_covers_a_soldier_from_level_fire_for_two_hits():
+    """Level chest-height fire is stopped by a fresh bag twice, then it reaches the soldier."""
+    battle, shooter, target = duel(distance=300, sandbag_xs=(250.0,))
+    bag = battle.sandbags[0]
+    chest_height = shooter.y - shooter.muzzle[1]
+    intents = {shooter.soldier_id: Intent(fire=True)}
+    hits_covered = 0
+    while bag.height > chest_height:
+        sand_before = bag.sand
+        shooter.cooldown = 0.0
+        battle.step(dt=TIME_STEP, intents=intents)
+        run(battle, seconds=1.0, intents={})  # let the bullet land
+        assert bag.sand < sand_before
+        assert target.health == SOLDIER_HEALTH
+        hits_covered += 1
+    assert hits_covered == 2
+    shooter.cooldown = 0.0
+    battle.step(dt=TIME_STEP, intents=intents)
+    run(battle, seconds=1.0, intents={})
+    assert target.health == SOLDIER_HEALTH - PISTOL_DAMAGE
 
 
 def test_a_standing_sandbag_blocks_walking_and_a_flat_one_does_not():
