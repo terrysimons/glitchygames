@@ -587,3 +587,28 @@ class TestListInputDevices:
 
         assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
         assert f'Cannot list input devices with {flag}: the listing replaces the run' in caplog.text
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestCrtPowerOnOption:
+    """--crt-power-on chooses when the power-on sequence plays (glitchygames/crt_power_on.py)."""
+
+    def test_the_option_defaults_to_auto(self, mocker):
+        build_engine(mocker, game=first_frame_game())
+
+        assert GameEngine.OPTIONS['crt_power_on'] == 'auto'
+
+    @pytest.mark.parametrize('flag', ['--replay-trace', '--record-trace'])
+    def test_forcing_it_on_is_refused_with_a_replay_or_a_recording(
+        self, mocker, tmp_path, caplog, flag
+    ):
+        """Before frame 0 of a recorded or replayed run, nothing may happen."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--crt-power-on', 'on', flag, str(tmp_path / 'run.jsonl.gz')),
+            )
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        assert f'Cannot play the CRT power-on sequence with {flag}' in caplog.text

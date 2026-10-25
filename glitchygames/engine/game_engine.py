@@ -32,6 +32,7 @@ from glitchygames.backgrounds import (
 from glitchygames.build_info import engine_source_revision
 from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
+from glitchygames.crt_power_on import CrtPowerOnMode
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
@@ -721,6 +722,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             type=non_negative_int,
             help='mixer channels reserved for real-time synth voices (default: 4)',
             default=DEFAULT_LIVE_VOICE_POOL,
+        )
+        group.add_argument(
+            '--crt-power-on',
+            choices=[mode.value for mode in CrtPowerOnMode],
+            help=(
+                "show the game's canvas switching on like a CRT before the game starts: auto "
+                "(default: when someone can see it, so not on SDL's dummy driver or before a "
+                'replay, audit, rebaseline or recording), on (always; refused with a replay or '
+                'a recording) or off'
+            ),
+            default=CrtPowerOnMode.AUTO.value,
         )
         group.add_argument(
             '--default-background',
@@ -1825,6 +1837,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         self._refuse_listing_input_devices_during_a_run(options=options)
+        self._refuse_a_forced_power_on_during_a_run(options=options)
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
@@ -1948,6 +1961,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if refusal_reason is not None:
                 self.log.error('Cannot write %s: %s', flag, refusal_reason)
                 exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
+
+    def _refuse_a_forced_power_on_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for --crt-power-on on with a replay or recording.
+
+        Nothing may happen before frame 0 of a recorded or replayed run: events pumped then would
+        be input the game never saw (glitchygames/crt_power_on.py).
+
+        Args:
+            options: The parsed options.
+
+        """
+        if options.get('crt_power_on') != CrtPowerOnMode.ON.value:
+            return
+        for flag, option_name in (
+            ('--replay-trace', 'replay_trace'),
+            ('--record-trace', 'record_trace'),
+        ):
+            if options.get(option_name) is not None:
+                self.log.error('Cannot play the CRT power-on sequence with %s', flag)
+                exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_listing_input_devices_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.OPTIONS_REFUSED for --list-input-devices with a replay or recording.
