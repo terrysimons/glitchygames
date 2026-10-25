@@ -5,6 +5,7 @@ from __future__ import annotations
 import pygame
 import pytest
 
+from glitchygames.camera import Camera2D
 from glitchygames.display_mode import set_display_mode
 from glitchygames.examples import drawing_fire
 from glitchygames.examples.drawing_fire import drawing as drawing_module
@@ -23,15 +24,19 @@ from glitchygames.examples.drawing_fire.game import (
     VICTORY_SECONDS,
     DrawingFireScene,
     Phase,
+    seats_panel_lines,
 )
 from glitchygames.examples.drawing_fire.players import KEYBOARD, Device
 from glitchygames.examples.drawing_fire.seat_drawing import (
     CARD_COLOR,
     NOTE_COLOR,
+    SEAT_TAG_ABOVE_FEET_PIXELS,
+    SEAT_TAG_STAGGER_PIXELS,
     join_note_rect,
     seat_card_rect,
+    seats_panel_rect,
 )
-from glitchygames.examples.drawing_fire.seats import Stage
+from glitchygames.examples.drawing_fire.seats import PlayerSeat, SeatLogEntry, Stage
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 
@@ -577,3 +582,145 @@ def test_releasing_escape_never_quits_but_q_does(scene):
         pygame.event.Event(pygame.KEYUP, key=pygame.K_q, scancode=pygame.KSCAN_Q, mod=0)
     )
     assert len(pygame.event.get(eventtype=pygame.QUIT)) == 1
+
+
+# The debug overlay's pink, the colour of the seat tags' outline and the panel's
+DEBUG_PINK = (212, 0, 106)
+
+
+def living_count(scene, side):
+    """Count a side's living soldiers.
+
+    Returns:
+        The count.
+
+    """
+    return len(scene.battle.living(side))
+
+
+def pink_in(scene, rect):
+    """Say whether the debug pink is anywhere in a rectangle of the scene's screen.
+
+    Returns:
+        Whether it is.
+
+    """
+    return DEBUG_PINK in colors_in(scene.screen, rect)
+
+
+def test_the_panel_lists_each_army_its_drivers_and_the_seat_log(scene):
+    """One keyboard player: his army shows him and its seven computer soldiers."""
+    platoon_soldier = scene.battle.living(Side.PLATOON)[0]
+    scene.seats.players['P1'] = PlayerSeat(
+        name='P1',
+        device=KEYBOARD,
+        stage=Stage.PLAYING,
+        side=Side.PLATOON,
+        soldier_id=platoon_soldier.soldier_id,
+    )
+    scene.seats.log.append(SeatLogEntry(seconds=4.0, text='P1 START → random → PLATOON'))
+    assert seats_panel_lines(scene.seats, scene.battle) == [
+        'PLATOON  P1 · CPU ×7',  # ruff: ignore[ambiguous-unicode-character-string]
+        'BRIGADE  CPU ×8',  # ruff: ignore[ambiguous-unicode-character-string]
+        '0:04  P1 START → random → PLATOON',
+    ]
+
+
+def test_the_panel_counts_only_living_soldiers_and_formats_minutes(scene):
+    """Dead soldiers are not counted; the log's times are m:ss."""
+    scene.battle.soldier(0).health = 0
+    scene.seats.log.append(SeatLogEntry(seconds=75.9, text='P1 left'))
+    lines = seats_panel_lines(scene.seats, scene.battle)
+    first_platoon_count = living_count(scene, Side.PLATOON)
+    assert lines[0] == f'PLATOON  CPU ×{first_platoon_count}'  # ruff: ignore[ambiguous-unicode-character-string]
+    assert lines[-1] == '1:15  P1 left'
+
+
+def test_an_army_with_no_computer_soldiers_shows_only_its_players(scene):
+    """No computer soldiers left: the army's line is the players alone."""
+    seat = keyboard_joins_and_plays(scene)
+    assert seat.soldier_id is not None
+    for soldier in scene.battle.living(seat.side):
+        if soldier.soldier_id != seat.soldier_id:
+            soldier.health = 0
+    lines = seats_panel_lines(scene.seats, scene.battle)
+    assert f'{seat.side.name}  P1' in lines
+    assert not any('CPU' in line for line in lines if line.startswith(seat.side.name))
+
+
+def test_an_army_with_neither_players_nor_soldiers_shows_no_computer_soldiers(scene):
+    """A wiped-out army with no players still gets its line, CPU count 0."""
+    kill_army(scene, Side.BRIGADE)
+    expected = 'BRIGADE  CPU ×0'  # ruff: ignore[ambiguous-unicode-character-string]
+    assert expected in seats_panel_lines(scene.seats, scene.battle)
+
+
+def test_waiting_and_choosing_players_are_listed_on_their_side_marked(scene):
+    """A chooser and a waiting player are on their side's line, marked; one with no side is not."""
+    scene.seats.players['P2'] = PlayerSeat(
+        name='P2', device=Device(controller_id=2), stage=Stage.WAITING, side=Side.BRIGADE
+    )
+    scene.seats.players['P3'] = PlayerSeat(
+        name='P3', device=Device(controller_id=3), stage=Stage.CHOOSING_SOLDIER, side=Side.PLATOON
+    )
+    scene.seats.players['P4'] = PlayerSeat(name='P4', device=Device(controller_id=4))
+    lines = seats_panel_lines(scene.seats, scene.battle)
+    assert lines[0] == 'PLATOON  P3 (choosing) · CPU ×8'  # ruff: ignore[ambiguous-unicode-character-string]
+    assert lines[1] == 'BRIGADE  P2 (waiting) · CPU ×8'  # ruff: ignore[ambiguous-unicode-character-string]
+    assert len(lines) == 2
+
+
+def tag_area_over(soldier, *, raised, width=30):
+    """Find the rectangle a soldier's tag fills (a little larger than the tag).
+
+    Returns:
+        The rectangle.
+
+    """
+    area = pygame.Rect(0, 0, width, 12)
+    area.midbottom = (
+        round(soldier.x),
+        round(soldier.y) - SEAT_TAG_ABOVE_FEET_PIXELS - raised * SEAT_TAG_STAGGER_PIXELS,
+    )
+    return area
+
+
+def test_the_debug_overlay_tags_every_living_soldier_and_draws_the_panel(scene):
+    """debug_draw tags each living soldier with his driver and lists the seats in a corner."""
+    keyboard_joins_and_plays(scene)
+    scene.battle.soldier(0).health = 0
+    scene.render(scene.screen)
+    before = scene.screen.copy()
+    scene.debug_draw(
+        scene.screen, Camera2D(screen_width=SCREEN_SIZE[0], screen_height=SCREEN_SIZE[1])
+    )
+    standing = sorted(
+        scene.battle.living(Side.PLATOON) + scene.battle.living(Side.BRIGADE),
+        key=lambda soldier: (soldier.x, soldier.soldier_id),
+    )
+    for rank, soldier in enumerate(standing):
+        assert pink_in(scene, tag_area_over(soldier, raised=rank % 2))
+    # Where the fallen soldier stood there is no tag (a sliver, clear of his neighbours' tags)
+    assert not pink_in(scene, tag_area_over(scene.battle.soldier(0), raised=0, width=4))
+    corner = pygame.Rect(0, 0, 200, 100)
+    corner.bottomright = scene.screen.get_rect().bottomright
+    assert pink_in(scene, corner)
+    assert not pink_in(scene, join_note_rect(scene.screen))
+    assert before.get_at((0, 0)) == scene.screen.get_at((0, 0))
+
+
+def test_the_panel_does_not_cover_the_join_note_or_cards(scene):
+    """The panel's corner is the bottom right; the note and cards sit at the bottom left."""
+    panel = seats_panel_rect(scene.screen, lines=['0:04  P1 START → random → PLATOON'] * 10)
+    assert panel.right <= scene.screen.get_width()
+    assert panel.bottom <= scene.screen.get_height()
+    assert not panel.colliderect(join_note_rect(scene.screen))
+    assert not panel.colliderect(seat_card_rect(scene.screen, slot=1))
+
+
+def test_the_panel_spells_arrows_the_font_cannot_draw(scene):
+    """The panel draws '->' for the log's arrow, so it is the width of the spelled-out text."""
+    arrow_lines = ['P1 START → random → PLATOON']
+    spelled_lines = ['P1 START -> random -> PLATOON']
+    arrow_panel = seats_panel_rect(scene.screen, lines=arrow_lines)
+    assert arrow_panel == seats_panel_rect(scene.screen, lines=spelled_lines)

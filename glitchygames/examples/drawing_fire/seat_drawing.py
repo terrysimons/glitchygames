@@ -24,6 +24,8 @@ from glitchygames.examples.drawing_fire.drawing import (
 from glitchygames.examples.drawing_fire.seats import SideChoice, Stage
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from glitchygames.examples.drawing_fire.battle import Soldier
     from glitchygames.examples.drawing_fire.drawing import Color
     from glitchygames.examples.drawing_fire.seats import PlayerSeat
@@ -67,6 +69,24 @@ HIGHLIGHT_LABEL_GAP_PIXELS = 4
 HIGHLIGHT_FONT_SIZE = 14
 # Salt for the ring's wobble (drawing's own salts are 1 to 7)
 SALT_HIGHLIGHT = 8
+
+# The debug seats view: the engine's debug pink outlines a driver's tag over each soldier and the
+# panel of every army's drivers
+DEBUG_COLOR: Color = (212, 0, 106)
+DEBUG_BACKGROUND_COLOR: Color = (255, 255, 255)
+DEBUG_FONT_SIZE = 12
+DEBUG_LINE_WIDTH = 1
+SEAT_TAG_PADDING_PIXELS = 2
+# A tag's bottom is this far above a soldier's feet: clear of the pennant a player's soldier flies
+SEAT_TAG_ABOVE_FEET_PIXELS = 64
+# Soldiers stand 20 px apart, closer than a tag is wide: every second soldier's tag is raised
+SEAT_TAG_STAGGER_PIXELS = 16
+# The panel sits in the bottom-right corner, opposite the join note, and holds about 8 log lines
+SEATS_PANEL_MARGIN_PIXELS = 10
+SEATS_PANEL_PADDING_PIXELS = 6
+# The bundled font has no arrow glyph (it draws an empty box), so the panel spells it out
+PANEL_ARROW = '→'
+PANEL_ARROW_SPELLED = '->'
 
 
 def join_note_rect(surface: pygame.Surface) -> pygame.Rect:
@@ -239,4 +259,73 @@ def draw_soldier_highlight(surface: pygame.Surface, soldier: Soldier, *, name: s
                 round(center_y - radius_y - HIGHLIGHT_LABEL_GAP_PIXELS),
             )
         ),
+    )
+
+
+def draw_seat_tag(surface: pygame.Surface, *, text: str, at: tuple[float, float]) -> None:
+    """Draw a driver's name in a pink outlined box (the debug overlay's tag over a soldier).
+
+    Args:
+        surface: Where to draw.
+        text: Who drives him (a player's name, or CPU).
+        at: Where the middle of the tag's bottom edge goes.
+
+    """
+    label = text_surface(text, size=DEBUG_FONT_SIZE)
+    box = label.get_rect().inflate(2 * SEAT_TAG_PADDING_PIXELS, 2 * SEAT_TAG_PADDING_PIXELS)
+    box.midbottom = (round(at[0]), round(at[1]))
+    pygame.draw.rect(surface=surface, color=DEBUG_BACKGROUND_COLOR, rect=box)
+    pygame.draw.rect(surface=surface, color=DEBUG_COLOR, rect=box, width=DEBUG_LINE_WIDTH)
+    surface.blit(label, label.get_rect(center=box.center))
+
+
+def _panel_line(line: str) -> pygame.Surface:
+    """Render one panel line (each once: text_surface keeps it), its arrows spelled out.
+
+    Returns:
+        The line's text.
+
+    """
+    return text_surface(line.replace(PANEL_ARROW, PANEL_ARROW_SPELLED), size=DEBUG_FONT_SIZE)
+
+
+def seats_panel_rect(surface: pygame.Surface, *, lines: Sequence[str]) -> pygame.Rect:
+    """Find where the seats panel goes: the bottom-right corner, sized to its lines.
+
+    Args:
+        surface: Where the panel is drawn.
+        lines: The panel's lines.
+
+    Returns:
+        The panel's rectangle.
+
+    """
+    rendered = [_panel_line(line) for line in lines]
+    width = max((line.get_width() for line in rendered), default=0) + 2 * SEATS_PANEL_PADDING_PIXELS
+    height = sum(line.get_height() + SEAT_LINE_GAP_PIXELS for line in rendered) + (
+        2 * SEATS_PANEL_PADDING_PIXELS
+    )
+    panel = pygame.Rect(0, 0, width, height)
+    panel.bottomright = (
+        surface.get_width() - SEATS_PANEL_MARGIN_PIXELS,
+        surface.get_height() - SEATS_PANEL_MARGIN_PIXELS,
+    )
+    return panel
+
+
+def draw_seats_panel(surface: pygame.Surface, *, lines: Sequence[str]) -> None:
+    """Draw the seats panel: each army's drivers, then the recent seat log.
+
+    Args:
+        surface: Where to draw.
+        lines: The panel's lines.
+
+    """
+    panel = seats_panel_rect(surface, lines=lines)
+    pygame.draw.rect(surface=surface, color=DEBUG_BACKGROUND_COLOR, rect=panel)
+    pygame.draw.rect(surface=surface, color=DEBUG_COLOR, rect=panel, width=DEBUG_LINE_WIDTH)
+    _blit_lines(
+        surface,
+        tuple(_panel_line(line) for line in lines),
+        topleft=(panel.left + SEATS_PANEL_PADDING_PIXELS, panel.top + SEATS_PANEL_PADDING_PIXELS),
     )

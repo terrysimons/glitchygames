@@ -19,6 +19,7 @@ from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
     SOLDIERS_PER_SIDE,
     Battle,
+    Side,
     SoldierKilled,
 )
 from glitchygames.examples.drawing_fire.drawing import (
@@ -42,8 +43,12 @@ from glitchygames.examples.drawing_fire.players import (
     device_intent,
 )
 from glitchygames.examples.drawing_fire.seat_drawing import (
+    SEAT_TAG_ABOVE_FEET_PIXELS,
+    SEAT_TAG_STAGGER_PIXELS,
     draw_join_prompt,
     draw_seat_card,
+    draw_seat_tag,
+    draw_seats_panel,
     draw_soldier_highlight,
 )
 from glitchygames.examples.drawing_fire.seats import COMPUTER_DRIVER_NAME, Seats, Stage
@@ -54,14 +59,71 @@ from glitchygames.scenes import Scene
 if TYPE_CHECKING:
     from random import Random
 
+    from glitchygames.camera import Camera2D
     from glitchygames.events.base import KeyEvent
     from glitchygames.examples.drawing_fire.players import Device
+    from glitchygames.examples.drawing_fire.seats import PlayerSeat
     from glitchygames.examples.drawing_fire.terrain import Terrain
 
 PAPER_COLOR = (251, 248, 239)
 SOLDIER_SPRITE_PATH = Path(__file__).parent / 'sprites' / 'soldier.toml'
 # How long the winner is announced before the next battle starts (s)
 VICTORY_SECONDS = 3.0
+SECONDS_PER_MINUTE = 60
+PANEL_SEPARATOR = ' · '
+# The sign before the computer soldiers' count in the panel
+COMPUTER_COUNT_MARK = '×'  # ruff: ignore[ambiguous-unicode-character-string] - intended
+
+
+def seats_panel_lines(seats: Seats, battle: Battle) -> list[str]:
+    """List the debug panel's lines: each army's drivers, then the seat log, newest last.
+
+    An army line is its name, two spaces, then its players (a chooser or a waiting player marked)
+    and its living computer soldiers: ``PLATOON  P1 · CPU`` and the count. An army with no
+    computer soldiers shows only its players, one with no players only the computer count (a
+    count of 0 when it has neither). A player who has not yet chosen a side is on no army's line.
+
+    Args:
+        seats: The players' seats and the seat log.
+        battle: The battle, whose living soldiers are counted.
+
+    Returns:
+        The lines.
+
+    """
+    lines: list[str] = []
+    for side in Side:
+        parts = [
+            _seat_label(seat) for _, seat in sorted(seats.players.items()) if seat.side is side
+        ]
+        computer_count = sum(
+            1
+            for soldier in battle.living(side)
+            if seats.driver_of(soldier.soldier_id) == COMPUTER_DRIVER_NAME
+        )
+        if computer_count or not parts:
+            parts.append(f'{COMPUTER_DRIVER_NAME} {COMPUTER_COUNT_MARK}{computer_count}')
+        lines.append(f'{side.name}  {PANEL_SEPARATOR.join(parts)}')
+    lines.extend(
+        f'{int(entry.seconds) // SECONDS_PER_MINUTE}:'
+        f'{int(entry.seconds) % SECONDS_PER_MINUTE:02d}  {entry.text}'
+        for entry in seats.log
+    )
+    return lines
+
+
+def _seat_label(seat: PlayerSeat) -> str:
+    """Name a player for the panel, marking one who is not yet driving.
+
+    Returns:
+        The name, with (choosing) or (waiting) after it when he is not playing.
+
+    """
+    if seat.stage is Stage.CHOOSING_SOLDIER:
+        return f'{seat.name} (choosing)'
+    if seat.stage is Stage.WAITING:
+        return f'{seat.name} (waiting)'
+    return seat.name
 
 
 class Phase(enum.Enum):
@@ -243,6 +305,32 @@ class DrawingFireScene(Scene):
                 highlighted = self.seats.highlighted_soldier(seat, battle=self.battle)
                 if highlighted is not None:
                     draw_soldier_highlight(screen, highlighted, name=seat.name)
+
+    def debug_draw(self: Self, surface: pygame.Surface, camera: Camera2D) -> None:
+        """Tag every living soldier with who drives him and list the seats (the debug overlay).
+
+        The field never scrolls, so a soldier's world position is his screen position and the
+        camera is not used.
+
+        Args:
+            surface: The overlay surface (screen coordinates).
+            camera: The scene's camera (unused: the field never scrolls).
+
+        """
+        del camera
+        standing = sorted(
+            self.battle.living(Side.PLATOON) + self.battle.living(Side.BRIGADE),
+            key=lambda soldier: (soldier.x, soldier.soldier_id),
+        )
+        for rank, soldier in enumerate(standing):
+            # Neighbours left to right take turns being raised, so their tags never overlap
+            raised = (rank % 2) * SEAT_TAG_STAGGER_PIXELS
+            draw_seat_tag(
+                surface,
+                text=self.seats.driver_of(soldier.soldier_id),
+                at=(soldier.x, soldier.y - SEAT_TAG_ABOVE_FEET_PIXELS - raised),
+            )
+        draw_seats_panel(surface, lines=seats_panel_lines(self.seats, self.battle))
 
     @override
     def on_key_up_event(self: Self, event: KeyEvent) -> None:
