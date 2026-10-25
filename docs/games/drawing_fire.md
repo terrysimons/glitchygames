@@ -165,7 +165,7 @@ pistol. The numbers were tuned with the simulation (design section 4.7):
 | `SANDBAG_HEIGHT`, `SANDBAG_WIDTH` | 34 px, 48 px | A sandbag blocks walking while it stands |
 | `SAND_PER_HIT` | 0.25 | A sandbag loses sand per hit, sags, and is flattened at none |
 
-With these, 200 seeded battles split evenly between the armies, lasting 46 s on average. Hills
+With these, 200 seeded battles end 112 to 88 for the Platoon, lasting 47 s on average. Hills
 block bullets, so the computer neither stands nor fires until the ground leaves a clear line to
 its target.
 
@@ -176,7 +176,10 @@ soldier targets the nearest enemy (and keeps him unless another is nearer by
 `TARGET_SWITCH_MARGIN`), advances until the enemy is within his own stand-off distance, takes
 cover behind a sandbag when the enemy is in range and in sight, shoots a sandbag that blocks his
 way, keeps his spacing from his friends, and fires when his pistol is ready, after a reaction
-delay, with an aim error held for the whole shot.
+delay, with an aim error held for the whole shot. A soldier crowded by a friend of higher
+priority walks on to get off his spot, but never past the enemy's front: within `MELEE_PIXELS`
+of it he steps back instead, so friends do not follow a player who walks through the enemy's
+line.
 
 All the computer's randomness (stand-off, reaction delay, aim error) comes from **one random
 stream per soldier** (`drawing_fire.soldier.<battle>.<id>`), so a player taking a soldier over
@@ -214,7 +217,7 @@ stateDiagram-v2
 - A player who leaves frees his name. His soldier goes back to the computer at once, or to a
   waiting player of his side.
 - The seat log keeps the latest eight joins, takeovers and leaves with their game time, for the
-  debug panel (`P1 START → PLATOON`, `P1 took soldier 7`, `P1 died → soldier 4`, `P1 left`).
+  debug panel (`P1 START → PLATOON`, `P1 took soldier 7`, `P1 died → soldier 1`, `P1 left`).
 
 ## Swatches: the mechanic this game proves
 
@@ -273,16 +276,26 @@ right arrow moves the side card to the Platoon and Enter confirms it, D and A mo
 highlight and keypad Enter takes soldier 7 at frame 131. The player fires with the left mouse
 button (held, let go, held again), the mouse following the nearest enemy (`DrawingFireMouse`),
 walks right with D, steps back with the left arrow and A, then walks through the Brigade's line
-with the right arrow and stands there. He is shot down at frame 915 and takes over soldier 4,
-dies again at frame 1235 when his side has no soldier left to take, and waits through the
-Brigade's victory. The next battle starts with him choosing a soldier; he holds Escape from frame
-1500 and leaves at frame 1560. The
+with the right arrow and stands there. He is shot down at frame 809 and takes over soldier 1,
+then dies and takes over again at frames 1303 (soldier 4) and 1394 (soldier 0). He holds Escape
+from frame 1500 and leaves at frame 1560, and soldier 0 goes back to the computer. The
 controls tail (`drawing_fire_controls`) then quits with Q. With the tail, the fixture holds 1,614
 frames.
 
 Because the game reads its controls from the polled input, which a posted event never changes in
 SDL, the recorder lays the input it posted over each live snapshot (`PostedPolledInput`), as a
-real keyboard and mouse would. The replay serves the recorded snapshots.
+real keyboard and mouse would. It does so only for the games in `POLLED_INPUT_GAMES` (Drawing
+Fire alone), so every other game's re-recording keeps the snapshots it had. The replay serves the
+recorded snapshots.
+
+The soldiers, bullets and sandbags are drawn, not sprites, so a replay's sprite comparison sees
+none of the battle. Instead the scene posts an internal `GAMEEVENT` (`post_event`) for every
+soldier killed (`SOLDIER_KILLED_SUBTYPE`: his id, side and driver) and every seat log entry
+(`SEAT_CHANGED_SUBTYPE`: the change, the player, his soldier and the panel's text). The recording
+holds them, and a replay in which the battle plays out differently misses one and diverges
+("missing internal event"). `DrawingFireScene.on_game_event` takes its own subtypes as the
+markers they are. `test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover` checks that
+the fixture holds the player's death and takeover.
 
 `tests/replay/test_golden_replays.py` checks that every control the game reads is exercised: its
 keys by scancode, the mouse's motion and left button, and Q. The controller's controls are
@@ -290,19 +303,15 @@ excused (`UNEXERCISED_CONTROLS`, `NO_GAMEPAD_IN_THE_SESSION`), because the scrip
 on the dummy driver, which has no gamepad. Drawing Fire is in `GAMES_WITHOUT_A_PAUSE`, so its
 replay is checked never to reach the pause screen instead of pausing and resuming.
 
-Two limits, both noted in `plans/future-features.md` entry 54:
-
-- The soldiers, bullets and sandbags are drawn, not sprites, and the game posts no events, so a
-  replay compares only the scene, the frame count and the game's own QUIT. It would not notice a
-  battle that played out differently.
-- The fixture is about 190 KB, over the 100 KB the other games keep: the first frame holds every
-  random stream's state (19 of them, twice), about 125 KB compressed on its own.
+One limit, noted in `plans/future-features.md` entry 54: the fixture is about 185 KB, over the
+100 KB the other games keep. The first frame holds every random stream's state (19 of them,
+twice), about 125 KB compressed on its own.
 
 The pytest plugin `glitchygames/testing/replays.py` replays the fixture in a child process
 (`drawing-fire --replay-trace ... --headless`), and the test fails unless it exits `SUCCESS`.
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
-to make a failing replay pass, and check that the new recording still holds a death (replay it
-and read the seat log).
+to make a failing replay pass. A re-recording without the player's death and takeover fails the
+test above.
 
 ## Tests
 

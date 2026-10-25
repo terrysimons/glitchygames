@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 
 from glitchygames.engine import GameEngine
+from glitchygames.events import GAMEEVENT
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
     SOLDIERS_PER_SIDE,
@@ -51,16 +52,22 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     draw_seats_panel,
     draw_soldier_highlight,
 )
-from glitchygames.examples.drawing_fire.seats import COMPUTER_DRIVER_NAME, Seats, Stage
+from glitchygames.examples.drawing_fire.seats import (
+    COMPUTER_DRIVER_NAME,
+    SeatLogEntry,
+    Seats,
+    Stage,
+)
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
+from glitchygames.recording import post_event
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
     from random import Random
 
     from glitchygames.camera import Camera2D
-    from glitchygames.events.base import KeyEvent
+    from glitchygames.events.base import GameEvent, KeyEvent
     from glitchygames.examples.drawing_fire.players import Device
     from glitchygames.examples.drawing_fire.seats import PlayerSeat
     from glitchygames.examples.drawing_fire.terrain import Terrain
@@ -71,6 +78,15 @@ SOLDIER_SPRITE_PATH = Path(__file__).parent / 'sprites' / 'soldier.toml'
 VICTORY_SECONDS = 3.0
 SECONDS_PER_MINUTE = 60
 PANEL_SEPARATOR = ' · '
+# Drawing Fire's GAMEEVENT subtypes. The scene posts one (an internal event) for every soldier
+# killed and every seat log entry, so a recording holds what happened in the battle and a replay
+# in which it happens differently diverges ("missing internal event"): the soldiers are drawn,
+# not sprites, so nothing else a replay compares would notice
+SOLDIER_KILLED_SUBTYPE = 1
+SEAT_CHANGED_SUBTYPE = 2
+DRAWING_FIRE_EVENT_SUBTYPES = frozenset({SOLDIER_KILLED_SUBTYPE, SEAT_CHANGED_SUBTYPE})
+# The soldier_id a seat change without a soldier carries (an event attribute is never None)
+NO_SOLDIER_ID = -1
 # The sign before the computer soldiers' count in the panel
 COMPUTER_COUNT_MARK = '×'  # ruff: ignore[ambiguous-unicode-character-string] - intended
 
@@ -171,6 +187,18 @@ class DrawingFireScene(Scene):
         self.devices: tuple[Device, ...] = (KEYBOARD,)
         self.start_battle()
 
+    @override
+    def setup(self: Self) -> None:
+        """Register the scene's own game event subtypes with the engine.
+
+        The scene manager hands every GAMEEVENT to the callback registered for its subtype (and
+        logs an error for an unregistered one). The scene's posts are markers for recordings,
+        so their callback does nothing.
+        """
+        super().setup()
+        for subtype in sorted(DRAWING_FIRE_EVENT_SUBTYPES):
+            self.scene_manager.register_game_event(event_type=subtype, callback=_take_marker)
+
     def start_battle(self: Self) -> None:
         """Start the next battle: new terrain, sandbags and soldiers from the seeded streams."""
         self.battle_number += 1
@@ -234,6 +262,7 @@ class DrawingFireScene(Scene):
             events = self.battle.step(dt=dt, intents=intents)
             for event in events:
                 if isinstance(event, SoldierKilled):
+                    self._post_soldier_killed(event)
                     self.seats.soldier_killed(
                         soldier_id=event.soldier_id, battle=self.battle, seconds=self.game_time
                     )
@@ -251,6 +280,29 @@ class DrawingFireScene(Scene):
             self.victory_seconds += dt
             if self.victory_seconds >= VICTORY_SECONDS:
                 self.start_battle()
+        for entry in self.seats.take_new_entries():
+            _post_seat_changed(entry)
+
+    def _post_soldier_killed(self: Self, event: SoldierKilled) -> None:
+        """Post a soldier's death as an internal event: who he was, and who drove him.
+
+        Args:
+            event: The battle's report of the death.
+
+        """
+        soldier = self.battle.soldier(event.soldier_id)
+        post_event(
+            pygame.event.Event(
+                GAMEEVENT,
+                {
+                    'subtype': SOLDIER_KILLED_SUBTYPE,
+                    'soldier_id': event.soldier_id,
+                    'side': soldier.side.value,
+                    # Read before the seats move a player on to another soldier
+                    'driver': self.seats.driver_of(event.soldier_id),
+                },
+            )
+        )
 
     @override
     def render(self: Self, screen: pygame.Surface) -> None:
@@ -348,6 +400,37 @@ class DrawingFireScene(Scene):
         if event.key == pygame.K_ESCAPE:
             return
         super().on_key_up_event(event)
+
+
+def _take_marker(event: GameEvent) -> None:
+    """Take one of the scene's own game events: a marker for recordings, with nothing to do.
+
+    Args:
+        event: The game event.
+
+    """
+    del event
+
+
+def _post_seat_changed(entry: SeatLogEntry) -> None:
+    """Post a seat log entry as an internal event: what changed, for whom, and his soldier.
+
+    Args:
+        entry: The entry.
+
+    """
+    post_event(
+        pygame.event.Event(
+            GAMEEVENT,
+            {
+                'subtype': SEAT_CHANGED_SUBTYPE,
+                'change': entry.change.value,
+                'player': entry.player,
+                'soldier_id': NO_SOLDIER_ID if entry.soldier_id is None else entry.soldier_id,
+                'text': entry.text,
+            },
+        )
+    )
 
 
 def main() -> None:

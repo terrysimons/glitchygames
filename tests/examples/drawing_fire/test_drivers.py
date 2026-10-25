@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import random
 
@@ -13,6 +14,7 @@ from glitchygames.examples.drawing_fire.battle import (
     SANDBAG_WIDTH,
     SOLDIER_CHEST_HEIGHT,
     Battle,
+    Intent,
     Sandbag,
     Side,
 )
@@ -566,3 +568,52 @@ def test_soldiers_queue_a_spacing_apart_behind_a_sandbag_that_blocks_them():
     assert move_of(follower) == 1.0
     # The head of the queue stands at the bag (shooting it down), as nobody is ahead of him
     assert move_of(head) == 0.0
+
+
+# A player who walks through the enemy line, and how long he walks (s, at 60 steps a second)
+PLAYER_WALK_SECONDS = 20.0
+STEPS_PER_SECOND = 60
+# Health no pistol can take in the walk: the player must reach the far side
+UNTOUCHABLE_HEALTH = 10_000
+
+
+def test_no_computer_friend_follows_a_player_through_the_enemy_line():
+    """A player walks his soldier through the Brigade: his friends never pass the enemy's front.
+
+    The Platoon's front soldier has the highest priority, so friends crowded by him give way by
+    walking on. Before the fix their way off was kept until they were clear, and a player
+    walking on at the same speed never let them clear, so they followed him to the field's edge.
+    No one fires (and the sandbags are taken away), so the enemy's line stays where it stands.
+    """
+    reset_streams(seed=TEST_SEED)
+    battle, minds, streams = muster_battle(
+        battle_number=1, width=FIELD_WIDTH, height=FIELD_HEIGHT, soldiers_per_side=8
+    )
+    # Standing sandbags block walking, and no one shoots them down here
+    battle.sandbags.clear()
+    # The Platoon's front soldier (the highest priority), started behind his friends, so he
+    # walks through them as the golden replay's player did
+    player = max(battle.living(Side.PLATOON), key=lambda soldier: soldier.x)
+    player.x = min(friend.x for friend in battle.living(Side.PLATOON))
+    player.health = UNTOUCHABLE_HEALTH
+    farthest_past_front = -math.inf
+    for _ in range(round(PLAYER_WALK_SECONDS * STEPS_PER_SECOND)):
+        intents = {
+            soldier_id: dataclasses.replace(intent, fire=False)
+            for soldier_id, intent in computer_intents(
+                battle=battle, minds=minds, streams=streams
+            ).items()
+        }
+        intents[player.soldier_id] = Intent(move=1.0, aim_angle=0.0, fire=False)
+        battle.step(dt=1 / STEPS_PER_SECOND, intents=intents)
+        enemy_front_x = min(enemy.x for enemy in battle.living(Side.BRIGADE))
+        farthest_past_front = max(
+            farthest_past_front,
+            *(
+                friend.x - enemy_front_x
+                for friend in battle.living(Side.PLATOON)
+                if friend is not player
+            ),
+        )
+    assert player.x > max(enemy.x for enemy in battle.living(Side.BRIGADE))
+    assert farthest_past_front <= 0.0

@@ -7,6 +7,8 @@ import pytest
 
 from glitchygames.camera import Camera2D
 from glitchygames.display_mode import set_display_mode
+from glitchygames.events import GAMEEVENT
+from glitchygames.events.base import GameEvent
 from glitchygames.examples import drawing_fire
 from glitchygames.examples.drawing_fire import drawing as drawing_module
 from glitchygames.examples.drawing_fire import game as drawing_fire_game
@@ -20,7 +22,10 @@ from glitchygames.examples.drawing_fire.battle import (
 )
 from glitchygames.examples.drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
 from glitchygames.examples.drawing_fire.game import (
+    NO_SOLDIER_ID,
     PAPER_COLOR,
+    SEAT_CHANGED_SUBTYPE,
+    SOLDIER_KILLED_SUBTYPE,
     VICTORY_SECONDS,
     DrawingFireScene,
     Phase,
@@ -36,7 +41,7 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     seat_card_rect,
     seats_panel_rect,
 )
-from glitchygames.examples.drawing_fire.seats import PlayerSeat, SeatLogEntry, Stage
+from glitchygames.examples.drawing_fire.seats import PlayerSeat, SeatChange, SeatLogEntry, Stage
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 
@@ -618,7 +623,14 @@ def test_the_panel_lists_each_army_its_drivers_and_the_seat_log(scene):
         side=Side.PLATOON,
         soldier_id=platoon_soldier.soldier_id,
     )
-    scene.seats.log.append(SeatLogEntry(seconds=4.0, text='P1 START → random → PLATOON'))
+    scene.seats.log.append(
+        SeatLogEntry(
+            seconds=4.0,
+            text='P1 START → random → PLATOON',
+            change=SeatChange.SIDE_CHOSEN,
+            player='P1',
+        )
+    )
     assert seats_panel_lines(scene.seats, scene.battle) == [
         'PLATOON  P1 · CPU ×7',  # ruff: ignore[ambiguous-unicode-character-string]
         'BRIGADE  CPU ×8',  # ruff: ignore[ambiguous-unicode-character-string]
@@ -629,7 +641,9 @@ def test_the_panel_lists_each_army_its_drivers_and_the_seat_log(scene):
 def test_the_panel_counts_only_living_soldiers_and_formats_minutes(scene):
     """Dead soldiers are not counted; the log's times are m:ss."""
     scene.battle.soldier(0).health = 0
-    scene.seats.log.append(SeatLogEntry(seconds=75.9, text='P1 left'))
+    scene.seats.log.append(
+        SeatLogEntry(seconds=75.9, text='P1 left', change=SeatChange.LEFT, player='P1')
+    )
     lines = seats_panel_lines(scene.seats, scene.battle)
     first_platoon_count = living_count(scene, Side.PLATOON)
     assert lines[0] == f'PLATOON  CPU ×{first_platoon_count}'  # ruff: ignore[ambiguous-unicode-character-string]
@@ -724,3 +738,82 @@ def test_the_panel_spells_arrows_the_font_cannot_draw(scene):
     spelled_lines = ['P1 START -> random -> PLATOON']
     arrow_panel = seats_panel_rect(scene.screen, lines=arrow_lines)
     assert arrow_panel == seats_panel_rect(scene.screen, lines=spelled_lines)
+
+
+def posted_game_events():
+    """Drain SDL's queue and return the GAMEEVENTs in it, as dicts, in order.
+
+    Returns:
+        Each game event's attributes.
+
+    """
+    return [dict(event.dict) for event in pygame.event.get() if event.type == GAMEEVENT]
+
+
+def test_a_death_and_a_takeover_are_posted_as_game_events(scene):
+    """The player's soldier dies: a soldier-killed event naming him, then his takeover's."""
+    seat = keyboard_joins_and_plays(scene)
+    assert seat.side is not None
+    assert seat.soldier_id is not None
+    soldier = scene.battle.soldier(seat.soldier_id)
+    soldier.health = 1
+    chest_x, chest_y = soldier.chest
+    scene.battle.bullets.append(
+        Bullet(
+            x=chest_x - 1.0,
+            y=chest_y,
+            velocity_x=600.0,
+            velocity_y=0.0,
+            side=seat.side.opponent,
+            distance_left=100.0,
+        )
+    )
+    pygame.event.clear()
+
+    tick_with(scene, keyboard_input())
+
+    assert posted_game_events() == [
+        {
+            'subtype': SOLDIER_KILLED_SUBTYPE,
+            'soldier_id': soldier.soldier_id,
+            'side': seat.side.value,
+            'driver': seat.name,
+        },
+        {
+            'subtype': SEAT_CHANGED_SUBTYPE,
+            'change': SeatChange.TOOK_OVER.value,
+            'player': seat.name,
+            'soldier_id': seat.soldier_id,
+            'text': f'{seat.name} died → soldier {seat.soldier_id}',
+        },
+    ]
+
+
+def test_every_seat_log_entry_is_posted_once(scene):
+    """Joining posts the side choice (no soldier) and the soldier taken, each once."""
+    pygame.event.clear()
+    seat = keyboard_joins_and_plays(scene)
+    assert seat.side is not None
+
+    seat_events = [
+        event for event in posted_game_events() if event['subtype'] == SEAT_CHANGED_SUBTYPE
+    ]
+
+    assert [(event['change'], event['soldier_id']) for event in seat_events] == [
+        (SeatChange.SIDE_CHOSEN.value, NO_SOLDIER_ID),
+        (SeatChange.TOOK_SOLDIER.value, seat.soldier_id),
+    ]
+    assert [event['text'] for event in seat_events] == [entry.text for entry in scene.seats.log]
+    assert scene.seats.take_new_entries() == []
+
+
+def test_setup_registers_the_scenes_own_game_events(scene, mocker):
+    """setup() registers each of the scene's subtypes, with a callback that takes the marker."""
+    register = mocker.patch.object(scene.scene_manager, 'register_game_event')
+    scene.setup()
+    registered = {
+        call.kwargs['event_type']: call.kwargs['callback'] for call in register.call_args_list
+    }
+    assert set(registered) == {SOLDIER_KILLED_SUBTYPE, SEAT_CHANGED_SUBTYPE}
+    for subtype, callback in registered.items():
+        assert callback(GameEvent(GAMEEVENT, subtype=subtype)) is None

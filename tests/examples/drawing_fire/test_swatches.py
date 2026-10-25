@@ -193,6 +193,18 @@ def test_unlisted_colours_and_transparency_are_untouched(swatch_set):
     assert tuple(recolored.get_at((2, 0))) == (*PENCIL_YELLOW, 128)
 
 
+def test_a_recoloured_keyed_surface_keeps_its_colorkey(swatch_set):
+    """The copy keeps the source's colorkey (Surface.copy() drops it on cocoa's display format)."""
+    keyed = pygame.Surface((2, 1))
+    keyed.set_colorkey((255, 0, 255))
+    keyed.set_at((0, 0), HELMET_BASE)
+    keyed.set_at((1, 0), (255, 0, 255))
+    recolored = recolor_surface(
+        surface=keyed, swatch_set=swatch_set, scheme=Scheme(primary=PENCIL_YELLOW)
+    )
+    assert recolored.get_colorkey() == keyed.get_colorkey()
+
+
 def test_parts_the_scheme_gives_no_colour_stay_as_drawn(swatch_set, surface):
     """An empty scheme recolours nothing, but still gives a new surface."""
     recolored = recolor_surface(surface=surface, swatch_set=swatch_set, scheme=Scheme())

@@ -37,12 +37,18 @@ from scripts.record_scripted_session import (
     fixture_path,
 )
 
+from glitchygames.events import GAMEEVENT
 from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire import players as drawing_fire_players
-from glitchygames.examples.drawing_fire.game import DrawingFireScene
+from glitchygames.examples.drawing_fire.game import (
+    SEAT_CHANGED_SUBTYPE,
+    SOLDIER_KILLED_SUBTYPE,
+    DrawingFireScene,
+)
+from glitchygames.examples.drawing_fire.seats import SeatChange
 from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
@@ -624,3 +630,33 @@ def test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit(con
     assert quits, f'{console_script} golden replay never quits'
     assert {origin for _frame_number, origin in quits} == {INTERNAL_ORIGIN}
     assert {frame_number for frame_number, _origin in quits} == {frames[-1]['frame']}
+
+
+def test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover():
+    """The keyboard player (P1) is killed and takes over another soldier, as the game posted.
+
+    Drawing Fire posts an internal game event for every death and seat change, so the replay
+    compares them; this checks the session really holds the player's death and takeover, so a
+    re-recording without one fails here instead of passing by luck.
+    """
+    game_events = [
+        record['attributes']
+        for _frame_number, _scene, record in received_events(
+            recording=golden_recording('drawing-fire')
+        )
+        if record['type'] == GAMEEVENT and record['origin'] == INTERNAL_ORIGIN
+    ]
+    deaths = [
+        event
+        for event in game_events
+        if event['subtype'] == SOLDIER_KILLED_SUBTYPE and event['driver'] == 'P1'
+    ]
+    takeovers = [
+        event
+        for event in game_events
+        if event['subtype'] == SEAT_CHANGED_SUBTYPE
+        and event['change'] == SeatChange.TOOK_OVER
+        and event['player'] == 'P1'
+    ]
+    assert deaths, 'the golden session never kills the player'
+    assert takeovers, 'the golden session never hands the player another soldier'

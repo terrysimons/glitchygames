@@ -332,10 +332,10 @@ games.
   (`camera.snap_followed_axes_to`), or to the player on both axes when there is no target
 - Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
   every game older than the world-space change (`GOLDEN_TRACE_GAMES`; Mr. Muncher and Drawing
-  Fire, newer, have only their golden replays) and compare each sprite's rect and visibility, frame by frame, with
-  baselines recorded before the world-space change. Every difference must be explained by
-  exactly one `ExpectedDifference` entry whose rule proves it exactly (an entry that explains
-  nothing fails too); never re-record the baselines to make a change pass
+  Fire, newer, have only their golden replays) and compare each sprite's rect and visibility,
+  frame by frame, with baselines recorded before the world-space change. Every difference must
+  be explained by exactly one `ExpectedDifference` entry whose rule proves it exactly (an entry
+  that explains nothing fails too); never re-record the baselines to make a change pass
 
 **Clocks** (`glitchygames/clock.py`, a leaf module): every time read in `glitchygames/` comes from
 here or from `Scene.game_time`, so a replay serves the same values. Pick by purpose:
@@ -599,8 +599,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   bindings must be listed there. A game that reads its controls from the frame's snapshot
   (`current_input()`) rather than an ActionMap (Drawing Fire) lists them all in
   `ENGINE_SCENE_CONTROLS` (keys by scancode, the mouse as `InputKind.MOUSE`). A posted event
-  never changes SDL's polled state, so the recorder lays the input it posted over each live
-  snapshot (`PostedPolledInput`, `polled_input_follows`), as a real player's input would be. Demos are recorded `--script-only` (no tail, no quit)
+  never changes SDL's polled state, so for such a game (`POLLED_INPUT_GAMES`, opt-in: only
+  Drawing Fire) the recorder lays the input it posted over each live snapshot
+  (`PostedPolledInput`, `polled_input_follows`), as a real player's input would be; every other
+  game's session records the snapshots it always did, so its re-recordings keep their content
+  hashes. A game whose state is drawn rather than kept in sprites must post an internal event
+  (`post_event`) for what matters, or its replay compares nothing of it: Drawing Fire posts a
+  GAMEEVENT per death and seat change. Demos are recorded `--script-only` (no tail, no quit)
 - `--replay-trace PATH --audit` (`glitchygames/replay/audit.py`): instead of replaying, runs the
   same command twice as child processes (`--no-audit --headless --replay-digest <temp>`,
   `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two

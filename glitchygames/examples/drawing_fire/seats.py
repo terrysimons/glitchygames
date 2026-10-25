@@ -76,12 +76,37 @@ class PlayerSeat:
     back_released: bool = True
 
 
+class SeatChange(enum.StrEnum):
+    """What a seat log entry records."""
+
+    SIDE_CHOSEN = 'side_chosen'
+    TOOK_SOLDIER = 'took_soldier'
+    # His soldier died and he took over another of his side
+    TOOK_OVER = 'took_over'
+    # His soldier died and none of his side was free
+    DIED_WAITING = 'died_waiting'
+    WAITING = 'waiting'
+    LEFT = 'left'
+
+
 @dataclass(frozen=True)
 class SeatLogEntry:
-    """A join, takeover or leave, and when it happened (the scene's game time)."""
+    """A join, takeover or leave, and when it happened (the scene's game time).
+
+    Attributes:
+        seconds: The scene's game time.
+        text: The panel's line (``P1 died → soldier 4``).
+        change: What happened.
+        player: The player it happened to (his name).
+        soldier_id: The soldier he took, when he took one; else None.
+
+    """
 
     seconds: float
     text: str
+    change: SeatChange
+    player: str
+    soldier_id: int | None = None
 
 
 class Seats:
@@ -98,6 +123,8 @@ class Seats:
         self.random = random
         self.players: dict[str, PlayerSeat] = {}
         self.log: collections.deque[SeatLogEntry] = collections.deque(maxlen=SEAT_LOG_LENGTH)
+        # Every entry since the scene last took them (take_new_entries), uncapped
+        self._new_entries: list[SeatLogEntry] = []
 
     def seat_of(self, device: Device) -> PlayerSeat | None:
         """Find the seat a device has (a device has at most one).
@@ -220,10 +247,21 @@ class Seats:
         if not candidates:
             seat.stage = Stage.WAITING
             seat.soldier_id = None
-            self._record(seconds=seconds, text=f'{seat.name} died → waiting')
+            self._record(
+                seconds=seconds,
+                text=f'{seat.name} died → waiting',
+                change=SeatChange.DIED_WAITING,
+                player=seat.name,
+            )
             return
         seat.soldier_id = self.random.choice(candidates).soldier_id
-        self._record(seconds=seconds, text=f'{seat.name} died → soldier {seat.soldier_id}')
+        self._record(
+            seconds=seconds,
+            text=f'{seat.name} died → soldier {seat.soldier_id}',
+            change=SeatChange.TOOK_OVER,
+            player=seat.name,
+            soldier_id=seat.soldier_id,
+        )
 
     def battle_started(self, *, battle: Battle) -> None:
         """Send every player who has a side back to choosing a soldier of it in the new battle.
@@ -262,10 +300,20 @@ class Seats:
             return
         if seat.side_choice is SideChoice.RANDOM:
             side = self.random.choice(list(Side))
-            self._record(seconds=seconds, text=f'{seat.name} START → random → {side.name}')
+            self._record(
+                seconds=seconds,
+                text=f'{seat.name} START → random → {side.name}',
+                change=SeatChange.SIDE_CHOSEN,
+                player=seat.name,
+            )
         else:
             side = CHOSEN_SIDES[seat.side_choice]
-            self._record(seconds=seconds, text=f'{seat.name} START → {side.name}')
+            self._record(
+                seconds=seconds,
+                text=f'{seat.name} START → {side.name}',
+                change=SeatChange.SIDE_CHOSEN,
+                player=seat.name,
+            )
         seat.side = side
         seat.stage = Stage.CHOOSING_SOLDIER
         seat.highlighted_soldier_id = self._starting_soldier_id(seat, battle=battle)
@@ -290,7 +338,13 @@ class Seats:
             return
         seat.stage = Stage.PLAYING
         seat.soldier_id = soldier.soldier_id
-        self._record(seconds=seconds, text=f'{seat.name} took soldier {soldier.soldier_id}')
+        self._record(
+            seconds=seconds,
+            text=f'{seat.name} took soldier {soldier.soldier_id}',
+            change=SeatChange.TOOK_SOLDIER,
+            player=seat.name,
+            soldier_id=soldier.soldier_id,
+        )
 
     def _wait_if_nothing_to_choose(
         self, seat: PlayerSeat, *, battle: Battle, seconds: float
@@ -309,13 +363,15 @@ class Seats:
         else:
             return False
         seat.stage = Stage.WAITING
-        self._record(seconds=seconds, text=text)
+        self._record(seconds=seconds, text=text, change=SeatChange.WAITING, player=seat.name)
         return True
 
     def _leave(self, seat: PlayerSeat, *, battle: Battle, seconds: float) -> None:
         """Free a seat and its name; his soldier goes to a waiting player of his side, if any."""
         del self.players[seat.name]
-        self._record(seconds=seconds, text=f'{seat.name} left')
+        self._record(
+            seconds=seconds, text=f'{seat.name} left', change=SeatChange.LEFT, player=seat.name
+        )
         if seat.stage is not Stage.PLAYING or seat.soldier_id is None:
             return
         # His soldier is the next one free: the first player of his side waiting takes him
@@ -331,7 +387,13 @@ class Seats:
         if waiting is not None and battle.winner is None and battle.soldier(seat.soldier_id).alive:
             waiting.stage = Stage.PLAYING
             waiting.soldier_id = seat.soldier_id
-            self._record(seconds=seconds, text=f'{waiting.name} took soldier {seat.soldier_id}')
+            self._record(
+                seconds=seconds,
+                text=f'{waiting.name} took soldier {seat.soldier_id}',
+                change=SeatChange.TOOK_SOLDIER,
+                player=waiting.name,
+                soldier_id=seat.soldier_id,
+            )
 
     def _starting_soldier_id(self, seat: PlayerSeat, *, battle: Battle) -> int | None:
         """Find where a chooser's highlight starts: the free soldier nearest the field's middle.
@@ -361,9 +423,31 @@ class Seats:
         )
         return None if start is None else start.soldier_id
 
-    def _record(self, *, seconds: float, text: str) -> None:
-        """Add an entry to the seat log."""
-        self.log.append(SeatLogEntry(seconds=seconds, text=text))
+    def take_new_entries(self) -> list[SeatLogEntry]:
+        """Hand over the entries recorded since the last call (the scene posts them as events).
+
+        Returns:
+            The new entries, oldest first; the next call starts empty.
+
+        """
+        new_entries, self._new_entries = self._new_entries, []
+        return new_entries
+
+    def _record(
+        self,
+        *,
+        seconds: float,
+        text: str,
+        change: SeatChange,
+        player: str,
+        soldier_id: int | None = None,
+    ) -> None:
+        """Add an entry to the seat log and to the new entries."""
+        entry = SeatLogEntry(
+            seconds=seconds, text=text, change=change, player=player, soldier_id=soldier_id
+        )
+        self.log.append(entry)
+        self._new_entries.append(entry)
 
 
 def _left_right_step(*, edges: ButtonEdges, device: Device) -> int:

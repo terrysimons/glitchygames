@@ -74,13 +74,15 @@ script runs 1950 frames, not more (its death at about frame 1650 and the next li
 included), so its fixture stays under 100 KB. Drawing Fire's cannot: its first frame alone is
 about 125 KB compressed (the scene start holds every random stream's state, a Mersenne Twister's
 625 numbers for each of its 19 streams, twice: at setup and at the first logic frame), so its
-fixture is about 190 KB. Its player's first death falls between frames 850 and 920 in trial
-recordings (frame 915 in the fixture); a re-recording must still hold one (the seats log
-``P1 died``), so check it by replaying the recording before keeping it.
+fixture is about 185 KB. Its player's first death came between frames 740 and 920 in trial
+recordings (frame 809 in the fixture); a re-recording must still hold his death and takeover,
+which tests/replay/test_golden_replays.py checks in the recorded internal events.
 
 Drawing Fire reads its controls from the frame's polled input (``current_input()``), which a
-posted event never changes in SDL: the session's live snapshots show the supervisor's posted
-input (PostedPolledInput, polled_input_follows), as a real player's would.
+posted event never changes in SDL: for the games in POLLED_INPUT_GAMES (Drawing Fire alone) the
+session's live snapshots show the supervisor's posted input (PostedPolledInput,
+polled_input_follows), as a real player's would. Only for them: every other game's session
+records the snapshots it always did, so its re-recordings keep their content hashes.
 
 Without ``--output`` the recording goes to
 ``tests/fixtures/replays/<console-script>/golden.jsonl.gz`` (``fixture_path``).
@@ -131,6 +133,11 @@ if TYPE_CHECKING:
 
 # Games whose script placements only steer the script's own input (they move no sprite)
 INPUT_ONLY_PLACEMENT_GAMES = frozenset({'paddleslap'})
+# Games that read their controls from the frame's polled input (current_input()), not from
+# events: their sessions' live snapshots show the posted input (polled_input_follows). Only
+# these: another game's re-recording keeps the snapshots it had (held keys absent), so its
+# content hashes, and the metrics ledger's behaviour changes, stay as they were
+POLLED_INPUT_GAMES = frozenset({'drawing_fire'})
 
 # Golden replay fixtures: tests/fixtures/replays/<console-script>/<name>.jsonl.gz
 REPLAY_FIXTURE_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
@@ -528,8 +535,9 @@ def record_scripted_session(
     """Run a game for real with its golden input script and ``--record-trace``.
 
     Saves go to a temporary directory. The SceneManager singleton is fresh for the session and
-    cleared afterwards. GameEngine._shutdown quits pygame at the end, as a real run does. The
-    live snapshots show the posted input (polled_input_follows), as a real player's would.
+    cleared afterwards. GameEngine._shutdown quits pygame at the end, as a real run does. For a
+    game in POLLED_INPUT_GAMES the live snapshots show the posted input (polled_input_follows),
+    as a real player's would.
 
     Args:
         game_key: Which game (a key of GAME_SCENES).
@@ -577,7 +585,11 @@ def record_scripted_session(
             # After the engine: GameEngine.__init__ resets the scene manager's supervision
             manager.add_supervisor(supervisor=supervisor)
             discard_environment_events()
-            with polled_input_follows(supervisor.posted_input):
+            with (
+                polled_input_follows(supervisor.posted_input)
+                if game_key in POLLED_INPUT_GAMES
+                else contextlib.nullcontext()
+            ):
                 engine.start()
         finally:
             # GameEngine._shutdown normally quits pygame (the queue went with it); a caller that

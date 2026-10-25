@@ -698,7 +698,7 @@ def drawing_fire_script() -> InputScript:
     script.tap(130, pygame.K_KP_ENTER, held_frames=4)
     # Fight: walk right toward the Brigade, step back, then walk on through its line and stand
     # there, ahead of his own side, the soldier nearest its pistols, until shot down (about frame
-    # 850 to 920; fire is let go on the way in, at frame 600, so the Brigade keeps its pistols)
+    # 740 to 920; fire is let go on the way in, at frame 600, so the Brigade keeps its pistols)
     script.tap(160, pygame.K_d, held_frames=200)
     script.tap(420, pygame.K_LEFT, held_frames=40)
     script.tap(470, pygame.K_a, held_frames=40)

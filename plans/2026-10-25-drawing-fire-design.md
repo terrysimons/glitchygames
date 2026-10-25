@@ -256,6 +256,13 @@ later. **(user)**
   piled onto one spot). A further 200 seeds: Platoon 101, Brigade 99, mean 46.4 s, longest
   348.0 s, all ended (the long ones are queues behind sandbags that nobody can see over).
   No stalemates.
+- **After the crowding fix** (Task 9, ruling R20: a crowded soldier never walks past the
+  enemy's front): 20 seeds, Platoon 13, Brigade 7; mean 46.7 s, shortest 20.6 s, longest
+  272.7 s. 200 seeds: Platoon 112, Brigade 88; mean 47.1 s, shortest 18.2 s, longest 348.0 s,
+  all ended. 1,000 seeds: Platoon 539, Brigade 461, mean 52.5 s, longest 437.4 s (before the
+  fix, the same 1,000 seeds: Platoon 521, Brigade 479, mean 51.5 s, longest 437.4 s). The
+  Platoon's lean was there before the fix and grows a little with it; worth watching, not yet
+  a reason to retune.
 - **Driver rules the simulation forced** (my call):
   - Hills block bullets, so a soldier neither stands nor fires until the ground leaves a clear
     line to his target (otherwise whole armies stood on either side of a hill, firing into it).
@@ -273,6 +280,9 @@ later. **(user)**
   soldier now walks on when a friend of higher priority is within `SOLDIER_SPACING` (16 px;
   the front soldier of each army has priority), steps back instead when the enemy is within
   `MELEE_PIXELS`, and queues 16 px behind a friend ahead on the way to a covering sandbag.
+  Walking on never takes him past the enemy's front: within `MELEE_PIXELS` of it he steps back
+  toward his own side (otherwise a friend he can never get clear of, a player walking on at
+  the same speed, led him through the enemy's line to the field's edge).
   Sandbags are laid on level ground (`SANDBAG_MAX_GROUND_VARIATION`, 12 px).
 - **Held aim** (my call): the aim error is drawn once per shot from the soldier's own stream (and
   again for a new target), then held, so the arm drawn along the aim does not shake at 60 Hz.

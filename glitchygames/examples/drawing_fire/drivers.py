@@ -49,6 +49,8 @@ SANDBAG_COVER_DISTANCE = 8.0
 SOLDIER_SPACING = 16.0
 # An enemy this near (px) is on top of a soldier: a crowded soldier steps back instead of on
 MELEE_PIXELS = 3 * SOLDIER_SPACING
+# Which way each army's enemy side of the field lies: the Platoon musters on the left
+TOWARD_ENEMY_SIDE: dict[Side, float] = {Side.PLATOON: 1.0, Side.BRIGADE: -1.0}
 # The ground between two soldiers is checked this often along the line of fire (px)
 LINE_OF_SIGHT_STEP = 6.0
 
@@ -400,7 +402,11 @@ def _update_crowding(
     soldiers never both give way and never both stay. He walks on toward the enemy (past the
     crest where his friends stopped), unless the enemy is already within ``MELEE_PIXELS`` of
     him, and then he steps back from the enemy. The way is chosen when he becomes crowded and
-    kept until he is clear.
+    kept until he is clear, but crowding never walks him past the enemy's front: once walking
+    on toward the enemy's side would take him within ``MELEE_PIXELS`` of the nearest enemy of
+    that side's front (or beyond it), he steps back toward his own side instead. Without that,
+    a friend he can never get clear of (a player walking on at the same speed) would lead him
+    through the enemy's line to the field's edge, and the next friends behind him after.
 
     Args:
         soldier: The soldier.
@@ -416,9 +422,37 @@ def _update_crowding(
     )
     if not crowded:
         mind.crowd_direction = None
-    elif mind.crowd_direction is None:
+        return
+    if mind.crowd_direction is None:
         in_melee = abs(target_x - soldier.x) < MELEE_PIXELS
         mind.crowd_direction = -direction if in_melee else direction
+    toward_enemy_side = TOWARD_ENEMY_SIDE[soldier.side]
+    if (
+        mind.crowd_direction == toward_enemy_side
+        and _distance_to_enemy_front(soldier=soldier, battle=battle) < MELEE_PIXELS
+    ):
+        mind.crowd_direction = -toward_enemy_side
+
+
+def _distance_to_enemy_front(*, soldier: Soldier, battle: Battle) -> float:
+    """Measure how far ahead of a soldier the enemy's front stands, toward the enemy's side.
+
+    The front is the living enemy nearest the soldier's own side of the field.
+
+    Args:
+        soldier: The soldier (his army has at least one living enemy).
+        battle: The battle.
+
+    Returns:
+        The distance (px), negative once he is past the front.
+
+    """
+    toward_enemy_side = TOWARD_ENEMY_SIDE[soldier.side]
+    front_x = min(
+        (enemy.x for enemy in battle.living(soldier.side.opponent)),
+        key=lambda enemy_x: enemy_x * toward_enemy_side,
+    )
+    return (front_x - soldier.x) * toward_enemy_side
 
 
 def _is_queued(*, soldier: Soldier, battle: Battle, direction: float) -> bool:

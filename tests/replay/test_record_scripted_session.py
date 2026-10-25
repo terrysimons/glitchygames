@@ -18,6 +18,7 @@ from scripts.record_golden_traces import (
 from scripts.record_scripted_session import (
     CONSOLE_SCRIPT_GAME_KEYS,
     CONTROLS_TAIL_BUILDERS,
+    POLLED_INPUT_GAMES,
     QUIT_WAIT_FRAMES,
     GameDidNotQuitError,
     PostedPolledInput,
@@ -94,6 +95,9 @@ def test_scripted_session_records_and_replays(mocker, tmp_path):
     key_events = [event for frame in frames for event in recorded_key_events(frame=frame)]
     assert key_events
     assert {origin for _type, _key, origin in key_events} == {EXTERNAL_ORIGIN}
+    # PaddleSlap is not in POLLED_INPUT_GAMES: its snapshots never show the posted keys held
+    assert 'paddleslap' not in POLLED_INPUT_GAMES
+    assert not any('pressed_scancodes' in frame.get('input_changes', {}) for frame in frames)
 
     replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=path)
 

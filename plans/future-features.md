@@ -1053,12 +1053,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
     settle)
   - a pause: the MVP has none (`GAMES_WITHOUT_A_PAUSE` in
     `tests/replay/test_golden_replays.py`)
-  - its golden replay compares no game state: the soldiers, bullets and sandbags are drawn
-    straight onto the screen, not sprites, and the game posts no events, so a replay checks
-    only the scene, the frame count and the quit. Making the soldiers sprites (or having the
-    game post an internal event on each death and seat change) would let the replay catch a
-    divergence in the battle itself
-  - its golden replay fixture is about 190 KB, over the 100 KB the others keep: the scene start
+  - its golden replay compares the battle through the internal events the scene posts (a
+    GAMEEVENT per death and seat change): the soldiers are drawn, not sprites, so a soldier's
+    position is still never compared, only who dies when and where the players go. Making the
+    soldiers sprites would let a replay catch a divergence in where they walk too
+  - its golden replay fixture is about 185 KB, over the 100 KB the others keep: the scene start
     records the state of every random stream (19 Mersenne Twisters, twice)
 - **Status**: TODO
 
