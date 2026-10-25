@@ -29,7 +29,8 @@ The rules:
    from the replay's merge, so code-posted events stay internal and replaying NEW delivers
    nothing twice), ``dt``, ``input_changes``, re-applied control events, and each frame's
    ``saves_opened``, ``devices_opened`` and ``device_enumeration`` copied from OLD's frame; and
-   the current code's sprites and markers. The header is OLD's (``rebaseline_header``). NEW's
+   the current code's sprites and markers. The header is OLD's, except the game's names
+   (``game_class``, ``game_module``, ``game``): they are this run's (``rebaseline_header``). NEW's
    frames stack this run's content hash and processing time in front of OLD's histories, and
    its header this run's ``measurement_runs`` entry in front of OLD's
    (glitchygames/recording_history.py), so an unchanged game shows the same hash one entry

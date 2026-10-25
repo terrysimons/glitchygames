@@ -119,7 +119,8 @@ GAME_MODULES: dict[str, str] = {
 
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
 # change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher)
-# have no such baseline; their golden replays (tests/fixtures/replays/) cover them.
+# have no such baseline; their golden replays (src/games/mr-muncher/tests/fixtures/replays/)
+# cover them.
 GOLDEN_TRACE_GAMES: tuple[str, ...] = (
     'clockwork_keep',
     'brave_adventurer',

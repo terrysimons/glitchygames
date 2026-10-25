@@ -30,6 +30,9 @@ under ~/.cache/glitchygames-pyodide-build; the first build takes several minutes
 and an index.html linking them, which ``nox -s docs-deploy`` publishes with the docs as play/
 (scripts/mkdocs_hooks.py).
 
+It imports ``scripts.*`` and runs as ``python -m scripts.build_browser_bundle`` from the
+repository root.
+
 Usage:
     uv run python -m scripts.build_browser_bundle paddleslap --serve
     uv run python -m scripts.build_browser_bundle all --serve
@@ -325,7 +328,9 @@ def write_engine_archive(
     excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES,
     engine_version: str | None = None,
 ) -> int:
-    """Zip the bundled package files as ``glitchygames/...`` with fixed timestamps.
+    """Zip a package's bundled files (the engine's or a member game's) with fixed timestamps.
+
+    Entries are named after ``package_directory`` (``glitchygames/...``, ``mr_muncher/...``).
 
     With ``engine_version``, the archive also holds the package's metadata
     (``glitchygames-<version>.dist-info/METADATA``): the package is unpacked, not installed, and

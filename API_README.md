@@ -16,13 +16,13 @@ The API consists of two components:
 The API's dependencies (`fastapi`, `uvicorn`, `pydantic`, `httpx`, `apng`, `pillow`, `aisuite`) are part of the base install; the `api` extra is empty and kept only for compatibility:
 
 ```bash
-uv sync
+uv sync --all-packages
 ```
 
 For development (running tests):
 
 ```bash
-uv sync --extra dev
+uv sync --extra dev --all-packages
 ```
 
 ### Configure AI Provider

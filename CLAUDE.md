@@ -159,8 +159,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 ### Example Games
 `uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep` and
-`mr-muncher` (a maze chase at the movies, `glitchygames/examples/mr_muncher/`) start the example
-games.
+`mr-muncher` start the example games. Mr. Muncher (a maze chase at the movies) is a workspace
+member of its own, `src/games/mr-muncher/` (distribution `mr-muncher`, import `mr_muncher`, its
+tests and golden replay beside it; plans/2026-10-24-workspace-packages.md); the others are still
+in `glitchygames/examples/`.
 
 ## Architecture Overview
 
@@ -588,7 +590,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   check key codes (`event.key`). Both screens answer a gamepad too, on either event layer
   (`scenes/builtin_scenes/gamepad_choice.py`): Start or A goes on (resume, restart) on its
   release after a press there, as SPACE does; B or Back quits on its press, as ESC does
-- Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
+- Golden replays: the engine's own live in `tests/fixtures/replays/<console-script>/golden.jsonl.gz`;
+  a workspace member's in `<member>/tests/fixtures/replays/<name>.jsonl.gz` (Mr. Muncher's:
+  `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz`), replayed through the member's
+  console script (`recording_console_script`), and its bundled demos in `<package>/demos/`.
+  They are recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
   Each is a pytest item of its own: the plugin `glitchygames/testing/replays.py` (root
@@ -699,7 +705,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`ReplayOptions.stop_on_divergence=False`), records the run into NEW through
   `RecordingSources(..., replayed=<the ReplaySources>)` (origins from `last_batch_origins()`,
   per-frame saves/device fields from `recording.recorded_frame_fields()`; header = OLD's +
-  `rebaselined_from` + current versions, `source_truncated` for a cut-off OLD), written to
+  `rebaselined_from` + current versions + this run's game names (`game_class`, `game_module`,
+  `game`), `source_truncated` for a cut-off OLD), written to
   `NEW.partial` and moved into place only on a normal end, prints `Rebaselined N frames to NEW:
   K frames differ (first at F: ...); sprites affected: ...` (or `no frames differ`) and exits
   `SUCCESS` (`ReplayExitPolicy.SUCCESS_AFTER_WRITING`); input OLD has that the run never got
@@ -910,7 +917,7 @@ Features:
   with a file picker, `save_file` as a download). Tests start with none (`desktop_user_files`)
 
 **Touch controls in the browser** (`browser/touch_controls.js`; layouts in
-`scripts/build_browser_bundle.py` `TOUCH_LAYOUTS`, written into boot_config.json)
+`scripts.build_browser_bundle` `TOUCH_LAYOUTS` (scripts/build_browser_bundle.py), written into boot_config.json)
 - On touch devices the page shows on-screen buttons (portrait: below the game; landscape: over
   its bottom corners). A held button holds its key: key events dispatched on the canvas reach
   SDL (on the window they do not), so games, action maps, recordings and replays see ordinary

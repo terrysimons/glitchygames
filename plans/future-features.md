@@ -180,6 +180,14 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
 
+### 56. Games, Demos and Apps as Their Own Packages (uv workspace) — IN PROGRESS
+- **Description**: the engine moved to `src/glitchygames`; each game, demo and app becomes a
+  uv workspace member under `src/games|demos|apps`, with its tests and recordings beside it;
+  recordings name games by logical names. Master plan: `plans/2026-10-24-workspace-packages.md`
+- **Status**: Part 1 (foundation and the Mr. Muncher pilot) built on
+  `feature/workspace-packages-foundation`; Parts 2-5 (other games, demos, Bitmappy, browser IDE)
+  TODO
+
 ### 55. Recording Naming Convention and Logical Recording Ids — TODO
 - **Goal**: every recording is named and placed by one convention, and has a logical id that
   survives moves (the user, 2026-10-25)
@@ -531,7 +539,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   player, no end to a won game; a perfect bot cleared 87 of 211 dots in 10 minutes). It is now a
   complete, original maze-chase game with a cinema theme (2026-10-23)
 - **Status**: ✅ COMPLETED (2026-10-23)
-- **Implementation** (`glitchygames/examples/mr_muncher/`):
+- **Implementation** (now `src/games/mr-muncher/mr_muncher/`, a workspace member since
+  the workspace-packages Part 1; it was `glitchygames/examples/mr_muncher/`):
   - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
     connected; tests check all four), tunnels at the top and bottom, a house with a door
   - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is

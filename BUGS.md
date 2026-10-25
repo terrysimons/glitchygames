@@ -4,6 +4,24 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 222. Scripts and Tests Insert the Repository Root Into sys.path, Which Does Nothing Since the Engine Moved
+- **Description**: Many scripts and tests start with `sys.path.insert(0, str(Path(__file__).parent.parent))` (or `.parent.parent.parent`) "so direct imports work". Since the engine moved to `src/glitchygames`, the repository root holds no importable `glitchygames`: the imports resolve to the installed package either way, so the lines do nothing (the root still serves `scripts.*`, but a script reaches that as `python -m scripts.<name>`). They also hide a mistake: a test that needed the root would pass here and fail elsewhere
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: The documentation task of plans/2026-10-24-workspace-packages-1-foundation.md
+- **Date Reported**: 2026-10-25
+- **Files**: `scripts/ai_query_inspector.py`, `scripts/animation_demo.py`, `scripts/animation_scene_demo.py`, `scripts/animation_scene_full_demo.py`, `scripts/show_ai_query.py`, and under `tests/` `animation/`, `canvas/`, `engine/`, `events/` and others (`git grep -n 'sys.path.insert' -- scripts tests`)
+- **Solution**: Remove the lines (and their comments), then run the suite; where a script needs `scripts.*`, run it as a module
+
+### 221. tests/test_logging.py Inserts a Path That Never Existed Into sys.path
+- **Description**: `tests/test_logging.py:13` runs `sys.path.insert(0, str(Path(__file__).parent / 'glitchygames'))`, which is `tests/glitchygames`, a directory that has never existed. Dead code (and, were a `tests/glitchygames` ever created, it would shadow the engine)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: The documentation task of plans/2026-10-24-workspace-packages-1-foundation.md
+- **Date Reported**: 2026-10-25
+- **Files**: `tests/test_logging.py`
+- **Solution**: Delete the line and the `sys`/`Path` imports if nothing else uses them
+
 ### 220. Smaller Findings From the Measured-Rows Review
 - **Description**: A fresh review of the measured-rows-in-the-repository branch (2026-10-25) found these; none breaks publishing on main as merges are made today (squash, up to date, the hook installed). Its critical and important findings were fixed on the branch: code that arrived by a merge is measured by the next commit, rows of a refused commit are staged on the retry, partial commits and untracked measured files are refused, deploys only from main, the hooks installed by `.envrc`
 - **Status**: Active

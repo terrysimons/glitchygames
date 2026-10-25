@@ -1,7 +1,7 @@
 """Start a GlitchyGames game in the browser (PyScript `<script type="py">`, main thread).
 
-The page (browser/index.html, rendered by scripts/build_browser_bundle.py) loads Pyodide with
-GlitchyGames' own pygame-ce wheel (the fork's build: plans/2026-10-23-game-host-and-browser-runner.md)
+The page (browser/index.html, rendered by `python -m scripts.build_browser_bundle`) loads
+Pyodide with GlitchyGames' own pygame-ce wheel (the fork's build: plans/2026-10-23-game-host-and-browser-runner.md)
 and unpacks the engine into the working directory. This bootstrap then:
 
 1. gives SDL the page's canvas;
@@ -99,7 +99,7 @@ def flush_soon(_path: Path) -> None:
 
 
 def read_boot_config() -> dict[str, object]:
-    """Read boot_config.json (written by scripts/build_browser_bundle.py).
+    """Read boot_config.json (written by `python -m scripts.build_browser_bundle`).
 
     Returns:
         The game, its module and scene class, title and command-line arguments.
