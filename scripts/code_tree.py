@@ -1,10 +1,12 @@
-"""The code a replay measurement measured: a git tree hash with the ledger left out.
+"""The code a replay measurement measured: a git tree of only what can change the replays.
 
 A measured row (``quality/replay-ledger/``, plans/2026-10-25-measured-rows-in-the-repository.md)
 names the code it measured by tree, not by commit: the measuring pre-commit hook runs before its
 commit exists, an amend or a squash merge gives the same code another commit, but the tree of
-the code stays the same. The ledger directory is left out, since the rows the hook adds would
-otherwise change the tree they name.
+the code stays the same. The tree holds only ``MEASURED_PATHS`` (the engine, games, demos, apps,
+recordings, the locked dependencies and the project configuration): a later docs, plans or tests
+commit leaves it unchanged, so the last measured tree is still the one that lands on main, and
+the ledger's own rows never change the tree they name.
 
 Both functions work on a temporary index (``GIT_INDEX_FILE``), so the real one, and with it
 whatever is staged, is never touched. A failing git command raises ``RuntimeError`` naming it.
@@ -19,8 +21,18 @@ from pathlib import Path
 
 from glitchygames.process import run_command
 
-# Where the measured rows live: left out of every code tree
+# Where the measured rows live (not a measured path, so never part of a code tree)
 LEDGER_DIRECTORY = 'quality/replay-ledger'
+# What can change how the golden replays run: the only paths a code tree holds
+MEASURED_PATHS = (
+    'glitchygames',
+    'games',
+    'demos',
+    'apps',
+    'tests/fixtures/replays',
+    'uv.lock',
+    'pyproject.toml',
+)
 GIT_TIMEOUT_SECONDS = 60.0
 
 
@@ -51,23 +63,24 @@ def run_git(*, repository: Path, arguments: list[str], index_file: Path | None =
     return completed.stdout.strip()
 
 
-def _tree_without_the_ledger(*, repository: Path, index_file: Path) -> str:
-    """Drop the ledger directory from a temporary index and return the index's tree.
+def _measured_tree(*, repository: Path, index_file: Path) -> str:
+    """Drop all but ``MEASURED_PATHS`` from a temporary index and return the index's tree.
 
     Returns:
         The tree hash.
 
     """
+    kept = [f':(exclude){path}' for path in MEASURED_PATHS]
     run_git(
         repository=repository,
-        arguments=['rm', '-r', '--cached', '--ignore-unmatch', '--quiet', LEDGER_DIRECTORY],
+        arguments=['rm', '-r', '--cached', '--ignore-unmatch', '--quiet', '--', '.', *kept],
         index_file=index_file,
     )
     return run_git(repository=repository, arguments=['write-tree'], index_file=index_file)
 
 
 def staged_code_tree(*, repository: Path) -> str:
-    """Return the code tree of what is staged (what the next commit will hold, minus the ledger).
+    """Return the code tree of what is staged (the measured paths the next commit will hold).
 
     Args:
         repository: The repository's working directory.
@@ -85,11 +98,11 @@ def staged_code_tree(*, repository: Path) -> str:
         index_file = Path(directory_name) / 'index'
         if real_index.exists():
             shutil.copyfile(real_index, index_file)
-        return _tree_without_the_ledger(repository=repository, index_file=index_file)
+        return _measured_tree(repository=repository, index_file=index_file)
 
 
 def commit_code_tree(*, repository: Path, commit: str) -> str:
-    """Return the code tree of a commit (its tree, minus the ledger).
+    """Return the code tree of a commit (its measured paths).
 
     Args:
         repository: The repository's working directory.
@@ -102,4 +115,4 @@ def commit_code_tree(*, repository: Path, commit: str) -> str:
     with tempfile.TemporaryDirectory(prefix='code-tree-') as directory_name:
         index_file = Path(directory_name) / 'index'
         run_git(repository=repository, arguments=['read-tree', commit], index_file=index_file)
-        return _tree_without_the_ledger(repository=repository, index_file=index_file)
+        return _measured_tree(repository=repository, index_file=index_file)

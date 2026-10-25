@@ -1,4 +1,4 @@
-"""scripts/code_tree.py: the code a measurement measured, as a git tree without the ledger."""
+"""scripts/code_tree.py: the code a measurement measured: a git tree of what can change it."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def repository(tmp_path: Path) -> Path:
 
     """
     git(repository=tmp_path, arguments=['init', '--quiet'])
-    write(repository=tmp_path, relative_path='game.py', text='speed = 1\n')
+    write(repository=tmp_path, relative_path='glitchygames/game.py', text='speed = 1\n')
     write(repository=tmp_path, relative_path=f'{LEDGER_DIRECTORY}/first.json', text='{}\n')
     git(repository=tmp_path, arguments=['commit', '--quiet', '-m', 'First'])
     return tmp_path
@@ -66,7 +66,7 @@ def repository(tmp_path: Path) -> Path:
 
 def test_the_staged_code_tree_is_the_commits_once_committed(repository):
     """What the hook measures before the commit is what the commit holds."""
-    write(repository=repository, relative_path='game.py', text='speed = 2\n')
+    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 2\n')
     staged = staged_code_tree(repository=repository)
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster'])
 
@@ -84,17 +84,41 @@ def test_ledger_rows_never_change_the_code_tree(repository):
     assert commit_code_tree(repository=repository, commit='HEAD~1') == before
 
 
-def test_any_other_change_changes_the_code_tree(repository):
-    """A change anywhere but the ledger is a change to the code measured."""
+@pytest.mark.parametrize(
+    'relative_path',
+    [
+        'glitchygames/world.py',
+        'games/mr-muncher/mr_muncher/game.py',
+        'demos/joystick-demo/joystick_demo/demo.py',
+        'apps/bitmappy/bitmappy/editor.py',
+        'tests/fixtures/replays/paddleslap/golden.jsonl.gz',
+        'uv.lock',
+        'pyproject.toml',
+    ],
+)
+def test_a_change_that_can_change_the_replays_changes_the_code_tree(repository, relative_path):
+    """The engine, games, demos, apps, recordings, dependencies and project configuration."""
     before = staged_code_tree(repository=repository)
-    write(repository=repository, relative_path='docs.md', text='# notes\n')
+    write(repository=repository, relative_path=relative_path, text='changed\n')
 
     assert staged_code_tree(repository=repository) != before
 
 
+@pytest.mark.parametrize(
+    'relative_path',
+    ['README.md', 'BUGS.md', 'plans/future-features.md', 'docs/index.md', 'tests/test_world.py'],
+)
+def test_docs_plans_and_tests_leave_the_code_tree_alone(repository, relative_path):
+    """A docs commit after the last measured one keeps the measured tree the one that lands."""
+    before = staged_code_tree(repository=repository)
+    write(repository=repository, relative_path=relative_path, text='notes\n')
+
+    assert staged_code_tree(repository=repository) == before
+
+
 def test_the_real_index_is_left_alone(repository):
     """The tree is computed on a copy of the index: nothing staged is unstaged."""
-    write(repository=repository, relative_path='game.py', text='speed = 3\n')
+    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 3\n')
     status_before = git(repository=repository, arguments=['status', '--porcelain'])
 
     staged_code_tree(repository=repository)

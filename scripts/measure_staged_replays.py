@@ -3,13 +3,15 @@
 
 Run by the pre-commit framework before each commit (``.pre-commit-config.yaml``, hook
 ``replay-metrics``), which stashes unstaged changes first, so the working tree is exactly what
-is being committed. When the staged paths can change how the replays run (``touches_replays``),
-it measures every golden replay and bundled demo on that code (``replay_metrics.py measure``,
-named by its code tree: scripts/code_tree.py) and stages one row file per new row under
-``quality/replay-ledger/``, so the commit carries its own measurements. The docs build publishes
-the rows whose code landed on main (plans/2026-10-25-measured-rows-in-the-repository.md).
+is being committed. When the staged code tree differs from HEAD's (scripts/code_tree.py: only
+the paths that can change how the replays run), it measures every golden replay and bundled
+demo on that code (``replay_metrics.py measure``, named by its code tree) and stages one row
+file per new row under ``quality/replay-ledger/``, so the commit carries its own measurements.
+The docs build publishes the rows whose code landed on main
+(plans/2026-10-25-measured-rows-in-the-repository.md).
 
-A commit that cannot change the replays (docs, plans, tests, tooling) is not measured. A failed
+A commit that cannot change the replays (docs, plans, tests, tooling: its code tree is HEAD's)
+is not measured. A failed
 measurement refuses the commit, naming the recording; ``SKIP=replay-metrics git commit ...``
 commits without measuring.
 
@@ -21,48 +23,30 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from glitchygames.exit_codes import ExitCode
 from scripts import replay_metrics
-from scripts.code_tree import LEDGER_DIRECTORY, run_git, staged_code_tree
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
+from scripts.code_tree import LEDGER_DIRECTORY, commit_code_tree, run_git, staged_code_tree
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ROWS_DIRECTORY = PROJECT_ROOT / LEDGER_DIRECTORY
-# Staged paths under these can change how the replays run: the engine, the games, demos and
-# apps, and the recordings themselves
-REPLAY_PATH_PREFIXES = ('glitchygames/', 'games/', 'demos/', 'apps/', 'tests/fixtures/replays/')
-# Files that can too: the locked dependencies and the project's own configuration
-REPLAY_FILES = frozenset({'uv.lock', 'pyproject.toml'})
 
 
-def touches_replays(*, staged_paths: Sequence[str]) -> bool:
-    """Return whether any staged path can change how the golden replays run.
-
-    Args:
-        staged_paths: The staged paths, repository-relative.
+def code_changes(*, repository: Path) -> str | None:
+    """Return the staged code tree when it differs from HEAD's (the commit can change the replays).
 
     Returns:
-        True to measure.
+        The staged code tree (scripts/code_tree.py), or None when it is HEAD's: the commit
+        changes only what cannot change the replays (docs, plans, tests, tooling).
 
     """
-    return any(
-        path in REPLAY_FILES or path.startswith(REPLAY_PATH_PREFIXES) for path in staged_paths
-    )
-
-
-def staged_paths(*, repository: Path) -> list[str]:
-    """Return the paths the commit being made changes (added, changed, removed).
-
-    Returns:
-        The paths, repository-relative.
-
-    """
-    output = run_git(repository=repository, arguments=['diff', '--cached', '--name-only'])
-    return [line for line in output.splitlines() if line]
+    staged = staged_code_tree(repository=repository)
+    try:
+        head = commit_code_tree(repository=repository, commit='HEAD')
+    except RuntimeError:
+        # No HEAD yet (a new repository): everything staged is new code
+        return staged
+    return None if staged == head else staged
 
 
 def _row_files() -> set[Path]:
@@ -76,11 +60,10 @@ def main() -> int:
         The exit code: ``SUCCESS``, or the measurement's own failure code.
 
     """
-    paths = staged_paths(repository=PROJECT_ROOT)
-    if not touches_replays(staged_paths=paths):
+    code_tree = code_changes(repository=PROJECT_ROOT)
+    if code_tree is None:
         sys.stdout.write('replay-metrics: nothing staged can change the replays\n')
         return ExitCode.SUCCESS
-    code_tree = staged_code_tree(repository=PROJECT_ROOT)
     before = _row_files()
     exit_code = replay_metrics.run(
         arguments=[
