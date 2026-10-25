@@ -1,0 +1,144 @@
+[sprite]
+name = "soldier"
+description = "A pencil-drawn stick-figure soldier, drawn in neutral colours for the livery swatches to recolour"
+
+[colors]
+"█" = { red = 255, green = 0, blue = 255 }
+"o" = { red = 58, green = 58, blue = 64 }
+"k" = { red = 224, green = 190, blue = 160 }
+"h" = { red = 210, green = 60, blue = 60 }
+"H" = { red = 140, green = 40, blue = 40 }
+"u" = { red = 90, green = 130, blue = 200 }
+"U" = { red = 60, green = 87, blue = 133 }
+
+# The livery swatches: each part's first colour is its base, the rest are shades that keep their ratio
+[swatches.livery.helmet]
+colors = ["h", "H"]
+role = "primary"
+
+[swatches.livery.uniform]
+colors = ["u", "U"]
+role = "secondary"
+
+[[animation]]
+namespace = "stand"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "stand"
+pixels = """
+████████████████
+████████████████
+████████████████
+████████████████
+██████oooo██████
+█████ohhhho█████
+█████ohhhho█████
+█████oHHHHo█████
+██████okko██████
+███████oo███████
+█████ouuuuo█████
+████oouuuuoo████
+████o█ouuo█o████
+█████ouuUuo█████
+█████oUUUUo█████
+██████oooo██████
+█████oo██oo█████
+█████o████o█████
+█████o████o█████
+█████o████o█████
+████oo████oo████
+████oo████oo████
+"""
+
+[[animation]]
+namespace = "walk"
+frame_interval = 0.15
+loop = true
+
+[[animation.frame]]
+namespace = "walk"
+pixels = """
+████████████████
+████████████████
+████████████████
+████████████████
+██████oooo██████
+█████ohhhho█████
+█████ohhhho█████
+█████oHHHHo█████
+██████okko██████
+███████oo███████
+█████ouuuuo█████
+████oouuuuoo████
+████o█ouuo█o████
+█████ouuUuo█████
+█████oUUUUo█████
+██████oooo██████
+█████oo██oo█████
+████oo█████o████
+████o██████o████
+███oo██████oo███
+███o████████o███
+██oo████████oo██
+"""
+
+[[animation.frame]]
+namespace = "walk"
+pixels = """
+████████████████
+████████████████
+████████████████
+████████████████
+██████oooo██████
+█████ohhhho█████
+█████ohhhho█████
+█████oHHHHo█████
+██████okko██████
+███████oo███████
+█████ouuuuo█████
+████oouuuuoo████
+████o█ouuo█o████
+█████ouuUuo█████
+█████oUUUUo█████
+██████oooo██████
+█████oo█oo██████
+██████o█o███████
+██████o█oo██████
+██████oo█o██████
+██████o██oo█████
+█████oo██oo█████
+"""
+
+[[animation]]
+namespace = "down"
+frame_interval = 0.5
+loop = false
+
+[[animation.frame]]
+namespace = "down"
+pixels = """
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+████████████████
+█oooo███████████
+ohhhhooooooooo██
+oHHHHkuuuuuuuuoo
+oooookUUUUUUUUoo
+█████ooooooooo██
+"""
