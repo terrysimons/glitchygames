@@ -649,17 +649,20 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   run, keyed by recording + `measured_at` + machine; `merge_ledgers`, `performance_series`). The
   ledger lives in the repository, one file per row (`quality/replay-ledger/`; design
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
-  (`scripts/measure_staged_replays.py`) measures every golden replay and bundled demo when the
-  staged code tree differs from HEAD's (`glitchygames/code_tree.py`: a git tree of only
-  `MEASURED_PATHS`, the engine, games, demos, apps, recordings, `uv.lock`, `pyproject.toml`) and
-  stages the rows, each naming that code tree (`LedgerRow.code_tree`), into the same commit
-  (`SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
+  (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
+  missing) measures every golden replay and bundled demo when this machine has no rows for the
+  staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`, the
+  engine, games, demos, apps, recordings, `uv.lock`, `pyproject.toml`), so code that arrived by
+  a merge or rebase is measured by the next commit, and stages the rows, each naming that code
+  tree (`LedgerRow.code_tree`), into the same commit (refused for a partial `git commit <path>`
+  or untracked files under the measured paths; `SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
   landed (`landed_code_trees`: the tree of each commit that added rows, i.e. main's squash
   merge; `landed_rows`), labelled with that commit, then merges gh-pages' ledger and local
   pending rows (`nox -s replay-metrics`, `scripts/replay_metrics.py`) and graphs them
   (`scripts/generate_performance_graphs.py`, docs/quality/performance.md); CircleCI's
-  `deploy-docs` publishes after each merge. A branch merged while behind main publishes no
-  rows (its tree never lands): measure after updating it. Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
+  `deploy-docs` publishes after each merge (`nox -s docs-deploy` refuses unless HEAD is on
+  origin/main). A branch updated from main is measured by its next commit, or by hand: `uv run
+  python scripts/measure_staged_replays.py`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
   per stretch, integer microseconds, scenes run-length encoded; ~0.4-0.6 KB) for the page's frame
   x commit heatmap (time only: the report shows whether the work changed). Rows measured on
   uncommitted changes (`LedgerRow.from_uncommitted_changes`, e.g. `--allow-dirty`) are left out

@@ -31,19 +31,20 @@ changes". They stay in the pending file after a deploy, so they remain visible l
 
 ## Where the numbers come from
 
-1. **Every commit that can change the replays measures itself.** A pre-commit hook
-   (`scripts/measure_staged_replays.py`) runs when the staged code differs from the last
-   commit's in anything that can change how the replays run (the engine, games, demos, apps,
-   recordings, `uv.lock`, `pyproject.toml`). It measures every golden replay and bundled demo on
-   that code and adds one small file per recording to the commit, under `quality/replay-ledger/`.
-   Each names the code it measured by its *code tree* (`glitchygames/code_tree.py`), which an
-   amend or a squash merge does not change. Docs, plans and tests commits are not measured;
-   `SKIP=replay-metrics git commit ...` skips it.
+1. **Every commit carries the measurements of its code.** A pre-commit hook
+   (`scripts/measure_staged_replays.py`, installed by `.envrc`) works out the *code tree* of what
+   is being committed (`glitchygames/code_tree.py`: only what can change how the replays run,
+   the engine, games, demos, apps, recordings, `uv.lock` and `pyproject.toml`). When this machine
+   has not measured that code yet, it measures every golden replay and bundled demo on it and
+   adds one small file per recording to the commit, under `quality/replay-ledger/`. A docs commit
+   after a measured one is instant; code that arrived by a merge from `main` or a rebase is
+   measured by the next commit (or by hand: `uv run python scripts/measure_staged_replays.py`,
+   then commit). `SKIP=replay-metrics git commit ...` skips it.
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
    and keeps those whose code tree is the code tree of a commit that added rows: on `main`, the
    squash merge, so each is shown under the commit its code landed in. Rows of a branch's
-   intermediate commits, or of a branch merged while behind `main`, match none and are left out
-   (measure after updating a branch). A local build shows a branch's rows before it merges.
+   intermediate commits match none and are left out. A local build shows a branch's rows before
+   it merges; only `main` is ever published (`nox -s docs-deploy` refuses anything else).
    After each merge to `main`, CircleCI deploys the site with them; CI never measures (its
    machines vary).
 3. The history measured before this (rows naming their commit) was moved into the repository

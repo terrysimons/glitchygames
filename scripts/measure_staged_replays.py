@@ -2,69 +2,145 @@
 """The pre-commit hook that measures the golden replays on the code a commit holds.
 
 Run by the pre-commit framework before each commit (``.pre-commit-config.yaml``, hook
-``replay-metrics``), which stashes unstaged changes first, so the working tree is exactly what
-is being committed. When the staged code tree differs from HEAD's (glitchygames/code_tree.py: only
-the paths that can change how the replays run), it measures every golden replay and bundled
-demo on that code (``replay_metrics.py measure``, named by its code tree) and stages one row
-file per new row under ``quality/replay-ledger/``, so the commit carries its own measurements.
-The docs build publishes the rows whose code landed on main
+``replay-metrics``), which stashes unstaged changes to tracked files first, so the tracked files
+are exactly what is being committed. When this machine has no rows yet for the staged code tree
+(glitchygames/code_tree.py: only the paths that can change how the replays run), it measures
+every golden replay and bundled demo on that code (``replay_metrics.py measure``, named by its
+code tree) and stages the row files under ``quality/replay-ledger/``, so the commit carries its
+own measurements. The docs build publishes the rows whose code landed on main
 (plans/2026-10-25-measured-rows-in-the-repository.md).
 
-A commit that cannot change the replays (docs, plans, tests, tooling: its code tree is HEAD's)
-is not measured. A failed
-measurement refuses the commit, naming the recording; ``SKIP=replay-metrics git commit ...``
-commits without measuring.
+The rules (a code review's findings, 2026-10-25):
 
-Usage (the framework runs it):
+1. Measured once per code tree per machine: a docs commit after a measured one is instant, while
+   code that arrived without the hook (a branch updated from main: no merge, rebase or GitHub
+   "Update branch" runs the pre-commit stage) is measured by the next commit, whatever it
+   changes. After updating a branch, run this script by hand and commit what it stages.
+2. Every row file of the staged code tree is staged, not only new ones: rows written before a
+   measurement failed (the commit was refused) are staged on the retry.
+3. Refused when measuring is needed and the result could not be committed as measured:
+   untracked files under the measured paths (the framework stashes only tracked changes, so they
+   would be measured though not committed), and a partial commit (``git commit <path>``: rows
+   staged into its temporary index never reach the real one, and the next commit would delete
+   them).
+4. A failed measurement refuses the commit, naming the recording.
+
+``SKIP=replay-metrics git commit ...`` commits without measuring.
+
+Usage (the framework runs it; by hand after updating a branch, then commit):
     uv run python scripts/measure_staged_replays.py
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-from glitchygames.code_tree import LEDGER_DIRECTORY, commit_code_tree, run_git, staged_code_tree
+from glitchygames.code_tree import LEDGER_DIRECTORY, MEASURED_PATHS, run_git, staged_code_tree
 from glitchygames.exit_codes import ExitCode
+from glitchygames.recording_metrics import ROW_FILE_SUFFIX, ROW_FILE_TREE_CHARACTERS, read_row_files
 from scripts import replay_metrics
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ROWS_DIRECTORY = PROJECT_ROOT / LEDGER_DIRECTORY
+# The temporary index git commits through for ``git commit <path>`` (a partial commit)
+PARTIAL_COMMIT_INDEX_PREFIX = 'next-index'
 
 
-def code_changes(*, repository: Path) -> str | None:
-    """Return the staged code tree when it differs from HEAD's (the commit can change the replays).
-
-    Returns:
-        The staged code tree (glitchygames/code_tree.py), or None when it is HEAD's: the commit
-        changes only what cannot change the replays (docs, plans, tests, tooling).
-
-    """
-    staged = staged_code_tree(repository=repository)
-    try:
-        head = commit_code_tree(repository=repository, commit='HEAD')
-    except RuntimeError:
-        # No HEAD yet (a new repository): everything staged is new code
-        return staged
-    return None if staged == head else staged
-
-
-def _row_files() -> set[Path]:
-    return set(ROWS_DIRECTORY.glob('*.json')) if ROWS_DIRECTORY.is_dir() else set()
-
-
-def main() -> int:
-    """Measure the staged code if it can change the replays, and stage the new row files.
+def _tree_row_files(*, rows_directory: Path, code_tree: str) -> list[Path]:
+    """Return the row files of a code tree (their names lead with it).
 
     Returns:
-        The exit code: ``SUCCESS``, or the measurement's own failure code.
+        The files, sorted.
 
     """
-    code_tree = code_changes(repository=PROJECT_ROOT)
-    if code_tree is None:
-        sys.stdout.write('replay-metrics: nothing staged can change the replays\n')
+    prefix = code_tree[:ROW_FILE_TREE_CHARACTERS]
+    if not rows_directory.is_dir():
+        return []
+    return sorted(rows_directory.glob(f'{prefix}-*{ROW_FILE_SUFFIX}'))
+
+
+def _measured_here(*, rows_directory: Path, code_tree: str, machine: str) -> bool:
+    """Return whether this machine already measured the code tree (rows on disk).
+
+    Returns:
+        True when a row names the tree and this machine.
+
+    """
+    return any(
+        row.code_tree == code_tree and row.machine == machine
+        for row in read_row_files(directory=rows_directory)
+    )
+
+
+def _untracked_measured_files(*, repository: Path) -> list[str]:
+    """Return untracked (not ignored) files under the measured paths.
+
+    Returns:
+        Their repository-relative paths.
+
+    """
+    output = run_git(
+        repository=repository,
+        arguments=['ls-files', '--others', '--exclude-standard', '--', *MEASURED_PATHS],
+    )
+    return [line for line in output.splitlines() if line]
+
+
+def _is_partial_commit() -> bool:
+    """Return whether git is making a partial commit (``git commit <path>``, ``--only``).
+
+    Returns:
+        True when the hook runs on git's temporary next-index.
+
+    """
+    index_file = os.environ.get('GIT_INDEX_FILE')
+    return index_file is not None and Path(index_file).name.startswith(PARTIAL_COMMIT_INDEX_PREFIX)
+
+
+def _stage(*, repository: Path, paths: list[Path]) -> None:
+    """Stage files (a no-op for those already staged unchanged)."""
+    if paths:
+        run_git(repository=repository, arguments=['add', '--', *(str(path) for path in paths)])
+
+
+def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> int:
+    """Measure the staged code tree unless measured on this machine, and stage its rows.
+
+    Args:
+        repository: The repository.
+        rows_directory: Where the row files are (quality/replay-ledger/).
+        machine: This machine's label (``replay_metrics.this_machine``).
+
+    Returns:
+        ``SUCCESS``; ``OPTIONS_REFUSED`` for a commit whose measurement could not be committed
+        (untracked measured files, a partial commit); or the measurement's failure code.
+
+    """
+    code_tree = staged_code_tree(repository=repository)
+    if _measured_here(rows_directory=rows_directory, code_tree=code_tree, machine=machine):
+        # Rows written before a refused commit are staged now (rule 2)
+        _stage(
+            repository=repository,
+            paths=_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
+        )
+        sys.stdout.write(f'replay-metrics: code tree {code_tree[:12]} already measured here\n')
         return ExitCode.SUCCESS
-    before = _row_files()
+    if _is_partial_commit():
+        sys.stderr.write(
+            'replay-metrics: this commit needs measuring, which a partial commit '
+            '(git commit <path>) cannot carry; stage the files and run git commit, or skip it: '
+            'SKIP=replay-metrics git commit ...\n'
+        )
+        return ExitCode.OPTIONS_REFUSED
+    untracked = _untracked_measured_files(repository=repository)
+    if untracked:
+        sys.stderr.write(
+            'replay-metrics: untracked files would be measured though not committed; add them '
+            'or move them away: ' + ', '.join(untracked) + '\n'
+        )
+        return ExitCode.OPTIONS_REFUSED
     exit_code = replay_metrics.run(
         arguments=[
             'measure',
@@ -72,7 +148,7 @@ def main() -> int:
             '--code-tree',
             code_tree,
             '--rows-directory',
-            str(ROWS_DIRECTORY),
+            str(rows_directory),
         ]
     )
     if exit_code != ExitCode.SUCCESS:
@@ -81,9 +157,25 @@ def main() -> int:
             'without measuring: SKIP=replay-metrics git commit ...\n'
         )
         return exit_code
-    for path in sorted(_row_files() - before):
-        run_git(repository=PROJECT_ROOT, arguments=['add', '--', str(path)])
+    _stage(
+        repository=repository,
+        paths=_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
+    )
     return ExitCode.SUCCESS
+
+
+def main() -> int:
+    """Run the hook on this repository, labelled with this machine.
+
+    Returns:
+        ``measure_staged``'s exit code.
+
+    """
+    return measure_staged(
+        repository=PROJECT_ROOT,
+        rows_directory=ROWS_DIRECTORY,
+        machine=replay_metrics.this_machine(),
+    )
 
 
 if __name__ == '__main__':

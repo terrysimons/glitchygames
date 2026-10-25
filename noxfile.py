@@ -322,10 +322,17 @@ def docs_deploy(session: nox.Session) -> None:
         nox -s docs-deploy                  # Measure, build (graphs included) and push gh-pages
         nox -s docs-deploy -- --build-only  # Measure and build into site/; no push
         nox -s docs-deploy -- --no-measure  # Build and push without measuring (CI)
+
+    A deploy (not --build-only) is refused unless HEAD is on origin/main: a branch's measured
+    rows would be published as landed though their code never reached main.
     """
     _install_from_lockfile(session)
     build_only = '--build-only' in session.posargs
     measure = '--no-measure' not in session.posargs
+    if not build_only:
+        # Only main is published: a branch's history would publish its measured rows as landed
+        # though their code never reached main (glitchygames/code_tree.py landed_code_trees)
+        session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
     # A deploy publishes the merged ledger in place of the published one, so it must start from
     # what gh-pages holds now: only a build tolerates a failed fetch
     session.run(
