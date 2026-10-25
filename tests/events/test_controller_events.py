@@ -263,6 +263,24 @@ class TestControllerEventProxyMethods:
         assert manager.controllers[0].controller.name == CONTROLLER_NAME
         assert _received(scene) == [('device_added', event)]
 
+    def test_a_device_added_that_is_already_tracked_keeps_its_proxy(self):
+        """A pad SDL counted at startup also arrives as an added event: its proxy stays.
+
+        SDL reports a connected pad both ways (in the startup count, then as an added event on
+        the first pump; measured with --list-input-devices): replacing the proxy would drop
+        whatever the game had set on it.
+        """
+        _install_controllers(instance_ids_by_device_index={0: 0}, counted_controllers=1)
+        scene = ControllerRecordingScene()
+        manager = ControllerEventManager(game=scene)
+        tracked = manager.controllers[0]
+
+        event = HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=0, guid='test-guid')
+        manager.on_controller_device_added_event(event)
+
+        assert manager.controllers[0] is tracked
+        assert _received(scene) == [('device_added', event)]
+
     def test_device_remapped_routes_to_controller_proxy(self):
         """Device remapped event should be routed to the correct controller proxy."""
         manager, scene = _manager_with_controller()
