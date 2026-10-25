@@ -201,6 +201,12 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
         center=((TouchButton('Pause', 'KeyP'),),),
         right=((TouchButton('Start', 'Space'),),),
     ),
+    # Only a battlefield so far: pause and start, until the game has controls to lay out
+    'drawing-fire': TouchLayout(
+        left=(),
+        center=((TouchButton('Pause', 'KeyP'),),),
+        right=((TouchButton('Start', 'Space'),),),
+    ),
 }
 
 
@@ -261,6 +267,11 @@ GAMES: dict[str, GameSpecification] = {
         module='glitchygames.examples.mr_muncher.game',
         scene_class='MrMuncherScene',
         title='Mr. Muncher',
+    ),
+    'drawing-fire': GameSpecification(
+        module='glitchygames.examples.drawing_fire.game',
+        scene_class='DrawingFireScene',
+        title='Drawing Fire',
     ),
     # The pixel-art editor: its AI sprite generation is off in browser builds (the
     # glitchygames.bitmappy.constants.AI_FEATURES_ENABLED feature flag)
