@@ -119,6 +119,9 @@ nox -s build-wheel         # Build wheel (.whl) only
 
 # --- Docs ---
 nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
+# CircleCI runs it after every merge to main (job deploy-docs: once the macOS job passes, one at a time,
+# `-- --no-measure`: CI timings would be noise in the run ledger), pushing with a deploy key
+# (pipeline parameter DOCS_DEPLOY_KEY_FINGERPRINT)
 nox -s docs-serve          # Serve the docs locally (same strict build, graphs included) at http://127.0.0.1:8000/glitchygames/
 # Every mkdocs build generates the complexity graphs first when HEAD changed, then the performance
 # graphs (published run ledger from origin/gh-pages + pending rows; hook: scripts/mkdocs_hooks.py)
