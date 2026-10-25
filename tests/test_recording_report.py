@@ -1,16 +1,15 @@
 """scripts/recording_report.py reports a recording's runs, speed changes and behaviour changes.
 
 Design: plans/2026-10-23-recording-metrics-2-behaviour-change-map.md. The real recording is the
-PaddleSlap golden replay rebaselined twice through its console script (two runs stacked on its
-own), so it holds three runs of the same work; the behaviour change is a hand-built recording
-written with the trace writer.
+PaddleSlap golden replay rebaselined twice through its console script (two runs stacked on the
+runs it already holds), so its two newest runs are of the same work; the behaviour change is a
+hand-built recording written with the trace writer.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import pytest
 from scripts.recording_report import report_lines, run
 
 from glitchygames.exit_codes import ExitCode
@@ -33,7 +32,7 @@ def rebaselined_twice(*, tmp_path: Path) -> Path:
     """Rebaseline the PaddleSlap golden replay, then the result again.
 
     Returns:
-        The second rebaseline's recording (three runs).
+        The second rebaseline's recording (the golden's runs plus two).
 
     """
     first = tmp_path / 'first.jsonl.gz'
@@ -46,30 +45,37 @@ def rebaselined_twice(*, tmp_path: Path) -> Path:
     return second
 
 
-@pytest.mark.xfail(
-    reason=(
-        'converted in Task 6: until the committed recordings hold logical names, a rebaseline '
-        "adds frame 0's scene start `scene`, a behaviour change in its content hash"
-    ),
-    strict=True,
-)
 def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, capsys):
-    """Three runs of the same work: provenance, summaries, no change in behaviour."""
+    """Two new runs of the same work: provenance, summaries, no change in behaviour."""
     path = rebaselined_twice(tmp_path=tmp_path)
+    golden_header = read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD]
+    golden_runs = len(golden_header)
+    golden_rebaselines = sum(
+        1 for golden_run in golden_header if golden_run.get('rebaselined_from')
+    )
+    golden_frames = read_trace(path=REPO_FIXTURE)[FRAMES_FIELD]
+    golden_unchanged_pairs = sum(
+        1
+        for newer_index in range(golden_runs - 1)
+        if all(
+            frame[CONTENT_HASH_FIELD][newer_index] == frame[CONTENT_HASH_FIELD][newer_index + 1]
+            for frame in golden_frames
+        )
+    )
 
     assert run(arguments=[str(path)]) == ExitCode.SUCCESS
 
     output = capsys.readouterr().out
     frame_count = len(read_trace(path=path)[FRAMES_FIELD])
-    assert f'{path}: {frame_count} frames, 3 runs' in output
-    # The rebaselines know their commit (this checkout); the golden's own run predates that
-    assert output.count('rebaselined from') == 2
-    assert 'run 2: commit unknown' in output
+    assert f'{path}: {frame_count} frames, {golden_runs + 2} runs' in output
+    # The rebaselines know their commit (this checkout); the golden's oldest run predates that
+    assert output.count('rebaselined from') == 2 + golden_rebaselines
+    assert f'run {golden_runs + 1}: commit unknown' in output
     assert 'paced live run' in output
     assert 'frame time p50' in output
     assert 'processing p50' in output
     assert 'Behaviour changes (content hash, adjacent runs):' in output
-    assert output.count('no behaviour change in') == 2
+    assert output.count('no behaviour change in') == 2 + golden_unchanged_pairs
     assert 'Processing (same work only' in output
 
 

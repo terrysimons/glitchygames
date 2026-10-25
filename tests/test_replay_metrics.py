@@ -27,6 +27,7 @@ from scripts.replay_metrics import (
 from glitchygames.build_info import RevisionSource, SourceRevision, source_revision
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
+from glitchygames.recording_history import MEASUREMENT_RUNS_HEADER_FIELD
 from glitchygames.recording_metrics import (
     PUBLISHED_LEDGER_PATH,
     PUBLISHED_LEDGER_REF,
@@ -37,6 +38,7 @@ from glitchygames.recording_metrics import (
     read_ledger_file,
     read_row_files,
 )
+from glitchygames.tracing import read_trace
 from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.test_recording_metrics import ledger_row
 
@@ -254,13 +256,6 @@ class TestMeasuringIntoRowFiles:
 class TestMeasuring:
     """Each recording is rebaselined into a temporary file and its runs become pending rows."""
 
-    @pytest.mark.xfail(
-        reason=(
-            'converted in Task 6: until the committed recordings hold logical names, a rebaseline '
-            "adds frame 0's scene start `scene`, a behaviour change in its content hash"
-        ),
-        strict=True,
-    )
     def test_a_measurement_appends_rows_and_a_second_one_skips(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
         recordings = copied_golden(project_root=project_root)
@@ -281,7 +276,7 @@ class TestMeasuring:
 
         assert result.exit_code == ExitCode.SUCCESS
         rows = read_ledger_file(path=pending).rows
-        measured, recorded = rows
+        measured, recorded, *older_recorded = rows
         assert measured.origin == LedgerOrigin.REPLAY_METRICS
         assert measured.recording == 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
         assert measured.console_script == 'paddleslap'
@@ -292,6 +287,10 @@ class TestMeasuring:
         assert not measured.run.processing_paced
         assert measured.run.machine_state is not None
         assert recorded.origin == LedgerOrigin.RECORDING
+        # One recorded row per run the golden holds, the measurement on top
+        assert len(older_recorded) + 1 == len(
+            read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD]
+        )
         assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz: 622 frames' in (
             capsys.readouterr().out
         )
@@ -420,7 +419,8 @@ class TestMeasuring:
         assert result.exit_code == ExitCode.INTERNAL_ERROR
         assert result.failures == ('tests/fixtures/replays/paddleslap/broken.jsonl.gz',)
         assert 'UNUSABLE_INPUT' in capsys.readouterr().err
-        assert len(read_ledger_file(path=pending).rows) == 2
+        golden_runs = len(read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD])
+        assert len(read_ledger_file(path=pending).rows) == 1 + golden_runs
 
     def test_a_replay_of_another_commit_is_a_failure(self, tmp_path, capsys):
         project_root = tmp_path / 'project'

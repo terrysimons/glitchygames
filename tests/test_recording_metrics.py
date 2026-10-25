@@ -453,6 +453,7 @@ class TestRowsFromARebaseline:
                 with_uncommitted_changes(run(commit=NEWER_COMMIT)).to_json(),
                 # A rebaseline fills in the run before's frame count as it stacks
                 {**trace[MEASUREMENT_RUNS_HEADER_FIELD][0], 'frame_count': len(frames)},
+                *trace[MEASUREMENT_RUNS_HEADER_FIELD][1:],
             ],
         }
         rows = ledger_rows_from_rebaseline(
@@ -462,7 +463,8 @@ class TestRowsFromARebaseline:
             rebaseline_exit='SUCCESS (0)',
             allowed_uncommitted_changes=True,
         )
-        measured, recorded = rows
+        measured, recorded, *older_recorded = rows
+        assert len(older_recorded) + 1 == len(trace[MEASUREMENT_RUNS_HEADER_FIELD])
         assert measured.origin == LedgerOrigin.REPLAY_METRICS
         assert measured.frame_count == len(frames)
         assert measured.frames_changed == 0
@@ -474,9 +476,10 @@ class TestRowsFromARebaseline:
         assert recorded.rebaseline_exit is None
         assert recorded.frames_changed is None
         assert recorded.content_hash == measured.content_hash
-        # The golden's own run was live: its frame times are summarised
-        assert recorded.summary is not None
-        assert recorded.summary.frame_time is not None
+        # The golden's oldest run was live: its frame times are summarised
+        live_run = older_recorded[-1]
+        assert live_run.summary is not None
+        assert live_run.summary.frame_time is not None
         assert recorded.frame_count == len(frames)
         # Only the measurement carries a per-frame profile (its own run's times)
         assert measured.profile is not None

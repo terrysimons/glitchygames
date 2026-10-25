@@ -58,7 +58,6 @@ def recording_id(path: Path) -> str:
     )
 
 
-@pytest.mark.xfail(reason='converted in Task 6', strict=True)
 @pytest.mark.parametrize('recording', COMMITTED_RECORDINGS, ids=recording_id)
 def test_every_logical_name_in_the_recording_resolves(recording):
     """The header's ``game`` and every scene start's ``scene`` name a class that exists."""
