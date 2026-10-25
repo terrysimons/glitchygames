@@ -750,6 +750,16 @@ class LedgerRow(BaseModel):
         return f'{self.recording}|{self.run.measured_at}|{self.run.machine}'
 
     @property
+    def held_key(self: Self) -> str:
+        """The row's identity with its recording at its current path (``RECORDING_PATH_RENAMES``).
+
+        A moved recording's earlier runs are the same runs under either path, so "already held"
+        compares these, not ``key``.
+        """
+        recording = RECORDING_PATH_RENAMES.get(self.recording, self.recording)
+        return f'{recording}|{self.run.measured_at}|{self.run.machine}'
+
+    @property
     def commit(self: Self) -> str | None:
         """The run's full commit, or None when unknown."""
         revision = self.run.source_revision

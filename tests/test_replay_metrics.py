@@ -21,6 +21,7 @@ from scripts.replay_metrics import (
     clear_published,
     measure,
     metric_recordings,
+    rows_to_write,
     run,
 )
 
@@ -40,7 +41,7 @@ from glitchygames.recording_metrics import (
 )
 from glitchygames.tracing import read_trace
 from tests.replay.test_replay_plugin import REPO_FIXTURE
-from tests.test_recording_metrics import ledger_row
+from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
@@ -213,11 +214,26 @@ class TestMeasuringIntoRowFiles:
         rows = read_row_files(directory=rows_directory)
         measured = [row for row in rows if row.origin == LedgerOrigin.REPLAY_METRICS]
         recorded = [row for row in rows if row.origin == LedgerOrigin.RECORDING]
-        # Only the run just measured names the code tree: the recording's own runs are history
+        # Only the run just measured names the code tree; this directory is no repository with
+        # an origin/main, so none of the recording's own (history) runs has landed: none written
         assert [row.code_tree for row in measured] == [self.TREE]
-        assert recorded
-        assert all(row.code_tree is None for row in recorded)
+        assert recorded == []
         assert not measured[0].from_uncommitted_changes
+
+    def test_a_missing_origin_main_is_said_once(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+
+        self.measure_tree(
+            project_root=project_root,
+            recordings=copied_golden(project_root=project_root),
+            pending=tmp_path / 'pending.jsonl',
+            rows_directory=tmp_path / 'replay-ledger',
+            code_tree=self.TREE,
+        )
+
+        output = capsys.readouterr().out
+        assert output.count('origin/main') == 1
+        assert 'no history rows written' in output
 
     def test_the_same_code_tree_is_measured_once_per_machine(self, tmp_path):
         project_root = tmp_path / 'project'
@@ -252,6 +268,121 @@ class TestMeasuringIntoRowFiles:
         summary = capsys.readouterr().out.splitlines()[-1]
         assert summary.endswith(f'into {rows_directory}')
         assert 'code tree 0123456789ab' in summary
+
+
+class TestRowsToWrite:
+    """The rows a measurement writes: the newest run, and history runs that have landed."""
+
+    @pytest.fixture
+    def landed_repository(self, tmp_path):
+        """Return a repository whose origin/main is its first commit, with one commit ahead.
+
+        Returns:
+            ``(repository, landed commit, branch commit)``.
+
+        """
+        git(repository=tmp_path, arguments=['init', '--quiet'])
+        (tmp_path / 'README').write_text('one\n', encoding='utf-8')
+        git(repository=tmp_path, arguments=['add', 'README'])
+        git(repository=tmp_path, arguments=['commit', '--quiet', '-m', 'One'])
+        landed = git(repository=tmp_path, arguments=['rev-parse', 'HEAD']).strip()
+        git(repository=tmp_path, arguments=['update-ref', 'refs/remotes/origin/main', landed])
+        (tmp_path / 'README').write_text('two\n', encoding='utf-8')
+        git(repository=tmp_path, arguments=['commit', '--quiet', '-am', 'Two'])
+        branch = git(repository=tmp_path, arguments=['rev-parse', 'HEAD']).strip()
+        return tmp_path, landed, branch
+
+    def history_row(self, *, commit, measured_at='2026-10-20T10:00:00+00:00'):
+        """Return a row of a run the recording held.
+
+        Returns:
+            The row.
+
+        """
+        return ledger_row(commit=commit, measured_at=measured_at).model_copy(
+            update={'origin': LedgerOrigin.RECORDING}
+        )
+
+    def test_a_history_run_measured_on_a_landed_commit_is_written(self, landed_repository):
+        repository, landed, _ = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+        history = self.history_row(commit=landed)
+
+        written = rows_to_write(
+            rows=[newest, history], held_keys=set(), repository=repository, origin_main_present=True
+        )
+
+        assert written == [newest, history]
+
+    def test_a_history_run_measured_on_a_commit_not_on_origin_main_is_not(self, landed_repository):
+        repository, _, branch = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, self.history_row(commit=branch)],
+            held_keys=set(),
+            repository=repository,
+            origin_main_present=True,
+        )
+
+        assert written == [newest]
+
+    def test_a_history_run_with_uncommitted_changes_is_not_written(self, landed_repository):
+        repository, landed, _ = landed_repository
+        dirty = self.history_row(commit=landed)
+        dirty = dirty.model_copy(update={'run': with_uncommitted_changes(dirty.run)})
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, dirty], held_keys=set(), repository=repository, origin_main_present=True
+        )
+
+        assert written == [newest]
+
+    def test_a_history_run_of_an_unknown_commit_is_not_written(self, landed_repository):
+        repository, _, _ = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, self.history_row(commit=None)],
+            held_keys=set(),
+            repository=repository,
+            origin_main_present=True,
+        )
+
+        assert written == [newest]
+
+    def test_without_origin_main_no_history_run_is_written(self, landed_repository):
+        repository, landed, _ = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, self.history_row(commit=landed)],
+            held_keys=set(),
+            repository=repository,
+            origin_main_present=False,
+        )
+
+        assert written == [newest]
+
+    def test_a_run_held_under_a_moved_recordings_old_path_is_not_written_again(
+        self, landed_repository
+    ):
+        repository, landed, _ = landed_repository
+        old_path = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        new_path = 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        held = ledger_row(recording=old_path, commit=landed)
+        again = ledger_row(recording=new_path, commit=landed)
+        newest = ledger_row(recording=new_path, measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, again],
+            held_keys={held.held_key},
+            repository=repository,
+            origin_main_present=True,
+        )
+
+        assert written == [newest]
 
 
 class TestMeasuring:

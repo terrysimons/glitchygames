@@ -10,7 +10,9 @@ import pytest
 from glitchygames.code_tree import (
     LEDGER_DIRECTORY,
     commit_code_tree,
+    commit_is_on_origin_main,
     landed_code_trees,
+    origin_main_exists,
     staged_code_tree,
 )
 from glitchygames.process import run_command
@@ -194,3 +196,47 @@ def test_a_repository_with_nothing_staged_yet_has_the_empty_code_tree(tmp_path):
     empty_tree = git(repository=tmp_path, arguments=['hash-object', '-t', 'tree', '/dev/null'])
 
     assert staged_code_tree(repository=tmp_path) == empty_tree
+
+
+def test_there_is_no_origin_main_in_a_repository_without_that_ref(repository):
+    """A fresh clone without the remote ref, or a test repository."""
+    assert not origin_main_exists(repository=repository)
+
+
+def test_origin_main_exists_once_the_ref_does(repository):
+    """The remote-tracking ref makes it exist."""
+    commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', commit])
+
+    assert origin_main_exists(repository=repository)
+
+
+def test_a_commit_on_origin_main_is_on_it_and_a_branch_commit_is_not(repository):
+    """Equal to origin/main or one of its ancestors counts; a commit ahead of it does not."""
+    landed = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', landed])
+    write(repository=repository, relative_path='README.md', text='# branch work\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Branch'])
+    branch_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+
+    assert commit_is_on_origin_main(repository=repository, commit=landed)
+    assert not commit_is_on_origin_main(repository=repository, commit=branch_commit)
+
+
+def test_an_ancestor_of_origin_main_is_on_it(repository):
+    """An older commit of the branch has landed too."""
+    first = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    write(repository=repository, relative_path='README.md', text='# second\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Second'])
+    second = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', second])
+
+    assert commit_is_on_origin_main(repository=repository, commit=first)
+
+
+def test_a_commit_this_repository_never_had_is_not_on_origin_main(repository):
+    """A row measured in another clone: its commit is unknown here, so it has not landed."""
+    commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', commit])
+
+    assert not commit_is_on_origin_main(repository=repository, commit='0' * 40)

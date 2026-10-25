@@ -34,6 +34,8 @@ MEASURED_PATHS = (
     'pyproject.toml',
 )
 GIT_TIMEOUT_SECONDS = 60.0
+# The branch whose commits count as landed (the remote-tracking ref of the shared main)
+ORIGIN_MAIN = 'origin/main'
 
 
 def run_git(*, repository: Path, arguments: list[str], index_file: Path | None = None) -> str:
@@ -173,3 +175,55 @@ def landed_code_trees(*, repository: Path, revision: str = 'HEAD') -> dict[str, 
         tree = commit_code_tree(repository=repository, commit=commit)
         landed.setdefault(tree, LandedCommit(commit=commit, committed_at=committed_at))
     return landed
+
+
+def _git_succeeds(*, repository: Path, arguments: list[str]) -> bool:
+    """Return whether a git command exits 0 (any failure, an unknown commit included, is False).
+
+    Returns:
+        True when git exited 0.
+
+    """
+    completed = run_command(
+        command=['git', *arguments],
+        environment=dict(os.environ),
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
+        capture_output=True,
+        working_directory=repository,
+    )
+    return completed.returncode == 0
+
+
+def origin_main_exists(*, repository: Path) -> bool:
+    """Return whether the repository has the ``origin/main`` ref (a fresh clone may lack it).
+
+    Args:
+        repository: The repository's working directory.
+
+    Returns:
+        True when ``origin/main`` resolves to a commit.
+
+    """
+    return _git_succeeds(
+        repository=repository,
+        arguments=['rev-parse', '--verify', '--quiet', f'{ORIGIN_MAIN}^{{commit}}'],
+    )
+
+
+def commit_is_on_origin_main(*, repository: Path, commit: str) -> bool:
+    """Return whether a commit is ``origin/main`` or one of its ancestors (it has landed).
+
+    ``git merge-base --is-ancestor`` exits 1 for "not an ancestor" and 128 for a commit or ref
+    this repository does not have; neither has landed here, so both answer False.
+
+    Args:
+        repository: The repository's working directory.
+        commit: The full commit hash.
+
+    Returns:
+        True when the commit is on ``origin/main``.
+
+    """
+    return _git_succeeds(
+        repository=repository, arguments=['merge-base', '--is-ancestor', commit, ORIGIN_MAIN]
+    )

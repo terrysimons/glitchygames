@@ -668,7 +668,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
   `src/` (the engine, games, demos, apps), recordings, `uv.lock`, `pyproject.toml`), so code that arrived by
   a merge or rebase is measured by the next commit, and stages the rows, each naming that code
-  tree (`LedgerRow.code_tree`), into the same commit (refused for a partial `git commit <path>`
+  tree (`LedgerRow.code_tree`), into the same commit, plus the `history-...` row files it wrote
+  (a recording's earlier header runs, written only when measured on a commit on `origin/main`
+  without uncommitted changes, and never again under a moved recording's new path:
+  `replay_metrics.rows_to_write`, `LedgerRow.held_key`; none without an `origin/main`) (refused for a partial `git commit <path>`
   or untracked files under the measured paths; `SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
   landed (`landed_code_trees`: the tree of each commit that added rows, i.e. main's squash
   merge; `landed_rows`), labelled with that commit, then merges gh-pages' ledger and local

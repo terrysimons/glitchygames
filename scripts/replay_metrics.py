@@ -19,7 +19,12 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
    (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
    frame's processing time and records its provenance (commit, machine state);
 3. appends the rebaselined recording's rows (``ledger_rows_from_rebaseline``: the measurement,
-   then each run the recording held, unless already in the ledger) to the pending file.
+   then each run the recording held, unless already in the ledger) to the pending file. With
+   ``--rows-directory`` (the pre-commit hook) it writes row files instead, and a run the
+   recording held is written only if it landed (``rows_to_write``: measured on a commit that is
+   on ``origin/main``, without uncommitted changes; none at all without an ``origin/main``,
+   said once). "Already in the ledger" compares rows with a moved recording's old path resolved
+   to its new one (``LedgerRow.held_key``).
 
 The children must run this checkout's package (an editable install, as ``uv run`` gives), or
 they cannot name their commit: a row whose commit is not the checkout's is a failure.
@@ -51,6 +56,7 @@ from glitchygames.build_info import (
     SourceRevision,
     source_revision,
 )
+from glitchygames.code_tree import commit_is_on_origin_main, origin_main_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
 from glitchygames.recording_metrics import (
@@ -291,6 +297,99 @@ def _already_measured(
     )
 
 
+def rows_to_write(
+    *,
+    rows: Sequence[LedgerRow],
+    held_keys: set[str],
+    repository: Path,
+    origin_main_present: bool,
+) -> list[LedgerRow]:
+    """Return the rows of a rebaselined recording that a row-file measurement writes.
+
+    The newest run (``rows[0]``, the one just measured) is written unless held. A history row (a
+    run the recording held) is written only when no row holds it, and its run was measured on a
+    commit that is on ``origin/main`` with no uncommitted changes: a run of code that never
+    landed would be published unconditionally (it names no code tree). With no ``origin/main``
+    to compare with, none is written. "Held" compares keys with the recording at its current
+    path (``LedgerRow.held_key``), so a moved recording's earlier runs are not written again.
+
+    Args:
+        rows: The recording's rows, newest first (``ledger_rows_from_rebaseline``).
+        held_keys: The ``held_key`` of every row already held.
+        repository: The repository whose ``origin/main`` decides what landed.
+        origin_main_present: Whether the repository has ``origin/main`` (looked up once).
+
+    Returns:
+        The rows to write, in order.
+
+    """
+    newest, *history = rows
+    written = [] if newest.held_key in held_keys else [newest]
+    for row in history:
+        commit = row.commit
+        if (
+            row.held_key in held_keys
+            or not origin_main_present
+            or commit is None
+            or row.measured_uncommitted_changes
+            or not commit_is_on_origin_main(repository=repository, commit=commit)
+        ):
+            continue
+        written.append(row)
+    return written
+
+
+def _origin_main_present(*, settings: MeasureSettings) -> bool:
+    """Return whether history rows can be judged (row files, with an ``origin/main``).
+
+    Says so once when row files are written without an ``origin/main`` to judge them by.
+
+    Returns:
+        True when the measurement writes row files and the repository has ``origin/main``.
+
+    """
+    if settings.rows_directory is None:
+        return False
+    if origin_main_exists(repository=settings.project_root):
+        return True
+    sys.stdout.write(
+        'No origin/main in this repository: no history rows written (earlier runs count as '
+        'landed only on that branch)\n'
+    )
+    return False
+
+
+def _write_new_rows(
+    *,
+    settings: MeasureSettings,
+    rows: list[LedgerRow],
+    held_keys: set[str],
+    origin_main_present: bool,
+) -> list[LedgerRow]:
+    """Write a recording's rows no row holds yet (see ``rows_to_write``) and return them.
+
+    They are written as row files with ``--rows-directory``, else appended to the pending file.
+
+    Returns:
+        The rows written.
+
+    """
+    if settings.rows_directory is None:
+        new_rows = [row for row in rows if row.held_key not in held_keys]
+        settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
+        with settings.pending_path.open('a', encoding='utf-8') as pending:
+            pending.write(ledger_text(rows=new_rows))
+        return new_rows
+    new_rows = rows_to_write(
+        rows=rows,
+        held_keys=held_keys,
+        repository=settings.project_root,
+        origin_main_present=origin_main_present,
+    )
+    write_row_files(rows=new_rows, directory=settings.rows_directory)
+    return new_rows
+
+
 def measure(
     *, settings: MeasureSettings, recordings: Sequence[tuple[str, Path]], published_text: str
 ) -> MeasureResult:
@@ -321,6 +420,7 @@ def measure(
             else read_row_files(directory=settings.rows_directory),
         ]
     )
+    origin_main_present = _origin_main_present(settings=settings)
     measured: list[str] = []
     skipped: list[str] = []
     failures: list[str] = []
@@ -352,14 +452,12 @@ def measure(
                 # The run just measured (the newest) measured the code tree; the recording's
                 # own earlier runs are history and keep naming their commits
                 rows = [rows[0].model_copy(update={'code_tree': settings.code_tree}), *rows[1:]]
-            known_keys = {row.key for row in known}
-            new_rows = [row for row in rows if row.key not in known_keys]
-            if settings.rows_directory is not None:
-                write_row_files(rows=new_rows, directory=settings.rows_directory)
-            else:
-                settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
-                with settings.pending_path.open('a', encoding='utf-8') as pending:
-                    pending.write(ledger_text(rows=new_rows))
+            new_rows = _write_new_rows(
+                settings=settings,
+                rows=rows,
+                held_keys={row.held_key for row in known},
+                origin_main_present=origin_main_present,
+            )
             known.extend(new_rows)
             measured.append(recording)
             sys.stdout.write(

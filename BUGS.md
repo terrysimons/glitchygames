@@ -16,7 +16,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   3. Code reverted to an earlier tree takes the earliest commit that tree landed in, with that commit's old date
   4. Merge commits instead of squash merges would publish a branch's intermediate commits' rows (`git log --diff-filter=A` follows one parent): squash-only merging is assumed, not documented as required
   5. `MEASURED_PATHS` misses inputs outside it (a Python version pinned elsewhere; `scripts/replay_metrics.py`'s own measuring logic)
-  6. The hook can write a recording's earlier header runs as `history-…` row files (no code tree, so always published), as the pending file did
+  6. Fixed 2026-10-25 (Task 7b): the hook wrote a recording's earlier header runs as `history-…` row files (no code tree, so always published, even a run of code that never landed) and left them untracked, and a moved recording's earlier runs were written again under its new path. Now only runs measured on a commit on `origin/main` without uncommitted changes are written (none without an `origin/main`), the hook stages every file its measurement wrote, and "already held" resolves `RECORDING_PATH_RENAMES`
   7. `uv run` inside the hook may rewrite a stale `uv.lock`, and the framework then fails the hook for modifying files
   8. CircleCI's checkout is a full clone today; a shallow checkout would silently publish fewer landed rows (`git log` sees fewer commits)
 - **Files**: `glitchygames/code_tree.py`, `glitchygames/recording_metrics.py`, `scripts/measure_staged_replays.py`

@@ -43,8 +43,16 @@ def repository(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def stand_in_measurement(mocker, *, repository: Path, outcome: ExitCode = ExitCode.SUCCESS):
+def stand_in_measurement(
+    mocker,
+    *,
+    repository: Path,
+    outcome: ExitCode = ExitCode.SUCCESS,
+    history_recording: str | None = None,
+):
     """Replace the replay measurement by one writing a row for the code tree it is given.
+
+    ``history_recording`` also writes a history row (a run the recording held, no code tree).
 
     Returns:
         The mock (its calls are the measurements).
@@ -57,6 +65,11 @@ def stand_in_measurement(mocker, *, repository: Path, outcome: ExitCode = ExitCo
             update={'code_tree': tree}
         )
         write_row_files(rows=[row], directory=repository / LEDGER_DIRECTORY)
+        if history_recording is not None:
+            history = ledger_row(
+                recording=history_recording, measured_at='2026-10-20T09:00:00+00:00'
+            )
+            write_row_files(rows=[history], directory=repository / LEDGER_DIRECTORY)
         return outcome
 
     return mocker.patch.object(measure_staged_replays.replay_metrics, 'run', side_effect=measure)
@@ -96,6 +109,32 @@ def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repositor
     measure.assert_called_once()
     assert len(staged_rows(repository=repository)) == 1
     assert read_row_files(directory=repository / LEDGER_DIRECTORY)[0].code_tree == tree
+
+
+def test_history_rows_the_measurement_wrote_are_staged_with_the_commit(mocker, repository):
+    """A run a recording held, written as a history row file, joins the commit too."""
+    stand_in_measurement(mocker, repository=repository, history_recording='older/run.jsonl.gz')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 6\n')
+
+    assert run_hook(repository=repository) == ExitCode.SUCCESS
+
+    names = [path.rsplit('/', maxsplit=1)[-1] for path in staged_rows(repository=repository)]
+    assert len(names) == 2
+    assert sum(name.startswith('history-') for name in names) == 1
+
+
+def test_an_unrelated_untracked_file_in_the_rows_directory_is_not_staged(mocker, repository):
+    """Only the files the measurement wrote (and the tree's own) are staged."""
+    stand_in_measurement(mocker, repository=repository)
+    stray = repository / LEDGER_DIRECTORY / 'history-stray-from-another-branch.json'
+    stray.parent.mkdir(parents=True, exist_ok=True)
+    stray.write_text('{}\n', encoding='utf-8')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 7\n')
+
+    assert run_hook(repository=repository) == ExitCode.SUCCESS
+
+    assert not any('stray' in path for path in staged_rows(repository=repository))
+    assert len(staged_rows(repository=repository)) == 1
 
 
 def test_code_that_arrived_without_the_hook_is_measured_by_the_next_commit(mocker, repository):

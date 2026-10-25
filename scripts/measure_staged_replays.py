@@ -17,7 +17,12 @@ The rules (a code review's findings, 2026-10-25):
    "Update branch" runs the pre-commit stage) is measured by the next commit, whatever it
    changes. After updating a branch, run this script by hand and commit what it stages.
 2. Every row file of the staged code tree is staged, not only new ones: rows written before a
-   measurement failed (the commit was refused) are staged on the retry.
+   measurement failed (the commit was refused) are staged on the retry. So is every row file the
+   measurement wrote (found by comparing the rows directory before and after), the history
+   rows among them: a recording's earlier runs that landed on origin/main, written as
+   ``history-...`` files (``replay_metrics.rows_to_write``: never a run of code that did not
+   land, never a run a row already holds under the recording's old path). Other untracked
+   files in the directory are left alone.
 3. Refused when measuring is needed and the result could not be committed as measured:
    untracked files under the measured paths (the framework stashes only tracked changes, so they
    would be measured though not committed), and a partial commit (``git commit <path>``: rows
@@ -59,6 +64,18 @@ def _tree_row_files(*, rows_directory: Path, code_tree: str) -> list[Path]:
     if not rows_directory.is_dir():
         return []
     return sorted(rows_directory.glob(f'{prefix}-*{ROW_FILE_SUFFIX}'))
+
+
+def _row_file_names(*, rows_directory: Path) -> set[str]:
+    """Return the names of the row files in the directory (none when it is missing).
+
+    Returns:
+        The file names.
+
+    """
+    if not rows_directory.is_dir():
+        return set()
+    return {path.name for path in rows_directory.glob(f'*{ROW_FILE_SUFFIX}')}
 
 
 def _measured_here(*, rows_directory: Path, code_tree: str, machine: str) -> bool:
@@ -141,6 +158,7 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
             'or move them away: ' + ', '.join(untracked) + '\n'
         )
         return ExitCode.OPTIONS_REFUSED
+    files_before = _row_file_names(rows_directory=rows_directory)
     exit_code = replay_metrics.run(
         arguments=[
             'measure',
@@ -157,9 +175,15 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
             'without measuring: SKIP=replay-metrics git commit ...\n'
         )
         return exit_code
+    # The files this measurement wrote (history rows included: their names lead with "history",
+    # not the tree), plus every row file of the tree already on disk (rule 2)
+    written = sorted(_row_file_names(rows_directory=rows_directory) - files_before)
     _stage(
         repository=repository,
-        paths=_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
+        paths=[
+            *(rows_directory / name for name in written),
+            *_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
+        ],
     )
     return ExitCode.SUCCESS
 
