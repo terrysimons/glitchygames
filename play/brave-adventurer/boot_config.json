@@ -1,0 +1,7 @@
+{
+  "game": "brave-adventurer",
+  "module": "glitchygames.examples.brave_adventurer.game",
+  "scene_class": "BraveAdventurerScene",
+  "title": "Brave Adventurer",
+  "arguments": []
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!--
+  GlitchyGames in the browser: the page template scripts/build_browser_bundle.py renders for one
+  game (Clockwork Keep, 2026.7.3). PyScript loads Pyodide and GlitchyGames' own pygame-ce wheel
+  (pyscript.toml), then browser/boot.py runs the game on this canvas.
+  A plain main-thread <script type="py">, not PyScript's py-game: py-game always loads Pyodide's
+  own pygame-ce first, which ours would then be unpacked over.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clockwork Keep</title>
+  <link rel="stylesheet" href="https://pyscript.net/releases/2026.7.3/core.css">
+  <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    /* No page selection: the game's own Ctrl/Cmd+A (select all in a text box) also reaches the
+       page, since SDL leaves a key's default action alone while text input is on */
+    body {
+      margin: 0; background: #000; color: #ddd; font-family: system-ui, sans-serif;
+      user-select: none; -webkit-user-select: none;
+    }
+    main { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; }
+    #frame { position: relative; }
+    /* The game's pixels stay sharp when the browser scales the canvas (high-DPI displays) */
+    #canvas { display: block; image-rendering: pixelated; max-width: 100vw; }
+    #start-overlay {
+      position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.6); font-size: 1.5rem; cursor: pointer;
+    }
+    #status { font-size: 0.9rem; color: #999; }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="frame">
+      <canvas id="canvas" width="800" height="480"></canvas>
+      <div id="start-overlay">Click to play</div>
+    </div>
+    <p id="status">Loading Python and pygame-ce...</p>
+  </main>
+  <script type="py" src="boot.py" config="pyscript.toml"></script>
+</body>
+</html>
