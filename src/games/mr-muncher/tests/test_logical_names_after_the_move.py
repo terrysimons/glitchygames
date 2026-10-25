@@ -6,7 +6,6 @@ import gzip
 import inspect
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import mr_muncher.game
 from glitchygames.exit_codes import ExitCode
@@ -16,9 +15,6 @@ from glitchygames.testing.replays import (
     rebaseline_recording_headless,
     replay_recording_headless,
 )
-
-if TYPE_CHECKING:
-    import pytest
 
 # The member's golden replay, directly in its tests/fixtures/replays/
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
@@ -82,9 +78,7 @@ class TestRecordingsMadeBeforeLogicalNames:
         assert 'before logical names' in completed.stdout
         assert '--replay-trace OLD --rebaseline NEW --headless' in completed.stdout
 
-    def test_a_rebaseline_converts_it_and_the_new_recording_replays_strictly(
-        self, tmp_path: Path, record_property: pytest.RecordProperty
-    ):
+    def test_a_rebaseline_converts_it_and_the_new_recording_replays_strictly(self, tmp_path: Path):
         old_path = tmp_path / 'old.jsonl.gz'
         new_path = tmp_path / 'new.jsonl.gz'
         write_old_format_recording(path=old_path)
@@ -92,7 +86,6 @@ class TestRecordingsMadeBeforeLogicalNames:
         rebaselined = rebaseline_recording_headless(
             console_script=CONSOLE_SCRIPT, path=old_path, new_path=new_path
         )
-        record_property('rebaseline_output', rebaselined.stdout[-2000:])
 
         assert rebaselined.returncode == ExitCode.SUCCESS, rebaselined.stdout
         assert 'no frames differ' in rebaselined.stdout

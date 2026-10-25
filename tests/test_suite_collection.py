@@ -198,6 +198,48 @@ def pygame_constant_reassignments(*, project_root: Path, roots: list[Path]) -> l
     ]
 
 
+# pytest fixtures that warn under junit_family 'xunit2' (the JUnit reports pyproject.toml and nox
+# write): the suite turns warnings into errors, but only when the warning is raised, which with
+# xdist workers it is not, so a local `-n auto` run passes and CI's `-n 0` run errors
+JUNIT_XUNIT2_INCOMPATIBLE_FIXTURES = frozenset({'record_property', 'record_xml_attribute'})
+
+
+def junit_incompatible_fixture_uses(*, project_root: Path, roots: list[Path]) -> list[str]:
+    """Return ``<file>:<line>: <name>`` for each function taking an xunit2-incompatible fixture.
+
+    Args:
+        project_root: What the reported paths are relative to.
+        roots: The test roots.
+
+    Returns:
+        The uses.
+
+    """
+    uses = []
+    for _root, python_file in _python_files(roots=roots):
+        tree = ast.parse(python_file.read_text(encoding='utf-8'))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            arguments = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+            uses.extend(
+                f'{python_file.relative_to(project_root)}:{node.lineno}: {argument.arg}'
+                for argument in arguments
+                if argument.arg in JUNIT_XUNIT2_INCOMPATIBLE_FIXTURES
+            )
+    return uses
+
+
+def test_no_test_uses_a_fixture_the_junit_report_rejects():
+    """Tests (tests/ and every member's) must not take record_property or record_xml_attribute.
+
+    Both warn under the xunit2 JUnit report, which becomes an error in CI's serial run only.
+    Put what a failure needs into the assertion's message instead.
+    """
+    uses = junit_incompatible_fixture_uses(project_root=PROJECT_ROOT, roots=collected_test_roots())
+    assert not uses, f'Tests take fixtures the xunit2 JUnit report rejects: {uses}'
+
+
 def test_no_test_reassigns_pygame_constants():
     """Tests (tests/ and every member's) must not overwrite pygame's module-level constants.
 
