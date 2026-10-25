@@ -2,18 +2,28 @@
 
 This cut is the battlefield (paper, and the ground with its hills) and a battle that plays
 itself: every soldier is driven by the computer, the winner is announced, and the next battle
-starts on its own.
+starts on its own. ``drawing`` draws it all in pencil.
 """
 
 from __future__ import annotations
 
 import enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
 from glitchygames.engine import GameEngine
 from glitchygames.examples.drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Battle
+from glitchygames.examples.drawing_fire.drawing import (
+    draw_banner,
+    draw_bullet,
+    draw_hud,
+    draw_sandbag,
+    draw_soldier,
+    draw_terrain,
+    load_soldier_frames,
+)
 from glitchygames.examples.drawing_fire.drivers import (
     ComputerSoldier,
     computer_intents,
@@ -27,11 +37,9 @@ if TYPE_CHECKING:
     from glitchygames.examples.drawing_fire.terrain import Terrain
 
 PAPER_COLOR = (251, 248, 239)
-PENCIL_COLOR = (58, 58, 64)
-GROUND_LINE_WIDTH = 2
+SOLDIER_SPRITE_PATH = Path(__file__).parent / 'sprites' / 'soldier.toml'
 # How long the winner is announced before the next battle starts (s)
 VICTORY_SECONDS = 3.0
-VICTORY_FONT_SIZE = 56
 
 
 class Phase(enum.Enum):
@@ -69,8 +77,9 @@ class DrawingFireScene(Scene):
         self.phase = Phase.BATTLE
         self.victory_message = ''
         self.victory_seconds = 0.0
-        # Built on first use, then kept
-        self._victory_font: pygame.font.Font | None = None
+        # The soldier sprite, scaled once and recoloured once per army
+        self.soldier_frames = load_soldier_frames(path=SOLDIER_SPRITE_PATH)
+        self.walking_soldier_ids: set[int] = set()
         self.start_battle()
 
     def start_battle(self: Self) -> None:
@@ -89,9 +98,11 @@ class DrawingFireScene(Scene):
         self.phase = Phase.BATTLE
         self.victory_message = ''
         self.victory_seconds = 0.0
-        # The ground is pencilled onto clean paper, under every sprite
+        self.walking_soldier_ids = set()
+        # The ground is pencilled onto clean paper, under every sprite (it never changes in a
+        # battle, and LayeredDirty repaints the background, so it has to be on the background)
         self.background.fill(PAPER_COLOR)
-        self._draw_ground()
+        draw_terrain(self.background, self.terrain)
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -106,7 +117,14 @@ class DrawingFireScene(Scene):
             intents = computer_intents(
                 battle=self.battle, minds=self.minds, streams=self.soldier_streams
             )
+            walked_from = {soldier.soldier_id: soldier.x for soldier in self.battle.soldiers}
             self.battle.step(dt=dt, intents=intents)
+            # A soldier whose x changed this step is walking
+            self.walking_soldier_ids = {
+                soldier.soldier_id
+                for soldier in self.battle.soldiers
+                if soldier.alive and soldier.x != walked_from[soldier.soldier_id]
+            }
             winner = self.battle.winner
             if winner is not None:
                 self.phase = Phase.VICTORY
@@ -116,31 +134,9 @@ class DrawingFireScene(Scene):
             if self.victory_seconds >= VICTORY_SECONDS:
                 self.start_battle()
 
-    def _draw_ground(self: Self) -> None:
-        """Pencil the ground line onto the background."""
-        pygame.draw.lines(
-            surface=self.background,
-            color=PENCIL_COLOR,
-            closed=False,
-            points=list(enumerate(self.terrain.ground)),
-            width=GROUND_LINE_WIDTH,
-        )
-
-    def _draw_victory_message(self: Self, screen: pygame.Surface) -> None:
-        """Write the winner on the paper, in the middle of the sky.
-
-        Args:
-            screen: The display surface.
-
-        """
-        if self._victory_font is None:
-            self._victory_font = pygame.font.Font(None, VICTORY_FONT_SIZE)
-        text = self._victory_font.render(self.victory_message, antialias=True, color=PENCIL_COLOR)
-        screen.blit(text, text.get_rect(center=(self.screen_width // 2, self.screen_height // 4)))
-
     @override
     def render(self: Self, screen: pygame.Surface) -> None:
-        """Draw the paper with its ground line, then every sprite.
+        """Draw the paper and ground, then the sandbags, soldiers and bullets in pencil.
 
         Args:
             screen: The display surface.
@@ -149,8 +145,23 @@ class DrawingFireScene(Scene):
         screen.blit(self.background, (0, 0))
         self.all_sprites.clear(screen, self.background)
         self.all_sprites.draw(screen)
+        for sandbag in self.battle.sandbags:
+            draw_sandbag(screen, sandbag, self.terrain)
+        # The fallen are drawn first, so the standing are never hidden behind them
+        for soldier in sorted(self.battle.soldiers, key=lambda soldier: soldier.alive):
+            draw_soldier(
+                screen,
+                soldier,
+                frames=self.soldier_frames,
+                marked=None,
+                walking=soldier.soldier_id in self.walking_soldier_ids,
+                seconds=self.battle.seconds,
+            )
+        for bullet in self.battle.bullets:
+            draw_bullet(screen, bullet)
+        draw_hud(screen, self.battle)
         if self.victory_message:
-            self._draw_victory_message(screen)
+            draw_banner(screen, self.victory_message)
         self.rects = None  # The whole screen is presented
 
 

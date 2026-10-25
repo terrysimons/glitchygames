@@ -8,10 +8,15 @@ import pytest
 from glitchygames.display_mode import set_display_mode
 from glitchygames.examples import drawing_fire
 from glitchygames.examples.drawing_fire import game as drawing_fire_game
-from glitchygames.examples.drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Side
+from glitchygames.examples.drawing_fire.battle import (
+    ARMY_NAMES,
+    SOLDIERS_PER_SIDE,
+    Bullet,
+    Side,
+)
+from glitchygames.examples.drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
 from glitchygames.examples.drawing_fire.game import (
     PAPER_COLOR,
-    PENCIL_COLOR,
     VICTORY_SECONDS,
     DrawingFireScene,
     Phase,
@@ -113,18 +118,82 @@ def test_a_win_announces_the_army_then_the_next_battle_starts(scene):
     assert scene.terrain != first_terrain
 
 
-def test_the_victory_message_is_drawn_on_the_paper(scene):
-    """The announcement puts pencil on the paper that was blank before."""
+def test_the_victory_message_is_drawn_on_the_paper(scene, mocker):
+    """The announcement is pencilled in the sky, which was blank before."""
+    sky = pygame.Rect(SCREEN_SIZE[0] // 4, 60, SCREEN_SIZE[0] // 2, SCREEN_SIZE[1] // 4)
+
+    def sky_colors():
+        return {
+            tuple(scene.screen.get_at((x, y)))[:3]
+            for x in range(sky.left, sky.right)
+            for y in range(sky.top, sky.bottom)
+        }
+
     scene.render(scene.screen)
-    before = pygame.image.tobytes(scene.screen, 'RGB')
+    assert PENCIL_COLOR not in sky_colors()
     kill_army(scene, Side.PLATOON)
     scene.dt_tick(1 / 60)
     scene.render(scene.screen)
-    assert pygame.image.tobytes(scene.screen, 'RGB') != before
+    assert PENCIL_COLOR in sky_colors()
     # The font is built once and kept
-    font = scene._victory_font
+    font_constructor = mocker.spy(pygame.font, 'Font')
     scene.render(scene.screen)
-    assert scene._victory_font is font
+    assert font_constructor.call_count == 0
+
+
+def test_the_battle_is_drawn_in_each_armys_colour(scene):
+    """Every living soldier's helmet is pencil yellow or graphite grey, where he stands."""
+    scene.render(scene.screen)
+    for soldier in scene.battle.soldiers:
+        helmet = (round(soldier.x), round(soldier.y) - 34)
+        assert tuple(scene.screen.get_at(helmet))[:3] == ARMY_COLORS[soldier.side]
+
+
+def test_walking_soldiers_are_found_by_their_step(scene):
+    """A soldier who walked this step is walking; one who stood still is not."""
+    assert not scene.walking_soldier_ids
+    for _ in range(30):
+        scene.dt_tick(1 / 60)
+    assert scene.walking_soldier_ids
+    assert scene.walking_soldier_ids <= {soldier.soldier_id for soldier in scene.battle.soldiers}
+    scene.start_battle()
+    assert not scene.walking_soldier_ids
+
+
+def test_bullets_and_sandbags_are_drawn(scene):
+    """A bullet in flight is a pencil dash, and every sandbag is on the paper."""
+    scene.render(scene.screen)
+    blank = pygame.image.tobytes(scene.screen, 'RGB')
+    bullet = Bullet(
+        x=400.0, y=60.0, velocity_x=600.0, velocity_y=0.0, side=Side.PLATOON, distance_left=100.0
+    )
+    scene.battle.bullets.append(bullet)
+    scene.render(scene.screen)
+    assert tuple(scene.screen.get_at((396, 60)))[:3] == PENCIL_COLOR
+    assert pygame.image.tobytes(scene.screen, 'RGB') != blank
+    sandbag = scene.battle.sandbags[0]
+    top = round(scene.terrain.ground_y(sandbag.x) - sandbag.height) + 4
+    assert tuple(scene.screen.get_at((round(sandbag.x), top)))[:3] != PAPER_COLOR
+
+
+def test_drawing_the_same_battle_twice_gives_the_same_picture(scene):
+    """Nothing in the drawing is random."""
+    for _ in range(90):
+        scene.dt_tick(1 / 60)
+    scene.render(scene.screen)
+    first = pygame.image.tobytes(scene.screen, 'RGB')
+    scene.render(scene.screen)
+    assert pygame.image.tobytes(scene.screen, 'RGB') == first
+
+
+def test_the_soldier_frames_are_scaled_once_for_the_scene(scene):
+    """The scene keeps one set of frames, and each army's livery is built once."""
+    frames = scene.soldier_frames
+    scene.render(scene.screen)
+    scheme_frames = frames.frames_for(ARMY_LIVERIES[Side.PLATOON])
+    scene.render(scene.screen)
+    assert scene.soldier_frames is frames
+    assert frames.frames_for(ARMY_LIVERIES[Side.PLATOON]) is scheme_frames
 
 
 def test_a_new_battle_redraws_the_ground(scene):

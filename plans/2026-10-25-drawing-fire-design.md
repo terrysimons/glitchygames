@@ -250,7 +250,9 @@ later. **(user)**
 - **Before** (health 3, pistol cooldown 0.6 s): battles ended in 7 to 21 s, with the winner
   keeping 2 to 7 soldiers. Too fast to watch.
 - **After** (`SOLDIER_HEALTH = 6`, `PISTOL_COOLDOWN = 1.5`; other battle constants unchanged):
-  Pencil Platoon 12 wins, Graphite Brigade 8; mean 50.3 s, shortest 23.5 s, longest 102.5 s.
+  Pencil Platoon 11 wins, Graphite Brigade 9; mean 53.7 s, shortest 21.6 s, longest 155.8 s
+  (with the aim error held per shot, see Held aim below; it was 12 and 8, mean 50.3 s, shortest
+  23.5 s, longest 102.5 s when the error was redrawn every frame).
   No stalemates (a further 200 seeds, run in review, all ended).
 - **Driver rules the simulation forced** (my call):
   - Hills block bullets, so a soldier neither stands nor fires until the ground leaves a clear
@@ -264,6 +266,8 @@ later. **(user)**
   - A soldier blocked by a sandbag with the enemy in sight but out of range shoots the sandbag.
 - **Spread:** each soldier draws his stand-off once, from his own stream, as a fraction of the
   pistol range in `STAND_OFF_FRACTION_RANGE` (0.6 to 0.9), so an army does not stand on one x.
+- **Held aim** (my call): the aim error is drawn once per shot from the soldier's own stream (and
+  again for a new target), then held, so the arm drawn along the aim does not shake at 60 Hz.
 
 ## 5. Constraints
 - GlitchyGames engine on pygame-ce, Python 3.14; desktop and browser (PyScript/Pyodide).

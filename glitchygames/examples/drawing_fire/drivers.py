@@ -1,8 +1,8 @@
 """The computer driver: it looks at the battle and produces an ``Intent`` for one soldier.
 
 Every driver produces an ``Intent`` and the battle applies it the same way, so nothing here
-touches the rules. The computer's randomness (aim error and reaction delay) comes only from the
-``random`` stream passed in, which is that one soldier's own stream.
+touches the rules. The computer's randomness (aim error, drawn once per shot, and reaction
+delay) comes only from the ``random`` stream passed in, which is that one soldier's own stream.
 """
 
 from __future__ import annotations
@@ -55,6 +55,9 @@ class ComputerSoldier:
     fire_ready_at: float = 0.0
     # He advances until the enemy is within this fraction of the pistol range
     stand_off_fraction: float = ADVANCE_RANGE_FRACTION
+    # The aim error (radians) for the current shot: drawn once per shot and held between shots,
+    # so the aim (and the arm drawn along it) does not shake every frame
+    aim_error: float = 0.0
 
 
 def soldier_stream_name(*, battle_number: int, soldier_id: int) -> str:
@@ -155,6 +158,7 @@ def computer_intent(
         # A new target: the reaction delay starts now
         mind.target_id = target.soldier_id
         mind.fire_ready_at = battle.seconds + random.uniform(*REACTION_SECONDS_RANGE)
+        mind.aim_error = random.gauss(0.0, AIM_ERROR_RADIANS)
 
     target_x, target_y = target.chest
     distance = math.hypot(target_x - chest_x, target_y - chest_y)
@@ -173,10 +177,17 @@ def computer_intent(
     ):
         middle_y = battle.terrain.ground_y(cover[0].x) - cover[0].height / 2
         aim_angle = math.atan2(chest_y - middle_y, cover[0].x - chest_x)
+        if ready:
+            mind.aim_error = random.gauss(0.0, AIM_ERROR_RADIANS)
         return Intent(move=0.0, aim_angle=aim_angle, fire=ready)
 
     # Screen y grows downward, so a target above is a positive angle
     bearing = math.atan2(chest_y - target_y, target_x - chest_x)
+    fire = ready and can_see and distance <= PISTOL_RANGE
+    aim_angle = bearing + mind.aim_error
+    if fire:
+        # This shot used the held error; the next shot gets a new one
+        mind.aim_error = random.gauss(0.0, AIM_ERROR_RADIANS)
     return Intent(
         move=_movement(
             distance=distance,
@@ -185,8 +196,8 @@ def computer_intent(
             direction=direction,
             cover_distance=None if cover is None else cover[1],
         ),
-        aim_angle=bearing + random.gauss(0.0, AIM_ERROR_RADIANS),
-        fire=ready and can_see and distance <= PISTOL_RANGE,
+        aim_angle=aim_angle,
+        fire=fire,
     )
 
 

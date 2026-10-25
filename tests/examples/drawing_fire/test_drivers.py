@@ -426,3 +426,56 @@ def test_a_soldier_stands_at_his_own_stand_off():
         computer_intent(soldier=soldier, battle=battle, random=random.Random(1), mind=far).move
         == 1.0
     )
+
+
+def test_the_aim_is_held_steady_between_shots():
+    """The aim error is drawn once per shot, so the aim does not shake from frame to frame."""
+    battle = small_battle()
+    place_enemy(battle, distance=200.0)
+    soldier = battle.soldiers[0]
+    stream = random.Random(8)
+    mind = ComputerSoldier()
+    first = computer_intent(soldier=soldier, battle=battle, random=stream, mind=mind)
+    # He is still reacting, so these frames fire nothing
+    assert not first.fire
+    state = stream.getstate()
+    for _ in range(10):
+        again = computer_intent(soldier=soldier, battle=battle, random=stream, mind=mind)
+        assert again.aim_angle == first.aim_angle
+    assert stream.getstate() == state
+
+
+def test_the_aim_error_is_redrawn_after_each_shot_and_for_a_new_target():
+    """A fresh error follows every shot, and a new target draws one too."""
+    battle = small_battle()
+    place_enemy(battle, distance=200.0)
+    soldier = battle.soldiers[0]
+    stream = random.Random(9)
+    mind = ComputerSoldier()
+    computer_intent(soldier=soldier, battle=battle, random=stream, mind=mind)
+    battle.seconds = AFTER_REACTION_SECONDS
+    held_error = mind.aim_error
+    shot = computer_intent(soldier=soldier, battle=battle, random=stream, mind=mind)
+    assert shot.fire
+    # The shot used the held error; the next shot has a new one
+    assert mind.aim_error != held_error
+    mind.target_id = None
+    previous_error = mind.aim_error
+    computer_intent(soldier=soldier, battle=battle, random=stream, mind=mind)
+    assert mind.aim_error != previous_error
+
+
+def test_the_held_aim_is_deterministic():
+    """The same stream gives the same aim errors."""
+    battle = small_battle()
+    place_enemy(battle, distance=200.0)
+    aims = []
+    for _ in range(2):
+        mind = ComputerSoldier()
+        stream = random.Random(10)
+        aims.append(
+            computer_intent(
+                soldier=battle.soldiers[0], battle=battle, random=stream, mind=mind
+            ).aim_angle
+        )
+    assert aims[0] == aims[1]

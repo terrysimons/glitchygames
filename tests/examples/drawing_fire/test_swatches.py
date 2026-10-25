@@ -29,12 +29,12 @@ SOLDIER_PATH = (
 )
 
 OUTLINE = (58, 58, 64)
-HELMET_BASE = (210, 60, 60)
-HELMET_SHADOW = (140, 40, 40)  # 2/3 of the base
-UNIFORM_BASE = (90, 130, 200)
+HELMET_BASE = (180, 120, 201)
+HELMET_SHADOW = (120, 80, 134)  # 2/3 of the base
+UNIFORM_BASE = (130, 200, 190)
 PENCIL_YELLOW = (242, 194, 48)
 GRAPHITE_GREY = (125, 127, 133)
-UNIFORM_GREEN = (40, 120, 60)
+UNIFORM_ORANGE = (230, 120, 30)
 
 TEST_TOML = """\
 [sprite]
@@ -43,9 +43,9 @@ name = "tiny"
 [colors]
 "█" = { red = 255, green = 0, blue = 255 }
 "o" = { red = 58, green = 58, blue = 64 }
-"h" = { red = 210, green = 60, blue = 60 }
-"H" = { red = 140, green = 40, blue = 40 }
-"u" = { red = 90, green = 130, blue = 200 }
+"h" = { red = 180, green = 120, blue = 201 }
+"H" = { red = 120, green = 80, blue = 134 }
+"u" = { red = 130, green = 200, blue = 190 }
 
 [swatches.livery.helmet]
 colors = ["h", "H"]
@@ -112,11 +112,11 @@ def pixels_of(surface: pygame.Surface) -> list[tuple[int, int, int]]:
 
 def test_a_scheme_recolors_each_part_by_its_role(swatch_set, surface):
     """Helmet pixels take the primary colour and uniform pixels the secondary."""
-    scheme = Scheme(primary=PENCIL_YELLOW, secondary=UNIFORM_GREEN)
+    scheme = Scheme(primary=PENCIL_YELLOW, secondary=UNIFORM_ORANGE)
     recolored = recolor_surface(surface=surface, swatch_set=swatch_set, scheme=scheme)
     pixels = pixels_of(recolored)
     assert pixels[0] == PENCIL_YELLOW
-    assert pixels[2] == UNIFORM_GREEN
+    assert pixels[2] == UNIFORM_ORANGE
     assert pixels_of(surface)[0] == HELMET_BASE  # the original is left as drawn
 
 
@@ -149,11 +149,13 @@ def test_shade_map_ignores_a_shade_equal_to_the_base():
 
 def test_a_part_colour_wins_over_its_role(swatch_set, surface):
     """A scheme's colour for a named part beats the role's colour."""
-    scheme = Scheme(primary=PENCIL_YELLOW, secondary=UNIFORM_GREEN, parts={'helmet': GRAPHITE_GREY})
+    scheme = Scheme(
+        primary=PENCIL_YELLOW, secondary=UNIFORM_ORANGE, parts={'helmet': GRAPHITE_GREY}
+    )
     recolored = recolor_surface(surface=surface, swatch_set=swatch_set, scheme=scheme)
     pixels = pixels_of(recolored)
     assert pixels[0] == GRAPHITE_GREY
-    assert pixels[2] == UNIFORM_GREEN
+    assert pixels[2] == UNIFORM_ORANGE
 
 
 def test_color_for_finds_a_part_by_name_then_role_then_nothing():
@@ -313,4 +315,7 @@ def test_both_liveries_recolor_the_soldier():
     assert GRAPHITE_GREY in colors_in(grey['stand'][0])
     assert PENCIL_YELLOW not in colors_in(grey['stand'][0])
     assert OUTLINE in colors_in(yellow['stand'][0])
-    assert HELMET_BASE not in colors_in(yellow['walk'][1])
+    # The drawn colours (read from the file) are all swapped out of the grey soldier
+    for part in livery.parts:
+        for drawn_color in part.colors:
+            assert drawn_color not in colors_in(grey['walk'][1])
