@@ -142,7 +142,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - whether each panel is its own parametrized case (likely: their costs differ)
 - **Status**: TODO
 
-### 53. A CRT Power-On Startup Sequence — TODO
+### 53. A CRT Power-On Startup Sequence — BUILT (being tested by the user)
 - **Goal**: the engine's startup looks like an analogue CRT switching on, showing the configured
   default background (`--default-background`: the TV test pattern's colour bars, or the channel
   3 blue VCR screen; glitchygames/backgrounds.py), flickering like a real set before it settles
@@ -172,7 +172,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   frame, with no input reaching the game while it plays. No game opts in or writes code for it.
   The engine already paints a new display with the default background before the first frame
   (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
-- **Status**: TODO
+- **Status**: BUILT 2026-10-24 (`glitchygames/crt_power_on.py`, plan
+  plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
+  from that. The power-on sound and a power-off collapse are follow-ups
 
 ## Medium Priority Features
 ### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — IN PROGRESS
