@@ -67,6 +67,7 @@ def test_every_example_game_and_demo_has_a_layer():
         'brave_adventurer': 'games',
         'brave_adventurer_papyrus': 'games',
         'clockwork_keep': 'games',
+        'drawing_fire': 'games',
         'dt_demo': 'demos',
         'joystick_demo': 'demos',
         'text_input_demo': 'demos',

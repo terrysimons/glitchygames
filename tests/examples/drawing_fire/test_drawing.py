@@ -9,6 +9,7 @@ from pathlib import Path
 import pygame
 import pytest
 
+from glitchygames.examples import drawing_fire
 from glitchygames.examples.drawing_fire import drawing as drawing_module
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
@@ -46,14 +47,8 @@ from glitchygames.examples.drawing_fire.swatches import SwatchError, load_swatch
 from glitchygames.examples.drawing_fire.terrain import Terrain
 from glitchygames.fonts import FontManager
 
-SOLDIER_PATH = (
-    Path(__file__).parents[3]
-    / 'glitchygames'
-    / 'examples'
-    / 'drawing_fire'
-    / 'sprites'
-    / 'soldier.toml'
-)
+# Beside the game's own package (the installed copy), wherever that package lives
+SOLDIER_PATH = Path(drawing_fire.__file__).parent / 'sprites' / 'soldier.toml'
 PAPER = (251, 248, 239)
 SCREEN_SIZE = (800, 480)
 GROUND_Y = 400.0

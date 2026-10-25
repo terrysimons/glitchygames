@@ -51,7 +51,6 @@ from glitchygames.examples.drawing_fire.game import (
     DrawingFireScene,
 )
 from glitchygames.examples.drawing_fire.seats import SeatChange
-from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
 from glitchygames.replay.driver import SPRITE_DIVERGENCE

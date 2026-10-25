@@ -7,6 +7,7 @@ from pathlib import Path
 import pygame
 import pytest
 
+from glitchygames.examples import drawing_fire
 from glitchygames.examples.drawing_fire.swatches import (
     RecoloredFrames,
     Scheme,
@@ -19,14 +20,8 @@ from glitchygames.examples.drawing_fire.swatches import (
     shade_map,
 )
 
-SOLDIER_PATH = (
-    Path(__file__).parents[3]
-    / 'glitchygames'
-    / 'examples'
-    / 'drawing_fire'
-    / 'sprites'
-    / 'soldier.toml'
-)
+# Beside the game's own package (the installed copy), wherever that package lives
+SOLDIER_PATH = Path(drawing_fire.__file__).parent / 'sprites' / 'soldier.toml'
 
 OUTLINE = (58, 58, 64)
 HELMET_BASE = (180, 120, 201)

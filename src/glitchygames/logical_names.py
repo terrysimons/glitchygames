@@ -25,6 +25,7 @@ EXAMPLES_LAYERS: dict[str, str] = {
     'brave_adventurer': 'games',
     'brave_adventurer_papyrus': 'games',
     'clockwork_keep': 'games',
+    'drawing_fire': 'games',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
     'text_input_demo': 'demos',

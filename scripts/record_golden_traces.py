@@ -62,9 +62,6 @@ from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdve
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire.game import DrawingFireScene
 from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
-from glitchygames.examples.mr_muncher.autopilot import Autopilot
-from glitchygames.examples.mr_muncher.game import MrMuncherScene
-from glitchygames.examples.mr_muncher.maze import Direction
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
@@ -122,11 +119,13 @@ GAME_MODULES: dict[str, str] = {
     'brave_adventurer_papyrus': 'glitchygames.examples.brave_adventurer_papyrus',
     'paddleslap': 'glitchygames.examples.paddleslap',
     'mr_muncher': 'mr_muncher',
+    'drawing_fire': 'glitchygames.examples.drawing_fire',
 }
 
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
 # change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher,
-# Drawing Fire) have no such baseline; their golden replays (tests/fixtures/replays/) cover them.
+# Drawing Fire) have no such baseline; their golden replays cover them (Mr. Muncher's in its
+# package, src/games/mr-muncher/tests/fixtures/replays/; Drawing Fire's in tests/fixtures/replays/).
 GOLDEN_TRACE_GAMES: tuple[str, ...] = (
     'clockwork_keep',
     'brave_adventurer',

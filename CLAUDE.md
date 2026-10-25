@@ -161,8 +161,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 ### Example Games
 `uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep`,
-`mr-muncher` (a maze chase at the movies, `glitchygames/examples/mr_muncher/`) and
-`drawing-fire` (a pencil-on-paper stick-figure battle, `glitchygames/examples/drawing_fire/`:
+`mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
+`drawing-fire` (a pencil-on-paper stick-figure battle, `src/glitchygames/examples/drawing_fire/`:
 computer battles that one or two local players join with START or Enter; its new mechanic is
 swatches, recolouring a sprite by palette swap; docs/games/drawing_fire.md) start the example
 games.
