@@ -4,15 +4,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
-### 212. Collecting Garbage Between Tests Stalls the Native Run's coreaudio
-- **Description**: With `tests/garbage_collection.py`'s collections on in every run, a local `uv run pytest -n 4` (the dummy run plus its native cocoa/coreaudio child, side by side) took over an hour: in the native run many tests waited almost exactly 30 s, and 20 failed with `pygame.error: mixer not initialized` (sound loading, paddles with collision sounds, the mixer pool, the pause screen)
-- **Status**: Active (worked around: only runs on the dummy audio driver collect)
-- **Priority**: Medium (may be a real hazard in how sounds or audio devices are freed)
-- **Reporter**: Found verifying #85's fix, 2026-10-24
-- **Date Reported**: 2026-10-24
-- **Details**: Reproduced twice in the dual run; it did not happen with the collections off (the dual run passed in 219 s) or in the native run alone with them on (serial 706 s, three workers 175 s, and three workers as a background app recording frame fingerprints, as the child runs, 196 s). Each failing test passes alone. Suspected: a collection frees an old pygame object (a `Sound`, a channel, an audio device, a controller: the DualSense attached to the machine is also an audio device) whose C cleanup locks the audio device while the mixer's callback thread waits for the interpreter lock, or tears down coreaudio state the next mixer start needs; the 30 s waits fit an audio-device timeout. Not narrowed to an object: it shows only with both runs side by side, an hour per try. Next step: log every freed pygame mixer object (type, test) in the native run of a dual run and find the free before the first 30 s stall
-- **Files**: `tests/garbage_collection.py`, `tests/conftest.py`
-
 ### 110. Smaller Findings From the Coverage Push
 - **Description**: Small inconsistencies the coverage tests found, none breaking a feature on its own
 - **Status**: Active
@@ -418,6 +409,28 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 212. Collecting Garbage Between Tests Stalls the Native Run's coreaudio
+- **Description**: With `tests/garbage_collection.py`'s collections on in every run, a local `uv run pytest -n 4` (the dummy run plus its native cocoa/coreaudio child, side by side) took over an hour: in the native run many tests waited almost exactly 30 s, and 20 failed with `pygame.error: mixer not initialized` (sound loading, paddles with collision sounds, the mixer pool, the pause screen)
+- **Status**: Resolved (no longer reproduces; the workaround is removed)
+- **Priority**: Medium (may be a real hazard in how sounds or audio devices are freed)
+- **Reporter**: Found verifying #85's fix, 2026-10-24
+- **Date Reported**: 2026-10-24
+- **Details**: Reproduced twice in the dual run; it did not happen with the collections off (the dual run passed in 219 s) or in the native run alone with them on (serial 706 s, three workers 175 s, and three workers as a background app recording frame fingerprints, as the child runs, 196 s). Each failing test passes alone. Suspected: a collection frees an old pygame object (a `Sound`, a channel, an audio device, a controller: the DualSense attached to the machine is also an audio device) whose C cleanup locks the audio device while the mixer's callback thread waits for the interpreter lock, or tears down coreaudio state the next mixer start needs; the 30 s waits fit an audio-device timeout. Not narrowed to an object: it shows only with both runs side by side, an hour per try. Next step: log every freed pygame mixer object (type, test) in the native run of a dual run and find the free before the first 30 s stall
+- **Investigation 2026-10-24** (on main after #97, collections forced in every process by a scratchpad pytest plugin, the same 16 MB-step collector): no stall, no `mixer not initialized`, no test over 20 s in any of five configurations: the native run alone with the child's 11 workers (77 s, 157 collections); the default side-by-side run (89 s, 163 native collections); the same with the joystick drivers on and a DualSense and a Logitech Dual Action attached (97 s); the original command `uv run pytest -n 4` (native 3 workers: 236 s, 75 collections; it took over an hour when found); and `-n 4` with the pads visible (244 s). The earlier comparison had a confound (the failing run's native child had 11 workers, the clean "alone" runs 3 or serial), but 11 workers alone was clean too. The change that removed the cause is not isolated; candidates landed between finding and now: #97 (the game host, pygame-ce 2.5.8, an in-process clipboard for every test instead of the machine's) and this branch's hidden real pads (ruled out: clean with them visible)
+- **Fix**: the workaround is removed: `process_peak_memory_collector()` collects on every audio driver again (`test_every_run_gets_a_collector_reading_its_real_peak`), so the native run's memory is bounded like the dummy run's. Should it return, it shows as a native run far slower than the dummy one (about 90 s side by side on this machine)
+- **Date Resolved**: 2026-10-24
+- **Files**: `tests/garbage_collection.py`, `tests/conftest.py`, `tests/test_garbage_collection.py`
+
+### 218. A Pad Connected at Startup Got a Second Controller Proxy
+- **Description**: SDL reports a pad that is already connected twice: in the startup count (the managers open it in `__init__`) and as a device-added event on the first pump (`--list-input-devices`: one device counted before pumping, then added events at 0.05 s). `ControllerEventManager.on_controller_device_added_event` opened it again and replaced the tracked proxy without checking, so anything the game set on that controller's proxy before the event was lost. `JoystickEventManager` already kept its tracked proxy
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found checking the input-devices work with a DualSense and a Logitech Dual Action, 2026-10-24
+- **Date Reported**: 2026-10-24
+- **Details**: Measured in a real engine run: `open_controller` and `open_joystick` each ran twice for the pad counted at startup (instance 0), once for the pad reported only by event (instance 1). The second open shares SDL's reference-counted handle, so no handle leaks; the door still records both opens (a replay makes the same calls). Fixed: the controller manager keeps the proxy it tracks for that instance and forwards the event to it (`test_a_device_added_that_is_already_tracked_keeps_its_proxy`, failed before). Seen on the way, not a bug: on SDL's dummy video driver (a `--headless` run, the tests) the Logitech never arrives; SDL finds it on macOS only through the joystick drivers that need the Cocoa event loop, so a dummy-driver run sees only the DualSense, while cocoa sees both
+- **Date Resolved**: 2026-10-24
+- **Files**: `glitchygames/events/controller.py`, `tests/events/test_controller_events.py`
 
 ### 157. A Hypothesis Property Test Fails Its Deadline on a Busy Machine
 - **Description**: `TestPaletteRoundtrip::test_double_roundtrip_is_stable` took 277 ms against hypothesis's default 200 ms deadline while another suite ran (DeadlineExceeded); it passes on a quiet machine

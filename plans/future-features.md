@@ -142,6 +142,34 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - whether each panel is its own parametrized case (likely: their costs differ)
 - **Status**: TODO
 
+### 53. A CRT Power-On Startup Sequence — TODO
+- **Goal**: the engine's startup looks like an analogue CRT switching on, showing the configured
+  default background (`--default-background`: the TV test pattern's colour bars, or the channel
+  3 blue VCR screen; glitchygames/backgrounds.py), flickering like a real set before it settles
+  and the game's first scene appears (the user's idea, 2026-10-24)
+- **Sequence** (about a second; each stage's timing a constant):
+  1. black, then a bright dot in the centre (the electron beam before deflection)
+  2. the dot stretches into a thin horizontal line (horizontal sweep), then opens vertically
+     into the full picture (vertical sweep), brightest along the line as it opens
+  3. warm-up: brightness overshoots and sags, the picture flickers (a few uneven frames of
+     brightness, a frame or two of vertical roll or jitter), slight bloom and scanlines, a
+     brief degauss-style colour wobble
+  4. settles into the steady pattern, then the first scene's frame replaces it
+- **Possible extras**: the power-on sound (a synth recipe: the click, the high whine, the static
+  crackle; glitchygames/audio/recipes.py), a matching CRT power-off collapse when the game quits
+- **Rules it must keep**:
+  - visual only, before frame 0: never in recordings, screenshots or golden traces, and it
+    changes no game state, random stream or clock a replay serves
+  - skipped where it would get in the way: `--headless`, replays and audits, the tests (the
+    test display rule expects the canvas: tests/display_canvas.py), the browser bundles if it
+    delays their first frame noticeably; any key or button skips it
+  - an option to turn it off (and probably one to force it on for a replay watched by a person)
+  - drawn from the background pattern the run is configured with, at the display's size
+    (`BackgroundPattern`, cached per size), opaque on cocoa (glitchygames/opacity.py)
+- **Where**: the engine already paints a new display with the default background before the
+  first frame (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
+- **Status**: TODO
+
 ## Medium Priority Features
 ### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — IN PROGRESS
 - **Description**: A CI pipeline (on the fork `terrysimons/pygame-ce`) that builds our patched
