@@ -1464,6 +1464,20 @@ class TestRefusals:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'some_other_package.game' in caplog.text
 
+    def test_a_recording_of_a_previous_module_of_the_started_game_replays(self, mocker, tmp_path):
+        """The engine hands the started game's PREVIOUS_MODULES to the replay check."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace.update(game_module='old_package.old_module'),
+        )
+        mocker.patch.object(
+            DepartureRecordedScene, 'PREVIOUS_MODULES', frozenset({'old_package.old_module'})
+        )
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
     def test_the_recorded_games_module_and_name_are_accepted(self):
         check_recorded_game(
             header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},

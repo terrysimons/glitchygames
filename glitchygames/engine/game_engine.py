@@ -1864,9 +1864,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         try:
             sources = start_replay(
                 path=Path(replay_trace_path),
-                game_class_name=game_class.__name__,
-                game_module=game_class.__module__,
-                previous_game_modules=game_class.PREVIOUS_MODULES,
+                game_class=game_class,
                 options=options,
                 # Set by the version check this __init__ runs later, so pygame's version is
                 # asked here too

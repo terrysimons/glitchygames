@@ -2833,13 +2833,11 @@ def display_size_refusal(*, header: Mapping[str, Any], display_size: tuple[int, 
     )
 
 
-def start_replay(  # ruff: ignore[too-many-arguments] - the recording, the game and its replay settings
+def start_replay(
     *,
     path: Path,
-    game_class_name: str,
-    game_module: str,
+    game_class: type[Scene],
     options: dict[str, Any],
-    previous_game_modules: frozenset[str] = frozenset(),
     use_fastevents: bool = False,
 ) -> ReplaySources:
     """Read a recording and prepare the run to replay it (rule 1); the caller installs it.
@@ -2851,10 +2849,8 @@ def start_replay(  # ruff: ignore[too-many-arguments] - the recording, the game 
 
     Args:
         path: The recording.
-        game_class_name: The class name of the game being started.
-        game_module: The module the game being started is defined in.
-        previous_game_modules: The modules the game was defined in before it moved (its
-            ``PREVIOUS_MODULES``); a recording naming one of them is the same game.
+        game_class: The game being started (its class name and module, or a module in its
+            ``PREVIOUS_MODULES`` (where it lived before it moved), must match the recording's).
         options: The run's options, given the recorded ones in place; ``replay_fps`` (local, so
             never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset, and
             ``replay_digest`` (local) the digest file (rule 12), none when unset, and
@@ -2910,9 +2906,9 @@ def start_replay(  # ruff: ignore[too-many-arguments] - the recording, the game 
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(
         header=sources.header,
-        game_class_name=game_class_name,
-        game_module=game_module,
-        previous_game_modules=previous_game_modules,
+        game_class_name=game_class.__name__,
+        game_module=game_class.__module__,
+        previous_game_modules=game_class.PREVIOUS_MODULES,
     )
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = installed_engine_version()
