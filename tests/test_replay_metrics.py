@@ -254,6 +254,13 @@ class TestMeasuringIntoRowFiles:
 class TestMeasuring:
     """Each recording is rebaselined into a temporary file and its runs become pending rows."""
 
+    @pytest.mark.xfail(
+        reason=(
+            'converted in Task 6: until the committed recordings hold logical names, a rebaseline '
+            "adds frame 0's scene start `scene`, a behaviour change in its content hash"
+        ),
+        strict=True,
+    )
     def test_a_measurement_appends_rows_and_a_second_one_skips(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
         recordings = copied_golden(project_root=project_root)

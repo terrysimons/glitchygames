@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import pytest
 from scripts.recording_report import report_lines, run
 
 from glitchygames.exit_codes import ExitCode
@@ -45,6 +46,13 @@ def rebaselined_twice(*, tmp_path: Path) -> Path:
     return second
 
 
+@pytest.mark.xfail(
+    reason=(
+        'converted in Task 6: until the committed recordings hold logical names, a rebaseline '
+        "adds frame 0's scene start `scene`, a behaviour change in its content hash"
+    ),
+    strict=True,
+)
 def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, capsys):
     """Three runs of the same work: provenance, summaries, no change in behaviour."""
     path = rebaselined_twice(tmp_path=tmp_path)

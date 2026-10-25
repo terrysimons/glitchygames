@@ -22,6 +22,7 @@ from glitchygames.examples import joystick_demo, paddleslap
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.logical_names import logical_name
 from glitchygames.randomness import random_stream
 from glitchygames.recording import (
     EVENT_BATCHES_FIELD,
@@ -41,7 +42,7 @@ from glitchygames.replay.playback import (
     start_playback_from_recording,
 )
 from glitchygames.scene_start import SceneStart
-from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sources import (
     active_sources,
@@ -111,12 +112,6 @@ FPS_EVENT_INTERVAL_MILLISECONDS = 50
 # A live frame longer than half the default FPS log interval (an FPS event after it), as on a
 # loaded machine (BUGS.md #196)
 LONG_LIVE_FRAME_SECONDS = 0.75
-
-
-class MovedScene(Scene):
-    """A scene that used to live in another module."""
-
-    PREVIOUS_MODULES = frozenset({'old_package.old_module'})
 
 
 def recorded_trace(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -484,11 +479,21 @@ class TestPlaybackErrors:
             is joystick_demo.Game
         )
 
-    def test_a_scene_start_naming_a_previous_module_finds_the_moved_scene(self):
-        assert find_scene_class(name='MovedScene', module='old_package.old_module') is MovedScene
+    def test_a_scene_start_naming_a_logical_name_finds_its_scene(self):
+        assert (
+            find_scene_class(
+                name='CountingScene',
+                module='somewhere.else',
+                logical=logical_name(scene_class=CountingScene),
+            )
+            is CountingScene
+        )
 
-    def test_a_scene_start_naming_another_module_is_refused(self):
-        assert find_scene_class(name='MovedScene', module='unrelated.module') is None
+    def test_a_scene_start_naming_another_logical_name_is_refused(self):
+        assert (
+            find_scene_class(name='CountingScene', module=None, logical='games.other:CountingScene')
+            is None
+        )
 
     def test_without_an_exact_match_a_unique_name_is_used(self):
         """A start without a module (older recordings), or from a game run as __main__."""
@@ -515,13 +520,17 @@ class TestPlaybackErrors:
         start = SceneStart.from_json(frames[0][SCENE_START_FIELD])
         assert start.scene_module == CountingScene.__module__
         assert start.scene_class == CountingScene.__qualname__
+        assert start.scene == logical_name(scene_class=CountingScene)
 
     def test_a_start_recorded_without_a_module_still_reads(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         _header, frames = recorded_trace(path=recording_path)
         start_record = dict(frames[0][SCENE_START_FIELD])
         del start_record['scene_module']
-        assert SceneStart.from_json(start_record).scene_module is None
+        del start_record['scene']
+        old_start = SceneStart.from_json(start_record)
+        assert old_start.scene_module is None
+        assert old_start.scene is None
 
 
 class TestPlaybackSourcesDefersToTheInstalledDoors:

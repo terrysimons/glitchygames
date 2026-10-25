@@ -490,9 +490,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
   (`bundled_demo_paths`, `replay_recording_headless` in `glitchygames/testing/replays.py`) and
   plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
-  `step` never gives a playback the recording's dt). A scene start records `scene_module` and the
-  `__qualname__`, and the header `game_module`, so same-named scenes and games are told apart
-  (bare-name fallback, ambiguity refused). Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
+  `step` never gives a playback the recording's dt). A recording names its game (header `game`)
+  and each scene start (`scene`) by logical names (`glitchygames/logical_names.py`: the layer,
+  the module path inside the package, `:` and the `__qualname__`, e.g.
+  `games.mr_muncher.game:MrMuncherScene`; a module in no layer keeps its path), unchanged when
+  a game's code moves; the header check (`check_recorded_game`) and the playback's lookup
+  (`find_scene_class`) compare them. A recording without them (made before) is compared by its
+  exact `game_module` / `scene_module` and `__qualname__` (bare-name fallback, ambiguity
+  refused); a `--rebaseline` writes the current game's logical name, so it converts one. Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
   `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
   golden script's pause
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
@@ -505,8 +510,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
   with the recorded frame. Refusals log the reason and exit with an `ExitCode` (see Exit Codes):
-  `UNUSABLE_INPUT` (65) for a recording of another game (a scene class's `PREVIOUS_MODULES`, the
-  modules it lived in before it moved, count as its own), an unreadable file or an unsupported
+  `UNUSABLE_INPUT` (65) for a recording of another game (by its logical name `game`, or, in a
+  recording made before logical names, its exact module), an unreadable file or an unsupported
   format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
   `--record-trace` given too (recording over a replay is `--rebaseline`'s job only). A
   different engine version only warns. Recorded options apply except

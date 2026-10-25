@@ -11,7 +11,9 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
 
 - Header: ``source: "recording"``, ``frame_seconds: null`` (frame times vary; each frame
   carries its own), plus what ``GameEngine`` adds: game and scene class names (and
-  ``game_module``, the game class's module, optional: older recordings lack it), engine,
+  ``game_module``, the game class's module, optional: older recordings lack it; and ``game``,
+  the game class's logical name, glitchygames/logical_names.py, which replays compare,
+  optional: recordings made before logical names lack it), engine,
   pygame and Python versions, every command-line option, the screen size, the start time
   (``recorded_at``, ISO 8601; the recorded run's wall clock, and its replay's, is this stamp
   plus the frame clock: ``RecordingSources.wall_clock_time``) and
@@ -57,7 +59,9 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   ``device_enumeration``, the enumeration and open answers given in the frame (failures
   included, with their ``error``); and ``scene_start``, the start of the scene that began in
   the frame (``SceneStart.to_json``: ``scene_class`` (qualified name), ``scene_module``
-  (optional: older recordings lack it), ``arguments``,
+  (optional: older recordings lack it), ``scene`` (the scene class's logical name, which a
+  playback's lookup compares; optional: recordings made before logical names lack it),
+  ``arguments``,
   ``construction_random_states``, ``construction_frame_clock_seconds``,
   ``setup_random_states``, ``setup_frame_clock_seconds``, ``saves`` and
   ``first_logic_frame``; glitchygames/scene_start.py), written on the scene's first logic frame

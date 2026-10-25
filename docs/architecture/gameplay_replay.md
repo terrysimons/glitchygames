@@ -250,9 +250,12 @@ At startup the replay reads the recording, applies its recorded options and seed
 streams with its seed. It refuses, logging the reason and exiting with one of the
 [exit codes](#exit-codes), when:
 
-- the recording is of another game (a scene class's `PREVIOUS_MODULES`, the modules it lived in
-  before it moved, count as its own module, for the header's `game_module` and a scene start's
-  `scene_module`), cannot be read (not gzip, no permission, a directory) or
+- the recording is of another game (the header's `game` and each scene start's `scene` name
+  their classes by logical names, `glitchygames/logical_names.py`: the layer, the module path
+  inside the game's package, then `:` and the qualified name, as in
+  `games.mr_muncher.game:MrMuncherScene`, which stay the same when the game's code moves; a
+  recording made before logical names is compared by its exact `game_module` and
+  `scene_module`, and a `--rebaseline` of it writes the logical names), cannot be read (not gzip, no permission, a directory) or
   has an unsupported format version: `UNUSABLE_INPUT` (65);
 - the file does not exist: `MISSING_INPUT` (66);
 - `--record-trace` is given too: `OPTIONS_REFUSED` (64). Recording over a replay is what

@@ -8,7 +8,8 @@ Demos and instant replays run inside a playback scope, not a new engine run
    (glitchygames/scene_start.py) with its first logic frame (rule 7 there: a recording writes
    a start on the scene's first logic frame, so the start's frame is where its logic began),
    and its scene class must be found among the loaded ``Scene`` subclasses (``find_scene_class``:
-   by module and qualified name, else, where the modules cannot be compared (none recorded, or
+   by the start's logical name (glitchygames/logical_names.py) when it holds one, else by module
+   and qualified name, else, where the modules cannot be compared (none recorded, or
    ``__main__`` on either side), by a name no other such scene shares); otherwise
    nothing starts (logged; False), as for a recording that cannot be replayed (a malformed one
    included). The replay sources are made (``playback_replay_sources``, rule 18 of
@@ -228,6 +229,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.input.state import current_input
+from glitchygames.logical_names import logical_name
 from glitchygames.randomness import capture_stream_states
 from glitchygames.recording import (
     DT_FIELD,
@@ -1026,20 +1028,26 @@ class PlaybackOutcome(BaseModel):
     frames_played: int
 
 
-def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | None:
+def find_scene_class(
+    *, name: str, module: str | None = None, logical: str | None = None
+) -> type[Scene] | None:
     """Return the loaded ``Scene`` subclass a start names (rule 1).
 
-    Only loaded classes are searched: nothing is imported from recording data. The class
-    defined in ``module`` (or listing it in ``PREVIOUS_MODULES``, where it lived before it
-    moved) with the qualified name ``name`` is taken when exactly one is loaded. Otherwise a
-    class is taken by its qualified name alone only where the modules cannot be compared, as
-    ``check_recorded_game`` decides for a recording's game: no module recorded, or a game run
-    as a script (``__main__``) on either side; then the one such class is taken and several
-    are refused. A class of that name from another module is another game's scene: refused.
+    Only loaded classes are searched: nothing is imported from recording data. A start that
+    holds a logical name (``SceneStart.scene``, glitchygames/logical_names.py) is decided by
+    it: the class named ``name`` whose logical name is ``logical`` is taken when exactly one is
+    loaded, so a scene whose code moved is still found. Without one (recordings made before
+    logical names), the class defined in ``module`` with the qualified name ``name`` is taken
+    when exactly one is loaded. Otherwise a class is taken by its qualified name alone only
+    where the modules cannot be compared, as ``check_recorded_game`` decides for a recording's
+    game: no module recorded, or a game run as a script (``__main__``) on either side; then
+    the one such class is taken and several are refused. A class of that name from another
+    module is another game's scene: refused.
 
     Args:
         name: A class's qualified name (``SceneStart.scene_class``).
         module: The module it is defined in (``SceneStart.scene_module``), or None.
+        logical: Its logical name (``SceneStart.scene``), or None.
 
     Returns:
         The class, or None when no loaded subclass matches or several match by name alone
@@ -1057,19 +1065,31 @@ def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | N
                 unvisited.append(subclass)
                 if subclass.__qualname__ == name:
                     named_alike.append(subclass)
-    exact_matches = [
-        scene_class
-        for scene_class in named_alike
-        if module is not None
-        and (scene_class.__module__ == module or module in scene_class.PREVIOUS_MODULES)
-    ]
+    if logical is not None:
+        logical_module = logical.partition(':')[0]
+        exact_matches = [
+            scene_class
+            for scene_class in named_alike
+            if logical_name(scene_class=scene_class) == logical
+        ]
+        matches_by_name = [
+            scene_class
+            for scene_class in named_alike
+            if SCRIPT_MODULE_NAME in {logical_module, scene_class.__module__}
+        ]
+    else:
+        exact_matches = [
+            scene_class
+            for scene_class in named_alike
+            if module is not None and scene_class.__module__ == module
+        ]
+        matches_by_name = [
+            scene_class
+            for scene_class in named_alike
+            if module is None or SCRIPT_MODULE_NAME in {module, scene_class.__module__}
+        ]
     if len(exact_matches) == 1:
         return exact_matches[0]
-    matches_by_name = [
-        scene_class
-        for scene_class in named_alike
-        if module is None or SCRIPT_MODULE_NAME in {module, scene_class.__module__}
-    ]
     if len(matches_by_name) > 1:
         LOG.warning('Several scene classes are named %s; which to rebuild is unknown', name)
         return None
@@ -1193,7 +1213,9 @@ def _start_playback(
     start = _playable_start(frames=frames, options=options)
     if start is None or start.first_logic_frame is None:
         return False
-    scene_class = find_scene_class(name=start.scene_class, module=start.scene_module)
+    scene_class = find_scene_class(
+        name=start.scene_class, module=start.scene_module, logical=start.scene
+    )
     if scene_class is None:
         LOG.warning('No %s: no scene class named %s is loaded', kind, start.scene_class)
         return False

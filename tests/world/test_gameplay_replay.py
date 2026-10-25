@@ -34,7 +34,7 @@ from scripts.record_scripted_session import (
     record_scripted_session,
 )
 
-from glitchygames import recording_history
+from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
@@ -43,6 +43,7 @@ from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.live_sources import LiveSources
+from glitchygames.logical_names import logical_module_name, logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.opacity import OPAQUE
 from glitchygames.process import run_command
@@ -99,6 +100,7 @@ from glitchygames.replay.driver import (
     SPRITE_DIVERGENCE,
     WATCHED_REAL_KEY_EVENT_TYPES,
     Divergence,
+    RecordedFrames,
     ReplayExitPolicy,
     ReplayOptions,
     ReplayRefusedError,
@@ -1439,77 +1441,60 @@ class TestReplayFps:
         assert options == {'replay_fps': REAL_REPLAY_FPS}
 
 
-class TestRefusals:
-    """Recordings that cannot be replayed, or only in part."""
+def stand_in_game(*, name: str, module: str) -> type:
+    """A plain class standing in for a game class (not a Scene: no subclass walk finds it)."""
+    return type(name, (), {'__module__': module})
 
-    def test_wrong_game_is_refused(self, mocker, tmp_path, caplog):
-        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        rewrite_recording(
-            recording_path=recording_path,
-            change=lambda trace: trace.update(game_class='SomeOtherGame'),
-        )
-        with pytest.raises(SystemExit) as exit_info:
-            replay_session(recording_path=recording_path, mocker=mocker)
-        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
-        assert 'SomeOtherGame' in caplog.text
 
-    def test_a_same_named_game_from_another_module_is_refused(self, mocker, tmp_path, caplog):
-        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        rewrite_recording(
-            recording_path=recording_path,
-            change=lambda trace: trace.update(game_module='some_other_package.game'),
-        )
-        with pytest.raises(SystemExit) as exit_info:
-            replay_session(recording_path=recording_path, mocker=mocker)
-        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
-        assert 'some_other_package.game' in caplog.text
-
-    def test_a_recording_of_a_previous_module_of_the_started_game_replays(self, mocker, tmp_path):
-        """The engine hands the started game's PREVIOUS_MODULES to the replay check."""
-        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        rewrite_recording(
-            recording_path=recording_path,
-            change=lambda trace: trace.update(game_module='old_package.old_module'),
-        )
-        mocker.patch.object(
-            DepartureRecordedScene, 'PREVIOUS_MODULES', frozenset({'old_package.old_module'})
-        )
-        engine = replay_session(recording_path=recording_path, mocker=mocker)
-        assert engine.replay_sources is not None
-        assert engine.replay_sources.result.divergence is None
+class TestRecordedGameCheck:
+    """check_recorded_game: a recording of another game is refused, the same game accepted."""
 
     def test_the_recorded_games_module_and_name_are_accepted(self):
         check_recorded_game(
             header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
-            game_class_name='Game',
-            game_module='glitchygames.examples.paddleslap',
+            game_class=stand_in_game(name='Game', module='glitchygames.examples.paddleslap'),
         )
 
     def test_another_game_of_the_same_name_is_refused(self):
         with pytest.raises(ReplayRefusedError, match=r'glitchygames\.examples\.joystick_demo'):
             check_recorded_game(
                 header={'game_class': 'Game', 'game_module': 'glitchygames.examples.joystick_demo'},
-                game_class_name='Game',
-                game_module='glitchygames.examples.paddleslap',
+                game_class=stand_in_game(name='Game', module='glitchygames.examples.paddleslap'),
             )
 
-    def test_a_recording_of_a_previous_module_is_accepted(self):
-        """A game that moved (glitchygames.examples -> its own package) replays old recordings."""
+    def test_a_recording_naming_the_games_logical_name_is_accepted(self):
+        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
         check_recorded_game(
-            header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
-            game_class_name='Game',
-            game_module='paddleslap',
-            previous_game_modules=frozenset({'glitchygames.examples.paddleslap'}),
+            header={'game_class': 'Game', 'game': 'games.paddleslap:Game'}, game_class=game
         )
 
-    def test_a_previous_module_of_another_game_is_still_refused(self):
-        """Only the modules the game itself lists count."""
-        with pytest.raises(ReplayRefusedError, match=r'glitchygames\.examples\.joystick_demo'):
+    def test_a_logical_name_of_another_game_is_refused(self):
+        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
+        with pytest.raises(ReplayRefusedError, match=r'demos\.joystick_demo:Game'):
             check_recorded_game(
-                header={'game_class': 'Game', 'game_module': 'glitchygames.examples.joystick_demo'},
-                game_class_name='Game',
-                game_module='paddleslap',
-                previous_game_modules=frozenset({'glitchygames.examples.paddleslap'}),
+                header={'game_class': 'Game', 'game': 'demos.joystick_demo:Game'}, game_class=game
+            )
+
+    def test_a_game_that_moved_still_matches_its_logical_name(self, mocker):
+        """The same game reported in a member package (after a move) is the same game."""
+        mocker.patch.dict(logical_names.MEMBER_LAYERS, {'paddleslap': 'games'})
+        moved = stand_in_game(name='Game', module='paddleslap')
+        check_recorded_game(
+            header={'game_class': 'Game', 'game': 'games.paddleslap:Game'}, game_class=moved
+        )
+
+    def test_an_old_format_recording_is_compared_by_its_exact_module(self):
+        """No `game` field (recorded before logical names): the module must match exactly."""
+        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
+        check_recorded_game(
+            header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
+            game_class=game,
+        )
+        moved = stand_in_game(name='Game', module='paddleslap')
+        with pytest.raises(ReplayRefusedError, match=r'glitchygames\.examples\.paddleslap'):
+            check_recorded_game(
+                header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
+                game_class=moved,
             )
 
     @pytest.mark.parametrize(
@@ -1523,9 +1508,71 @@ class TestRefusals:
         ],
     )
     def test_without_both_modules_the_name_alone_is_checked(self, header, game_module):
-        check_recorded_game(header=header, game_class_name='Game', game_module=game_module)
+        check_recorded_game(
+            header=header, game_class=stand_in_game(name='Game', module=game_module)
+        )
         with pytest.raises(ReplayRefusedError):
-            check_recorded_game(header=header, game_class_name='Other', game_module=game_module)
+            check_recorded_game(
+                header=header, game_class=stand_in_game(name='Other', module=game_module)
+            )
+
+
+class TestRefusals:
+    """Recordings that cannot be replayed, or only in part."""
+
+    def test_wrong_game_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: (trace.pop('game'), trace.update(game_class='SomeOtherGame')),
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert 'SomeOtherGame' in caplog.text
+
+    def test_a_same_named_game_from_another_module_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: (
+                trace.pop('game'),
+                trace.update(game_module='some_other_package.game'),
+            ),
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert 'some_other_package.game' in caplog.text
+
+    def test_a_recording_naming_another_logical_name_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace.update(game='games.some_other_game:DepartureRecordedScene'),
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert 'games.some_other_game:DepartureRecordedScene' in caplog.text
+
+    def test_a_recording_made_through_the_engine_holds_logical_names_and_replays(
+        self, mocker, tmp_path
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        trace = read_trace_result(path=recording_path).trace
+        starts = [
+            frame[SCENE_START_FIELD] for frame in trace['frames'] if SCENE_START_FIELD in frame
+        ]
+
+        assert trace['game'] == logical_name(scene_class=DepartureRecordedScene)
+        assert starts
+        for start in starts:
+            module = logical_module_name(module=start['scene_module'])
+            assert start['scene'] == f'{module}:{start["scene_class"]}'
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
 
     def test_missing_file_is_refused(self, mocker, tmp_path):
         with pytest.raises(SystemExit) as exit_info:
@@ -3902,6 +3949,7 @@ class TestBookmarkedCopy:
             original_header={'random_seed': 5, 'bookmarked_copy_of': 'session.jsonl.gz'},
             original_path=tmp_path / 'session.bookmarked.jsonl.gz',
             measurement_run=rebaseline_measurement_run(),
+            game_class=DepartureRecordedScene,
         )
         assert 'bookmarked_copy_of' not in header
 
@@ -5517,6 +5565,7 @@ class TestRebaselinedHeader:
             measurement_run=rebaseline_measurement_run().model_copy(
                 update={'rebaselined_from': written_path}
             ),
+            game_class=DepartureRecordedScene,
         )
         run = header[MEASUREMENT_RUNS_HEADER_FIELD][0]
         assert run['rebaselined_from'] == header['rebaselined_from']
@@ -5530,9 +5579,25 @@ class TestRebaselinedHeader:
             original_header={'random_seed': 5, 'machine': 'old', 'processing_paced': True},
             original_path=tmp_path / 'old.jsonl.gz',
             measurement_run=rebaseline_measurement_run(),
+            game_class=DepartureRecordedScene,
         )
         assert 'machine' not in header
         assert 'processing_paced' not in header
+
+    def test_a_rebaseline_writes_the_current_games_logical_name(self, tmp_path):
+        """NEW names the game that ran, not OLD's header: how old recordings are converted."""
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
+        header = rebaseline_header(
+            original_header={'random_seed': 5, 'game_class': 'Game', 'game_module': 'old.module'},
+            original_path=tmp_path / 'old.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
+            game_class=game,
+        )
+
+        assert header['game'] == 'games.paddleslap:Game'
+        assert header['game_module'] == 'glitchygames.examples.paddleslap'
 
 
 class TestRebaselineHistory:
@@ -5792,6 +5857,7 @@ class TestRebaseline:
             original_header={'random_seed': 5, 'engine_version': 'old'},
             original_path=tmp_path / 'old.jsonl.gz',
             measurement_run=rebaseline_measurement_run(),
+            game_class=DepartureRecordedScene,
         )
         assert header['random_seed'] == 5
         assert header[MEASUREMENT_RUNS_HEADER_FIELD] == [
@@ -5812,7 +5878,8 @@ class TestRebaseline:
             original_header={'random_seed': 5, 'input_capture_format_version': 2},
             original_path=tmp_path / 'old.jsonl.gz',
             measurement_run=rebaseline_measurement_run(),
-            source_truncated=True,
+            game_class=DepartureRecordedScene,
+            original_recording=RecordedFrames(frames=[], is_truncated=True),
         )
         assert header['source_truncated'] is True
         # The new recording captures polled input and markers itself (format 3)

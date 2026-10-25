@@ -1,7 +1,8 @@
 """How each scene began, so it can be rebuilt from its start for in-game playback.
 
 A scene's start (``SceneStart``) is what rebuilding it as it began needs
-(plans/2026-10-19-gameplay-replay.md, section 5.1): its class (module and qualified name),
+(plans/2026-10-19-gameplay-replay.md, section 5.1): its class (module and qualified name, and
+its logical name: glitchygames/logical_names.py),
 ``Scene.replay_arguments()``, every
 random stream's state and the frame clock at two moments (as its ``__init__`` began, and as its
 first ``setup()`` began), and the save view as its ``__init__`` began.
@@ -64,7 +65,8 @@ Rules:
    state, and serves those earlier events from the recording instead of comparing them.
 
 This module is a leaf like glitchygames/sources.py: it imports only pydantic and the leaves
-(glitchygames.randomness, glitchygames.sources, glitchygames.state), so glitchygames.scenes and
+(glitchygames.logical_names, glitchygames.randomness, glitchygames.sources,
+glitchygames.state), so glitchygames.scenes and
 glitchygames.recording import it without pulling in the replay package.
 """
 
@@ -76,6 +78,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from glitchygames.logical_names import logical_name
 from glitchygames.randomness import capture_stream_states, restore_stream_states
 from glitchygames.sources import (
     active_sources,
@@ -155,6 +158,8 @@ class SceneStart(BaseModel):
         scene_module: The module the scene's class is defined in (``type(scene).__module__``),
             so two loaded classes of the same name are told apart; None in recordings made
             before starts held it.
+        scene: The scene class's logical name (glitchygames/logical_names.py), which a
+            playback's lookup compares; None in recordings made before logical names.
         arguments: ``Scene.replay_arguments()``, JSON-safe.
         construction_random_states: ``capture_stream_states()`` as the scene's ``__init__``
             began.
@@ -173,6 +178,7 @@ class SceneStart(BaseModel):
 
     scene_class: str
     scene_module: str | None = None
+    scene: str | None = None
     arguments: dict[str, Any]
     construction_random_states: dict[str, Any]
     construction_frame_clock_seconds: float
@@ -308,6 +314,7 @@ class SceneStartCapture:
         self.start = SceneStart(
             scene_class=type(scene).__qualname__,
             scene_module=type(scene).__module__,
+            scene=logical_name(scene_class=type(scene)),
             arguments=arguments_read_back,
             construction_random_states=copy.deepcopy(self.construction_random_states),
             construction_frame_clock_seconds=self.construction_frame_clock_seconds,

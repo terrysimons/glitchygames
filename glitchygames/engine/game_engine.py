@@ -59,6 +59,7 @@ from glitchygames.input.device_listing import list_input_devices
 from glitchygames.input.input_devices import InputDevices, InputMode
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.logical_names import logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
@@ -91,6 +92,7 @@ from glitchygames.replay.audit import (
     environment_reaches_children,
 )
 from glitchygames.replay.driver import (
+    GAME_HEADER_FIELD,
     REAL_REPLAY_FPS,
     REPLAY_FPS_CHOICES,
     RUNNING_END_REASON,
@@ -971,6 +973,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 measurement_run=self.measurement_run(
                     processing_paced=False, rebaselined_from=options['replay_trace']
                 ),
+                game_class=type(game) if isinstance(game, Scene) else game,
             )
         )
         # Set the master seed of the engine random streams before any game code runs
@@ -1655,10 +1658,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         active_scene = self.scene_manager.active_scene
         engine_version = installed_engine_version()
+        # The running game (an instance by now: _build_game built it)
+        game: Scene = self.game
+        game_class = type(game)
         return {
-            'game_class': type(self.game).__name__,
+            'game_class': game_class.__name__,
             # With the class name, tells apart two games whose classes share a name
-            'game_module': type(self.game).__module__,
+            'game_module': game_class.__module__,
+            # The game's logical name, which replays compare (glitchygames/logical_names.py):
+            # unchanged when the game's code moves
+            GAME_HEADER_FIELD: logical_name(scene_class=game_class),
             'scene_class': None if active_scene is None else type(active_scene).__name__,
             'engine_version': engine_version,
             'pygame_version': pygame.version.ver,
@@ -1860,7 +1869,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         if options.get('audit'):
             self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
-        game_class = game if isinstance(game, type) else type(game)
+        game_class = type(game) if isinstance(game, Scene) else game
         try:
             sources = start_replay(
                 path=Path(replay_trace_path),

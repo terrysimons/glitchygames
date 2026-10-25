@@ -232,6 +232,7 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
+from glitchygames.logical_names import logical_name
 from glitchygames.output_files import write_aside_then_replace
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import (
@@ -403,6 +404,8 @@ CONTROL_EVENTS_FORMAT_VERSION = 3
 # Header fields the replay reads
 GAME_CLASS_HEADER_FIELD = 'game_class'
 GAME_MODULE_HEADER_FIELD = 'game_module'
+# The game class's logical name (glitchygames/logical_names.py), which replays compare
+GAME_HEADER_FIELD = 'game'
 # The module name of a file run as a script (python paddleslap.py)
 SCRIPT_MODULE_NAME = '__main__'
 RANDOM_SEED_HEADER_FIELD = 'random_seed'
@@ -2726,45 +2729,49 @@ def installed_engine_version() -> str | None:
         return None
 
 
-def check_recorded_game(
-    *,
-    header: Mapping[str, Any],
-    game_class_name: str,
-    game_module: str,
-    previous_game_modules: frozenset[str] = frozenset(),
-) -> None:
+def check_recorded_game(*, header: Mapping[str, Any], game_class: type[Scene]) -> None:
     """Refuse a recording of another game.
 
-    The class names must match. So must the modules, when the header holds one (recordings
-    made before headers held it do not) and neither is ``__main__`` (a game file run as a
-    script, ``python paddleslap.py``, is the same game as its console script). A module the
-    game lists in ``Scene.PREVIOUS_MODULES`` (where it lived before it moved) matches too.
+    A recording holding ``game`` (the game class's logical name, glitchygames/logical_names.py)
+    must name the started game's logical name; when either side's module is ``__main__`` (a
+    game file run as a script, ``python paddleslap.py``, is the same game as its console
+    script) only the qualified names are compared. A recording without ``game`` (made before
+    logical names) is compared as before: the class names must match, and so must the modules
+    when the header holds one and neither is ``__main__``.
 
     Args:
         header: The recording's header fields.
-        game_class_name: The class name of the game being started.
-        game_module: The module the game being started is defined in.
-        previous_game_modules: The modules the game was defined in before (its
-            ``PREVIOUS_MODULES``).
+        game_class: The game being started.
 
     Raises:
-        ReplayRefusedError: If the recording's ``game_class`` (or ``game_module``) is a
-            different game's.
+        ReplayRefusedError: If the recording is of a different game.
 
     """
     recorded_game = header.get(GAME_CLASS_HEADER_FIELD)
-    recorded_module = header.get(GAME_MODULE_HEADER_FIELD)
-    modules_differ = (
-        recorded_module is not None
-        and SCRIPT_MODULE_NAME not in {recorded_module, game_module}
-        and recorded_module != game_module
-        and recorded_module not in previous_game_modules
-    )
-    if recorded_game != game_class_name or modules_differ:
-        recorded_place = recorded_module or 'module not recorded'
+    recorded_logical_name = header.get(GAME_HEADER_FIELD)
+    started_logical_name = logical_name(scene_class=game_class)
+    if recorded_logical_name is not None:
+        recorded_module, _, recorded_qualified_name = str(recorded_logical_name).partition(':')
+        started_module, _, started_qualified_name = started_logical_name.partition(':')
+        differs = (
+            recorded_qualified_name != started_qualified_name
+            if SCRIPT_MODULE_NAME in {recorded_module, started_module}
+            else recorded_logical_name != started_logical_name
+        )
+        recorded_place = str(recorded_logical_name)
+    else:
+        recorded_module = header.get(GAME_MODULE_HEADER_FIELD)
+        modules_differ = (
+            recorded_module is not None
+            and SCRIPT_MODULE_NAME not in {recorded_module, game_class.__module__}
+            and recorded_module != game_class.__module__
+        )
+        differs = recorded_game != game_class.__name__ or modules_differ
+        recorded_place = f'{recorded_game} ({recorded_module or "module not recorded"})'
+    if differs:
         message = (
-            f'The recording is of the game {recorded_game!r} ({recorded_place}), not '
-            f'{game_class_name!r} ({game_module}); refusing to replay it'
+            f'The recording is of the game {recorded_place}, not {started_logical_name}; '
+            'refusing to replay it'
         )
         raise ReplayRefusedError(message)
 
@@ -2849,8 +2856,8 @@ def start_replay(
 
     Args:
         path: The recording.
-        game_class: The game being started (its class name and module, or a module in its
-            ``PREVIOUS_MODULES`` (where it lived before it moved), must match the recording's).
+        game_class: The game being started (its logical name (or, for a recording made before
+            logical names, its class name and module) must match the recording's).
         options: The run's options, given the recorded ones in place; ``replay_fps`` (local, so
             never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset, and
             ``replay_digest`` (local) the digest file (rule 12), none when unset, and
@@ -2904,12 +2911,7 @@ def start_replay(
         max_processing_slowdown_percent=options.get('max_processing_slowdown'),
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
-    check_recorded_game(
-        header=sources.header,
-        game_class_name=game_class.__name__,
-        game_module=game_class.__module__,
-        previous_game_modules=game_class.PREVIOUS_MODULES,
-    )
+    check_recorded_game(header=sources.header, game_class=game_class)
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = installed_engine_version()
     if recorded_version != installed_version:
