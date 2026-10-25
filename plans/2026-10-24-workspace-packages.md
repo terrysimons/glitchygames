@@ -1,8 +1,9 @@
 # Games, Demos and Apps as Their Own Packages (master plan)
 
-Status: IN PROGRESS, Part 1 BUILT on feature/workspace-packages-foundation (2026-10-25: the
-src/ layout, Mr. Muncher as a member, logical names; not yet merged). PLANNED (2026-10-24; amended 2026-10-25: everything under `src/`, decision 7; logical
-names in recordings, decision 8; where recordings live, decision 9).
+Status: IN PROGRESS. Part 1 DONE on feature/workspace-packages-foundation (2026-10-25: the
+src/ layout, Mr. Muncher as a member, logical names; commits e864215c..73a60265, 22 commits, verified
+by Task 12; not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
+decision 7; logical names in recordings, decision 8; where recordings live, decision 9.
 Part 1 has a full implementation plan; Parts 2-5 are outlined here and get theirs when each
 starts, written against how Part 1 turned out.
 
