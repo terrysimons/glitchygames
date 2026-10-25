@@ -198,13 +198,26 @@ and kind of run is its own line.</p>
 changes". They stay in the pending file after a deploy, so they remain visible locally only.</p>
 <h2 id="where-the-numbers-come-from">Where the numbers come from<a class="headerlink" href="#where-the-numbers-come-from" title="Permanent link">#</a></h2>
 <ol>
-<li><code>nox -s replay-metrics</code> measures every recording not yet measured for the current commit on
-   this machine and appends one row per recording to the run ledger's pending file
-   (<code>test-results/replay-metrics/pending.jsonl</code>). It refuses a checkout with uncommitted changes.</li>
-<li><code>nox -s docs-deploy</code> measures first, then builds and publishes the site. The build merges the
-   published ledger (from the <code>gh-pages</code> branch) with the pending rows and publishes the result
-   with the site, at <code>quality/metrics/replay-ledger.jsonl</code>: publishing is how the history is
-   kept. After a successful deploy the published rows leave the pending file.</li>
+<li><strong>Every commit carries the measurements of its code.</strong> A pre-commit hook
+   (<code>scripts/measure_staged_replays.py</code>, installed by <code>.envrc</code>) works out the <em>code tree</em> of what
+   is being committed (<code>glitchygames/code_tree.py</code>: only what can change how the replays run,
+   the engine, games, demos, apps, recordings, <code>uv.lock</code> and <code>pyproject.toml</code>). When this machine
+   has not measured that code yet, it measures every golden replay and bundled demo on it and
+   adds one small file per recording to the commit, under <code>quality/replay-ledger/</code>. A docs commit
+   after a measured one is instant; code that arrived by a merge from <code>main</code> or a rebase is
+   measured by the next commit (or by hand: <code>uv run python scripts/measure_staged_replays.py</code>,
+   then commit). <code>SKIP=replay-metrics git commit ...</code> skips it.</li>
+<li><strong>The site shows what landed on <code>main</code>.</strong> Every docs build reads the repository's row files
+   and keeps those whose code tree is the code tree of a commit that added rows: on <code>main</code>, the
+   squash merge, so each is shown under the commit its code landed in. Rows of a branch's
+   intermediate commits match none and are left out. A local build shows a branch's rows before
+   it merges; only <code>main</code> is ever published (<code>nox -s docs-deploy</code> refuses anything else).
+   After each merge to <code>main</code>, CircleCI deploys the site with them; CI never measures (its
+   machines vary).</li>
+<li>The history measured before this (rows naming their commit) was moved into the repository
+   too (<code>scripts/import_published_ledger.py</code>). <code>nox -s replay-metrics</code> still measures by hand
+   into the local pending file (<code>test-results/replay-metrics/pending.jsonl</code>), which a local build
+   shows.</li>
 </ol>
 <p>A recording holds its own last ten runs too; <code>uv run python scripts/recording_report.py PATH</code>
 prints them, which frames got slower or faster between runs (only frames that did the same
@@ -212,7 +225,7 @@ work, by their content hash), and where behaviour changed (the frames whose cont
 differs, with both runs' commits). Design:
 <code>plans/2026-10-23-recording-metrics.md</code> (Parts 1 and 2).</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 18 ledger rows (18 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 24 ledger rows (36 in the repository, 18 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -231,61 +244,61 @@ differs, with both runs' commits). Design:
 <tr>
 <td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a243b9</code></td>
+<td><code>e864215</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">0.073</td>
-<td style="text-align: right;">0.131</td>
-<td style="text-align: right;">0.335</td>
+<td style="text-align: right;">0.076</td>
+<td style="text-align: right;">0.144</td>
+<td style="text-align: right;">0.309</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a243b9</code></td>
+<td><code>e864215</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.679</td>
-<td style="text-align: right;">2.250</td>
-<td style="text-align: right;">3.685</td>
+<td style="text-align: right;">1.692</td>
+<td style="text-align: right;">2.220</td>
+<td style="text-align: right;">3.716</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/brave-adventurer/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a243b9</code></td>
+<td><code>e864215</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.622</td>
-<td style="text-align: right;">1.770</td>
-<td style="text-align: right;">3.678</td>
+<td style="text-align: right;">1.639</td>
+<td style="text-align: right;">1.822</td>
+<td style="text-align: right;">3.658</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a243b9</code></td>
+<td><code>e864215</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">0.403</td>
-<td style="text-align: right;">0.685</td>
-<td style="text-align: right;">2.689</td>
+<td style="text-align: right;">0.407</td>
+<td style="text-align: right;">0.722</td>
+<td style="text-align: right;">2.646</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a243b9</code></td>
+<td><code>e864215</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">0.614</td>
-<td style="text-align: right;">0.784</td>
-<td style="text-align: right;">3.141</td>
+<td style="text-align: right;">0.623</td>
+<td style="text-align: right;">0.771</td>
+<td style="text-align: right;">3.204</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a243b9</code></td>
+<td><code>e864215</code></td>
 <td style="text-align: right;">622</td>
 <td style="text-align: right;">0.080</td>
-<td style="text-align: right;">0.171</td>
-<td style="text-align: right;">2.638</td>
+<td style="text-align: right;">0.178</td>
+<td style="text-align: right;">2.677</td>
 <td style="text-align: right;">0</td>
 </tr>
 </tbody>
