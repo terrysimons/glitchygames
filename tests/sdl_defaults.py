@@ -47,9 +47,20 @@ def default_joystick_drivers_off() -> tuple[str, ...]:
     return defaulted
 
 
+# Tests never play the CRT power-on sequence unless one passes --crt-power-on on
+# (glitchygames/crt_power_on.py); the native-driver child run inherits it with the environment
+CRT_POWER_ON_VARIABLE = 'GLITCHYGAMES_CRT_POWER_ON'
+
+
+def default_crt_power_on_off() -> None:
+    """Default the CRT power-on sequence to off for the test run, keeping a value already set."""
+    os.environ.setdefault(CRT_POWER_ON_VARIABLE, 'off')
+
+
 # Runs at import, so importing this module before pygame is enough to set the defaults
 SDL_VARIABLES_DEFAULTED_AT_STARTUP = default_sdl_drivers_to_dummy()
 default_joystick_drivers_off()
+default_crt_power_on_off()
 
 # The run's SDL driver variables, by name, as decided at startup: the test harness puts back any
 # a test changed (tests/sdl_driver_isolation.py), e.g. one that ran an engine with --headless

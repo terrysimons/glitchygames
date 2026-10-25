@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import os
 
 import pygame
 import pytest
 
 from glitchygames import crt_power_on
 from glitchygames.backgrounds import (
+    BackgroundPattern,
     active_default_background_pattern,
     background_pattern_surface,
     paint_default_background,
+    set_active_default_background_pattern,
 )
 from glitchygames.crt_power_on import (
+    CRT_POWER_ON_VARIABLE,
     DOT_STAGE_START,
     FRAME_SECONDS,
     LINE_STAGE_START,
@@ -26,6 +30,7 @@ from glitchygames.crt_power_on import (
     draw_power_on,
     play_power_on,
     play_power_on_async,
+    resolve_mode,
     should_play,
 )
 
@@ -55,6 +60,20 @@ def test_when_the_sequence_plays(mode, video_driver, options, plays):
 
 
 SIZE = (160, 120)
+
+
+@pytest.fixture(params=list(BackgroundPattern), ids=lambda pattern: pattern.value)
+def configured_background(request) -> BackgroundPattern:
+    """Run a test once per background the run can be configured with (--default-background).
+
+    The harness puts the default pattern back after the test (tests/conftest.py).
+
+    Returns:
+        The pattern in effect.
+
+    """
+    set_active_default_background_pattern(pattern=request.param)
+    return request.param
 
 
 def never_wait(_seconds: float) -> None:
@@ -112,6 +131,7 @@ def test_the_dot_stretches_into_a_line_across_the_screen():
     assert is_black(surface.get_at((SIZE[0] // 2, centre_row - SIZE[1] // 10)))
 
 
+@pytest.mark.usefixtures('configured_background')
 def test_the_picture_opens_from_the_line():
     """Half way through opening: a band of picture in the middle, black above and below."""
     middle_of_open = (OPEN_STAGE_START + WARM_UP_STAGE_START) / 2
@@ -122,6 +142,7 @@ def test_the_picture_opens_from_the_line():
     assert is_black(surface.get_at((SIZE[0] // 4, SIZE[1] - 1)))
 
 
+@pytest.mark.usefixtures('configured_background')
 def test_the_warm_up_flickers_around_the_picture():
     """The whole picture shows, but not yet at its settled brightness."""
     settled = pygame.transform.average_color(drawn(progress=1.0))
@@ -134,6 +155,7 @@ def test_the_warm_up_flickers_around_the_picture():
     assert any(color[:3] != settled[:3] for color in warming_up)
 
 
+@pytest.mark.usefixtures('configured_background')
 def test_it_settles_on_exactly_the_default_background():
     """The hand-over frame is the picture the engine painted before this sequence existed."""
     expected = pygame.Surface(SIZE)
@@ -144,6 +166,7 @@ def test_it_settles_on_exactly_the_default_background():
 
 @pytest.mark.parametrize('size', [(1, 1), (7, 5), (2, 300)])
 @pytest.mark.parametrize('progress', [0.0, 0.1, 0.2, 0.35, 0.45, 0.6, 0.85, 0.95, 1.0])
+@pytest.mark.usefixtures('configured_background')
 def test_every_moment_draws_at_any_size(size, progress):
     """Tiny or odd windows draw without error (no zero-sized scaling)."""
     drawn(progress=progress, size=size)
@@ -271,3 +294,43 @@ def test_the_async_player_awaits_one_tick_per_frame(mocker):
     assert outcome is PowerOnOutcome.FINISHED
     assert len(ticks) == pytest.approx(SEQUENCE_SECONDS / FRAME_SECONDS, abs=2)
     assert shows_the_default_background(screen)
+
+
+@pytest.mark.parametrize(
+    ('option', 'environment', 'mode'),
+    [
+        # Nothing chosen: auto
+        (None, {}, CrtPowerOnMode.AUTO),
+        # The environment chooses when the option does not (the tests turn it off this way)
+        (None, {CRT_POWER_ON_VARIABLE: 'off'}, CrtPowerOnMode.OFF),
+        # An explicit option always wins
+        ('on', {CRT_POWER_ON_VARIABLE: 'off'}, CrtPowerOnMode.ON),
+        ('auto', {CRT_POWER_ON_VARIABLE: 'off'}, CrtPowerOnMode.AUTO),
+    ],
+)
+def test_the_mode_comes_from_the_option_then_the_environment(option, environment, mode):
+    """The option, else the environment variable, else auto."""
+    assert resolve_mode(option=option, environment=environment) is mode
+
+
+def test_a_bad_environment_value_falls_back_to_auto_with_a_warning(caplog):
+    """A typo in the variable must not stop every game from starting."""
+    mode = resolve_mode(option=None, environment={CRT_POWER_ON_VARIABLE: 'sometimes'})
+
+    assert mode is CrtPowerOnMode.AUTO
+    assert f'{CRT_POWER_ON_VARIABLE}=sometimes' in caplog.text
+
+
+def test_the_tests_never_play_it_unless_asked():
+    """tests/sdl_defaults.py turns it off for the run, the native child run included."""
+    assert resolve_mode(option=None, environment=os.environ) is CrtPowerOnMode.OFF
+
+
+def test_brightness_one_leaves_the_picture_unchanged():
+    """Neither darkened nor brightened."""
+    picture = settled_picture()
+    surface = picture.copy()
+
+    crt_power_on._set_brightness(surface=surface, brightness=1.0)
+
+    assert pygame.image.tobytes(surface, 'RGB') == pygame.image.tobytes(picture, 'RGB')

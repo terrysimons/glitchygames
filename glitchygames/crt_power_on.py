@@ -12,6 +12,11 @@ configured default background (glitchygames/backgrounds.py: the TV test pattern 
   or a recording (events pumped before frame 0 would be input the game never saw);
 - ``on``: always (refused with a replay or a recording); ``off``: never.
 
+Unset, ``--crt-power-on`` falls back to the ``GLITCHYGAMES_CRT_POWER_ON`` environment variable,
+then to ``auto`` (``resolve_mode``): the tests set the variable to ``off``
+(tests/sdl_defaults.py), so no test plays it, the native-driver child run included, unless it
+passes ``--crt-power-on on``.
+
 Rules it keeps: visual only, before the game's first scene exists, so it changes no game state,
 random stream, frame clock or scene clock, and is never in a recording or screenshot. It uses
 no randomness: the flicker is a fixed table. Events are taken only through the doors and
@@ -22,6 +27,7 @@ game, which then quits.
 from __future__ import annotations
 
 import enum
+import logging
 import time
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -34,6 +40,10 @@ from glitchygames.opacity import make_opaque
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, Sequence
 
+LOG = logging.getLogger(__name__)
+
+# The environment variable --crt-power-on falls back to when it is not given
+CRT_POWER_ON_VARIABLE = 'GLITCHYGAMES_CRT_POWER_ON'
 # The SDL video driver nobody can see (--headless; every test)
 INVISIBLE_VIDEO_DRIVER = 'dummy'
 # Options whose run must not have anything happen before frame 0
@@ -46,6 +56,34 @@ class CrtPowerOnMode(enum.StrEnum):
     AUTO = 'auto'
     ON = 'on'
     OFF = 'off'
+
+
+def resolve_mode(*, option: str | None, environment: Mapping[str, str]) -> CrtPowerOnMode:
+    """Return the mode: the option when given, else the environment variable, else auto.
+
+    Args:
+        option: ``--crt-power-on`` (None when not given).
+        environment: The process environment.
+
+    Returns:
+        The mode; a variable naming no mode is logged as a warning and auto is used.
+
+    """
+    if option is not None:
+        return CrtPowerOnMode(option)
+    value = environment.get(CRT_POWER_ON_VARIABLE)
+    if value is None:
+        return CrtPowerOnMode.AUTO
+    try:
+        return CrtPowerOnMode(value)
+    except ValueError:
+        LOG.warning(
+            '%s=%s is not one of %s; the CRT power-on sequence uses auto',
+            CRT_POWER_ON_VARIABLE,
+            value,
+            ', '.join(mode.value for mode in CrtPowerOnMode),
+        )
+        return CrtPowerOnMode.AUTO
 
 
 def should_play(*, mode: CrtPowerOnMode, video_driver: str, options: Mapping[str, Any]) -> bool:

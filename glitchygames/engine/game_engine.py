@@ -37,6 +37,7 @@ from glitchygames.crt_power_on import (
     PowerOnOutcome,
     play_power_on,
     play_power_on_async,
+    resolve_mode,
     should_play,
 )
 from glitchygames.display_mode import set_display_mode
@@ -735,11 +736,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             choices=[mode.value for mode in CrtPowerOnMode],
             help=(
                 "show the game's canvas switching on like a CRT before the game starts: auto "
-                "(default: when someone can see it, so not on SDL's dummy driver or before a "
-                'replay, audit, rebaseline or recording), on (always; refused with a replay or '
-                'a recording) or off'
+                "(when someone can see it, so not on SDL's dummy driver or before a replay, "
+                'audit, rebaseline or recording), on (always; refused with a replay or a '
+                'recording) or off. Not given: the GLITCHYGAMES_CRT_POWER_ON environment '
+                'variable, else auto'
             ),
-            default=CrtPowerOnMode.AUTO.value,
+            default=None,
         )
         group.add_argument(
             '--default-background',
@@ -2624,7 +2626,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         return should_play(
-            mode=CrtPowerOnMode(GameEngine.OPTIONS.get('crt_power_on', CrtPowerOnMode.AUTO)),
+            mode=resolve_mode(
+                option=GameEngine.OPTIONS.get('crt_power_on'), environment=os.environ
+            ),
             video_driver=pygame.display.get_driver(),
             options=GameEngine.OPTIONS,
         )
