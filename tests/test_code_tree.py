@@ -186,3 +186,11 @@ def test_a_file_staged_one_way_and_edited_another_does_not_stop_it(repository):
     staged = staged_code_tree(repository=repository)
 
     assert staged == commit_code_tree(repository=repository, commit='HEAD')
+
+
+def test_a_repository_with_nothing_staged_yet_has_the_empty_code_tree(tmp_path):
+    """A new repository has no index file yet: nothing is staged, so nothing is measured code."""
+    git(repository=tmp_path, arguments=['init', '--quiet'])
+    empty_tree = git(repository=tmp_path, arguments=['hash-object', '-t', 'tree', '/dev/null'])
+
+    assert staged_code_tree(repository=tmp_path) == empty_tree

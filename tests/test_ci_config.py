@@ -163,3 +163,17 @@ def test_the_docs_deploy_job_publishes_without_measuring():
     )
 
     assert deploys == [' -- --no-measure']
+
+
+def test_nox_sessions_always_reinstall_the_project():
+    """A reused nox venv gets this checkout's package, not an older build of the same version.
+
+    uv sync --no-editable keeps an installed project whose version is unchanged, so a module
+    added since (glitchygames/code_tree.py) was missing from the docs build.
+    """
+    install = docs_deploy_commands(posargs=['--no-measure'])[0]
+
+    assert install[:2] == ('uv', 'sync')
+    assert install[
+        install.index('--reinstall-package') : install.index('--reinstall-package') + 2
+    ] == ('--reinstall-package', 'glitchygames')

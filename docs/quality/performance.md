@@ -31,13 +31,25 @@ changes". They stay in the pending file after a deploy, so they remain visible l
 
 ## Where the numbers come from
 
-1. `nox -s replay-metrics` measures every recording not yet measured for the current commit on
-   this machine and appends one row per recording to the run ledger's pending file
-   (`test-results/replay-metrics/pending.jsonl`). It refuses a checkout with uncommitted changes.
-2. `nox -s docs-deploy` measures first, then builds and publishes the site. The build merges the
-   published ledger (from the `gh-pages` branch) with the pending rows and publishes the result
-   with the site, at `quality/metrics/replay-ledger.jsonl`: publishing is how the history is
-   kept. After a successful deploy the published rows leave the pending file.
+1. **Every commit that can change the replays measures itself.** A pre-commit hook
+   (`scripts/measure_staged_replays.py`) runs when the staged code differs from the last
+   commit's in anything that can change how the replays run (the engine, games, demos, apps,
+   recordings, `uv.lock`, `pyproject.toml`). It measures every golden replay and bundled demo on
+   that code and adds one small file per recording to the commit, under `quality/replay-ledger/`.
+   Each names the code it measured by its *code tree* (`glitchygames/code_tree.py`), which an
+   amend or a squash merge does not change. Docs, plans and tests commits are not measured;
+   `SKIP=replay-metrics git commit ...` skips it.
+2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
+   and keeps those whose code tree is the code tree of a commit that added rows: on `main`, the
+   squash merge, so each is shown under the commit its code landed in. Rows of a branch's
+   intermediate commits, or of a branch merged while behind `main`, match none and are left out
+   (measure after updating a branch). A local build shows a branch's rows before it merges.
+   After each merge to `main`, CircleCI deploys the site with them; CI never measures (its
+   machines vary).
+3. The history measured before this (rows naming their commit) was moved into the repository
+   too (`scripts/import_published_ledger.py`). `nox -s replay-metrics` still measures by hand
+   into the local pending file (`test-results/replay-metrics/pending.jsonl`), which a local build
+   shows.
 
 A recording holds its own last ten runs too; `uv run python scripts/recording_report.py PATH`
 prints them, which frames got slower or faster between runs (only frames that did the same

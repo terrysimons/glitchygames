@@ -47,6 +47,10 @@ def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> 
         'sync',
         '--frozen',
         '--no-editable',
+        # A reused venv keeps an installed project whose version is unchanged, so a module added
+        # since would be missing (the docs build imported glitchygames.code_tree): reinstall it
+        '--reinstall-package',
+        'glitchygames',
         *(['--all-extras'] if all_extras else []),
         env={'UV_PROJECT_ENVIRONMENT': session.virtualenv.location},
     )

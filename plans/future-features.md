@@ -81,6 +81,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   Done: Parts 1 and 2 (2026-10-23): the run ledger on gh-pages (`nox -s replay-metrics`, the docs
   site's Replay Performance page) and `scripts/recording_report.py` (speed changes and the
   behaviour-change map; `glitchygames/recording_metrics.py`)
+  Done (2026-10-25): measured rows in the repository: a pre-commit hook measures every commit
+  that can change the replays into row files keyed by code tree, the docs publish the rows whose
+  code landed on main, CircleCI deploys after each merge, and the gh-pages history moved in
+  (plans/2026-10-25-measured-rows-in-the-repository.md)
 - **Priority**: High (requested 2026-10-23)
 
 ### 47. Controller Layout Mapper: PlayStation-Style Pads (PS3, PS4, PS5) — TODO

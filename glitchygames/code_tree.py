@@ -104,10 +104,11 @@ def staged_code_tree(*, repository: Path) -> str:
 
     """
     real_index = Path(
-        run_git(repository=repository, arguments=['rev-parse', '--git-path', 'index'])
+        run_git(
+            repository=repository,
+            arguments=['rev-parse', '--path-format=absolute', '--git-path', 'index'],
+        )
     )
-    if not real_index.is_absolute():
-        real_index = repository / real_index
     with tempfile.TemporaryDirectory(prefix='code-tree-') as directory_name:
         index_file = Path(directory_name) / 'index'
         if real_index.exists():
