@@ -20,6 +20,12 @@ parameters:
   NOX_VERSION:
     type: string
     default: "2026.7.11"
+  # uv itself, installed before anything reads uv.lock: keep this at the version uv.lock pins
+  # (tests/test_ci_config.py checks both). Never the newest release unpinned: uv < 0.13.4
+  # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
+  UV_VERSION:
+    type: string
+    default: "0.13.5"
 
 orbs:
   win: circleci/windows@5.1.1
@@ -63,7 +69,8 @@ commands:
           command: |
             set -euo pipefail
 
-            curl -LsSf https://astral.sh/uv/install.sh | sh
+            # The installer for one uv version (https://docs.astral.sh/uv/getting-started/installation/)
+            curl -LsSf https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh | sh
             export PATH="$HOME/.local/bin:$PATH"
 
             uv --version
@@ -278,8 +285,9 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
 
-            # Install uv
-            irm https://astral.sh/uv/install.ps1 | iex
+            # Install uv: the installer for one uv version
+            # (https://docs.astral.sh/uv/getting-started/installation/)
+            irm https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1 | iex
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
 
             uv --version
