@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from glitchygames.build_info import RevisionSource, SourceRevision
+from glitchygames.code_tree import LandedCommit
 from glitchygames.machine_state import MachineState, PowerSource
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -37,6 +38,7 @@ from glitchygames.recording_metrics import (
     frame_profile,
     frame_spans,
     is_measured,
+    landed_rows,
     ledger_rows_from_rebaseline,
     ledger_text,
     machine_label,
@@ -671,3 +673,49 @@ class TestRowFiles:
         )
 
         assert not row.from_uncommitted_changes
+
+
+class TestLandedRows:
+    """Published rows are those whose measured code landed on main, labelled with its commit."""
+
+    LANDED_TREE = '1111111111111111111111111111111111111111'
+    UNLANDED_TREE = '2222222222222222222222222222222222222222'
+    LANDED_COMMIT = 'abc0000000000000000000000000000000000000'
+
+    def landed(self) -> dict[str, LandedCommit]:
+        """Return one landed tree (the squash commit's)."""
+        return {
+            self.LANDED_TREE: LandedCommit(
+                commit=self.LANDED_COMMIT, committed_at='2026-10-25T10:00:00-07:00'
+            )
+        }
+
+    def test_a_landed_row_is_labelled_with_the_commit_it_landed_in(self):
+        row = ledger_row().model_copy(
+            update={'code_tree': self.LANDED_TREE, 'allowed_uncommitted_changes': True}
+        )
+
+        (published,) = landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False)
+
+        assert published.commit == self.LANDED_COMMIT
+        assert published.run.source_revision is not None
+        assert published.run.source_revision.committed_at == '2026-10-25T10:00:00-07:00'
+        assert published.run.source_revision.uncommitted_changes is False
+
+    def test_an_unlanded_row_is_left_out_of_a_published_build(self):
+        """An intermediate commit's, or a branch's that never merged."""
+        row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
+
+        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == []
+
+    def test_a_local_build_keeps_unlanded_rows_as_they_are(self):
+        """So a branch's measurements show before it merges."""
+        row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
+
+        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=True) == [row]
+
+    def test_rows_without_a_code_tree_pass_through(self):
+        """The history measured before rows named their code tree."""
+        row = ledger_row()
+
+        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == [row]

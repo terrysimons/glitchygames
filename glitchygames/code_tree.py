@@ -19,6 +19,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict
+
 from glitchygames.process import run_command
 
 # Where the measured rows live (not a measured path, so never part of a code tree)
@@ -71,9 +73,21 @@ def _measured_tree(*, repository: Path, index_file: Path) -> str:
 
     """
     kept = [f':(exclude){path}' for path in MEASURED_PATHS]
+    # --force: git rm refuses a file whose staged content differs from both the working tree
+    # and HEAD (a partly staged edit); only this temporary index is changed, never a file
     run_git(
         repository=repository,
-        arguments=['rm', '-r', '--cached', '--ignore-unmatch', '--quiet', '--', '.', *kept],
+        arguments=[
+            'rm',
+            '-r',
+            '--cached',
+            '--force',
+            '--ignore-unmatch',
+            '--quiet',
+            '--',
+            '.',
+            *kept,
+        ],
         index_file=index_file,
     )
     return run_git(repository=repository, arguments=['write-tree'], index_file=index_file)
@@ -116,3 +130,47 @@ def commit_code_tree(*, repository: Path, commit: str) -> str:
         index_file = Path(directory_name) / 'index'
         run_git(repository=repository, arguments=['read-tree', commit], index_file=index_file)
         return _measured_tree(repository=repository, index_file=index_file)
+
+
+class LandedCommit(BaseModel):
+    """The commit a measured code tree landed in: the first one adding rows of that tree.
+
+    Attributes:
+        commit: The full commit hash.
+        committed_at: Its commit date (ISO 8601 with its offset).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    commit: str
+    committed_at: str
+
+
+def landed_code_trees(*, repository: Path, revision: str = 'HEAD') -> dict[str, LandedCommit]:
+    """Return each code tree that landed, with the first commit it landed in.
+
+    A row lands with the commit that adds its file (on main: the squash merge); the code it
+    measured landed only if that commit's code tree is the row's. So every commit in
+    ``revision``'s history that added a row file is looked up, oldest first, and its code tree
+    kept with the earliest such commit. A row of an intermediate commit or of a branch that was
+    behind main names another tree: it matches none.
+
+    Args:
+        repository: The repository's working directory.
+        revision: Whose history (``HEAD``: the checkout's).
+
+    Returns:
+        Code tree -> the commit it landed in.
+
+    """
+    output = run_git(
+        repository=repository,
+        arguments=['log', '--format=%H %cI', '--diff-filter=A', revision, '--', LEDGER_DIRECTORY],
+    )
+    landed: dict[str, LandedCommit] = {}
+    for line in reversed(output.splitlines()):
+        commit, committed_at = line.split(' ', maxsplit=1)
+        tree = commit_code_tree(repository=repository, commit=commit)
+        landed.setdefault(tree, LandedCommit(commit=commit, committed_at=committed_at))
+    return landed

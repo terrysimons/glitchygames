@@ -23,6 +23,7 @@ from scripts.generate_performance_graphs import (
     recording_charts,
 )
 
+from glitchygames.code_tree import LEDGER_DIRECTORY, staged_code_tree
 from glitchygames.recording_history import FrameTimeSummary
 from glitchygames.recording_metrics import (
     FrameProfile,
@@ -31,6 +32,7 @@ from glitchygames.recording_metrics import (
     ledger_text,
     parse_ledger,
     performance_series,
+    write_row_files,
 )
 from tests.test_recording_metrics import (
     NEWER_COMMIT,
@@ -39,7 +41,7 @@ from tests.test_recording_metrics import (
     run,
     with_uncommitted_changes,
 )
-from tests.test_replay_metrics import clone_with_published_ledger
+from tests.test_replay_metrics import clone_with_published_ledger, git
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -153,7 +155,7 @@ def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path
     assert (p50['x'], p50['y']) == (['abc1234', 'def5678'], [1.0, 2.0])
     assert 'uncommitted changes' in p50['customdata'][1]
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
-    assert 'Generated from 4 ledger rows (2 published, 3 pending)' in snippet
+    assert 'Generated from 4 ledger rows (0 in the repository, 2 published, 3 pending)' in snippet
     assert '`def5678 (uncommitted changes)`' in snippet
     assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
@@ -277,3 +279,67 @@ def test_the_mkdocs_hook_stops_the_build_when_a_file_cannot_be_written(tmp_path,
 
     with pytest.raises(PluginError, match='Could not generate the performance graphs'):
         mkdocs_hooks.generate_performance_graphs()
+
+
+def clone_with_measured_rows(*, tmp_path: Path) -> tuple[Path, LedgerRow, LedgerRow, str]:
+    """Commit a code change carrying two row files: one of its own code tree, one of another.
+
+    The first landed (its tree is the commit's code tree); the second names a tree no commit
+    has (an intermediate commit's, or a branch's that was behind main).
+
+    Returns:
+        The clone, the landed row, the unlanded row and the commit the first landed in.
+
+    """
+    clone = clone_with_published_ledger(tmp_path=tmp_path, ledger='')
+    code = clone / 'glitchygames' / 'world.py'
+    code.parent.mkdir(parents=True, exist_ok=True)
+    code.write_text('gravity = 9.8\n', encoding='utf-8')
+    git(repository=clone, arguments=['add', 'glitchygames/world.py'])
+    tree = staged_code_tree(repository=clone)
+    landed = ledger_row(measured_at='2026-10-25T10:00:00+00:00').model_copy(
+        update={'code_tree': tree, 'allowed_uncommitted_changes': True}
+    )
+    unlanded = ledger_row(measured_at='2026-10-25T09:00:00+00:00').model_copy(
+        update={'code_tree': '2' * 40, 'allowed_uncommitted_changes': True}
+    )
+    write_row_files(rows=[landed, unlanded], directory=clone / LEDGER_DIRECTORY)
+    git(repository=clone, arguments=['add', LEDGER_DIRECTORY])
+    git(repository=clone, arguments=['commit', '--quiet', '-m', 'Gravity, measured'])
+    commit = git(repository=clone, arguments=['rev-parse', 'HEAD']).strip()
+    return clone, landed, unlanded, commit
+
+
+def test_a_published_build_shows_the_rows_whose_code_landed(tmp_path):
+    """The repository's row files: the landed one labelled with its commit, the other left out."""
+    clone, landed, _unlanded, commit = clone_with_measured_rows(tmp_path=tmp_path)
+    metrics = tmp_path / 'metrics'
+
+    page = generate_performance_page(
+        project_root=clone,
+        metrics_directory=metrics,
+        pending_path=tmp_path / 'no-pending.jsonl',
+        include_uncommitted_changes=False,
+    )
+
+    merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
+    assert page.repository_rows == 2
+    assert [row.code_tree for row in merged] == [landed.code_tree]
+    assert merged[0].commit == commit
+    assert 'Generated from 1 ledger rows (2 in the repository, 0 published, 0 pending)' in (
+        (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
+    )
+
+
+def test_a_local_build_also_shows_rows_whose_code_has_not_landed(tmp_path):
+    """A branch's rows show locally before it merges."""
+    clone, _landed, _unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
+
+    page = generate_performance_page(
+        project_root=clone,
+        metrics_directory=tmp_path / 'metrics',
+        pending_path=tmp_path / 'no-pending.jsonl',
+        include_uncommitted_changes=True,
+    )
+
+    assert page.rows == 2

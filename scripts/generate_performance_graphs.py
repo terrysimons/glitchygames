@@ -44,6 +44,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.code_tree import LEDGER_DIRECTORY, landed_code_trees
 from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
     PENDING_LEDGER_RELATIVE_PATH,
@@ -51,6 +52,7 @@ from glitchygames.recording_metrics import (
     FrameProfile,
     LedgerRow,
     PerformanceSeries,
+    landed_rows,
     ledger_text,
     merge_ledgers,
     parse_ledger,
@@ -58,6 +60,7 @@ from glitchygames.recording_metrics import (
     publishable_rows,
     published_ledger_text,
     read_ledger_file,
+    read_row_files,
     short_commit,
 )
 
@@ -115,6 +118,8 @@ class PerformancePage(BaseModel):
 
     Attributes:
         rows: Ledger rows after merging.
+        repository_rows: Row files read from the repository (quality/replay-ledger/), landed or
+            not.
         published_rows: Rows read from the published ledger.
         pending_rows: Rows read from the pending file.
         unreadable_lines: Lines of either that were not a readable row (skipped).
@@ -127,6 +132,7 @@ class PerformancePage(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     rows: int
+    repository_rows: int
     published_rows: int
     pending_rows: int
     unreadable_lines: int
@@ -517,8 +523,8 @@ def performance_snippet(
     """
     lines = [
         (
-            f'Generated from {page.rows} ledger rows ({page.published_rows} published, '
-            f'{page.pending_rows} pending). The ledger: '
+            f'Generated from {page.rows} ledger rows ({page.repository_rows} in the repository, '
+            f'{page.published_rows} published, {page.pending_rows} pending). The ledger: '
             f'[{LEDGER_NAME}]({LEDGER_LINK_FROM_PAGE_SOURCE}).'
         ),
         '',
@@ -570,9 +576,20 @@ def generate_performance_page(
         What was generated.
 
     """
+    repository = read_row_files(directory=project_root / LEDGER_DIRECTORY)
+    landed = (
+        # Only when there are rows: a project without any needs no git
+        landed_rows(
+            rows=repository,
+            landed=landed_code_trees(repository=project_root),
+            keep_unlanded=include_uncommitted_changes,
+        )
+        if repository
+        else []
+    )
     published = parse_ledger(text=published_ledger_text(project_root=project_root))
     pending = read_ledger_file(path=pending_path)
-    rows = merge_ledgers(ledgers=[published.rows, pending.rows])
+    rows = merge_ledgers(ledgers=[landed, published.rows, pending.rows])
     if not include_uncommitted_changes:
         rows = publishable_rows(rows=rows)
     series_list = performance_series(rows=rows)
@@ -596,6 +613,7 @@ def generate_performance_page(
         (metrics_directory / name).unlink()
     counts = PerformancePage(
         rows=len(rows),
+        repository_rows=len(repository),
         published_rows=len(published.rows),
         pending_rows=len(pending.rows),
         unreadable_lines=published.unreadable_lines + pending.unreadable_lines,
@@ -625,9 +643,11 @@ def main() -> None:
         include_uncommitted_changes=True,
     )
     LOG.info(
-        'Graphed %d recordings from %d ledger rows (%d published, %d pending) into %s',
+        'Graphed %d recordings from %d ledger rows (%d in the repository, %d published, '
+        '%d pending) into %s',
         len(page.graph_pages),
         page.rows,
+        page.repository_rows,
         page.published_rows,
         page.pending_rows,
         METRICS_DIR,

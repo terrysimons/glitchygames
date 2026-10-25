@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from glitchygames.code_tree import LEDGER_DIRECTORY, commit_code_tree, staged_code_tree
+from glitchygames.code_tree import (
+    LEDGER_DIRECTORY,
+    commit_code_tree,
+    landed_code_trees,
+    staged_code_tree,
+)
 from glitchygames.process import run_command
 
 if TYPE_CHECKING:
@@ -131,3 +136,53 @@ def test_a_failing_git_command_names_itself(tmp_path):
     """Outside a repository: an error naming the git command, not a silent wrong tree."""
     with pytest.raises(RuntimeError, match='git'):
         staged_code_tree(repository=tmp_path)
+
+
+def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(repository):
+    """A row lands with the commit that adds its file; the earliest such commit per tree.
+
+    The fixture's first commit already added a row with its code (so it landed); a code change
+    with a row lands too; a later docs commit adding a row adds no new tree.
+    """
+    first_tree = commit_code_tree(repository=repository, commit='HEAD')
+    first_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 5\n')
+    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/fast.json', text='{}\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster, measured'])
+    faster_tree = commit_code_tree(repository=repository, commit='HEAD')
+    faster_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    write(repository=repository, relative_path='README.md', text='# notes\n')
+    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/again.json', text='{}\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Docs, measured again'])
+
+    landed = landed_code_trees(repository=repository)
+
+    assert set(landed) == {first_tree, faster_tree}
+    assert landed[first_tree].commit == first_commit
+    assert landed[faster_tree].commit == faster_commit
+    assert landed[faster_tree].committed_at
+
+
+def test_a_tree_measured_but_never_committed_has_not_landed(repository):
+    """An intermediate commit's tree is not any row-adding commit's tree."""
+    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 7\n')
+    intermediate_tree = staged_code_tree(repository=repository)
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Unmeasured'])
+
+    assert intermediate_tree not in landed_code_trees(repository=repository)
+
+
+def test_a_file_staged_one_way_and_edited_another_does_not_stop_it(repository):
+    """Staged content differing from both the file and HEAD (a partly staged edit).
+
+    git rm --cached refuses such a file unless forced; the code tree drops it from a temporary
+    index only, so it must not be stopped by it.
+    """
+    write(repository=repository, relative_path='README.md', text='# committed\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Readme'])
+    write(repository=repository, relative_path='README.md', text='# staged\n')
+    (repository / 'README.md').write_text('# edited after staging\n', encoding='utf-8')
+
+    staged = staged_code_tree(repository=repository)
+
+    assert staged == commit_code_tree(repository=repository, commit='HEAD')
