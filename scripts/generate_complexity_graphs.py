@@ -296,12 +296,15 @@ def current_path(*, path: str) -> str:
 
     Returns:
         Its current path (``src/glitchygames/scenes/scene.py``), or ``path`` when it did not
-        move.
+        move. wily names files with the platform's separator (backslashes on Windows), so a
+        prefix matches in the separator the path uses, and the result keeps it.
 
     """
+    separator = '\\' if '\\' in path else '/'
     for former_prefix, current_prefix in MOVED_PATH_PREFIXES:
-        if path.startswith(former_prefix):
-            return current_prefix + path.removeprefix(former_prefix)
+        former = former_prefix.replace('/', separator)
+        if path.startswith(former):
+            return current_prefix.replace('/', separator) + path.removeprefix(former)
     return path
 
 

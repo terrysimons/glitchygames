@@ -70,13 +70,26 @@ BRANCHY_MODULE = """def branchy(value):
 """
 
 
-def git(*, repository: Path, arguments: list[str]) -> str:
+def git(*, repository: Path, arguments: list[str], committed_at_second: int | None = None) -> str:
     """Run git in the fixture repository (no signing, a fixed author).
+
+    Args:
+        repository: The fixture repository.
+        arguments: git's arguments.
+        committed_at_second: For a commit, its author and committer time in seconds after
+            2026-01-01 00:00 UTC. wily orders a graph's points by commit time, and commits made
+            within one second would tie and come out in any order (the moved-module graph test
+            then failed intermittently, its first point not the first commit).
 
     Returns:
         git's standard output.
 
     """
+    environment = dict(os.environ)
+    if committed_at_second is not None:
+        commit_time = f'2026-01-01T00:00:{committed_at_second:02d}+00:00'
+        environment['GIT_AUTHOR_DATE'] = commit_time
+        environment['GIT_COMMITTER_DATE'] = commit_time
     completed = run_command(
         command=[
             'git',
@@ -88,7 +101,7 @@ def git(*, repository: Path, arguments: list[str]) -> str:
             'commit.gpgsign=false',
             *arguments,
         ],
-        environment=os.environ,
+        environment=environment,
         timeout_seconds=60.0,
         capture_output=True,
         working_directory=repository,
@@ -114,9 +127,15 @@ def fixture_repository(tmp_path: Path) -> Path:
     (package / 'simple.py').write_text(SIMPLE_MODULE, encoding='utf-8')
     (package / 'branchy.py').write_text(SIMPLE_MODULE, encoding='utf-8')
     git(repository=repository, arguments=['add', '.'])
-    git(repository=repository, arguments=['commit', '--quiet', '-m', 'First'])
+    git(
+        repository=repository, arguments=['commit', '--quiet', '-m', 'First'], committed_at_second=1
+    )
     (package / 'branchy.py').write_text(BRANCHY_MODULE, encoding='utf-8')
-    git(repository=repository, arguments=['commit', '--quiet', '-am', 'Branchier'])
+    git(
+        repository=repository,
+        arguments=['commit', '--quiet', '-am', 'Branchier'],
+        committed_at_second=2,
+    )
     return repository
 
 
@@ -181,14 +200,33 @@ def moved_fixture_repository(tmp_path: Path) -> Path:
     (former_package / '__init__.py').write_text('', encoding='utf-8')
     (former_package / 'branchy.py').write_text(SIMPLE_MODULE, encoding='utf-8')
     git(repository=repository, arguments=['add', '.'])
-    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Before the move'])
+    git(
+        repository=repository,
+        arguments=['commit', '--quiet', '-m', 'Before the move'],
+        committed_at_second=1,
+    )
     (repository / 'src').mkdir()
     git(repository=repository, arguments=['mv', 'glitchygames', 'src/glitchygames'])
-    git(repository=repository, arguments=['commit', '--quiet', '-m', 'The move'])
+    # wily graph plots only points whose value changed from the previous one, so each commit
+    # gives the module a different line count (2, 4, then BRANCHY_MODULE's 6): a pure rename
+    # would drop the point before the move
+    (repository / 'src' / 'glitchygames' / 'branchy.py').write_text(
+        SIMPLE_MODULE + 'def moved():\n    return 2\n', encoding='utf-8'
+    )
+    git(repository=repository, arguments=['add', '.'])
+    git(
+        repository=repository,
+        arguments=['commit', '--quiet', '-m', 'The move'],
+        committed_at_second=2,
+    )
     (repository / 'src' / 'glitchygames' / 'branchy.py').write_text(
         BRANCHY_MODULE, encoding='utf-8'
     )
-    git(repository=repository, arguments=['commit', '--quiet', '-am', 'After the move'])
+    git(
+        repository=repository,
+        arguments=['commit', '--quiet', '-am', 'After the move'],
+        committed_at_second=3,
+    )
     return repository
 
 
@@ -239,6 +277,17 @@ def test_joined_operator_data_keeps_the_current_paths_own_measurement():
     }
 
 
+def test_joined_operator_data_renames_windows_paths_too():
+    """Wily on Windows names files with backslashes; the moved prefix matches them, kept so."""
+    operator_data: dict[str, dict[str, object]] = {
+        'raw': {'glitchygames\\scenes\\scene.py': {'total': {'loc': 10}}}
+    }
+
+    assert joined_operator_data(operator_data=operator_data) == {
+        'raw': {'src\\glitchygames\\scenes\\scene.py': {'total': {'loc': 10}}}
+    }
+
+
 def test_join_moved_paths_rewrites_a_caches_revisions_and_index(tmp_path):
     """A small fake wily cache: the old revision's measurements and tracked files are renamed."""
     archiver_directory = tmp_path / 'git'
@@ -282,10 +331,9 @@ def test_a_moved_modules_graph_is_one_series_through_its_whole_history(
     html = (graphs_directory / graph_file_name(metric='raw.loc')).read_text(encoding='utf-8')
     series = graph_trace_labels(html=html)
     assert list(series) == ['src/glitchygames/branchy.py']
-    labels = series['src/glitchygames/branchy.py']
-    assert len(labels) > 1
-    assert 'Before the move' in labels[0]
-    assert 'After the move' in labels[-1]
+    # One point per commit (wily lists them newest first), the one before the move included
+    messages = {label.split('<br>')[-1].strip() for label in series['src/glitchygames/branchy.py']}
+    assert messages == {'Before the move', 'The move', 'After the move'}
 
 
 def test_load_plotly_from_jsdelivr_keeps_plotlys_version():

@@ -96,7 +96,7 @@ def norecursedirs_exclusions(
             ]
             if matching_patterns:
                 excluded_test_files.append(
-                    f'{test_file.relative_to(project_root)} '
+                    f'{test_file.relative_to(project_root).as_posix()} '
                     f'(directory {directory_name!r} matches {matching_patterns})',
                 )
     return excluded_test_files
@@ -115,7 +115,7 @@ def misnamed_test_files(*, project_root: Path, roots: list[Path], patterns: list
 
     """
     return [
-        str(test_file.relative_to(project_root))
+        test_file.relative_to(project_root).as_posix()
         for _root, test_file in _test_defining_files(roots=roots)
         if not any(fnmatch.fnmatch(test_file.name, pattern) for pattern in patterns)
     ]
@@ -192,7 +192,7 @@ def pygame_constant_reassignments(*, project_root: Path, roots: list[Path]) -> l
 
     """
     return [
-        f'{python_file.relative_to(project_root)}:{assignment}'
+        f'{python_file.relative_to(project_root).as_posix()}:{assignment}'
         for _root, python_file in _python_files(roots=roots)
         for assignment in _assigned_pygame_constants(python_file)
     ]
@@ -223,7 +223,7 @@ def junit_incompatible_fixture_uses(*, project_root: Path, roots: list[Path]) ->
                 continue
             arguments = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
             uses.extend(
-                f'{python_file.relative_to(project_root)}:{node.lineno}: {argument.arg}'
+                f'{python_file.relative_to(project_root).as_posix()}:{node.lineno}: {argument.arg}'
                 for argument in arguments
                 if argument.arg in JUNIT_XUNIT2_INCOMPATIBLE_FIXTURES
             )
