@@ -153,15 +153,13 @@ class Seats:
         for candidate in candidates:
             if candidate.soldier_id == seat.highlighted_soldier_id:
                 return candidate
+        if not candidates:
+            return None
         if seat.highlighted_soldier_id is None:
             near_x = battle.terrain.width / 2
         else:
             near_x = battle.soldier(seat.highlighted_soldier_id).x
-        return min(
-            candidates,
-            key=lambda soldier: (abs(soldier.x - near_x), soldier.soldier_id),
-            default=None,
-        )
+        return min(candidates, key=lambda soldier: (abs(soldier.x - near_x), soldier.soldier_id))
 
     def update(
         self, *, edges: ButtonEdges, devices: Sequence[Device], battle: Battle, seconds: float

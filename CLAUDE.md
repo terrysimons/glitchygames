@@ -149,8 +149,11 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
 ### Example Games
-`uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep` and
-`mr-muncher` (a maze chase at the movies, `glitchygames/examples/mr_muncher/`) start the example
+`uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep`,
+`mr-muncher` (a maze chase at the movies, `glitchygames/examples/mr_muncher/`) and
+`drawing-fire` (a pencil-on-paper stick-figure battle, `glitchygames/examples/drawing_fire/`:
+computer battles that one or two local players join with START or Enter; its new mechanic is
+swatches, recolouring a sprite by palette swap; docs/games/drawing_fire.md) start the example
 games.
 
 ## Architecture Overview
@@ -328,8 +331,8 @@ games.
   arriving capture snaps the camera to `camera_target()` on its followed axes only
   (`camera.snap_followed_axes_to`), or to the player on both axes when there is no target
 - Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
-  every game older than the world-space change (`GOLDEN_TRACE_GAMES`; Mr. Muncher, newer, has
-  only its golden replay) and compare each sprite's rect and visibility, frame by frame, with
+  every game older than the world-space change (`GOLDEN_TRACE_GAMES`; Mr. Muncher and Drawing
+  Fire, newer, have only their golden replays) and compare each sprite's rect and visibility, frame by frame, with
   baselines recorded before the world-space change. Every difference must be explained by
   exactly one `ExpectedDifference` entry whose rule proves it exactly (an entry that explains
   nothing fails too); never re-record the baselines to make a change pass
@@ -583,7 +586,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   exits `SUCCESS`; `tests/replay/test_golden_replays.py` keeps the fixture-set and tamper checks.
   Re-record only deliberately (commands in the script's docstring). The controls rule: after the
   script's frames the recorder plays the game's controls tail (`CONTROLS_TAIL_BUILDERS`, never in
-  the golden traces' scripts), so every golden replay pauses and resumes, presses every keyboard
+  the golden traces' scripts), so every golden replay pauses and resumes (a game with no pause,
+  Drawing Fire, is listed in `GAMES_WITHOUT_A_PAUSE` with its reason), presses every keyboard
   control the game binds (each key of an action bound to several), and ends with the game's own
   quit control: the recorded QUIT is internal, so a game that stops quitting diverges ("missing
   internal event"); a tail whose quit does not end the run fails the recording
@@ -592,7 +596,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `_create_action_map(s)`) plus the engine scenes' hard-coded keys (`ENGINE_SCENE_CONTROLS`) and
   fails on an unexercised control unless `UNEXERCISED_CONTROLS` gives its reason (gamepad
   controls: no session has a device; the pause screen's quit: a session quits once); a new game's
-  bindings must be listed there. Demos are recorded `--script-only` (no tail, no quit)
+  bindings must be listed there. A game that reads its controls from the frame's snapshot
+  (`current_input()`) rather than an ActionMap (Drawing Fire) lists them all in
+  `ENGINE_SCENE_CONTROLS` (keys by scancode, the mouse as `InputKind.MOUSE`). A posted event
+  never changes SDL's polled state, so the recorder lays the input it posted over each live
+  snapshot (`PostedPolledInput`, `polled_input_follows`), as a real player's input would be. Demos are recorded `--script-only` (no tail, no quit)
 - `--replay-trace PATH --audit` (`glitchygames/replay/audit.py`): instead of replaying, runs the
   same command twice as child processes (`--no-audit --headless --replay-digest <temp>`,
   `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two

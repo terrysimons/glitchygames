@@ -65,11 +65,22 @@ dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one 
         --game brave_adventurer_papyrus --frames 400
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
         --game mr_muncher --frames 1950
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+        --game drawing_fire --frames 1600
 
 With their controls tails the recordings hold 622 (PaddleSlap), 532 (Clockwork Keep), 472 (each
-Brave Adventurer edition) and 2072 (Mr. Muncher) frames. Mr. Muncher's script runs 1950 frames,
-not more (its death at about frame 1650 and the next life's READY included), so its fixture
-stays under 100 KB.
+Brave Adventurer edition), 2072 (Mr. Muncher) and 1614 (Drawing Fire) frames. Mr. Muncher's
+script runs 1950 frames, not more (its death at about frame 1650 and the next life's READY
+included), so its fixture stays under 100 KB. Drawing Fire's cannot: its first frame alone is
+about 125 KB compressed (the scene start holds every random stream's state, a Mersenne Twister's
+625 numbers for each of its 19 streams, twice: at setup and at the first logic frame), so its
+fixture is about 190 KB. Its player's first death falls between frames 850 and 920 in trial
+recordings (frame 915 in the fixture); a re-recording must still hold one (the seats log
+``P1 died``), so check it by replaying the recording before keeping it.
+
+Drawing Fire reads its controls from the frame's polled input (``current_input()``), which a
+posted event never changes in SDL: the session's live snapshots show the supervisor's posted
+input (PostedPolledInput, polled_input_follows), as a real player's would.
 
 Without ``--output`` the recording goes to
 ``tests/fixtures/replays/<console-script>/golden.jsonl.gz`` (``fixture_path``).
@@ -79,17 +90,21 @@ Keep each fixture under 100 KB.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import dataclasses
 import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+from glitchygames import live_sources
+from glitchygames.input.state import MOUSE_BUTTON_COUNT
 from glitchygames.recording import post_input_event
 from glitchygames.testing.replays import EXAMPLES_PACKAGE, console_script_in_module
 from scripts.record_golden_traces import (
@@ -109,8 +124,9 @@ from scripts.record_golden_traces import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
 
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene, SceneManager
 
 # Games whose script placements only steer the script's own input (they move no sprite)
@@ -121,12 +137,104 @@ REPLAY_FIXTURE_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 REPLAY_FIXTURE_SUFFIX = '.jsonl.gz'
 DEFAULT_FIXTURE_NAME = 'golden'
 
+# The live doors' one polling function (glitchygames/live_sources.py), which a session replaces
+# so its snapshots show the posted input (polled_input_follows)
+LIVE_CAPTURE_FUNCTION_NAME = 'capture_live_snapshot'
+
 # A controls tail's quit must end the run within this many frames of the tail's last input
 QUIT_WAIT_FRAMES = 10
 
 
 class GameDidNotQuitError(RuntimeError):
     """The game was still running QUIT_WAIT_FRAMES after its controls tail pressed quit."""
+
+
+class PostedPolledInput:
+    """The polled input a real keyboard and mouse would leave behind the supervisor's events.
+
+    SDL updates its polled state (``pygame.key.get_pressed``, ``pygame.mouse.get_pos`` and
+    ``get_pressed``) as a real device's events arrive, never for a posted event, so on its own a
+    supervisor's key press is an event that no snapshot shows held. A game that reads held keys
+    or the mouse from the frame's snapshot (``current_input()``: Drawing Fire) would never see
+    the script play. This follows each posted event (a key held from its KEYDOWN to its KEYUP,
+    by scancode; the mouse's position and buttons) and ``overlay`` lays it over a live
+    snapshot, so the session's snapshots agree with its events as a real player's do. A
+    replay serves the recorded snapshots, so it needs none of this.
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing posted: no key held, the mouse unmoved, its buttons up."""
+        self.held_scancodes: set[int] = set()
+        self.mouse_position: tuple[int, int] | None = None
+        self.mouse_buttons = [False] * MOUSE_BUTTON_COUNT
+
+    def follow(self, event: pygame.event.Event) -> None:
+        """Note what a posted event changes in the polled input.
+
+        Args:
+            event: The posted event.
+
+        """
+        if event.type == pygame.KEYDOWN:
+            self.held_scancodes.add(event.scancode)
+        elif event.type == pygame.KEYUP:
+            self.held_scancodes.discard(event.scancode)
+        elif event.type == pygame.MOUSEMOTION:
+            self.mouse_position = event.pos
+        elif event.type in {pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP}:
+            # pygame numbers the buttons from 1 (left, middle, right); the snapshot from 0
+            button_index = event.button - 1
+            if button_index < MOUSE_BUTTON_COUNT:
+                self.mouse_buttons[button_index] = event.type == pygame.MOUSEBUTTONDOWN
+
+    def overlay(self, snapshot: InputSnapshot) -> InputSnapshot:
+        """Lay the posted input over a live snapshot.
+
+        Args:
+            snapshot: The live snapshot.
+
+        Returns:
+            The snapshot with the posted held keys added, the posted mouse position (once the
+            mouse was moved) and the posted mouse buttons.
+
+        """
+        return dataclasses.replace(
+            snapshot,
+            pressed_scancodes=snapshot.pressed_scancodes | frozenset(self.held_scancodes),
+            mouse_position=self.mouse_position or snapshot.mouse_position,
+            mouse_buttons=tuple(
+                live or posted
+                for live, posted in zip(snapshot.mouse_buttons, self.mouse_buttons, strict=True)
+            ),
+        )
+
+
+@contextlib.contextmanager
+def polled_input_follows(posted_input: PostedPolledInput) -> Generator[None]:
+    """Make the live doors' snapshots show the posted input (``PostedPolledInput``).
+
+    Replaces ``glitchygames.live_sources.capture_live_snapshot`` (the live doors' one polling
+    call) with one that overlays the posted input, then puts it back.
+
+    Args:
+        posted_input: The input the supervisor posted.
+
+    Yields:
+        None, while the live snapshots show it.
+
+    """
+    original_capture = live_sources.capture_live_snapshot
+
+    def capture_with_posted_input(**device_positions: Any) -> InputSnapshot:
+        return posted_input.overlay(original_capture(**device_positions))
+
+    # By name, as deterministic_environment replaces the save directory: a type checker will not
+    # let a module's function be assigned another
+    setattr(live_sources, LIVE_CAPTURE_FUNCTION_NAME, capture_with_posted_input)
+    try:
+        yield
+    finally:
+        setattr(live_sources, LIVE_CAPTURE_FUNCTION_NAME, original_capture)
 
 
 def _pause_with(tail: InputScript, *, key: int, pause_frame: int, resume_frame: int) -> None:
@@ -217,6 +325,23 @@ def mr_muncher_controls() -> InputScript:
     return tail
 
 
+def drawing_fire_controls() -> InputScript:
+    """Drawing Fire: quit with Q (the base scene quits on its release).
+
+    The golden script already uses every control the game reads, the left mouse button and the
+    mouse included. Drawing Fire has no pause (tests/replay/test_golden_replays.py
+    GAMES_WITHOUT_A_PAUSE), and Escape is the keyboard's Back, never a quit.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_q))
+    tail.at(12, release(pygame.K_q))
+    return tail
+
+
 # Game key -> its controls tail: input a golden replay session plays after the golden script's
 # frames (never part of the script, so the golden traces never see it). It exercises the
 # controls the script does not, pauses where the script's frames hold no pause, and ends with
@@ -229,6 +354,7 @@ CONTROLS_TAIL_BUILDERS: dict[str, Callable[[], InputScript]] = {
     'brave_adventurer_papyrus': brave_adventurer_controls,
     'paddleslap': paddleslap_controls,
     'mr_muncher': mr_muncher_controls,
+    'drawing_fire': drawing_fire_controls,
 }
 
 # Console script (pyproject.toml [project.scripts], the fixture's directory name) -> game key:
@@ -328,6 +454,8 @@ class ScriptedInputSupervisor:
         self.controls_tail = controls_tail
         # Keys the posted script input left down (released when the controls tail starts)
         self.held_keys: set[int] = set()
+        # The polled input the posted events would leave behind (polled_input_follows)
+        self.posted_input = PostedPolledInput()
         self.game_did_not_quit = False
 
     def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
@@ -375,7 +503,7 @@ class ScriptedInputSupervisor:
             self._post(event)
 
     def _post(self: Self, event: pygame.event.Event) -> None:
-        """Post an event as external input, noting which keys are held.
+        """Post an event as external input, noting which keys are held and the polled input.
 
         Args:
             event: The event.
@@ -385,6 +513,7 @@ class ScriptedInputSupervisor:
             self.held_keys.add(event.key)
         elif event.type == pygame.KEYUP:
             self.held_keys.discard(event.key)
+        self.posted_input.follow(event)
         post_input_event(event)
 
 
@@ -399,7 +528,8 @@ def record_scripted_session(
     """Run a game for real with its golden input script and ``--record-trace``.
 
     Saves go to a temporary directory. The SceneManager singleton is fresh for the session and
-    cleared afterwards. GameEngine._shutdown quits pygame at the end, as a real run does.
+    cleared afterwards. GameEngine._shutdown quits pygame at the end, as a real run does. The
+    live snapshots show the posted input (polled_input_follows), as a real player's would.
 
     Args:
         game_key: Which game (a key of GAME_SCENES).
@@ -447,7 +577,8 @@ def record_scripted_session(
             # After the engine: GameEngine.__init__ resets the scene manager's supervision
             manager.add_supervisor(supervisor=supervisor)
             discard_environment_events()
-            engine.start()
+            with polled_input_follows(supervisor.posted_input):
+                engine.start()
         finally:
             # GameEngine._shutdown normally quits pygame (the queue went with it); a caller that
             # keeps pygame running (a test) gets an empty queue back

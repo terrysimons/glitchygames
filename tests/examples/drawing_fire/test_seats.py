@@ -194,6 +194,21 @@ def test_start_then_confirm_joins_a_random_side_and_takes_a_soldier():
     assert rig.seats.log[-1].seconds == pytest.approx(rig.seconds - 2 / 60)
 
 
+def test_a_side_with_no_highlight_yet_highlights_the_soldier_nearest_the_middle():
+    """With a side but no highlighted soldier, the highlight is the free one nearest the middle.
+
+    The seats always start a chooser's highlight themselves, so this is the contract asked
+    directly: a seat given a side and no highlight.
+    """
+    rig = SeatsRig()
+    seat = PlayerSeat(name='P1', device=KEYBOARD, stage=Stage.CHOOSING_SOLDIER, side=Side.BRIGADE)
+
+    highlighted = rig.seats.highlighted_soldier(seat, battle=rig.battle)
+
+    assert highlighted is not None
+    assert highlighted.soldier_id == nearest_the_middle(rig.battle, Side.BRIGADE)
+
+
 def test_a_player_cannot_take_another_players_soldier():
     """A second player's highlight cycles over the computer's soldiers only."""
     rig = SeatsRig(controllers=(CONTROLLER,))

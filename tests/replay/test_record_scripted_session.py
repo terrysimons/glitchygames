@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import tomllib
 
 import pygame
@@ -19,12 +20,16 @@ from scripts.record_scripted_session import (
     CONTROLS_TAIL_BUILDERS,
     QUIT_WAIT_FRAMES,
     GameDidNotQuitError,
+    PostedPolledInput,
     ScriptedInputSupervisor,
     fixture_path,
+    polled_input_follows,
     record_scripted_session,
 )
 
+from glitchygames import live_sources
 from glitchygames.exit_codes import ExitCode
+from glitchygames.input.state import IDLE_INPUT
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine
@@ -286,3 +291,80 @@ def test_a_tail_whose_quit_does_not_quit_fails_the_recording(mocker, tmp_path):
     # The script's 5 frames, the tail's frames 0 to 2 (its last input), QUIT_WAIT_FRAMES more,
     # and the frame whose slot ends the run
     assert len(frames) == 5 + 3 + QUIT_WAIT_FRAMES
+
+
+def mouse_button_event(event_type: int, *, button: int) -> pygame.event.Event:
+    """Build a mouse button press or release at the window's corner.
+
+    Returns:
+        The MOUSEBUTTONDOWN or MOUSEBUTTONUP event.
+
+    """
+    return pygame.event.Event(event_type, pos=(0, 0), button=button, touch=False)
+
+
+def test_posted_input_holds_keys_and_the_mouse_until_released():
+    """The posted press holds its scancode and button; the release lets go; the mouse stays."""
+    posted_input = PostedPolledInput()
+    posted_input.follow(press(pygame.K_a))
+    posted_input.follow(
+        pygame.event.Event(
+            pygame.MOUSEMOTION, pos=(40, 50), rel=(40, 50), buttons=(0, 0, 0), touch=False
+        )
+    )
+    posted_input.follow(mouse_button_event(pygame.MOUSEBUTTONDOWN, button=1))
+
+    held = posted_input.overlay(IDLE_INPUT)
+
+    assert held.pressed_scancodes == frozenset({pygame.KSCAN_A})
+    assert held.mouse_position == (40, 50)
+    assert held.mouse_buttons == (True, False, False)
+
+    posted_input.follow(release(pygame.K_a))
+    posted_input.follow(mouse_button_event(pygame.MOUSEBUTTONUP, button=1))
+    released = posted_input.overlay(IDLE_INPUT)
+
+    assert released.pressed_scancodes == frozenset()
+    assert released.mouse_position == (40, 50)
+    assert released.mouse_buttons == (False, False, False)
+
+
+def test_posted_input_leaves_the_live_snapshot_alone_where_nothing_was_posted():
+    """Unposted input is the live snapshot's: its keys, its mouse; wheel buttons change nothing."""
+    posted_input = PostedPolledInput()
+    # pygame's buttons 4 and 5 are the wheel, which the snapshot does not hold
+    posted_input.follow(mouse_button_event(pygame.MOUSEBUTTONDOWN, button=4))
+    live = dataclasses.replace(
+        IDLE_INPUT,
+        pressed_scancodes=frozenset({pygame.KSCAN_D}),
+        mouse_position=(7, 9),
+        mouse_buttons=(False, False, True),
+    )
+
+    assert posted_input.overlay(live) == live
+
+
+def test_live_snapshots_show_the_posted_input_only_inside_the_scope():
+    """polled_input_follows replaces the live doors' capture, then puts it back."""
+    original_capture = live_sources.capture_live_snapshot
+    posted_input = PostedPolledInput()
+    posted_input.follow(press(pygame.K_RETURN))
+
+    with polled_input_follows(posted_input):
+        snapshot = live_sources.capture_live_snapshot()
+
+    assert pygame.KSCAN_RETURN in snapshot.pressed_scancodes
+    assert live_sources.capture_live_snapshot is original_capture
+
+
+def test_the_supervisor_follows_what_it_posts(scene_manager):
+    """Every event the supervisor posts is noted in its polled input."""
+    script = InputScript()
+    script.at(1, press(pygame.K_LEFT))
+    supervisor = ScriptedInputSupervisor(
+        script=script, game_key='drawing_fire', frame_count=3, scene_manager=scene_manager
+    )
+
+    supervisor.on_frame(frame_number=0, scene=None)
+
+    assert supervisor.posted_input.held_scancodes == {pygame.KSCAN_LEFT}

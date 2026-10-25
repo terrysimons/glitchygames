@@ -16,7 +16,10 @@ it maps each recording's external input events to controls through the game's ow
 ActionMaps, built by the game's ``_create_action_map(s)``) plus the controls the engine's scenes
 hard-code (``ENGINE_SCENE_CONTROLS``), and fails on a control no event exercised unless
 ``UNEXERCISED_CONTROLS`` names it with its reason (an entry that names an exercised control, or
-none, fails too).
+none, fails too). A game that reads its controls from the frame's polled input instead of an
+ActionMap (Drawing Fire) lists them all in ``ENGINE_SCENE_CONTROLS``, each by the event that
+changes what is polled (a key's press, the mouse's motion, a button's press). A game with no
+pause (``GAMES_WITHOUT_A_PAUSE``) is exempt from pausing, with its reason.
 """
 
 from __future__ import annotations
@@ -38,6 +41,8 @@ from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from glitchygames.examples.drawing_fire import players as drawing_fire_players
+from glitchygames.examples.drawing_fire.game import DrawingFireScene
 from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
@@ -126,6 +131,7 @@ class InputKind(enum.StrEnum):
     """The kind of device a control is on."""
 
     KEYBOARD = 'keyboard'
+    MOUSE = 'mouse'
     GAMEPAD = 'gamepad'
 
 
@@ -166,7 +172,7 @@ class Control(BaseModel):
     def is_triggered_by(self, *, scene: str, record: dict[str, Any]) -> bool:
         """Return whether a recorded external event exercises this control.
 
-        Only keyboard controls can be exercised: no golden session has a gamepad
+        Only keyboard and mouse controls can be exercised: no golden session has a gamepad
         (UNEXERCISED_CONTROLS says why).
 
         Args:
@@ -178,7 +184,7 @@ class Control(BaseModel):
 
         """
         return (
-            self.kind is InputKind.KEYBOARD
+            self.kind in {InputKind.KEYBOARD, InputKind.MOUSE}
             and scene == self.scene
             and record['name'] == self.event_name
             and record['attributes'].get(self.attribute) == self.value
@@ -199,6 +205,58 @@ def _key_control(*, scene: type, action: str, event_type: int, key: int) -> Cont
         event_name=pygame.event.event_name(event_type),
         attribute='key',
         value=key,
+    )
+
+
+def _scancode_control(*, scene: type, action: str, scancode: int) -> Control:
+    """Build a keyboard control a scene reads as a held key from the polled input.
+
+    The key's press (its KEYDOWN, at the key's scancode) is what makes the snapshot hold it.
+
+    Returns:
+        The control.
+
+    """
+    return Control(
+        scene=scene.__name__,
+        action=action,
+        kind=InputKind.KEYBOARD,
+        event_name=pygame.event.event_name(pygame.KEYDOWN),
+        attribute='scancode',
+        value=scancode,
+    )
+
+
+def _drawing_fire_snapshot_control(
+    *,
+    action: str,
+    kind: InputKind,
+    event_type: int,
+    attribute: str | None = None,
+    value: int | None = None,
+) -> Control:
+    """Build a mouse or gamepad control Drawing Fire's scene reads from the polled input.
+
+    Args:
+        action: The action.
+        kind: Mouse or gamepad.
+        event_type: The event that changes what the snapshot holds (MOUSEMOTION,
+            MOUSEBUTTONDOWN, CONTROLLERAXISMOTION, CONTROLLERBUTTONDOWN).
+        attribute: The event attribute that names the control (``button``, ``axis``), or None
+            for any event of the type.
+        value: That attribute's value.
+
+    Returns:
+        The control.
+
+    """
+    return Control(
+        scene=DrawingFireScene.__name__,
+        action=action,
+        kind=kind,
+        event_name=pygame.event.event_name(event_type),
+        attribute=attribute,
+        value=value,
     )
 
 
@@ -257,6 +315,8 @@ GAMEPLAY_ACTION_MAPS: dict[str, tuple[type, Callable[[str], dict[str, ActionMap]
         ClockworkKeepScene,
         lambda input_mode: {'': ClockworkKeepScene._create_action_map(input_mode=input_mode)},
     ),
+    # Drawing Fire binds no ActionMap: DRAWING_FIRE_CONTROLS lists what it reads from the snapshot
+    'drawing-fire': (DrawingFireScene, lambda _input_mode: {}),
     'mr-muncher': (
         MrMuncherScene,
         lambda input_mode: {'': MrMuncherScene._create_action_map(input_mode=input_mode)},
@@ -276,13 +336,76 @@ PAUSE_SCENE_CONTROLS: tuple[Control, ...] = (
     ),
 )
 
+# Drawing Fire's controls (glitchygames/examples/drawing_fire/players.py), read from the frame's
+# snapshot, not an ActionMap: the keyboard's START, BACK, LEFT and RIGHT keys (each key of the
+# players module's own scancode lists), the mouse's aim and left button, and the controller's
+# sticks, trigger and buttons; and Q, which quits on its release (the base Scene: Drawing Fire
+# ignores only Escape's release, its BACK)
+DRAWING_FIRE_CONTROLS: tuple[Control, ...] = (
+    *(
+        _scancode_control(scene=DrawingFireScene, action=action, scancode=scancode)
+        for action, scancodes in (
+            ('start', drawing_fire_players.START_SCANCODES),
+            ('back', drawing_fire_players.BACK_SCANCODES),
+            ('left', drawing_fire_players.LEFT_SCANCODES),
+            ('right', drawing_fire_players.RIGHT_SCANCODES),
+        )
+        for scancode in scancodes
+    ),
+    _drawing_fire_snapshot_control(
+        action='aim', kind=InputKind.MOUSE, event_type=pygame.MOUSEMOTION
+    ),
+    _drawing_fire_snapshot_control(
+        action='fire',
+        kind=InputKind.MOUSE,
+        event_type=pygame.MOUSEBUTTONDOWN,
+        attribute='button',
+        # pygame numbers the mouse buttons from 1; the snapshot's index from 0
+        value=drawing_fire_players.LEFT_MOUSE_BUTTON_INDEX + 1,
+    ),
+    *(
+        _drawing_fire_snapshot_control(
+            action=action,
+            kind=InputKind.GAMEPAD,
+            event_type=pygame.CONTROLLERAXISMOTION,
+            attribute='axis',
+            value=axis,
+        )
+        for action, axis in (
+            ('move', pygame.CONTROLLER_AXIS_LEFTX),
+            ('aim', pygame.CONTROLLER_AXIS_RIGHTX),
+            ('aim', pygame.CONTROLLER_AXIS_RIGHTY),
+            ('fire', pygame.CONTROLLER_AXIS_TRIGGERRIGHT),
+        )
+    ),
+    *(
+        _drawing_fire_snapshot_control(
+            action=action,
+            kind=InputKind.GAMEPAD,
+            event_type=pygame.CONTROLLERBUTTONDOWN,
+            attribute='button',
+            value=button,
+        )
+        for action, button in (
+            ('fire', pygame.CONTROLLER_BUTTON_RIGHTSHOULDER),
+            ('start', pygame.CONTROLLER_BUTTON_START),
+            ('back', pygame.CONTROLLER_BUTTON_BACK),
+            ('left', pygame.CONTROLLER_BUTTON_DPAD_LEFT),
+            ('right', pygame.CONTROLLER_BUTTON_DPAD_RIGHT),
+        )
+    ),
+    _key_control(scene=DrawingFireScene, action='quit', event_type=pygame.KEYUP, key=pygame.K_q),
+)
+
 # Console script -> the controls its scenes hard-code in handlers (no ActionMap): the pause
 # screen's, PaddleSlap's quit (the base Scene quits on the release of Q or ESC: PaddleSlap binds
-# no quit of its own), and Mr. Muncher's joystick hat (on_joy_hat_motion_event)
+# no quit of its own), Mr. Muncher's joystick hat (on_joy_hat_motion_event) and every one of
+# Drawing Fire's (it has no pause screen)
 ENGINE_SCENE_CONTROLS: dict[str, tuple[Control, ...]] = {
     'brave-adventurer': PAUSE_SCENE_CONTROLS,
     'brave-adventurer-papyrus': PAUSE_SCENE_CONTROLS,
     'clockwork-keep': PAUSE_SCENE_CONTROLS,
+    'drawing-fire': DRAWING_FIRE_CONTROLS,
     'mr-muncher': (
         *PAUSE_SCENE_CONTROLS,
         Control(
@@ -307,6 +430,16 @@ NO_GAMEPAD_IN_THE_SESSION = (
     '(InputDevices.dispatches), so a supervisor cannot post them (a stand-in device recorded '
     'through the devices door would be needed: plans/future-features.md #44)'
 )
+# Console script -> why the game never pauses (so its golden replay cannot pause and resume)
+GAMES_WITHOUT_A_PAUSE: dict[str, str] = {
+    'drawing-fire': (
+        'Drawing Fire has no pause in its MVP: players drop into and out of a battle that runs '
+        'on (the next one starts on its own), and Escape is Back on the keyboard, held to '
+        'leave a seat (plans/2026-10-25-drawing-fire-design.md, sections 4.1 and 4.4)'
+    ),
+}
+# The games whose golden replays go through the engine's pause screen
+PAUSING_CONSOLE_SCRIPTS = sorted(set(GAMEPLAY_ACTION_MAPS) - set(GAMES_WITHOUT_A_PAUSE))
 QUITS_ONCE = (
     "a session quits once, and it quits from the game's scene with the game's own quit "
     'control; the pause screen quits through the same QUIT event (tests/scenes cover it)'
@@ -331,6 +464,11 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
                 ('move_right', 'move_left', 'jump', 'interact', 'run'),
             ),
             (
+                'drawing-fire',
+                DrawingFireScene,
+                ('move', 'aim', 'fire', 'start', 'back', 'left', 'right'),
+            ),
+            (
                 'mr-muncher',
                 MrMuncherScene,
                 ('move_up', 'move_left', 'move_down', 'move_right', 'pause', 'steer'),
@@ -345,11 +483,11 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
     },
     **{
         (console_script, PauseScene.__name__, 'quit', InputKind.KEYBOARD): QUITS_ONCE
-        for console_script in GAMEPLAY_ACTION_MAPS
+        for console_script in PAUSING_CONSOLE_SCRIPTS
     },
     **{
         (console_script, PauseScene.__name__, choice, InputKind.GAMEPAD): NO_GAMEPAD_IN_THE_SESSION
-        for console_script in GAMEPLAY_ACTION_MAPS
+        for console_script in PAUSING_CONSOLE_SCRIPTS
         for choice in GamepadChoice
     },
 }
@@ -358,7 +496,7 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
 def golden_recording(console_script: str) -> dict[str, Any]:
     """Read a game's golden replay.
 
-    Not cached: the five decoded recordings are about 200 MB, which a cache kept for the rest
+    Not cached: the six decoded recordings are about 200 MB, which a cache kept for the rest
     of the test run (the Linux CI job has 2 GB); reading them all again takes about 0.5 s.
 
     Returns:
@@ -464,14 +602,18 @@ def test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit(con
 
     No QUIT comes from outside (the recorder never ends the run itself: the tail's quit control
     does), so a replay whose game no longer quits misses the recorded internal QUIT and diverges.
+    A game in GAMES_WITHOUT_A_PAUSE must never reach the pause screen instead.
     """
     recording = golden_recording(console_script)
     frames = recording['frames']
     gameplay_scene, _action_maps_for = GAMEPLAY_ACTION_MAPS[console_script]
     scenes = [frame['scene'] for frame in frames]
-    assert PauseScene.__name__ in scenes, f'{console_script} golden replay never pauses'
-    first_pause = scenes.index(PauseScene.__name__)
-    assert gameplay_scene.__name__ in scenes[first_pause:], f'{console_script} never resumes'
+    if console_script in GAMES_WITHOUT_A_PAUSE:
+        assert PauseScene.__name__ not in scenes, f'{console_script} has no pause, yet paused'
+    else:
+        assert PauseScene.__name__ in scenes, f'{console_script} golden replay never pauses'
+        first_pause = scenes.index(PauseScene.__name__)
+        assert gameplay_scene.__name__ in scenes[first_pause:], f'{console_script} never resumes'
     assert scenes[-1] == gameplay_scene.__name__
     quit_name = pygame.event.event_name(pygame.QUIT)
     quits = [

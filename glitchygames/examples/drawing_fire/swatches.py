@@ -255,6 +255,10 @@ def recolor_surface(
     recolored = surface.copy()
     colorkey = surface.get_colorkey()
     keyed_color = tuple(colorkey)[:3] if colorkey is not None else None
+    # Surface.copy() drops the colorkey of a surface whose format has an alpha mask (a plain
+    # Surface on macOS's cocoa display: glitchygames/opacity.py), so it is set again
+    if colorkey is not None:
+        recolored.set_colorkey(colorkey)
     for x in range(surface.get_width()):
         for y in range(surface.get_height()):
             red, green, blue, alpha = surface.get_at((x, y))
