@@ -53,6 +53,8 @@ brave-adventurer = "glitchygames.examples.brave_adventurer:main"
 brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
 paddleslap = "glitchygames.examples.paddleslap:main"
 clockwork-keep = "glitchygames.examples.clockwork_keep:main"
+mr-muncher = "glitchygames.examples.mr_muncher:main"
+drawing-fire = "glitchygames.examples.drawing_fire:main"
 
 [project.optional-dependencies]
 docs = [
