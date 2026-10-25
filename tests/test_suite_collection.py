@@ -37,52 +37,120 @@ def _defines_tests(python_file: Path) -> bool:
     )
 
 
-def _test_defining_files() -> list[Path]:
-    """Return every Python file under tests/ that defines tests."""
+def collected_test_roots(*, project_root: Path = PROJECT_ROOT) -> list[Path]:
+    """Return every directory of tests pytest collects: tests/, then each workspace member's.
+
+    Args:
+        project_root: The repository (its pyproject.toml names the members).
+
+    Returns:
+        The test roots.
+
+    """
+    from scripts.workspace_packages import workspace_members
+
+    return [
+        project_root / 'tests',
+        *(member.tests_directory for member in workspace_members(project_root=project_root)),
+    ]
+
+
+def _python_files(*, roots: list[Path]) -> list[tuple[Path, Path]]:
+    """Return every Python file below the roots (no __pycache__), each with its root, sorted."""
     return sorted(
-        python_file
-        for python_file in TESTS_ROOT.rglob('*.py')
+        (root, python_file)
+        for root in roots
+        for python_file in root.rglob('*.py')
         if '__pycache__' not in python_file.parts
-        and python_file.name not in NON_TEST_MODULE_NAMES
-        and _defines_tests(python_file)
     )
 
 
-def test_no_test_directory_matches_norecursedirs():
-    """Every directory holding tests must be one pytest will recurse into."""
-    norecursedirs_patterns = PYTEST_SETTINGS.get('norecursedirs', [])
+def _test_defining_files(*, roots: list[Path]) -> list[tuple[Path, Path]]:
+    """Return every Python file below the roots that defines tests, each with its root."""
+    return [
+        (root, python_file)
+        for root, python_file in _python_files(roots=roots)
+        if python_file.name not in NON_TEST_MODULE_NAMES and _defines_tests(python_file)
+    ]
+
+
+def norecursedirs_exclusions(
+    *, project_root: Path, roots: list[Path], patterns: list[str]
+) -> list[str]:
+    """Return each test file below the roots in a directory a norecursedirs pattern matches.
+
+    Args:
+        project_root: What the reported paths are relative to.
+        roots: The test roots.
+        patterns: pytest's norecursedirs (matched against directory names at any depth).
+
+    Returns:
+        ``<file> (directory '<name>' matches [<patterns>])`` for each excluded file.
+
+    """
     excluded_test_files = []
-    for test_file in _test_defining_files():
-        for directory_name in test_file.relative_to(TESTS_ROOT).parent.parts:
+    for root, test_file in _test_defining_files(roots=roots):
+        for directory_name in test_file.relative_to(root).parent.parts:
             matching_patterns = [
-                pattern
-                for pattern in norecursedirs_patterns
-                if fnmatch.fnmatch(directory_name, pattern)
+                pattern for pattern in patterns if fnmatch.fnmatch(directory_name, pattern)
             ]
             if matching_patterns:
                 excluded_test_files.append(
-                    f'{test_file.relative_to(PROJECT_ROOT)} '
+                    f'{test_file.relative_to(project_root)} '
                     f'(directory {directory_name!r} matches {matching_patterns})',
                 )
+    return excluded_test_files
+
+
+def misnamed_test_files(*, project_root: Path, roots: list[Path], patterns: list[str]) -> list[str]:
+    """Return each file below the roots that defines tests but matches no python_files pattern.
+
+    Args:
+        project_root: What the reported paths are relative to.
+        roots: The test roots.
+        patterns: pytest's python_files.
+
+    Returns:
+        The misnamed files.
+
+    """
+    return [
+        str(test_file.relative_to(project_root))
+        for _root, test_file in _test_defining_files(roots=roots)
+        if not any(fnmatch.fnmatch(test_file.name, pattern) for pattern in patterns)
+    ]
+
+
+def test_no_test_directory_matches_norecursedirs():
+    """Every directory holding tests (tests/ and every member's) is one pytest recurses into."""
+    excluded_test_files = norecursedirs_exclusions(
+        project_root=PROJECT_ROOT,
+        roots=collected_test_roots(),
+        patterns=PYTEST_SETTINGS.get('norecursedirs', []),
+    )
     assert not excluded_test_files, (
         'Tests excluded by norecursedirs (patterns match directory names at any depth): '
         f'{excluded_test_files}'
     )
 
 
-def test_every_test_file_matches_python_files():
-    """Every file that defines tests must have a name pytest will collect."""
+def _python_files_patterns() -> list[str]:
+    """Return pytest's python_files setting as a list."""
     python_files_patterns = PYTEST_SETTINGS.get('python_files', ['test_*.py', '*_test.py'])
     if isinstance(python_files_patterns, str):
         python_files_patterns = python_files_patterns.split()
-    misnamed_test_files = [
-        str(test_file.relative_to(PROJECT_ROOT))
-        for test_file in _test_defining_files()
-        if not any(fnmatch.fnmatch(test_file.name, pattern) for pattern in python_files_patterns)
-    ]
-    assert not misnamed_test_files, (
+    return python_files_patterns
+
+
+def test_every_test_file_matches_python_files():
+    """Every file that defines tests (tests/ and every member's) has a name pytest collects."""
+    python_files_patterns = _python_files_patterns()
+    misnamed = misnamed_test_files(
+        project_root=PROJECT_ROOT, roots=collected_test_roots(), patterns=python_files_patterns
+    )
+    assert not misnamed, (
         f'Files define tests but are not collected (python_files={python_files_patterns}): '
-        f'{misnamed_test_files}'
+        f'{misnamed}'
     )
 
 
@@ -112,22 +180,115 @@ def _assigned_pygame_constants(python_file: Path) -> list[str]:
     return assigned_constants
 
 
+def pygame_constant_reassignments(*, project_root: Path, roots: list[Path]) -> list[str]:
+    """Return ``<file>:<line>: <target>`` for each pygame constant assigned below the roots.
+
+    Args:
+        project_root: What the reported paths are relative to.
+        roots: The test roots.
+
+    Returns:
+        The assignments.
+
+    """
+    return [
+        f'{python_file.relative_to(project_root)}:{assignment}'
+        for _root, python_file in _python_files(roots=roots)
+        for assignment in _assigned_pygame_constants(python_file)
+    ]
+
+
 def test_no_test_reassigns_pygame_constants():
-    """Tests must not overwrite pygame's module-level constants.
+    """Tests (tests/ and every member's) must not overwrite pygame's module-level constants.
 
     An assignment like `pygame.K_SPACE = 32` outlives the test and changes the constant for
     every later test in the same process. Use the real constant, or `mocker.patch` it so the
     original is restored.
     """
-    offending_assignments = [
-        f'{python_file.relative_to(PROJECT_ROOT)}:{assignment}'
-        for python_file in sorted(TESTS_ROOT.rglob('*.py'))
-        if '__pycache__' not in python_file.parts
-        for assignment in _assigned_pygame_constants(python_file)
-    ]
+    offending_assignments = pygame_constant_reassignments(
+        project_root=PROJECT_ROOT, roots=collected_test_roots()
+    )
     assert not offending_assignments, (
         f'Tests reassign pygame constants (use mocker.patch): {offending_assignments}'
     )
+
+
+def test_the_test_roots_are_the_engines_and_every_members():
+    """The guards above scan the member's tests too (src/games/mr-muncher/tests)."""
+    roots = [root.relative_to(PROJECT_ROOT).as_posix() for root in collected_test_roots()]
+
+    assert roots[0] == 'tests'
+    assert 'src/games/mr-muncher/tests' in roots
+
+
+MEMBER_TESTS = Path('src') / 'games' / 'space-game' / 'tests'
+
+
+def write_member_test_root(*, project_root: Path) -> list[Path]:
+    """Write a repository whose one member, src/games/space-game, holds a good test file.
+
+    Returns:
+        Its test roots (from the workspace, as the guards read them).
+
+    """
+    (project_root / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n', encoding='utf-8'
+    )
+    member = project_root / 'src' / 'games' / 'space-game'
+    (member / 'space_game').mkdir(parents=True)
+    (member / 'pyproject.toml').write_text(
+        '[project]\nname = "space-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["space_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'tests').mkdir()
+    (member / 'tests').mkdir()
+    (member / 'tests' / 'test_space_game.py').write_text(
+        'def test_flies():\n    assert True\n', encoding='utf-8'
+    )
+    return collected_test_roots(project_root=project_root)
+
+
+def test_a_misnamed_member_test_file_is_found(tmp_path):
+    """A member's test file pytest would never collect is reported."""
+    roots = write_member_test_root(project_root=tmp_path)
+    misnamed = tmp_path / MEMBER_TESTS / 'space_game_helpers_test_cases.py'
+    misnamed.write_text('def test_lands():\n    assert True\n', encoding='utf-8')
+
+    assert misnamed_test_files(
+        project_root=tmp_path, roots=roots, patterns=_python_files_patterns()
+    ) == [(MEMBER_TESTS / misnamed.name).as_posix()]
+
+
+def test_a_member_test_in_a_norecursedirs_directory_is_found(tmp_path):
+    """A member's test file in a directory norecursedirs matches is reported."""
+    roots = write_member_test_root(project_root=tmp_path)
+    (tmp_path / MEMBER_TESTS / 'build').mkdir()
+    (tmp_path / MEMBER_TESTS / 'build' / 'test_built.py').write_text(
+        'def test_built():\n    assert True\n', encoding='utf-8'
+    )
+
+    excluded = norecursedirs_exclusions(
+        project_root=tmp_path, roots=roots, patterns=PYTEST_SETTINGS['norecursedirs']
+    )
+
+    expected = (
+        f'{(MEMBER_TESTS / "build" / "test_built.py").as_posix()} '
+        "(directory 'build' matches ['build'])"
+    )
+    assert excluded == [expected]
+
+
+def test_a_member_test_reassigning_a_pygame_constant_is_found(tmp_path):
+    """A member's test that overwrites pygame.K_SPACE is reported."""
+    roots = write_member_test_root(project_root=tmp_path)
+    (tmp_path / MEMBER_TESTS / 'test_space_game.py').write_text(
+        'import pygame\n\n\ndef test_flies():\n    pygame.K_SPACE = 32\n', encoding='utf-8'
+    )
+
+    assert pygame_constant_reassignments(project_root=tmp_path, roots=roots) == [
+        f'{(MEMBER_TESTS / "test_space_game.py").as_posix()}:5: pygame.K_SPACE'
+    ]
 
 
 def test_the_shared_harness_is_a_plugin_loaded_before_any_other():
@@ -172,11 +333,6 @@ def test_every_member_packages_tests_are_collected(pytestconfig):
 
 def test_test_file_names_are_unique_across_packages():
     """Member tests are not packages, so pytest imports them by file name: names must differ."""
-    from scripts.workspace_packages import workspace_members
-
-    roots = [TESTS_ROOT] + [
-        member.tests_directory for member in workspace_members(project_root=PROJECT_ROOT)
-    ]
-    names = [path.name for root in roots for path in root.rglob('test_*.py')]
+    names = [path.name for root in collected_test_roots() for path in root.rglob('test_*.py')]
 
     assert len(names) == len(set(names))
