@@ -8230,6 +8230,1355 @@ Joystick axis values are already normalized floats (-1.0 to 1.0).</p>
 
 
 
+<h2 id="glitchygames.input.device_listing" class="doc doc-heading">
+            <code>device_listing</code>
+
+
+<a href="#glitchygames.input.device_listing" class="headerlink" title="Permanent link">#</a></h2>
+
+    <div class="doc doc-contents ">
+
+        <p><code>--list-input-devices</code>: print every joystick and game controller the game would see, then exit.</p>
+<p><code>GameEngine</code> runs <code>list_input_devices</code> in place of the game when the option is given (the
+game's scene is never built, nothing is recorded):</p>
+<ol>
+<li>start pygame's joystick and game controller subsystems, as the event managers do, and count
+   the devices before SDL's queue is ever pumped (what the managers' startup count sees);</li>
+<li>listen: pump SDL's queue through the doors for <code>LISTEN_SECONDS</code>, keeping each device added
+   or removed event (both layers) with when it arrived. macOS reports a pad that is already
+   connected as a device-added event once SDL pumps, so the count before pumping can miss it;</li>
+<li>open every device through the devices door (<code>active_sources().devices()</code>), as a game
+   controller when SDL maps it and as a joystick otherwise, and describe it with the door's
+   descriptor, the one a recording would hold; a device that cannot be opened (unplugged since
+   it was counted) is listed with the error;</li>
+<li>when nothing was found and the run can prompt (the engine passes <code>prompt</code> only when stdin
+   and stdout are a terminal), write <code>NO_DEVICES_PROMPT</code>, listen until the first device is
+   added (Ctrl-C ends the run, exit <code>INTERRUPTED</code>) and open again;</li>
+<li>write the listing to stdout: the count before pumping, the device events and when they
+   came (which tell a pad SDL knew at startup from one it reported only later), then each
+   device. The run then ends normally (exit <code>SUCCESS</code>).</li>
+</ol>
+<p>Everything goes through the doors, so the doors guard (tests/test_engine_doors.py) holds and the
+tests list stand-in devices (tests/input/stand_in_devices.py).</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="glitchygames.input.device_listing.DeviceEvent" class="doc doc-heading">
+            <code>DeviceEvent</code>
+
+
+<a href="#glitchygames.input.device_listing.DeviceEvent" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>One device added or removed while listening.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>seconds</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>When it arrived, in seconds since the listing started.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>change</code></b>
+                  (<code><span title="typing.Literal">Literal</span>[&#39;added&#39;, &#39;removed&#39;]</code>)
+              –
+              <div class="doc-md-description">
+                <p><code>added</code> or <code>removed</code>.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>layer</code></b>
+                  (<code><span title="typing.Literal">Literal</span>[&#39;joystick&#39;, &#39;controller&#39;]</code>)
+              –
+              <div class="doc-md-description">
+                <p><code>joystick</code> or <code>controller</code> (SDL sends both for a mapped pad).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>device_number</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The device index (added) or instance id (removed), as SDL names it.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+              <details class="quote">
+                <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-75">75</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-76">76</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-77">77</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-78">78</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-79">79</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-80">80</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-64" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-64"></a><span class="k">class</span><span class="w"> </span><span class="nc">DeviceEvent</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-65" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-65"></a><span class="w">    </span><span class="sd">"""One device added or removed while listening.</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-66" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-66"></a>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-67" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-67"></a><span class="sd">    Attributes:</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-68" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-68"></a><span class="sd">        seconds: When it arrived, in seconds since the listing started.</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-69" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-69"></a><span class="sd">        change: ``added`` or ``removed``.</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-70" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-70"></a><span class="sd">        layer: ``joystick`` or ``controller`` (SDL sends both for a mapped pad).</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-71" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-71"></a><span class="sd">        device_number: The device index (added) or instance id (removed), as SDL names it.</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-72" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-72"></a>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-73" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-73"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-74" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-74"></a>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-75" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-75"></a>    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="s1">'forbid'</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-76" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-76"></a>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-77" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-77"></a>    <span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-78" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-78"></a>    <span class="n">change</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'added'</span><span class="p">,</span> <span class="s1">'removed'</span><span class="p">]</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-79" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-79"></a>    <span class="n">layer</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'joystick'</span><span class="p">,</span> <span class="s1">'controller'</span><span class="p">]</span>
+<a id="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-80" name="glitchygames.input.device_listing.DeviceEvent--source--__codelineno-0-80"></a>    <span class="n">device_number</span><span class="p">:</span> <span class="nb">int</span>
+</code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="glitchygames.input.device_listing.Listening" class="doc doc-heading">
+            <code>Listening</code>
+
+
+<a href="#glitchygames.input.device_listing.Listening" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>What one listen heard.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>events</code></b>
+                  (<code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="DeviceEvent (glitchygames.input.device_listing.DeviceEvent)" href="#glitchygames.input.device_listing.DeviceEvent">DeviceEvent</a>, ...]</code>)
+              –
+              <div class="doc-md-description">
+                <p>The device events, in arrival order.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>seconds</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>When it stopped, in seconds since the listing started.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+              <details class="quote">
+                <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-83">83</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-84">84</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-85">85</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-86">86</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-87">87</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-88">88</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-89">89</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-90">90</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-91">91</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-92">92</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-93">93</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-94">94</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.Listening--source--__codelineno-0-95">95</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-83" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-83"></a><span class="k">class</span><span class="w"> </span><span class="nc">Listening</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-84" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-84"></a><span class="w">    </span><span class="sd">"""What one listen heard.</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-85" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-85"></a>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-86" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-86"></a><span class="sd">    Attributes:</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-87" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-87"></a><span class="sd">        events: The device events, in arrival order.</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-88" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-88"></a><span class="sd">        seconds: When it stopped, in seconds since the listing started.</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-89" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-89"></a>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-90" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-90"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-91" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-91"></a>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-92" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-92"></a>    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="s1">'forbid'</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-93" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-93"></a>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-94" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-94"></a>    <span class="n">events</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">DeviceEvent</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<a id="glitchygames.input.device_listing.Listening--source--__codelineno-0-95" name="glitchygames.input.device_listing.Listening--source--__codelineno-0-95"></a>    <span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span>
+</code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.device_lines" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">device_lines</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">descriptor</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.device_lines" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return one device's lines: index, instance and name, then its mapping and its controls.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>descriptor</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="DeviceDescriptor
+
+
+  
+      dataclass
+   (glitchygames.input.devices.DeviceDescriptor)" href="#glitchygames.input.devices.DeviceDescriptor">DeviceDescriptor</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>The device, as the door described it when it was opened.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>The lines.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-115">115</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-116">116</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-117">117</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-118">118</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-119">119</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-120">120</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-121">121</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-122">122</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-123">123</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-124">124</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-125">125</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-126">126</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-127">127</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-128">128</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-129">129</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-130">130</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-131">131</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-132">132</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-133">133</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-134">134</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-135">135</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-136">136</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-137">137</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-138">138</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-139">139</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.device_lines--source--__codelineno-0-140">140</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-115" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-115"></a><span class="k">def</span><span class="w"> </span><span class="nf">device_lines</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">descriptor</span><span class="p">:</span> <span class="n">DeviceDescriptor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-116" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-116"></a><span class="w">    </span><span class="sd">"""Return one device's lines: index, instance and name, then its mapping and its controls.</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-117" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-117"></a>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-118" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-118"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-119" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-119"></a><span class="sd">        descriptor: The device, as the door described it when it was opened.</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-120" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-120"></a>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-121" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-121"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-122" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-122"></a><span class="sd">        The lines.</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-123" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-123"></a>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-124" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-124"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-125" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-125"></a>    <span class="k">if</span> <span class="n">descriptor</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">CONTROLLER_KIND</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-126" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-126"></a>        <span class="n">mapping</span> <span class="o">=</span> <span class="s1">'game controller (SDL maps it)'</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-127" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-127"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-128" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-128"></a>        <span class="n">mapping</span> <span class="o">=</span> <span class="s1">'joystick only (no game controller mapping)'</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-129" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-129"></a>    <span class="n">guid</span> <span class="o">=</span> <span class="s1">'unknown'</span> <span class="k">if</span> <span class="n">descriptor</span><span class="o">.</span><span class="n">guid</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">descriptor</span><span class="o">.</span><span class="n">guid</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-130" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-130"></a>    <span class="n">controls</span> <span class="o">=</span> <span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">([</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-131" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-131"></a>        <span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">descriptor</span><span class="o">.</span><span class="n">axis_count</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s1">'axis'</span><span class="p">),</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-132" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-132"></a>        <span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">descriptor</span><span class="o">.</span><span class="n">button_count</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s1">'button'</span><span class="p">),</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-133" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-133"></a>        <span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">descriptor</span><span class="o">.</span><span class="n">hat_count</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s1">'hat'</span><span class="p">),</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-134" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-134"></a>        <span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">descriptor</span><span class="o">.</span><span class="n">ball_count</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s1">'ball'</span><span class="p">),</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-135" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-135"></a>    <span class="p">])</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-136" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-136"></a>    <span class="k">return</span> <span class="p">[</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-137" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-137"></a>        <span class="sa">f</span><span class="s1">'  index </span><span class="si">{</span><span class="n">descriptor</span><span class="o">.</span><span class="n">device_index</span><span class="si">}</span><span class="s1">  instance </span><span class="si">{</span><span class="n">descriptor</span><span class="o">.</span><span class="n">instance_id</span><span class="si">}</span><span class="s1">  </span><span class="si">{</span><span class="n">descriptor</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-138" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-138"></a>        <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">DETAIL_INDENT</span><span class="si">}{</span><span class="n">mapping</span><span class="si">}</span><span class="s1">, guid </span><span class="si">{</span><span class="n">guid</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-139" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-139"></a>        <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">DETAIL_INDENT</span><span class="si">}{</span><span class="n">controls</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.device_lines--source--__codelineno-0-140" name="glitchygames.input.device_listing.device_lines--source--__codelineno-0-140"></a>    <span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.header_line" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">header_line</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">input_mode</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.header_line" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the listing's first line: SDL's and pygame's versions and the input mode.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>input_mode</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The run's <code>--input-mode</code>.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="str">str</span></code>
+              –
+              <div class="doc-md-description">
+                <p>The line.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-180">180</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-181">181</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-182">182</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-183">183</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-184">184</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-185">185</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-186">186</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-187">187</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-188">188</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-189">189</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-190">190</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-191">191</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.header_line--source--__codelineno-0-192">192</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-180" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-180"></a><span class="k">def</span><span class="w"> </span><span class="nf">header_line</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">input_mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-181" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-181"></a><span class="w">    </span><span class="sd">"""Return the listing's first line: SDL's and pygame's versions and the input mode.</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-182" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-182"></a>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-183" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-183"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-184" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-184"></a><span class="sd">        input_mode: The run's ``--input-mode``.</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-185" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-185"></a>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-186" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-186"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-187" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-187"></a><span class="sd">        The line.</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-188" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-188"></a>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-189" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-189"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-190" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-190"></a>    <span class="n">sdl_version</span> <span class="o">=</span> <span class="s1">'.'</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">part</span><span class="p">)</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">pygame</span><span class="o">.</span><span class="n">get_sdl_version</span><span class="p">())</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-191" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-191"></a>    <span class="n">versions</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'SDL </span><span class="si">{</span><span class="n">sdl_version</span><span class="si">}</span><span class="s1">, pygame-ce </span><span class="si">{</span><span class="n">pygame</span><span class="o">.</span><span class="n">version</span><span class="o">.</span><span class="n">ver</span><span class="si">}</span><span class="s1">'</span>
+<a id="glitchygames.input.device_listing.header_line--source--__codelineno-0-192" name="glitchygames.input.device_listing.header_line--source--__codelineno-0-192"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s1">'Input devices (</span><span class="si">{</span><span class="n">versions</span><span class="si">}</span><span class="s1">; input mode </span><span class="si">{</span><span class="n">input_mode</span><span class="si">}</span><span class="s1">):'</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.list_input_devices" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">list_input_devices</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">input_mode</span><span class="p">,</span> <span class="n">listen_seconds</span><span class="o">=</span><span class="n">LISTEN_SECONDS</span><span class="p">,</span> <span class="n">prompt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.list_input_devices" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Start the joystick subsystems, listen, open every device and list it (see the docstring).</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>sources</code></b>
+                  (<code><span title="glitchygames.sources.EngineSources">EngineSources</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The installed doors.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>input_mode</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The run's <code>--input-mode</code>, named in the header.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>listen_seconds</code></b>
+                  (<code><span title="float">float</span></code>, default:
+                      <code><span title="glitchygames.input.device_listing.LISTEN_SECONDS">LISTEN_SECONDS</span></code>
+)
+              –
+              <div class="doc-md-description">
+                <p>How long to listen before opening.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>prompt</code></b>
+                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="str">str</span>], None] | None</code>, default:
+                      <code>None</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Writes <code>NO_DEVICES_PROMPT</code> when nothing was found, then the listing waits for
+a device; None never prompts or waits (not at a terminal).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>sleep</code></b>
+                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="float">float</span>], None]</code>, default:
+                      <code><span title="time.sleep">sleep</span></code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Pauses between pumps.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>The listing's lines.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-314">314</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-315">315</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-316">316</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-317">317</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-318">318</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-319">319</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-320">320</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-321">321</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-322">322</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-323">323</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-324">324</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-325">325</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-326">326</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-327">327</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-328">328</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-329">329</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-330">330</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-331">331</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-332">332</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-333">333</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-334">334</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-335">335</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-336">336</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-337">337</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-338">338</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-339">339</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-340">340</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-341">341</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-342">342</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-343">343</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-344">344</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-345">345</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-346">346</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-347">347</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-348">348</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-349">349</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-350">350</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-351">351</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-352">352</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-353">353</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-354">354</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-355">355</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-356">356</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-357">357</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-358">358</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-359">359</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-360">360</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-314" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-314"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_input_devices</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-315" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-315"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-316" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-316"></a>    <span class="n">sources</span><span class="p">:</span> <span class="n">EngineSources</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-317" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-317"></a>    <span class="n">input_mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-318" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-318"></a>    <span class="n">listen_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">LISTEN_SECONDS</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-319" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-319"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-320" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-320"></a>    <span class="n">sleep</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">float</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-321" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-321"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-322" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-322"></a><span class="w">    </span><span class="sd">"""Start the joystick subsystems, listen, open every device and list it (see the docstring).</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-323" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-323"></a>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-324" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-324"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-325" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-325"></a><span class="sd">        sources: The installed doors.</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-326" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-326"></a><span class="sd">        input_mode: The run's ``--input-mode``, named in the header.</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-327" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-327"></a><span class="sd">        listen_seconds: How long to listen before opening.</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-328" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-328"></a><span class="sd">        prompt: Writes ``NO_DEVICES_PROMPT`` when nothing was found, then the listing waits for</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-329" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-329"></a><span class="sd">            a device; None never prompts or waits (not at a terminal).</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-330" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-330"></a><span class="sd">        sleep: Pauses between pumps.</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-331" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-331"></a>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-332" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-332"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-333" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-333"></a><span class="sd">        The listing's lines.</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-334" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-334"></a>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-335" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-335"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-336" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-336"></a>    <span class="n">pygame</span><span class="o">.</span><span class="n">joystick</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-337" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-337"></a>    <span class="n">pygame</span><span class="o">.</span><span class="n">_sdl2</span><span class="o">.</span><span class="n">controller</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-338" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-338"></a>    <span class="n">devices</span> <span class="o">=</span> <span class="n">sources</span><span class="o">.</span><span class="n">devices</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-339" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-339"></a>    <span class="n">count_before_pumping</span> <span class="o">=</span> <span class="n">devices</span><span class="o">.</span><span class="n">joystick_count</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-340" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-340"></a>    <span class="n">started_at</span> <span class="o">=</span> <span class="n">measured_seconds</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-341" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-341"></a>    <span class="n">listening</span> <span class="o">=</span> <span class="n">listen</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-342" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-342"></a>        <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">started_at</span><span class="o">=</span><span class="n">started_at</span><span class="p">,</span> <span class="n">listen_seconds</span><span class="o">=</span><span class="n">listen_seconds</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">sleep</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-343" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-343"></a>    <span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-344" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-344"></a>    <span class="n">events</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">listening</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-345" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-345"></a>    <span class="n">descriptors</span><span class="p">,</span> <span class="n">failures</span> <span class="o">=</span> <span class="n">open_every_device</span><span class="p">(</span><span class="n">devices</span><span class="o">=</span><span class="n">devices</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-346" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-346"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">descriptors</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">failures</span> <span class="ow">and</span> <span class="n">prompt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-347" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-347"></a>        <span class="n">prompt</span><span class="p">(</span><span class="n">NO_DEVICES_PROMPT</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-348" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-348"></a>        <span class="n">listening</span> <span class="o">=</span> <span class="n">listen</span><span class="p">(</span><span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span> <span class="n">started_at</span><span class="o">=</span><span class="n">started_at</span><span class="p">,</span> <span class="n">listen_seconds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">sleep</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-349" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-349"></a>        <span class="n">events</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">listening</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-350" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-350"></a>        <span class="n">descriptors</span><span class="p">,</span> <span class="n">failures</span> <span class="o">=</span> <span class="n">open_every_device</span><span class="p">(</span><span class="n">devices</span><span class="o">=</span><span class="n">devices</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-351" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-351"></a>    <span class="k">return</span> <span class="n">listing_lines</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-352" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-352"></a>        <span class="n">descriptors</span><span class="o">=</span><span class="n">descriptors</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-353" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-353"></a>        <span class="n">failures</span><span class="o">=</span><span class="n">failures</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-354" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-354"></a>        <span class="n">listening</span><span class="o">=</span><span class="n">listening_lines</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-355" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-355"></a>            <span class="n">count_before_pumping</span><span class="o">=</span><span class="n">count_before_pumping</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-356" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-356"></a>            <span class="n">device_events</span><span class="o">=</span><span class="n">events</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-357" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-357"></a>            <span class="n">listened_seconds</span><span class="o">=</span><span class="n">listening</span><span class="o">.</span><span class="n">seconds</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-358" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-358"></a>        <span class="p">),</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-359" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-359"></a>        <span class="n">header</span><span class="o">=</span><span class="n">header_line</span><span class="p">(</span><span class="n">input_mode</span><span class="o">=</span><span class="n">input_mode</span><span class="p">),</span>
+<a id="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-360" name="glitchygames.input.device_listing.list_input_devices--source--__codelineno-0-360"></a>    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.listen" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">listen</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">started_at</span><span class="p">,</span> <span class="n">listen_seconds</span><span class="p">,</span> <span class="n">sleep</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.listen" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Pump SDL's queue, keeping its device events, for a time or until a device is added.</p>
+<p>Other events are dropped: no game is running to take them.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>sources</code></b>
+                  (<code><span title="glitchygames.sources.EngineSources">EngineSources</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The installed doors.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>started_at</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>When the listing started (<code>clock.measured_seconds</code>); times count from it.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>listen_seconds</code></b>
+                  (<code><span title="float">float</span> | None</code>)
+              –
+              <div class="doc-md-description">
+                <p>How long to listen, from <code>started_at</code>; None listens until a device is
+added (the prompt's wait, which only Ctrl-C ends otherwise).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>sleep</code></b>
+                  (<code><span title="collections.abc.Callable">Callable</span>[[<span title="float">float</span>], None]</code>, default:
+                      <code><span title="time.sleep">sleep</span></code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Pauses between pumps (tests pass one that does not wait).</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><a class="autorefs autorefs-internal" title="Listening (glitchygames.input.device_listing.Listening)" href="#glitchygames.input.device_listing.Listening">Listening</a></code>
+              –
+              <div class="doc-md-description">
+                <p>The events heard and when listening stopped.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-267">267</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-268">268</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-269">269</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-270">270</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-271">271</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-272">272</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-273">273</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-274">274</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-275">275</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-276">276</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-277">277</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-278">278</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-279">279</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-280">280</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-281">281</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-282">282</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-283">283</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-284">284</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-285">285</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-286">286</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-287">287</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-288">288</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-289">289</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-290">290</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-291">291</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-292">292</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-293">293</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-294">294</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-295">295</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-296">296</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-297">297</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-298">298</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-299">299</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-300">300</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-301">301</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-302">302</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-303">303</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-304">304</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-305">305</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-306">306</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-307">307</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-308">308</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-309">309</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-310">310</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listen--source--__codelineno-0-311">311</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.listen--source--__codelineno-0-267" name="glitchygames.input.device_listing.listen--source--__codelineno-0-267"></a><span class="k">def</span><span class="w"> </span><span class="nf">listen</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-268" name="glitchygames.input.device_listing.listen--source--__codelineno-0-268"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-269" name="glitchygames.input.device_listing.listen--source--__codelineno-0-269"></a>    <span class="n">sources</span><span class="p">:</span> <span class="n">EngineSources</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-270" name="glitchygames.input.device_listing.listen--source--__codelineno-0-270"></a>    <span class="n">started_at</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-271" name="glitchygames.input.device_listing.listen--source--__codelineno-0-271"></a>    <span class="n">listen_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-272" name="glitchygames.input.device_listing.listen--source--__codelineno-0-272"></a>    <span class="n">sleep</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">float</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-273" name="glitchygames.input.device_listing.listen--source--__codelineno-0-273"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Listening</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-274" name="glitchygames.input.device_listing.listen--source--__codelineno-0-274"></a><span class="w">    </span><span class="sd">"""Pump SDL's queue, keeping its device events, for a time or until a device is added.</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-275" name="glitchygames.input.device_listing.listen--source--__codelineno-0-275"></a>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-276" name="glitchygames.input.device_listing.listen--source--__codelineno-0-276"></a><span class="sd">    Other events are dropped: no game is running to take them.</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-277" name="glitchygames.input.device_listing.listen--source--__codelineno-0-277"></a>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-278" name="glitchygames.input.device_listing.listen--source--__codelineno-0-278"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-279" name="glitchygames.input.device_listing.listen--source--__codelineno-0-279"></a><span class="sd">        sources: The installed doors.</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-280" name="glitchygames.input.device_listing.listen--source--__codelineno-0-280"></a><span class="sd">        started_at: When the listing started (``clock.measured_seconds``); times count from it.</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-281" name="glitchygames.input.device_listing.listen--source--__codelineno-0-281"></a><span class="sd">        listen_seconds: How long to listen, from ``started_at``; None listens until a device is</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-282" name="glitchygames.input.device_listing.listen--source--__codelineno-0-282"></a><span class="sd">            added (the prompt's wait, which only Ctrl-C ends otherwise).</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-283" name="glitchygames.input.device_listing.listen--source--__codelineno-0-283"></a><span class="sd">        sleep: Pauses between pumps (tests pass one that does not wait).</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-284" name="glitchygames.input.device_listing.listen--source--__codelineno-0-284"></a>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-285" name="glitchygames.input.device_listing.listen--source--__codelineno-0-285"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-286" name="glitchygames.input.device_listing.listen--source--__codelineno-0-286"></a><span class="sd">        The events heard and when listening stopped.</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-287" name="glitchygames.input.device_listing.listen--source--__codelineno-0-287"></a>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-288" name="glitchygames.input.device_listing.listen--source--__codelineno-0-288"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-289" name="glitchygames.input.device_listing.listen--source--__codelineno-0-289"></a>    <span class="n">events</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DeviceEvent</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-290" name="glitchygames.input.device_listing.listen--source--__codelineno-0-290"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-291" name="glitchygames.input.device_listing.listen--source--__codelineno-0-291"></a>        <span class="n">batch</span> <span class="o">=</span> <span class="n">sources</span><span class="o">.</span><span class="n">pump_events</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-292" name="glitchygames.input.device_listing.listen--source--__codelineno-0-292"></a>        <span class="n">now</span> <span class="o">=</span> <span class="n">measured_seconds</span><span class="p">()</span> <span class="o">-</span> <span class="n">started_at</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-293" name="glitchygames.input.device_listing.listen--source--__codelineno-0-293"></a>        <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-294" name="glitchygames.input.device_listing.listen--source--__codelineno-0-294"></a>            <span class="n">known</span> <span class="o">=</span> <span class="n">DEVICE_EVENT_TYPES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-295" name="glitchygames.input.device_listing.listen--source--__codelineno-0-295"></a>            <span class="k">if</span> <span class="n">known</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-296" name="glitchygames.input.device_listing.listen--source--__codelineno-0-296"></a>                <span class="k">continue</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-297" name="glitchygames.input.device_listing.listen--source--__codelineno-0-297"></a>            <span class="n">change</span><span class="p">,</span> <span class="n">layer</span><span class="p">,</span> <span class="n">field</span> <span class="o">=</span> <span class="n">known</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-298" name="glitchygames.input.device_listing.listen--source--__codelineno-0-298"></a>            <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-299" name="glitchygames.input.device_listing.listen--source--__codelineno-0-299"></a>                <span class="n">DeviceEvent</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-300" name="glitchygames.input.device_listing.listen--source--__codelineno-0-300"></a>                    <span class="n">seconds</span><span class="o">=</span><span class="n">now</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-301" name="glitchygames.input.device_listing.listen--source--__codelineno-0-301"></a>                    <span class="n">change</span><span class="o">=</span><span class="n">change</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-302" name="glitchygames.input.device_listing.listen--source--__codelineno-0-302"></a>                    <span class="n">layer</span><span class="o">=</span><span class="n">layer</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-303" name="glitchygames.input.device_listing.listen--source--__codelineno-0-303"></a>                    <span class="n">device_number</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">field</span><span class="p">)),</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-304" name="glitchygames.input.device_listing.listen--source--__codelineno-0-304"></a>                <span class="p">)</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-305" name="glitchygames.input.device_listing.listen--source--__codelineno-0-305"></a>            <span class="p">)</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-306" name="glitchygames.input.device_listing.listen--source--__codelineno-0-306"></a>        <span class="k">if</span> <span class="n">listen_seconds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-307" name="glitchygames.input.device_listing.listen--source--__codelineno-0-307"></a>            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">change</span> <span class="o">==</span> <span class="s1">'added'</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">):</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-308" name="glitchygames.input.device_listing.listen--source--__codelineno-0-308"></a>                <span class="k">return</span> <span class="n">Listening</span><span class="p">(</span><span class="n">events</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">events</span><span class="p">),</span> <span class="n">seconds</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-309" name="glitchygames.input.device_listing.listen--source--__codelineno-0-309"></a>        <span class="k">elif</span> <span class="n">now</span> <span class="o">&gt;=</span> <span class="n">listen_seconds</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-310" name="glitchygames.input.device_listing.listen--source--__codelineno-0-310"></a>            <span class="k">return</span> <span class="n">Listening</span><span class="p">(</span><span class="n">events</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">events</span><span class="p">),</span> <span class="n">seconds</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listen--source--__codelineno-0-311" name="glitchygames.input.device_listing.listen--source--__codelineno-0-311"></a>        <span class="n">sleep</span><span class="p">(</span><span class="n">PUMP_INTERVAL_SECONDS</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.listening_lines" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">listening_lines</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">count_before_pumping</span><span class="p">,</span> <span class="n">device_events</span><span class="p">,</span> <span class="n">listened_seconds</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.listening_lines" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the count before pumping and the device events heard, with when they came.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>count_before_pumping</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The joystick count before SDL's queue was pumped.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>device_events</code></b>
+                  (<code><span title="collections.abc.Sequence">Sequence</span>[<a class="autorefs autorefs-internal" title="DeviceEvent (glitchygames.input.device_listing.DeviceEvent)" href="#glitchygames.input.device_listing.DeviceEvent">DeviceEvent</a>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>The device events, in arrival order.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>listened_seconds</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>How long the listing listened, in all.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>The two lines.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-154">154</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-155">155</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-156">156</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-157">157</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-158">158</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-159">159</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-160">160</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-161">161</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-162">162</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-163">163</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-164">164</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-165">165</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-166">166</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-167">167</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-168">168</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-169">169</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-170">170</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-171">171</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-172">172</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-173">173</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-174">174</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-175">175</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-176">176</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listening_lines--source--__codelineno-0-177">177</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-154" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-154"></a><span class="k">def</span><span class="w"> </span><span class="nf">listening_lines</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-155" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-155"></a>    <span class="o">*</span><span class="p">,</span> <span class="n">count_before_pumping</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device_events</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">DeviceEvent</span><span class="p">],</span> <span class="n">listened_seconds</span><span class="p">:</span> <span class="nb">float</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-156" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-156"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-157" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-157"></a><span class="w">    </span><span class="sd">"""Return the count before pumping and the device events heard, with when they came.</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-158" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-158"></a>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-159" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-159"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-160" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-160"></a><span class="sd">        count_before_pumping: The joystick count before SDL's queue was pumped.</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-161" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-161"></a><span class="sd">        device_events: The device events, in arrival order.</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-162" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-162"></a><span class="sd">        listened_seconds: How long the listing listened, in all.</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-163" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-163"></a>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-164" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-164"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-165" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-165"></a><span class="sd">        The two lines.</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-166" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-166"></a>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-167" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-167"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-168" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-168"></a>    <span class="n">heard</span> <span class="o">=</span> <span class="p">(</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-169" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-169"></a>        <span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_describe_event</span><span class="p">(</span><span class="n">event</span><span class="o">=</span><span class="n">event</span><span class="p">)</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">device_events</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-170" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-170"></a>        <span class="k">if</span> <span class="n">device_events</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-171" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-171"></a>        <span class="k">else</span> <span class="s1">'no device added or removed'</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-172" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-172"></a>    <span class="p">)</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-173" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-173"></a>    <span class="n">counted</span> <span class="o">=</span> <span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">count_before_pumping</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s1">'device'</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-174" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-174"></a>    <span class="k">return</span> <span class="p">[</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-175" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-175"></a>        <span class="sa">f</span><span class="s2">"  before pumping SDL's queue: </span><span class="si">{</span><span class="n">counted</span><span class="si">}</span><span class="s2"> counted"</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-176" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-176"></a>        <span class="sa">f</span><span class="s1">'  while listening (</span><span class="si">{</span><span class="n">listened_seconds</span><span class="si">:</span><span class="s1">.1f</span><span class="si">}</span><span class="s1"> s): </span><span class="si">{</span><span class="n">heard</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-177" name="glitchygames.input.device_listing.listening_lines--source--__codelineno-0-177"></a>    <span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.listing_lines" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">listing_lines</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">descriptors</span><span class="p">,</span> <span class="n">failures</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">listening</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.listing_lines" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the whole listing: a header, the listening, each device (or failure), a summary.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>descriptors</code></b>
+                  (<code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="DeviceDescriptor
+
+
+  
+      dataclass
+   (glitchygames.input.devices.DeviceDescriptor)" href="#glitchygames.input.devices.DeviceDescriptor">DeviceDescriptor</a>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>The devices opened, by device index.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>failures</code></b>
+                  (<code><span title="dict">dict</span>[<span title="int">int</span>, <span title="str">str</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>The error for each device index that could not be opened.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>header</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p><code>header_line</code>'s line.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>listening</code></b>
+                  (<code><span title="list">list</span>[<span title="str">str</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p><code>listening_lines</code>'s lines.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>The lines.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-195">195</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-196">196</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-197">197</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-198">198</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-199">199</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-200">200</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-201">201</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-202">202</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-203">203</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-204">204</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-205">205</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-206">206</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-207">207</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-208">208</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-209">209</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-210">210</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-211">211</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-212">212</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-213">213</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-214">214</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-215">215</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-216">216</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-217">217</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-218">218</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-219">219</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-220">220</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-221">221</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-222">222</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-223">223</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-224">224</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-225">225</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-226">226</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-227">227</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-228">228</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-229">229</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-230">230</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-231">231</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-232">232</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-234">234</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.listing_lines--source--__codelineno-0-235">235</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-195" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-195"></a><span class="k">def</span><span class="w"> </span><span class="nf">listing_lines</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-196" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-196"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-197" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-197"></a>    <span class="n">descriptors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DeviceDescriptor</span><span class="p">],</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-198" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-198"></a>    <span class="n">failures</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-199" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-199"></a>    <span class="n">header</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-200" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-200"></a>    <span class="n">listening</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-201" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-201"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-202" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-202"></a><span class="w">    </span><span class="sd">"""Return the whole listing: a header, the listening, each device (or failure), a summary.</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-203" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-203"></a>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-204" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-204"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-205" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-205"></a><span class="sd">        descriptors: The devices opened, by device index.</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-206" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-206"></a><span class="sd">        failures: The error for each device index that could not be opened.</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-207" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-207"></a><span class="sd">        header: ``header_line``'s line.</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-208" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-208"></a><span class="sd">        listening: ``listening_lines``'s lines.</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-209" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-209"></a>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-210" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-210"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-211" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-211"></a><span class="sd">        The lines.</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-212" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-212"></a>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-213" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-213"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-214" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-214"></a>    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">header</span><span class="p">,</span> <span class="o">*</span><span class="n">listening</span><span class="p">]</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-215" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-215"></a>    <span class="n">entries</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">[</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-216" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-216"></a>        <span class="p">(</span><span class="n">descriptor</span><span class="o">.</span><span class="n">device_index</span><span class="p">,</span> <span class="n">device_lines</span><span class="p">(</span><span class="n">descriptor</span><span class="o">=</span><span class="n">descriptor</span><span class="p">))</span> <span class="k">for</span> <span class="n">descriptor</span> <span class="ow">in</span> <span class="n">descriptors</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-217" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-217"></a>    <span class="p">]</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-218" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-218"></a>    <span class="n">entries</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-219" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-219"></a>        <span class="p">(</span><span class="n">device_index</span><span class="p">,</span> <span class="p">[</span><span class="sa">f</span><span class="s1">'  index </span><span class="si">{</span><span class="n">device_index</span><span class="si">}</span><span class="s1">  could not be opened: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s1">'</span><span class="p">])</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-220" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-220"></a>        <span class="k">for</span> <span class="n">device_index</span><span class="p">,</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">failures</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-221" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-221"></a>    <span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-222" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-222"></a>    <span class="k">for</span> <span class="n">_device_index</span><span class="p">,</span> <span class="n">entry_lines</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">operator</span><span class="o">.</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">0</span><span class="p">)):</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-223" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-223"></a>        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">entry_lines</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-224" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-224"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">entries</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-225" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-225"></a>        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'  none: SDL reports no joysticks or game controllers'</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-226" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-226"></a>    <span class="n">controllers</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">descriptor</span> <span class="ow">in</span> <span class="n">descriptors</span> <span class="k">if</span> <span class="n">descriptor</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">CONTROLLER_KIND</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-227" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-227"></a>    <span class="n">summary</span> <span class="o">=</span> <span class="p">[</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-228" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-228"></a>        <span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">controllers</span><span class="p">,</span> <span class="n">noun</span><span class="o">=</span><span class="s1">'game controller'</span><span class="p">),</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-229" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-229"></a>        <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">descriptors</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">controllers</span><span class="si">}</span><span class="s1"> joystick only'</span><span class="p">,</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-230" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-230"></a>    <span class="p">]</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-231" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-231"></a>    <span class="k">if</span> <span class="n">failures</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-232" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-232"></a>        <span class="n">summary</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">failures</span><span class="p">)</span><span class="si">}</span><span class="s1"> could not be opened'</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-233" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-233"></a>    <span class="n">device_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">descriptors</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">failures</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-234" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-234"></a>    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">_plural</span><span class="p">(</span><span class="n">count</span><span class="o">=</span><span class="n">device_count</span><span class="p">,</span><span class="w"> </span><span class="n">noun</span><span class="o">=</span><span class="s2">"device"</span><span class="p">)</span><span class="si">}</span><span class="s1"> (</span><span class="si">{</span><span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="si">}</span><span class="s1">)'</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-235" name="glitchygames.input.device_listing.listing_lines--source--__codelineno-0-235"></a>    <span class="k">return</span> <span class="n">lines</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.input.device_listing.open_every_device" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">open_every_device</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">devices</span><span class="p">)</span></code>
+
+<a href="#glitchygames.input.device_listing.open_every_device" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Open every device SDL counts through the door, as a game controller when it is mapped.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>devices</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="DeviceRegistry (glitchygames.input.devices.DeviceRegistry)" href="#glitchygames.input.devices.DeviceRegistry">DeviceRegistry</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>The devices door.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<span title="list">list</span>[<a class="autorefs autorefs-internal" title="DeviceDescriptor
+
+
+  
+      dataclass
+   (glitchygames.input.devices.DeviceDescriptor)" href="#glitchygames.input.devices.DeviceDescriptor">DeviceDescriptor</a>], <span title="dict">dict</span>[<span title="int">int</span>, <span title="str">str</span>]]</code>
+              –
+              <div class="doc-md-description">
+                <p>The descriptors of the devices opened, and the error for each index that failed.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>glitchygames/input/device_listing.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-238">238</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-239">239</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-240">240</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-241">241</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-242">242</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-243">243</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-244">244</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-245">245</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-246">246</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-247">247</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-248">248</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-249">249</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-250">250</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-251">251</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-252">252</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-253">253</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-254">254</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-255">255</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-256">256</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-257">257</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-258">258</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-259">259</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-260">260</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-261">261</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-262">262</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-263">263</a></span>
+<span class="normal"><a href="#glitchygames.input.device_listing.open_every_device--source--__codelineno-0-264">264</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-238" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-238"></a><span class="k">def</span><span class="w"> </span><span class="nf">open_every_device</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">devices</span><span class="p">:</span> <span class="n">DeviceRegistry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">DeviceDescriptor</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-239" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-239"></a><span class="w">    </span><span class="sd">"""Open every device SDL counts through the door, as a game controller when it is mapped.</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-240" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-240"></a>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-241" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-241"></a><span class="sd">    Args:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-242" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-242"></a><span class="sd">        devices: The devices door.</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-243" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-243"></a>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-244" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-244"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-245" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-245"></a><span class="sd">        The descriptors of the devices opened, and the error for each index that failed.</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-246" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-246"></a>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-247" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-247"></a><span class="sd">    """</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-248" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-248"></a>    <span class="n">descriptors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DeviceDescriptor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-249" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-249"></a>    <span class="n">failures</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-250" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-250"></a>    <span class="k">for</span> <span class="n">device_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">devices</span><span class="o">.</span><span class="n">joystick_count</span><span class="p">()):</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-251" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-251"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-252" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-252"></a>            <span class="k">if</span> <span class="n">devices</span><span class="o">.</span><span class="n">is_controller</span><span class="p">(</span><span class="n">device_index</span><span class="o">=</span><span class="n">device_index</span><span class="p">):</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-253" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-253"></a>                <span class="n">joystick_view</span> <span class="o">=</span> <span class="n">devices</span><span class="o">.</span><span class="n">open_controller</span><span class="p">(</span><span class="n">device_index</span><span class="o">=</span><span class="n">device_index</span><span class="p">)</span><span class="o">.</span><span class="n">as_joystick</span><span class="p">()</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-254" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-254"></a>            <span class="k">else</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-255" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-255"></a>                <span class="n">joystick_view</span> <span class="o">=</span> <span class="n">devices</span><span class="o">.</span><span class="n">open_joystick</span><span class="p">(</span><span class="n">device_index</span><span class="o">=</span><span class="n">device_index</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-256" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-256"></a>        <span class="k">except</span> <span class="n">pygame</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-257" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-257"></a>            <span class="n">failures</span><span class="p">[</span><span class="n">device_index</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-258" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-258"></a>            <span class="k">continue</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-259" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-259"></a>        <span class="n">descriptor</span> <span class="o">=</span> <span class="n">devices</span><span class="o">.</span><span class="n">descriptor_for_instance</span><span class="p">(</span><span class="n">instance_id</span><span class="o">=</span><span class="n">joystick_view</span><span class="o">.</span><span class="n">get_instance_id</span><span class="p">())</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-260" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-260"></a>        <span class="k">if</span> <span class="n">descriptor</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-261" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-261"></a>            <span class="n">failures</span><span class="p">[</span><span class="n">device_index</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'opened, but the door has no descriptor for it'</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-262" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-262"></a>            <span class="k">continue</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-263" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-263"></a>        <span class="n">descriptors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">descriptor</span><span class="p">)</span>
+<a id="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-264" name="glitchygames.input.device_listing.open_every_device--source--__codelineno-0-264"></a>    <span class="k">return</span> <span class="n">descriptors</span><span class="p">,</span> <span class="n">failures</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
 <h2 id="glitchygames.input.devices" class="doc doc-heading">
             <code>devices</code>
 

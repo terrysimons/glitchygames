@@ -3,5 +3,58 @@
   "module": "glitchygames.examples.paddleslap",
   "scene_class": "Game",
   "title": "Paddle Slap",
-  "arguments": []
+  "arguments": [],
+  "touch_controls": {
+    "left": [
+      [
+        {
+          "label": "\u25b2",
+          "key_name": "W",
+          "code": "KeyW",
+          "key": "w",
+          "key_code": 87
+        }
+      ],
+      [
+        {
+          "label": "\u25bc",
+          "key_name": "S",
+          "code": "KeyS",
+          "key": "s",
+          "key_code": 83
+        }
+      ]
+    ],
+    "center": [
+      [
+        {
+          "label": "Pause",
+          "key_name": "Space",
+          "code": "Space",
+          "key": " ",
+          "key_code": 32
+        }
+      ]
+    ],
+    "right": [
+      [
+        {
+          "label": "\u25b2",
+          "key_name": "",
+          "code": "ArrowUp",
+          "key": "ArrowUp",
+          "key_code": 38
+        }
+      ],
+      [
+        {
+          "label": "\u25bc",
+          "key_name": "",
+          "code": "ArrowDown",
+          "key": "ArrowDown",
+          "key_code": 40
+        }
+      ]
+    ]
+  }
 }

@@ -3,5 +3,63 @@
   "module": "glitchygames.examples.clockwork_keep.game",
   "scene_class": "ClockworkKeepScene",
   "title": "Clockwork Keep",
-  "arguments": []
+  "arguments": [],
+  "touch_controls": {
+    "left": [
+      [
+        {
+          "label": "\u25c0",
+          "key_name": "",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "key_code": 37
+        },
+        {
+          "label": "\u25b6",
+          "key_name": "",
+          "code": "ArrowRight",
+          "key": "ArrowRight",
+          "key_code": 39
+        }
+      ]
+    ],
+    "center": [
+      [
+        {
+          "label": "Pause",
+          "key_name": "Esc",
+          "code": "Escape",
+          "key": "Escape",
+          "key_code": 27
+        }
+      ]
+    ],
+    "right": [
+      [
+        {
+          "label": "Use",
+          "key_name": "W",
+          "code": "KeyW",
+          "key": "w",
+          "key_code": 87
+        },
+        {
+          "label": "Jump",
+          "key_name": "Space",
+          "code": "Space",
+          "key": " ",
+          "key_code": 32
+        }
+      ],
+      [
+        {
+          "label": "Run",
+          "key_name": "Shift",
+          "code": "ShiftLeft",
+          "key": "Shift",
+          "key_code": 16
+        }
+      ]
+    ]
+  }
 }

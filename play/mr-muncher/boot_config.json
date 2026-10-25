@@ -3,5 +3,70 @@
   "module": "glitchygames.examples.mr_muncher.game",
   "scene_class": "MrMuncherScene",
   "title": "Mr. Muncher",
-  "arguments": []
+  "arguments": [],
+  "touch_controls": {
+    "left": [
+      [
+        null,
+        {
+          "label": "\u25b2",
+          "key_name": "",
+          "code": "ArrowUp",
+          "key": "ArrowUp",
+          "key_code": 38
+        },
+        null
+      ],
+      [
+        {
+          "label": "\u25c0",
+          "key_name": "",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "key_code": 37
+        },
+        null,
+        {
+          "label": "\u25b6",
+          "key_name": "",
+          "code": "ArrowRight",
+          "key": "ArrowRight",
+          "key_code": 39
+        }
+      ],
+      [
+        null,
+        {
+          "label": "\u25bc",
+          "key_name": "",
+          "code": "ArrowDown",
+          "key": "ArrowDown",
+          "key_code": 40
+        },
+        null
+      ]
+    ],
+    "center": [
+      [
+        {
+          "label": "Pause",
+          "key_name": "P",
+          "code": "KeyP",
+          "key": "p",
+          "key_code": 80
+        }
+      ]
+    ],
+    "right": [
+      [
+        {
+          "label": "Start",
+          "key_name": "Space",
+          "code": "Space",
+          "key": " ",
+          "key_code": 32
+        }
+      ]
+    ]
+  }
 }

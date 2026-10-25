@@ -3,5 +3,6 @@
   "module": "glitchygames.bitmappy.editor",
   "scene_class": "BitmapEditorScene",
   "title": "Bitmappy",
-  "arguments": []
+  "arguments": [],
+  "touch_controls": null
 }
