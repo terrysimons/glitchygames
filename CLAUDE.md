@@ -874,6 +874,18 @@ Features:
 - `installed_user_files()` is None on the desktop; a browser installs `UserFiles` (`open_file`
   with a file picker, `save_file` as a download). Tests start with none (`desktop_user_files`)
 
+**Touch controls in the browser** (`browser/touch_controls.js`; layouts in
+`scripts/build_browser_bundle.py` `TOUCH_LAYOUTS`, written into boot_config.json)
+- On touch devices the page shows on-screen buttons (portrait: below the game; landscape: over
+  its bottom corners). A held button holds its key: key events dispatched on the canvas reach
+  SDL (on the window they do not), so games, action maps, recordings and replays see ordinary
+  key presses and need no changes
+- Each button names its key ('Jump · Space'): the shared pause and game-over screens resume with
+  Space and quit with Esc, so a second tap on an Esc pause button would quit; their prompts then
+  point at the right button. Mr. Muncher's pause is P for that reason
+- `tests/test_browser_touch_controls.py` checks every button presses a key its game binds (or the
+  shared screens' Space and Esc). Bitmappy has no layout
+
 ### Resource Management
 
 **Fonts** (`glitchygames/fonts/`): `FontManager` singleton with Bitstream Vera fonts

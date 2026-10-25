@@ -452,6 +452,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Resolved**: 2026-10-24
 - **Files**: `scripts/generate_complexity_graphs.py`, `tests/test_generate_complexity_graphs.py`, `pyproject.toml` (`filelock` in the `dev` extra)
 
+### 218. A replay-metrics Test Fails Once a Docs Deploy Measured This Commit on This Machine
+- **Description**: `tests/test_replay_metrics.py` `test_measure_one_recording_then_clear` read the
+  real published run ledger (gh-pages) while measuring: after `nox -s docs-deploy` measured the
+  checked-out commit on this machine, the bundled demo counted as "already measured", nothing
+  was measured and the test failed. CI never saw it (no measurements from its machines)
+- **Status**: Resolved 2026-10-25: the test stubs the published ledger as empty from the start
+  (it already did before its `clear-published` step)
+- **Priority**: Low (local runs only, after a deploy)
+- **Reporter**: Found running the suite after the first docs deploy with play/, 2026-10-25
+- **Date Reported**: 2026-10-25
+- **Files**: `tests/test_replay_metrics.py`
+
 ### 213. `mkdocs serve` Keeps Every Rebuild Alive, Growing to 14.5 GB
 - **Description**: A local `mkdocs serve` (`nox -s docs-serve`) grew by about 330 MB with every rebuild (each saved docs or source file) and was at 14.5 GB when found
 - **Status**: Resolved
