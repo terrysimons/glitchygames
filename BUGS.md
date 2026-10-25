@@ -422,7 +422,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Resolved**: 2026-10-24
 - **Files**: `tests/garbage_collection.py`, `tests/conftest.py`, `tests/test_garbage_collection.py`
 
-### 218. A Pad Connected at Startup Got a Second Controller Proxy
+### 219. A Pad Connected at Startup Got a Second Controller Proxy
 - **Description**: SDL reports a pad that is already connected twice: in the startup count (the managers open it in `__init__`) and as a device-added event on the first pump (`--list-input-devices`: one device counted before pumping, then added events at 0.05 s). `ControllerEventManager.on_controller_device_added_event` opened it again and replaced the tracked proxy without checking, so anything the game set on that controller's proxy before the event was lost. `JoystickEventManager` already kept its tracked proxy
 - **Status**: Resolved
 - **Priority**: Low
