@@ -9,6 +9,7 @@ import pytest
 
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
+    PISTOL_COOLDOWN,
     PISTOL_DAMAGE,
     PISTOL_RANGE,
     SANDBAG_HEIGHT,
@@ -31,6 +32,8 @@ FIELD_WIDTH = 800
 FIELD_HEIGHT = 480
 FLAT_GROUND_Y = 400.0
 TIME_STEP = 0.01
+# Time for a bullet to cross a duel's distance, after the shot that fires it
+BULLET_FLIGHT_SLACK_SECONDS = 0.5
 
 
 def flat_terrain() -> Terrain:
@@ -121,14 +124,23 @@ def test_the_muzzle_is_out_along_the_aim_at_chest_height():
 def test_a_shot_hits_the_enemy_it_is_aimed_at():
     """Facing soldiers at the same height, no sandbag: two shots land in one second."""
     battle, shooter, target = duel(distance=200)
-    run(battle, seconds=1.0, intents={shooter.soldier_id: Intent(aim_angle=0.0, fire=True)})
-    assert target.health == SOLDIER_HEALTH - 2  # cooldown allows two shots in 1.0 s (0 and 0.6)
+    # The cooldown allows two shots: at 0 and at PISTOL_COOLDOWN; the second needs time to land
+    run(
+        battle,
+        seconds=PISTOL_COOLDOWN + BULLET_FLIGHT_SLACK_SECONDS,
+        intents={shooter.soldier_id: Intent(aim_angle=0.0, fire=True)},
+    )
+    assert target.health == SOLDIER_HEALTH - 2
 
 
-def test_three_hits_kill_and_report_it():
-    """The third hit kills, SoldierKilled is reported once, and the dead stop being hit."""
+def test_enough_hits_kill_and_report_it():
+    """The last hit of SOLDIER_HEALTH kills, SoldierKilled is reported once, and the dead stop."""
     battle, shooter, target = duel(distance=200)
-    events = run(battle, seconds=3.0, intents={shooter.soldier_id: Intent(fire=True)})
+    events = run(
+        battle,
+        seconds=SOLDIER_HEALTH * PISTOL_COOLDOWN + BULLET_FLIGHT_SLACK_SECONDS,
+        intents={shooter.soldier_id: Intent(fire=True)},
+    )
     assert events == [SoldierKilled(target.soldier_id)]
     assert not target.alive
     assert target.health == 0
@@ -172,7 +184,11 @@ def test_a_shot_sandbag_loses_sand_and_flattens():
     assert bag.height == 0.0
     assert target.health == SOLDIER_HEALTH
     # Once flat, level shots go over it and land
-    run(battle, seconds=1.0, intents={shooter.soldier_id: Intent(fire=True)})
+    run(
+        battle,
+        seconds=PISTOL_COOLDOWN + BULLET_FLIGHT_SLACK_SECONDS,
+        intents={shooter.soldier_id: Intent(fire=True)},
+    )
     assert target.health < SOLDIER_HEALTH
     assert bag.sand == 0.0
 

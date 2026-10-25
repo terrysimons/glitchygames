@@ -245,6 +245,24 @@ later. **(user)**
 - It should run in the browser build too (`nox -s browser`), with a touch layout
   (`scripts/build_browser_bundle.py` `TOUCH_LAYOUTS`) once its controls settle.
 
+### 4.7 Tuning record (milestone 1)
+`uv run python scripts/simulate_drawing_fire.py --seeds 20` (8 soldiers per side, 800x480):
+- **Before** (health 3, pistol cooldown 0.6 s): battles ended in 7 to 21 s, with the winner
+  keeping 2 to 7 soldiers. Too fast to watch.
+- **After** (`SOLDIER_HEALTH = 6`, `PISTOL_COOLDOWN = 1.5`; other battle constants unchanged):
+  Pencil Platoon 11 wins, Graphite Brigade 9; mean 48.4 s, shortest 23.4 s, longest 95.2 s.
+  (Sweep of 40 seeds at 30 fps steps, before the last driver refactor: 21 and 19 wins, mean
+  50.3 s, longest 107.3 s.) No stalemates.
+- **Driver rules the simulation forced** (my call):
+  - Hills block bullets, so a soldier neither stands nor fires until the ground leaves a clear
+    line to his target (otherwise whole armies stood on either side of a hill, firing into it).
+  - A standing sandbag blocks walking, so a soldier stopped at one with the enemy hidden behind a
+    hill shoots the sandbag's middle until it is low enough to walk over.
+  - A soldier stops at a sandbag only when the enemy is in range and in sight; cover is for
+    fighting, not for waiting.
+- Known look to fix with the drawing: every soldier of an army stops at the same distance from
+  the enemy, so an army stands on one x. Spacing comes with the soldiers' drawn bodies.
+
 ## 5. Constraints
 - GlitchyGames engine on pygame-ce, Python 3.14; desktop and browser (PyScript/Pyodide).
 - Deterministic and replayable: no wall-clock or unseeded randomness in game logic.

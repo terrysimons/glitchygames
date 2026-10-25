@@ -19,9 +19,9 @@ if TYPE_CHECKING:
     from glitchygames.examples.drawing_fire.terrain import Terrain
 
 SOLDIERS_PER_SIDE = 8
-SOLDIER_HEALTH = 3
+SOLDIER_HEALTH = 6
 WALK_SPEED = 60.0  # px/s
-PISTOL_COOLDOWN = 0.6  # s
+PISTOL_COOLDOWN = 1.5  # s
 BULLET_SPEED = 600.0  # px/s
 PISTOL_RANGE = 420.0  # px
 PISTOL_DAMAGE = 1
