@@ -20,6 +20,7 @@ from scripts.build_browser_bundle import (
 )
 
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
+from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.examples.paddleslap import Game as PaddleSlapScene
@@ -62,6 +63,9 @@ GAME_SCANCODES = {
     'paddleslap': lambda: bound_scancodes(*PaddleSlapScene._create_action_maps()),
     'brave-adventurer': lambda: bound_scancodes(
         BraveAdventurerScene._create_action_map(input_mode='auto')
+    ),
+    'brave-adventurer-papyrus': lambda: bound_scancodes(
+        PapyrusBraveAdventurerScene._create_action_map(input_mode='auto')
     ),
     'clockwork-keep': lambda: bound_scancodes(
         ClockworkKeepScene._create_action_map(input_mode='auto')
