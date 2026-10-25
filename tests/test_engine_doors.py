@@ -11,17 +11,22 @@ directly, each for the reason given.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.ast_scanning import import_bindings, qualified_name
+from tests.ast_scanning import (
+    PROJECT_ROOT,
+    import_bindings,
+    qualified_name,
+    scanned_source_files,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parent.parent / 'glitchygames'
+PACKAGE = PROJECT_ROOT / 'glitchygames'
 
 # Modules whose names the scan resolves through imports and aliases
 WATCHED_DOOR_MODULES = frozenset({
@@ -229,21 +234,45 @@ def door_bypasses(
 
 
 def test_package_reads_input_and_time_only_through_the_doors():
-    """No module in glitchygames/ bypasses a door except the allowed files, for their reasons."""
+    """No module in glitchygames/ or a member package bypasses a door except the allowed ones."""
     offenders = {
-        str(path.relative_to(PACKAGE)): bypasses
-        for path in sorted(PACKAGE.rglob('*.py'))
+        allowlist_key: bypasses
+        for allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
         if (
             bypasses := door_bypasses(
                 source_path=path,
-                allowed=_allowed(path.relative_to(PACKAGE).as_posix()),
-                allowed_in_functions=ALLOWED_FUNCTION_BYPASSES.get(
-                    path.relative_to(PACKAGE).as_posix()
-                ),
+                allowed=_allowed(allowlist_key),
+                allowed_in_functions=ALLOWED_FUNCTION_BYPASSES.get(allowlist_key),
             )
         )
     }
     assert offenders == {}
+
+
+def test_a_bypass_in_a_member_package_is_reported_under_its_repository_path(tmp_path):
+    """The guard's walk reads a member's file, keyed by its path from the repository root."""
+    (tmp_path / 'glitchygames').mkdir()
+    (tmp_path / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = ["games/space-game"]\n', encoding='utf-8'
+    )
+    member_directory = tmp_path / 'games' / 'space-game'
+    (member_directory / 'space_game').mkdir(parents=True)
+    (member_directory / 'pyproject.toml').write_text(
+        '[project]\nname = "space-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["space_game"]\n',
+        encoding='utf-8',
+    )
+    (member_directory / 'space_game' / 'game.py').write_text(
+        'import time\n\n\ndef now():\n    return time.monotonic()\n', encoding='utf-8'
+    )
+
+    offenders = {
+        allowlist_key: bypasses
+        for allowlist_key, path in scanned_source_files(project_root=tmp_path)
+        if (bypasses := door_bypasses(source_path=path, allowed=_allowed(allowlist_key)))
+    }
+
+    assert offenders == {'games/space-game/space_game/game.py': ['5: time.monotonic']}
 
 
 MEASURING_SOURCE = """\

@@ -9,6 +9,11 @@ their own set of watched modules.
 from __future__ import annotations
 
 import ast
+from pathlib import Path
+
+from scripts.workspace_packages import ENGINE_PACKAGE, source_package_directories
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def import_bindings(*, tree: ast.Module, watched_modules: frozenset[str]) -> dict[str, str]:
@@ -88,3 +93,28 @@ def qualified_name(
         owner = qualified_name(node=node.value, bindings=bindings, watched_modules=watched_modules)
         return None if owner is None else f'{owner}.{node.attr}'
     return dynamic_import_name(node=node, watched_modules=watched_modules)
+
+
+def scanned_source_files(*, project_root: Path) -> list[tuple[str, Path]]:
+    """Return every Python file the guards scan, with the key the allowlists spell it by.
+
+    The engine's files are keyed relative to ``glitchygames/`` (``clock.py``); a workspace
+    member's files relative to the repository (``games/mr-muncher/mr_muncher/game.py``), so the
+    two never clash.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        ``(allowlist key, path)`` for each file, in scan order.
+
+    """
+    engine_directory = project_root / ENGINE_PACKAGE
+    scanned: list[tuple[str, Path]] = []
+    for package_directory in source_package_directories(project_root=project_root):
+        key_base = engine_directory if package_directory == engine_directory else project_root
+        scanned.extend(
+            (source_path.relative_to(key_base).as_posix(), source_path)
+            for source_path in sorted(package_directory.rglob('*.py'))
+        )
+    return scanned
