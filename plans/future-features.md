@@ -176,6 +176,28 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
 
+### 54. Docs Deploys That Cannot Go Stale — TODO
+- **Goal**: the published docs (https://terrysimons.github.io/glitchygames/) are always `main`'s
+  latest, not just usually (the user, 2026-10-25)
+- **Today**: CircleCI's `deploy-docs` publishes its own pipeline's commit after every merge to
+  main, one deploy at a time (`serial-group`). GitHub's "require branches to be up to date
+  before merging" keeps merges at least a CI run apart, so deploys queue, and publish, in merge
+  order. Two gaps remain, both rare:
+  - an admin merge or a skipped check can bring two merges within one CI run; an older
+    pipeline's deploy can then run after a newer one's and publish older docs
+  - a failed deploy leaves the site one merge behind until the next merge (fix by hand now:
+    re-run that pipeline's `deploy-docs` in CircleCI)
+- **Plan**:
+  - a tip check in `deploy-docs`: fetch `main`, and skip unless this pipeline's commit is still
+    its tip (a newer pipeline will deploy); with the serial group, the last publish is always
+    the tip
+  - a daily scheduled pipeline (a CircleCI trigger on `main`, set up once in the project's
+    settings): compare the commit gh-pages names ("Deployed <sha>") with `main`'s tip, and
+    deploy the tip when they differ
+  - tests in `tests/test_ci_config.py` for both
+- **When**: if a deploy is ever seen to fail or publish out of order
+- **Status**: TODO
+
 ## Medium Priority Features
 ### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — IN PROGRESS
 - **Description**: A CI pipeline (on the fork `terrysimons/pygame-ce`) that builds our patched
