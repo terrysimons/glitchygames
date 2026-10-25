@@ -141,7 +141,7 @@ class MeasureSettings(BaseModel):
         revision: This checkout's source revision.
         force: Measure even what is already measured for this commit and machine.
         allow_dirty: Measure despite uncommitted changes.
-        code_tree: The code measured, as a tree without the ledger (scripts/code_tree.py): the
+        code_tree: The code measured, as a git tree of what can change the replays (glitchygames/code_tree.py): the
             measuring pre-commit hook's (scripts/measure_staged_replays.py); the run it measures
             names it, and a recording already measured for it on this machine is skipped.
             None: measured and skipped by commit.
@@ -439,7 +439,7 @@ def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
     measuring.add_argument(
         '--code-tree',
         help=(
-            'the code measured, as a git tree without the ledger (scripts/code_tree.py): the '
+            'the code measured, as a git tree of what can change the replays (glitchygames/code_tree.py): the '
             'measured run names it, and a recording measured for it on this machine is skipped '
             '(the pre-commit hook, scripts/measure_staged_replays.py)'
         ),

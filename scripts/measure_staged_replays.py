@@ -3,7 +3,7 @@
 
 Run by the pre-commit framework before each commit (``.pre-commit-config.yaml``, hook
 ``replay-metrics``), which stashes unstaged changes first, so the working tree is exactly what
-is being committed. When the staged code tree differs from HEAD's (scripts/code_tree.py: only
+is being committed. When the staged code tree differs from HEAD's (glitchygames/code_tree.py: only
 the paths that can change how the replays run), it measures every golden replay and bundled
 demo on that code (``replay_metrics.py measure``, named by its code tree) and stages one row
 file per new row under ``quality/replay-ledger/``, so the commit carries its own measurements.
@@ -24,9 +24,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from glitchygames.code_tree import LEDGER_DIRECTORY, commit_code_tree, run_git, staged_code_tree
 from glitchygames.exit_codes import ExitCode
 from scripts import replay_metrics
-from scripts.code_tree import LEDGER_DIRECTORY, commit_code_tree, run_git, staged_code_tree
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ROWS_DIRECTORY = PROJECT_ROOT / LEDGER_DIRECTORY
@@ -36,7 +36,7 @@ def code_changes(*, repository: Path) -> str | None:
     """Return the staged code tree when it differs from HEAD's (the commit can change the replays).
 
     Returns:
-        The staged code tree (scripts/code_tree.py), or None when it is HEAD's: the commit
+        The staged code tree (glitchygames/code_tree.py), or None when it is HEAD's: the commit
         changes only what cannot change the replays (docs, plans, tests, tooling).
 
     """

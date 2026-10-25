@@ -1,4 +1,4 @@
-"""scripts/code_tree.py: the code a measurement measured: a git tree of what can change it."""
+"""glitchygames/code_tree.py: the code a measurement measured: a git tree of what can change it."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import os
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.code_tree import LEDGER_DIRECTORY, commit_code_tree, staged_code_tree
 
+from glitchygames.code_tree import LEDGER_DIRECTORY, commit_code_tree, staged_code_tree
 from glitchygames.process import run_command
 
 if TYPE_CHECKING:

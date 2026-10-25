@@ -702,7 +702,7 @@ class LedgerRow(BaseModel):
         profile: The run's per-frame times, bucketed (``FrameProfile``), for a measured run;
             None for a run the recording held and rows from before profiles.
         code_tree: The code the run measured, as a git tree without the ledger
-            (scripts/code_tree.py), for a run the measuring pre-commit hook made; None for
+            (glitchygames/code_tree.py), for a run the measuring pre-commit hook made; None for
             every other row (it names its code by commit instead).
 
     """
