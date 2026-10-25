@@ -45,7 +45,13 @@ import os
 import sys
 from pathlib import Path
 
-from glitchygames.code_tree import LEDGER_DIRECTORY, MEASURED_PATHS, run_git, staged_code_tree
+from glitchygames.code_tree import (
+    LEDGER_DIRECTORY,
+    MEASURED_PATHS,
+    is_measured_path,
+    run_git,
+    staged_code_tree,
+)
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import ROW_FILE_SUFFIX, ROW_FILE_TREE_CHARACTERS, read_row_files
 from scripts import replay_metrics
@@ -108,14 +114,14 @@ def _untracked_measured_files(*, repository: Path) -> list[str]:
     """Return untracked (not ignored) files under the measured paths.
 
     Returns:
-        Their repository-relative paths.
+        Their repository-relative paths (``is_measured_path``: not a member's tests).
 
     """
     output = run_git(
         repository=repository,
         arguments=['ls-files', '--others', '--exclude-standard', '--', *MEASURED_PATHS],
     )
-    return [line for line in output.splitlines() if line]
+    return [line for line in output.splitlines() if line and is_measured_path(path=line)]
 
 
 def _is_partial_commit() -> bool:

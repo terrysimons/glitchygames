@@ -248,6 +248,31 @@ def test_untracked_files_under_the_measured_paths_refuse_the_commit(mocker, repo
     assert 'src/glitchygames/new_module.py' in capsys.readouterr().err
 
 
+def test_an_untracked_member_test_does_not_refuse_the_commit(mocker, repository):
+    """A member's tests are not measured, so an untracked one is not under the measured paths."""
+    stand_in_measurement(mocker, repository=repository)
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 8\n')
+    member_test = repository / 'src' / 'games' / 'a-game' / 'tests' / 'test_new.py'
+    member_test.parent.mkdir(parents=True)
+    member_test.write_text('def test_new():\n    pass\n', encoding='utf-8')
+
+    assert run_hook(repository=repository) == ExitCode.SUCCESS
+
+
+def test_an_untracked_member_recording_refuses_the_commit(mocker, repository, capsys):
+    """A member's recordings are measured: an untracked one would be measured unstaged."""
+    measure = stand_in_measurement(mocker, repository=repository)
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 9\n')
+    recording = repository / 'src/games/a-game/tests/fixtures/replays/golden.jsonl.gz'
+    recording.parent.mkdir(parents=True)
+    recording.write_text('recording\n', encoding='utf-8')
+
+    assert run_hook(repository=repository) == ExitCode.OPTIONS_REFUSED
+
+    measure.assert_not_called()
+    assert 'src/games/a-game/tests/fixtures/replays/golden.jsonl.gz' in capsys.readouterr().err
+
+
 def test_a_partial_commit_that_needs_measuring_is_refused(mocker, repository, capsys):
     """Git commit <path>: rows staged into its temporary index never reach the real one."""
     measure = stand_in_measurement(mocker, repository=repository)

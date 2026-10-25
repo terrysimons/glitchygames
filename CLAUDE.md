@@ -680,7 +680,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
   missing) measures every golden replay and bundled demo when this machine has no rows for the
   staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
-  `src/` (the engine, games, demos, apps), recordings, `uv.lock`, `pyproject.toml`), so code that arrived by
+  `src/` (the engine, games, demos, apps; less the members' `tests/` but for their
+  `tests/fixtures/replays/`: `is_measured_path`), recordings, `uv.lock`, `pyproject.toml`), so
+  code that arrived by
   a merge or rebase is measured by the next commit, and stages the rows, each naming that code
   tree (`LedgerRow.code_tree`), into the same commit, plus the `history-...` row files it wrote
   (a recording's earlier header runs, written only when measured on a commit on `origin/main`

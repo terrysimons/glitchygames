@@ -11,6 +11,7 @@ from glitchygames.code_tree import (
     LEDGER_DIRECTORY,
     commit_code_tree,
     commit_is_on_origin_main,
+    is_measured_path,
     landed_code_trees,
     origin_main_exists,
     staged_code_tree,
@@ -71,6 +72,27 @@ def repository(tmp_path: Path) -> Path:
     return tmp_path
 
 
+@pytest.mark.parametrize(
+    ('path', 'measured'),
+    [
+        ('src/glitchygames/world.py', True),
+        ('src/games/mr-muncher/src/mr_muncher/game.py', True),
+        ('src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz', True),
+        ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', True),
+        ('uv.lock', True),
+        ('src/games/mr-muncher/tests/test_mr_muncher.py', False),
+        ('src/games/mr-muncher/tests/fixtures/sprites.toml', False),
+        ('tests/test_world.py', False),
+        ('README.md', False),
+        # Not a member: the engine's own package is not a layer
+        ('src/glitchygames/tests/helper.py', True),
+    ],
+)
+def test_is_measured_path_leaves_out_members_tests_but_their_recordings(path, measured):
+    """Under MEASURED_PATHS, less a member's tests/, but for its tests/fixtures/replays/."""
+    assert is_measured_path(path=path) is measured
+
+
 def test_the_staged_code_tree_is_the_commits_once_committed(repository):
     """What the hook measures before the commit is what the commit holds."""
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 2\n')
@@ -99,6 +121,8 @@ def test_ledger_rows_never_change_the_code_tree(repository):
         'src/demos/joystick-demo/joystick_demo/demo.py',
         'src/apps/bitmappy/bitmappy/editor.py',
         'tests/fixtures/replays/paddleslap/golden.jsonl.gz',
+        # A member's golden replay, in its own tests/fixtures/replays/
+        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
         'uv.lock',
         'pyproject.toml',
     ],
@@ -113,7 +137,17 @@ def test_a_change_that_can_change_the_replays_changes_the_code_tree(repository, 
 
 @pytest.mark.parametrize(
     'relative_path',
-    ['README.md', 'BUGS.md', 'plans/future-features.md', 'docs/index.md', 'tests/test_world.py'],
+    [
+        'README.md',
+        'BUGS.md',
+        'plans/future-features.md',
+        'docs/index.md',
+        'tests/test_world.py',
+        # A member's tests (but its recordings) are tests too
+        'src/games/mr-muncher/tests/test_mr_muncher.py',
+        'src/games/mr-muncher/tests/conftest.py',
+        'src/demos/joystick-demo/tests/helpers/devices.py',
+    ],
 )
 def test_docs_plans_and_tests_leave_the_code_tree_alone(repository, relative_path):
     """A docs commit after the last measured one keeps the measured tree the one that lands."""

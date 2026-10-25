@@ -4,9 +4,11 @@ A measured row (``quality/replay-ledger/``, plans/2026-10-25-measured-rows-in-th
 names the code it measured by tree, not by commit: the measuring pre-commit hook runs before its
 commit exists, an amend or a squash merge gives the same code another commit, but the tree of
 the code stays the same. The tree holds only ``MEASURED_PATHS`` (``src/``: the engine, games,
-demos and apps; the recordings, the locked dependencies and the project configuration): a later
-docs, plans or tests commit leaves it unchanged, so the last measured tree is still the one that
-lands on main, and the ledger's own rows never change the tree they name.
+demos and apps; the recordings, the locked dependencies and the project configuration), less the
+workspace members' tests (``src/<layer>/<member>/tests/``, ``is_measured_path``), but for their
+recordings (``tests/fixtures/replays/`` there, as at the root): a later docs, plans or tests
+commit leaves it unchanged, so the last measured tree is still the one that lands on main, and
+the ledger's own rows never change the tree they name.
 
 Both functions work on a temporary index (``GIT_INDEX_FILE``), so the real one, and with it
 whatever is staged, is never touched. A failing git command raises ``RuntimeError`` naming it.
@@ -21,6 +23,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.logical_names import LAYERS
 from glitchygames.process import run_command
 
 # Where the measured rows live (not a measured path, so never part of a code tree)
@@ -33,6 +36,13 @@ MEASURED_PATHS = (
     'uv.lock',
     'pyproject.toml',
 )
+# Under src/, a workspace member's tests (src/<layer>/<member>/tests/) are not measured, but
+# for its recordings there (the root's tests/ is outside MEASURED_PATHS; its
+# tests/fixtures/replays is in)
+MEMBER_TESTS_DIRECTORY = 'tests'
+# A member's directory is src/<layer>/<member>: three path parts
+MEMBER_PATH_DEPTH = 3
+MEMBER_RECORDINGS_DIRECTORY = 'tests/fixtures/replays'
 GIT_TIMEOUT_SECONDS = 60.0
 # The branch whose commits count as landed (the remote-tracking ref of the shared main)
 ORIGIN_MAIN = 'origin/main'
@@ -65,8 +75,53 @@ def run_git(*, repository: Path, arguments: list[str], index_file: Path | None =
     return completed.stdout.strip()
 
 
+def is_measured_path(*, path: str) -> bool:
+    """Return whether a repository path is part of a code tree.
+
+    Args:
+        path: A repository-relative path, ``/``-separated.
+
+    Returns:
+        True when it is under ``MEASURED_PATHS`` and not a workspace member's test (a member's
+        ``tests/fixtures/replays/`` is measured).
+
+    """
+    parts = path.split('/')
+    if not any(
+        parts[: len(measured.split('/'))] == measured.split('/') for measured in MEASURED_PATHS
+    ):
+        return False
+    # src/<layer>/<member>/: what follows is the path inside the member
+    member_prefix, inside_member = parts[:MEMBER_PATH_DEPTH], parts[MEMBER_PATH_DEPTH:]
+    is_in_member = (
+        len(member_prefix) == MEMBER_PATH_DEPTH
+        and member_prefix[0] == 'src'
+        and member_prefix[1] in LAYERS
+    )
+    tests_parts = MEMBER_TESTS_DIRECTORY.split('/')
+    recordings_parts = MEMBER_RECORDINGS_DIRECTORY.split('/')
+    is_member_test = is_in_member and inside_member[: len(tests_parts)] == tests_parts
+    return not is_member_test or inside_member[: len(recordings_parts)] == recordings_parts
+
+
+def unmeasured_member_test_pathspecs() -> list[str]:
+    """Return git pathspecs of the workspace members' tests, less their recordings.
+
+    Returns:
+        ``is_measured_path``'s member exclusion as git pathspecs (glob magic).
+
+    """
+    return [
+        *(f':(glob)src/{layer}/*/{MEMBER_TESTS_DIRECTORY}/**' for layer in LAYERS),
+        *(f':(exclude,glob)src/{layer}/*/{MEMBER_RECORDINGS_DIRECTORY}/**' for layer in LAYERS),
+    ]
+
+
 def _measured_tree(*, repository: Path, index_file: Path) -> str:
-    """Drop all but ``MEASURED_PATHS`` from a temporary index and return the index's tree.
+    """Drop all but the measured paths from a temporary index and return the index's tree.
+
+    ``MEASURED_PATHS`` are kept, then the members' tests dropped, but for their recordings
+    (``is_measured_path``).
 
     Returns:
         The tree hash.
@@ -87,6 +142,20 @@ def _measured_tree(*, repository: Path, index_file: Path) -> str:
             '--',
             '.',
             *kept,
+        ],
+        index_file=index_file,
+    )
+    run_git(
+        repository=repository,
+        arguments=[
+            'rm',
+            '-r',
+            '--cached',
+            '--force',
+            '--ignore-unmatch',
+            '--quiet',
+            '--',
+            *unmeasured_member_test_pathspecs(),
         ],
         index_file=index_file,
     )
