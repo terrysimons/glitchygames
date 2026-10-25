@@ -445,6 +445,24 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 223. Importing scripts/gen_ref_pages.py Rewrote docs/
+- **Description**: `scripts/gen_ref_pages.py` did all its work at module level, through
+  `mkdocs_gen_files.open`, which outside a docs build writes real files into `docs/`. It had not
+  been wired into mkdocs.yml since 2024, so the only way it ever ran was by being imported: a
+  test importing it rewrote 24 hand-written reference pages under `docs/glitchygames/` (dropping
+  their options and module blocks) and added 241 generated files (`docs/SUMMARY.md` and a page
+  per module)
+- **Status**: Resolved
+- **Priority**: Medium (silently rewrote committed docs)
+- **Reporter**: Found fixing the members' API reference pages, 2026-10-25
+- **Date Reported**: 2026-10-25
+- **Details**: The script now generates only the workspace members' pages, inside the build
+  (mkdocs-gen-files runs it with `runpy.run_path`; it writes only when `__name__` is
+  `RUN_PATH_NAME`). `test_importing_the_script_writes_nothing` and
+  `test_run_as_gen_files_runs_it_the_script_writes_each_page_into_the_build` cover both ways in
+- **Date Resolved**: 2026-10-25
+- **Files**: `scripts/gen_ref_pages.py`, `tests/test_gen_ref_pages.py`, `mkdocs.yml`
+
 ### 212. Collecting Garbage Between Tests Stalls the Native Run's coreaudio
 - **Description**: With `tests/garbage_collection.py`'s collections on in every run, a local `uv run pytest -n 4` (the dummy run plus its native cocoa/coreaudio child, side by side) took over an hour: in the native run many tests waited almost exactly 30 s, and 20 failed with `pygame.error: mixer not initialized` (sound loading, paddles with collision sounds, the mixer pool, the pause screen)
 - **Status**: Resolved (no longer reproduces; the workaround is removed)
