@@ -60,10 +60,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   across the top plays each game's demo with sound, with the colour bars for a few seconds and
   a beep between games. Below it, a boxed grid of the games, each tile looping its replay
   silently; pick one to play it.
-- **Status**: TODO: design draft in `plans/2026-10-23-arcade-showcase.md`. The gallery is an
-  outer game that hosts several demo wrappers, generalising the watched replay's "game inside a
-  game". Open questions there: one engine context per wrapper in-process or child processes,
-  and timings
+- **Status**: TODO: spec agreed 2026-10-25 in `plans/2026-10-23-arcade-showcase.md` (the master
+  plan): one screen, one process (the browser has no child processes), nine live silent tiles
+  under a top frame showing the highlighted one with sound, an original chime over the bars.
+  First sub-plan: the engine context (one per demo player)
 - **Priority**: High (requested 2026-10-23)
 
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO

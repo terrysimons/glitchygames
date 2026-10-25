@@ -1,151 +1,257 @@
-# GlitchyGames Arcade: a showcase and game picker (`uv run glitchygames`) — design draft
+# GlitchyGames Arcade: a showcase and game picker (`uv run glitchygames`) — master spec
 
-Status: DESIGN DRAFT (2026-10-23), not started. Tracked as feature #43 in
-`plans/future-features.md`. Decisions still open are marked **Open**.
+Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23), not started. Tracked as
+feature #43 in `plans/future-features.md`. This is the master plan: each piece below gets its own
+sub-plan, linked both ways from here (sub-plans link back to this file).
 
 ## What it is
 
-A `glitchygames` console script (`[project.scripts] glitchygames =
-"glitchygames.arcade:main"`) that opens an arcade front end for the example games:
+A `glitchygames` console script (`[project.scripts] glitchygames = "glitchygames.arcade:main"`)
+and a browser bundle (`nox -s browser -- glitchygames`) that open an arcade front end for every
+game the engine ships. One screen, one process (the browser cannot start child processes:
+Pyodide has no subprocesses, which is why Bitmappy's AI worker is off there and replay restarts
+only show a message there).
 
 ```
-+--------------------------------------------------------------+
-|                 DEMO REEL (one demo, with sound)              |
-|   PaddleSlap demo ... [colour bars 3 s] *beep* Clockwork ... |
-+--------------------------------------------------------------+
-| [PaddleSlap]  | [Clockwork Keep] | [Brave Adv.] | [Papyrus]  |
-|  replay loop  |   replay loop    | replay loop  | replay loop |
-+---------------+------------------+--------------+------------+
-| [Mr. Muncher] |  ...                                         |
-+---------------+----------------------------------------------+
++------------------------------------------------------------------+
+|                                                                  |
+|                                                                  |
+|              CLOCKWORK KEEP: the same frames as its              |
+|              tile below, scaled up, with sound                   |
+|                                                                  |
+|                                                                  |
++------------------------------------------------------------------+
+====================================================================  <- separator
+ +------------------+   +------------------+   +------------------+
+ |                  |   |                  |   |                  |
+ |   (demo, live,   |   |   (demo, live,   |   |   (demo, live,   |
+ |     silent)      |   |     silent)      |   |     silent)      |
+ |                  |   |                  |   |                  |
+ +------------------+   +------------------+   +------------------+
+      PaddleSlap          Brave Adventurer      Brave Adventurer:
+                                                     Papyrus
+ #==================#   +------------------+   +------------------+
+ #                  #   |                  |   |                  |
+ #   (demo, live;   #   |   (demo, live,   |   |   (demo, live,   |
+ #    shown above)  #   |     silent)      |   |     silent)      |
+ #                  #   |                  |   |                  |
+ #==================#   +------------------+   +------------------+
+  >> Clockwork Keep <<       Mr. Muncher             Bitmappy
+
+ +------------------+   +------------------+   +------------------+
+ |                  |   |                  |   |                  |
+ |   (demo, live,   |   |   (demo, live,   |   |   (demo, live,   |
+ |     silent)      |   |     silent)      |   |     silent)      |
+ |                  |   |                  |   |                  |
+ +------------------+   +------------------+   +------------------+
+        dt demo             Joystick demo        Text input demo
 ```
 
-- **Demo reel (top):** one game's demo at a time, with sound. Between demos the reel shows the
-  engine's colour bars (`BackgroundPattern.TEST_PATTERN`) for a few seconds, then a beep (a synth
-  recipe, like Mr. Muncher's 1 kHz film-leader `countdown_beep`), then the next game's demo.
-- **Game grid (below):** one boxed tile per game, each looping that game's replay silently, with
-  its name. Arrows, WASD or a gamepad move a highlight; Enter, Space or A starts the game.
-- **Playing:** the chosen game runs as the engine normally runs it. When it ends (quit or
-  game over and ESC), the arcade comes back.
+- **Top frame:** the reel. It cycles through the games: for each, colour bars with the chime for
+  about 3 s, then that game's demo with sound. What it shows is the highlighted tile's own
+  player, scaled up with its sound on: one player per game, so the top and its tile are always
+  in step. When the reel moves on, the bars and chime play in the top frame while the
+  highlight moves to the next tile; that tile's demo keeps running underneath, and the top
+  joins it wherever it is (it is never restarted for the top).
+- **Separator:** a horizontal rule between the top frame and the grid.
+- **Grid:** one boxed tile per game, its title below the box: all nine (the five example games,
+  Bitmappy, and the dt, joystick and text input demos), a 3x3 grid. Every tile plays its game's
+  demo live, silent, at the same time (real playback, not pre-rendered images). The tile shown
+  in the top frame is highlighted.
 
-## The constraint that shapes everything
+### The chime
 
-The engine plays recordings through one `SceneManager` singleton with at most one playback
-scope at a time (`glitchygames/replay/playback.py`). Random streams, the frame clock, the doors
-(`glitchygames/sources.py`) and saves are process-wide. So **one process can play one demo live,
-not a grid of them at once.** The reel fits the engine as is
-(`SceneManager.play_recording(path=..., then=...)`); the grid needs another approach.
+Original and pleasant, played over the bars (never a held test tone, never the emergency
+broadcast's two-tone chord, never a broadcaster's trademark chimes):
 
-### How the grid tiles get their moving pictures — options
+- a gentle rising major arpeggio, C5 → E5 → G5 → C6, about 0.4 s apart;
+- soft sine tones with a bell envelope (quick attack, long smooth decay), each ringing into the
+  next; quiet (about 20% of full scale, well under a demo's sound), lightly low-passed, so warm
+  rather than bright;
+- the last note fades as the bars hand over to the demo; together about 3 s;
+- a synth recipe (`glitchygames/audio/recipes.py`), rendered to a file for the user to listen to
+  and adjust before it is wired in.
 
-Worked example: five games, tiles of 240x144 (the 800x480 games scaled by 0.3), 20 s loops.
+### Input
 
-- **A. Pre-rendered thumbnails (recommended to start).** A build step (a script, and a nox
-  session) replays each game's demo headless with `--replay-trace ... --headless` and saves every
-  Nth frame, scaled down, to an image strip under `glitchygames/examples/<game>_demos/` (or a
-  cache). At 15 fps and about 6 KB a JPEG frame, a 20 s tile is about 1.8 MB, and five games
-  about 9 MB. The arcade only flips images: cheap, smooth, no engine changes. The cost is a
-  build step, a size budget and strips going stale when a game changes. A test can check that
-  each strip is newer than its recording.
-- **B. One child process per tile.** Each child replays headless and streams small frames back
-  over a pipe (`glitchygames.process`). The tiles are always fresh, but that is five extra
-  pygame processes (CPU on the user's machine) plus the pipes and lifecycle to manage.
-- **C. Several engines in one process.** The SceneManager, doors, streams and clocks would have
-  to become per-instance. That is the most invasive option and is not worth it for a menu.
+- **Move the highlight:** arrow keys, the d-pad or left stick, mouse hover, a tap. This takes
+  over from the reel: the top switches straight to that tile's demo with its sound (no bars or
+  chime, so browsing feels immediate) and the automatic cycling pauses.
+- **Launch:** Enter, A or Start, a click, a tap.
+- **Back to the reel:** about 30 s with no input, the reel resumes from the highlighted game,
+  with bars and chime.
+- **Quit the Arcade:** Esc, or B or Back on a gamepad (desktop). The browser version has no quit,
+  as the games there have none.
+- **In a launched game:** its own controls, keyboard and gamepad as the engine gives every game;
+  its own quit comes back to the Arcade with the highlight still on that game.
 
-**Direction from the user (2026-10-23):** the gallery should be *a game that wraps the game
-wrapper that runs demos, and can do multiple*. That is option D below, which takes the place of
-A to C as the plan; A to C stay as notes.
+## Architecture
 
-- **D. The gallery is an outer game hosting several demo wrappers.** The engine already has the
-  wrapper. A watched replay is "a read-only game inside a game" (`glitchygames/replay/viewer.py`):
-  - The OUTER `ReplayViewer` owns the window, ticks at 60 Hz in real time and presents.
-  - The INNER recorded game runs whole frames at its recorded times, unpresented
-    (`EngineSources.presents_frames` False).
-  - They meet in the `EngineSources.hold_frame` contract. The viewer's docstring already lists
-    "inner frames handed to a sink rather than presented" as a later user of that contract.
+### 1. The engine context (the D1 refactor)
 
-  The gallery generalises this: an outer `GalleryScene` owns the window and holds N
-  `DemoPlayer`s. Each one wraps one inner recorded game, has its own accumulator, and hands its
-  latest frame to a sink: a tile, or the reel's band. One player has sound on (the reel); the
-  others are muted.
-- **What "can do multiple" needs.** Today the inner game is the process's only `SceneManager`,
-  with process-wide doors (`sources.py`), random streams, frame clock and saves. A `DemoPlayer`
-  needs those per player. There are two ways to get them:
-  - **D1, in-process:** an engine context object (scene manager, doors, streams, clocks, saves,
-    live audio) that each `DemoPlayer` owns and switches in around its inner frames. This is
-    the engine refactor that option C called invasive. It is the cleanest end state, and it is
-    what "a game that wraps the wrapper" literally means.
-  - **D2, child process per player:** each `DemoPlayer` runs its inner game in a headless child
-    (`glitchygames.process`) and sends frames over a pipe to its sink. The `DemoPlayer`
-    interface is the same, so D1 can replace it later without touching the gallery.
-  - Either way, the first step is the same: define the `DemoPlayer` interface (start a
-    recording, `tick(real_seconds)`, latest frame as a surface, muted or not, ended or diverged
-    outcome). Then turn the current single watched replay into its first implementation.
-- **Game-ception: what we already have, and what is missing.**
-  - Have:
-    - The outer/inner loop and its `hold_frame` contract (the watched replay viewer).
-    - Unpresented inner frames (`presents_frames`).
-    - A live game hosting a replay (playback scopes: `play_recording`, instant replay), with
-      its voices paused behind it.
-    - Scene rebuilding from recordings (`scene_start.py`).
-    - Sandboxed saves (`MemorySaveManager`) and recorded devices.
-    - Headless child replays (`--replay-trace --headless`, `glitchygames.process`).
-  - Missing:
-    - More than one inner game at a time. The doors, streams, clocks and scene manager are
-      process-wide, and only one playback scope exists.
-    - Handing an inner frame to a sink (a tile) rather than the window.
-    - Muting per inner game.
-- **Decided (the user, 2026-10-23): D1, one process.** The engine context refactor gets its own
-  master plan and sub-plans; D2 (child processes) stays a fallback behind the same `DemoPlayer`
-  interface.
+Today the engine's per-run state is process-wide: the `SceneManager` singleton, the doors
+(`glitchygames/sources.py`), the random streams (`glitchygames/randomness.py`), the frame clock,
+the saves and the live audio. It moves into one `EngineContext` object. Ordinary games run in a
+single default context and do not change. The Arcade creates one context per demo player and
+switches into it around that player's frames; a launched game gets a fresh context of its own.
 
-### The demo reel
+This is the largest and riskiest piece, so it gets its own master plan and sub-plans. Its guard:
+the whole existing suite, every golden replay, the golden traces and the bundled demos pass
+unchanged in the default context.
 
-- Each game ships a demo recording. PaddleSlap already has `paddleslap_demos/rally.jsonl.gz`.
-  The others record theirs with `scripts/record_scripted_session.py --output ...`; their golden
-  replays could serve for a start.
-- The reel is an arcade `Scene` that cycles through three states: colour bars (about 3 s), a
-  beep, then `play_recording(path=..., then=self)` for that game's demo. `last_playback_outcome`
-  says when the demo ended, and the cycle moves to the next game.
-- **Sound:** the demo plays with sound. The grid tiles are images or silent children, so only
-  the reel makes noise.
-- **Open, layout:** `play_recording` presents a whole frame. To show the demo in the top band
-  rather than full screen, the playback scope needs a presentation target or region. That is an
-  engine change (a "present into this rect, scaled" option on the playback), so it gets its own
-  sub-plan. A first version could alternate full-screen attract mode (bars, beep, demo) with the
-  menu screen instead of showing both at once.
+### 2. One playback core, then `DemoPlayer`
 
-### Starting a game and coming back
+The engine already plays recordings four ways: the headless replay (`replay/driver.py`), the
+watched replay's viewer (an outer game ticking an unpresented inner one), the playback scope
+(`play_recording` demos and instant replay) and the rebuild that restarts a watched replay at a
+frame (`replay/rebuild.py`). `DemoPlayer` must not be a fifth (DRY). First an audit maps what
+each does and where they overlap (inner-frame ticking, the accumulator and budget,
+`hold_frame`, scene rebuilding, input blocking, sandboxed saves, fast-forwarding); the shared
+core becomes one inner-game runner, and the viewer, the playback scope and `DemoPlayer` are
+rebuilt on it. Guard: every existing replay, demo and instant-replay test passes unchanged.
 
-- **Simplest:** launch the game's console script as a child process
-  (`glitchygames.process.run_command`) and wait. The arcade's window hides or minimises, and
-  the game gets a clean engine (singletons, seeds, saves) of its own.
-- **Alternative:** switch scenes in-process with `GameEngine.game` set to the chosen scene. The
-  engine's per-game bootstrapping (options, `NAME`, `TARGET_FPS`) makes this harder, so the
-  child process is the recommendation.
+`DemoPlayer` wraps one recorded game in its own context:
 
-## Pieces (each a sub-plan later, linked both ways from here)
+- `tick(real_seconds, budget_seconds)`: runs the recorded frames that real time calls for, within
+  the budget; frames owed past the budget carry over (slow motion), never skipped (a replay must
+  run every frame to stay correct);
+- the latest frame as a surface (never presented to the window);
+- sound on or off (a muted player gets a silent audio context: its sounds never reach the mixer);
+- its outcome (playing, looped, could not start, diverged, crashed);
+- it loops: a demo reaching its end restarts from its own first frame, in its own context;
+- `fast_forward(to_frame=N)`: runs frames 0..N-1 as fast as the machine allows, unpresented,
+  unpaced and silent, within a time budget per Arcade frame (so the screen stays responsive),
+  then shows frame N. It is the playback core's one fast-forward: the watched replay's rebuild
+  (frames 0..N-1 before it pauses) and instant replay (`MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS`)
+  use it too. Rewind is later (it needs the state snapshots in `plans/future-work.md`).
 
-0. The `DemoPlayer` wrapper interface and the multiple-inner-games backend (option D: D1
-   engine context, or D2 child processes); the reel and the tiles are both `DemoPlayer`s.
+**Poster frames.** At startup each tile picks a frame of its demo from the Arcade's seeded random
+stream (`random_stream('arcade-posters')`) and fast-forwards there; meanwhile it shows its title
+on the default test pattern, then the poster frame as a still; once every player is ready, each
+plays live from where it stopped. The nine tiles therefore start at different points of their
+demos, every run picks new frames, and a test reproduces any run from its seed.
 
-1. `glitchygames/arcade/` package, `main()`, the console script, an `ArcadeScene` with the grid
-   menu (highlight and launch).
-2. A registry of games: console script, display name, demo recording, tile strip. Derived from
-   `[project.scripts]`, as `glitchygames.testing.replays.console_script_in_module` already does.
-3. Demo recordings for every game, plus a test that replays each (as
-   `tests/replay/test_bundled_demos.py` does for PaddleSlap).
-4. Tile strips (option A): a builder script, a nox session and a freshness test.
-5. The reel: bars, beep and demo, cycling. Then the engine change to play a demo into a region.
-6. Launching a game as a child process and returning; window handling on macOS.
+The watched replay's viewer (`glitchygames/replay/viewer.py`: an outer game ticking an
+unpresented inner game through `EngineSources.hold_frame`) is the model; its docstring already
+lists "inner frames handed to a sink rather than presented" as a later user of that contract.
 
-## Open questions for the user
+### 3. The Arcade
 
-- ~~Option D: D1 or D2 first?~~ Decided: D1, one process (2026-10-23).
-- The reel and grid on one screen at once (needs the engine change), or alternating
-  full-screen attract mode and menu for a first version?
-- How long the colour bars show (about 3 s?), and which beep (the 1 kHz film-leader one?).
-- Which games: the five examples only, or also the demos (dt_demo, joystick_demo,
-  text_input_demo)?
-- Does picking a game play its sound from the reel's demo until the game starts?
+`glitchygames/arcade/`, an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
+top frame, separator and grid, runs the reel (bars, chime, demo) and the highlight, and shares
+the frame budget. One Arcade frame:
+
+1. Read input in the Arcade's context (highlight, launch, quit, idle time).
+2. Run the reel: hold the bars and chime for 3 s, or show the highlighted game.
+3. Run the top player first, for as many of its recorded frames as real time calls for: full
+   speed, sound on.
+4. Share what is left of the frame budget (`INNER_FRAME_BUDGET_SECONDS`, as the watched replay
+   uses) among the other eight, round-robin so none starves; a tile behind plays in slight slow
+   motion, never stutters.
+5. Draw each player's latest surface scaled into its box (aspect kept, letterboxed), the top
+   frame from the same surface larger, then the separator, titles and highlight; present once.
+
+Players never present to the window and never see real input: real input goes to the Arcade
+only, as the watched replay's controls get it today.
+
+### 4. Launching in the same process
+
+A registry of the games (console script or module, display name, demo recording, the game's
+scene and its startup: options, `NAME`, `TARGET_FPS`), derived from `[project.scripts]` as
+`glitchygames.testing.replays.console_script_in_module` does, plus the three small demos
+(`glitchygames/examples/dt_demo.py`, `joystick_demo.py`, `text_input_demo.py`), which have no
+console script. Launching builds the game in a fresh context and runs it until it quits; then
+the Arcade's context comes back. The window takes the game's resolution, and the Arcade's again
+after.
+
+### 5. Demos for all nine
+
+One recording per game, bundled (`glitchygames/examples/<game>_demos/<name>.jsonl.gz`, as
+PaddleSlap's `rally.jsonl.gz`), recorded with `scripts/record_scripted_session.py --script-only
+--output PATH`, each replayed headless by `tests/replay/test_bundled_demos.py`. Bitmappy's shows a
+sprite being drawn; the joystick demo's shows its readout answering a recorded pad.
+
+## Errors and odd cases
+
+- **A tile still fast-forwarding to its poster frame:** its title on the default test pattern
+  (never blank); the reel does not show it until it is ready.
+- **A demo that cannot play** (missing, unreadable, an older format): its tile shows the default
+  test pattern with its title and a small "no demo" label; the game can still be launched; the
+  reel skips it; logged once at WARNING (as `play_recording` logs "No demo: ...").
+- **A demo that diverges** (the code changed): the tile restarts its demo and goes on, logged
+  once. Tests catch this long before: every Arcade demo is a bundled-demo test.
+- **A player that raises:** that player stops, its tile freezes on its last frame with an
+  "error" label, the traceback is logged, the reel skips it; the Arcade and the other players
+  go on. An error in the Arcade itself goes through the engine's crash boundary and exit codes.
+- **A launched game that crashes:** its context is torn down, the traceback logged, and the
+  Arcade comes back with "<game> stopped: error" (in the browser this keeps the page alive).
+- **A launched game's `sys.exit()` or quit** ends the game, not the Arcade.
+- **Saves:** demos play against in-memory saves only (`MemorySaveManager`), never the real ones;
+  a launched game uses its real saves, as when started on its own.
+- **Window size:** the Arcade's window is its own size; tiles keep their aspect ratio,
+  letterboxed; a launched game gets its own resolution.
+
+## Testing
+
+- **Engine context:** the existing suite, every golden replay, the golden traces and the bundled
+  demos unchanged in the default context. New tests run two contexts in one process and prove
+  nothing leaks between them: random streams, frame clocks, doors, saves, and sound only from the
+  context that has it.
+- **The playback core:** the viewer, the playback scope, the rebuild and instant replay pass
+  their existing tests unchanged on it.
+- **`DemoPlayer`:** its frames equal a headless replay of the same recording, frame for frame,
+  also beside other players and in slow motion; looping restarts cleanly; a missing, diverging
+  or crashing demo gives the outcomes above.
+- **Fast-forward:** frame N after `fast_forward(to_frame=N)` equals frame N of a headless replay;
+  it keeps within its budget per Arcade frame; poster frames come from the seeded stream (the
+  same seed, the same frames).
+- **The budget:** with a stand-in clock, the top player always gets its frames and the tiles
+  share the rest in turn; none starves.
+- **The screen, by pixels:** the top frame, the separator, nine boxes with titles, the highlight
+  on the right tile, the "no demo" and "error" tiles.
+- **Input:** keyboard, mouse, touch and gamepad (`tests/input/stand_in_devices.py`) moving,
+  launching and the idle time-out.
+- **Launch and return, every game:** launch, play briefly, quit, and the Arcade is back with the
+  highlight on that game.
+- **The chime:** its waveform has the four notes, the level and the fades; a rendered file to
+  listen to.
+- **Browser:** the Arcade bundle builds and `nox -s browser -- glitchygames` runs it.
+
+## Sub-plans (each written before its work starts, linked both ways)
+
+1. **Engine context** (its own master plan with sub-plans): `EngineContext`, the default context,
+   switching, the isolation tests. First.
+2. **Audit and refactor playback into one core, then `DemoPlayer`:** the audit, the shared
+   inner-game runner, the viewer and playback scope on it, fast-forward, the frame budget,
+   poster frames.
+3. **Demos for all nine games** (can run beside 1 and 2).
+4. **The Arcade screen, reel and chime:** `glitchygames/arcade/`, the console script, layout,
+   highlight, input, idle time-out, the chime recipe.
+5. **Launching in the same process:** the registry, fresh contexts for games, return, window size.
+6. **The browser bundle:** `nox -s browser -- glitchygames`.
+
+## Decisions (the user, 2026-10-23 and 2026-10-25)
+
+- One process, in-process engine contexts (D1); child processes are not a fallback (the browser
+  has none). Launching a game is in-process too.
+- One screen: the top frame and the grid together, a separator between them.
+- The top frame is the highlighted tile's own player, scaled up, with sound; tiles are live,
+  silent playback of every game's demo at once.
+- All nine games get a tile.
+- `DemoPlayer` is built on one playback core refactored out of the existing four (DRY), not a
+  new mechanism; it gets fast-forward now (shared with rebuild and instant replay), rewind later.
+- Tiles start on a poster frame: a frame chosen from the seeded random stream, reached by
+  fast-forwarding, shown as a still, then played live from there.
+- Bars about 3 s with an original, pleasant chime (the rising major arpeggio above).
+- When the machine cannot keep up: the top runs at full speed, the tiles share the rest and fall
+  into slow motion.
+- Input as above: browsing takes over from the reel, launch by Enter/A/Start/click/tap, quit
+  returns to the Arcade, 30 s idle resumes the reel; full gamepad support.
+
+## Options considered and set aside (2026-10-23)
+
+- **A. Pre-rendered thumbnail strips** per tile: cheap, but stale when a game changes, and the
+  user wants live playback.
+- **B / D2. One child process per tile:** not possible in the browser.
+- **C. Several engines in one process:** this is D1, chosen; called invasive then, it is now
+  planned as the engine context refactor.
