@@ -26,8 +26,9 @@ output and error together), which holds the divergence report (``Replay diverged
 ...``) or the reason the recording was refused (``ExitCode.UNUSABLE_INPUT`` and
 ``ExitCode.MISSING_INPUT`` are reported as an unusable recording). These fail at collection: a
 directory under ``fixtures/replays/`` that is not a console script, a recording directly in
-``fixtures/replays/`` whose member (the directory above ``tests/``) is not an installed
-distribution with exactly one console script, and a recording nested deeper than a game's
+``fixtures/replays/`` that is not in a ``tests/`` directory (another project's layout: the
+plugin ships in the engine's wheel) or whose member (the directory above ``tests/``) is not an
+installed distribution with exactly one console script, and a recording nested deeper than a game's
 directory. A bookmarked copy (a header naming its source, ``bookmarked_copy_of``: what S
 saves beside a recording a watched replay plays; glitchygames/replay/driver.py, rule 16) is not
 collected.
@@ -70,6 +71,8 @@ RECORDING_SUFFIX = '.jsonl.gz'
 # A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz, or from a
 # workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz
 REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')
+# The directory a workspace member's fixtures/ is in: <member>/tests/
+MEMBER_TESTS_DIRECTORY_NAME = 'tests'
 REPLAY_FIXTURES_LAYOUT = (
     f'{"/".join(REPLAY_FIXTURES_PATH_PARTS)}/<console-script>/<name>{RECORDING_SUFFIX} '
     f"(a workspace member's: <member>/tests/{'/'.join(REPLAY_FIXTURES_PATH_PARTS)}/"
@@ -131,12 +134,24 @@ def recording_console_script(*, path: Path) -> str:
         The console script's name.
 
     Raises:
-        KeyError: If the member's distribution is not installed or has not exactly one console
-            script, or the folder names no installed console script.
+        KeyError: If a recording directly in ``fixtures/replays/`` is not in a member's
+            ``tests/`` (the directory above ``fixtures/`` is not ``tests``: another project's
+            layout, whose directory four levels up names no member), the member's distribution
+            is not installed or has not exactly one console script, or the folder names no
+            installed console script.
 
     """
     if path.parent.parts[-len(REPLAY_FIXTURES_PATH_PARTS) :] == REPLAY_FIXTURES_PATH_PARTS:
-        distribution_name = path.parent.parent.parent.parent.name
+        tests_directory = path.parent.parent.parent
+        if tests_directory.name != MEMBER_TESTS_DIRECTORY_NAME:
+            message = (
+                f'{path}: a recording directly in {"/".join(REPLAY_FIXTURES_PATH_PARTS)}/ is a '
+                f"workspace member's, in <member>/{MEMBER_TESTS_DIRECTORY_NAME}/, but the "
+                f'directory above fixtures/ is {tests_directory.name!r}, not '
+                f'{MEMBER_TESTS_DIRECTORY_NAME!r}'
+            )
+            raise KeyError(message)
+        distribution_name = tests_directory.parent.name
         try:
             distribution = importlib.metadata.distribution(distribution_name)
         except importlib.metadata.PackageNotFoundError:

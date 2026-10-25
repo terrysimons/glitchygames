@@ -200,7 +200,7 @@ def metric_recordings(*, project_root: Path) -> MetricRecordings:
     ):
         try:
             goldens.append((recording_console_script(path=path), path))
-        except (KeyError, ValueError) as error:
+        except KeyError as error:
             # The refusal's message (not KeyError's quoted repr), without the path it starts
             # with: the failure line names the recording
             reason = str(error.args[0]).removeprefix(f'{path}: ')

@@ -347,6 +347,21 @@ def test_a_member_recording_of_a_distribution_without_one_console_script_is_refu
         recording_console_script(path=recording)
 
 
+def test_a_recording_whose_fixtures_are_not_under_tests_is_refused(tmp_path):
+    """Only <member>/tests/fixtures/replays/ names a member: another project's layout does not.
+
+    The plugin ships in the engine's wheel, so a project laid out otherwise
+    (``<project>/integration/fixtures/replays/``) must not be read as a member named after the
+    directory four levels up, even when a distribution of that name is installed.
+    """
+    recording = tmp_path.joinpath(
+        'mr-muncher', 'integration', *REPLAY_FIXTURES_PATH_PARTS, 'golden.jsonl.gz'
+    )
+
+    with pytest.raises(KeyError, match=r"above fixtures/ is 'integration', not 'tests'"):
+        recording_console_script(path=recording)
+
+
 class TestPluginInProcess:
     """The collector and the item, run in this interpreter with the child replay stubbed out."""
 
