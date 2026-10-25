@@ -17,7 +17,9 @@ from glitchygames import logical_names
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MEMBERS = workspace_members(project_root=PROJECT_ROOT)
-JSONC_NOISE = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|//[^\n]*|,(?=\s*[}\]])')
+# Each pattern matches a whole string literal first, so a // or ,] inside a string is data
+JSONC_COMMENTS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
+JSONC_TRAILING_COMMAS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|,(?=\s*[}\]])')
 
 
 def root_pyproject() -> dict[str, Any]:
@@ -26,12 +28,27 @@ def root_pyproject() -> dict[str, Any]:
         return tomllib.load(pyproject_file)
 
 
+def parse_jsonc(*, text: str) -> dict[str, Any]:
+    """Parse JSON with comments and trailing commas (JSONC), as pyright reads its configuration.
+
+    Args:
+        text: The JSONC document.
+
+    Returns:
+        The parsed object.
+
+    """
+    # Comments first (a comma before a comment is trailing only once the comment is gone)
+    without_comments = JSONC_COMMENTS.sub(lambda match: match.group('string') or ' ', text)
+    plain_json = JSONC_TRAILING_COMMAS.sub(
+        lambda match: match.group('string') or '', without_comments
+    )
+    return json.loads(plain_json)
+
+
 def pyright_configuration() -> dict[str, Any]:
     """pyrightconfig.json, which is JSON with comments and trailing commas (JSONC)."""
-    text = (PROJECT_ROOT / 'pyrightconfig.json').read_text(encoding='utf-8')
-    # Keep string literals whole; drop // comments and commas before a closing bracket
-    plain_json = JSONC_NOISE.sub(lambda match: match.group('string') or '', text)
-    return json.loads(plain_json)
+    return parse_jsonc(text=(PROJECT_ROOT / 'pyrightconfig.json').read_text(encoding='utf-8'))
 
 
 def repository_path(path: Path) -> str:
@@ -148,3 +165,47 @@ def test_the_engine_knows_no_layer_the_workspace_lacks():
     workspace_packages = {package for member in MEMBERS for package in member.import_packages}
 
     assert set(logical_names.MEMBER_LAYERS) == workspace_packages
+
+
+def test_jsonc_trailing_comma_before_a_comment_is_dropped():
+    """A comma, then a // comment, then the closing bracket: the comma is still trailing."""
+    text = '{\n  "x": 1, // note\n  "y": [1, 2, // more\n  ],\n}'
+
+    assert parse_jsonc(text=text) == {'x': 1, 'y': [1, 2]}
+
+
+def test_jsonc_block_comments_are_dropped():
+    """/* */ comments, on one line or several, are removed."""
+    text = '{"x": 1, /* one */ "y": 2, /* two\n lines */ }'
+
+    assert parse_jsonc(text=text) == {'x': 1, 'y': 2}
+
+
+def test_jsonc_comment_markers_and_brackets_inside_strings_are_kept():
+    """A URL's // and a string ending in ,] are data, not comments or trailing commas."""
+    text = '{"url": "https://example.com/a", "tail": "a,]", "block": "/* kept */"}'
+
+    assert parse_jsonc(text=text) == {
+        'url': 'https://example.com/a',
+        'tail': 'a,]',
+        'block': '/* kept */',
+    }
+
+
+def test_jsonc_escaped_quotes_inside_strings_do_not_end_them():
+    """A string holding an escaped quote and then // stays whole."""
+    text = '{"quoted": "say \\"hi\\" // not a comment", "slash": "a\\\\"} // real comment'
+
+    assert parse_jsonc(text=text) == {'quoted': 'say "hi" // not a comment', 'slash': 'a\\'}
+
+
+def test_the_real_pyright_configuration_parses():
+    """The repository's own pyrightconfig.json reads, with its known settings."""
+    configuration = pyright_configuration()
+
+    assert configuration['typeCheckingMode'] == 'strict'
+    assert configuration['reportImplicitStringConcatenation'] is False
+    assert 'src/glitchygames' in configuration['include']
+    assert 'tests' in [
+        environment['root'] for environment in configuration['executionEnvironments']
+    ]
