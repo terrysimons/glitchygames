@@ -1104,4 +1104,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - **Sprite Loading**: Use `SpriteFactory` not direct `BitmappySprite` for new code
 - **Coverage**: 100% minimum required (`--cov-fail-under` in pyproject.toml); no exclusions in configuration
 - **Documentation**: Architecture details in `docs/architecture/` (the mkdocs site) and root .md files
-  (ANIMATION_README.md, LOADER_README.md, etc.)
+  (ANIMATION_README.md, LOADER_README.md, etc.). The engine's API reference pages are written by
+  hand (`docs/glitchygames/`); each workspace member package's (`mr_muncher/index.md`) is
+  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and mkdocs.yml's nav
+  names it (`tests/test_workspace_config.py` checks every member's)

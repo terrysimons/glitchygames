@@ -790,7 +790,5 @@ a cleared reel leads to `REEL 2` with the score kept, and a game over leads to a
 
 ## API reference
 
-::: mr_muncher.game
-    options:
-      heading_level: 3
-      show_submodules: false
+The `mr_muncher` package's API reference is its own page, [mr_muncher](../mr_muncher/index.md),
+generated for every workspace member's package (`scripts/gen_ref_pages.py`).

@@ -11,6 +11,8 @@ from typing import Any
 
 import noxfile
 import pytest
+import yaml
+from scripts.gen_ref_pages import reference_page_path
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
 from glitchygames import logical_names
@@ -156,6 +158,53 @@ def test_nox_installs_and_reinstalls_every_member():
     import scripts/workspace_packages.py, so the noxfile lists them and this keeps the list equal.
     """
     assert [member.distribution for member in MEMBERS] == noxfile._MEMBER_DISTRIBUTIONS
+
+
+class MkdocsConfigurationLoader(yaml.SafeLoader):
+    """Reads mkdocs.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
+
+
+MkdocsConfigurationLoader.add_multi_constructor(
+    'tag:yaml.org,2002:python/name:', lambda _loader, _suffix, _node: None
+)
+
+
+def mkdocs_configuration() -> dict[str, Any]:
+    """mkdocs.yml."""
+    loader = MkdocsConfigurationLoader((PROJECT_ROOT / 'mkdocs.yml').read_text(encoding='utf-8'))
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()
+
+
+def navigation_pages(*, entries: list[Any]) -> set[str]:
+    """Every page a mkdocs nav names, at any depth."""
+    pages: set[str] = set()
+    for entry in entries:
+        values = entry.values() if isinstance(entry, dict) else [entry]
+        for value in values:
+            if isinstance(value, list):
+                pages |= navigation_pages(entries=value)
+            else:
+                pages.add(value)
+    return pages
+
+
+@pytest.mark.parametrize('member', MEMBERS, ids=member_name)
+def test_the_docs_render_and_list_every_members_api_reference(member):
+    """gen-files runs scripts/gen_ref_pages.py, and the nav names each member package's page."""
+    configuration = mkdocs_configuration()
+    plugins = {
+        name: options
+        for plugin in configuration['plugins']
+        for name, options in (plugin.items() if isinstance(plugin, dict) else [(plugin, {})])
+    }
+    pages = navigation_pages(entries=configuration['nav'])
+
+    assert plugins['gen-files'] == {'scripts': ['scripts/gen_ref_pages.py']}
+    for import_package in member.import_packages:
+        assert reference_page_path(import_package=import_package) in pages
 
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)
