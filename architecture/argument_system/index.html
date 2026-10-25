@@ -308,6 +308,7 @@ each with its type and default, then its help text.</p>
 <li><code>--screen-shake-intensity SCREEN_SHAKE_INTENSITY</code> (<code>float</code>): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)</li>
 <li><code>--rumble-intensity RUMBLE_INTENSITY</code> (<code>float</code>): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)</li>
 <li><code>--live-voice-pool LIVE_VOICE_POOL</code> (<code>int</code>): mixer channels reserved for real-time synth voices (default: 4)</li>
+<li><code>--crt-power-on {auto,on,off}</code> (<code>choice</code>, default <code>auto</code>): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off</li>
 <li><code>--default-background {test-pattern,channel-3}</code> (<code>choice</code>): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)</li>
 <li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead</li>
 </ul>
