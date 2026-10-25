@@ -175,6 +175,7 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 - `--screen-shake-intensity SCREEN_SHAKE_INTENSITY` (`float`): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--rumble-intensity RUMBLE_INTENSITY` (`float`): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
+- `--crt-power-on {auto,on,off}` (`choice`, default `auto`): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
 - `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
 

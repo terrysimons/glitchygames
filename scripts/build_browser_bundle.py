@@ -187,6 +187,9 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
     'brave-adventurer': TouchLayout(
         left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
     ),
+    'brave-adventurer-papyrus': TouchLayout(
+        left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
+    ),
     'clockwork-keep': TouchLayout(
         left=((LEFT, RIGHT),),
         center=((PAUSE_ESCAPE,),),
@@ -241,6 +244,13 @@ GAMES: dict[str, GameSpecification] = {
         module='glitchygames.examples.brave_adventurer.game',
         scene_class='BraveAdventurerScene',
         title='Brave Adventurer',
+    ),
+    # A separate game from Brave Adventurer: the same adventure drawn in GlitchyGames' modern
+    # style (TOML sprites), beside the primitive old-school pygame one
+    'brave-adventurer-papyrus': GameSpecification(
+        module='glitchygames.examples.brave_adventurer_papyrus.game',
+        scene_class='PapyrusBraveAdventurerScene',
+        title='Brave Adventurer: Papyrus Edition',
     ),
     'clockwork-keep': GameSpecification(
         module='glitchygames.examples.clockwork_keep.game',

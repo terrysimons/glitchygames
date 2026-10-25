@@ -12,6 +12,7 @@ import logging
 import os
 import signal
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -21,8 +22,11 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from scripts.record_golden_traces import GoldenTraceEngine
+from scripts.record_golden_traces import GoldenTraceEngine, command_line
 
+from glitchygames import crt_power_on
+from glitchygames.backgrounds import BackgroundPattern, paint_default_background
+from glitchygames.crt_power_on import PowerOnOutcome
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events.audio import AudioEventManager
@@ -35,6 +39,7 @@ from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources
+from glitchygames.testing.replays import game_entry_point
 from glitchygames.timing import FastTimer
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
 
@@ -587,3 +592,219 @@ class TestListInputDevices:
 
         assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
         assert f'Cannot list input devices with {flag}: the listing replaces the run' in caplog.text
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestCrtPowerOnOption:
+    """--crt-power-on chooses when the power-on sequence plays (glitchygames/crt_power_on.py)."""
+
+    def test_the_option_is_unset_by_default(self, mocker):
+        """Unset, the environment then auto decide (crt_power_on.resolve_mode)."""
+        build_engine(mocker, game=first_frame_game())
+
+        assert GameEngine.OPTIONS['crt_power_on'] is None
+
+    @pytest.mark.parametrize('flag', ['--replay-trace', '--record-trace'])
+    def test_forcing_it_on_is_refused_with_a_replay_or_a_recording(
+        self, mocker, tmp_path, caplog, flag
+    ):
+        """Before frame 0 of a recorded or replayed run, nothing may happen."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--crt-power-on', 'on', flag, str(tmp_path / 'run.jsonl.gz')),
+            )
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        assert f'Cannot play the CRT power-on sequence with {flag}' in caplog.text
+
+
+def game_noting_when_it_is_built(*, run_log: list[str]) -> type[FirstFrameGame]:
+    """Return a FirstFrameGame class that notes ``'game built'`` in ``run_log`` when constructed.
+
+    Returns:
+        A new subclass.
+
+    """
+
+    class LoggingFirstFrameGame(FirstFrameGame):
+        """Notes when it is built."""
+
+        def __init__(self, options: dict[str, Any], groups: Any = None) -> None:
+            """Note the construction, then build as FirstFrameGame does."""
+            run_log.append('game built')
+            super().__init__(options=options, groups=groups)
+
+    return LoggingFirstFrameGame
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestCrtPowerOnBeforeEveryGame:
+    """The power-on sequence plays on the game's canvas before the game is built."""
+
+    def test_start_plays_it_before_the_game_is_built(self, mocker):
+        run_log: list[str] = []
+        engine = build_engine(
+            mocker,
+            game=game_noting_when_it_is_built(run_log=run_log),
+            extra_arguments=('--crt-power-on', 'on'),
+        )
+        mocker.patch.object(
+            game_engine_module,
+            'play_power_on',
+            side_effect=lambda **_arguments: run_log.append('power on') or PowerOnOutcome.FINISHED,
+        )
+
+        engine.start()
+
+        assert run_log == ['power on', 'game built']
+
+    def test_start_async_plays_the_async_sequence_first(self, mocker):
+        run_log: list[str] = []
+        engine = build_engine(
+            mocker,
+            game=game_noting_when_it_is_built(run_log=run_log),
+            extra_arguments=('--crt-power-on', 'on'),
+        )
+
+        async def play_async(**_arguments):
+            await asyncio.sleep(0)
+            run_log.append('power on (async)')
+            return PowerOnOutcome.FINISHED
+
+        mocker.patch.object(game_engine_module, 'play_power_on_async', side_effect=play_async)
+        _, wait_for_tick = async_ticks()
+
+        asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        assert run_log == ['power on (async)', 'game built']
+
+    def test_the_game_is_handed_its_screen_and_doors(self, mocker):
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
+        )
+        player = mocker.patch.object(
+            game_engine_module, 'play_power_on', return_value=PowerOnOutcome.FINISHED
+        )
+
+        engine.start()
+
+        player.assert_called_once_with(screen=engine.screen, sources=active_sources())
+
+    def test_closing_the_window_during_it_quits_the_game(self, mocker):
+        """The QUIT is handed back to the game, which then ends the run normally."""
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
+        )
+        mocker.patch.object(game_engine_module, 'play_power_on', return_value=PowerOnOutcome.QUIT)
+        posted = mocker.spy(game_engine_module, 'post_input_event')
+
+        engine.start()
+
+        (call,) = posted.call_args_list
+        assert call.kwargs['event'].type == pygame.QUIT
+
+    def test_a_skip_hands_nothing_to_the_game(self, mocker):
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
+        )
+        mocker.patch.object(
+            game_engine_module, 'play_power_on', return_value=PowerOnOutcome.SKIPPED
+        )
+        posted = mocker.spy(game_engine_module, 'post_input_event')
+
+        engine.start()
+
+        posted.assert_not_called()
+
+    def test_by_default_it_never_plays_on_the_test_driver(self, mocker):
+        """Auto on SDL's dummy driver: no test pays for the sequence."""
+        engine = build_engine(mocker, game=first_frame_game())
+        player = mocker.spy(game_engine_module, 'play_power_on')
+
+        engine.start()
+
+        player.assert_not_called()
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Every game's console script ([project.scripts]): the power-on sequence must play before each
+GAME_CONSOLE_SCRIPTS = (
+    'bitmappy',
+    'brave-adventurer',
+    'brave-adventurer-papyrus',
+    'clockwork-keep',
+    'mr-muncher',
+    'paddleslap',
+)
+# Console scripts that are not games (the API server and client run no GameEngine)
+NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+
+
+class PowerOnPlayed(BaseException):
+    """Raised after the real power-on sequence played, to stop the run before the game is built.
+
+    Not an Exception (start()'s crash boundary would turn it into INTERNAL_ERROR), and not a
+    SystemExit (Bitmappy's main catches that), so it reaches the test unchanged.
+    """
+
+
+def test_every_game_console_script_is_covered():
+    """A new game's console script must join GAME_CONSOLE_SCRIPTS, so its power-on is tested."""
+    with (PROJECT_ROOT / 'pyproject.toml').open('rb') as pyproject_file:
+        scripts = tomllib.load(pyproject_file)['project']['scripts']
+
+    assert set(scripts) - NOT_GAME_CONSOLE_SCRIPTS == set(GAME_CONSOLE_SCRIPTS)
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+@pytest.mark.parametrize('background', [pattern.value for pattern in BackgroundPattern])
+@pytest.mark.parametrize('console_script', GAME_CONSOLE_SCRIPTS)
+def test_every_game_powers_on_through_its_own_main(mocker, console_script, background):
+    """Each game's real main() plays the real sequence to its end on the game's canvas first.
+
+    Once per screen it can settle on (--default-background): the colour bars and channel 3.
+
+    The run is stopped once it has (PowerOnPlayed), before the game's scene is built.
+    """
+    main = game_entry_point(console_script=console_script).load()
+    # The dummy driver cannot honour GameEngine's SCALED window (GoldenTraceEngine's docstring)
+    mocker.patch.dict(main.__globals__, {'GameEngine': GoldenTraceEngine})
+    # Bitmappy's main sets it process-wide; later tests on this worker keep their own
+    mocker.patch('multiprocessing.set_start_method')
+    mocker.patch.object(
+        crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=0.05)
+    )
+    mocker.patch.object(crt_power_on.time, 'sleep')
+    played: list[tuple[PowerOnOutcome, bool]] = []
+    real_player = game_engine_module.play_power_on
+
+    def play_then_stop(**arguments: Any) -> PowerOnOutcome:
+        outcome = real_player(**arguments)
+        settled = pygame.Surface(arguments['screen'].get_size())
+        paint_default_background(surface=settled)
+        shows_settled = pygame.image.tobytes(arguments['screen'], 'RGB') == pygame.image.tobytes(
+            settled, 'RGB'
+        )
+        played.append((outcome, shows_settled))
+        raise PowerOnPlayed
+
+    mocker.patch.object(game_engine_module, 'play_power_on', side_effect=play_then_stop)
+
+    with (
+        command_line([
+            '--crt-power-on',
+            'on',
+            '--default-background',
+            background,
+            '--log-level',
+            'warning',
+            '--resolution',
+            '320x240',
+        ]),
+        pytest.raises(PowerOnPlayed),
+    ):
+        main()
+
+    assert played == [(PowerOnOutcome.FINISHED, True)]

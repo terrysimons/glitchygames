@@ -757,7 +757,12 @@ test pattern, or the channel 3 blue screen with `--default-background channel-3`
 (`BackgroundPattern`; drawn at any size, cached per size). `Scene.background_color = ...` keeps
 working (scenes that want black name it: PaddleSlap, GameOverScene, PauseScene, Bitmappy and its
 dialogs); `Scene.background_pattern = BackgroundPattern.CHANNEL_THREE` picks a pattern. A new
-engine display is painted with the default before the first frame.
+engine display is painted with the default before the first frame. Then, before the game is built
+(every game started through `GameEngine`, Bitmappy included), the CRT power-on sequence plays on
+that canvas (`glitchygames/crt_power_on.py`): a dot, a line, the picture opening, warm-up flicker
+from fixed tables (no randomness), settling on exactly that default; any key or button skips it, a
+window closed during it quits the game. `--crt-power-on auto` (default) skips it on SDL's dummy
+driver (`--headless`, every test) and before a replay, audit, rebaseline or recording
 
 **Pixel snapping** (`glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
 sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR

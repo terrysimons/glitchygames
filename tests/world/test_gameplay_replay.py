@@ -2132,7 +2132,7 @@ class TestHeadless:
 
         mocker.patch.object(game_engine_module, 'run_watched_replay_async', new=record_the_driver)
         with constructed_engine('--replay-trace', str(recording_path)) as engine:
-            mocker.patch.object(engine, '_prepare_run')
+            mocker.patch.object(engine, '_build_game')
             # Ending without replaying a frame, the replay exits with its own code
             with pytest.raises(SystemExit):
                 asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))

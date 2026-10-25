@@ -182,6 +182,7 @@ All games built on GlitchyGames inherit these command-line options from the engi
 | `--screen-shake-intensity` | Screen shake strength, 0.0 (off) to 1.0 | `1.0` |
 | `--rumble-intensity` | Controller rumble strength, 0.0 (off) to 1.0 | `1.0` |
 | `--live-voice-pool` | Mixer channels reserved for real-time synth voices | `4` |
+| `--crt-power-on` | Show the canvas switching on like a CRT before the game starts: `auto` (when someone can see it: not on SDL's dummy driver or before a replay, audit, rebaseline or recording), `on` (refused with a replay or recording) or `off` | `auto` |
 | `--default-background` | Background of a scene that sets none: `test-pattern` or `channel-3` | `test-pattern` |
 
 #### Platform-Specific Video Drivers

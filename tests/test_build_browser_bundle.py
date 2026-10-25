@@ -23,6 +23,7 @@ from scripts import build_browser_bundle
 from scripts.build_browser_bundle import (
     GAMES,
     PYSCRIPT_RELEASE,
+    REPOSITORY_DIRECTORY,
     TOUCH_LAYOUTS,
     BundleRequestHandler,
     PortUnavailableError,
@@ -442,3 +443,19 @@ class TestServerPort:
 
         assert status == 1
         assert f'Cannot serve the bundle: port {taken} is in use' in capsys.readouterr().out
+
+
+# Console scripts that are not games (the API server and client): no browser build
+NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+
+
+def test_every_game_has_a_browser_build():
+    """Each game's console script is a page under play/ (Papyrus was once left out).
+
+    The two Brave Adventurer editions are separate games: the primitive old-school pygame style
+    and the modern GlitchyGames style.
+    """
+    with (REPOSITORY_DIRECTORY / 'pyproject.toml').open('rb') as pyproject_file:
+        scripts = tomllib.load(pyproject_file)['project']['scripts']
+
+    assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS
