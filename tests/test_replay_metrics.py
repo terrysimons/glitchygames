@@ -385,8 +385,63 @@ class TestRowsToWrite:
         assert written == [newest]
 
 
+class TestHistoryRunsInThePendingFile:
+    """The pending file is published too: it takes the same landed history runs as row files."""
+
+    def measure_into_pending(self, *, tmp_path):
+        """Measure the golden into a pending file (no rows directory).
+
+        Returns:
+            The pending rows.
+
+        """
+        project_root = tmp_path / 'project'
+        measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=tmp_path / 'pending.jsonl',
+                revision=clean_revision(),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=copied_golden(project_root=project_root),
+            published_text='',
+        )
+        return read_ledger_file(path=tmp_path / 'pending.jsonl').rows
+
+    def test_a_history_run_on_a_commit_not_on_origin_main_is_not_appended(self, tmp_path, capsys):
+        rows = self.measure_into_pending(tmp_path=tmp_path)
+
+        assert [row.origin for row in rows] == [LedgerOrigin.REPLAY_METRICS]
+        assert capsys.readouterr().out.count('origin/main') == 1
+
+    def test_a_history_run_on_a_commit_on_origin_main_is_appended(self, mocker, tmp_path):
+        mocker.patch.object(replay_metrics, 'origin_main_exists', return_value=True)
+        mocker.patch.object(replay_metrics, 'commit_is_on_origin_main', return_value=True)
+
+        rows = self.measure_into_pending(tmp_path=tmp_path)
+
+        assert LedgerOrigin.RECORDING in {row.origin for row in rows}
+
+
 class TestMeasuring:
     """Each recording is rebaselined into a temporary file and its runs become pending rows."""
+
+    @pytest.fixture(autouse=True)
+    def history_has_landed(self, mocker):
+        """Treat every recorded run as landed (the landed rules have their own tests above)."""
+        mocker.patch.object(replay_metrics, 'origin_main_exists', return_value=True)
+        mocker.patch.object(replay_metrics, 'commit_is_on_origin_main', return_value=True)
+
+    def golden_runs_with_a_commit(self):
+        """Return how many runs the golden holds that name a commit (the others are not landed).
+
+        Returns:
+            The count.
+
+        """
+        runs = read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD]
+        return sum(1 for run in runs if run.get('source_revision'))
 
     def test_a_measurement_appends_rows_and_a_second_one_skips(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
@@ -420,9 +475,7 @@ class TestMeasuring:
         assert measured.run.machine_state is not None
         assert recorded.origin == LedgerOrigin.RECORDING
         # One recorded row per run the golden holds, the measurement on top
-        assert len(older_recorded) + 1 == len(
-            read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD]
-        )
+        assert len(older_recorded) + 1 == self.golden_runs_with_a_commit()
         assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz: 622 frames' in (
             capsys.readouterr().out
         )
@@ -551,8 +604,7 @@ class TestMeasuring:
         assert result.exit_code == ExitCode.INTERNAL_ERROR
         assert result.failures == ('tests/fixtures/replays/paddleslap/broken.jsonl.gz',)
         assert 'UNUSABLE_INPUT' in capsys.readouterr().err
-        golden_runs = len(read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD])
-        assert len(read_ledger_file(path=pending).rows) == 1 + golden_runs
+        assert len(read_ledger_file(path=pending).rows) == 1 + self.golden_runs_with_a_commit()
 
     def test_a_replay_of_another_commit_is_a_failure(self, tmp_path, capsys):
         project_root = tmp_path / 'project'

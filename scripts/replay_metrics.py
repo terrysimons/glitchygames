@@ -19,9 +19,9 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
    (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
    frame's processing time and records its provenance (commit, machine state);
 3. appends the rebaselined recording's rows (``ledger_rows_from_rebaseline``: the measurement,
-   then each run the recording held, unless already in the ledger) to the pending file. With
-   ``--rows-directory`` (the pre-commit hook) it writes row files instead, and a run the
-   recording held is written only if it landed (``rows_to_write``: measured on a commit that is
+   then each run the recording held, unless already in the ledger) to the pending file. A run the
+   recording held is written (to the pending file, or with ``--rows-directory``, the
+   pre-commit hook, as row files) only if it landed (``rows_to_write``: measured on a commit that is
    on ``origin/main``, without uncommitted changes; none at all without an ``origin/main``,
    said once). "Already in the ledger" compares rows with a moved recording's old path resolved
    to its new one (``LedgerRow.held_key``).
@@ -340,16 +340,14 @@ def rows_to_write(
 
 
 def _origin_main_present(*, settings: MeasureSettings) -> bool:
-    """Return whether history rows can be judged (row files, with an ``origin/main``).
+    """Return whether the repository has ``origin/main``, which history runs are judged by.
 
-    Says so once when row files are written without an ``origin/main`` to judge them by.
+    Says so once when it has none (no history row is written then).
 
     Returns:
-        True when the measurement writes row files and the repository has ``origin/main``.
+        True when ``origin/main`` exists.
 
     """
-    if settings.rows_directory is None:
-        return False
     if origin_main_exists(repository=settings.project_root):
         return True
     sys.stdout.write(
@@ -368,25 +366,25 @@ def _write_new_rows(
 ) -> list[LedgerRow]:
     """Write a recording's rows no row holds yet (see ``rows_to_write``) and return them.
 
-    They are written as row files with ``--rows-directory``, else appended to the pending file.
+    They are written as row files with ``--rows-directory``, else appended to the pending file
+    (which the docs deploy publishes, so the same landed rules apply).
 
     Returns:
         The rows written.
 
     """
-    if settings.rows_directory is None:
-        new_rows = [row for row in rows if row.held_key not in held_keys]
-        settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
-        with settings.pending_path.open('a', encoding='utf-8') as pending:
-            pending.write(ledger_text(rows=new_rows))
-        return new_rows
     new_rows = rows_to_write(
         rows=rows,
         held_keys=held_keys,
         repository=settings.project_root,
         origin_main_present=origin_main_present,
     )
-    write_row_files(rows=new_rows, directory=settings.rows_directory)
+    if settings.rows_directory is None:
+        settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
+        with settings.pending_path.open('a', encoding='utf-8') as pending:
+            pending.write(ledger_text(rows=new_rows))
+    else:
+        write_row_files(rows=new_rows, directory=settings.rows_directory)
     return new_rows
 
 
