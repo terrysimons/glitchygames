@@ -117,6 +117,14 @@ class Sandbag:
         return SANDBAG_HEIGHT * self.sand
 
     @property
+    def blocks_walking(self) -> bool:
+        """Whether the sandbag is tall enough (at least half a soldier) to stop a walk.
+
+        The computer driver uses this same rule for "tall enough to cover a soldier".
+        """
+        return self.height >= SOLDIER_HEIGHT / 2
+
+    @property
     def flattened(self) -> bool:
         """Whether all the sand is gone."""
         return self.sand <= 0.0
@@ -319,7 +327,7 @@ class Battle:
         """
         stopped_x = target_x
         for sandbag in self.sandbags:
-            if sandbag.height < SOLDIER_HEIGHT / 2:
+            if not sandbag.blocks_walking:
                 continue
             left_edge = sandbag.x - sandbag.width / 2
             right_edge = sandbag.x + sandbag.width / 2

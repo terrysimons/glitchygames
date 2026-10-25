@@ -121,6 +121,10 @@ def test_the_victory_message_is_drawn_on_the_paper(scene):
     scene.dt_tick(1 / 60)
     scene.render(scene.screen)
     assert pygame.image.tobytes(scene.screen, 'RGB') != before
+    # The font is built once and kept
+    font = scene._victory_font
+    scene.render(scene.screen)
+    assert scene._victory_font is font
 
 
 def test_a_new_battle_redraws_the_ground(scene):

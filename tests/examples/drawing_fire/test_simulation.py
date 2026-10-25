@@ -60,3 +60,9 @@ def test_the_simulation_prints_a_summary(capsys):
     assert 'seed 1' in output
     assert 'wins' in output
     assert Side.PLATOON.value in output
+
+
+def test_no_seeds_prints_an_empty_summary_without_crashing(capsys):
+    """--seeds 0 simulates nothing and still reports."""
+    assert simulate_drawing_fire.main(['--seeds', '0']) == 0
+    assert 'wins' in capsys.readouterr().out

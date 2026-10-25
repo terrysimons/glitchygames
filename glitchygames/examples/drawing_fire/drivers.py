@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 from glitchygames.examples.drawing_fire.battle import (
     PISTOL_RANGE,
-    SOLDIER_CHEST_HEIGHT,
     Battle,
     Intent,
     Sandbag,
@@ -32,8 +31,13 @@ if TYPE_CHECKING:
 AIM_ERROR_RADIANS = 0.08
 # Seconds a soldier takes to start shooting at a new target, drawn per new target
 REACTION_SECONDS_RANGE = (0.15, 0.45)
-# A soldier advances until the enemy is within this fraction of the pistol range
+# A soldier advances until the enemy is within this fraction of the pistol range (the default
+# stand-off; each soldier in a battle draws his own from STAND_OFF_FRACTION_RANGE)
 ADVANCE_RANGE_FRACTION = 0.8
+STAND_OFF_FRACTION_RANGE = (0.6, 0.9)
+# He keeps his target unless another enemy is nearer by more than this (px), so two enemies at
+# almost the same distance cannot flip his target (and restart his reaction delay) every frame
+TARGET_SWITCH_MARGIN = 30.0
 # A soldier heads for a standing sandbag on his way when it is this near (px)...
 SANDBAG_SEEK_DISTANCE = 90.0
 # ...and stops once he is this close to its near edge (px)
@@ -49,6 +53,8 @@ class ComputerSoldier:
     target_id: int | None = None
     # Battle seconds when the reaction delay for the current target has passed
     fire_ready_at: float = 0.0
+    # He advances until the enemy is within this fraction of the pistol range
+    stand_off_fraction: float = ADVANCE_RANGE_FRACTION
 
 
 def soldier_stream_name(*, battle_number: int, soldier_id: int) -> str:
@@ -85,12 +91,16 @@ def muster_battle(
     )
     sandbag_xs = sandbag_positions(terrain=terrain, random=random_stream('drawing_fire.sandbags'))
     battle = Battle(terrain=terrain, soldiers_per_side=soldiers_per_side, sandbag_xs=sandbag_xs)
-    minds = {soldier.soldier_id: ComputerSoldier() for soldier in battle.soldiers}
     streams = {
         soldier.soldier_id: random_stream(
             soldier_stream_name(battle_number=battle_number, soldier_id=soldier.soldier_id)
         )
         for soldier in battle.soldiers
+    }
+    # Each soldier draws his own stand-off once, from his own stream, so an army spreads out
+    minds = {
+        soldier_id: ComputerSoldier(stand_off_fraction=stream.uniform(*STAND_OFF_FRACTION_RANGE))
+        for soldier_id, stream in streams.items()
     }
     return battle, minds, streams
 
@@ -140,10 +150,7 @@ def computer_intent(
     if not enemies:
         return Intent(move=0.0, aim_angle=soldier.aim_angle, fire=False)
     chest_x, chest_y = soldier.chest
-    target = min(
-        enemies,
-        key=lambda enemy: math.hypot(enemy.chest[0] - chest_x, enemy.chest[1] - chest_y),
-    )
+    target = _choose_target(soldier=soldier, battle=battle, enemies=enemies, mind=mind)
     if mind.target_id != target.soldier_id:
         # A new target: the reaction delay starts now
         mind.target_id = target.soldier_id
@@ -157,9 +164,13 @@ def computer_intent(
     cover = _nearest_cover(soldier=soldier, battle=battle, direction=direction)
     ready = soldier.cooldown <= 0.0 and battle.seconds >= mind.fire_ready_at
 
-    # A standing sandbag right in his way and a hill hiding the enemy beyond it: he shoots the
-    # sandbag until it is low enough to walk over
-    if cover is not None and not can_see and cover[1] <= SANDBAG_COVER_DISTANCE:
+    # A standing sandbag right in his way and the enemy hidden by a hill or too far to shoot: he
+    # shoots the sandbag until it is low enough to walk over
+    if (
+        cover is not None
+        and (not can_see or distance > PISTOL_RANGE)
+        and cover[1] <= SANDBAG_COVER_DISTANCE
+    ):
         middle_y = battle.terrain.ground_y(cover[0].x) - cover[0].height / 2
         aim_angle = math.atan2(chest_y - middle_y, cover[0].x - chest_x)
         return Intent(move=0.0, aim_angle=aim_angle, fire=ready)
@@ -169,6 +180,7 @@ def computer_intent(
     return Intent(
         move=_movement(
             distance=distance,
+            stand_off_distance=PISTOL_RANGE * mind.stand_off_fraction,
             can_see=can_see,
             direction=direction,
             cover_distance=None if cover is None else cover[1],
@@ -176,6 +188,38 @@ def computer_intent(
         aim_angle=bearing + random.gauss(0.0, AIM_ERROR_RADIANS),
         fire=ready and can_see and distance <= PISTOL_RANGE,
     )
+
+
+def _choose_target(
+    *, soldier: Soldier, battle: Battle, enemies: list[Soldier], mind: ComputerSoldier
+) -> Soldier:
+    """Pick the nearest enemy, but stay on the current target unless another is clearly nearer.
+
+    Args:
+        soldier: The soldier being driven.
+        battle: The battle.
+        enemies: The living enemies (not empty).
+        mind: His memory, holding his current target.
+
+    Returns:
+        The target.
+
+    """
+    chest = soldier.chest
+
+    def distance_to(enemy: Soldier) -> float:
+        return math.hypot(enemy.chest[0] - chest[0], enemy.chest[1] - chest[1])
+
+    nearest = min(enemies, key=distance_to)
+    current = None if mind.target_id is None else battle.soldier(mind.target_id)
+    if (
+        current is not None
+        and current.alive
+        and _can_see(terrain=battle.terrain, start=chest, end=current.chest)
+        and distance_to(nearest) > distance_to(current) - TARGET_SWITCH_MARGIN
+    ):
+        return current
+    return nearest
 
 
 def _can_see(*, terrain: Terrain, start: tuple[float, float], end: tuple[float, float]) -> bool:
@@ -203,12 +247,18 @@ def _can_see(*, terrain: Terrain, start: tuple[float, float], end: tuple[float, 
 
 
 def _movement(
-    *, distance: float, can_see: bool, direction: float, cover_distance: float | None
+    *,
+    distance: float,
+    stand_off_distance: float,
+    can_see: bool,
+    direction: float,
+    cover_distance: float | None,
 ) -> float:
     """Decide how a soldier walks: toward the enemy until in range, via cover on the way.
 
     Args:
         distance: How far the target is.
+        stand_off_distance: How near he walks to the target before he stands.
         can_see: Whether the ground leaves a clear line to the target.
         direction: -1 toward the left, 1 toward the right (where the target is).
         cover_distance: How far the covering sandbag on his way is (None when there is none).
@@ -217,7 +267,7 @@ def _movement(
         The move for his intent: the direction, or 0 to stand.
 
     """
-    if can_see and distance <= PISTOL_RANGE * ADVANCE_RANGE_FRACTION:
+    if can_see and distance <= stand_off_distance:
         return 0.0
     # Stop behind cover only once the enemy is in range, so cover is never a place to hide
     # from a fight that is too far away to start
@@ -246,7 +296,7 @@ def _nearest_cover(
     """
     nearest: tuple[Sandbag, float] | None = None
     for sandbag in battle.sandbags:
-        if sandbag.height <= SOLDIER_CHEST_HEIGHT:
+        if not sandbag.blocks_walking:
             continue
         distance = _distance_to_near_edge(sandbag=sandbag, x=soldier.x, direction=direction)
         if (

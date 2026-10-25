@@ -106,10 +106,12 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
     wins = {side: sum(1 for result in results if result.winner is side) for side in Side}
     durations = [result.seconds for result in results]
+    mean_seconds = sum(durations) / len(durations) if durations else 0.0
+    longest_seconds = max(durations, default=0.0)
     sys.stdout.write(
         f'wins: {ARMY_NAMES[Side.PLATOON]} ({Side.PLATOON.value}) {wins[Side.PLATOON]}, '
         f'{ARMY_NAMES[Side.BRIGADE]} ({Side.BRIGADE.value}) {wins[Side.BRIGADE]}; '
-        f'mean {sum(durations) / len(durations):.1f}s, longest {max(durations):.1f}s\n'
+        f'mean {mean_seconds:.1f}s, longest {longest_seconds:.1f}s\n'
     )
     return 0
 

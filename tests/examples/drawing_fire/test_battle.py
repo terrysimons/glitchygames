@@ -122,7 +122,7 @@ def test_the_muzzle_is_out_along_the_aim_at_chest_height():
 
 
 def test_a_shot_hits_the_enemy_it_is_aimed_at():
-    """Facing soldiers at the same height, no sandbag: two shots land in one second."""
+    """Facing soldiers at the same height, no sandbag: two shots land (at 0 and at the cooldown)."""
     battle, shooter, target = duel(distance=200)
     # The cooldown allows two shots: at 0 and at PISTOL_COOLDOWN; the second needs time to land
     run(

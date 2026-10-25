@@ -69,6 +69,8 @@ class DrawingFireScene(Scene):
         self.phase = Phase.BATTLE
         self.victory_message = ''
         self.victory_seconds = 0.0
+        # Built on first use, then kept
+        self._victory_font: pygame.font.Font | None = None
         self.start_battle()
 
     def start_battle(self: Self) -> None:
@@ -131,8 +133,9 @@ class DrawingFireScene(Scene):
             screen: The display surface.
 
         """
-        font = pygame.font.Font(None, VICTORY_FONT_SIZE)
-        text = font.render(self.victory_message, antialias=True, color=PENCIL_COLOR)
+        if self._victory_font is None:
+            self._victory_font = pygame.font.Font(None, VICTORY_FONT_SIZE)
+        text = self._victory_font.render(self.victory_message, antialias=True, color=PENCIL_COLOR)
         screen.blit(text, text.get_rect(center=(self.screen_width // 2, self.screen_height // 4)))
 
     @override
