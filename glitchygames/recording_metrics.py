@@ -829,7 +829,7 @@ def row_file_name(*, row: LedgerRow) -> str:
     )
     recording = _file_name_part(row.recording.removesuffix('.jsonl.gz'))
     measured_at = re.sub(r'[^0-9]', '', row.run.measured_at)
-    return f'{tree}-{_file_name_part(row.run.machine)}-{measured_at}-{recording}{ROW_FILE_SUFFIX}'
+    return f'{tree}-{_file_name_part(row.machine)}-{measured_at}-{recording}{ROW_FILE_SUFFIX}'
 
 
 def write_row_files(*, rows: Iterable[LedgerRow], directory: Path) -> list[Path]:

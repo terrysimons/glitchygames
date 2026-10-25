@@ -368,10 +368,15 @@ def measure(
                 + '\n'
             )
     count = len(measured)
+    measured_code = (
+        commit[:7] if settings.code_tree is None else f'code tree {settings.code_tree[:12]}'
+    )
+    destination = (
+        settings.pending_path if settings.rows_directory is None else settings.rows_directory
+    )
     sys.stdout.write(
-        f'Measured {count} recording{"" if count == 1 else "s"} at {commit[:7]} on {machine} '
-        f'({len(skipped)} already measured, {len(failures)} failed) into '
-        f'{settings.pending_path}\n'
+        f'Measured {count} recording{"" if count == 1 else "s"} at {measured_code} on {machine} '
+        f'({len(skipped)} already measured, {len(failures)} failed) into {destination}\n'
     )
     return MeasureResult(
         exit_code=ExitCode.INTERNAL_ERROR if failures else ExitCode.SUCCESS,

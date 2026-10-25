@@ -234,6 +234,22 @@ class TestMeasuringIntoRowFiles:
         assert len(again.skipped) == 1
         assert len(other_code.measured) == 1
 
+    def test_the_summary_names_the_rows_directory(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+        rows_directory = tmp_path / 'replay-ledger'
+
+        self.measure_tree(
+            project_root=project_root,
+            recordings=copied_golden(project_root=project_root),
+            pending=tmp_path / 'pending.jsonl',
+            rows_directory=rows_directory,
+            code_tree=self.TREE,
+        )
+
+        summary = capsys.readouterr().out.splitlines()[-1]
+        assert summary.endswith(f'into {rows_directory}')
+        assert 'code tree 0123456789ab' in summary
+
 
 class TestMeasuring:
     """Each recording is rebaselined into a temporary file and its runs become pending rows."""

@@ -637,6 +637,13 @@ class TestRowFiles:
 
         assert row_file_name(row=row).startswith(TREE[:12])
 
+    def test_the_file_names_the_machine_by_its_label(self):
+        """The machine label the metrics show (e.g. Apple M4 Max), not the platform string."""
+        row = ledger_row()
+        label = row.machine.lower().replace(' ', '-')
+
+        assert f'-{label}-' in row_file_name(row=row)
+
     def test_reading_returns_every_row_in_name_order(self, tmp_path):
         rows = [ledger_row(measured_at=f'2026-10-23T2{hour}:00:00+00:00') for hour in (3, 1, 2)]
         write_row_files(rows=rows, directory=tmp_path)
