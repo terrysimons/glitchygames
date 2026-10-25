@@ -102,6 +102,17 @@ api = []
 # (plans/2026-10-24-workspace-packages.md); listed one by one, never by glob
 members = ["src/games/mr-muncher"]
 
+[tool.uv.sources]
+# Each member from the workspace, never from an index (the dev group below)
+mr-muncher = { workspace = true }
+
+[dependency-groups]
+# Every workspace member: `uv sync` installs the dev group and is exact, so without the members
+# here a plain `uv sync` uninstalls what `--all-packages` installed, console scripts included,
+# and the replay-metrics hook can no longer replay their recordings. Checked against the
+# workspace by tests/test_workspace_config.py
+dev = ["mr-muncher"]
+
 [tool.hatch.build]
 # The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
 # build-binary write it before building (glitchygames/build_info.py)

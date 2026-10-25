@@ -140,7 +140,11 @@ def recording_console_script(*, path: Path) -> str:
         try:
             distribution = importlib.metadata.distribution(distribution_name)
         except importlib.metadata.PackageNotFoundError:
-            message = f'{path}: {distribution_name!r} is not an installed workspace member'
+            message = (
+                f'{path}: {distribution_name!r} is not an installed workspace member (a plain '
+                '`uv sync` uninstalls members the root does not depend on); install every '
+                'member with `uv sync --all-packages`'
+            )
             raise KeyError(message) from None
         console_scripts = [
             entry_point.name

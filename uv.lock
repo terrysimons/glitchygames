@@ -1060,6 +1060,11 @@ docs = [
     { name = "pymdown-extensions" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "mr-muncher" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aisuite", extras = ["all"], specifier = ">=0.1.14" },
@@ -1114,6 +1119,9 @@ requires-dist = [
     { name = "yamllint", marker = "extra == 'dev'", specifier = ">=1.38.0" },
 ]
 provides-extras = ["docs", "dev", "api"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "mr-muncher", editable = "src/games/mr-muncher" }]
 
 [[package]]
 name = "google-api-core"

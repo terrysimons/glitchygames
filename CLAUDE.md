@@ -17,7 +17,9 @@ script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from t
 
 ```bash
 # Install dependencies (uv manages the virtual environment automatically); --all-packages
-# installs the workspace members too (src/games/mr-muncher), which an exact sync would remove
+# installs the workspace members too (src/games/mr-muncher). A plain `uv sync` keeps them as
+# well: the root's dev dependency group (installed by default) names every member as a
+# workspace source (tests/test_workspace_config.py checks it)
 uv sync --all-packages
 
 # Install with dev extras (for testing/linting)

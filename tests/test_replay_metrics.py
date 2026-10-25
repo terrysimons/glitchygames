@@ -18,6 +18,7 @@ from scripts import replay_metrics
 from scripts.replay_metrics import (
     PENDING_LEDGER_PATH,
     MeasureSettings,
+    UnreplayableRecording,
     clear_published,
     measure,
     metric_recordings,
@@ -72,6 +73,32 @@ def copied_golden(*, project_root: Path) -> list[tuple[str, Path]]:
     target.parent.mkdir(parents=True)
     shutil.copy(REPO_FIXTURE, target)
     return [('paddleslap', target)]
+
+
+# A workspace member no environment installs, and its golden replay (relative to the project)
+UNINSTALLED_MEMBER_DIRECTORY = Path('src') / 'games' / 'glitchygames-not-installed-game'
+UNINSTALLED_MEMBER_GOLDEN = (
+    UNINSTALLED_MEMBER_DIRECTORY / 'tests' / 'fixtures' / 'replays' / 'golden.jsonl.gz'
+)
+
+
+def write_uninstalled_member(*, project_root: Path) -> None:
+    """Write a project whose one workspace member, with a golden replay, is not installed."""
+    member = project_root / UNINSTALLED_MEMBER_DIRECTORY
+    (member / 'src' / 'not_installed_game').mkdir(parents=True)
+    (project_root / 'pyproject.toml').write_text(
+        '[project]\nname = "stand-in"\n\n[tool.uv.workspace]\n'
+        f'members = ["{UNINSTALLED_MEMBER_DIRECTORY.as_posix()}"]\n',
+        encoding='utf-8',
+    )
+    (member / 'pyproject.toml').write_text(
+        '[project]\nname = "glitchygames-not-installed-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["src/not_installed_game"]\n',
+        encoding='utf-8',
+    )
+    golden = project_root / UNINSTALLED_MEMBER_GOLDEN
+    golden.parent.mkdir(parents=True)
+    golden.write_text('recording\n', encoding='utf-8')
 
 
 def git(*, repository: Path, arguments: list[str]) -> str:
@@ -158,14 +185,30 @@ class TestTheRecordings:
 
     def test_this_projects_recordings(self):
         recordings = metric_recordings(project_root=PROJECT_ROOT)
-        paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings}
+        paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings.replayable}
         assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz' in paths
         assert 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
         assert (
             'mr-muncher',
             PROJECT_ROOT / 'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
-        ) in (recordings)
-        assert all(console_script for console_script, _ in recordings)
+        ) in (recordings.replayable)
+        assert all(console_script for console_script, _ in recordings.replayable)
+        assert not recordings.unreplayable
+
+    def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
+        """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""
+        write_uninstalled_member(project_root=tmp_path)
+
+        recordings = metric_recordings(project_root=tmp_path)
+
+        assert recordings.replayable == ()
+        golden = tmp_path / UNINSTALLED_MEMBER_GOLDEN
+        [unreplayable] = recordings.unreplayable
+        assert unreplayable.path == golden
+        assert 'uv sync --all-packages' in unreplayable.reason
+        assert "'glitchygames-not-installed-game'" in unreplayable.reason
+        assert '\n' not in unreplayable.reason
+        assert str(golden) not in unreplayable.reason
 
 
 class TestMeasuringIntoRowFiles:
@@ -604,6 +647,35 @@ class TestMeasuring:
         assert result.exit_code == ExitCode.INTERNAL_ERROR
         assert result.failures == ('tests/fixtures/replays/paddleslap/broken.jsonl.gz',)
         assert 'UNUSABLE_INPUT' in capsys.readouterr().err
+        assert len(read_ledger_file(path=pending).rows) == 1 + self.golden_runs_with_a_commit()
+
+    def test_an_unreplayable_recording_is_one_line_and_the_others_are_measured(
+        self, tmp_path, capsys
+    ):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        missing = project_root / UNINSTALLED_MEMBER_GOLDEN
+        pending = tmp_path / 'pending.jsonl'
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=clean_revision(),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            unreplayable=[
+                UnreplayableRecording(path=missing, reason='not installed: uv sync --all-packages')
+            ],
+            published_text='',
+        )
+        assert result.exit_code == ExitCode.INTERNAL_ERROR
+        assert result.failures == (UNINSTALLED_MEMBER_GOLDEN.as_posix(),)
+        error_lines = capsys.readouterr().err.splitlines()
+        assert error_lines == [
+            f'{UNINSTALLED_MEMBER_GOLDEN.as_posix()}: not installed: uv sync --all-packages'
+        ]
         assert len(read_ledger_file(path=pending).rows) == 1 + self.golden_runs_with_a_commit()
 
     def test_a_replay_of_another_commit_is_a_failure(self, tmp_path, capsys):

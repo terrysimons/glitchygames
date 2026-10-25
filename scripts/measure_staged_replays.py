@@ -95,10 +95,13 @@ def _fully_measured_here(
         for row in read_row_files(directory=rows_directory)
         if row.code_tree == code_tree and row.machine == machine
     }
-    return all(
-        path.relative_to(repository).as_posix() in measured
-        for _, path in replay_metrics.metric_recordings(project_root=repository)
-    )
+    recordings = replay_metrics.metric_recordings(project_root=repository)
+    # An unreplayable recording is never measured: the measurement runs and reports it
+    paths = [
+        *(path for _, path in recordings.replayable),
+        *(recording.path for recording in recordings.unreplayable),
+    ]
+    return all(path.relative_to(repository).as_posix() in measured for path in paths)
 
 
 def _untracked_measured_files(*, repository: Path) -> list[str]:

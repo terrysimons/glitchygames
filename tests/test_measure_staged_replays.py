@@ -83,7 +83,7 @@ def stand_in_measurement(
             if row.code_tree == tree
         }
         written = 0
-        for _, path in metric_recordings(project_root=repository):
+        for _, path in metric_recordings(project_root=repository).replayable:
             recording = path.relative_to(repository).as_posix()
             if recording in held:
                 continue

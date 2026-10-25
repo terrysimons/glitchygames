@@ -39,7 +39,10 @@ Usage (a module: it imports scripts.workspace_packages):
     uv run python -m scripts.replay_metrics clear-published [--pending PATH]
 
 Exit codes: ``SUCCESS``; ``OPTIONS_REFUSED`` for an unknown commit or uncommitted changes;
-``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured).
+``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured),
+a golden replay no installed console script replays included: a workspace member that is not
+installed is reported on one line naming the fix, ``uv sync --all-packages``
+(``metric_recordings``' ``unreplayable``).
 """
 
 from __future__ import annotations
@@ -144,26 +147,66 @@ def golden_replay_globs(*, project_root: Path) -> list[str]:
     ]
 
 
-def metric_recordings(*, project_root: Path) -> list[tuple[str, Path]]:
+class UnreplayableRecording(BaseModel):
+    """A recording no installed console script replays, and why (one line).
+
+    Attributes:
+        path: The recording.
+        reason: Why it cannot be replayed, naming the fix (``recording_console_script``'s
+            refusal: a workspace member a plain ``uv sync`` uninstalled, say).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    path: Path
+    reason: str
+
+
+class MetricRecordings(BaseModel):
+    """Every golden replay and bundled demo, as ``metric_recordings`` found them.
+
+    Attributes:
+        replayable: ``(console script, path)`` pairs: the golden replays, then the demos, each
+            by path.
+        unreplayable: The golden replays no installed console script replays: reported and
+            counted as failures, while the others are still measured.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    replayable: tuple[tuple[str, Path], ...]
+    unreplayable: tuple[UnreplayableRecording, ...] = ()
+
+
+def metric_recordings(*, project_root: Path) -> MetricRecordings:
     """Return every golden replay and bundled demo, with the console script that replays it.
 
     Args:
         project_root: The repository.
 
     Returns:
-        ``(console script, path)`` pairs: the golden replays, then the demos, each by path.
+        The recordings: those a console script replays, and those none does (a workspace member
+        not installed: ``uv sync --all-packages`` installs every member).
 
     """
-    goldens = [
-        (recording_console_script(path=path), path)
-        for path in sorted(
-            path
-            for glob in golden_replay_globs(project_root=project_root)
-            for path in project_root.glob(glob)
-        )
-    ]
+    goldens: list[tuple[str, Path]] = []
+    unreplayable: list[UnreplayableRecording] = []
+    for path in sorted(
+        path
+        for glob in golden_replay_globs(project_root=project_root)
+        for path in project_root.glob(glob)
+    ):
+        try:
+            goldens.append((recording_console_script(path=path), path))
+        except (KeyError, ValueError) as error:
+            # The refusal's message (not KeyError's quoted repr), without the path it starts
+            # with: the failure line names the recording
+            reason = str(error.args[0]).removeprefix(f'{path}: ')
+            unreplayable.append(UnreplayableRecording(path=path, reason=reason))
     demos = bundled_demo_paths(examples_directory=project_root / EXAMPLES_PATH)
-    return [*goldens, *demos]
+    return MetricRecordings(replayable=(*goldens, *demos), unreplayable=tuple(unreplayable))
 
 
 def this_machine() -> str:
@@ -427,7 +470,11 @@ def _write_new_rows(
 
 
 def measure(
-    *, settings: MeasureSettings, recordings: Sequence[tuple[str, Path]], published_text: str
+    *,
+    settings: MeasureSettings,
+    recordings: Sequence[tuple[str, Path]],
+    published_text: str,
+    unreplayable: Sequence[UnreplayableRecording] = (),
 ) -> MeasureResult:
     """Measure recordings and append their rows to the pending ledger (see the docstring).
 
@@ -435,6 +482,8 @@ def measure(
         settings: The measurement's settings.
         recordings: ``(console script, path)`` pairs to measure.
         published_text: The published ledger's text.
+        unreplayable: Recordings no console script replays: each is a failure, reported on one
+            line with its reason, and the others are still measured.
 
     Returns:
         What was measured, skipped and failed.
@@ -460,6 +509,10 @@ def measure(
     measured: list[str] = []
     skipped: list[str] = []
     failures: list[str] = []
+    for unreplayable_recording in unreplayable:
+        recording = unreplayable_recording.path.relative_to(settings.project_root).as_posix()
+        _failure(recording=recording, message=unreplayable_recording.reason)
+        failures.append(recording)
     with tempfile.TemporaryDirectory(prefix='replay-metrics-') as temporary_name:
         for index, (console_script, path) in enumerate(recordings):
             recording = path.relative_to(settings.project_root).as_posix()
@@ -612,11 +665,15 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
     if options.skip_dirty and revision.uncommitted_changes:
         sys.stdout.write('Not measuring the replays: the checkout has uncommitted changes\n')
         return ExitCode.SUCCESS
+
+    def selected(path: Path) -> bool:
+        return options.only is None or options.only in path.relative_to(PROJECT_ROOT).as_posix()
+
+    found = metric_recordings(project_root=PROJECT_ROOT)
     recordings = [
-        (console_script, path)
-        for console_script, path in metric_recordings(project_root=PROJECT_ROOT)
-        if options.only is None or options.only in path.relative_to(PROJECT_ROOT).as_posix()
+        (console_script, path) for console_script, path in found.replayable if selected(path)
     ]
+    unreplayable = [recording for recording in found.unreplayable if selected(recording.path)]
     settings = MeasureSettings(
         project_root=PROJECT_ROOT,
         pending_path=options.pending,
@@ -627,7 +684,10 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         rows_directory=options.rows_directory,
     )
     return measure(
-        settings=settings, recordings=recordings, published_text=published_text
+        settings=settings,
+        recordings=recordings,
+        published_text=published_text,
+        unreplayable=unreplayable,
     ).exit_code
 
 

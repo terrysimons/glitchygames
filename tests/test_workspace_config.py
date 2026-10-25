@@ -159,6 +159,20 @@ def test_nox_installs_and_reinstalls_every_member():
 
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)
+def test_a_plain_uv_sync_keeps_every_member_installed(member):
+    """The root's dev group, which a plain `uv sync` installs, names every member (workspace).
+
+    `uv sync` is exact: without this it uninstalls the members `--all-packages` installed, and
+    their console scripts with them (uv's workspace docs: a member the root depends on through a
+    `workspace = true` source is installed with the root).
+    """
+    pyproject = root_pyproject()
+
+    assert member.distribution in pyproject['dependency-groups']['dev']
+    assert pyproject['tool']['uv']['sources'][member.distribution] == {'workspace': True}
+
+
+@pytest.mark.parametrize('member', MEMBERS, ids=member_name)
 def test_a_members_console_scripts_are_its_own(member):
     """The root project no longer declares a script a member does (pre-flight A7)."""
     root_scripts = root_pyproject()['project']['scripts']
