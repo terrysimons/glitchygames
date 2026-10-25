@@ -407,14 +407,18 @@ class DrawingFireScene(Scene):
         """
         if any(self.seats.seat_of(device) is None for device in self.devices):
             draw_join_prompt(screen)
-        # Every player not yet playing has a card, in name order
-        slot = 0
-        for name in sorted(self.seats.players):
+        # Every player has a card, in name order: a playing player's says how to leave, and any
+        # card's foot fills while its player holds BACK (nothing else shows that leaving takes a
+        # held second)
+        for slot, name in enumerate(sorted(self.seats.players)):
             seat = self.seats.players[name]
-            if seat.stage is Stage.PLAYING:
-                continue
-            draw_seat_card(screen, seat, slot=slot, battle_over=self.phase is Phase.VICTORY)
-            slot += 1
+            draw_seat_card(
+                screen,
+                seat,
+                slot=slot,
+                battle_over=self.phase is Phase.VICTORY,
+                leave_progress=Seats.leave_progress(seat, edges=self.button_edges),
+            )
             if seat.stage is Stage.CHOOSING_SOLDIER:
                 highlighted = self.seats.highlighted_soldier(seat, battle=self.battle)
                 if highlighted is not None:

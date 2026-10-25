@@ -44,10 +44,17 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     SEAT_TAG_STAGGER_PIXELS,
     SEATS_PANEL_TOP_PIXELS,
     join_note_rect,
+    leave_hint,
     seat_card_rect,
     seats_panel_rect,
 )
-from glitchygames.examples.drawing_fire.seats import PlayerSeat, SeatChange, SeatLogEntry, Stage
+from glitchygames.examples.drawing_fire.seats import (
+    LEAVE_HOLD_SECONDS,
+    PlayerSeat,
+    SeatChange,
+    SeatLogEntry,
+    Stage,
+)
 from glitchygames.examples.drawing_fire.terrain import Terrain
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
@@ -421,7 +428,7 @@ def test_the_join_prompt_shows_while_a_device_is_unseated(scene):
 
 
 def test_a_player_choosing_a_side_sees_the_side_card(scene):
-    """START opens a card beside the note; the soldier choice keeps a card, playing has none."""
+    """START opens a card beside the note; it stays through the soldier choice and the play."""
     card = seat_card_rect(scene.screen, slot=0)
     scene.render(scene.screen)
     assert CARD_COLOR not in colors_in(scene.screen, card)
@@ -437,7 +444,42 @@ def test_a_player_choosing_a_side_sees_the_side_card(scene):
     assert CARD_COLOR in colors_in(scene.screen, card)
     keyboard_tap(scene, pygame.KSCAN_RETURN)
     scene.render(scene.screen)
-    assert CARD_COLOR not in colors_in(scene.screen, card)
+    # Playing, the card tells him how to leave
+    assert scene.seats.players['P1'].stage is Stage.PLAYING
+    assert CARD_COLOR in colors_in(scene.screen, card)
+
+
+def test_the_leave_hint_names_the_players_own_key():
+    """The keyboard player is told to hold Esc; a controller player, Back."""
+    assert leave_hint(PlayerSeat(name='P1', device=KEYBOARD)) == 'hold Esc to leave'
+    controller = Device(controller_id=CONTROLLER_ID)
+    assert leave_hint(PlayerSeat(name='P2', device=controller)) == 'hold Back to leave'
+
+
+def test_holding_back_fills_the_cards_foot_toward_leaving(scene):
+    """While a playing player holds Escape, a bar fills along his card's foot; up, it is gone."""
+    keyboard_joins_and_plays(scene)
+    card = seat_card_rect(scene.screen, slot=0)
+    # The bar's rows, inside the card's pencil border (the bar sits in the bottom padding)
+    foot = pygame.Rect(card.left + 2, card.bottom - 5, card.width - 4, 3)
+    left_half = pygame.Rect(foot.left, foot.top, foot.width // 2, foot.height)
+    right_half = pygame.Rect(foot.centerx + 2, foot.top, foot.width // 2 - 4, foot.height)
+    scene.render(scene.screen)
+    assert PENCIL_COLOR not in colors_in(scene.screen, left_half)
+    # Hold a third of the leave time: the bar reaches into the left half only
+    tick_with(
+        scene,
+        keyboard_input(scancodes=(pygame.KSCAN_ESCAPE,)),
+        frames=round(LEAVE_HOLD_SECONDS * 60 / 3),
+    )
+    scene.render(scene.screen)
+    assert PENCIL_COLOR in colors_in(scene.screen, left_half)
+    assert PENCIL_COLOR not in colors_in(scene.screen, right_half)
+    # Let go before the second: he stays, and the bar is gone
+    tick_with(scene, keyboard_input())
+    scene.render(scene.screen)
+    assert scene.seats.players['P1'].stage is Stage.PLAYING
+    assert PENCIL_COLOR not in colors_in(scene.screen, left_half)
 
 
 def test_a_waiting_player_has_a_card(scene):

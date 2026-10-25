@@ -136,6 +136,26 @@ class Seats:
         """
         return next((seat for seat in self.players.values() if seat.device == device), None)
 
+    @staticmethod
+    def leave_progress(seat: PlayerSeat, *, edges: ButtonEdges) -> float:
+        """Say how far a player's hold of BACK has gone toward leaving, for his card's bar.
+
+        It counts only a hold that can leave: BACK still held from before his seat opened
+        (``back_released`` is False) counts as 0, as ``update`` ignores it.
+
+        Args:
+            seat: The player.
+            edges: This frame's button presses and holds.
+
+        Returns:
+            0.0 (not holding) to 1.0 (he leaves this frame).
+
+        """
+        if not seat.back_released:
+            return 0.0
+        held = edges.held_seconds(seat.device, Button.BACK)
+        return min(held / LEAVE_HOLD_SECONDS, 1.0)
+
     def driver_of(self, soldier_id: int) -> str:
         """Name who drives a soldier.
 
