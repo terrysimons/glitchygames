@@ -23,6 +23,7 @@ from scripts import build_browser_bundle
 from scripts.build_browser_bundle import (
     GAMES,
     PYSCRIPT_RELEASE,
+    TOUCH_LAYOUTS,
     BundleRequestHandler,
     PortUnavailableError,
     bind_server,
@@ -34,6 +35,7 @@ from scripts.build_browser_bundle import (
     pyscript_config,
     render_page,
     reusable_wheel,
+    touch_controls_config,
     write_engine_archive,
 )
 
@@ -173,6 +175,7 @@ class TestGeneratedFiles:
             'scene_class': 'MrMuncherScene',
             'title': 'Mr. Muncher',
             'arguments': ['--target-fps', '30'],
+            'touch_controls': touch_controls_config(layout=TOUCH_LAYOUTS['mr-muncher']),
         }
 
     def test_render_page_fills_the_title_and_pyscript_release(self):
@@ -250,6 +253,7 @@ class TestMain:
             'glitchygames.zip',
             'index.html',
             'pyscript.toml',
+            'touch_controls.js',
             'wheels',
         ]
         assert (output / 'wheels' / WHEEL_NAME).read_bytes() == b'wheel'

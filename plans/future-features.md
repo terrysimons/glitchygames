@@ -187,8 +187,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   runs, Bitmappy Save/Load (file picker, downloads) and a clipboard factory, watched replays
   (`--replay-trace`) and attract mode in the browser, iOS Simulator Safari (no JSPI) runs the
   games, and every game published with the docs as play/ (`nox -s docs-deploy`).
-  Open: touch controls (the games need a keyboard on a phone). Fixed: a failed Bitmappy save
-  ended the editor (BUGS.md #217).
+  Done 2026-10-25: touch controls (`browser/touch_controls.js`, per-game `TOUCH_LAYOUTS`):
+  verified on emulated phones (Pixel 7 in Chromium, iPhone 13 in WebKit), portrait and
+  landscape: taps, held buttons, sliding across the D-pad. Fixed: a failed Bitmappy save ended
+  the editor (BUGS.md #217).
 - **Priority**: High (requested 2026-10-23)
 
 

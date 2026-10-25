@@ -201,3 +201,18 @@
   the display's rate with no errors, the PaddleSlap demo replays exactly, Bitmappy's file
   picker, load and download work. The matrix had already passed pygame-ce's own browser checks
   on 2.5.8 with the same fixes.
+
+
+## Touch controls (2026-10-25)
+
+- On touch devices the page shows each game's buttons (`browser/touch_controls.js`); the layouts
+  live in `scripts/build_browser_bundle.py` (`TOUCH_LAYOUTS`) and reach the page in
+  boot_config.json. A held button dispatches its key's keydown and keyup on the canvas, which
+  SDL reads (probed: KEYDOWN/KEYUP and `pygame.key.get_pressed()` held in between; dispatched
+  on the window they never arrive). The engine and the games are unchanged.
+- Layouts: PaddleSlap two players (W/S left, arrows right, Pause = Space), Brave Adventurer
+  and Clockwork Keep left/right plus Jump (Space; Clockwork Keep also Use = W, Run = Shift),
+  Mr. Muncher a D-pad with Pause = P and Start = Space. Bitmappy none.
+- Verified (Pixel 7 profile in Chromium with real touch events, iPhone 13 in WebKit): the
+  controls show only on touch devices, Pause and Start switch scenes, a held arrow moves
+  PaddleSlap's paddle, a finger slides across Mr. Muncher's D-pad.

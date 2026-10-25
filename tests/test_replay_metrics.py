@@ -381,6 +381,9 @@ class TestTheCommandLine:
 
     def test_measure_one_recording_then_clear(self, tmp_path, mocker, capsys):
         mocker.patch.object(replay_metrics, 'source_revision', return_value=clean_revision())
+        # Nothing is published from this checkout's point of view in a test: otherwise a docs
+        # deploy that measured this commit on this machine makes the measurement skip it
+        mocker.patch.object(replay_metrics, 'published_ledger_text', return_value='')
         pending = tmp_path / 'pending.jsonl'
         arguments = ['--pending', str(pending), '--only', 'paddleslap_demos']
         assert run(arguments=['measure', *arguments]) == ExitCode.SUCCESS
@@ -389,8 +392,7 @@ class TestTheCommandLine:
             'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
         }
         assert 'Measured 1 recording' in capsys.readouterr().out
-        # Nothing is published from this checkout's point of view in a test: the rows stay
-        mocker.patch.object(replay_metrics, 'published_ledger_text', return_value='')
+        # Nothing published: clearing the published rows keeps every pending one
         assert run(arguments=['clear-published', '--pending', str(pending)]) == ExitCode.SUCCESS
         assert read_ledger_file(path=pending).rows == rows
 
