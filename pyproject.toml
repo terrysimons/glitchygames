@@ -93,6 +93,8 @@ dev = [
   # wily 2 is an alpha (2.0.0a1) that drops radon; the complexity graphs run both
   "wily>=1.25.0,<2",
   "radon>=5.1.0",
+  # The complexity graphs' generation lock (scripts/generate_complexity_graphs.py, BUGS.md #214)
+  "filelock>=3.32.7",
 ]
 api = []
 

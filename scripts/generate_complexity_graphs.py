@@ -22,8 +22,16 @@ changed); running this script regenerates them unconditionally. The steps:
    snippets; mkdocs.yml's ``exclude_docs`` keeps it from becoming a page of its own). Without it
    the page builds with its own text only, so ``mkdocs build --strict`` passes either way.
 
-The output directory is emptied first, so graphs of modules that left the ranking are never
-published.
+Everything is made in a staging directory inside the output directory
+(``STAGING_DIRECTORY_PREFIX``, hidden from mkdocs); each finished file then replaces its
+published one in one step, and published files the generation no longer makes (graphs of
+modules that left the ranking) are removed. So a docs build reading the graphs mid-generation
+sees the previous pages or the new ones, never a half-made one. Generations take a lock
+(``GENERATION_LOCK_NAME``, a ``filelock`` lock: released when its process ends, however it
+ends), so two builds never generate into one directory at once: a running ``mkdocs serve`` and
+the pre-push hook's ``mkdocs build`` both seeing a new HEAD each rewrote the other's pages and
+one failed (BUGS.md #214). The second waits, then finds the graphs current. A crashed
+generation's staging directory is removed by the next one.
 
 Usage:
     uv run python scripts/generate_complexity_graphs.py
@@ -48,6 +56,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
+from filelock import FileLock, Timeout
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.exit_codes import ExitCode
@@ -85,6 +94,12 @@ GRAPHS_SNIPPET_NAME = 'complexity_graphs.md'
 
 # The commit the graphs in GRAPHS_DIR were generated from (generate_if_stale)
 GENERATED_FROM_NAME = 'generated-from-commit.txt'
+# The lock a generation holds, in the output directory (hidden from mkdocs, gitignored with it)
+GENERATION_LOCK_NAME = '.generation.lock'
+# How long a build waits for another's generation before giving up
+GENERATION_LOCK_TIMEOUT_SECONDS = 3600.0
+# A generation's staging directory, in the output directory (hidden from mkdocs)
+STAGING_DIRECTORY_PREFIX = '.staging-'
 
 # The plotly.js script plotly writes for include_plotlyjs='cdn' (plotly.io's plotly_cdn_url)...
 PLOTLY_CDN_URL_PATTERN = re.compile(
@@ -384,22 +399,103 @@ def graphs_snippet(*, graphs: ComplexityGraphs) -> str:
     return '\n'.join(lines)
 
 
+@contextmanager
+def generation_lock(*, graphs_directory: Path) -> Generator[None]:
+    """Hold the graphs directory's generation lock (made with the directory if missing).
+
+    Args:
+        graphs_directory: The output directory.
+
+    Yields:
+        While the lock is held.
+
+    Raises:
+        ComplexityGraphError: Another generation held it for ``GENERATION_LOCK_TIMEOUT_SECONDS``.
+
+    """
+    graphs_directory.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(graphs_directory / GENERATION_LOCK_NAME)
+    try:
+        lock.acquire(timeout=GENERATION_LOCK_TIMEOUT_SECONDS)
+    except Timeout as error:
+        message = (
+            f'Another complexity graph generation held {lock.lock_file} for '
+            f'{GENERATION_LOCK_TIMEOUT_SECONDS:.0f} s'
+        )
+        raise ComplexityGraphError(message) from error
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+def publish_staged_graphs(*, staging_directory: Path, graphs_directory: Path) -> None:
+    """Replace the published graphs with the staged ones, file by file, each in one step.
+
+    Published files the staging directory does not hold are removed afterwards, except the
+    lock, the commit marker and staging directories (leftovers of a crashed generation are
+    removed too: the caller holds the lock, so no other generation is running).
+
+    Args:
+        staging_directory: The finished graph pages and snippet.
+        graphs_directory: The published graphs.
+
+    """
+    staged_names = {path.name for path in staging_directory.iterdir()}
+    for name in sorted(staged_names):
+        (staging_directory / name).replace(graphs_directory / name)
+    for path in graphs_directory.iterdir():
+        if path.name.startswith(STAGING_DIRECTORY_PREFIX):
+            shutil.rmtree(path, ignore_errors=True)
+        elif path.name not in staged_names | {GENERATION_LOCK_NAME, GENERATED_FROM_NAME}:
+            path.unlink()
+
+
 def generate_complexity_graphs(
     *, project_root: Path, graphs_directory: Path, module_count: int = TOP_MODULE_COUNT
 ) -> ComplexityGraphs:
-    """Measure HEAD's history and write the graph pages and snippet into ``graphs_directory``.
+    """Measure HEAD's history and publish the graph pages and snippet in ``graphs_directory``.
+
+    The caller holds ``generation_lock``. The pages are made in a staging directory and
+    published only when all are done (``publish_staged_graphs``).
 
     Args:
         project_root: The repository.
-        graphs_directory: Where the graph pages and snippet go (emptied first).
+        graphs_directory: Where the graph pages and snippet are published.
         module_count: How many modules to graph.
 
     Returns:
         What was generated.
 
     """
-    shutil.rmtree(graphs_directory, ignore_errors=True)
-    graphs_directory.mkdir(parents=True)
+    graphs_directory.mkdir(parents=True, exist_ok=True)
+    staging_directory = Path(
+        tempfile.mkdtemp(prefix=STAGING_DIRECTORY_PREFIX, dir=graphs_directory)
+    )
+    try:
+        graphs = _generate_into(
+            project_root=project_root,
+            staging_directory=staging_directory,
+            module_count=module_count,
+        )
+        publish_staged_graphs(
+            staging_directory=staging_directory, graphs_directory=graphs_directory
+        )
+    finally:
+        shutil.rmtree(staging_directory, ignore_errors=True)
+    LOG.info('Wrote %s', graphs_directory / GRAPHS_SNIPPET_NAME)
+    return graphs
+
+
+def _generate_into(
+    *, project_root: Path, staging_directory: Path, module_count: int
+) -> ComplexityGraphs:
+    """Measure HEAD's history and write the graph pages and snippet into ``staging_directory``.
+
+    Returns:
+        What was generated.
+
+    """
     with tempfile.TemporaryDirectory(prefix='complexity-graphs-') as temporary_name:
         temporary_directory = Path(temporary_name)
         cache_directory = temporary_directory / 'wily-cache'
@@ -440,7 +536,7 @@ def generate_complexity_graphs(
                     cache_directory=cache_directory,
                     modules=modules,
                     metric=metric,
-                    output_path=graphs_directory / graph_files[metric],
+                    output_path=staging_directory / graph_files[metric],
                 )
                 LOG.info('Graphed %s', metric_label)
     graphs = ComplexityGraphs(
@@ -450,9 +546,9 @@ def generate_complexity_graphs(
         modules=tuple(modules),
         graph_files=graph_files,
     )
-    snippet_path = graphs_directory / GRAPHS_SNIPPET_NAME
-    snippet_path.write_text(graphs_snippet(graphs=graphs), encoding='utf-8')
-    LOG.info('Wrote %s', snippet_path)
+    (staging_directory / GRAPHS_SNIPPET_NAME).write_text(
+        graphs_snippet(graphs=graphs), encoding='utf-8'
+    )
     return graphs
 
 
@@ -479,7 +575,8 @@ def generate_if_stale(*, project_root: Path, graphs_directory: Path) -> bool:
     The graphs measure committed history only, so they change only when HEAD does: the commit
     they were made from is kept in ``GENERATED_FROM_NAME`` next to them, and a build with the
     same HEAD (every ``mkdocs serve`` rebuild, a second ``mkdocs build``) skips the minute the
-    generation takes.
+    generation takes. The check and the generation hold ``generation_lock``, so a build that
+    waited for another's generation finds the graphs current.
 
     Args:
         project_root: The repository.
@@ -491,14 +588,15 @@ def generate_if_stale(*, project_root: Path, graphs_directory: Path) -> bool:
     """
     commit = head_commit(project_root=project_root)
     generated_from_path = graphs_directory / GENERATED_FROM_NAME
-    if (
-        generated_from_path.is_file()
-        and generated_from_path.read_text(encoding='utf-8').strip() == commit
-    ):
-        LOG.info('Complexity graphs are current (commit %s)', commit[:12])
-        return False
-    generate_complexity_graphs(project_root=project_root, graphs_directory=graphs_directory)
-    generated_from_path.write_text(f'{commit}\n', encoding='utf-8')
+    with generation_lock(graphs_directory=graphs_directory):
+        if (
+            generated_from_path.is_file()
+            and generated_from_path.read_text(encoding='utf-8').strip() == commit
+        ):
+            LOG.info('Complexity graphs are current (commit %s)', commit[:12])
+            return False
+        generate_complexity_graphs(project_root=project_root, graphs_directory=graphs_directory)
+        generated_from_path.write_text(f'{commit}\n', encoding='utf-8')
     return True
 
 
@@ -506,7 +604,10 @@ def main() -> None:
     """Generate the complexity graphs for the documentation site."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     try:
-        graphs = generate_complexity_graphs(project_root=PROJECT_ROOT, graphs_directory=GRAPHS_DIR)
+        with generation_lock(graphs_directory=GRAPHS_DIR):
+            graphs = generate_complexity_graphs(
+                project_root=PROJECT_ROOT, graphs_directory=GRAPHS_DIR
+            )
     except ComplexityGraphError as error:
         # The failed tool's own output is the useful part; a traceback would bury it
         sys.stderr.write(f'{error}\n')

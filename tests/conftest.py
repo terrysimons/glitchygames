@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import settings
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -188,6 +189,12 @@ def _fail_on_entirely_black_frame(
         pytrace=False,
     )
 
+
+# Hypothesis without its 200 ms deadline (BUGS.md #157): a speed heuristic, which correct examples
+# exceeded on a loaded machine. Settings profiles: see register_profile and load_profile in
+# Hypothesis's own settings module (hypothesis/_settings.py, 6.170.9)
+settings.register_profile('glitchygames', deadline=None)
+settings.load_profile('glitchygames')
 
 # This process's collector (None on Windows and real audio drivers), made as the session starts
 _PEAK_MEMORY_COLLECTOR = process_peak_memory_collector(

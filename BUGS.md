@@ -4,15 +4,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
-### 214. Two Docs Builds at Once Break Each Other's Complexity Graphs
-- **Description**: When two docs builds generate the complexity graphs at the same time (a running `mkdocs serve` and the pre-push hook's `mkdocs build --strict`, both seeing a new HEAD), one fails: `Could not generate the complexity graphs: The graph page loads no plotly.js from cdn.plot.ly: plotly changed its output`, and the push is refused
-- **Status**: Active
-- **Priority**: Medium (refuses pushes while a docs server runs; likely the "transient" pre-push lint failures seen before)
-- **Reporter**: Found pushing PR #96, 2026-10-24
-- **Date Reported**: 2026-10-24
-- **Details**: `scripts/generate_complexity_graphs.py`'s `graph_metric` has wily write each page straight into `docs/quality/graphs/`, then reads it back and rewrites it in place with jsDelivr's plotly.js (`load_plotly_from_jsdelivr`). Both builds write the same paths, so one reads a page the other already rewrote: no cdn.plot.ly URL left, so it raises. The server's log showed its 102 s regeneration (15:12:21-15:14:04) overlapping the push; with the server stopped the push passed. Plotly (5.24.1) and wily (1.25.0) were the same in both environments. Fix to make: wily writes into a per-process temporary directory and each finished page replaces the published one in one step (`glitchygames/output_files.py`'s write-aside-then-replace), and the whole generation takes a lock, so the second build waits and then finds the graphs current
-- **Files**: `scripts/generate_complexity_graphs.py`
-
 ### 212. Collecting Garbage Between Tests Stalls the Native Run's coreaudio
 - **Description**: With `tests/garbage_collection.py`'s collections on in every run, a local `uv run pytest -n 4` (the dummy run plus its native cocoa/coreaudio child, side by side) took over an hour: in the native run many tests waited almost exactly 30 s, and 20 failed with `pygame.error: mixer not initialized` (sound loading, paddles with collision sounds, the mixer pool, the pause screen)
 - **Status**: Active (worked around: only runs on the dummy audio driver collect)
@@ -164,15 +155,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Details**: (1) Slider gradients are redrawn every frame (dirty 2, ~1024 line draws): pre-render once. (2) TabControlSprite rebuilds its font every update after its first click. (3) A channel enum instead of strings. (4) Tidy-ups: `trigger.value` mutation in `on_slider_event`, the try/except and hasattr in `get_current_color`, DEBUG f-strings, `MIN/MAX_COLOR_VALUE` vs `MAX_COLOR_CHANNEL_VALUE`. (5) Controller line painting leaves the cursor one past the last painted pixel (maybe intended; pinned). (6) `AnimatedCanvasSprite.active_color` is inferred as a literal tuple (an `assignment` ignore remains in `apply_color`)
 - **Files**: see Details
-
-### 157. A Hypothesis Property Test Fails Its Deadline on a Busy Machine
-- **Description**: `TestPaletteRoundtrip::test_double_roundtrip_is_stable` took 277 ms against hypothesis's default 200 ms deadline while another suite ran (DeadlineExceeded); it passes on a quiet machine
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found running two full suites at once
-- **Date Reported**: 2026-10-22
-- **Details**: The deadline is a speed heuristic, not a correctness check; CI machines can be as loaded. Options: a hypothesis settings profile without a deadline for the suite, or per-test `deadline=None` where the work is file I/O
-- **Files**: `tests/test_hypothesis_properties.py`
 
 ### 161. Middle and Right Mouse Drags Never Reach a Scene
 - **Description**: The mouse event proxy calls the game's `on_middle_mouse_drag_down_event` / `on_right_mouse_drag_down_event`, which a Scene does not have (it has `on_middle_mouse_drag_event` / `on_right_mouse_drag_event`), so through the engine these drags become missing events and never reach a scene or its sprites
@@ -436,6 +418,26 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 157. A Hypothesis Property Test Fails Its Deadline on a Busy Machine
+- **Description**: `TestPaletteRoundtrip::test_double_roundtrip_is_stable` took 277 ms against hypothesis's default 200 ms deadline while another suite ran (DeadlineExceeded); it passes on a quiet machine
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found running two full suites at once
+- **Date Reported**: 2026-10-22
+- **Details**: The deadline is a speed heuristic, not a correctness check; CI machines can be as loaded. Options: a hypothesis settings profile without a deadline for the suite, or per-test `deadline=None` where the work is file I/O
+- **Date Resolved**: 2026-10-24 (`tests/conftest.py` registers and loads a `glitchygames` Hypothesis profile with `deadline=None` for the whole suite; `test_the_suite_runs_hypothesis_without_its_deadline` failed before it)
+- **Files**: `tests/test_hypothesis_properties.py`, `tests/conftest.py`
+
+### 214. Two Docs Builds at Once Break Each Other's Complexity Graphs
+- **Description**: When two docs builds generate the complexity graphs at the same time (a running `mkdocs serve` and the pre-push hook's `mkdocs build --strict`, both seeing a new HEAD), one fails: `Could not generate the complexity graphs: The graph page loads no plotly.js from cdn.plot.ly: plotly changed its output`, and the push is refused
+- **Status**: Resolved
+- **Priority**: Medium (refuses pushes while a docs server runs; likely the "transient" pre-push lint failures seen before)
+- **Reporter**: Found pushing PR #96, 2026-10-24
+- **Date Reported**: 2026-10-24
+- **Details**: `scripts/generate_complexity_graphs.py`'s `graph_metric` has wily write each page straight into `docs/quality/graphs/`, then reads it back and rewrites it in place with jsDelivr's plotly.js (`load_plotly_from_jsdelivr`). Both builds write the same paths, so one reads a page the other already rewrote: no cdn.plot.ly URL left, so it raises. The server's log showed its 102 s regeneration (15:12:21-15:14:04) overlapping the push; with the server stopped the push passed. Plotly (5.24.1) and wily (1.25.0) were the same in both environments. The generation also began by deleting the whole graphs directory, pulling pages out from under the other build. Fixed 2026-10-24: everything is made in a staging directory inside the graphs directory (`.staging-*`, hidden from mkdocs) and each finished file replaces its published one in one step (`publish_staged_graphs`; files no longer generated are removed after), and `generate_if_stale` (and `main`) hold a `filelock` lock (`.generation.lock`, released when its process ends) around the check and the generation, so the second build waits and then finds the graphs current. Tests: `test_two_generations_at_once_both_succeed_and_only_one_generates` (failed before with this bug's exact error), `test_the_published_graphs_stay_whole_while_new_ones_are_made`, `test_a_generation_cleans_up_after_one_that_crashed`. Two strict `mkdocs build`s at once on stale graphs both passed (88 s and 85 s)
+- **Date Resolved**: 2026-10-24
+- **Files**: `scripts/generate_complexity_graphs.py`, `tests/test_generate_complexity_graphs.py`, `pyproject.toml` (`filelock` in the `dev` extra)
 
 ### 213. `mkdocs serve` Keeps Every Rebuild Alive, Growing to 14.5 GB
 - **Description**: A local `mkdocs serve` (`nox -s docs-serve`) grew by about 330 MB with every rebuild (each saved docs or source file) and was at 14.5 GB when found
