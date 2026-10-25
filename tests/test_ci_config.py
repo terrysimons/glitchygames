@@ -122,7 +122,7 @@ def test_docs_deploy_with_no_measure_measures_nothing():
     commands = docs_deploy_commands(posargs=['--no-measure'])
 
     assert not any('measure' in command for command in commands)
-    assert ('python', 'scripts/build_browser_bundle.py', 'all') in commands
+    assert ('python', '-m', 'scripts.build_browser_bundle', 'all') in commands
     assert ('mkdocs', 'gh-deploy', '--strict') in commands
 
 

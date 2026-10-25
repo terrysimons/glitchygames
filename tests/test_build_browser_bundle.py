@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts import build_browser_bundle
 from scripts.build_browser_bundle import (
     GAMES,
+    PACKAGE_DIRECTORY,
     PYSCRIPT_RELEASE,
     REPOSITORY_DIRECTORY,
     TOUCH_LAYOUTS,
@@ -170,6 +171,26 @@ class TestGeneratedFiles:
         for module in ('browser_storage.py', 'browser_clipboard.py', 'browser_user_files.py'):
             assert config['files'][f'./{module}'] == f'./{module}'
 
+    def test_a_member_games_package_is_its_own_archive(self):
+        """Mr. Muncher's bundle ships mr_muncher.zip beside the engine's archive."""
+        config = pyscript_config(wheel_name=WHEEL_NAME, member_package='mr_muncher')
+
+        assert '"./glitchygames.zip" = "./*"' in config
+        assert '"./mr_muncher.zip" = "./*"' in config
+        assert (
+            './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
+        )
+
+    def test_the_engine_archive_no_longer_holds_the_moved_game(self):
+        """The moved game's code is not under src/glitchygames/ any more."""
+        files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)
+
+        assert not any(path.parts[:2] == ('examples', 'mr_muncher') for path in files)
+
+    def test_only_member_games_name_a_member_package(self):
+        assert GAMES['mr-muncher'].member_package == 'mr_muncher'
+        assert [name for name, game in GAMES.items() if game.member_package] == ['mr-muncher']
+
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {
             'game': 'mr-muncher',
@@ -305,6 +326,29 @@ class TestMain:
         assert 'glitchygames/bitmappy/editor.py' in archives['bitmappy']
         assert 'glitchygames/bitmappy/editor.py' not in archives['paddleslap']
         assert not any(name.startswith('glitchygames/api/') for name in archives['bitmappy'])
+
+    def test_a_member_games_bundle_holds_its_package_apart_from_the_engine(self, tmp_path):
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        main(['mr-muncher', '--wheel', str(wheel), '--output', str(tmp_path / 'muncher')])
+
+        with zipfile.ZipFile(tmp_path / 'muncher' / 'mr_muncher.zip') as archive:
+            member_names = set(archive.namelist())
+        with zipfile.ZipFile(tmp_path / 'muncher' / 'glitchygames.zip') as archive:
+            engine_names = set(archive.namelist())
+        assert 'mr_muncher/game.py' in member_names
+        assert not any(name.startswith('glitchygames/') for name in member_names)
+        assert not any(name.startswith('mr_muncher/') for name in engine_names)
+        assert '"./mr_muncher.zip" = "./*"' in (tmp_path / 'muncher' / 'pyscript.toml').read_text()
+
+    def test_a_game_of_the_engine_has_no_member_archive(self, tmp_path):
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        main(['paddleslap', '--wheel', str(wheel), '--output', str(tmp_path / 'slap')])
+
+        assert not list((tmp_path / 'slap').glob('mr_muncher*'))
 
     def test_main_replaces_an_earlier_bundle(self, tmp_path):
         wheel = tmp_path / WHEEL_NAME

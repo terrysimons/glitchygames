@@ -891,7 +891,7 @@ Features:
   (`ai_worker._create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
-- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`).
+- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`; the builder runs as `python -m scripts.build_browser_bundle`, and a workspace member's game ships its package as its own archive, `mr_muncher.zip` beside `glitchygames.zip`).
   There Load opens the browser's file picker and Save downloads the saved file, through the
   installed user files (`glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
   On the desktop nothing is installed and the dialogs ask for file names as always
