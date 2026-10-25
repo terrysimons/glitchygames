@@ -14,6 +14,8 @@ from typing import Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from glitchygames.logical_names import LAYERS
+
 ENGINE_PACKAGE = 'glitchygames'
 # Where the engine's source package is, relative to the repository: under src/, so nothing run
 # from the repository root imports the source tree by accident (the user, 2026-10-25)
@@ -68,6 +70,11 @@ class WorkspaceMember(BaseModel):
         return tuple(self.directory / relative for relative in self.package_relative_paths)
 
     @property
+    def layer(self: Self) -> str:
+        """The workspace layer it belongs to: its directory's parent under src/ (``games``)."""
+        return self.directory.parent.name
+
+    @property
     def tests_directory(self: Self) -> Path:
         """Where its tests are."""
         return self.directory / 'tests'
@@ -95,8 +102,9 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
     Raises:
         FileNotFoundError: If a listed member has no pyproject.toml, or a package its wheel
             declares is not a directory.
-        ValueError: If the workspace's members are not a list of strings, or a member declares
-            no wheel packages.
+        ValueError: If the workspace's members are not a list of strings, a member is not in
+            src/<layer>/ (``glitchygames.logical_names.LAYERS``), or a member declares no wheel
+            packages.
 
     """
     root = _read_toml(path=project_root / 'pyproject.toml')
@@ -115,6 +123,12 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
         if not pyproject_path.is_file():
             message = f'Workspace member {member_path} has no pyproject.toml'
             raise FileNotFoundError(message)
+        if directory.parent.parent != project_root / 'src' or directory.parent.name not in LAYERS:
+            message = (
+                f'Workspace member {member_path} is not in src/<layer>/ '
+                f'(layers: {", ".join(LAYERS)})'
+            )
+            raise ValueError(message)
         member = _read_toml(path=pyproject_path)
         project = member['project']
         wheel = member.get('tool', {}).get('hatch', {}).get('build', {}).get('targets', {})

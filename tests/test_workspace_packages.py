@@ -141,3 +141,24 @@ def test_workspace_members_that_are_not_a_list_of_strings_are_refused(tmp_path, 
 
     with pytest.raises(ValueError, match='list of strings'):
         workspace_members(project_root=tmp_path)
+
+
+def test_a_member_knows_its_layer(tmp_path):
+    """A member's layer is its directory's parent under src/."""
+    write_workspace(tmp_path)
+
+    (member,) = workspace_members(project_root=tmp_path)
+
+    assert member.layer == 'games'
+
+
+def test_a_member_outside_a_layer_is_refused(tmp_path):
+    """A member must live in src/<layer>/, or the engine cannot name its classes."""
+    (tmp_path / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = ["space-game"]\n', encoding='utf-8'
+    )
+    (tmp_path / 'space-game' / 'space_game').mkdir(parents=True)
+    (tmp_path / 'space-game' / 'pyproject.toml').write_text(MEMBER_PYPROJECT, encoding='utf-8')
+
+    with pytest.raises(ValueError, match='src/<layer>/'):
+        workspace_members(project_root=tmp_path)
