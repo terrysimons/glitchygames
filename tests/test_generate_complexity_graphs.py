@@ -9,6 +9,7 @@ from __future__ import annotations
 import functools
 import gc
 import importlib
+import json
 import logging
 import os
 import sys
@@ -34,6 +35,8 @@ from scripts.generate_complexity_graphs import (
     generate_if_stale,
     graph_file_name,
     graphs_snippet,
+    join_moved_paths,
+    joined_operator_data,
     load_plotly_from_jsdelivr,
     main,
     rank_modules,
@@ -160,6 +163,129 @@ def test_rank_modules_leaves_out_a_module_radon_could_not_parse(caplog):
 
     assert ranked == ['glitchygames/fine.py']
     assert 'radon could not measure glitchygames/broken.py' in caplog.text
+
+
+@pytest.fixture
+def moved_fixture_repository(tmp_path: Path) -> Path:
+    """Return a git repository whose package moves to src/ in its second of three commits.
+
+    Returns:
+        The repository's directory.
+
+    """
+    repository = tmp_path / 'moved-repository'
+    former_package = repository / 'glitchygames'
+    former_package.mkdir(parents=True)
+    git(repository=repository, arguments=['init', '--quiet'])
+    (repository / 'wily.cfg').write_text(FIXTURE_WILY_CONFIGURATION, encoding='utf-8')
+    (former_package / '__init__.py').write_text('', encoding='utf-8')
+    (former_package / 'branchy.py').write_text(SIMPLE_MODULE, encoding='utf-8')
+    git(repository=repository, arguments=['add', '.'])
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Before the move'])
+    (repository / 'src').mkdir()
+    git(repository=repository, arguments=['mv', 'glitchygames', 'src/glitchygames'])
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'The move'])
+    (repository / 'src' / 'glitchygames' / 'branchy.py').write_text(
+        BRANCHY_MODULE, encoding='utf-8'
+    )
+    git(repository=repository, arguments=['commit', '--quiet', '-am', 'After the move'])
+    return repository
+
+
+def graph_trace_labels(*, html: str) -> dict[str, list[str]]:
+    """Return each series of a wily graph page with its points' hover labels (commit messages).
+
+    Returns:
+        The labels of each series' points, by series name.
+
+    """
+    plot_call = 'Plotly.newPlot('
+    # Plotly.newPlot("<graph id>", [<traces>], ...), its arguments spread over lines
+    arguments = html[html.index(plot_call) + len(plot_call) :].lstrip()
+    decoder = json.JSONDecoder()
+    _graph_id, graph_id_end = decoder.raw_decode(arguments)
+    traces, _end = decoder.raw_decode(arguments[graph_id_end:].lstrip().removeprefix(',').lstrip())
+    return {trace['name']: list(trace['text']) for trace in traces}
+
+
+def test_joined_operator_data_renames_former_paths_to_current_ones():
+    """A revision from before the move measures glitchygames/: its data joins src/glitchygames/."""
+    operator_data: dict[str, dict[str, object]] = {
+        'raw': {
+            'glitchygames/scene.py': {'total': {'loc': 10}},
+            'tests/test_scene.py': {'total': {'loc': 3}},
+        }
+    }
+
+    assert joined_operator_data(operator_data=operator_data) == {
+        'raw': {
+            'src/glitchygames/scene.py': {'total': {'loc': 10}},
+            'tests/test_scene.py': {'total': {'loc': 3}},
+        }
+    }
+
+
+def test_joined_operator_data_keeps_the_current_paths_own_measurement():
+    """A revision measuring a file under both paths keeps the current path's measurement."""
+    operator_data: dict[str, dict[str, object]] = {
+        'raw': {
+            'glitchygames/scene.py': {'total': {'loc': 10}},
+            'src/glitchygames/scene.py': {'total': {'loc': 12}},
+        }
+    }
+
+    assert joined_operator_data(operator_data=operator_data) == {
+        'raw': {'src/glitchygames/scene.py': {'total': {'loc': 12}}}
+    }
+
+
+def test_join_moved_paths_rewrites_a_caches_revisions_and_index(tmp_path):
+    """A small fake wily cache: the old revision's measurements and tracked files are renamed."""
+    archiver_directory = tmp_path / 'git'
+    archiver_directory.mkdir()
+    old_revision = {'operator_data': {'raw': {'glitchygames/scene.py': {'total': {'loc': 10}}}}}
+    new_revision = {'operator_data': {'raw': {'src/glitchygames/scene.py': {'total': {'loc': 12}}}}}
+    (archiver_directory / 'old.json').write_text(json.dumps(old_revision), encoding='utf-8')
+    (archiver_directory / 'new.json').write_text(json.dumps(new_revision), encoding='utf-8')
+    index = [
+        {'key': 'new', 'tracked_files': ['src/glitchygames/scene.py']},
+        {'key': 'old', 'tracked_files': ['glitchygames/scene.py', 'README.md']},
+    ]
+    (archiver_directory / 'index.json').write_text(json.dumps(index), encoding='utf-8')
+
+    assert join_moved_paths(cache_directory=tmp_path) == 1
+
+    joined_old = json.loads((archiver_directory / 'old.json').read_text(encoding='utf-8'))
+    assert joined_old == {
+        'operator_data': {'raw': {'src/glitchygames/scene.py': {'total': {'loc': 10}}}}
+    }
+    assert json.loads((archiver_directory / 'new.json').read_text(encoding='utf-8')) == (
+        new_revision
+    )
+    joined_index = json.loads((archiver_directory / 'index.json').read_text(encoding='utf-8'))
+    assert [entry['tracked_files'] for entry in joined_index] == [
+        ['src/glitchygames/scene.py'],
+        ['README.md', 'src/glitchygames/scene.py'],
+    ]
+
+
+def test_a_moved_modules_graph_is_one_series_through_its_whole_history(
+    moved_fixture_repository, tmp_path, mocker
+):
+    """The module's series holds its points from before the move, under its current path."""
+    graphs_directory = tmp_path / 'graphs'
+    mocker.patch.object(generate_complexity_graphs, 'PROJECT_ROOT', moved_fixture_repository)
+    mocker.patch.object(generate_complexity_graphs, 'GRAPHS_DIR', graphs_directory)
+
+    main()
+
+    html = (graphs_directory / graph_file_name(metric='raw.loc')).read_text(encoding='utf-8')
+    series = graph_trace_labels(html=html)
+    assert list(series) == ['src/glitchygames/branchy.py']
+    labels = series['src/glitchygames/branchy.py']
+    assert len(labels) > 1
+    assert 'Before the move' in labels[0]
+    assert 'After the move' in labels[-1]
 
 
 def test_load_plotly_from_jsdelivr_keeps_plotlys_version():
