@@ -400,7 +400,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   controller layer if mapped, else the joystick layer): the other layer's are dropped, so each
   press arrives once. `--input-mode` filters: `auto` (default) all, `joystick` joystick layers
   only (controller events blocked), `controller` mapped pads only. Tests use stand-in devices
-  through the door (`tests/input/stand_in_devices.py`)
+  through the door (`tests/input/stand_in_devices.py`). `--list-input-devices`
+  (`glitchygames/input/device_listing.py`) replaces the run: it counts devices before SDL's
+  queue is pumped (what the managers' startup count sees), listens a second keeping each
+  device added/removed event with its time (macOS reports connected pads as device-added
+  events), opens every device through the door and prints each one's index, instance id, name,
+  GUID, mapping and controls to stdout, exiting `SUCCESS`; at a terminal, finding none prompts
+  and waits for the first device added (Ctrl-C stops); refused (`OPTIONS_REFUSED`) with
+  `--replay-trace` or `--record-trace`
 - Saves: `glitchygames.state.open_saves(app_name=...)` returns a `SaveManager` (the base class
   holds every rule of the save format): `DiskSaveManager` live, `MemorySaveManager`
   (`glitchygames/state/sandbox.py`) in a replay, seeded from the recorded snapshot
@@ -554,7 +561,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   deadline, no clock tick) and prints its report to stdout instead of logging it. A replay that a
   crash, Ctrl-C, signal or the game's own exit ends early reports only `Replay stopped at frame
   N: the run ended with ...` (after its result: the result, then `then the run ended with ...`).
-  The diagnostic flags (`--headless`, `--debug-overlay`, `--debug-events`, the trace/replay/audit
+  The diagnostic flags (`--headless`, `--list-input-devices`, `--debug-overlay`, `--debug-events`, the trace/replay/audit
   flags, the timer jitter and FPS report flags) are in the "Diagnostics Options" group
 - Fabricated key events (scripts, tests) carry their key's US QWERTY position
   (`glitchygames.testing.keys.qwerty_scancode`): the example games bind their own scenes'
@@ -893,6 +900,10 @@ Features:
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
 - `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
+- Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
+  (`SDL_JOYSTICK_HIDAPI`, `SDL_JOYSTICK_MFI`, `SDL_JOYSTICK_IOKIT` = `0`; each alone finds pads),
+  so tests see only their stand-ins (`tests/input/stand_in_devices.py`); set one to `1` yourself
+  to test with a real pad. Windows' and Linux's joystick drivers are not covered
 - Driver comparison (`tests/driver_comparison.py`; frames recorded by
   `glitchygames/testing/frame_fingerprints.py`, compared by `scripts/compare_driver_frames.py`):
   outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native

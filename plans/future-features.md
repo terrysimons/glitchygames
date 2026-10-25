@@ -367,6 +367,29 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
+### 49. `--list-input-devices`: Every Joystick and Game Controller the Game Would See ✅ COMPLETED
+- **Description**: An engine option (every game has it) that lists the devices SDL offers and
+  exits, instead of guessing from a game's behaviour why a pad does or does not work (2026-10-24)
+- **Status**: ✅ COMPLETED
+- **Implementation**:
+  - `glitchygames/input/device_listing.py`: starts the joystick and controller subsystems,
+    counts the devices before SDL's queue is pumped, listens for `LISTEN_SECONDS` (1 s; macOS
+    reports connected pads as device-added events) keeping each device added/removed event with
+    its time, opens each device through the devices door (as a game controller when SDL maps it)
+    and prints its index, instance id, name, GUID, mapping and axes, buttons, hats and balls; a
+    device that cannot be opened is listed with SDL's error. At a terminal (stdin and stdout),
+    finding none prints `NO_DEVICES_PROMPT` and waits for the first device added. The count
+    before pumping and the event times tell a pad SDL knew at startup from one it reported only
+    later (the suspected "already plugged in is not seen" bug)
+  - `GameEngine._run_game` runs it in place of the game (the scene is never built, nothing
+    recorded) and the run ends `SUCCESS`; `--replay-trace` and `--record-trace` with it are
+    refused (`OPTIONS_REFUSED`)
+  - Tests: `tests/input/test_device_listing.py` (stand-in devices through the door),
+    `tests/engine/test_engine_lifecycle.py::TestListInputDevices`
+- **Follow-up**: a `--watch` mode printing devices as they connect and disconnect (offered and
+  not chosen yet); once the "already plugged in" question is settled, the prompt only shows when
+  nothing is connected at all
+
 ### 44. Golden Replays Exercise Every Control, Pause and Quit ✅ COMPLETED
 - **Description**: Q did nothing in four games and no golden replay noticed (BUGS.md #202): every
   session ended with the recorder's own `quit_requested`, and Clockwork Keep's never paused.

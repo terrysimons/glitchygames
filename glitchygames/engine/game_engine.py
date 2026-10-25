@@ -47,6 +47,7 @@ from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import ExitCode
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
+from glitchygames.input.device_listing import list_input_devices
 from glitchygames.input.input_devices import InputDevices, InputMode
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
@@ -316,6 +317,26 @@ def exit_on_signal(signal_number: int, _frame: FrameType | None) -> None:
     """
     signal.signal(signal_number, signal.SIG_IGN)
     raise SystemExit(ExitCode.for_signal(signal_number))
+
+
+def input_device_prompt() -> Callable[[str], None] | None:
+    """Return how --list-input-devices prompts for a device, or None when it must not wait.
+
+    It prompts only when stdin and stdout are a terminal: a person is there to plug a device in
+    (or press Ctrl-C). A script, a pipe or CI gets the listing at once, never a wait.
+
+    Returns:
+        A writer of the prompt line (to stdout, flushed), or None.
+
+    """
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        return None
+
+    def write_prompt(message: str) -> None:
+        sys.stdout.write(f'{message}\n')
+        sys.stdout.flush()
+
+    return write_prompt
 
 
 def exit_with(*, exit_code: ExitCode, cause: BaseException | None = None) -> NoReturn:
@@ -728,6 +749,21 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             default=None,
             choices=video_driver_choices,
+        )
+
+        diagnostics_group.add_argument(
+            '--list-input-devices',
+            action='store_true',
+            help=(
+                'print every joystick and game controller the game would see (index, instance '
+                'id, name, GUID, whether SDL maps it as a game controller, its axes, buttons, '
+                'hats and balls; how many SDL counted before its queue was pumped and each '
+                'device added or removed while listening, with when), then exit '
+                f'{ExitCode.SUCCESS:d} without running the game. At a terminal, when none is '
+                'found it asks you to plug one in and waits for it (Ctrl-C stops). Refused with '
+                '--replay-trace or --record-trace'
+            ),
+            default=False,
         )
 
         diagnostics_group.add_argument(
@@ -1788,6 +1824,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             The replay's sources (not installed yet), or None when not replaying.
 
         """
+        self._refuse_listing_input_devices_during_a_run(options=options)
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
@@ -1911,6 +1948,28 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if refusal_reason is not None:
                 self.log.error('Cannot write %s: %s', flag, refusal_reason)
                 exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
+
+    def _refuse_listing_input_devices_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for --list-input-devices with a replay or recording.
+
+        The listing replaces the game's run (glitchygames/input/device_listing.py): there is no
+        run to replay, audit, rebaseline or record.
+
+        Args:
+            options: The parsed options.
+
+        """
+        if not options.get('list_input_devices'):
+            return
+        for flag, option_name in (
+            ('--replay-trace', 'replay_trace'),
+            ('--record-trace', 'record_trace'),
+        ):
+            if options.get(option_name) is not None:
+                self.log.error(
+                    'Cannot list input devices with %s: the listing replaces the run', flag
+                )
+                exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_an_unsound_recording_over_the_replay(
         self: Self, *, replay_trace_path: str, options: dict[str, Any]
@@ -2387,8 +2446,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             raise RuntimeError(ASYNC_RUN_NEEDS_HOST_MSG)
         profiler = self._begin_start()
         with self._crash_boundary(profiler=profiler):
-            self._prepare_run(paced_by_timer=False)
-            await run_frames()
+            if self._prepare_run(paced_by_timer=False):
+                await run_frames()
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
         """Log the start, check there is a game and start the profiler (``--profile``).
@@ -2471,23 +2530,40 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
     def _run_game(self: Self) -> None:
         """Construct the game and run its scenes: the whole run inside start()'s crash boundary."""
-        self._prepare_run(paced_by_timer=True)
+        if not self._prepare_run(paced_by_timer=True):
+            return
         if self.host is not None:
             self.host.run(scene_manager=self.scene_manager)
         else:
             # A replay: its doors (and watched, its viewer) drive the blocking loop
             self.scene_manager.start()
 
-    def _prepare_run(self: Self, *, paced_by_timer: bool) -> None:
+    def _prepare_run(self: Self, *, paced_by_timer: bool) -> bool:
         """Construct the game and its first scene, up to the first frame (inside the boundary).
+
+        With --list-input-devices the listing replaces the game: it is printed and nothing is
+        built, so no frame runs.
 
         Args:
             paced_by_timer: Whether the frames wait on the engine's timer (``start()``), which
                 is then calibrated; False for ``start_async()``.
 
+        Returns:
+            Whether frames are to run (False after --list-input-devices).
+
         """
         # For the whole run, so a signal always ends it through start()'s teardown
         self._install_signal_handlers()
+
+        if GameEngine.OPTIONS.get('list_input_devices'):
+            # In place of the game: its scene is never built, nothing is recorded
+            lines = list_input_devices(
+                sources=active_sources(),
+                input_mode=InputMode(GameEngine.OPTIONS.get('input_mode', InputMode.AUTO)).value,
+                prompt=input_device_prompt(),
+            )
+            sys.stdout.write('\n'.join(lines) + '\n')
+            return False
 
         # Initialize the game instance
         self.game = self.game(options=GameEngine.OPTIONS)
@@ -2501,6 +2577,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.scene_manager.switch_to_scene(self.game)
         self._configure_timer_and_performance(paced_by_timer=paced_by_timer)
         self._start_requested_trace_recording()
+        return True
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:
         """Describe a SystemExit that ended the run, for the log and the replay report.

@@ -20,6 +20,8 @@ from tests.display_canvas import (
 from tests.sdl_defaults import (
     SDL_DRIVER_ENVIRONMENT_FOR_RUN,
     SDL_DRIVER_VARIABLES,
+    SDL_JOYSTICK_DRIVER_VARIABLES,
+    default_joystick_drivers_off,
     default_sdl_drivers_to_dummy,
 )
 from tests.sdl_driver_isolation import (
@@ -35,6 +37,42 @@ OTHER_AUDIO_DRIVER = 'other-audio-driver'
 # A mixer format and channel count unlike pygame's defaults (44100 Hz, 16-bit, stereo, 8)
 OTHER_MIXER_FORMAT = (22050, -16, 1)
 OTHER_MIXING_CHANNEL_COUNT = 5
+
+
+def test_real_input_devices_are_hidden_from_the_tests():
+    """No joystick or game controller attached to the machine reaches a test.
+
+    A real pad (a DualSense on the desk) changed what tests saw: SDL's joystick drivers are
+    off for the run (tests/sdl_defaults.py), so only the tests' stand-ins exist
+    (tests/input/stand_in_devices.py). Trivially true on a machine without pads, such as CI.
+    """
+    pygame.joystick.init()
+    # Pump first: macOS reports connected pads as device-added events (--list-input-devices)
+    pygame.event.pump()
+
+    assert pygame.joystick.get_count() == 0
+
+
+def test_defaulting_turns_unset_joystick_drivers_off(monkeypatch):
+    """Unset joystick-driver variables become '0', and are reported as defaulted."""
+    for name in SDL_JOYSTICK_DRIVER_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
+    assert default_joystick_drivers_off() == SDL_JOYSTICK_DRIVER_VARIABLES
+    for name in SDL_JOYSTICK_DRIVER_VARIABLES:
+        assert os.environ[name] == '0'
+
+
+def test_defaulting_keeps_a_joystick_driver_the_invoker_turned_on(monkeypatch):
+    """A joystick driver the invoker set (to test with a real pad) is left alone."""
+    for name in SDL_JOYSTICK_DRIVER_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('SDL_JOYSTICK_MFI', '1')
+
+    defaulted = default_joystick_drivers_off()
+
+    assert 'SDL_JOYSTICK_MFI' not in defaulted
+    assert os.environ['SDL_JOYSTICK_MFI'] == '1'
 
 
 def test_drivers_are_dummy_unless_the_invoker_set_them(sdl_variables_defaulted_at_startup):
