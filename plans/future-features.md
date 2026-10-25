@@ -120,6 +120,28 @@ This document tracks planned future features for the GlitchyGames project. Featu
   the option's value or go away
 - **Priority**: Medium (requested 2026-10-23)
 
+### 52. Golden Replays With Debugging On: Same Gameplay, Measured Cost — TODO
+- **Goal**: show that turning debugging on never changes gameplay, and measure what it costs
+  (2026-10-24, the user's idea: parametrize runs on debug off and on, the "on" runs keeping the
+  books)
+- **Approach**: parametrize the golden replays (not the whole suite: most tests draw no frame)
+  over debug off and on (the debug overlay and each of its panels: collision, physics, camera,
+  performance; `--debug-events`). The "on" variants must still match every recorded frame (a
+  divergence is a bug: debugging changed gameplay), and they keep the books through the existing
+  run ledger (`glitchygames/recording_metrics.py`, `nox -s replay-metrics`): one more row per
+  recording per run, tagged with what debugging was on, so the performance page
+  (docs/quality/performance.md) graphs the off and on series side by side across commits and
+  machines. Later: the games' own tests (`games/<game>/tests`, after the workspace-packages
+  plan) take the same parametrization
+- **Open questions**:
+  - the overlay is drawn when a frame is presented (`SceneManager._present_frame`); headless
+    replays do not present, so the overlay may need drawing without presenting, or the measured
+    run presents on the dummy driver
+  - a replay applies the recorded run's options: the debug options must become replay-local, as
+    `--replay-fps` is (`REPLAY_LOCAL_OPTIONS`)
+  - whether each panel is its own parametrized case (likely: their costs differ)
+- **Status**: TODO
+
 ## Medium Priority Features
 ### 49. Pyodide pygame-ce Wheels for Every Upstream Version (experimental CI) — IN PROGRESS
 - **Description**: A CI pipeline (on the fork `terrysimons/pygame-ce`) that builds our patched
@@ -367,7 +389,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
-### 49. `--list-input-devices`: Every Joystick and Game Controller the Game Would See ✅ COMPLETED
+### 51. `--list-input-devices`: Every Joystick and Game Controller the Game Would See ✅ COMPLETED
 - **Description**: An engine option (every game has it) that lists the devices SDL offers and
   exits, instead of guessing from a game's behaviour why a pad does or does not work (2026-10-24)
 - **Status**: ✅ COMPLETED
