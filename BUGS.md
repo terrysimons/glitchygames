@@ -4,6 +4,63 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 224. Smaller Findings From the Workspace Packages Part 1 Reviews
+- **Description**: The task reviews and the final whole-branch review of workspace packages Part 1 (plans/2026-10-24-workspace-packages-1-foundation.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The critical and important findings were fixed on the branch. Before Part 2 adds more members, item 31 (members' test helper modules colliding by basename) should be settled
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: The task reviews and the final review of workspace packages Part 1
+- **Date Reported**: 2026-10-25
+- **Details** (task numbers are Part 1's):
+  1. Task 1: BUGS.md:409 still names tests/conftest.py in a present-tense sentence (other BUGS.md mentions are history)
+  2. Task 1: tests/collision/test_ball_visible_walls.py:4-5 comment says the harness mocks drawing for game_objects paths (BUGS.md:523 says that mocking is gone)
+  3. Task 1: tests/display_canvas.py:1 docstring says "a helper for conftest and tests"
+  4. Task 1: tests/test_suite_collection.py:523 imports the root conftest as `conftest` inside the test (works under the current import mode)
+  5. Task 2: tests/scenes/test_scene.py:118 comparison operands reversed from the brief (cosmetic)
+  6. Task 3: bare KeyError when a member's pyproject lacks [project] or name (no member named)
+  7. Task 3: test_the_real_repository_is_readable only checks index 0 (passes with no members)
+  8. Task 3: "has no pyproject.toml" message also covers a missing member directory
+  9. Task 3: WorkspaceMember's before-validator assumes dict input (model_validate of an existing member would raise AttributeError; unused today)
+  10. Task 3: `packages` itself is not validated as a list of strings (a bare string fails later as FileNotFoundError, not silently)
+  11. Task 4: test_every_pump_seam_still_reads_the_queue walks only the engine package (correct: seams are engine files) without a comment saying so
+  12. Task 4: the member test's tmp `glitchygames` directory is uncommented
+  13. Task 4: scanned_source_files keys engine files by comparing to `project_root / ENGINE_PACKAGE` verbatim (a differently resolved path would give glitchygames/... keys; allowlists would fail loudly)
+  14. Task 4: the randomness member test calls unseeded_randomness twice per file (filter, then value)
+  15. Task 5: class-or-instance normalisation written two ways in game_engine.py (:855/:1271 vs :980/:1236)
+  16. Task 5: instant_replay.py:208 writes the literal 'game' instead of a shared constant
+  17. Task 5: game_class annotated type[Scene] while tests pass plain type stand-ins
+  18. Task 6: test_recording_report asserts the oldest run's commit is unknown (true for the committed fixtures, implicit); it reads REPO_FIXTURE twice
+  19. Task 7: 11 test modules repeat ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
+  20. Task 7: generate_complexity_graphs crashes with a raw FileNotFoundError when the ranked package and HEAD disagree
+  21. Task 7b: _git_succeeds repeats run_git's run_command call
+  22. Task 7b: one merge-base per history row per recording (no per-commit cache)
+  23. Task 7b: "no history rows written" line printed even when no recording has history runs
+  24. Task 7b: the staging list can hold a path twice (harmless for git add)
+  25. Task 8: bare asserts do not name the tool; a KeyError/ValueError says nothing of which tool is wrong
+  26. Task 8: test_lint_and_type_checks_cover_every_member covers six tools in one test (first miss hides the rest)
+  27. Task 8: roots.index('tests') assumes the tests environment exists
+  28. Task 8: nox _install_from_lockfile and .envrc --all-packages have no check here (Task 9's test_ci_config covers the reinstall)
+  29. Task 8: parse_jsonc annotated -> dict[str, Any] though json.loads may return any JSON type
+  30. Task 9: ruff namespace-packages for src/games/mr-muncher/tests also covers its subdirectories (fits the design; judged acceptable)
+  31. Task 9: member test roots import by basename, so two members' non-test helper modules (helpers.py) would collide unnoticed; the uniqueness check covers only test_*.py; consider per-member test package names or --import-mode=importlib
+  32. Task 9: noxfile._SOURCE_PACKAGE_DIRS check is a subset check (a stale extra entry passes); the noxfile could read members with tomllib instead of static lists
+  33. Task 9: member goldens enumerated in three places (REPLAY_FIXTURES, golden_replay_globs, REPLAY_FIXTURE_DIRECTORIES)
+  34. Task 9: ReplayItem.runtest recomputes the console script collect already has
+  35. Task 9: nothing checks mr_muncher is imported from its installed distribution (defensive only)
+  36. Task 9: the unique-names check matches only test_*.py, not *_test.py (python_files allows both)
+  37. Task 10: member_package_directory's LookupError path untested
+  38. Task 10: test_the_engine_archive_no_longer_holds_the_moved_game checks only examples/mr_muncher
+  39. Task 10: write_bundle's report line counts only engine files
+  40. Task 11: CLAUDE.md:164-165 says glitchygames/examples/ where README says src/glitchygames/examples/ (package-relative convention)
+  41. Task 11: browser/index.html:3 and browser/touch_controls.js:3 comments start with a bare command
+  42. Task 11: CLAUDE.md:920 phrasing of TOUCH_LAYOUTS
+  43. Task 11: browser/boot.py:3-4 says the page unpacks the engine only
+  44. Task 11: docs/games/mr_muncher.md:763 "Both test files" without noting they are in the member
+  45. Final: src/games/mr-muncher/pyproject.toml depends on glitchygames with no version floor
+  46. Final: find_scene_class's "no scene class named X is loaded" warning misleads when the class is loaded but its module or logical name differs
+  47. Final: nox test session writes src/glitchygames/_build_info.json for its duration (race with concurrent build sessions)
+  48. Browser test (the owner): every page requests /favicon.ico and gets a 404 (no tab icon in the bundle)
+- **Files**: see each item
+
 ### 222. Scripts and Tests Insert the Repository Root Into sys.path, Which Does Nothing Since the Engine Moved
 - **Description**: Many scripts and tests start with `sys.path.insert(0, str(Path(__file__).parent.parent))` (or `.parent.parent.parent`) "so direct imports work". Since the engine moved to `src/glitchygames`, the repository root holds no importable `glitchygames`: the imports resolve to the installed package either way, so the lines do nothing (the root still serves `scripts.*`, but a script reaches that as `python -m scripts.<name>`). They also hide a mistake: a test that needed the root would pass here and fail elsewhere
 - **Status**: Active
