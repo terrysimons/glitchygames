@@ -24,7 +24,7 @@ LEDGER_DIRECTORY = 'quality/replay-ledger'
 GIT_TIMEOUT_SECONDS = 60.0
 
 
-def _git(*, repository: Path, arguments: list[str], index_file: Path | None = None) -> str:
+def run_git(*, repository: Path, arguments: list[str], index_file: Path | None = None) -> str:
     """Run git in ``repository``, on ``index_file`` when given, and return its output.
 
     Returns:
@@ -58,12 +58,12 @@ def _tree_without_the_ledger(*, repository: Path, index_file: Path) -> str:
         The tree hash.
 
     """
-    _git(
+    run_git(
         repository=repository,
         arguments=['rm', '-r', '--cached', '--ignore-unmatch', '--quiet', LEDGER_DIRECTORY],
         index_file=index_file,
     )
-    return _git(repository=repository, arguments=['write-tree'], index_file=index_file)
+    return run_git(repository=repository, arguments=['write-tree'], index_file=index_file)
 
 
 def staged_code_tree(*, repository: Path) -> str:
@@ -76,7 +76,9 @@ def staged_code_tree(*, repository: Path) -> str:
         The tree hash.
 
     """
-    real_index = Path(_git(repository=repository, arguments=['rev-parse', '--git-path', 'index']))
+    real_index = Path(
+        run_git(repository=repository, arguments=['rev-parse', '--git-path', 'index'])
+    )
     if not real_index.is_absolute():
         real_index = repository / real_index
     with tempfile.TemporaryDirectory(prefix='code-tree-') as directory_name:
@@ -99,5 +101,5 @@ def commit_code_tree(*, repository: Path, commit: str) -> str:
     """
     with tempfile.TemporaryDirectory(prefix='code-tree-') as directory_name:
         index_file = Path(directory_name) / 'index'
-        _git(repository=repository, arguments=['read-tree', commit], index_file=index_file)
+        run_git(repository=repository, arguments=['read-tree', commit], index_file=index_file)
         return _tree_without_the_ledger(repository=repository, index_file=index_file)
