@@ -180,6 +180,22 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
 
+### 55. Recording Naming Convention and Logical Recording Ids — TODO
+- **Goal**: every recording is named and placed by one convention, and has a logical id that
+  survives moves (the user, 2026-10-25)
+- **Convention**: golden replays at `<member>/tests/fixtures/replays/golden.jsonl.gz` (extra ones
+  `golden-<purpose>.jsonl.gz`); demos inside the game's package at `<package>/demos/<name>.jsonl.gz`;
+  later roles (`ghost`, `bookmark`) get their own folders
+- **Ids**: the game's logical name (`games.mr_muncher`, see the workspace packages plan), the role
+  and the name: `games.mr_muncher:golden`, `games.paddleslap:demo/rally`, derived from the
+  location; a test checks every recording follows the convention and its id agrees with its
+  header's logical name
+- **Uses**: the run ledger and performance graphs key history by id, so moving a recording needs
+  no `RECORDING_PATH_RENAMES` entry (the map is removed); the Arcade asks a game for its
+  `demo/*` recordings instead of knowing paths
+- **Status**: TODO, after workspace packages Parts 1 and 2 (`plans/2026-10-24-workspace-packages.md`)
+- **Priority**: Medium
+
 ### 54. Docs Deploys That Cannot Go Stale — TODO
 - **Goal**: the published docs (https://terrysimons.github.io/glitchygames/) are always `main`'s
   latest, not just usually (the user, 2026-10-25)
