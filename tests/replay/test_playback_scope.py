@@ -504,6 +504,21 @@ class TestPlaybackErrors:
         """A recorded module that is neither absent nor __main__ must match: another game's."""
         assert find_scene_class(name='CountingScene', module='some_other_game.scenes') is None
 
+    def test_a_rebaseline_finds_an_old_format_start_of_a_moved_scene_by_qualified_name(self):
+        """Without a logical name, a rebaseline lets the module differ: the scene moved."""
+        assert (
+            find_scene_class(
+                name='CountingScene', module='some_other_game.scenes', is_rebaseline=True
+            )
+            is CountingScene
+        )
+
+    def test_a_rebaseline_still_refuses_a_qualified_name_several_loaded_scenes_share(self, caplog):
+        assert (
+            find_scene_class(name='Game', module='a_moved_game.scenes', is_rebaseline=True) is None
+        )
+        assert 'Several scene classes are named Game' in caplog.text
+
     def test_a_loaded_scene_run_as_main_matches_its_recorded_module_by_name(self):
         """The loaded class defined in __main__ (a game file run as a script) matches by name."""
         main_scene = type('MainModuleOnlyScene', (CountingScene,), {'__module__': '__main__'})

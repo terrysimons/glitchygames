@@ -1498,6 +1498,37 @@ class TestRecordedGameCheck:
                 game_class=moved,
             )
 
+    def test_a_plain_replay_of_an_old_format_recording_of_a_moved_game_names_the_remedy(self):
+        """Recorded before logical names, the game since moved: convert it with --rebaseline."""
+        moved = stand_in_game(name='Game', module='paddleslap')
+        with pytest.raises(ReplayRefusedError) as refusal:
+            check_recorded_game(
+                header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
+                game_class=moved,
+            )
+        message = str(refusal.value)
+        assert 'before logical names' in message
+        assert 'has since moved' in message
+        assert '--replay-trace OLD --rebaseline NEW --headless' in message
+
+    def test_a_rebaseline_accepts_an_old_format_recording_of_a_moved_game(self):
+        """Under --rebaseline the qualified names decide: the module may differ (it moved)."""
+        moved = stand_in_game(name='Game', module='paddleslap')
+        check_recorded_game(
+            header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
+            game_class=moved,
+            is_rebaseline=True,
+        )
+
+    def test_a_rebaseline_still_refuses_an_old_format_recording_of_another_game(self):
+        moved = stand_in_game(name='Game', module='paddleslap')
+        with pytest.raises(ReplayRefusedError, match='not '):
+            check_recorded_game(
+                header={'game_class': 'Other', 'game_module': 'glitchygames.examples.paddleslap'},
+                game_class=moved,
+                is_rebaseline=True,
+            )
+
     @pytest.mark.parametrize(
         ('header', 'game_module'),
         [

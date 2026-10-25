@@ -166,7 +166,15 @@ session again, and every frame's sprites are compared with the recorded frame. T
     gives it ``captures_scene_starts=True``, so the scenes the replayed code builds capture their
     starts and NEW holds them (``scene_start``, frame 0's included), as a ``--record-trace``
     recording does; a recording's ``scene_start`` fields are never compared (the replayed code
-    captures its own).
+    captures its own). A rebaseline is also how a recording made before logical names
+    (glitchygames/logical_names.py: no ``game`` in its header, no ``scene`` in its scene starts)
+    of a game that has moved since is converted: under ``--rebaseline`` such a recording's game
+    is matched by its class's qualified name alone, its module may differ, and so are its scene
+    starts' scenes (``modules_not_compared``, the one rule ``check_recorded_game`` and
+    ``find_scene_class`` share; several loaded classes of that name are still refused); NEW
+    holds the current logical names. A plain replay of such a recording is refused
+    (``ExitCode.UNUSABLE_INPUT``) with a message naming
+    ``--replay-trace OLD --rebaseline NEW --headless``. There is no table of former locations.
 18. Playback (Part 3's in-game playback scope, glitchygames/replay/playback.py, whose docstring
     is the contract): ``playback_replay_sources`` builds the sources a scope serves a
     recording's frames from, starting at ``ReplayOptions.start_frame`` N (the frame holding the
@@ -2729,22 +2737,62 @@ def installed_engine_version() -> str | None:
         return None
 
 
-def check_recorded_game(*, header: Mapping[str, Any], game_class: type[Scene]) -> None:
+# How to convert a recording made before logical names whose game has moved since (rule 17)
+REBASELINE_REMEDY = '--replay-trace OLD --rebaseline NEW --headless'
+
+
+def modules_not_compared(
+    *, recorded_module: str | None, loaded_module: str, is_rebaseline: bool
+) -> bool:
+    """Return whether a record made before logical names is matched by qualified name alone.
+
+    The one rule for records without a logical name (a header without ``game``, a scene start
+    without ``scene``; glitchygames/logical_names.py), used by ``check_recorded_game`` and by
+    ``find_scene_class`` (glitchygames/replay/playback.py). Their modules are compared, so a
+    class of the same name in another game is refused, except where they cannot be: no module
+    recorded, or a game file run as a script (``__main__``) on either side. Under
+    ``--rebaseline`` (rule 17) they are never compared: a game or scene that moved since it was
+    recorded has another module, and the rebaseline is how such a recording is converted (its
+    new recording holds the logical names). A plain replay keeps comparing them.
+
+    Args:
+        recorded_module: The module the record names, or None when it names none.
+        loaded_module: The module of the loaded class it is compared with.
+        is_rebaseline: True during a ``--rebaseline``.
+
+    Returns:
+        True when only the qualified names are compared.
+
+    """
+    return (
+        is_rebaseline
+        or recorded_module is None
+        or SCRIPT_MODULE_NAME in {recorded_module, loaded_module}
+    )
+
+
+def check_recorded_game(
+    *, header: Mapping[str, Any], game_class: type[Scene], is_rebaseline: bool = False
+) -> None:
     """Refuse a recording of another game.
 
     A recording holding ``game`` (the game class's logical name, glitchygames/logical_names.py)
     must name the started game's logical name; when either side's module is ``__main__`` (a
     game file run as a script, ``python paddleslap.py``, is the same game as its console
     script) only the qualified names are compared. A recording without ``game`` (made before
-    logical names) is compared as before: the class names must match, and so must the modules
-    when the header holds one and neither is ``__main__``.
+    logical names) must name the started game's class name, and its module too unless
+    ``modules_not_compared`` says otherwise: under ``--rebaseline`` the module may differ (the
+    game moved since; the new recording holds its logical name), while a plain replay of such a
+    recording is refused with a message naming the rebaseline that converts it.
 
     Args:
         header: The recording's header fields.
         game_class: The game being started.
+        is_rebaseline: True during a ``--rebaseline`` (rule 17).
 
     Raises:
-        ReplayRefusedError: If the recording is of a different game.
+        ReplayRefusedError: If the recording is of a different game, or was made before logical
+            names by a game that has moved since and the run is not a rebaseline.
 
     """
     recorded_game = header.get(GAME_CLASS_HEADER_FIELD)
@@ -2761,12 +2809,23 @@ def check_recorded_game(*, header: Mapping[str, Any], game_class: type[Scene]) -
         recorded_place = str(recorded_logical_name)
     else:
         recorded_module = header.get(GAME_MODULE_HEADER_FIELD)
-        modules_differ = (
-            recorded_module is not None
-            and SCRIPT_MODULE_NAME not in {recorded_module, game_class.__module__}
-            and recorded_module != game_class.__module__
+        # The header's class name (game_class.__name__ when recorded): a game class is a
+        # module's top-level class, so its qualified name
+        differs = recorded_game != game_class.__name__
+        modules_differ = recorded_module != game_class.__module__ and not modules_not_compared(
+            recorded_module=recorded_module,
+            loaded_module=game_class.__module__,
+            is_rebaseline=is_rebaseline,
         )
-        differs = recorded_game != game_class.__name__ or modules_differ
+        if not differs and modules_differ:
+            message = (
+                f'The recording was made before logical names, by the game {recorded_game} in '
+                f'{recorded_module}, and this game ({started_logical_name}) is in '
+                f'{game_class.__module__}: if it is this game, the game has since moved, and a '
+                'replay cannot tell it from another game of that name. Convert the recording '
+                f'with {REBASELINE_REMEDY}'
+            )
+            raise ReplayRefusedError(message)
         recorded_place = f'{recorded_game} ({recorded_module or "module not recorded"})'
     if differs:
         message = (
@@ -2911,7 +2970,7 @@ def start_replay(
         max_processing_slowdown_percent=options.get('max_processing_slowdown'),
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
-    check_recorded_game(header=sources.header, game_class=game_class)
+    check_recorded_game(header=sources.header, game_class=game_class, is_rebaseline=is_rebaseline)
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = installed_engine_version()
     if recorded_version != installed_version:

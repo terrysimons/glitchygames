@@ -9,8 +9,9 @@ Demos and instant replays run inside a playback scope, not a new engine run
    a start on the scene's first logic frame, so the start's frame is where its logic began),
    and its scene class must be found among the loaded ``Scene`` subclasses (``find_scene_class``:
    by the start's logical name (glitchygames/logical_names.py) when it holds one, else by module
-   and qualified name, else, where the modules cannot be compared (none recorded, or
-   ``__main__`` on either side), by a name no other such scene shares); otherwise
+   and qualified name, else, where the modules are not compared (``modules_not_compared``:
+   none recorded, ``__main__`` on either side, or a ``--rebaseline``, which converts
+   recordings made before logical names), by a name no other such scene shares); otherwise
    nothing starts (logged; False), as for a recording that cannot be replayed (a malformed one
    included). The replay sources are made (``playback_replay_sources``, rule 18 of
    glitchygames/replay/driver.py) and the scope is requested (``SceneManager.
@@ -248,6 +249,7 @@ from glitchygames.replay.driver import (
     SCRIPT_MODULE_NAME,
     SOURCE_TRUNCATED_HEADER_FIELD,
     is_cut_off,
+    modules_not_compared,
     playback_replay_sources,
     replayed_batch_origins,
 )
@@ -1029,7 +1031,11 @@ class PlaybackOutcome(BaseModel):
 
 
 def find_scene_class(
-    *, name: str, module: str | None = None, logical: str | None = None
+    *,
+    name: str,
+    module: str | None = None,
+    logical: str | None = None,
+    is_rebaseline: bool = False,
 ) -> type[Scene] | None:
     """Return the loaded ``Scene`` subclass a start names (rule 1).
 
@@ -1039,15 +1045,18 @@ def find_scene_class(
     loaded, so a scene whose code moved is still found. Without one (recordings made before
     logical names), the class defined in ``module`` with the qualified name ``name`` is taken
     when exactly one is loaded. Otherwise a class is taken by its qualified name alone only
-    where the modules cannot be compared, as ``check_recorded_game`` decides for a recording's
-    game: no module recorded, or a game run as a script (``__main__``) on either side; then
-    the one such class is taken and several are refused. A class of that name from another
-    module is another game's scene: refused.
+    where ``modules_not_compared`` (glitchygames/replay/driver.py, the rule
+    ``check_recorded_game`` applies to a recording's game) says so: no module recorded, a game
+    run as a script (``__main__``) on either side, or a ``--rebaseline`` (a scene that moved
+    since it was recorded); then the one such class is taken and several are refused. Outside
+    a rebaseline, a class of that name from another module is another game's scene: refused.
 
     Args:
         name: A class's qualified name (``SceneStart.scene_class``).
         module: The module it is defined in (``SceneStart.scene_module``), or None.
         logical: Its logical name (``SceneStart.scene``), or None.
+        is_rebaseline: True during a ``--rebaseline``: a start without a logical name is found
+            by its qualified name whatever its module.
 
     Returns:
         The class, or None when no loaded subclass matches or several match by name alone
@@ -1086,7 +1095,11 @@ def find_scene_class(
         matches_by_name = [
             scene_class
             for scene_class in named_alike
-            if module is None or SCRIPT_MODULE_NAME in {module, scene_class.__module__}
+            if modules_not_compared(
+                recorded_module=module,
+                loaded_module=scene_class.__module__,
+                is_rebaseline=is_rebaseline,
+            )
         ]
     if len(exact_matches) == 1:
         return exact_matches[0]
@@ -1214,7 +1227,12 @@ def _start_playback(
     if start is None or start.first_logic_frame is None:
         return False
     scene_class = find_scene_class(
-        name=start.scene_class, module=start.scene_module, logical=start.scene
+        name=start.scene_class,
+        module=start.scene_module,
+        logical=start.scene,
+        # A rebaseline converts recordings made before logical names (rule 17 of
+        # glitchygames/replay/driver.py): their scenes may have moved since
+        is_rebaseline=manager.OPTIONS.get('rebaseline') is not None,
     )
     if scene_class is None:
         LOG.warning('No %s: no scene class named %s is loaded', kind, start.scene_class)

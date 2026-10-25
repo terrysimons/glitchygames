@@ -16,7 +16,14 @@ The rules:
    (FPS events from this machine's frame times would be recorded as the new baseline); each
    refusal exits
    ``ExitCode.OPTIONS_REFUSED`` (``rebaseline_refusal``). An unusable OLD is refused as by any
-   replay (``ExitCode.UNUSABLE_INPUT``, ``ExitCode.MISSING_INPUT``).
+   replay (``ExitCode.UNUSABLE_INPUT``, ``ExitCode.MISSING_INPUT``), but for one thing only
+   a rebaseline accepts: a recording made before logical names (no ``game`` in its header,
+   glitchygames/logical_names.py) of a game that has moved since. Its game is matched by its
+   class's qualified name, whatever the recorded module, and so are its scene starts without
+   ``scene`` (``modules_not_compared`` in glitchygames/replay/driver.py, rule 17 there; a name
+   several loaded classes share is still refused); NEW holds the current logical names
+   (rule 3), so it replays strictly. This is the backward-compatibility path for such
+   recordings: a plain replay refuses them, naming this command.
 2. Replay: OLD is replayed as usual (glitchygames/replay/driver.py, rule 17 there), but a
    divergence does not stop it (``ReplayOptions.stop_on_divergence`` False): it runs to OLD's
    last frame, or until the game ends, noting every frame that differs and every sprite that
