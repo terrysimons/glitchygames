@@ -15,6 +15,10 @@ import pytest
 
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import SpriteFactory
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # Constants for test thresholds
 PIXEL_INTEGRITY_THRESHOLD = 100.0  # every pixel draws exactly as expected
@@ -56,7 +60,7 @@ class TestExamplesSprites:
         self.temp_path = Path(self.temp_dir)
 
         # Path to the examples sprites directory
-        self.sprites_dir = Path('glitchygames/examples/resources/sprites')
+        self.sprites_dir = ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites'
 
         # Get all TOML files in the directory
         self.toml_files = []
@@ -297,9 +301,19 @@ if __name__ == '__main__':
 
 
 BUNDLED_SPRITE_FILES = sorted([
-    *Path('glitchygames/examples').glob('**/sprites/*.toml'),
-    *Path('glitchygames/assets').glob('*.toml'),
+    *(ENGINE_PACKAGE_DIRECTORY / 'examples').glob('**/sprites/*.toml'),
+    *(ENGINE_PACKAGE_DIRECTORY / 'assets').glob('*.toml'),
 ])
+
+
+def _sprite_file_test_id(sprite_file: Path) -> str:
+    """Name a bundled sprite file relative to the engine (the same id under nox and uv run).
+
+    Returns:
+        str: The file's path inside the engine package, e.g. ``assets/eraser.toml``.
+
+    """
+    return sprite_file.relative_to(ENGINE_PACKAGE_DIRECTORY).as_posix()
 
 
 def _pixel_blocks(sprite_data: dict) -> list[tuple[str, str]]:
@@ -321,7 +335,7 @@ def _pixel_blocks(sprite_data: dict) -> list[tuple[str, str]]:
     return blocks
 
 
-@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_sprite_rows_have_equal_lengths(sprite_file):
     """Every pixel row in a bundled sprite is the same width.
 
@@ -376,7 +390,7 @@ def real_display():
 
 
 @pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize('sprite_file', ANIMATED_SPRITE_FILES, ids=str)
+@pytest.mark.parametrize('sprite_file', ANIMATED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
     """Load -> save writes each animation's frame_interval, loop and per-frame overrides back.
 
@@ -422,7 +436,7 @@ def _hitbox_sections(sprite_data: dict) -> tuple[dict | None, list[dict | None]]
 
 
 @pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_path):
     """Save writes exactly the hitboxes the file defined: none are synthesised.
 
@@ -462,7 +476,7 @@ def _rgba_frames(sprite) -> dict[tuple[str, int], tuple[tuple[int, int], list[tu
 
 
 @pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_sprite_pixels_survive_a_save_round_trip(sprite_file, tmp_path):
     """Load -> save -> reload gives every frame (static and animated) the same pixels."""
     from glitchygames.sprites import AnimatedSprite
@@ -483,7 +497,7 @@ def test_bundled_sprite_pixels_survive_a_save_round_trip(sprite_file, tmp_path):
 
 
 @pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_sprite_metadata_survives_a_save_round_trip(sprite_file, tmp_path):
     """Load -> save -> reload keeps the [sprite] name, description, frame_anchor and hitbox.
 
@@ -530,7 +544,7 @@ def test_static_sprite_metadata_survives_a_save_round_trip(tmp_path):
 
 
 @pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=_sprite_file_test_id)
 def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
     """Load -> save writes every [[transition]] back with the same keys, values and order.
 
@@ -554,7 +568,11 @@ def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
     ('sprite_file', 'expected_pairs'),
     [
         (
-            Path('glitchygames/examples/brave_adventurer_papyrus/sprites/player.toml'),
+            ENGINE_PACKAGE_DIRECTORY
+            / 'examples'
+            / 'brave_adventurer_papyrus'
+            / 'sprites'
+            / 'player.toml',
             [
                 ('idle', 'running'),
                 ('running', 'idle'),
@@ -569,7 +587,11 @@ def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
             ],
         ),
         (
-            Path('glitchygames/examples/brave_adventurer_papyrus/sprites/cobra.toml'),
+            ENGINE_PACKAGE_DIRECTORY
+            / 'examples'
+            / 'brave_adventurer_papyrus'
+            / 'sprites'
+            / 'cobra.toml',
             [('idle', 'strike'), ('strike', 'idle')],
         ),
     ],

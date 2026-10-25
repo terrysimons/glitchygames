@@ -18,18 +18,17 @@ from glitchygames.sprites.animated import (
     SpriteFrame,
     detect_file_format,
 )
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # Constants for test values
 TEST_FRAME_INDEX = 5
 
 # Path to the static sprite fixture used by TestAnimatedSprite
 STATIC_TOML = str(
-    Path(__file__).parent.parent.parent
-    / 'glitchygames'
-    / 'examples'
-    / 'resources'
-    / 'sprites'
-    / 'static.toml',
+    ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'static.toml',
 )
 
 

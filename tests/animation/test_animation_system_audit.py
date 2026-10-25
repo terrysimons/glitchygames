@@ -12,9 +12,13 @@ import pytest
 
 from glitchygames.sprites import SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from tests.harness import imported_engine_directory
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # Constants for test thresholds
 DEFAULT_FRAME_INTERVAL = 0.5
@@ -29,12 +33,7 @@ def get_resource_path(filename: str) -> str:
 
     """
     return str(
-        Path(__file__).parent.parent.parent
-        / 'glitchygames'
-        / 'examples'
-        / 'resources'
-        / 'sprites'
-        / filename,
+        ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / filename,
     )
 
 

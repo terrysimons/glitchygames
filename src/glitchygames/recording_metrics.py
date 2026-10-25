@@ -79,6 +79,14 @@ PUBLISHED_LEDGER_REF = 'origin/gh-pages'
 # Where measured rows wait for a deploy to publish them, relative to the repository (gitignored)
 PENDING_LEDGER_RELATIVE_PATH = Path('test-results') / 'replay-metrics' / 'pending.jsonl'
 GIT_TIMEOUT_SECONDS = 30.0
+# Recordings that moved, old repository path -> new: their ledger rows from before the move are
+# the same series (performance_series groups by the new path), so a recording's history
+# continues across its move (plans/2026-10-24-workspace-packages.md)
+RECORDING_PATH_RENAMES: dict[str, str] = {
+    'glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
+        'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+    ),
+}
 
 
 def short_commit(*, run: MeasurementRun | None) -> str | None:
@@ -1124,6 +1132,8 @@ class PerformanceSeries(BaseModel):
 def performance_series(*, rows: Iterable[LedgerRow]) -> list[PerformanceSeries]:
     """Group ledger rows into graph series (rows without a commit or summary are left out).
 
+    A recording that moved (``RECORDING_PATH_RENAMES``) is one series under its new path.
+
     Args:
         rows: The ledger's rows.
 
@@ -1136,10 +1146,12 @@ def performance_series(*, rows: Iterable[LedgerRow]) -> list[PerformanceSeries]:
     for row in sorted(rows, key=_row_order):
         if row.commit is None or row.summary is None:
             continue
-        series_key = (row.recording, row.machine, row.run.processing_paced)
+        # A moved recording's rows from before the move join its series under the new path
+        recording = RECORDING_PATH_RENAMES.get(row.recording, row.recording)
+        series_key = (recording, row.machine, row.run.processing_paced)
         # Sorted by measurement within a commit, so the latest measurement of a commit wins
         grouped.setdefault(series_key, {})[row.commit] = row
-        console_scripts[row.recording] = row.console_script
+        console_scripts[recording] = row.console_script
     return [
         PerformanceSeries(
             recording=recording,

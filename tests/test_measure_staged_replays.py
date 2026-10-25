@@ -38,7 +38,7 @@ def repository(tmp_path: Path) -> Path:
 
     """
     git(repository=tmp_path, arguments=['init', '--quiet'])
-    write(repository=tmp_path, relative_path='glitchygames/game.py', text='speed = 1\n')
+    write(repository=tmp_path, relative_path='src/glitchygames/game.py', text='speed = 1\n')
     git(repository=tmp_path, arguments=['commit', '--quiet', '-m', 'First'])
     return tmp_path
 
@@ -88,7 +88,7 @@ def run_hook(*, repository: Path) -> int:
 def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repository):
     """The staged code tree is measured; its row file joins the commit."""
     measure = stand_in_measurement(mocker, repository=repository)
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 2\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 2\n')
     tree = staged_code_tree(repository=repository)
 
     assert run_hook(repository=repository) == ExitCode.SUCCESS
@@ -126,7 +126,7 @@ def test_a_measured_code_tree_is_not_measured_again(mocker, repository):
 def test_rows_written_before_a_failure_are_staged_on_the_retry(mocker, repository):
     """A refused commit leaves its rows on disk; the retry stages them though nothing is new."""
     stand_in_measurement(mocker, repository=repository, outcome=ExitCode.INTERNAL_ERROR)
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 3\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 3\n')
     assert run_hook(repository=repository) == ExitCode.INTERNAL_ERROR
     assert staged_rows(repository=repository) == []
 
@@ -140,19 +140,19 @@ def test_rows_written_before_a_failure_are_staged_on_the_retry(mocker, repositor
 def test_untracked_files_under_the_measured_paths_refuse_the_commit(mocker, repository, capsys):
     """The framework stashes only tracked changes: an untracked module would be measured."""
     measure = stand_in_measurement(mocker, repository=repository)
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 4\n')
-    (repository / 'glitchygames' / 'new_module.py').write_text('x = 1\n', encoding='utf-8')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 4\n')
+    (repository / 'src' / 'glitchygames' / 'new_module.py').write_text('x = 1\n', encoding='utf-8')
 
     assert run_hook(repository=repository) == ExitCode.OPTIONS_REFUSED
 
     measure.assert_not_called()
-    assert 'glitchygames/new_module.py' in capsys.readouterr().err
+    assert 'src/glitchygames/new_module.py' in capsys.readouterr().err
 
 
 def test_a_partial_commit_that_needs_measuring_is_refused(mocker, repository, capsys):
     """Git commit <path>: rows staged into its temporary index never reach the real one."""
     measure = stand_in_measurement(mocker, repository=repository)
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 5\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 5\n')
     mocker.patch.dict(os.environ, {'GIT_INDEX_FILE': '.git/next-index-12345.lock'})
 
     assert run_hook(repository=repository) == ExitCode.OPTIONS_REFUSED
@@ -168,7 +168,7 @@ def test_the_hook_is_configured_to_run_before_each_commit():
     )
 
     assert 'id: replay-metrics' in configuration
-    assert 'scripts/measure_staged_replays.py' in configuration
+    assert 'python -m scripts.measure_staged_replays' in configuration
     assert 'stages: [pre-commit]' in configuration
 
 

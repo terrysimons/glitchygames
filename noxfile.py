@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-_CODE_DIRS = ['noxfile.py', 'glitchygames', 'scripts', 'tests']
+_CODE_DIRS = ['noxfile.py', 'src/glitchygames', 'scripts', 'tests']
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ def _lint_dependencies(session: nox.Session) -> None:
 
 def _lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
-    session.run('vulture', 'glitchygames', 'vulture_whitelist.py', '--min-confidence=80')
+    session.run('vulture', 'src/glitchygames', 'vulture_whitelist.py', '--min-confidence=80')
 
 
 # Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
@@ -1267,7 +1267,7 @@ def _bandit_scan(session: nox.Session) -> None:
         '-ll',  # Medium+ severity
         '-ii',  # Medium+ confidence
         '-r',
-        'glitchygames',
+        'src/glitchygames',
         '-f',
         'json',
         '-o',

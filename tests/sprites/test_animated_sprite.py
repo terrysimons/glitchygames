@@ -39,8 +39,12 @@ from glitchygames.sprites.pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
+from tests.harness import imported_engine_directory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 FRAME_DURATION = 0.5
 FRAME_DURATION_FAST = 0.25
 SURFACE_SIZE = 4
@@ -2798,7 +2802,7 @@ blue = 30
 
     def test_bundled_foo2_example_keeps_its_alpha(self):
         """The example from BUGS.md #133: foo2.toml's translucent body stays translucent."""
-        foo2_path = Path(__file__).parents[2] / 'glitchygames' / 'examples' / 'foo2.toml'
+        foo2_path = ENGINE_PACKAGE_DIRECTORY / 'examples' / 'foo2.toml'
         sprite = AnimatedSprite(filename=str(foo2_path))
         frame = sprite.get_current_frame()
         assert frame is not None
@@ -3157,7 +3161,13 @@ blue = 0
 
     def test_frame_anchor_survives_a_save_and_reload(self, tmp_path):
         """[sprite] frame_anchor is written back (the path Bitmappy's save uses) and reloads."""
-        source = Path('glitchygames/examples/brave_adventurer_papyrus/sprites/player.toml')
+        source = (
+            ENGINE_PACKAGE_DIRECTORY
+            / 'examples'
+            / 'brave_adventurer_papyrus'
+            / 'sprites'
+            / 'player.toml'
+        )
         toml_file = tmp_path / 'anchored.toml'
         toml_file.write_text(
             source.read_text(encoding='utf-8').replace(

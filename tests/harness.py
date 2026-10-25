@@ -55,6 +55,43 @@ from tests.sdl_driver_isolation import (
 from tests.signal_handlers import preserved_signal_handlers
 
 
+def imported_engine_directory() -> Path:
+    """Return the imported glitchygames' directory: the copy the code under test loads.
+
+    The engine is a namespace package (it has no ``__init__.py``), so it has no ``__file__``: its
+    directory is its one ``__path__`` entry. A namespace package merges every ``glitchygames/``
+    on ``sys.path``, so more than one entry is refused.
+
+    Returns:
+        The engine package's directory.
+
+    Raises:
+        RuntimeError: More than one directory makes up the imported package.
+
+    """
+    import glitchygames
+
+    directories = [Path(entry).resolve() for entry in glitchygames.__path__]
+    if len(directories) != 1:
+        message = f'glitchygames is imported from {len(directories)} directories: {directories}'
+        raise RuntimeError(message)
+    return directories[0]
+
+
+def imported_engine_is_the_checkouts() -> bool:
+    """Whether the imported glitchygames is this checkout's src/glitchygames.
+
+    True under ``uv sync`` (an editable install, its .pth naming src/), False under nox (a built,
+    non-editable copy in the session's site-packages, which cannot name its commit).
+
+    Returns:
+        Whether the engine imported is the checkout's own source.
+
+    """
+    checkout_engine = Path(__file__).resolve().parent.parent / 'src' / 'glitchygames'
+    return imported_engine_directory() == checkout_engine
+
+
 def _load_lazy_pygame_modules() -> None:
     """Run the imports pygame defers until first use, while pygame is still unpatched.
 

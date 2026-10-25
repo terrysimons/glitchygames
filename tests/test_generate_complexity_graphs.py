@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 # The fixture repository's wily configuration: this repository's operators, its one package
 FIXTURE_WILY_CONFIGURATION = """[wily]
-path = glitchygames
+path = src/glitchygames
 operators = cyclomatic,maintainability,raw,halstead
 """
 
@@ -103,7 +103,7 @@ def fixture_repository(tmp_path: Path) -> Path:
 
     """
     repository = tmp_path / 'repository'
-    package = repository / 'glitchygames'
+    package = repository / 'src' / 'glitchygames'
     package.mkdir(parents=True)
     git(repository=repository, arguments=['init', '--quiet'])
     (repository / 'wily.cfg').write_text(FIXTURE_WILY_CONFIGURATION, encoding='utf-8')
@@ -278,7 +278,7 @@ def test_detached_checkout_removes_its_worktree_after_an_error(fixture_repositor
             project_root=fixture_repository, checkout_directory=checkout_directory
         ) as checkout:
             checked_out_modules.append(
-                (checkout / 'glitchygames' / 'branchy.py').read_text(encoding='utf-8')
+                (checkout / 'src' / 'glitchygames' / 'branchy.py').read_text(encoding='utf-8')
             )
             message = 'measuring failed'
             raise ComplexityGraphError(message)
@@ -296,7 +296,7 @@ def test_main_graphs_the_fixture_repositorys_history(fixture_repository, tmp_pat
     """Running main graphs every metric for the ranked modules, loading plotly.js from jsDelivr."""
     graphs_directory = tmp_path / 'graphs'
     graphs_directory.mkdir()
-    stale_graph = graphs_directory / 'glitchygames_old_module_py_raw_loc.html'
+    stale_graph = graphs_directory / 'src_glitchygames_old_module_py_raw_loc.html'
     stale_graph.write_text('a graph of a module that left the ranking', encoding='utf-8')
     mocker.patch.object(generate_complexity_graphs, 'PROJECT_ROOT', fixture_repository)
     mocker.patch.object(generate_complexity_graphs, 'GRAPHS_DIR', graphs_directory)
@@ -311,15 +311,15 @@ def test_main_graphs_the_fixture_repositorys_history(fixture_repository, tmp_pat
         assert 'cdn.plot.ly' not in html
         # Both modules are graphed (simple.py's line too)
         # (plotly escapes the trace names' slashes in its JSON)
-        assert '"name":"glitchygames\\u002fsimple.py"' in html
-        assert '"name":"glitchygames\\u002fbranchy.py"' in html
+        assert '"name":"src\\u002fglitchygames\\u002fsimple.py"' in html
+        assert '"name":"src\\u002fglitchygames\\u002fbranchy.py"' in html
     snippet = (graphs_directory / GRAPHS_SNIPPET_NAME).read_text(encoding='utf-8')
     # branchy.py (complexity 3) ranks before simple.py (1); radon reports nothing for the empty
     # __init__.py, so it is not ranked
     assert f'Generated at commit `{head_commit.strip()}` ' in snippet
     assert (
         'from all 2 commits. The modules, highest total cyclomatic complexity first: '
-        '`glitchygames/branchy.py`, `glitchygames/simple.py`.'
+        '`src/glitchygames/branchy.py`, `src/glitchygames/simple.py`.'
     ) in snippet
     # The worktree is gone and the repository's own checkout untouched
     assert len(git(repository=fixture_repository, arguments=['worktree', 'list']).splitlines()) == 1

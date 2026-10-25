@@ -129,6 +129,7 @@ from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
+from tests.harness import imported_engine_is_the_checkouts
 from tests.replay.replay_helpers import (
     replay_through_engine,
     rewrite_recording,
@@ -5372,10 +5373,15 @@ class TestProcessingComparison:
         # Every run names its timer; nothing paced this one, so auto never measured
         assert run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert run.rebaselined_from is None
-        # The engine's commit, here from this checkout (glitchygames/build_info.py)
+        # The engine's commit (glitchygames/build_info.py): this checkout's when the imported
+        # engine is the checkout's source, unknown for nox's built copy
         assert run.source_revision == engine_source_revision()
         assert run.source_revision is not None
-        assert run.source_revision.source is RevisionSource.GIT_CHECKOUT
+        assert run.source_revision.source is (
+            RevisionSource.GIT_CHECKOUT
+            if imported_engine_is_the_checkouts()
+            else RevisionSource.UNKNOWN
+        )
         # The machine's state as the run started (glitchygames/machine_state.py)
         assert run.machine_state is not None
         assert run.machine_state == current_machine_state()

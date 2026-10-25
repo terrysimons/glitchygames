@@ -101,10 +101,12 @@ api = []
 [tool.hatch.build]
 # The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
 # build-binary write it before building (glitchygames/build_info.py)
-artifacts = ["glitchygames/_build_info.json"]
+artifacts = ["src/glitchygames/_build_info.json"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["glitchygames"]
+# The engine's source is under src/ (the user, 2026-10-25), its wheel holds glitchygames/ at
+# the top level as before
+packages = ["src/glitchygames"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -146,6 +148,11 @@ omit = [
   "*/migrations/*",
 ]
 
+[tool.coverage.paths]
+# The imported copy (nox: site-packages, not editable; uv sync: src/ itself) is reported as the
+# repository's src/glitchygames, so the report and its 100% gate name the files in git
+glitchygames = ["src/glitchygames", "*/site-packages/glitchygames"]
+
 [tool.coverage.report]
 show_missing = true
 # fail_under compares the total rounded to this many digits: at 0 (the default) a 98.71% total
@@ -173,13 +180,16 @@ directory = "htmlcov"
 preview = true
 line-length = 100
 output-format = "grouped"
-src = ["glitchygames", "tests", "scripts"]
+src = ["src", "tests", "scripts"]
 include = [
-  "glitchygames/*.py",
+  "src/glitchygames/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
   "noxfile.py",
 ]
+# The engine is a namespace package (no __init__.py); src = ["glitchygames", ...] exempted its
+# top-level modules from INP001 before the move to src/ (2026-10-25), this keeps that exemption
+namespace-packages = ["src/glitchygames"]
 target-version = "py314"
 
 [tool.ruff.lint]
@@ -225,75 +235,75 @@ fixable = ["ALL"]
   "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
   "S311",    # Tests build seeded random.Random instances for reproducible inputs
 ]
-"glitchygames/events/base.py" = [
+"src/glitchygames/events/base.py" = [
   "ANN401", # HashableEvent.__getattr__ returns Any: custom and unknown events' fields (pygame's own Event.__getattr__ is Any); the per-type classes declare theirs
 ]
-"glitchygames/randomness.py" = [
+"src/glitchygames/randomness.py" = [
   "S311", # The engine's seeded random streams are deliberately non-cryptographic (replayable)
 ]
-"glitchygames/api/**/*.py" = [
+"src/glitchygames/api/**/*.py" = [
   "RUF029", # FastAPI requires async def for route handlers even without await
 ]
 "scripts/**/*.py" = [
   "TC003", # Scripts use stdlib imports at runtime, not just for type checking
 ]
-"glitchygames/effects/easing.py" = [
+"src/glitchygames/effects/easing.py" = [
   "DOC201",  # Easing functions are pure math; return type is obvious (float)
   "PLR2004", # Mathematical constants (0.5 midpoint, Penner coefficients) are standard
   "RUF069",  # Float equality (t == 0.0, t == 1.0) is intentional for Penner boundary conditions
 ]
-"glitchygames/effects/tween.py" = [
+"src/glitchygames/effects/tween.py" = [
   "PLR0913", # Tween.__init__ needs many parameters (target, property, start, end, duration, easing, etc.)
   "PLR0917", # Same as above -- many positional args are the natural API
 ]
-"glitchygames/camera.py" = [
+"src/glitchygames/camera.py" = [
   "PLR0913", # Camera2D and ParallaxLayer constructors need many configuration params
 ]
-"glitchygames/physics/body.py" = [
+"src/glitchygames/physics/body.py" = [
   "PLR0913", # PhysicsBody preset factory methods need many configuration params
   "PLR0917", # Same -- many positional args are the natural preset API
 ]
-"glitchygames/animation/expressions.py" = [
+"src/glitchygames/animation/expressions.py" = [
   "DOC501",  # Expression parser raises ValueError by design; documenting every one is noise
   "PLR2004", # Token count checks use literal numbers (standard parser code)
   "S105",    # 'token' variable name triggers false positive for hardcoded password
   "ERA001",  # Comment about Phase 2 grammar looks like commented-out code
   "FBT001",  # LiteralExpr takes bool as positional (it's a value, not a flag)
 ]
-"glitchygames/ui/menus.py" = [
+"src/glitchygames/ui/menus.py" = [
   "PLR0913", # Menu constructors need geometry + identity + container params
 ]
-"glitchygames/ui/text_widgets.py" = [
+"src/glitchygames/ui/text_widgets.py" = [
   "PLR0913", # Text widget constructors need geometry + font + style params
 ]
-"glitchygames/ui/buttons.py" = [
+"src/glitchygames/ui/buttons.py" = [
   "PLR0913", # Button constructors need geometry + identity + callback params
 ]
-"glitchygames/ui/inputs.py" = [
+"src/glitchygames/ui/inputs.py" = [
   "PLR0913", # Input/dialog constructors need geometry + callbacks + options params
 ]
-"glitchygames/ui/sliders.py" = [
+"src/glitchygames/ui/sliders.py" = [
   "PLR0913", # Slider/color constructors need geometry + range + parent params
 ]
-"glitchygames/ui/dialogs.py" = [
+"src/glitchygames/ui/dialogs.py" = [
   "PLR0913", # Dialog constructors need scene, callbacks, options, and group params
 ]
-"glitchygames/scenes/scene.py" = [
+"src/glitchygames/scenes/scene.py" = [
   "PLR0904", # Scene base class provides one handler method per pygame event type
 ]
-"glitchygames/game_objects/ball.py" = [
+"src/glitchygames/game_objects/ball.py" = [
   "PLR0913", # BallSprite constructor needs physics, speed, collision, and display params
 ]
-"glitchygames/game_objects/paddle.py" = [
+"src/glitchygames/game_objects/paddle.py" = [
   "PLR0913", # Paddle constructors need geometry, speed, color, collision params
 ]
-"glitchygames/examples/joystick_demo.py" = [
+"src/glitchygames/examples/joystick_demo.py" = [
   "PLR0913", # Demo widget constructors follow standard UI geometry pattern
 ]
-"glitchygames/examples/paddleslap.py" = [
+"src/glitchygames/examples/paddleslap.py" = [
   "PLR0913", # Game helper functions need ball geometry and physics params
 ]
-"glitchygames/services/sprite_generation_service.py" = [
+"src/glitchygames/services/sprite_generation_service.py" = [
   "PLR0913", # Sprite generation needs provider, model, prompt, and dimension params
 ]
 
@@ -322,10 +332,12 @@ known-first-party = ["glitchygames"]
 ## ty (Astral's type checker) configuration
 [tool.ty.environment]
 python-version = "3.14"
+# src/ first: the engine's source package (explicit; ty's automatic src root is not relied on)
+root = ["src", "."]
 extra-paths = ["scripts"]
 
 [tool.ty.src]
-include = ["glitchygames", "scripts"]
+include = ["src/glitchygames", "scripts"]
 # Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
 # generating hundreds of false positives on mock attribute access and assignments.
 exclude = ["tests", ".venv", ".nox"]
@@ -340,7 +352,7 @@ error-on-warning = false
 
 
 [tool.bandit]
-exclude_dirs = ["tests", "glitchygames/tests"]
+exclude_dirs = ["tests", "src/glitchygames/tests"]
 # Filter to Medium+ severity and confidence to reduce noise.
 # B101 (assert_used) is Low severity and gets filtered out by this.
 # TODO: Replace remaining assert usage with explicit raises, then tighten to low/low
@@ -353,6 +365,9 @@ package_module_name_map = { "pygame-ce" = "pygame" }
 # Not this package's code: the pygame-ce submodule (its own project), and browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files
 extend_exclude = ["third_party", "browser"]
+# The engine's own package, under src/ (deptry guesses first-party modules from the root's
+# direct children only)
+known_first_party = ["glitchygames"]
 
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime

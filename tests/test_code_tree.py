@@ -63,7 +63,7 @@ def repository(tmp_path: Path) -> Path:
 
     """
     git(repository=tmp_path, arguments=['init', '--quiet'])
-    write(repository=tmp_path, relative_path='glitchygames/game.py', text='speed = 1\n')
+    write(repository=tmp_path, relative_path='src/glitchygames/game.py', text='speed = 1\n')
     write(repository=tmp_path, relative_path=f'{LEDGER_DIRECTORY}/first.json', text='{}\n')
     git(repository=tmp_path, arguments=['commit', '--quiet', '-m', 'First'])
     return tmp_path
@@ -71,7 +71,7 @@ def repository(tmp_path: Path) -> Path:
 
 def test_the_staged_code_tree_is_the_commits_once_committed(repository):
     """What the hook measures before the commit is what the commit holds."""
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 2\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 2\n')
     staged = staged_code_tree(repository=repository)
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster'])
 
@@ -92,10 +92,10 @@ def test_ledger_rows_never_change_the_code_tree(repository):
 @pytest.mark.parametrize(
     'relative_path',
     [
-        'glitchygames/world.py',
-        'games/mr-muncher/mr_muncher/game.py',
-        'demos/joystick-demo/joystick_demo/demo.py',
-        'apps/bitmappy/bitmappy/editor.py',
+        'src/glitchygames/world.py',
+        'src/games/mr-muncher/mr_muncher/game.py',
+        'src/demos/joystick-demo/joystick_demo/demo.py',
+        'src/apps/bitmappy/bitmappy/editor.py',
         'tests/fixtures/replays/paddleslap/golden.jsonl.gz',
         'uv.lock',
         'pyproject.toml',
@@ -123,7 +123,7 @@ def test_docs_plans_and_tests_leave_the_code_tree_alone(repository, relative_pat
 
 def test_the_real_index_is_left_alone(repository):
     """The tree is computed on a copy of the index: nothing staged is unstaged."""
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 3\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 3\n')
     status_before = git(repository=repository, arguments=['status', '--porcelain'])
 
     staged_code_tree(repository=repository)
@@ -146,7 +146,7 @@ def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(reposit
     """
     first_tree = commit_code_tree(repository=repository, commit='HEAD')
     first_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 5\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 5\n')
     write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/fast.json', text='{}\n')
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster, measured'])
     faster_tree = commit_code_tree(repository=repository, commit='HEAD')
@@ -165,7 +165,7 @@ def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(reposit
 
 def test_a_tree_measured_but_never_committed_has_not_landed(repository):
     """An intermediate commit's tree is not any row-adding commit's tree."""
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 7\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 7\n')
     intermediate_tree = staged_code_tree(repository=repository)
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Unmeasured'])
 

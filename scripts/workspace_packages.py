@@ -15,13 +15,16 @@ from typing import Any, Self, cast
 from pydantic import BaseModel, ConfigDict, model_validator
 
 ENGINE_PACKAGE = 'glitchygames'
+# Where the engine's source package is, relative to the repository: under src/, so nothing run
+# from the repository root imports the source tree by accident (the user, 2026-10-25)
+ENGINE_DIRECTORY = Path('src') / ENGINE_PACKAGE
 
 
 class WorkspaceMember(BaseModel):
     """One member package of the workspace.
 
     Attributes:
-        directory: The member's directory (games/mr-muncher).
+        directory: The member's directory (src/games/mr-muncher).
         distribution: Its distribution name (mr-muncher).
         import_packages: The packages its wheel holds (mr_muncher).
         package_relative_paths: Where each import package is below the directory (mr_muncher, or
@@ -148,7 +151,7 @@ def source_package_directories(*, project_root: Path) -> list[Path]:
         The package directories.
 
     """
-    directories = [project_root / ENGINE_PACKAGE]
+    directories = [project_root / ENGINE_DIRECTORY]
     for member in workspace_members(project_root=project_root):
         directories.extend(member.package_directories)
     return directories

@@ -39,11 +39,29 @@ from glitchygames.recording_metrics import (
     read_row_files,
 )
 from glitchygames.tracing import read_trace
+from tests.harness import imported_engine_is_the_checkouts
 from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.test_recording_metrics import ledger_row
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# The checkout's own engine source: under nox the imported engine is a built copy, which cannot
+# name its commit, and replay_metrics measure refuses an unknown commit
+CHECKOUT_ENGINE_DIRECTORY = PROJECT_ROOT / 'src' / 'glitchygames'
 GIT_TIMEOUT_SECONDS = 60.0
+
+
+@pytest.fixture(autouse=True)
+def rebaselines_run_this_checkouts_engine(mocker):
+    """The child rebaselines import this checkout's engine, as replay_metrics requires.
+
+    replay_metrics measures the checkout (it runs through ``uv run``, whose editable install
+    names src/) and refuses a replay that measured another commit. Under ``uv sync`` the
+    children already import the checkout's engine. Under nox the imported engine is a built copy
+    that cannot name its commit, so the children are given the checkout's src/ first on their
+    path (PYTHONPATH), as ``uv run`` would.
+    """
+    if not imported_engine_is_the_checkouts():
+        mocker.patch.dict(os.environ, {'PYTHONPATH': str(CHECKOUT_ENGINE_DIRECTORY.parent)})
 
 
 def clean_revision() -> SourceRevision:
@@ -56,7 +74,9 @@ def clean_revision() -> SourceRevision:
         The revision.
 
     """
-    return source_revision().model_copy(update={'uncommitted_changes': False})
+    return source_revision(package_directory=CHECKOUT_ENGINE_DIRECTORY).model_copy(
+        update={'uncommitted_changes': False}
+    )
 
 
 def copied_golden(*, project_root: Path) -> list[tuple[str, Path]]:
@@ -158,7 +178,7 @@ class TestTheRecordings:
         recordings = metric_recordings(project_root=PROJECT_ROOT)
         paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings}
         assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz' in paths
-        assert 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
+        assert 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
         assert (
             'mr-muncher',
             PROJECT_ROOT / 'tests/fixtures/replays/mr-muncher/golden.jsonl.gz',
@@ -353,7 +373,9 @@ class TestMeasuring:
         project_root = tmp_path / 'project'
         recordings = copied_golden(project_root=project_root)
         pending = tmp_path / 'pending.jsonl'
-        dirty = source_revision().model_copy(update={'uncommitted_changes': True})
+        dirty = source_revision(package_directory=CHECKOUT_ENGINE_DIRECTORY).model_copy(
+            update={'uncommitted_changes': True}
+        )
         refused = measure(
             settings=MeasureSettings(
                 project_root=project_root,
@@ -484,7 +506,7 @@ class TestTheCommandLine:
         assert run(arguments=['measure', *arguments]) == ExitCode.SUCCESS
         rows = read_ledger_file(path=pending).rows
         assert {row.recording for row in rows} == {
-            'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+            'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
         }
         assert 'Measured 1 recording' in capsys.readouterr().out
         # Nothing published: clearing the published rows keeps every pending one
@@ -492,7 +514,9 @@ class TestTheCommandLine:
         assert read_ledger_file(path=pending).rows == rows
 
     def test_skip_dirty_measures_nothing(self, tmp_path, mocker, capsys):
-        dirty = source_revision().model_copy(update={'uncommitted_changes': True})
+        dirty = source_revision(package_directory=CHECKOUT_ENGINE_DIRECTORY).model_copy(
+            update={'uncommitted_changes': True}
+        )
         mocker.patch.object(replay_metrics, 'source_revision', return_value=dirty)
         pending = tmp_path / 'pending.jsonl'
         assert run(arguments=['measure', '--pending', str(pending), '--skip-dirty']) == (
@@ -503,7 +527,9 @@ class TestTheCommandLine:
 
     def test_the_hooks_command_line_writes_row_files_naming_the_tree(self, tmp_path, mocker):
         """Measure --allow-dirty --code-tree TREE --rows-directory DIR, as the hook runs it."""
-        dirty = source_revision().model_copy(update={'uncommitted_changes': True})
+        dirty = source_revision(package_directory=CHECKOUT_ENGINE_DIRECTORY).model_copy(
+            update={'uncommitted_changes': True}
+        )
         mocker.patch.object(replay_metrics, 'source_revision', return_value=dirty)
         rows_directory = tmp_path / 'replay-ledger'
         tree = '0123456789abcdef0123456789abcdef01234567'

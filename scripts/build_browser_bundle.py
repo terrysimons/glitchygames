@@ -56,7 +56,7 @@ from pathlib import Path
 from typing import override
 
 REPOSITORY_DIRECTORY = Path(__file__).resolve().parent.parent
-PACKAGE_DIRECTORY = REPOSITORY_DIRECTORY / 'glitchygames'
+PACKAGE_DIRECTORY = REPOSITORY_DIRECTORY / 'src' / 'glitchygames'
 BROWSER_DIRECTORY = REPOSITORY_DIRECTORY / 'browser'
 PYGAME_CE_DIRECTORY = REPOSITORY_DIRECTORY / 'third_party' / 'pygame-ce'
 WHEEL_BUILD_SCRIPT = Path('buildconfig') / 'glitchygames' / 'build_pyodide_wheel.sh'

@@ -28,7 +28,7 @@ The rules (a code review's findings, 2026-10-25):
 ``SKIP=replay-metrics git commit ...`` commits without measuring.
 
 Usage (the framework runs it; by hand after updating a branch, then commit):
-    uv run python scripts/measure_staged_replays.py
+    uv run python -m scripts.measure_staged_replays
 """
 
 from __future__ import annotations

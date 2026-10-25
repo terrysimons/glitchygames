@@ -36,15 +36,15 @@ a = Analysis(
     binaries=[],
     datas=[
         # Fonts — font_manager.py resolves via Path(__file__).parent / 'bitstream_vera'
-        ('glitchygames/fonts/bitstream_vera', 'glitchygames/fonts/bitstream_vera'),
+        ('src/glitchygames/fonts/bitstream_vera', 'glitchygames/fonts/bitstream_vera'),
         # Color palettes — palette.py resolves via Path(__file__).parent / 'resources'
-        ('glitchygames/color/resources', 'glitchygames/color/resources'),
+        ('src/glitchygames/color/resources', 'glitchygames/color/resources'),
         # Editor assets — eraser.toml, raspberry.toml, icons
-        ('glitchygames/assets', 'glitchygames/assets'),
+        ('src/glitchygames/assets', 'glitchygames/assets'),
         # Editor resources — bitmappy.png icon, bitmappy.cfg
-        ('glitchygames/bitmappy/resources', 'glitchygames/bitmappy/resources'),
+        ('src/glitchygames/bitmappy/resources', 'glitchygames/bitmappy/resources'),
         # Sprite examples — AI training data loaded via SPRITE_CONFIG_DIR
-        ('glitchygames/examples/resources/sprites', 'glitchygames/examples/resources/sprites'),
+        ('src/glitchygames/examples/resources/sprites', 'glitchygames/examples/resources/sprites'),
     ],
     hiddenimports=[
         # Conditionally imported at runtime (inside try/except or function bodies)

@@ -1,2 +1,2 @@
 # MANIFEST.in
-include glitchygames/assets/raspberry.toml
+include src/glitchygames/assets/raspberry.toml

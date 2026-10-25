@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GlitchyGames is a Python 3.14 game engine built on Pygame with an event-driven architecture. The project includes a full-featured pixel art editor called Bitmappy and supports animation, UI widgets, and physics-based game objects.
 
+The engine's source is `src/glitchygames/` (members: `src/games/`, `src/demos/`, `src/apps/`;
+plans/2026-10-24-workspace-packages.md). Nothing at the repository root is importable as our
+package: tests and tools import the installed engine (`uv sync`: editable, its `.pth` naming
+`src/`; nox: not editable). Paths like `glitchygames/clock.py` in this file, the docs and
+comments name the file inside the package (`src/glitchygames/clock.py` in the repository). A
+script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from the root.
+
 ## Development Setup
 
 ```bash
@@ -54,13 +61,13 @@ pytest --benchmark-only
 ### Linting and Type Checking
 ```bash
 # Format code with ruff
-ruff format glitchygames tests scripts noxfile.py
+ruff format src tests scripts noxfile.py
 
 # Check and fix import ordering
-ruff check --select I --fix glitchygames tests scripts noxfile.py
+ruff check --select I --fix src tests scripts noxfile.py
 
 # Run full ruff linting
-ruff check glitchygames tests scripts noxfile.py
+ruff check src tests scripts noxfile.py
 
 # Type checking with basedpyright (configured in pyrightconfig.json)
 basedpyright
@@ -657,8 +664,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
   missing) measures every golden replay and bundled demo when this machine has no rows for the
-  staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`, the
-  engine, games, demos, apps, recordings, `uv.lock`, `pyproject.toml`), so code that arrived by
+  staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
+  `src/` (the engine, games, demos, apps), recordings, `uv.lock`, `pyproject.toml`), so code that arrived by
   a merge or rebase is measured by the next commit, and stages the rows, each naming that code
   tree (`LedgerRow.code_tree`), into the same commit (refused for a partial `git commit <path>`
   or untracked files under the measured paths; `SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
@@ -668,7 +675,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`scripts/generate_performance_graphs.py`, docs/quality/performance.md); CircleCI's
   `deploy-docs` publishes after each merge (`nox -s docs-deploy` refuses unless HEAD is on
   origin/main). A branch updated from main is measured by its next commit, or by hand: `uv run
-  python scripts/measure_staged_replays.py`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
+  python -m scripts.measure_staged_replays`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
   per stretch, integer microseconds, scenes run-length encoded; ~0.4-0.6 KB) for the page's frame
   x commit heatmap (time only: the report shows whether the work changed). Rows measured on
   uncommitted changes (`LedgerRow.from_uncommitted_changes`, e.g. `--allow-dirty`) are left out

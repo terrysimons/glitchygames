@@ -139,7 +139,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [glitchygames]
+          paths: [src]
           options:
             show_source: true
             # allow_inspection: no

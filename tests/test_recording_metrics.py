@@ -28,6 +28,7 @@ from glitchygames.recording_history import (
 )
 from glitchygames.recording_metrics import (
     PROFILE_BUCKET_COUNT,
+    RECORDING_PATH_RENAMES,
     BehaviourChange,
     FrameProfile,
     FrameSpan,
@@ -520,19 +521,34 @@ class TestPerformanceSeries:
             update={'run': run(commit=NEWER_COMMIT, cpu_model='Intel')}
         )
         other_recording = ledger_row(
-            recording='glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+            recording='src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
         )
         no_commit = ledger_row(commit=None)
         series = performance_series(
             rows=[remeasured, first, older, other_machine, other_recording, no_commit]
         )
         assert [(entry.recording, entry.machine, entry.paced) for entry in series] == [
-            ('glitchygames/examples/paddleslap_demos/rally.jsonl.gz', 'Apple M4 Max', False),
+            ('src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz', 'Apple M4 Max', False),
             ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', 'Apple M4 Max', False),
             ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', 'Intel', False),
         ]
         assert series[1].rows == (older, remeasured)
         assert series[1].label == 'Apple M4 Max, unpaced replay'
+
+    def test_a_recording_that_moved_keeps_one_series(self):
+        """Rows from before a move (old path) and after (new path) are one series, new path."""
+        old_path, new_path = next(iter(RECORDING_PATH_RENAMES.items()))
+        before = ledger_row(
+            commit=OLDER_COMMIT, committed_at='2026-10-22T12:00:00-07:00', recording=old_path
+        )
+        after = ledger_row(recording=new_path)
+
+        (moved,) = performance_series(rows=[before, after])
+        (only_old,) = performance_series(rows=[before])
+
+        assert moved.recording == new_path
+        assert [row.recording for row in moved.rows] == [old_path, new_path]
+        assert only_old.recording == new_path
 
     def test_rows_without_a_summary_are_left_out_and_paced_runs_are_their_own_series(self):
         unsummarised = ledger_row().model_copy(update={'summary': None})

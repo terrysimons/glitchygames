@@ -77,7 +77,7 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
 GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
-EXAMPLES_PATH = Path('glitchygames') / 'examples'
+EXAMPLES_PATH = Path('src') / 'glitchygames' / 'examples'
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
 MILLISECONDS_PER_SECOND = 1000.0

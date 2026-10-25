@@ -14,6 +14,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects import load_sound
 from glitchygames.game_objects.sounds import SFX
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # The mixer stores volume in 1/128 steps, so a volume reads back to within one step
 MIXER_VOLUME_STEP = 1 / 128
@@ -33,13 +37,7 @@ class TestGameObjectsSounds:
 
     def test_load_sound_reads_the_bundled_file(self):
         """The Sound holds the bundled file's samples: loading it directly gives the same bytes."""
-        bundled_path = (
-            Path(__file__).parent.parent.parent
-            / 'glitchygames'
-            / 'game_objects'
-            / 'snd_files'
-            / SFX.BOUNCE
-        )
+        bundled_path = ENGINE_PACKAGE_DIRECTORY / 'game_objects' / 'snd_files' / SFX.BOUNCE
 
         result = load_sound(SFX.BOUNCE)
 

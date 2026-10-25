@@ -3,10 +3,10 @@
 A measured row (``quality/replay-ledger/``, plans/2026-10-25-measured-rows-in-the-repository.md)
 names the code it measured by tree, not by commit: the measuring pre-commit hook runs before its
 commit exists, an amend or a squash merge gives the same code another commit, but the tree of
-the code stays the same. The tree holds only ``MEASURED_PATHS`` (the engine, games, demos, apps,
-recordings, the locked dependencies and the project configuration): a later docs, plans or tests
-commit leaves it unchanged, so the last measured tree is still the one that lands on main, and
-the ledger's own rows never change the tree they name.
+the code stays the same. The tree holds only ``MEASURED_PATHS`` (``src/``: the engine, games,
+demos and apps; the recordings, the locked dependencies and the project configuration): a later
+docs, plans or tests commit leaves it unchanged, so the last measured tree is still the one that
+lands on main, and the ledger's own rows never change the tree they name.
 
 Both functions work on a temporary index (``GIT_INDEX_FILE``), so the real one, and with it
 whatever is staged, is never touched. A failing git command raises ``RuntimeError`` naming it.
@@ -25,12 +25,10 @@ from glitchygames.process import run_command
 
 # Where the measured rows live (not a measured path, so never part of a code tree)
 LEDGER_DIRECTORY = 'quality/replay-ledger'
-# What can change how the golden replays run: the only paths a code tree holds
+# What can change how the golden replays run: the only paths a code tree holds. src/ holds the
+# engine and every workspace member (games, demos, apps: plans/2026-10-24-workspace-packages.md)
 MEASURED_PATHS = (
-    'glitchygames',
-    'games',
-    'demos',
-    'apps',
+    'src',
     'tests/fixtures/replays',
     'uv.lock',
     'pyproject.toml',

@@ -329,13 +329,13 @@ uv run pytest --benchmark-only
 
 ```bash
 # Format code
-uv run ruff format glitchygames tests scripts noxfile.py
+uv run ruff format src tests scripts noxfile.py
 
 # Fix import ordering
-uv run ruff check --select I --fix glitchygames tests scripts noxfile.py
+uv run ruff check --select I --fix src tests scripts noxfile.py
 
 # Lint
-uv run ruff check glitchygames tests scripts noxfile.py
+uv run ruff check src tests scripts noxfile.py
 
 # Type check
 uv run basedpyright

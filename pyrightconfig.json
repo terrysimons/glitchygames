@@ -1,6 +1,6 @@
 {
   "typeCheckingMode": "strict",
-  "include": ["glitchygames", "tests", "scripts"],
+  "include": ["src/glitchygames", "tests", "scripts"],
   "exclude": ["**/__pycache__"],
   "stubPath": "typings",
   "defineConstant": { "DEBUG": true },
@@ -46,12 +46,12 @@
 
   "executionEnvironments": [
     {
-      "root": "glitchygames",
-      "extraPaths": ["scripts"]
+      "root": "src/glitchygames",
+      "extraPaths": ["src", "scripts"]
     },
     {
       "root": "tests",
-      "extraPaths": ["."],
+      "extraPaths": [".", "src"],
       "reportArgumentType": false,
       "reportCallIssue": false,
       "reportFunctionMemberAccess": false,

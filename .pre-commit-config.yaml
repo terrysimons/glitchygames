@@ -53,7 +53,7 @@ repos:
     - id: replay-metrics
       name: replay-metrics (measure the staged code)
       language: system
-      entry: uv run python scripts/measure_staged_replays.py
+      entry: uv run python -m scripts.measure_staged_replays
       pass_filenames: false
       always_run: true
       stages: [pre-commit]

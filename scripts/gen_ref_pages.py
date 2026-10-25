@@ -12,7 +12,7 @@ import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
 
-src = Path(Path(__file__).parent.parent)
+src = Path(Path(__file__).parent.parent) / 'src'
 
 LOG: logging.Logger = logging.getLogger('gen_ref_pages')
 LOG.addHandler(logging.NullHandler())

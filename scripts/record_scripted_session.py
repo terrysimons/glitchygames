@@ -55,15 +55,15 @@ differ. So diffing an old fixture with a new one shows mostly noise; what counts
 one replays clean and holds the same scenes and scripted input. (A rebaseline keeps the inputs,
 dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one command per game:
 
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game paddleslap --frames 600
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game clockwork_keep --frames 330
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game brave_adventurer --frames 400
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game brave_adventurer_papyrus --frames 400
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game mr_muncher --frames 1950
 
 With their controls tails the recordings hold 622 (PaddleSlap), 532 (Clockwork Keep), 472 (each

@@ -8,6 +8,8 @@ tests/examples/ for months.
 
 import ast
 import fnmatch
+import importlib.metadata
+import json
 import tomllib
 from pathlib import Path
 
@@ -132,3 +134,28 @@ def test_the_shared_harness_is_a_plugin_loaded_before_any_other():
 
     assert root_conftest.pytest_plugins[0] == 'tests.harness'
     assert not (TESTS_ROOT / 'conftest.py').exists(), 'the harness lives in tests/harness.py'
+
+
+def test_the_engine_is_imported_from_its_installed_package_never_the_source_tree():
+    """The repository root holds no glitchygames/ (src layout, the user's decision 7, 2026-10-25).
+
+    The root conftest.py puts the root on sys.path, so a glitchygames/ there would be imported
+    instead of the installed package. nox installs the engine non-editable (site-packages);
+    uv sync installs it editable, through a .pth naming src/. Either way the engine imported is
+    the one the distribution installed.
+    """
+    import glitchygames
+
+    project_root = PROJECT_ROOT.resolve()
+    assert not (project_root / 'glitchygames').exists(), 'the engine lives in src/glitchygames'
+    # The engine is a namespace package (no __init__.py, so no __file__): it is imported from its
+    # __path__, where any other glitchygames/ on sys.path would be merged in beside it
+    imported_directories = [Path(entry).resolve() for entry in glitchygames.__path__]
+    assert len(imported_directories) == 1, imported_directories
+    imported_from = imported_directories[0]
+    distribution = importlib.metadata.distribution('glitchygames')
+    direct_url = json.loads(distribution.read_text('direct_url.json') or '{}')
+    if direct_url.get('dir_info', {}).get('editable', False):
+        assert imported_from == project_root / 'src' / 'glitchygames'
+    else:
+        assert imported_from == Path(str(distribution.locate_file('glitchygames'))).resolve()

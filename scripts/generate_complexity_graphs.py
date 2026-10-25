@@ -71,7 +71,7 @@ LOG = logging.getLogger(__name__)
 TOP_MODULE_COUNT = 15
 
 # The package whose modules are ranked and graphed
-RANKED_PACKAGE = 'glitchygames'
+RANKED_PACKAGE = 'src/glitchygames'
 
 # The radon block types whose complexity a module's total sums (radon also reports each class,
 # whose complexity repeats its methods')

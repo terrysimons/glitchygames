@@ -14,6 +14,7 @@ import ast
 from typing import TYPE_CHECKING
 
 import pytest
+from scripts.workspace_packages import ENGINE_DIRECTORY
 
 from tests.ast_scanning import (
     PROJECT_ROOT,
@@ -27,7 +28,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
-PACKAGE = PROJECT_ROOT / 'glitchygames'
+# The repository's engine source (the scan reads source files, so it reads the checkout's)
+PACKAGE = PROJECT_ROOT / ENGINE_DIRECTORY
 
 # Modules whose names the scan resolves through imports and aliases
 WATCHED_DOOR_MODULES = frozenset({
