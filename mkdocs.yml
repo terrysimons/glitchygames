@@ -15,6 +15,7 @@ nav:
       - Brave Adventurer Architecture: "games/brave_adventurer.md"
       - Clockwork Keep Architecture: "games/clockwork_keep.md"
       - Mr. Muncher Architecture: "games/mr_muncher.md"
+      - Drawing Fire Architecture: "games/drawing_fire.md"
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"

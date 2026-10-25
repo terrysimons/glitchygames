@@ -358,6 +358,64 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Code Architecture Features
 
+### 55. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
+- **Goal**: move the mechanic Drawing Fire proved (plans/2026-10-25-drawing-fire-design.md,
+  section 7) from `glitchygames/examples/drawing_fire/swatches.py` into the engine, so any
+  game recolours a sprite's parts (a helmet, a uniform) by palette swap, its shades following.
+  The user's rule: every new game proves a mechanic, and a proven one is considered for the
+  engine
+- **What Drawing Fire proved**: one soldier sprite (`drawing_fire/sprites/soldier.toml`) drawn
+  once, worn in two liveries (the Pencil Platoon's pencil yellow, the Graphite Brigade's
+  graphite grey) with every shadow staying a darker shade of its part's new colour. The sprite
+  file never changes; each scheme's frames are built once, in memory
+- **The API as built** (`swatches.py`; nothing in it names the game):
+  - In the sprite file, beside `[colors]`: `[swatches.<set>.<part>]` tables, each with
+    `colors` (palette characters: the base colour first, then its shades) and an optional
+    `role` (`"primary"`, `"secondary"`)
+  - `load_swatch_sets(path=...) -> dict[str, SwatchSet]`: reads the sets, each part's colours
+    looked up in the palette; `SwatchError` (naming the file and part) for a character not in
+    `[colors]`, a part with no colours, or a character in two parts of one set
+  - `SwatchPart(name, colors, role)` and `SwatchSet(name, parts)`: frozen dataclasses
+  - `Scheme(primary=..., secondary=..., parts={name: colour})`: colours by role, a named part
+    overriding its role; hashable (its parts kept as sorted pairs), so it keys a cache.
+    `Scheme.color_for(part)`
+  - `shade_map(part=..., color=...)`: the base becomes the new colour, each shade is scaled
+    per channel by new base / old base (rounded, clamped; a 0 base channel takes the new
+    channel as it is)
+  - `recolor_surface(surface=..., swatch_set=..., scheme=...)`: a recoloured copy, matched by
+    exact RGB; alpha and the colorkey kept, transparent pixels never replaced, parts the scheme
+    leaves out unchanged
+  - `load_frames(path=...)`: every animation's frames through the engine's `AnimatedSprite`
+    loader; `RecoloredFrames(frames=..., swatch_set=...).frames_for(scheme)`: each scheme's
+    frames built on first use, then the same surfaces
+- **What moving it into `glitchygames/sprites/` would take**:
+  - the module moves as it is (a `glitchygames/sprites/swatches.py`), with its tests, and
+    `AnimatedSprite` (or the sprite loader) learns to read `[swatches]` itself, so a game asks
+    the sprite for its frames in a scheme rather than loading the file twice
+  - the sprite format's docs and Bitmappy: `AnimatedSprite._save_toml` (which Bitmappy saves
+    through) writes the sprite, animations, colours and transitions only, so a sprite saved from
+    Bitmappy loses its `[swatches]` today; the save must keep them, and Bitmappy could preview
+    a scheme
+  - the review notes from Drawing Fire's Task 4, to settle on the way in:
+    - RGB collisions are not validated: two parts whose palette characters share an RGB, or a
+      part colour equal to a colour no part lists, are recoloured together, silently.
+      `load_swatch_sets` checks characters, not colours; it should refuse (or warn about)
+      colliding RGBs
+    - the engine's `AnimatedSprite` leaves magenta (transparent) pixels opaque in a frame's
+      image (the engine skips them when it draws; a plain blit would not), so `load_frames`
+      clears them itself (`_with_transparency`). In the engine the loader should hand out
+      frames whose transparent pixels are transparent, and this step goes away
+    - the per-pixel loops (`_with_transparency`, `recolor_surface`) use `get_at`/`set_at`;
+      they should become `pygame.PixelArray` (or `PixelArray.replace` per colour), which
+      matters once sprites are larger or schemes many
+    - the `RecoloredFrames` cache is unbounded: a game that makes schemes on the fly (a
+      colour per player, a fading tint) grows it forever. An engine version needs a bound (an
+      LRU) or a documented "schemes are few" contract
+    - the returned surfaces are mutable and shared: a caller that draws on a frame changes it
+      for every later caller of that scheme. Document it, or hand out copies (or read-only
+      views) where that matters
+- **Status**: TODO (proven in Drawing Fire, 2026-10-25)
+
 ### 11. Event Manager Naming Convention Refactor
 - **Description**: Refactor all event managers to use consistent `FooEventManager` naming convention instead of `FooManager`
 - **Use Case**: Improves code clarity and consistency by making it explicit that these classes manage events
@@ -983,6 +1041,55 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - `tests/ai/test_voice_processor.py` - Voice processing tests
 
 ## Gameplay Features
+
+### 54. Drawing Fire: Everything After the MVP — TODO
+- **Goal**: grow Drawing Fire (`glitchygames/examples/drawing_fire/`, `uv run drawing-fire`)
+  from its MVP into the full vision of its design, plans/2026-10-25-drawing-fire-design.md
+  (section 3; the MVP is section 4, docs/games/drawing_fire.md describes it as built)
+- **The MVP, built 2026-10-25**: one battlefield that fits the screen, computer against
+  computer with pistols, one or two local players joining at any time (START or Enter, a side,
+  a soldier), taking over another soldier on death, leaving by holding Back; the debug seats
+  view (F3); swatches (#55); a golden replay
+- **After the MVP**, each from the design's section 3:
+  - **Tunnels** (3.8): diggers tunnel toward the enemy, timber props hold the roof, a
+    breakthrough calls in a wall of planes. Holes in the ground arrive with them (4.2)
+  - **Air drops** (3.5, 3.6, 3.7): planes bring paratroopers (joining players and computer
+    soldiers parachute in) and crates of ammo, guns and props; shooting a chute damages it,
+    smashing a crate opens it
+  - **Planes and the radio tower** (3.5): each army's tower calls its planes on a seeded
+    back-off with an on-screen countdown; a destroyed tower must be repaired; the
+    radar-jamming soldier
+  - **The weapon ladder** (3.6): pistol, rifle, machine gun, grenades, mortar, bazooka,
+    unlocking on the clock and arriving in crates
+  - **The camera** (3.9): a battlefield wider than the screen, the view sliding with the
+    armies' sizes (a tug of war) and zooming out a little only when sliding is not enough;
+    caps on players and soldiers measured in simulations
+  - **Network play** (3.11): players join over the internet if there is room; player markings
+    shown only to their own side (3.4)
+  - **The Twitch TODOs** (3.11): the fifteen chat interactions (enlist, adopt a soldier, vote
+    the next crate, hurry the plane, ...), each reaching the game through the host's doors
+  - **Roles** (3.4): a soldier's job comes with him (digger, gunner)
+  - **A real AI driver** (3.2, 4.4): an outside driver sending a soldier's intent as a control
+    event addressed to that soldier
+  - **The look** (3.1): the underground cut away beneath the ground, hand-lettered sound
+    effects, crayon muzzle flashes
+- **Also open from the MVP**:
+  - touch controls for the browser build (dual stick; `scripts/build_browser_bundle.py`
+    `TOUCH_LAYOUTS`, exempt in `tests/test_browser_touch_controls.py` until its controls
+    settle)
+  - a pause: the MVP has none (`GAMES_WITHOUT_A_PAUSE` in
+    `tests/replay/test_golden_replays.py`)
+  - its golden replay compares the battle through the internal events the scene posts (a
+    GAMEEVENT per death and seat change): the soldiers are drawn, not sprites, so a soldier's
+    position is still never compared, only who dies when and where the players go. Making the
+    soldiers sprites would let a replay catch a divergence in where they walk too
+  - its golden replay fixture is about 185 KB, over the 100 KB the others keep: the scene start
+    records the state of every random stream (19 Mersenne Twisters, twice)
+  - its controls in an `ActionMap` (design 4.6): the MVP reads START, BACK, LEFT, RIGHT and fire
+    straight from the polled input in `players.py` (ruling R21 accepts that for the MVP). Move
+    them into an `ActionMap` bound by scancode and controller button once the engine's
+    controller layout work (#47) lands, so the bindings follow the pad's layout
+- **Status**: TODO
 
 ### 26. Water Physics Level System
 - **Description**: Half-water, half-air level with realistic refraction physics and visual effects

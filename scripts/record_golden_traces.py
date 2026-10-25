@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import contextlib
+import math
 import os
 import sys
 import tempfile
@@ -59,6 +60,8 @@ from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from glitchygames.examples.drawing_fire.game import DrawingFireScene
+from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.examples.mr_muncher.autopilot import Autopilot
 from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.examples.mr_muncher.maze import Direction
@@ -105,11 +108,12 @@ GAME_SCENES: dict[str, type[Scene]] = {
     'brave_adventurer_papyrus': PapyrusBraveAdventurerScene,
     'paddleslap': paddleslap.Game,
     'mr_muncher': MrMuncherScene,
+    'drawing_fire': DrawingFireScene,
 }
 
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
-# change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher)
-# have no such baseline; their golden replays (tests/fixtures/replays/) cover them.
+# change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher,
+# Drawing Fire) have no such baseline; their golden replays (tests/fixtures/replays/) cover them.
 GOLDEN_TRACE_GAMES: tuple[str, ...] = (
     'clockwork_keep',
     'brave_adventurer',
@@ -133,6 +137,23 @@ MR_MUNCHER_REPRESS_FRAMES = 4
 MR_MUNCHER_SEEK_CAPTURE_SECONDS = 22.0
 MR_MUNCHER_PAUSE_FRAME = 600
 MR_MUNCHER_RESUME_FRAME = 660
+
+# Drawing Fire: the keyboard player's seat name (the first seat opened); the frames before
+# which the left mouse button goes down (True) or up (False); the frame the script starts
+# holding Escape (after the player's first death) and how many frames longer than the seats'
+# LEAVE_HOLD_SECONDS (counted in frames of FRAME_SECONDS) it holds it, so a little over a second
+DRAWING_FIRE_PLAYER_NAME = 'P1'
+DRAWING_FIRE_FIRE_BUTTON_CHANGES: dict[int, bool] = {150: True, 380: False, 400: True, 600: False}
+DRAWING_FIRE_LEAVE_FRAME = 1500
+DRAWING_FIRE_LEAVE_SPARE_FRAMES = 10
+DRAWING_FIRE_LEAVE_HOLD_FRAMES = (
+    math.ceil(LEAVE_HOLD_SECONDS / FRAME_SECONDS) + DRAWING_FIRE_LEAVE_SPARE_FRAMES
+)
+# The mouse follows its target only once the target's chest is more than this many pixels from
+# it, as a hand on a mouse does (and so a walking target is not a motion every frame)
+DRAWING_FIRE_AIM_SLACK_PIXELS = 8
+# pygame's mouse button number for the left button (MOUSEBUTTONDOWN's ``button``)
+LEFT_MOUSE_BUTTON = 1
 
 # PaddleSlap paddle keys: (up key, down key) for the left and the right paddle
 PADDLESLAP_PADDLE_KEYS: tuple[tuple[int, int], tuple[int, int]] = (
@@ -558,12 +579,149 @@ def mr_muncher_script() -> InputScript:
     return script
 
 
+class DrawingFireMouse:
+    """The keyboard player's mouse: it aims at the nearest enemy and presses the fire button.
+
+    Drawing Fire's keyboard player aims at the mouse and fires with its left button
+    (glitchygames/examples/drawing_fire/players.py). While the player drives a soldier, the
+    mouse moves onto the chest of the living enemy nearest him whenever that chest is more than
+    DRAWING_FIRE_AIM_SLACK_PIXELS away, as a player tracking a target would (no motion while he
+    is not playing). The left button goes down or up before each frame ``button_changes``
+    names, where the mouse is.
+
+    A per-frame input of an InputScript is called once per frame from the supervisor slot of
+    frame 0 on, each call posting input for the next frame (record_scripted_session.py), so the
+    first call is for frame 1 and each later call for the frame after.
+    """
+
+    def __init__(self, *, button_changes: dict[int, bool]) -> None:
+        """Start with the mouse unmoved and its buttons up.
+
+        Args:
+            button_changes: Frame number -> the left button goes down (True) or up (False)
+                before that frame.
+
+        """
+        self.button_changes = button_changes
+        # The frame the next call posts input for
+        self.next_frame = 1
+        self.mouse_position = (0, 0)
+        self.is_button_down = False
+
+    def __call__(self, scene: Scene) -> list[pygame.event.Event]:
+        """Return this frame's mouse motion and button change, if any.
+
+        Args:
+            scene: The active scene.
+
+        Returns:
+            A MOUSEMOTION, a MOUSEBUTTONDOWN or MOUSEBUTTONUP, both or neither.
+
+        """
+        frame_number = self.next_frame
+        self.next_frame += 1
+        events: list[pygame.event.Event] = []
+        target_position = self._target_position(scene)
+        if (
+            target_position is not None
+            and math.dist(target_position, self.mouse_position) > DRAWING_FIRE_AIM_SLACK_PIXELS
+        ):
+            previous_x, previous_y = self.mouse_position
+            self.mouse_position = target_position
+            events.append(
+                pygame.event.Event(
+                    pygame.MOUSEMOTION,
+                    pos=target_position,
+                    rel=(target_position[0] - previous_x, target_position[1] - previous_y),
+                    buttons=(int(self.is_button_down), 0, 0),
+                    touch=False,
+                )
+            )
+        if frame_number in self.button_changes:
+            self.is_button_down = self.button_changes[frame_number]
+            events.append(
+                pygame.event.Event(
+                    pygame.MOUSEBUTTONDOWN if self.is_button_down else pygame.MOUSEBUTTONUP,
+                    pos=self.mouse_position,
+                    button=LEFT_MOUSE_BUTTON,
+                    touch=False,
+                )
+            )
+        return events
+
+    @staticmethod
+    def _target_position(scene: Scene) -> tuple[int, int] | None:
+        """Find the chest of the living enemy nearest the player's soldier (ties: lower id).
+
+        Returns:
+            The position in window pixels, or None while the player drives no soldier or no
+            enemy stands.
+
+        """
+        if not isinstance(scene, DrawingFireScene):
+            return None
+        seat = scene.seats.players.get(DRAWING_FIRE_PLAYER_NAME)
+        if seat is None or seat.stage is not Stage.PLAYING or seat.soldier_id is None:
+            return None
+        soldier = scene.battle.soldier(seat.soldier_id)
+        enemies = scene.battle.living(soldier.side.opponent)
+        if not enemies:
+            return None
+        target = min(enemies, key=lambda enemy: (abs(enemy.x - soldier.x), enemy.soldier_id))
+        target_x, target_y = target.chest
+        return (round(target_x), round(target_y))
+
+
+def drawing_fire_script() -> InputScript:
+    """Drawing Fire: the keyboard player joins, fights, dies, fights on and leaves.
+
+    Enter opens a seat; RIGHT moves the side card from Random to the Pencil Platoon and Enter
+    confirms it; D and A move the soldier highlight right and back, and keypad Enter takes the
+    highlighted soldier. The player then fires (the left mouse button, held, let go and held
+    again; DrawingFireMouse aims at the nearest enemy), walks right toward the fight (D), steps
+    back (the left arrow, then A) and walks on (the right arrow), letting go of fire on the way,
+    through the Graphite Brigade's line, where he stands until he is shot down and takes over
+    another Platoon soldier. Then he holds Escape until he leaves. Every keyboard and mouse
+    control the game reads is used here; Q, which quits on its release, is the controls tail's
+    (record_scripted_session.py). Escape's release never quits: Drawing Fire's scene ignores it.
+
+    Returns:
+        The input script.
+
+    """
+    script = InputScript(
+        per_frame=DrawingFireMouse(button_changes=DRAWING_FIRE_FIRE_BUTTON_CHANGES)
+    )
+    # Join, choose the Pencil Platoon, step the highlight right and back, take the soldier
+    script.tap(30, pygame.K_RETURN, held_frames=4)
+    script.tap(50, pygame.K_RIGHT, held_frames=4)
+    script.tap(70, pygame.K_RETURN, held_frames=4)
+    script.tap(90, pygame.K_d, held_frames=4)
+    script.tap(110, pygame.K_a, held_frames=4)
+    script.tap(130, pygame.K_KP_ENTER, held_frames=4)
+    # Fight: walk right toward the Brigade, step back, then walk on through its line and stand
+    # there, ahead of his own side, the soldier nearest its pistols, until shot down (about frame
+    # 740 to 920; fire is let go on the way in, at frame 600, so the Brigade keeps its pistols)
+    script.tap(160, pygame.K_d, held_frames=200)
+    script.tap(420, pygame.K_LEFT, held_frames=40)
+    script.tap(470, pygame.K_a, held_frames=40)
+    script.tap(520, pygame.K_RIGHT, held_frames=340)
+    # Hold Escape until the seat is left
+    script.tap(
+        DRAWING_FIRE_LEAVE_FRAME,
+        pygame.K_ESCAPE,
+        held_frames=DRAWING_FIRE_LEAVE_HOLD_FRAMES,
+    )
+    return script
+
+
 SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
     'clockwork_keep': clockwork_keep_script,
     'brave_adventurer': brave_adventurer_script,
     'brave_adventurer_papyrus': brave_adventurer_script,
     'paddleslap': paddleslap_script,
     'mr_muncher': mr_muncher_script,
+    'drawing_fire': drawing_fire_script,
 }
 
 
