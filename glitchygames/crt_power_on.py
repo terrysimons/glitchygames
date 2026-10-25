@@ -21,14 +21,17 @@ game, which then quits.
 from __future__ import annotations
 
 import enum
-from typing import TYPE_CHECKING, Any
+import time
+from typing import TYPE_CHECKING, Any, Protocol
 
 import pygame
 
+from glitchygames.backgrounds import active_default_background_pattern, background_pattern_surface
+from glitchygames.clock import measured_seconds
 from glitchygames.opacity import make_opaque
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Awaitable, Callable, Mapping, Sequence
 
 # The SDL video driver nobody can see (--headless; every test)
 INVISIBLE_VIDEO_DRIVER = 'dummy'
@@ -224,3 +227,118 @@ def draw_power_on(*, surface: pygame.Surface, picture: pygame.Surface, progress:
             ),
         )
     make_opaque(surface=surface)
+
+
+# How long the sequence lasts, and the frame rate it is drawn at
+SEQUENCE_SECONDS = 1.2
+FRAME_SECONDS = 1 / 60
+# A press of any of these skips the rest of the sequence (dropped: never the game's input)
+SKIP_EVENT_TYPES = frozenset({
+    pygame.KEYDOWN,
+    pygame.MOUSEBUTTONDOWN,
+    pygame.JOYBUTTONDOWN,
+    pygame.CONTROLLERBUTTONDOWN,
+})
+
+
+class PowerOnOutcome(enum.StrEnum):
+    """How the sequence ended."""
+
+    FINISHED = 'finished'
+    SKIPPED = 'skipped'
+    # The window was closed: the engine hands the QUIT back to the game
+    QUIT = 'quit'
+
+
+class EventPump(Protocol):
+    """The doors' event pump (``EngineSources.pump_events``), all the sequence takes."""
+
+    def pump_events(self) -> Sequence[pygame.event.Event]:
+        """Take every event from SDL's queue."""
+        ...
+
+
+def _ending(*, events: Sequence[pygame.event.Event]) -> PowerOnOutcome | None:
+    """Return how a batch of events ends the sequence, or None to go on (the rest dropped).
+
+    Returns:
+        QUIT for a QUIT (it wins over a skip in the same batch), SKIPPED for a press, or None.
+
+    """
+    event_types = {event.type for event in events}
+    if pygame.QUIT in event_types:
+        return PowerOnOutcome.QUIT
+    if event_types & SKIP_EVENT_TYPES:
+        return PowerOnOutcome.SKIPPED
+    return None
+
+
+class _PowerOnFrames:
+    """The frames of one play: what to draw now, and when it is over."""
+
+    def __init__(self, *, screen: pygame.Surface, sources: EventPump) -> None:
+        self.screen = screen
+        self.sources = sources
+        self.picture = background_pattern_surface(
+            pattern=active_default_background_pattern(), size=screen.get_size()
+        )
+        self.started = measured_seconds()
+
+    def next_frame(self) -> PowerOnOutcome | None:
+        """Pump the events and present the next frame.
+
+        Returns:
+            How the sequence ended (the settled picture then shown), or None while it goes on.
+
+        """
+        ending = _ending(events=self.sources.pump_events())
+        elapsed = measured_seconds() - self.started
+        if ending is None and elapsed >= SEQUENCE_SECONDS:
+            ending = PowerOnOutcome.FINISHED
+        progress = 1.0 if ending is not None else elapsed / SEQUENCE_SECONDS
+        draw_power_on(surface=self.screen, picture=self.picture, progress=progress)
+        pygame.display.flip()
+        return ending
+
+
+def play_power_on(
+    *, screen: pygame.Surface, sources: EventPump, sleep: Callable[[float], None] = time.sleep
+) -> PowerOnOutcome:
+    """Play the sequence on the game's canvas, blocking (``GameEngine.start``).
+
+    Args:
+        screen: The game's display surface.
+        sources: The installed doors (their event pump).
+        sleep: Waits a frame (tests pass one that does not wait).
+
+    Returns:
+        How it ended; the settled picture is on screen either way.
+
+    """
+    frames = _PowerOnFrames(screen=screen, sources=sources)
+    while (ending := frames.next_frame()) is None:
+        sleep(FRAME_SECONDS)
+    return ending
+
+
+async def play_power_on_async(
+    *,
+    screen: pygame.Surface,
+    sources: EventPump,
+    wait_for_tick: Callable[[], Awaitable[float]],
+) -> PowerOnOutcome:
+    """Play the sequence one frame per outer tick (``GameEngine.start_async``, the browser).
+
+    Args:
+        screen: The game's display surface.
+        sources: The installed doors (their event pump).
+        wait_for_tick: Waits for the next outer tick (the next animation frame).
+
+    Returns:
+        How it ended; the settled picture is on screen either way.
+
+    """
+    frames = _PowerOnFrames(screen=screen, sources=sources)
+    while (ending := frames.next_frame()) is None:
+        await wait_for_tick()
+    return ending

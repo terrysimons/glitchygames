@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import itertools
+
 import pygame
 import pytest
 
+from glitchygames import crt_power_on
 from glitchygames.backgrounds import (
     active_default_background_pattern,
     background_pattern_surface,
@@ -12,11 +16,16 @@ from glitchygames.backgrounds import (
 )
 from glitchygames.crt_power_on import (
     DOT_STAGE_START,
+    FRAME_SECONDS,
     LINE_STAGE_START,
     OPEN_STAGE_START,
+    SEQUENCE_SECONDS,
     WARM_UP_STAGE_START,
     CrtPowerOnMode,
+    PowerOnOutcome,
     draw_power_on,
+    play_power_on,
+    play_power_on_async,
     should_play,
 )
 
@@ -46,6 +55,10 @@ def test_when_the_sequence_plays(mode, video_driver, options, plays):
 
 
 SIZE = (160, 120)
+
+
+def never_wait(_seconds: float) -> None:
+    """Stand in for time.sleep: the frames run back to back."""
 
 
 def settled_picture(*, size: tuple[int, int] = SIZE) -> pygame.Surface:
@@ -145,3 +158,116 @@ def test_drawing_never_changes_the_picture():
         draw_power_on(surface=pygame.Surface(SIZE), picture=picture, progress=progress)
 
     assert pygame.image.tobytes(picture, 'RGB') == before
+
+
+class ScriptedEvents:
+    """The doors' event pump, answering with scripted batches, then empty ones."""
+
+    def __init__(self, *, batches: list[list[pygame.event.Event]]) -> None:
+        """Start with the batches to answer, in order."""
+        self.batches = list(batches)
+        self.pumps = 0
+
+    def pump_events(self) -> list[pygame.event.Event]:
+        """Return the next scripted batch (an empty one once the script is used up)."""
+        self.pumps += 1
+        return self.batches.pop(0) if self.batches else []
+
+
+def measured_clock(mocker, *, step: float) -> None:
+    """Make the measured clock read 0, then ``step`` more at each later reading."""
+    mocker.patch.object(
+        crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=step)
+    )
+
+
+def shows_the_default_background(surface: pygame.Surface) -> bool:
+    """Whether the surface shows exactly the settled picture."""
+    expected = pygame.Surface(surface.get_size())
+    paint_default_background(surface=expected)
+    return pygame.image.tobytes(surface, 'RGB') == pygame.image.tobytes(expected, 'RGB')
+
+
+def test_it_plays_to_the_end_one_frame_per_tick(mocker):
+    """Each frame draws the moment the clock says and waits a frame; it ends settled."""
+    screen = pygame.display.get_surface()
+    measured_clock(mocker, step=FRAME_SECONDS)
+    flips = mocker.spy(pygame.display, 'flip')
+    pauses: list[float] = []
+
+    outcome = play_power_on(screen=screen, sources=ScriptedEvents(batches=[]), sleep=pauses.append)
+
+    assert outcome is PowerOnOutcome.FINISHED
+    # One frame per FRAME_SECONDS of the sequence, then the settled picture
+    assert flips.call_count == pytest.approx(SEQUENCE_SECONDS / FRAME_SECONDS + 1, abs=2)
+    assert set(pauses) == {FRAME_SECONDS}
+    assert shows_the_default_background(screen)
+
+
+def test_a_key_or_button_skips_to_the_settled_picture(mocker):
+    """A key press ends it at once, on the settled picture; the press is dropped."""
+    screen = pygame.display.get_surface()
+    measured_clock(mocker, step=FRAME_SECONDS)
+    events = ScriptedEvents(
+        batches=[[], [], [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE)]]
+    )
+
+    outcome = play_power_on(screen=screen, sources=events, sleep=never_wait)
+
+    assert outcome is PowerOnOutcome.SKIPPED
+    assert events.pumps == 3
+    assert shows_the_default_background(screen)
+
+
+@pytest.mark.parametrize(
+    'event_type',
+    [
+        pygame.MOUSEBUTTONDOWN,
+        pygame.JOYBUTTONDOWN,
+        pygame.CONTROLLERBUTTONDOWN,
+    ],
+)
+def test_every_kind_of_button_skips(mocker, event_type):
+    """A mouse, joystick or controller button skips it too."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    events = ScriptedEvents(batches=[[pygame.event.Event(event_type)]])
+
+    outcome = play_power_on(screen=pygame.display.get_surface(), sources=events, sleep=never_wait)
+
+    assert outcome is PowerOnOutcome.SKIPPED
+
+
+def test_closing_the_window_ends_it_as_a_quit(mocker):
+    """A QUIT wins over a skip in the same batch: the engine hands it back to the game."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    events = ScriptedEvents(
+        batches=[
+            [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a), pygame.event.Event(pygame.QUIT)]
+        ]
+    )
+
+    outcome = play_power_on(screen=pygame.display.get_surface(), sources=events, sleep=never_wait)
+
+    assert outcome is PowerOnOutcome.QUIT
+
+
+def test_the_async_player_awaits_one_tick_per_frame(mocker):
+    """In a browser (start_async) each frame waits for the next animation frame instead."""
+    screen = pygame.display.get_surface()
+    measured_clock(mocker, step=FRAME_SECONDS)
+    ticks: list[int] = []
+
+    async def wait_for_tick() -> float:
+        await asyncio.sleep(0)
+        ticks.append(len(ticks))
+        return len(ticks) * FRAME_SECONDS
+
+    outcome = asyncio.run(
+        play_power_on_async(
+            screen=screen, sources=ScriptedEvents(batches=[]), wait_for_tick=wait_for_tick
+        )
+    )
+
+    assert outcome is PowerOnOutcome.FINISHED
+    assert len(ticks) == pytest.approx(SEQUENCE_SECONDS / FRAME_SECONDS, abs=2)
+    assert shows_the_default_background(screen)
