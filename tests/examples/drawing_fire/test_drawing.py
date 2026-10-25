@@ -9,6 +9,7 @@ from pathlib import Path
 import pygame
 import pytest
 
+from glitchygames.examples.drawing_fire import drawing as drawing_module
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
     MUZZLE_DISTANCE,
@@ -24,9 +25,12 @@ from glitchygames.examples.drawing_fire.battle import (
 from glitchygames.examples.drawing_fire.drawing import (
     ARMY_COLORS,
     ARMY_LIVERIES,
+    FACING_LEFT_SUFFIX,
     PENCIL_COLOR,
     SPRITE_SCALE,
     WOBBLE_PIXELS,
+    _banner_surface,
+    _text_surface,
     draw_banner,
     draw_bullet,
     draw_hud,
@@ -38,6 +42,7 @@ from glitchygames.examples.drawing_fire.drawing import (
 )
 from glitchygames.examples.drawing_fire.swatches import load_swatch_sets
 from glitchygames.examples.drawing_fire.terrain import Terrain
+from glitchygames.fonts import FontManager
 
 SOLDIER_PATH = (
     Path(__file__).parents[3]
@@ -366,15 +371,16 @@ def test_a_flattened_sandbag_is_a_smudge_on_the_ground(paper, terrain):
     flat = Sandbag(x=300.0, width=SANDBAG_WIDTH, sand=0.0)
     draw_sandbag(paper, flat, terrain)
     assert GROUND_Y - topmost_ink(paper) <= WOBBLE_TOLERANCE + 3
-    beside = pygame.Rect(300 + SANDBAG_WIDTH // 2 + 1, 300, 8, 110)
+    beside = pygame.Rect(300 + SANDBAG_WIDTH // 2 + 4, 300, 8, 110)
     assert pixels_in(paper, beside) == {PAPER}
 
 
-def test_a_sandbag_that_is_not_flat_trickles_sand(paper, terrain):
-    """Sand dribbles down beside a standing bag."""
-    hit = Sandbag(x=300.0, width=SANDBAG_WIDTH, sand=0.5)
-    draw_sandbag(paper, hit, terrain)
-    beside = pygame.Rect(300 + SANDBAG_WIDTH // 2 + 1, 300, 8, 110)
+def test_sand_trickles_only_from_a_bag_that_has_been_hit(paper, terrain):
+    """Sand dribbles down beside a hit, standing bag, and not from a full one."""
+    beside = pygame.Rect(300 + SANDBAG_WIDTH // 2 + 4, 300, 8, 110)
+    draw_sandbag(paper, Sandbag(x=300.0, width=SANDBAG_WIDTH, sand=1.0), terrain)
+    assert pixels_in(paper, beside) == {PAPER}
+    draw_sandbag(paper, Sandbag(x=300.0, width=SANDBAG_WIDTH, sand=0.5), terrain)
     assert len(pixels_in(paper, beside)) > 1
 
 
@@ -404,13 +410,24 @@ def test_the_hud_counts_the_living(paper, battle):
     assert pygame.image.tobytes(paper, 'RGB') != before
 
 
-def test_the_hud_font_is_made_once(paper, battle, mocker):
-    """Drawing the HUD again never builds another font."""
-    draw_hud(paper, battle)
+def test_the_hud_font_and_text_are_made_once(paper, battle, mocker):
+    """The HUD builds its two fonts once (through pygame.font.Font) and renders each text once."""
+    mocker.patch.dict(FontManager._font_cache, clear=True)
+    _text_surface.cache_clear()
     font_constructor = mocker.spy(pygame.font, 'Font')
+    draw_hud(paper, battle)
+    # The name font and the count font: this spy does see FontManager build them
+    assert font_constructor.call_count == 2
+    rendered = mocker.spy(drawing_module, '_font')
     for _ in range(3):
         draw_hud(paper, battle)
-    assert font_constructor.call_count == 0
+    assert font_constructor.call_count == 2
+    assert rendered.call_count == 0
+    # A new count is new text, rendered once
+    battle.soldiers[0].health = 0
+    draw_hud(paper, battle)
+    draw_hud(paper, battle)
+    assert rendered.call_count == 1
 
 
 def test_the_banner_is_hand_lettered_in_the_sky(paper):
@@ -427,21 +444,85 @@ def test_the_banner_is_hand_lettered_in_the_sky(paper):
     assert pygame.image.tobytes(paper, 'RGB') != first
 
 
-def test_the_banner_font_is_made_once(paper, mocker):
-    """Drawing the banner again never builds another font."""
-    draw_banner(paper, 'Pencil Platoon wins!')
+def test_the_banner_font_and_lettering_are_made_once(paper, mocker):
+    """The banner builds its font once (through pygame.font.Font) and letters each message once."""
+    mocker.patch.dict(FontManager._font_cache, clear=True)
+    _banner_surface.cache_clear()
     font_constructor = mocker.spy(pygame.font, 'Font')
     draw_banner(paper, 'Pencil Platoon wins!')
-    assert font_constructor.call_count == 0
+    assert font_constructor.call_count == 1
+    rendered = mocker.spy(drawing_module, '_font')
+    draw_banner(paper, 'Pencil Platoon wins!')
+    draw_banner(paper, 'Pencil Platoon wins!')
+    assert font_constructor.call_count == 1
+    assert rendered.call_count == 0
 
 
-@pytest.mark.parametrize('sand', [1.0, 0.0])
-def test_a_sandbag_on_a_slope_follows_the_ground(paper, sand):
-    """Its feet are on the ground at each end, so it neither floats nor sinks into a hill."""
-    ground = tuple(GROUND_Y - max(0.0, (x - 250) * 0.5) for x in range(SCREEN_SIZE[0]))
-    sloped = Terrain(width=SCREEN_SIZE[0], height=SCREEN_SIZE[1], ground=ground)
-    draw_sandbag(paper, Sandbag(x=300.0, width=SANDBAG_WIDTH, sand=sand), sloped)
-    for edge_x in (300 - SANDBAG_WIDTH // 2 + 1, 300 + SANDBAG_WIDTH // 2 - 1):
-        local_ground = sloped.ground_y(edge_x)
-        column = pygame.Rect(edge_x, round(local_ground) - WOBBLE_TOLERANCE - 2, 1, 6)
-        assert pixels_in(paper, column) != {PAPER}
+def pencil_pixels(surface):
+    """Find the arm-and-pistol pixels (the pencil colour is used for nothing else on the soldier).
+
+    Returns:
+        The set of (x, y) of every pencil pixel.
+
+    """
+    return {
+        (x, y)
+        for x in range(surface.get_width())
+        for y in range(surface.get_height())
+        if tuple(surface.get_at((x, y)))[:3] == PENCIL_COLOR
+    }
+
+
+@pytest.mark.parametrize('shift', [1, 3, 30])
+def test_the_arm_does_not_shake_as_the_soldier_moves(paper, battle, frames, shift):
+    """The arm's wobble is keyed on the soldier, not where he stands, so walking never shakes it."""
+    soldier = place(battle, x=SOLDIER_X)
+    soldier.aim_angle = 0.7
+    draw_soldier(paper, soldier, frames=frames, marked=None)
+    first = pencil_pixels(paper)
+    paper.fill(PAPER)
+    soldier.x = SOLDIER_X + shift
+    draw_soldier(paper, soldier, frames=frames, marked=None)
+    assert first
+    assert {(x + shift, y) for x, y in first} == pencil_pixels(paper)
+
+
+def test_each_soldiers_arm_wobbles_in_its_own_way(paper, battle, frames):
+    """Two soldiers at the same spot with the same aim have arms that differ by their wobble."""
+    first = place(battle, soldier_index=0)
+    second = place(battle, soldier_index=1)
+    first.aim_angle = second.aim_angle = 0.7
+    second.side = first.side
+    draw_soldier(paper, first, frames=frames, marked=None)
+    first_pixels = pencil_pixels(paper)
+    paper.fill(PAPER)
+    draw_soldier(paper, second, frames=frames, marked=None)
+    assert first_pixels != pencil_pixels(paper)
+
+
+def test_a_soldier_faces_the_way_he_aims(paper, battle, frames):
+    """Aiming left draws the mirrored frames: his legs are the right-facing ones, flipped."""
+    soldier = place(battle)
+    legs = pygame.Rect(SOLDIER_X - 16, round(GROUND_Y) - 14, 32, 14)
+
+    def legs_drawn(angle):
+        paper.fill(PAPER)
+        soldier.aim_angle = angle
+        draw_soldier(paper, soldier, frames=frames, marked=None, walking=True, seconds=0.2)
+        return paper.subsurface(legs).copy()
+
+    right = legs_drawn(0.0)
+    left = legs_drawn(math.pi)
+    assert pygame.image.tobytes(right, 'RGB') != pygame.image.tobytes(left, 'RGB')
+    mirrored = pygame.transform.flip(right, flip_x=True, flip_y=False)
+    assert pygame.image.tobytes(mirrored, 'RGB') == pygame.image.tobytes(left, 'RGB')
+    assert FACING_LEFT_SUFFIX == '_left'
+
+
+def test_the_brigade_faces_left_from_the_start(paper, battle, frames):
+    """The Brigade's soldiers start aimed left, so they are drawn facing left."""
+    brigade = place(battle, soldier_index=1)
+    assert math.cos(brigade.aim_angle) < 0
+    draw_soldier(paper, brigade, frames=frames, marked=None)
+    left_facing = frames.frames_for(ARMY_LIVERIES[Side.BRIGADE])['stand' + FACING_LEFT_SUFFIX][0]
+    assert left_facing.get_size() == (16 * SPRITE_SCALE, 22 * SPRITE_SCALE)

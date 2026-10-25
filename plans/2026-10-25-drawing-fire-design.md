@@ -250,10 +250,12 @@ later. **(user)**
 - **Before** (health 3, pistol cooldown 0.6 s): battles ended in 7 to 21 s, with the winner
   keeping 2 to 7 soldiers. Too fast to watch.
 - **After** (`SOLDIER_HEALTH = 6`, `PISTOL_COOLDOWN = 1.5`; other battle constants unchanged):
-  Pencil Platoon 11 wins, Graphite Brigade 9; mean 53.7 s, shortest 21.6 s, longest 155.8 s
-  (with the aim error held per shot, see Held aim below; it was 12 and 8, mean 50.3 s, shortest
-  23.5 s, longest 102.5 s when the error was redrawn every frame).
-  No stalemates (a further 200 seeds, run in review, all ended).
+  Pencil Platoon 9 wins, Graphite Brigade 11; mean 45.1 s, shortest 21.4 s, longest 272.7 s
+  (with the aim error held per shot and soldiers spaced, see below; it was 12 and 8, mean
+  50.3 s, shortest 23.5 s, longest 102.5 s when the error was redrawn every frame and armies
+  piled onto one spot). A further 200 seeds: Platoon 101, Brigade 99, mean 46.4 s, longest
+  348.0 s, all ended (the long ones are queues behind sandbags that nobody can see over).
+  No stalemates.
 - **Driver rules the simulation forced** (my call):
   - Hills block bullets, so a soldier neither stands nor fires until the ground leaves a clear
     line to his target (otherwise whole armies stood on either side of a hill, firing into it).
@@ -266,6 +268,12 @@ later. **(user)**
   - A soldier blocked by a sandbag with the enemy in sight but out of range shoots the sandbag.
 - **Spread:** each soldier draws his stand-off once, from his own stream, as a fraction of the
   pistol range in `STAND_OFF_FRACTION_RANGE` (0.6 to 0.9), so an army does not stand on one x.
+- **Spacing** (my call): an army piled onto one x because every soldier stopped at the first x
+  with a clear line over a hill (or at one sandbag edge), so eight soldiers drew as one. A
+  soldier now walks on when a friend of higher priority is within `SOLDIER_SPACING` (16 px;
+  the front soldier of each army has priority), steps back instead when the enemy is within
+  `MELEE_PIXELS`, and queues 16 px behind a friend ahead on the way to a covering sandbag.
+  Sandbags are laid on level ground (`SANDBAG_MAX_GROUND_VARIATION`, 12 px).
 - **Held aim** (my call): the aim error is drawn once per shot from the soldier's own stream (and
   again for a new target), then held, so the arm drawn along the aim does not shake at 60 Hz.
 

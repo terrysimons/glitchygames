@@ -21,6 +21,7 @@ from glitchygames.examples.drawing_fire.drivers import (
     AIM_ERROR_RADIANS,
     REACTION_SECONDS_RANGE,
     SANDBAG_COVER_DISTANCE,
+    SOLDIER_SPACING,
     STAND_OFF_FRACTION_RANGE,
     TARGET_SWITCH_MARGIN,
     ComputerSoldier,
@@ -313,10 +314,13 @@ def test_stopped_at_a_sandbag_with_the_enemy_hidden_he_shoots_the_sandbags_middl
     chest_x, chest_y = soldier.chest
     middle_y = FLAT_GROUND_Y - bag.height / 2
     expected_angle = math.atan2(chest_y - middle_y, bag_x - chest_x)
-    mind = ComputerSoldier(target_id=1)
+    held_error = 0.05
+    mind = ComputerSoldier(target_id=1, aim_error=held_error)
     intent = computer_intent(soldier=soldier, battle=battle, random=random.Random(1), mind=mind)
     assert intent.move == 0.0
-    assert intent.aim_angle == expected_angle
+    # A shot at a sandbag follows the same rule as any shot: the held error, then a fresh one
+    assert intent.aim_angle == expected_angle + held_error
+    assert mind.aim_error != held_error
     assert intent.fire
     soldier.cooldown = PISTOL_COOLDOWN
     assert not computer_intent(
@@ -479,3 +483,86 @@ def test_the_held_aim_is_deterministic():
             ).aim_angle
         )
     assert aims[0] == aims[1]
+
+
+def two_a_side_battle(*, sandbag_xs: tuple[float, ...] = ()) -> Battle:
+    """Build a two-a-side battle on flat ground (Platoon ids 0 and 1, Brigade ids 2 and 3)."""
+    terrain = Terrain(width=FIELD_WIDTH, height=FIELD_HEIGHT, ground=(FLAT_GROUND_Y,) * FIELD_WIDTH)
+    battle = Battle(terrain=terrain, soldiers_per_side=2, sandbag_xs=sandbag_xs)
+    for soldier in battle.soldiers:
+        soldier.y = FLAT_GROUND_Y
+    battle.soldiers[2].x = 700.0
+    battle.soldiers[3].x = 720.0
+    return battle
+
+
+def test_a_soldier_crowded_by_a_friend_of_higher_priority_walks_on():
+    """Standing on a friend's spot, the Platoon's rear soldier walks on and its front one holds."""
+    battle = two_a_side_battle()
+    holder, mover = battle.soldiers[1], battle.soldiers[0]
+    holder.x = 500.0
+    # In range and within his stand-off, so he would stand
+    battle.soldiers[2].x = holder.x + PISTOL_RANGE * STAND_OFF_FRACTION_RANGE[0] - 20.0
+    battle.soldiers[3].x = battle.soldiers[2].x + 10.0
+    mover.x = holder.x + SOLDIER_SPACING - 1.0
+    battle.seconds = AFTER_REACTION_SECONDS
+
+    def move_of(soldier):
+        return computer_intent(
+            soldier=soldier,
+            battle=battle,
+            random=random.Random(1),
+            mind=ComputerSoldier(stand_off_fraction=STAND_OFF_FRACTION_RANGE[1]),
+        ).move
+
+    assert move_of(holder) == 0.0
+    assert move_of(mover) == 1.0
+    mover.x = holder.x + SOLDIER_SPACING + 1.0
+    assert move_of(mover) == 0.0
+
+
+def test_the_brigades_front_soldier_holds_its_spot_as_the_platoons_does():
+    """Neither army's front soldier is the one to give way: the Brigade's lowest id holds."""
+    battle = two_a_side_battle()
+    holder, mover = battle.soldiers[2], battle.soldiers[3]
+    holder.x = 500.0
+    mover.x = holder.x + SOLDIER_SPACING - 1.0
+    battle.soldiers[0].x = holder.x - PISTOL_RANGE * STAND_OFF_FRACTION_RANGE[0] + 20.0
+    battle.soldiers[1].x = battle.soldiers[0].x - 10.0
+    battle.seconds = AFTER_REACTION_SECONDS
+
+    def move_of(soldier):
+        return computer_intent(
+            soldier=soldier,
+            battle=battle,
+            random=random.Random(1),
+            mind=ComputerSoldier(stand_off_fraction=STAND_OFF_FRACTION_RANGE[1]),
+        ).move
+
+    assert move_of(holder) == 0.0
+    assert move_of(mover) == -1.0
+
+
+def test_soldiers_queue_a_spacing_apart_behind_a_sandbag_that_blocks_them():
+    """A friend ahead within a spacing holds him in place, a spacing farther back he walks on."""
+    bag_x = 300.0
+    battle = two_a_side_battle(sandbag_xs=(bag_x,))
+    battle.soldiers[2].x = 790.0
+    battle.soldiers[3].x = 799.0
+    head, follower = battle.soldiers[0], battle.soldiers[1]
+    near_edge = bag_x - SANDBAG_WIDTH / 2
+    head.x = near_edge - SANDBAG_COVER_DISTANCE / 2
+    follower.x = head.x - SOLDIER_SPACING + 1.0
+    # The enemy is far out of range, so cover is no place to stand yet: only the queue holds him
+    battle.seconds = AFTER_REACTION_SECONDS
+
+    def move_of(soldier):
+        return computer_intent(
+            soldier=soldier, battle=battle, random=random.Random(1), mind=ComputerSoldier()
+        ).move
+
+    assert move_of(follower) == 0.0
+    follower.x = head.x - SOLDIER_SPACING - 1.0
+    assert move_of(follower) == 1.0
+    # The head of the queue stands at the bag (shooting it down), as nobody is ahead of him
+    assert move_of(head) == 0.0

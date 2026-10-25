@@ -13,6 +13,7 @@ from glitchygames.examples.drawing_fire.battle import (
     PISTOL_DAMAGE,
     PISTOL_RANGE,
     SANDBAG_HEIGHT,
+    SANDBAG_MAX_GROUND_VARIATION,
     SANDBAG_WIDTH,
     SOLDIER_HEALTH,
     WALK_SPEED,
@@ -393,3 +394,31 @@ def test_sandbag_defaults():
     assert not bag.flattened
     bag.sand = 0.0
     assert bag.flattened
+
+
+def test_sandbags_avoid_a_steep_ramp_when_there_is_level_ground():
+    """A bag is not laid across a steep ramp when its slot has level ground to choose instead."""
+    ramp_start, ramp_end = 190, 215
+    ground = tuple(
+        400.0 - min(max(x - ramp_start, 0), ramp_end - ramp_start) * 2.0 for x in range(FIELD_WIDTH)
+    )
+    terrain = Terrain(width=FIELD_WIDTH, height=FIELD_HEIGHT, ground=ground)
+    for seed in range(20):
+        positions = sandbag_positions(terrain=terrain, random=random.Random(seed))
+        assert positions == sandbag_positions(terrain=terrain, random=random.Random(seed))
+        for x in positions:
+            heights = [
+                terrain.ground_y(float(column))
+                for column in range(round(x - SANDBAG_WIDTH / 2), round(x + SANDBAG_WIDTH / 2) + 1)
+            ]
+            assert max(heights) - min(heights) <= SANDBAG_MAX_GROUND_VARIATION
+
+
+def test_sandbags_take_the_flattest_spot_when_none_is_level():
+    """With only slope to choose from, the bag still lands in its slot, on the gentlest part."""
+    # Every column is steeper than the limit, steeper still toward the middle of the field
+    ground = tuple(400.0 - abs(x - 400) * 2.0 for x in range(FIELD_WIDTH))
+    terrain = Terrain(width=FIELD_WIDTH, height=FIELD_HEIGHT, ground=ground)
+    positions = sandbag_positions(terrain=terrain, random=random.Random(5))
+    assert len(positions) >= 4
+    assert all(terrain.width / 5 <= x <= terrain.width * 4 / 5 for x in positions)

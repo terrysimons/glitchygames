@@ -7,6 +7,7 @@ the same picture is drawn every time.
 
 from __future__ import annotations
 
+import functools
 import math
 from typing import TYPE_CHECKING, cast
 
@@ -57,6 +58,9 @@ SALT_SOLDIER = 4
 SALT_LETTER = 5
 SALT_CHIP = 6
 SALT_SMUDGE = 7
+# The parts of a soldier's arm that wobble each their own way
+WOBBLE_PART_HAND = 0
+WOBBLE_PART_MUZZLE = 1
 
 GROUND_LINE_WIDTH = 2
 # The ground is sampled this often along x (px) so it can wobble between samples
@@ -68,6 +72,8 @@ HATCH_SLANT_PIXELS = 7
 # The sprite (16x22) is drawn this many times larger: 44 px tall, with its chest 20 px above the
 # feet, which is where the battle puts a soldier's chest
 SPRITE_SCALE = 2
+# A soldier facing left uses the animation named with this added (the frames, mirrored)
+FACING_LEFT_SUFFIX = '_left'
 # The sprite's top rows are empty, above the helmet
 SPRITE_EMPTY_ROWS_ABOVE_HELMET = 4
 # How long a walk frame shows (s), as the sprite file says
@@ -92,7 +98,7 @@ SMUDGE_HEAP_PROFILE = ((-0.6, 2.0), (-0.1, 3.0), (0.4, 2.5))
 TRICKLE_DOT_RADIUS = 1
 # Where the trickle's dots are, as fractions of the bag's height, just outside its right edge
 TRICKLE_HEIGHT_FRACTIONS = (0.7, 0.4, 0.1)
-TRICKLE_OFFSET_PIXELS = 3
+TRICKLE_OFFSET_PIXELS = 6
 
 # A bullet is a dash this long (px), trailing behind it
 BULLET_DASH_PIXELS = 9.0
@@ -212,7 +218,7 @@ def draw_terrain(surface: pygame.Surface, terrain: Terrain) -> None:
 
 
 def draw_sandbag(surface: pygame.Surface, sandbag: Sandbag, terrain: Terrain) -> None:
-    """Draw a sandbag wall: it sags as it loses sand, and sand trickles from it until it is flat.
+    """Draw a sandbag wall: it sags as it loses sand, and trickles sand once hit, until flat.
 
     Args:
         surface: Where to draw.
@@ -275,7 +281,9 @@ def draw_sandbag(surface: pygame.Surface, sandbag: Sandbag, terrain: Terrain) ->
             ),
             width=1,
         )
-    # A trickle of sand beside the bag, in dots down to the ground
+    if sandbag.sand >= 1.0:
+        return
+    # A bag that has been hit trickles sand beside it, in dots down to the ground
     trickle_x = right_x + TRICKLE_OFFSET_PIXELS
     for fraction in TRICKLE_HEIGHT_FRACTIONS:
         pygame.draw.circle(
@@ -292,7 +300,8 @@ def load_soldier_frames(*, path: Path) -> RecoloredFrames:
     """Load the soldier sprite, scaled up once, ready to be recoloured for each army.
 
     The frames are scaled before they are recoloured, by whole pixels, so a recolour (which
-    replaces exact colours) still finds every pixel.
+    replaces exact colours) still finds every pixel. Each animation also has a mirrored copy
+    under its name plus ``FACING_LEFT_SUFFIX``, for a soldier facing left.
 
     Args:
         path: The soldier's TOML file.
@@ -301,15 +310,18 @@ def load_soldier_frames(*, path: Path) -> RecoloredFrames:
         The frames, drawn SPRITE_SCALE times larger, in any scheme's colours on demand.
 
     """
-    scaled = {
-        namespace: tuple(
+    scaled: dict[str, tuple[pygame.Surface, ...]] = {}
+    for namespace, animation_frames in load_frames(path=path).items():
+        scaled[namespace] = tuple(
             pygame.transform.scale(
                 frame, (frame.get_width() * SPRITE_SCALE, frame.get_height() * SPRITE_SCALE)
             )
             for frame in animation_frames
         )
-        for namespace, animation_frames in load_frames(path=path).items()
-    }
+        # The soldier faces right as drawn; a mirrored copy, made once, faces left
+        scaled[namespace + FACING_LEFT_SUFFIX] = tuple(
+            pygame.transform.flip(frame, flip_x=True, flip_y=False) for frame in scaled[namespace]
+        )
     return RecoloredFrames(frames=scaled, swatch_set=load_swatch_sets(path=path)['livery'])
 
 
@@ -334,13 +346,15 @@ def draw_soldier(  # ruff: ignore[too-many-arguments] - the walk and the clock g
 
     """
     sprite_frames = frames.frames_for(ARMY_LIVERIES[soldier.side])
+    # He faces the way he aims (the Brigade, aiming left, faces left)
+    suffix = FACING_LEFT_SUFFIX if math.cos(soldier.aim_angle) < 0.0 else ''
     if not soldier.alive:
-        frame = sprite_frames['down'][0]
+        frame = sprite_frames['down' + suffix][0]
     elif walking:
-        walk_frames = sprite_frames['walk']
+        walk_frames = sprite_frames['walk' + suffix]
         frame = walk_frames[int(seconds / WALK_FRAME_SECONDS) % len(walk_frames)]
     else:
-        frame = sprite_frames['stand'][0]
+        frame = sprite_frames['stand' + suffix][0]
     surface.blit(frame, frame.get_rect(midbottom=(round(soldier.x), round(soldier.y))))
     if not soldier.alive:
         return
@@ -349,15 +363,17 @@ def draw_soldier(  # ruff: ignore[too-many-arguments] - the walk and the clock g
     direction_x = math.cos(soldier.aim_angle)
     # Screen y grows downward, so aiming up lifts the arm
     direction_y = -math.sin(soldier.aim_angle)
-    hand = _wobbled(
-        x=chest_x + direction_x * ARM_LENGTH_PIXELS,
-        y=chest_y + direction_y * ARM_LENGTH_PIXELS,
-        salt=SALT_SOLDIER + soldier.soldier_id,
+    # The wobble of his arm is keyed on him and the part, never on where it is: the arm would
+    # shake as he walks or turns (the aim is held steady between shots on purpose)
+    hand_wobble = wobble(x=soldier.soldier_id, y=WOBBLE_PART_HAND, salt=SALT_SOLDIER)
+    muzzle_wobble = wobble(x=soldier.soldier_id, y=WOBBLE_PART_MUZZLE, salt=SALT_SOLDIER)
+    hand = (
+        chest_x + direction_x * ARM_LENGTH_PIXELS + hand_wobble[0],
+        chest_y + direction_y * ARM_LENGTH_PIXELS + hand_wobble[1],
     )
-    muzzle = _wobbled(
-        x=chest_x + direction_x * MUZZLE_DISTANCE,
-        y=chest_y + direction_y * MUZZLE_DISTANCE,
-        salt=SALT_SOLDIER + soldier.soldier_id,
+    muzzle = (
+        chest_x + direction_x * MUZZLE_DISTANCE + muzzle_wobble[0],
+        chest_y + direction_y * MUZZLE_DISTANCE + muzzle_wobble[1],
     )
     pygame.draw.line(
         surface=surface,
@@ -391,7 +407,7 @@ def _draw_pennant(
         round(soldier.y) - frame_height + SPRITE_EMPTY_ROWS_ABOVE_HELMET * SPRITE_SCALE,
     )
     pole_top = (pole_bottom[0], pole_bottom[1] - PENNANT_POLE_HEIGHT)
-    label = _font(size=PENNANT_FONT_SIZE).render(name, antialias=True, color=PENCIL_COLOR)
+    label = _text_surface(name, size=PENNANT_FONT_SIZE)
     flag = pygame.Rect(
         pole_top[0] + PENNANT_POLE_WIDTH,
         pole_top[1],
@@ -447,6 +463,21 @@ def draw_bullet(surface: pygame.Surface, bullet: Bullet) -> None:
     )
 
 
+@functools.cache
+def _text_surface(text: str, *, size: int) -> pygame.Surface:
+    """Render a line of pencilled text once: the same text at the same size is the same surface.
+
+    Args:
+        text: The text.
+        size: The font size.
+
+    Returns:
+        The rendered text (kept, so no frame renders text again).
+
+    """
+    return _font(size=size).render(text, antialias=True, color=PENCIL_COLOR)
+
+
 def draw_hud(surface: pygame.Surface, battle: Battle) -> None:
     """Write each army's name and living count in its own top corner.
 
@@ -455,14 +486,10 @@ def draw_hud(surface: pygame.Surface, battle: Battle) -> None:
         battle: The battle.
 
     """
-    name_font = _font(size=HUD_NAME_FONT_SIZE)
-    count_font = _font(size=HUD_COUNT_FONT_SIZE)
     for side in Side:
         on_left = side is Side.PLATOON
-        name = name_font.render(ARMY_NAMES[side], antialias=True, color=PENCIL_COLOR)
-        count = count_font.render(
-            f'soldiers {len(battle.living(side))}', antialias=True, color=PENCIL_COLOR
-        )
+        name = _text_surface(ARMY_NAMES[side], size=HUD_NAME_FONT_SIZE)
+        count = _text_surface(f'soldiers {len(battle.living(side))}', size=HUD_COUNT_FONT_SIZE)
         chip = pygame.Rect(0, 0, HUD_CHIP_SIZE_PIXELS, HUD_CHIP_SIZE_PIXELS)
         top = HUD_MARGIN_PIXELS
         if on_left:
@@ -480,37 +507,57 @@ def draw_hud(surface: pygame.Surface, battle: Battle) -> None:
         surface.blit(count, (name_left, top + name.get_height() + HUD_LINE_GAP_PIXELS))
 
 
+@functools.cache
+def _banner_surface(text: str) -> pygame.Surface:
+    """Letter a message by hand onto a see-through surface, each letter a little off, underlined.
+
+    Args:
+        text: The message.
+
+    Returns:
+        The lettered message (kept, so no frame letters it again).
+
+    """
+    font = _font(size=BANNER_FONT_SIZE)
+    advances = [font.size(letter)[0] for letter in text]
+    padding = math.ceil(WOBBLE_PIXELS * BANNER_WOBBLE_SCALE) + BANNER_UNDERLINE_WIDTH
+    width = sum(advances) + 2 * padding
+    banner = pygame.Surface((width, font.get_height() + 2 * padding), pygame.SRCALPHA)
+    left = float(padding)
+    for index, (letter, advance) in enumerate(zip(text, advances, strict=True)):
+        offset_x, offset_y = wobble(x=index, y=len(text), salt=SALT_LETTER)
+        glyph = font.render(letter, antialias=True, color=PENCIL_COLOR)
+        banner.blit(
+            glyph,
+            (
+                round(left + offset_x * BANNER_WOBBLE_SCALE),
+                round(padding + offset_y * BANNER_WOBBLE_SCALE),
+            ),
+        )
+        left += advance
+    underline_y = padding + font.get_height()
+    pygame.draw.line(
+        surface=banner,
+        color=PENCIL_COLOR,
+        start_pos=_wobbled(x=padding, y=underline_y, salt=SALT_CHIP),
+        end_pos=_wobbled(x=width - padding, y=underline_y, salt=SALT_CHIP),
+        width=BANNER_UNDERLINE_WIDTH,
+    )
+    return banner
+
+
 def draw_banner(surface: pygame.Surface, text: str) -> None:
-    """Letter a message by hand across the middle of the sky, each letter a little off.
+    """Show a hand-lettered message across the middle of the sky.
 
     Args:
         surface: Where to draw.
         text: The message (the victory announcement).
 
     """
-    font = _font(size=BANNER_FONT_SIZE)
-    advances = [font.size(letter)[0] for letter in text]
-    left = (surface.get_width() - sum(advances)) / 2
-    top = surface.get_height() * BANNER_HEIGHT_FRACTION - font.get_height() / 2
-    for index, (letter, advance) in enumerate(zip(text, advances, strict=True)):
-        offset_x, offset_y = wobble(x=index, y=len(text), salt=SALT_LETTER)
-        glyph = font.render(letter, antialias=True, color=PENCIL_COLOR)
-        surface.blit(
-            glyph,
-            (
-                round(left + offset_x * BANNER_WOBBLE_SCALE),
-                round(top + offset_y * BANNER_WOBBLE_SCALE),
-            ),
-        )
-        left += advance
-    underline_y = top + font.get_height()
-    right = surface.get_width() / 2 + sum(advances) / 2
-    pygame.draw.line(
-        surface=surface,
-        color=PENCIL_COLOR,
-        start_pos=_wobbled(
-            x=surface.get_width() / 2 - sum(advances) / 2, y=underline_y, salt=SALT_CHIP
+    banner = _banner_surface(text)
+    surface.blit(
+        banner,
+        banner.get_rect(
+            center=(surface.get_width() // 2, round(surface.get_height() * BANNER_HEIGHT_FRACTION))
         ),
-        end_pos=_wobbled(x=right, y=underline_y, salt=SALT_CHIP),
-        width=BANNER_UNDERLINE_WIDTH,
     )

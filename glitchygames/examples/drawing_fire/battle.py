@@ -40,6 +40,12 @@ MUZZLE_DISTANCE = 12.0
 SPAWN_FRACTION = 1 / 5
 # Sandbags come in this many per side
 SANDBAGS_PER_SIDE_RANGE = (2, 3)
+# A sandbag is only laid where the ground under its width varies by no more than this (px), so
+# no bag is drawn as a tilted slab on a hillside
+SANDBAG_MAX_GROUND_VARIATION = 12.0
+# A sandbag's spot is redrawn up to this many times to find ground that level (the flattest
+# spot tried is used when none is)
+SANDBAG_PLACEMENT_ATTEMPTS = 20
 # A bullet is checked this often along its path (px), so a long time step cannot tunnel
 BULLET_CHECK_DISTANCE = SOLDIER_HIT_RADIUS / 2
 
@@ -163,7 +169,9 @@ def sandbag_positions(*, terrain: Terrain, random: Random) -> tuple[float, ...]:
     """Choose where the sandbags go: two or three per side, away from the spawn fifths.
 
     Each side's stretch (from just past its spawn fifth to the middle) is cut into one
-    slot per sandbag, so the sandbags never overlap.
+    slot per sandbag, so the sandbags never overlap. A bag's spot is redrawn (from the same
+    stream, so it stays deterministic) until the ground under it is level to within
+    ``SANDBAG_MAX_GROUND_VARIATION``; if no try is, the flattest is used.
 
     Args:
         terrain: The ground the sandbags go on.
@@ -181,12 +189,50 @@ def sandbag_positions(*, terrain: Terrain, random: Random) -> tuple[float, ...]:
         count = random.randint(*SANDBAGS_PER_SIDE_RANGE)
         slot_width = (stretch_end - stretch_start) / count
         for slot in range(count):
-            position = random.uniform(
-                stretch_start + slot * slot_width, stretch_start + (slot + 1) * slot_width
-            )
+            candidates = [
+                random.uniform(
+                    stretch_start + slot * slot_width, stretch_start + (slot + 1) * slot_width
+                )
+                for _ in range(SANDBAG_PLACEMENT_ATTEMPTS)
+            ]
+            position = _level_position(terrain=terrain, candidates=candidates)
             # Brigade's stretch mirrors Platoon's
             positions.append(position if side is Side.PLATOON else terrain.width - position)
     return tuple(sorted(positions))
+
+
+def _ground_variation(*, terrain: Terrain, x: float) -> float:
+    """Measure how much the ground rises or falls under a sandbag centred at x.
+
+    Args:
+        terrain: The ground.
+        x: The sandbag's centre.
+
+    Returns:
+        The highest ground y under its width minus the lowest.
+
+    """
+    first = math.floor(x - SANDBAG_WIDTH / 2)
+    last = math.ceil(x + SANDBAG_WIDTH / 2)
+    heights = [terrain.ground_y(float(column)) for column in range(first, last + 1)]
+    return max(heights) - min(heights)
+
+
+def _level_position(*, terrain: Terrain, candidates: Sequence[float]) -> float:
+    """Pick the first candidate spot with level ground, or else the flattest.
+
+    Args:
+        terrain: The ground.
+        candidates: The spots, in the order they were drawn.
+
+    Returns:
+        The chosen spot.
+
+    """
+    for candidate in candidates:
+        if _ground_variation(terrain=terrain, x=candidate) <= SANDBAG_MAX_GROUND_VARIATION:
+            return candidate
+    return min(candidates, key=lambda candidate: _ground_variation(terrain=terrain, x=candidate))
 
 
 class Battle:

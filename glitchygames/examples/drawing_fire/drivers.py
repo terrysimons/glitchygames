@@ -16,6 +16,7 @@ from glitchygames.examples.drawing_fire.battle import (
     Battle,
     Intent,
     Sandbag,
+    Side,
     Soldier,
     sandbag_positions,
 )
@@ -42,6 +43,12 @@ TARGET_SWITCH_MARGIN = 30.0
 SANDBAG_SEEK_DISTANCE = 90.0
 # ...and stops once he is this close to its near edge (px)
 SANDBAG_COVER_DISTANCE = 8.0
+# Soldiers of one army stand at least this far apart (px): a soldier crowded by a friend of
+# higher priority walks on, and a queue behind a sandbag forms this far apart, so an army
+# never piles onto one spot
+SOLDIER_SPACING = 16.0
+# An enemy this near (px) is on top of a soldier: a crowded soldier steps back instead of on
+MELEE_PIXELS = 3 * SOLDIER_SPACING
 # The ground between two soldiers is checked this often along the line of fire (px)
 LINE_OF_SIGHT_STEP = 6.0
 
@@ -58,6 +65,9 @@ class ComputerSoldier:
     # The aim error (radians) for the current shot: drawn once per shot and held between shots,
     # so the aim (and the arm drawn along it) does not shake every frame
     aim_error: float = 0.0
+    # Which way he walks to get off a friend's spot: chosen when he becomes crowded and kept
+    # until he is clear, so he does not turn back and forth at the edge of the crowd
+    crowd_direction: float | None = None
 
 
 def soldier_stream_name(*, battle_number: int, soldier_id: int) -> str:
@@ -167,6 +177,9 @@ def computer_intent(
     can_see = _can_see(terrain=battle.terrain, start=soldier.chest, end=target.chest)
     cover = _nearest_cover(soldier=soldier, battle=battle, direction=direction)
     ready = soldier.cooldown <= 0.0 and battle.seconds >= mind.fire_ready_at
+    _update_crowding(
+        soldier=soldier, battle=battle, mind=mind, direction=direction, target_x=target_x
+    )
 
     # A standing sandbag right in his way and the enemy hidden by a hill or too far to shoot: he
     # shoots the sandbag until it is low enough to walk over
@@ -176,7 +189,8 @@ def computer_intent(
         and cover[1] <= SANDBAG_COVER_DISTANCE
     ):
         middle_y = battle.terrain.ground_y(cover[0].x) - cover[0].height / 2
-        aim_angle = math.atan2(chest_y - middle_y, cover[0].x - chest_x)
+        # Every shot, at a sandbag or a soldier, is aimed with the held error and then redraws it
+        aim_angle = math.atan2(chest_y - middle_y, cover[0].x - chest_x) + mind.aim_error
         if ready:
             mind.aim_error = random.gauss(0.0, AIM_ERROR_RADIANS)
         return Intent(move=0.0, aim_angle=aim_angle, fire=ready)
@@ -195,6 +209,8 @@ def computer_intent(
             can_see=can_see,
             direction=direction,
             cover_distance=None if cover is None else cover[1],
+            queued=_is_queued(soldier=soldier, battle=battle, direction=direction),
+            crowded_move=mind.crowd_direction,
         ),
         aim_angle=aim_angle,
         fire=fire,
@@ -257,13 +273,15 @@ def _can_see(*, terrain: Terrain, start: tuple[float, float], end: tuple[float, 
     return True
 
 
-def _movement(
+def _movement(  # ruff: ignore[too-many-arguments] - each is one fact the walk depends on
     *,
     distance: float,
     stand_off_distance: float,
     can_see: bool,
     direction: float,
     cover_distance: float | None,
+    queued: bool,
+    crowded_move: float | None,
 ) -> float:
     """Decide how a soldier walks: toward the enemy until in range, via cover on the way.
 
@@ -273,32 +291,50 @@ def _movement(
         can_see: Whether the ground leaves a clear line to the target.
         direction: -1 toward the left, 1 toward the right (where the target is).
         cover_distance: How far the covering sandbag on his way is (None when there is none).
+        queued: Whether a friend ahead of him toward that sandbag is within ``SOLDIER_SPACING``,
+            so he waits his place in the queue instead of piling onto the friend.
+        crowded_move: Which way he walks to get off a friend's spot (None when no friend of
+            higher priority is within ``SOLDIER_SPACING`` of him, so he may stand).
 
     Returns:
         The move for his intent: the direction, or 0 to stand.
 
     """
+    # A soldier queued behind a friend stops in his place whatever he sees, since the sandbag
+    # blocks the way
+    if queued:
+        return 0.0
+    at_cover = cover_distance is not None and cover_distance <= SANDBAG_COVER_DISTANCE
+    # Crowded, he gets off the spot whatever he sees (or he would turn back and forth where the
+    # ground hides the enemy), unless a sandbag at his feet blocks that way
+    if crowded_move is not None and not (at_cover and crowded_move == direction):
+        return crowded_move
     if can_see and distance <= stand_off_distance:
         return 0.0
     # Stop behind cover only once the enemy is in range, so cover is never a place to hide
     # from a fight that is too far away to start
-    if cover_distance is not None and can_see and distance <= PISTOL_RANGE:
-        return 0.0 if cover_distance <= SANDBAG_COVER_DISTANCE else direction
+    if at_cover and can_see and distance <= PISTOL_RANGE:
+        return 0.0
     return direction
 
 
 def _nearest_cover(
-    *, soldier: Soldier, battle: Battle, direction: float
+    *,
+    soldier: Soldier,
+    battle: Battle,
+    direction: float,
+    seek_distance: float = SANDBAG_SEEK_DISTANCE,
 ) -> tuple[Sandbag, float] | None:
     """Find the sandbag that covers a soldier on his way, and how far its near edge is.
 
     Only a sandbag tall enough to cover a soldier's chest counts, and only one ahead of him
-    (or around him, when he is already behind it) within ``SANDBAG_SEEK_DISTANCE``.
+    (or around him, when he is already behind it) within the seek distance.
 
     Args:
         soldier: The soldier.
         battle: The battle.
         direction: -1 toward the left, 1 toward the right (where the enemy is).
+        seek_distance: How far ahead a sandbag counts (px).
 
     Returns:
         The nearest such sandbag and the distance to its near edge (0 when he is already at or
@@ -312,7 +348,7 @@ def _nearest_cover(
         distance = _distance_to_near_edge(sandbag=sandbag, x=soldier.x, direction=direction)
         if (
             distance is not None
-            and distance <= SANDBAG_SEEK_DISTANCE
+            and distance <= seek_distance
             and (nearest is None or distance < nearest[1])
         ):
             nearest = (sandbag, distance)
@@ -337,3 +373,88 @@ def _distance_to_near_edge(*, sandbag: Sandbag, x: float, direction: float) -> f
     if (far_edge - x) * direction <= 0:
         return None
     return max(0.0, (near_edge - x) * direction)
+
+
+def _priority(soldier: Soldier) -> int:
+    """Rank a soldier among his army for keeping a spot: lower keeps it, the same for both armies.
+
+    Each army musters its front soldier at the lowest priority number (the Platoon's last id
+    and the Brigade's first), so neither army's front is the one that has to give way.
+
+    Args:
+        soldier: The soldier.
+
+    Returns:
+        His priority number.
+
+    """
+    return -soldier.soldier_id if soldier.side is Side.PLATOON else soldier.soldier_id
+
+
+def _update_crowding(
+    *, soldier: Soldier, battle: Battle, mind: ComputerSoldier, direction: float, target_x: float
+) -> None:
+    """Keep track of whether a higher-priority friend is on the soldier's spot, and his way off.
+
+    The soldier with the higher priority keeps the spot and the other moves on, so two
+    soldiers never both give way and never both stay. He walks on toward the enemy (past the
+    crest where his friends stopped), unless the enemy is already within ``MELEE_PIXELS`` of
+    him, and then he steps back from the enemy. The way is chosen when he becomes crowded and
+    kept until he is clear.
+
+    Args:
+        soldier: The soldier.
+        battle: The battle.
+        mind: His memory, updated here (``crowd_direction``).
+        direction: -1 toward the left, 1 toward the right (where the enemy is).
+        target_x: Where his target is.
+
+    """
+    crowded = any(
+        _priority(friend) < _priority(soldier) and abs(friend.x - soldier.x) < SOLDIER_SPACING
+        for friend in battle.living(soldier.side)
+    )
+    if not crowded:
+        mind.crowd_direction = None
+    elif mind.crowd_direction is None:
+        in_melee = abs(target_x - soldier.x) < MELEE_PIXELS
+        mind.crowd_direction = -direction if in_melee else direction
+
+
+def _is_queued(*, soldier: Soldier, battle: Battle, direction: float) -> bool:
+    """Check whether a friend is just ahead of the soldier on his way to a covering sandbag.
+
+    Ahead means nearer the bag's near edge (a tie goes to the higher priority), and just means
+    by less than ``SOLDIER_SPACING``. A friend ahead who has stopped holds the soldier a
+    spacing behind.
+    The queue reaches back from a sandbag as far as the sandbag is ahead, so a soldier far back
+    never walks up onto the friends waiting in front of him.
+
+    Args:
+        soldier: The soldier.
+        battle: The battle.
+        direction: -1 toward the left, 1 toward the right (where the enemy is).
+
+    Returns:
+        Whether he waits in a queue (never when no covering sandbag is on his way).
+
+    """
+    friends = [friend for friend in battle.living(soldier.side) if friend is not soldier]
+    cover = _nearest_cover(
+        soldier=soldier,
+        battle=battle,
+        direction=direction,
+        seek_distance=math.inf,
+    )
+    if cover is None:
+        return False
+    sandbag, own_distance = cover
+    for friend in friends:
+        distance = _distance_to_near_edge(sandbag=sandbag, x=friend.x, direction=direction)
+        if (
+            distance is not None
+            and (distance, _priority(friend)) < (own_distance, _priority(soldier))
+            and own_distance - distance < SOLDIER_SPACING
+        ):
+            return True
+    return False

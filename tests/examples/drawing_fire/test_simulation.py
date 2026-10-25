@@ -5,12 +5,19 @@ from __future__ import annotations
 from scripts import simulate_drawing_fire
 from scripts.simulate_drawing_fire import MAX_BATTLE_SECONDS, simulate
 
-from glitchygames.examples.drawing_fire.battle import Side
+from glitchygames.examples.drawing_fire.battle import SOLDIERS_PER_SIDE, Side
+from glitchygames.examples.drawing_fire.drivers import computer_intents, muster_battle
+from glitchygames.randomness import seed_engine_random
 
 # Small armies keep the battles in these tests quick
 TEST_SOLDIERS_PER_SIDE = 3
 # A step this long keeps them quicker still
 TEST_FRAME_SECONDS = 1 / 30
+# Two living soldiers of one army closer than this (px) are standing on one another
+PILE_UP_PIXELS = 6.0
+# ...and that may last this long (s), as one passes another, but no longer
+PILE_UP_SECONDS = 2.0
+PILE_UP_SEEDS = (1, 2, 3, 4)
 
 
 def test_a_computer_battle_ends_with_a_winner():
@@ -66,3 +73,48 @@ def test_no_seeds_prints_an_empty_summary_without_crashing(capsys):
     """--seeds 0 simulates nothing and still reports."""
     assert simulate_drawing_fire.main(['--seeds', '0']) == 0
     assert 'wins' in capsys.readouterr().out
+
+
+def overlapping_friends(battle):
+    """Find the pairs of living friends standing closer than PILE_UP_PIXELS.
+
+    Returns:
+        The set of (lower id, higher id) pairs.
+
+    """
+    pairs = set()
+    for side in Side:
+        friends = battle.living(side)
+        pairs.update(
+            (first.soldier_id, second.soldier_id)
+            for first_index, first in enumerate(friends)
+            for second in friends[first_index + 1 :]
+            if abs(first.x - second.x) < PILE_UP_PIXELS
+        )
+    return pairs
+
+
+def test_an_army_never_stands_piled_on_one_spot():
+    """Over whole default-size battles, no two living friends overlap for more than a moment.
+
+    (Before spacing, every soldier stopped at the same crest or the same sandbag edge, and
+    eight soldiers drew as one.)
+    """
+    for seed in PILE_UP_SEEDS:
+        seed_engine_random(seed=seed)
+        battle, minds, streams = muster_battle(
+            battle_number=1, width=800, height=480, soldiers_per_side=SOLDIERS_PER_SIDE
+        )
+        overlapped_seconds: dict[tuple[int, int], float] = {}
+        longest = 0.0
+        while battle.winner is None and battle.seconds < MAX_BATTLE_SECONDS:
+            battle.step(
+                dt=TEST_FRAME_SECONDS,
+                intents=computer_intents(battle=battle, minds=minds, streams=streams),
+            )
+            overlapped_seconds = {
+                pair: overlapped_seconds.get(pair, 0.0) + TEST_FRAME_SECONDS
+                for pair in overlapping_friends(battle)
+            }
+            longest = max([longest, *overlapped_seconds.values()])
+        assert longest <= PILE_UP_SECONDS, f'seed {seed}: friends overlapped for {longest:.1f}s'
