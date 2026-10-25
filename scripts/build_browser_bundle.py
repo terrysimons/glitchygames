@@ -201,12 +201,6 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
         center=((TouchButton('Pause', 'KeyP'),),),
         right=((TouchButton('Start', 'Space'),),),
     ),
-    # Only a battlefield so far: pause and start, until the game has controls to lay out
-    'drawing-fire': TouchLayout(
-        left=(),
-        center=((TouchButton('Pause', 'KeyP'),),),
-        right=((TouchButton('Start', 'Space'),),),
-    ),
 }
 
 
