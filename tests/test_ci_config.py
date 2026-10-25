@@ -163,3 +163,31 @@ def test_the_docs_deploy_job_publishes_without_measuring():
     )
 
     assert deploys == [' -- --no-measure']
+
+
+def test_nox_sessions_always_reinstall_the_project():
+    """A reused nox venv gets this checkout's package, not an older build of the same version.
+
+    uv sync --no-editable keeps an installed project whose version is unchanged, so a module
+    added since (glitchygames/code_tree.py) was missing from the docs build.
+    """
+    install = docs_deploy_commands(posargs=['--no-measure'])[0]
+
+    assert install[:2] == ('uv', 'sync')
+    assert install[
+        install.index('--reinstall-package') : install.index('--reinstall-package') + 2
+    ] == ('--reinstall-package', 'glitchygames')
+
+
+def test_docs_deploy_publishes_only_from_main():
+    """A deploy from a branch would publish its unlanded rows: refused before anything is pushed.
+
+    The check (HEAD is on origin/main) runs before the build; a build only (--build-only) is
+    not checked.
+    """
+    commands = docs_deploy_commands(posargs=['--no-measure'])
+    on_main = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
+
+    assert on_main in commands
+    assert commands.index(on_main) < commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    assert on_main not in docs_deploy_commands(posargs=['--build-only'])

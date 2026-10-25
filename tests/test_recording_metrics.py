@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from glitchygames.build_info import RevisionSource, SourceRevision
+from glitchygames.code_tree import LandedCommit
 from glitchygames.machine_state import MachineState, PowerSource
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -37,6 +38,7 @@ from glitchygames.recording_metrics import (
     frame_profile,
     frame_spans,
     is_measured,
+    landed_rows,
     ledger_rows_from_rebaseline,
     ledger_text,
     machine_label,
@@ -45,7 +47,10 @@ from glitchygames.recording_metrics import (
     performance_series,
     processing_comparisons,
     publishable_rows,
+    read_row_files,
+    row_file_name,
     short_commit,
+    write_row_files,
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace
 
@@ -600,3 +605,117 @@ class TestPublishing:
         assert trial.from_uncommitted_changes
         assert changed_run.from_uncommitted_changes
         assert publishable_rows(rows=[clean, trial, changed_run]) == [clean]
+
+
+TREE = '0123456789abcdef0123456789abcdef01234567'
+
+
+class TestRowFiles:
+    """Measured rows as tracked files (quality/replay-ledger/): one file per row, never edited."""
+
+    def test_a_row_round_trips_through_its_file(self, tmp_path):
+        row = ledger_row().model_copy(update={'code_tree': TREE})
+
+        (path,) = write_row_files(rows=[row], directory=tmp_path)
+
+        assert path.parent == tmp_path
+        assert read_row_files(directory=tmp_path) == [row]
+
+    def test_file_names_differ_by_recording_machine_and_time(self):
+        rows = [
+            ledger_row(),
+            ledger_row(measured_at='2026-10-23T21:00:00+00:00'),
+            ledger_row(recording='tests/fixtures/replays/mr-muncher/golden.jsonl.gz'),
+        ]
+
+        names = {row_file_name(row=row) for row in rows}
+
+        assert len(names) == len(rows)
+        assert all(name.endswith('.json') and '/' not in name for name in names)
+
+    def test_the_code_tree_leads_the_file_name(self):
+        """Rows of one measured code sort together."""
+        row = ledger_row().model_copy(update={'code_tree': TREE})
+
+        assert row_file_name(row=row).startswith(TREE[:12])
+
+    def test_the_file_names_the_machine_by_its_label(self):
+        """The machine label the metrics show (e.g. Apple M4 Max), not the platform string."""
+        row = ledger_row()
+        label = row.machine.lower().replace(' ', '-')
+
+        assert f'-{label}-' in row_file_name(row=row)
+
+    def test_reading_returns_every_row_in_name_order(self, tmp_path):
+        rows = [ledger_row(measured_at=f'2026-10-23T2{hour}:00:00+00:00') for hour in (3, 1, 2)]
+        write_row_files(rows=rows, directory=tmp_path)
+
+        assert [row.run.measured_at for row in read_row_files(directory=tmp_path)] == [
+            '2026-10-23T21:00:00+00:00',
+            '2026-10-23T22:00:00+00:00',
+            '2026-10-23T23:00:00+00:00',
+        ]
+
+    def test_a_missing_directory_has_no_rows(self, tmp_path):
+        assert read_row_files(directory=tmp_path / 'none') == []
+
+    def test_a_row_written_before_code_trees_still_reads(self):
+        """Published history rows have no code_tree."""
+        legacy = ledger_row().model_dump(mode='json')
+        legacy.pop('code_tree', None)
+
+        assert LedgerRow.model_validate(legacy).code_tree is None
+
+    def test_a_row_naming_its_code_tree_measured_that_code_exactly(self):
+        """The hook measures staged (uncommitted) code, but the tree says exactly which."""
+        row = ledger_row().model_copy(
+            update={'code_tree': TREE, 'allowed_uncommitted_changes': True}
+        )
+
+        assert not row.from_uncommitted_changes
+
+
+class TestLandedRows:
+    """Published rows are those whose measured code landed on main, labelled with its commit."""
+
+    LANDED_TREE = '1111111111111111111111111111111111111111'
+    UNLANDED_TREE = '2222222222222222222222222222222222222222'
+    LANDED_COMMIT = 'abc0000000000000000000000000000000000000'
+
+    def landed(self) -> dict[str, LandedCommit]:
+        """Return one landed tree (the squash commit's)."""
+        return {
+            self.LANDED_TREE: LandedCommit(
+                commit=self.LANDED_COMMIT, committed_at='2026-10-25T10:00:00-07:00'
+            )
+        }
+
+    def test_a_landed_row_is_labelled_with_the_commit_it_landed_in(self):
+        row = ledger_row().model_copy(
+            update={'code_tree': self.LANDED_TREE, 'allowed_uncommitted_changes': True}
+        )
+
+        (published,) = landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False)
+
+        assert published.commit == self.LANDED_COMMIT
+        assert published.run.source_revision is not None
+        assert published.run.source_revision.committed_at == '2026-10-25T10:00:00-07:00'
+        assert published.run.source_revision.uncommitted_changes is False
+
+    def test_an_unlanded_row_is_left_out_of_a_published_build(self):
+        """An intermediate commit's, or a branch's that never merged."""
+        row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
+
+        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == []
+
+    def test_a_local_build_keeps_unlanded_rows_as_they_are(self):
+        """So a branch's measurements show before it merges."""
+        row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
+
+        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=True) == [row]
+
+    def test_rows_without_a_code_tree_pass_through(self):
+        """The history measured before rows named their code tree."""
+        row = ledger_row()
+
+        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == [row]

@@ -1,3 +1,7 @@
+# pre-commit install installs both stages: pre-push (format, lint, types, security, complexity)
+# and pre-commit (replay-metrics: a commit carries the measurements of its code); .envrc runs it
+default_install_hook_types: [pre-commit, pre-push]
+
 repos:
 - repo: local
   hooks:
@@ -42,3 +46,14 @@ repos:
       entry: uv run --extra dev nox -s code-complexity
       pass_filenames: false
       stages: [pre-push]
+
+    # Measures the golden replays on the code being committed when it can change them, and
+    # stages the rows (quality/replay-ledger/) into the same commit
+    # (scripts/measure_staged_replays.py); SKIP=replay-metrics git commit ... skips it
+    - id: replay-metrics
+      name: replay-metrics (measure the staged code)
+      language: system
+      entry: uv run python scripts/measure_staged_replays.py
+      pass_filenames: false
+      always_run: true
+      stages: [pre-commit]

@@ -62,6 +62,8 @@ from glitchygames.recording_metrics import (
     parse_ledger,
     published_ledger_text,
     read_ledger_file,
+    read_row_files,
+    write_row_files,
 )
 from glitchygames.replay.processing import machine_description
 from glitchygames.testing.replays import bundled_demo_paths, rebaseline_recording_headless
@@ -139,6 +141,13 @@ class MeasureSettings(BaseModel):
         revision: This checkout's source revision.
         force: Measure even what is already measured for this commit and machine.
         allow_dirty: Measure despite uncommitted changes.
+        code_tree: The code measured, as a git tree of what can change the replays
+            (glitchygames/code_tree.py): the measuring pre-commit hook's
+            (scripts/measure_staged_replays.py); the run it measures names it, and a recording
+            already measured for it on this machine is skipped.
+            None: measured and skipped by commit.
+        rows_directory: Write the rows as row files there (``write_row_files``) instead of
+            appending them to ``pending_path`` (the hook's quality/replay-ledger/).
 
     """
 
@@ -149,6 +158,8 @@ class MeasureSettings(BaseModel):
     revision: SourceRevision
     force: bool = False
     allow_dirty: bool = False
+    code_tree: str | None = None
+    rows_directory: Path | None = None
 
 
 def _refusal(*, revision: SourceRevision, allow_dirty: bool) -> str | None:
@@ -254,6 +265,32 @@ def describe_measurement(*, row: LedgerRow, seconds: float, pending_rows: int) -
     )
 
 
+def _already_measured(
+    *,
+    settings: MeasureSettings,
+    rows: Sequence[LedgerRow],
+    recording: str,
+    commit: str,
+    machine: str,
+) -> bool:
+    """Return whether this recording was measured for this code on this machine already.
+
+    By code tree when the measurement names one (the hook's), else by commit (``is_measured``).
+
+    Returns:
+        True to skip it.
+
+    """
+    if settings.code_tree is None:
+        return is_measured(rows=rows, recording=recording, commit=commit, machine=machine)
+    return any(
+        row.code_tree == settings.code_tree
+        and row.recording == recording
+        and row.machine == machine
+        for row in rows
+    )
+
+
 def measure(
     *, settings: MeasureSettings, recordings: Sequence[tuple[str, Path]], published_text: str
 ) -> MeasureResult:
@@ -279,6 +316,9 @@ def measure(
         ledgers=[
             parse_ledger(text=published_text).rows,
             read_ledger_file(path=settings.pending_path).rows,
+            []
+            if settings.rows_directory is None
+            else read_row_files(directory=settings.rows_directory),
         ]
     )
     measured: list[str] = []
@@ -287,10 +327,15 @@ def measure(
     with tempfile.TemporaryDirectory(prefix='replay-metrics-') as temporary_name:
         for index, (console_script, path) in enumerate(recordings):
             recording = path.relative_to(settings.project_root).as_posix()
-            if not settings.force and is_measured(
-                rows=known, recording=recording, commit=commit, machine=machine
+            if not settings.force and _already_measured(
+                settings=settings, rows=known, recording=recording, commit=commit, machine=machine
             ):
-                sys.stdout.write(f'{recording}: already measured at {commit[:7]} on {machine}\n')
+                measured_code = (
+                    commit[:7]
+                    if settings.code_tree is None
+                    else f'code tree {settings.code_tree[:12]}'
+                )
+                sys.stdout.write(f'{recording}: already measured at {measured_code} on {machine}\n')
                 skipped.append(recording)
                 continue
             started = time.perf_counter()
@@ -303,11 +348,18 @@ def measure(
             if rows is None:
                 failures.append(recording)
                 continue
+            if settings.code_tree is not None:
+                # The run just measured (the newest) measured the code tree; the recording's
+                # own earlier runs are history and keep naming their commits
+                rows = [rows[0].model_copy(update={'code_tree': settings.code_tree}), *rows[1:]]
             known_keys = {row.key for row in known}
             new_rows = [row for row in rows if row.key not in known_keys]
-            settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
-            with settings.pending_path.open('a', encoding='utf-8') as pending:
-                pending.write(ledger_text(rows=new_rows))
+            if settings.rows_directory is not None:
+                write_row_files(rows=new_rows, directory=settings.rows_directory)
+            else:
+                settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
+                with settings.pending_path.open('a', encoding='utf-8') as pending:
+                    pending.write(ledger_text(rows=new_rows))
             known.extend(new_rows)
             measured.append(recording)
             sys.stdout.write(
@@ -317,10 +369,15 @@ def measure(
                 + '\n'
             )
     count = len(measured)
+    measured_code = (
+        commit[:7] if settings.code_tree is None else f'code tree {settings.code_tree[:12]}'
+    )
+    destination = (
+        settings.pending_path if settings.rows_directory is None else settings.rows_directory
+    )
     sys.stdout.write(
-        f'Measured {count} recording{"" if count == 1 else "s"} at {commit[:7]} on {machine} '
-        f'({len(skipped)} already measured, {len(failures)} failed) into '
-        f'{settings.pending_path}\n'
+        f'Measured {count} recording{"" if count == 1 else "s"} at {measured_code} on {machine} '
+        f'({len(skipped)} already measured, {len(failures)} failed) into {destination}\n'
     )
     return MeasureResult(
         exit_code=ExitCode.INTERNAL_ERROR if failures else ExitCode.SUCCESS,
@@ -380,6 +437,20 @@ def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
     measuring.add_argument(
         '--only', help='measure only the recordings whose repository path contains this text'
     )
+    measuring.add_argument(
+        '--code-tree',
+        help=(
+            'the code measured, as a git tree of what can change the replays '
+            '(glitchygames/code_tree.py): the measured run names it, and a recording measured '
+            'for it on this machine is skipped (the pre-commit hook, '
+            'scripts/measure_staged_replays.py)'
+        ),
+    )
+    measuring.add_argument(
+        '--rows-directory',
+        type=Path,
+        help='write the rows there as row files instead of appending them to --pending',
+    )
     clearing = commands.add_parser('clear-published', help='drop pending rows now published')
     for command in (measuring, clearing):
         command.add_argument(
@@ -418,6 +489,8 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         revision=revision,
         force=options.force,
         allow_dirty=options.allow_dirty,
+        code_tree=options.code_tree,
+        rows_directory=options.rows_directory,
     )
     return measure(
         settings=settings, recordings=recordings, published_text=published_text

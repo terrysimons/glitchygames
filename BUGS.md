@@ -4,6 +4,23 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 220. Smaller Findings From the Measured-Rows Review
+- **Description**: A fresh review of the measured-rows-in-the-repository branch (2026-10-25) found these; none breaks publishing on main as merges are made today (squash, up to date, the hook installed). Its critical and important findings were fixed on the branch: code that arrived by a merge is measured by the next commit, rows of a refused commit are staged on the retry, partial commits and untracked measured files are refused, deploys only from main, the hooks installed by `.envrc`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: The final review of plans/2026-10-25-measured-rows-in-the-repository.md
+- **Date Reported**: 2026-10-25
+- **Details**:
+  1. `glitchygames/code_tree.py` `landed_code_trees` runs three git commands over a full temporary index per row-adding commit on every docs build (each `mkdocs serve` rebuild too), uncached: 0.36 s now, seconds after hundreds of merges. A cache keyed by commit (the answer never changes) would fix it
+  2. A local build plots a branch's unlanded rows under their parent commit (their `source_revision`), next to the parent's own rows, not labelled as unlanded
+  3. Code reverted to an earlier tree takes the earliest commit that tree landed in, with that commit's old date
+  4. Merge commits instead of squash merges would publish a branch's intermediate commits' rows (`git log --diff-filter=A` follows one parent): squash-only merging is assumed, not documented as required
+  5. `MEASURED_PATHS` misses inputs outside it (a Python version pinned elsewhere; `scripts/replay_metrics.py`'s own measuring logic)
+  6. The hook can write a recording's earlier header runs as `history-…` row files (no code tree, so always published), as the pending file did
+  7. `uv run` inside the hook may rewrite a stale `uv.lock`, and the framework then fails the hook for modifying files
+  8. CircleCI's checkout is a full clone today; a shallow checkout would silently publish fewer landed rows (`git log` sees fewer commits)
+- **Files**: `glitchygames/code_tree.py`, `glitchygames/recording_metrics.py`, `scripts/measure_staged_replays.py`
+
 ### 110. Smaller Findings From the Coverage Push
 - **Description**: Small inconsistencies the coverage tests found, none breaking a feature on its own
 - **Status**: Active
