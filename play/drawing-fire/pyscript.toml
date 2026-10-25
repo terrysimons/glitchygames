@@ -1,0 +1,14 @@
+# Written by scripts/build_browser_bundle.py
+packages = [
+  "./wheels/pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
+  "numpy",
+  "pydantic",
+  "tomli-w",
+]
+
+[files]
+"./glitchygames.zip" = "./*"
+"./browser_storage.py" = "./browser_storage.py"
+"./browser_clipboard.py" = "./browser_clipboard.py"
+"./browser_user_files.py" = "./browser_user_files.py"
+"./boot_config.json" = "./boot_config.json"

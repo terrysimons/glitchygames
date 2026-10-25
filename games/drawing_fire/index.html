@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/games/drawing_fire/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Drawing Fire Architecture - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Drawing Fire Architecture";
+        var mkdocs_page_input_path = "games/drawing_fire.md";
+        var mkdocs_page_url = "/glitchygames/games/drawing_fire/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Games</li>
+      <li class="breadcrumb-item active">Drawing Fire Architecture</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/games/drawing_fire.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../mr_muncher/" class="btn btn-neutral float-left" title="Mr. Muncher Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../architecture/event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="drawing-fire-architecture">Drawing Fire Architecture<a class="headerlink" href="#drawing-fire-architecture" title="Permanent link">#</a></h1>
+<p>Drawing Fire is a stick-figure battle drawn in pencil on paper, the way a child draws a war,
+written as one of the engine's example games. Two armies face each other across a hilly field:
+the <strong>Pencil Platoon</strong> in pencil yellow on the left and the <strong>Graphite Brigade</strong> in graphite grey
+on the right, both straight off a school pencil. The computer plays every soldier. When one army
+is wiped out the winner is announced on the paper (when both fall at once, nobody wins), and a
+new battle starts on its own. At any
+moment one or two local players can <strong>join</strong>: press START (Enter on the keyboard), choose a side
+and a soldier, and fight as him. A player whose soldier dies takes over another soldier of his
+side, and a player who has had enough holds Back (Escape) to leave.</p>
+<p>Every new GlitchyGames game proves a new mechanic for the engine. Drawing Fire proves
+<strong>swatches</strong>: recolouring a sprite by palette swap, so one soldier sprite wears both armies'
+liveries (see <a href="#swatches-the-mechanic-this-game-proves">Swatches</a>).</p>
+<p>This page explains how the game is built, for a developer who wants to understand it or write a
+game like it. Everything here comes from <code>glitchygames/examples/drawing_fire/</code>, and the module
+docstrings there are the detailed reference. The design, with the full vision and the MVP's
+decisions, is <code>plans/2026-10-25-drawing-fire-design.md</code>. What comes after the MVP is entry 54 in
+<code>plans/future-features.md</code>.</p>
+<h2 id="the-game-as-it-is">The game as it is<a class="headerlink" href="#the-game-as-it-is" title="Permanent link">#</a></h2>
+<p>These are screenshots of the MVP.</p>
+<p>A battle the computer plays by itself. Each army's name, colour chip and soldier count are at the
+top. The ground is pencilled with hatching under it, and the sandbags are grey-washed bags:</p>
+<p><img alt="A computer battle: the Pencil Platoon and the Graphite Brigade meet on a hill" src="battle.png" /></p>
+<p>The winner, announced on the paper before the next battle starts:</p>
+<p><img alt="The victory banner" src="victory.png" /></p>
+<p>Joining. While a device has no seat, a sticky note invites it to press START (Enter on the
+keyboard). A player who presses it gets a card where he chooses a side (Random, Platoon or
+Brigade), then a soldier:</p>
+<p><img alt="The join note" src="join.png" /></p>
+<p>Choosing a soldier: a pencil ring highlights one of the side's computer soldiers, LEFT and RIGHT
+move it, and START takes him:</p>
+<p><img alt="Choosing a soldier" src="choose.png" /></p>
+<p>The debug seats view (F3): a tag over every soldier names his driver, and a panel lists each
+army's drivers and the latest joins, takeovers and leaves:</p>
+<p><img alt="The debug seats view" src="debug-seats.png" /></p>
+<h2 id="where-it-is-going-concept-art">Where it is going: concept art<a class="headerlink" href="#where-it-is-going-concept-art" title="Permanent link">#</a></h2>
+<p>These pictures are <strong>concept art</strong> from the brainstorm, not the game. They show the full vision:
+a battlefield wider than the screen, tunnels, planes and air drops, and bigger guns. None of this
+is in the MVP (see <code>plans/future-features.md</code>, entry 54).</p>
+<p><img alt="Concept art: an army scene" src="army-scene.png" /></p>
+<p><img alt="Concept art: another army scene" src="army-scene-2.png" /></p>
+<p><img alt="Concept art: a third army scene" src="army-scene-3.png" /></p>
+<p><img alt="Concept art: the camera over a wide battle" src="camera-battle.png" /></p>
+<p><img alt="Concept art: a Drawing Fire vignette" src="drawing-fire-vignette.png" /></p>
+<h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w">                      </span><span class="c1"># the console script (pyproject.toml [project.scripts])</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--debug-overlay<span class="w">      </span><span class="c1"># start with the debug seats view (F3 toggles it)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--random-seed<span class="w"> </span><span class="m">7</span><span class="w">      </span><span class="c1"># another battlefield and other battles</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>scripts/simulate_drawing_fire.py<span class="w"> </span>--seeds<span class="w"> </span><span class="m">20</span><span class="w">   </span><span class="c1"># headless battles: lengths and winners</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>drawing-fire<span class="w">           </span><span class="c1"># the browser build</span>
+</code></pre></div>
+<p><code>main()</code> (<code>game.py</code>) is <code>GameEngine(game=DrawingFireScene).start()</code>. The scene adds no options of
+its own; all its options are the engine's. The battlefield fits the window (800x480 by default),
+and <code>--random-seed</code> decides the terrain, the sandbags and every soldier's choices.</p>
+<h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
+<p>The keyboard and mouse count as one device, and each game controller as another. Nothing is
+bound in an <code>ActionMap</code>: <code>players.py</code> reads every control from the frame's polled input
+(<code>current_input()</code>), the keys by scancode, so a key is its physical position on every layout.</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Keyboard and mouse</th>
+<th>Controller</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Join (a device with no seat)</td>
+<td>Enter or keypad Enter</td>
+<td>Start</td>
+</tr>
+<tr>
+<td>Choose a side, choose a soldier</td>
+<td>LEFT/RIGHT: A or the left arrow, D or the right arrow; Enter takes</td>
+<td>D-pad left/right or the left stick; Start takes</td>
+</tr>
+<tr>
+<td>Move</td>
+<td>A or the left arrow, D or the right arrow</td>
+<td>Left stick</td>
+</tr>
+<tr>
+<td>Aim</td>
+<td>The mouse: the soldier aims from his chest at the pointer</td>
+<td>Right stick, at any angle (the aim stays put while the stick rests)</td>
+</tr>
+<tr>
+<td>Fire</td>
+<td>Left mouse button (held: he fires whenever his pistol is ready)</td>
+<td>Right trigger, or the right shoulder button</td>
+</tr>
+<tr>
+<td>Leave</td>
+<td>Hold Escape for a second (<code>LEAVE_HOLD_SECONDS</code>, timed by the frames' <code>dt</code>, so at 30 fps too)</td>
+<td>Hold Back for a second, or unplug the controller</td>
+</tr>
+<tr>
+<td>Quit the game</td>
+<td>Q (on its release)</td>
+<td></td>
+</tr>
+<tr>
+<td>Debug seats view</td>
+<td>F3 (the engine's debug overlay)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>W and S do nothing in the MVP (there is no jump or crouch). Escape never quits: the base <code>Scene</code>
+quits on the release of Q or Escape, and <code>DrawingFireScene.on_key_up_event</code> ignores Escape's
+release, because Escape is the keyboard's Back. There is no pause. Battles never stop for
+anyone: players drop into and out of them, and the next one starts on its own.</p>
+<h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/__init__.py</code></td>
+<td>Re-exports <code>main</code> (the <code>drawing-fire</code> console script's entry point)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/game.py</code></td>
+<td><code>DrawingFireScene</code> (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), <code>Phase</code>, <code>seats_panel_lines</code>, <code>main</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/battle.py</code></td>
+<td>The rules: <code>Battle</code>, <code>Soldier</code>, <code>Sandbag</code>, <code>Bullet</code>, <code>Intent</code>, <code>Side</code>, <code>ARMY_NAMES</code>, the events <code>SoldierKilled</code> and <code>SandbagFlattened</code>, and the tuned numbers</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/terrain.py</code></td>
+<td><code>Terrain</code> (a ground y for every x) and <code>build_terrain</code> (flat paper with a few seeded hills)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/drivers.py</code></td>
+<td>The computer driver: <code>muster_battle</code> (a battle and every soldier's memory and own random stream), <code>computer_intents</code>, <code>computer_intent</code>, <code>ComputerSoldier</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/players.py</code></td>
+<td>Player input: <code>Device</code>, <code>KEYBOARD</code>, <code>connected_devices</code>, <code>device_intent</code> (a device's input as an <code>Intent</code>), <code>Button</code>, <code>ButtonEdges</code> (presses, and holds in frames and seconds, per device)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/seats.py</code></td>
+<td><code>Seats</code>: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; <code>PlayerSeat</code>, <code>Stage</code>, <code>SideChoice</code>, <code>LEAVE_HOLD_SECONDS</code></td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/swatches.py</code></td>
+<td>Swatches, the mechanic this game proves (written to move into the engine)</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/drawing.py</code></td>
+<td>The pencil look: <code>wobble</code>, the terrain, sandbags, soldiers in their liveries (<code>ARMY_LIVERIES</code>), bullets, the HUD and the victory banner</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/seat_drawing.py</code></td>
+<td>The join note, the seat cards, the soldier highlight, and the debug seat tags and panel</td>
+</tr>
+<tr>
+<td><code>glitchygames/examples/drawing_fire/sprites/soldier.toml</code></td>
+<td>The soldier sprite (stand, walk and down), with its <code>[swatches.livery]</code> parts</td>
+</tr>
+<tr>
+<td><code>scripts/simulate_drawing_fire.py</code></td>
+<td>Headless computer-against-computer battles across seeds (the tuning tool)</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/</code></td>
+<td>The tests, one file per module, plus the simulation's</td>
+</tr>
+<tr>
+<td><code>tests/fixtures/replays/drawing-fire/golden.jsonl.gz</code></td>
+<td>The golden replay (1,614 frames)</td>
+</tr>
+<tr>
+<td><code>scripts/record_golden_traces.py</code></td>
+<td><code>drawing_fire_script</code> and <code>DrawingFireMouse</code> (the golden replay's player)</td>
+</tr>
+<tr>
+<td><code>scripts/record_scripted_session.py</code></td>
+<td><code>drawing_fire_controls</code> (the controls tail: Q) and the command that records the fixture</td>
+</tr>
+</tbody>
+</table>
+<h2 id="one-frame">One frame<a class="headerlink" href="#one-frame" title="Permanent link">#</a></h2>
+<p>Drawing Fire has one scene, <code>DrawingFireScene</code>, and one sheet of paper: the field never scrolls.
+Its <code>dt_tick(dt)</code> does everything that decides what happens, in this order:</p>
+<ol>
+<li><strong>Input.</strong> It reads the frame's snapshot (<code>current_input()</code>), updates <code>ButtonEdges</code> with it and
+   the frame's <code>dt</code> (how many frames, and how many seconds, each device has held START, BACK,
+   LEFT and RIGHT) and lists the connected devices (the keyboard first, then each controller by
+   id).</li>
+<li><strong>Seats.</strong> <code>Seats.update</code> plays the joins, side and soldier choices and leaves
+   (<a href="#seats-joining-dying-and-leaving">Seats</a>).</li>
+<li><strong>Drivers.</strong> In a battle, the computer decides an <code>Intent</code> (move, aim, fire) for <strong>every</strong>
+   living soldier, a player's included, so the soldier's memory and random stream stay current
+   and he is handed back cleanly. Then each playing player's device intent replaces his soldier's.</li>
+<li><strong>The battle.</strong> <code>Battle.step(dt, intents)</code> applies every intent the same way, whoever drives
+   the soldier: it moves soldiers (sandbags stop them), fires pistols that are ready, flies the
+   bullets, and returns what happened. A <code>SoldierKilled</code> moves a player whose soldier it was to
+   another soldier.</li>
+<li><strong>The winner.</strong> When the battle is over (<code>Battle.over</code>: an army is gone), the phase becomes
+   <code>VICTORY</code> and the banner shows for <code>VICTORY_SECONDS</code> (3 s): the winner's name, or, when both
+   armies fell in the same step (<code>Battle.winner</code> is None), a draw's two lines, "Nobody wins!"
+   and "Everybody loses!" (<code>DRAW_LINES</code>). The bullets still in flight are cleared and nobody is
+   drawn mid-stride, so the picture holds still. Then <code>start_battle()</code> builds the next battle:
+   new terrain, sandbags and soldiers from fresh seeded streams, and every joined player chooses
+   a soldier again. Seats treat a draw as they treat a win.</li>
+</ol>
+<p><code>render(screen)</code> draws it all from the model, straight onto the screen: the paper and ground (on
+the background, pencilled once per battle and blitted whole each frame), the sandbags, the fallen and then the standing soldiers,
+the bullets, the HUD, the seats' note, cards and highlight, and the banner. The soldiers are not
+sprites in <code>all_sprites</code>.</p>
+<h2 id="the-battle">The battle<a class="headerlink" href="#the-battle" title="Permanent link">#</a></h2>
+<p><code>battle.py</code> holds the rules and nothing else: no drawing, no input, no randomness. Each army
+starts with <code>SOLDIERS_PER_SIDE</code> (8) soldiers spread through its fifth of the field, each with a
+pistol. The numbers were tuned with the simulation (design section 4.7):</p>
+<table>
+<thead>
+<tr>
+<th>Constant</th>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOLDIER_HEALTH</code></td>
+<td>6</td>
+<td>Hits a soldier takes before he falls</td>
+</tr>
+<tr>
+<td><code>PISTOL_COOLDOWN</code></td>
+<td>1.5 s</td>
+<td>Between a soldier's shots</td>
+</tr>
+<tr>
+<td><code>PISTOL_RANGE</code></td>
+<td>420 px</td>
+<td>How far a bullet flies before it falls away (the computer fires only within it)</td>
+</tr>
+<tr>
+<td><code>BULLET_SPEED</code></td>
+<td>600 px/s</td>
+<td></td>
+</tr>
+<tr>
+<td><code>WALK_SPEED</code></td>
+<td>60 px/s</td>
+<td></td>
+</tr>
+<tr>
+<td><code>SANDBAG_HEIGHT</code>, <code>SANDBAG_WIDTH</code></td>
+<td>34 px, 48 px</td>
+<td>A sandbag blocks walking while it stands</td>
+</tr>
+<tr>
+<td><code>SAND_PER_HIT</code></td>
+<td>0.25</td>
+<td>A sandbag loses sand per hit, sags, and is flattened at none</td>
+</tr>
+<tr>
+<td><code>MUZZLE_DISTANCE</code></td>
+<td>12 px</td>
+<td>The muzzle is this far out from the chest; a bullet never hits a sandbag its shooter stood inside or within this distance of when he fired (his own cover: <code>Bullet.ignored_sandbags</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>With these, 200 seeded battles end 110 to 90 for the Platoon, lasting 47 s on average, and
+1,000 end 555 to 445 (53 s on average), none of them drawn. Hills
+block bullets, so the computer neither stands nor fires until the ground leaves a clear line to
+its target.</p>
+<h2 id="the-computer-driver">The computer driver<a class="headerlink" href="#the-computer-driver" title="Permanent link">#</a></h2>
+<p><code>drivers.py</code> turns the battle into an <code>Intent</code> for one soldier, as a person reads the screen. A
+soldier targets the nearest enemy (and keeps him unless another is nearer by
+<code>TARGET_SWITCH_MARGIN</code>), advances until the enemy is within his own stand-off distance, takes
+cover behind a sandbag when the enemy is in range and in sight, shoots a sandbag that blocks his
+way (from <code>SANDBAG_SHOT_DISTANCE</code>, beyond his muzzle's reach, since his shots never hit a bag he
+stands by; nearer than that he first steps back), keeps his spacing from his friends, and fires when his pistol is ready, after a reaction
+delay, with an aim error held for the whole shot. A soldier crowded by a friend of higher
+priority walks on to get off his spot, but never past the enemy's front: within <code>MELEE_PIXELS</code>
+of it he steps back instead, so friends do not follow a player who walks through the enemy's
+line.</p>
+<p>All the computer's randomness (stand-off, reaction delay, aim error) comes from <strong>one random
+stream per soldier</strong> (<code>drawing_fire.soldier.&lt;battle&gt;.&lt;id&gt;</code>), so a player taking a soldier over
+never shifts anyone else's randomness, and battles replay exactly.</p>
+<h2 id="seats-joining-dying-and-leaving">Seats: joining, dying and leaving<a class="headerlink" href="#seats-joining-dying-and-leaving" title="Permanent link">#</a></h2>
+<p><code>seats.py</code> keeps every player's seat (<code>PlayerSeat</code>: his name, P1 or P2, his device, his stage,
+his side and soldier). It reads <code>ButtonEdges</code>, never pygame, and its only randomness is its own
+stream, <code>drawing_fire.seats</code>.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    direction LR
+    [*] --&gt; ChoosingSide : START on a device with no seat
+    ChoosingSide --&gt; ChoosingSide : LEFT / RIGHT cycle Random, Platoon, Brigade
+    ChoosingSide --&gt; ChoosingSoldier : START (Random draws a side)
+    ChoosingSoldier --&gt; ChoosingSoldier : LEFT / RIGHT move the highlight
+    ChoosingSoldier --&gt; Playing : START takes the highlighted soldier
+    Playing --&gt; Playing : his soldier dies, another of his side is free&lt;br/&gt;(drawn from the seats' stream)
+    Playing --&gt; Waiting : his soldier dies, none is free
+    ChoosingSoldier --&gt; Waiting : the battle is over, or no soldier is free
+    Waiting --&gt; ChoosingSoldier : the next battle starts
+    Playing --&gt; ChoosingSoldier : the next battle starts
+    ChoosingSide --&gt; [*] : BACK held a second, or unplugged
+    ChoosingSoldier --&gt; [*] : BACK held a second, or unplugged
+    Playing --&gt; [*] : BACK held a second, or unplugged
+    Waiting --&gt; [*] : BACK held a second, or unplugged</code></pre>
+<ul>
+<li>Each device does at most one thing a frame, so the START that opens a seat never also confirms
+  its side.</li>
+<li>The highlight starts on the free soldier nearest the middle of the field, passing over a
+  soldier another chooser of the same side is on. It stays on its soldier by id while he moves.</li>
+<li>A player who leaves frees his name. His soldier goes back to the computer at once, or to a
+  waiting player of his side.</li>
+<li>The seat log keeps the latest eight joins, takeovers and leaves with their game time, for the
+  debug panel (<code>P1 START → PLATOON</code>, <code>P1 took soldier 7</code>, <code>P1 died → soldier 1</code>, <code>P1 left</code>).</li>
+</ul>
+<h2 id="swatches-the-mechanic-this-game-proves">Swatches: the mechanic this game proves<a class="headerlink" href="#swatches-the-mechanic-this-game-proves" title="Permanent link">#</a></h2>
+<p>The soldier sprite is drawn once, in the Pencil Platoon's livery. Its file lists the parts that can be
+recoloured, beside its palette:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">[swatches.livery.helmet]</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">colors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"h"</span><span class="p">,</span><span class="w"> </span><span class="s2">"H"</span><span class="p">]</span><span class="w">      </span><span class="c1"># the base colour, then its shades</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">role</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"primary"</span>
+</code></pre></div>
+<p><code>swatches.py</code> reads these sets (<code>load_swatch_sets</code>), and a <code>Scheme</code> gives colours to the parts
+by role (<code>primary</code>, <code>secondary</code>) or by name. <code>recolor_surface</code> swaps them in by exact RGB: a
+part's base colour becomes the scheme's colour, and each shade keeps its brightness relative to
+the base, so the helmet's shadow comes out a darker yellow for the Platoon and a darker grey for
+the Brigade. <code>RecoloredFrames</code> builds each scheme's frames once and keeps them. The sprite file
+never changes.</p>
+<p>In the game, <code>drawing.load_soldier_frames</code> loads the frames with the engine's <code>AnimatedSprite</code>
+loader, scales them up by whole pixels (so the exact colours survive), adds mirrored copies for
+a soldier facing left, and <code>draw_soldier</code> asks for his army's livery
+(<code>ARMY_LIVERIES[soldier.side]</code>). Nothing in <code>swatches.py</code> names the game: it is written to move
+into <code>glitchygames/sprites/</code>. What that would take is entry 55 in <code>plans/future-features.md</code>.</p>
+<h2 id="the-pencil-look">The pencil look<a class="headerlink" href="#the-pencil-look" title="Permanent link">#</a></h2>
+<p>Everything is drawn with pygame primitives onto the surface it is given, from the model. A
+hand-drawn line wanders by <code>wobble(x, y, salt)</code>, a deterministic hash of where it is, never a
+random stream, so the same picture is drawn every frame and in every replay. Text is rendered
+once per content, fonts are made once. The colours are the paper (<code>PAPER_COLOR</code>), the pencil
+(<code>PENCIL_COLOR</code>), a light hatching under the ground, and the two armies' colours: pencil yellow
+<code>(242, 194, 48)</code> and graphite grey <code>(125, 127, 133)</code>.</p>
+<h2 id="how-it-uses-the-engine">How it uses the engine<a class="headerlink" href="#how-it-uses-the-engine" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Engine feature</th>
+<th>How Drawing Fire uses it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Game time and <code>dt</code></td>
+<td>Movement, cooldowns, bullets and the victory countdown use the scene's <code>dt</code> (capped at <code>MAX_FRAME_SECONDS</code>, 0.05 s, after a hitch); the seat log uses <code>game_time</code></td>
+</tr>
+<tr>
+<td>Random streams</td>
+<td>Terrain, sandbags, the seats and one stream per soldier per battle, all from <code>random_stream</code> (seeded from <code>--random-seed</code>, kept in recordings)</td>
+</tr>
+<tr>
+<td>Polled input</td>
+<td>Every control is read from <code>current_input()</code> (keys by scancode, the mouse, controller axes and buttons), never from pygame, so a replay serves the same input</td>
+</tr>
+<tr>
+<td>Sprite loading</td>
+<td><code>AnimatedSprite</code> loads the soldier's frames; swatches recolour them</td>
+</tr>
+<tr>
+<td>Debug overlay</td>
+<td><code>DrawingFireScene.debug_draw(surface, camera)</code> draws the seat tags and the seats panel when the overlay is on (F3)</td>
+</tr>
+<tr>
+<td>Recording and replay</td>
+<td><code>--record-trace</code> and <code>--replay-trace</code> work as for every game; see below</td>
+</tr>
+<tr>
+<td>Browser build</td>
+<td><code>nox -s browser -- drawing-fire</code> (<code>scripts/build_browser_bundle.py</code> <code>GAMES</code>). It has no touch layout yet (exempt in <code>tests/test_browser_touch_controls.py</code> until its dual-stick controls settle)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recording-replay-and-the-golden-replay">Recording, replay and the golden replay<a class="headerlink" href="#recording-replay-and-the-golden-replay" title="Permanent link">#</a></h3>
+<p>Everything that decides what happens runs on the frame's <code>dt</code>, the seeded streams and the
+polled input, so a <code>--record-trace</code> recording replays exactly with <code>--replay-trace</code>.</p>
+<p>The golden replay <code>tests/fixtures/replays/drawing-fire/golden.jsonl.gz</code> was recorded through the
+real engine loop by <code>scripts/record_scripted_session.py --game drawing_fire --frames 1600</code>. The
+keyboard plays the whole session (<code>drawing_fire_script</code>): Enter opens a seat at frame 30, the
+right arrow moves the side card to the Platoon and Enter confirms it, D and A move the soldier
+highlight and keypad Enter takes soldier 7 at frame 131. The player fires with the left mouse
+button (held, let go, held again), the mouse following the nearest enemy (<code>DrawingFireMouse</code>),
+walks right with D, steps back with the left arrow and A, then walks through the Brigade's line
+with the right arrow and stands there. He is shot down at frame 657 and takes over soldier 1,
+then dies and takes over again at frames 754 (soldier 6) and 840 (soldier 2). At frame 1232
+soldier 2, the Platoon's last, falls: P1 waits, the Graphite Brigade wins, and three seconds
+later the next battle starts with P1 choosing a Platoon soldier again. He holds Escape (for
+<code>LEAVE_HOLD_SECONDS</code> and ten frames more) from frame 1500 and leaves at frame 1561. The
+controls tail (<code>drawing_fire_controls</code>) then quits with Q. With the tail, the fixture holds 1,614
+frames.</p>
+<p>Because the game reads its controls from the polled input, which a posted event never changes in
+SDL, the recorder lays the input it posted over each live snapshot (<code>PostedPolledInput</code>), as a
+real keyboard and mouse would. It does so only for the games in <code>POLLED_INPUT_GAMES</code> (Drawing
+Fire alone), so every other game's re-recording keeps the snapshots it had. The replay serves the
+recorded snapshots.</p>
+<p>The soldiers, bullets and sandbags are drawn, not sprites, so a replay's sprite comparison sees
+none of the battle. Instead the scene posts an internal <code>GAMEEVENT</code> (<code>post_event</code>) for every
+soldier killed (<code>SOLDIER_KILLED_SUBTYPE</code>: his id, side and driver) and every seat log entry
+(<code>SEAT_CHANGED_SUBTYPE</code>: the change, the player, his soldier and the panel's text). The recording
+holds them, and a replay in which the battle plays out differently misses one and diverges
+("missing internal event"). <code>DrawingFireScene.setup()</code> registers its own subtypes
+(<code>DRAWING_FIRE_EVENT_SUBTYPES</code>) with the scene manager, with a callback (<code>_take_marker</code>) that
+does nothing: they are markers for recordings. <code>test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover</code> checks that
+the fixture holds the player's death and takeover.</p>
+<p><code>tests/replay/test_golden_replays.py</code> checks that every control the game reads is exercised: its
+keys by scancode, the mouse's motion and left button, and Q. The controller's controls are
+excused (<code>UNEXERCISED_CONTROLS</code>, <code>NO_GAMEPAD_IN_THE_SESSION</code>), because the scripted session runs
+on the dummy driver, which has no gamepad. Drawing Fire is in <code>GAMES_WITHOUT_A_PAUSE</code>, so its
+replay is checked never to reach the pause screen instead of pausing and resuming.</p>
+<p>One limit, noted in <code>plans/future-features.md</code> entry 54: the fixture is about 185 KB, over the
+100 KB the other games keep. The first frame holds every random stream's state (19 of them,
+twice), about 125 KB compressed on its own.</p>
+<p>The pytest plugin <code>glitchygames/testing/replays.py</code> replays the fixture in a child process
+(<code>drawing-fire --replay-trace ... --headless</code>), and the test fails unless it exits <code>SUCCESS</code>.
+Re-record the fixture only deliberately (the commands are in the script's docstring), never just
+to make a failing replay pass. A re-recording without the player's death and takeover fails the
+test above.</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
+<p>The tests use real pygame on the dummy driver; what is drawn is checked by its pixels.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it pins</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/examples/drawing_fire/test_battle.py</code></td>
+<td>Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_terrain.py</code></td>
+<td>Seeded hills over a flat baseline, any screen width, the ground between pixels</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_drivers.py</code></td>
+<td>The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_players.py</code></td>
+<td>Keyboard and mouse, and controller, input as intents; dead zones; button edges</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_seats.py</code></td>
+<td>Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_swatches.py</code></td>
+<td>Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_drawing.py</code></td>
+<td>The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_game.py</code></td>
+<td>The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting</td>
+</tr>
+<tr>
+<td><code>tests/examples/drawing_fire/test_simulation.py</code></td>
+<td><code>scripts/simulate_drawing_fire.py</code>'s headless battles</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../mr_muncher/" class="btn btn-neutral float-left" title="Mr. Muncher Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../architecture/event_system/" class="btn btn-neutral float-right" title="Event System">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../mr_muncher/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../architecture/event_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "game": "drawing-fire",
+  "module": "glitchygames.examples.drawing_fire.game",
+  "scene_class": "DrawingFireScene",
+  "title": "Drawing Fire",
+  "arguments": [],
+  "touch_controls": null
+}
