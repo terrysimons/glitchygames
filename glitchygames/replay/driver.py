@@ -2727,18 +2727,25 @@ def installed_engine_version() -> str | None:
 
 
 def check_recorded_game(
-    *, header: Mapping[str, Any], game_class_name: str, game_module: str
+    *,
+    header: Mapping[str, Any],
+    game_class_name: str,
+    game_module: str,
+    previous_game_modules: frozenset[str] = frozenset(),
 ) -> None:
     """Refuse a recording of another game.
 
     The class names must match. So must the modules, when the header holds one (recordings
     made before headers held it do not) and neither is ``__main__`` (a game file run as a
-    script, ``python paddleslap.py``, is the same game as its console script).
+    script, ``python paddleslap.py``, is the same game as its console script). A module the
+    game lists in ``Scene.PREVIOUS_MODULES`` (where it lived before it moved) matches too.
 
     Args:
         header: The recording's header fields.
         game_class_name: The class name of the game being started.
         game_module: The module the game being started is defined in.
+        previous_game_modules: The modules the game was defined in before (its
+            ``PREVIOUS_MODULES``).
 
     Raises:
         ReplayRefusedError: If the recording's ``game_class`` (or ``game_module``) is a
@@ -2751,6 +2758,7 @@ def check_recorded_game(
         recorded_module is not None
         and SCRIPT_MODULE_NAME not in {recorded_module, game_module}
         and recorded_module != game_module
+        and recorded_module not in previous_game_modules
     )
     if recorded_game != game_class_name or modules_differ:
         recorded_place = recorded_module or 'module not recorded'
@@ -2825,12 +2833,13 @@ def display_size_refusal(*, header: Mapping[str, Any], display_size: tuple[int, 
     )
 
 
-def start_replay(
+def start_replay(  # ruff: ignore[too-many-arguments] - the recording, the game and its replay settings
     *,
     path: Path,
     game_class_name: str,
     game_module: str,
     options: dict[str, Any],
+    previous_game_modules: frozenset[str] = frozenset(),
     use_fastevents: bool = False,
 ) -> ReplaySources:
     """Read a recording and prepare the run to replay it (rule 1); the caller installs it.
@@ -2844,6 +2853,8 @@ def start_replay(
         path: The recording.
         game_class_name: The class name of the game being started.
         game_module: The module the game being started is defined in.
+        previous_game_modules: The modules the game was defined in before it moved (its
+            ``PREVIOUS_MODULES``); a recording naming one of them is the same game.
         options: The run's options, given the recorded ones in place; ``replay_fps`` (local, so
             never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset, and
             ``replay_digest`` (local) the digest file (rule 12), none when unset, and
@@ -2898,7 +2909,10 @@ def start_replay(
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(
-        header=sources.header, game_class_name=game_class_name, game_module=game_module
+        header=sources.header,
+        game_class_name=game_class_name,
+        game_module=game_module,
+        previous_game_modules=previous_game_modules,
     )
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = installed_engine_version()

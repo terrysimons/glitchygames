@@ -1479,6 +1479,25 @@ class TestRefusals:
                 game_module='glitchygames.examples.paddleslap',
             )
 
+    def test_a_recording_of_a_previous_module_is_accepted(self):
+        """A game that moved (glitchygames.examples -> its own package) replays old recordings."""
+        check_recorded_game(
+            header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
+            game_class_name='Game',
+            game_module='paddleslap',
+            previous_game_modules=frozenset({'glitchygames.examples.paddleslap'}),
+        )
+
+    def test_a_previous_module_of_another_game_is_still_refused(self):
+        """Only the modules the game itself lists count."""
+        with pytest.raises(ReplayRefusedError, match=r'glitchygames\.examples\.joystick_demo'):
+            check_recorded_game(
+                header={'game_class': 'Game', 'game_module': 'glitchygames.examples.joystick_demo'},
+                game_class_name='Game',
+                game_module='paddleslap',
+                previous_game_modules=frozenset({'glitchygames.examples.paddleslap'}),
+            )
+
     @pytest.mark.parametrize(
         ('header', 'game_module'),
         [

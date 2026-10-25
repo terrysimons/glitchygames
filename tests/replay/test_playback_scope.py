@@ -41,7 +41,7 @@ from glitchygames.replay.playback import (
     start_playback_from_recording,
 )
 from glitchygames.scene_start import SceneStart
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sources import (
     active_sources,
@@ -111,6 +111,12 @@ FPS_EVENT_INTERVAL_MILLISECONDS = 50
 # A live frame longer than half the default FPS log interval (an FPS event after it), as on a
 # loaded machine (BUGS.md #196)
 LONG_LIVE_FRAME_SECONDS = 0.75
+
+
+class MovedScene(Scene):
+    """A scene that used to live in another module."""
+
+    PREVIOUS_MODULES = frozenset({'old_package.old_module'})
 
 
 def recorded_trace(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -477,6 +483,12 @@ class TestPlaybackErrors:
             find_scene_class(name='Game', module='glitchygames.examples.joystick_demo')
             is joystick_demo.Game
         )
+
+    def test_a_scene_start_naming_a_previous_module_finds_the_moved_scene(self):
+        assert find_scene_class(name='MovedScene', module='old_package.old_module') is MovedScene
+
+    def test_a_scene_start_naming_another_module_is_refused(self):
+        assert find_scene_class(name='MovedScene', module='unrelated.module') is None
 
     def test_without_an_exact_match_a_unique_name_is_used(self):
         """A start without a module (older recordings), or from a game run as __main__."""

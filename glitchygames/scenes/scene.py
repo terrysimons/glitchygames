@@ -2811,6 +2811,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # False for a scene that cannot be rebuilt on its own from replay_arguments() (PauseScene
     # presents another scene): its start is never captured (glitchygames/scene_start.py)
     CAPTURES_SCENE_START: ClassVar[bool] = True
+    # The modules this scene class was defined in before it moved (e.g. a game moved out of
+    # glitchygames/examples into its own package): a recording naming one of them replays as
+    # this class (glitchygames/replay/driver.py check_recorded_game, replay/playback.py
+    # find_scene_class), so committed recordings never need rewriting after a move
+    PREVIOUS_MODULES: ClassVar[frozenset[str]] = frozenset()
     # Seconds an instant replay of this scene shows, or None for no instant replay. Set, the
     # scene manager keeps the scene's frames in memory from its start (glitchygames/
     # instant_replay.py) and its start is captured in plain live play too

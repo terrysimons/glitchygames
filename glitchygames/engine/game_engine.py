@@ -1866,6 +1866,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 path=Path(replay_trace_path),
                 game_class_name=game_class.__name__,
                 game_module=game_class.__module__,
+                previous_game_modules=game_class.PREVIOUS_MODULES,
                 options=options,
                 # Set by the version check this __init__ runs later, so pygame's version is
                 # asked here too

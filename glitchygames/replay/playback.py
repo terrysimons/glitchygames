@@ -1030,12 +1030,12 @@ def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | N
     """Return the loaded ``Scene`` subclass a start names (rule 1).
 
     Only loaded classes are searched: nothing is imported from recording data. The class
-    defined in ``module`` with the qualified name ``name`` is taken when exactly one is
-    loaded. Otherwise a class is taken by its qualified name alone only where the modules
-    cannot be compared, as ``check_recorded_game`` decides for a recording's game: no module
-    recorded, or a game run as a script (``__main__``) on either side; then the one such class
-    is taken and several are refused. A class of that name from another module is another
-    game's scene: refused.
+    defined in ``module`` (or listing it in ``PREVIOUS_MODULES``, where it lived before it
+    moved) with the qualified name ``name`` is taken when exactly one is loaded. Otherwise a
+    class is taken by its qualified name alone only where the modules cannot be compared, as
+    ``check_recorded_game`` decides for a recording's game: no module recorded, or a game run
+    as a script (``__main__``) on either side; then the one such class is taken and several
+    are refused. A class of that name from another module is another game's scene: refused.
 
     Args:
         name: A class's qualified name (``SceneStart.scene_class``).
@@ -1057,7 +1057,12 @@ def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | N
                 unvisited.append(subclass)
                 if subclass.__qualname__ == name:
                     named_alike.append(subclass)
-    exact_matches = [scene_class for scene_class in named_alike if scene_class.__module__ == module]
+    exact_matches = [
+        scene_class
+        for scene_class in named_alike
+        if module is not None
+        and (scene_class.__module__ == module or module in scene_class.PREVIOUS_MODULES)
+    ]
     if len(exact_matches) == 1:
         return exact_matches[0]
     matches_by_name = [

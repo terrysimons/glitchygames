@@ -113,6 +113,11 @@ class RecordingSprite(pygame.sprite.DirtySprite):
         self.focus_lost_count += 1
 
 
+def test_a_scene_names_no_previous_modules_by_default():
+    """A scene that never moved lists no previous modules."""
+    assert frozenset() == Scene.PREVIOUS_MODULES
+
+
 class TestScene:
     """Test Scene class functionality."""
 

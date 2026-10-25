@@ -505,7 +505,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
   with the recorded frame. Refusals log the reason and exit with an `ExitCode` (see Exit Codes):
-  `UNUSABLE_INPUT` (65) for a recording of another game, an unreadable file or an unsupported
+  `UNUSABLE_INPUT` (65) for a recording of another game (a scene class's `PREVIOUS_MODULES`, the
+  modules it lived in before it moved, count as its own), an unreadable file or an unsupported
   format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
   `--record-trace` given too (recording over a replay is `--rebaseline`'s job only). A
   different engine version only warns. Recorded options apply except
