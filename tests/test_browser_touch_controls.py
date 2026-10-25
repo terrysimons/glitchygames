@@ -74,6 +74,13 @@ GAME_SCANCODES = {
 }
 
 
+# The games with no touch layout, each with its reason
+GAMES_WITHOUT_TOUCH_CONTROLS = {
+    'bitmappy': 'the editor needs a pointer and a keyboard; the games need only the buttons',
+    'drawing-fire': 'dual stick: touch controls once its controls settle',
+}
+
+
 def layout_buttons(layout) -> list:
     """Return every button of a layout (gaps left out).
 
@@ -90,9 +97,9 @@ def layout_buttons(layout) -> list:
     ]
 
 
-def test_every_game_but_bitmappy_has_touch_controls():
-    """Bitmappy's editor needs a pointer and a keyboard; the games need only these buttons."""
-    assert set(TOUCH_LAYOUTS) == set(GAMES) - {'bitmappy'}
+def test_every_game_has_touch_controls_or_a_reason_not():
+    """Each game has a layout, or is listed with why not (a new game must do one or the other)."""
+    assert set(TOUCH_LAYOUTS) == set(GAMES) - set(GAMES_WITHOUT_TOUCH_CONTROLS)
 
 
 @pytest.mark.parametrize('game', sorted(GAME_SCANCODES))
