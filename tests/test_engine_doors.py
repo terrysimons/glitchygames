@@ -20,6 +20,7 @@ from tests.ast_scanning import (
     import_bindings,
     qualified_name,
     scanned_source_files,
+    write_project_with_member_module,
 )
 
 if TYPE_CHECKING:
@@ -251,19 +252,9 @@ def test_package_reads_input_and_time_only_through_the_doors():
 
 def test_a_bypass_in_a_member_package_is_reported_under_its_repository_path(tmp_path):
     """The guard's walk reads a member's file, keyed by its path from the repository root."""
-    (tmp_path / 'glitchygames').mkdir()
-    (tmp_path / 'pyproject.toml').write_text(
-        '[tool.uv.workspace]\nmembers = ["games/space-game"]\n', encoding='utf-8'
-    )
-    member_directory = tmp_path / 'games' / 'space-game'
-    (member_directory / 'space_game').mkdir(parents=True)
-    (member_directory / 'pyproject.toml').write_text(
-        '[project]\nname = "space-game"\n\n'
-        '[tool.hatch.build.targets.wheel]\npackages = ["space_game"]\n',
-        encoding='utf-8',
-    )
-    (member_directory / 'space_game' / 'game.py').write_text(
-        'import time\n\n\ndef now():\n    return time.monotonic()\n', encoding='utf-8'
+    member_key = write_project_with_member_module(
+        project_root=tmp_path,
+        source='import time\n\n\ndef now():\n    return time.monotonic()\n',
     )
 
     offenders = {
@@ -272,7 +263,7 @@ def test_a_bypass_in_a_member_package_is_reported_under_its_repository_path(tmp_
         if (bypasses := door_bypasses(source_path=path, allowed=_allowed(allowlist_key)))
     }
 
-    assert offenders == {'games/space-game/space_game/game.py': ['5: time.monotonic']}
+    assert offenders == {member_key: ['5: time.monotonic']}
 
 
 MEASURING_SOURCE = """\

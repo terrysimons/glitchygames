@@ -35,6 +35,7 @@ from tests.ast_scanning import (
     import_bindings,
     qualified_name,
     scanned_source_files,
+    write_project_with_member_module,
 )
 
 if TYPE_CHECKING:
@@ -479,6 +480,23 @@ def test_package_draws_randomness_only_from_seeded_streams():
     ]
 
     assert offenders == []
+
+
+def test_unseeded_randomness_in_a_member_package_is_reported_under_its_repository_path(tmp_path):
+    """The guard's walk reads a member's file: random.random() there is an offender."""
+    member_key = write_project_with_member_module(
+        project_root=tmp_path, source='import random\n\nroll = random.random()\n'
+    )
+
+    offenders = {
+        allowlist_key: unseeded_randomness(source_path)
+        for allowlist_key, source_path in scanned_source_files(project_root=tmp_path)
+        if allowlist_key not in UNSEEDED_RANDOMNESS_ALLOWED_MODULES
+        and unseeded_randomness(source_path)
+    }
+
+    assert list(offenders) == [member_key]
+    assert offenders[member_key][0].endswith(':3 random.random')
 
 
 def test_unseeded_randomness_scan_finds_every_kind(offending_randomness_file):

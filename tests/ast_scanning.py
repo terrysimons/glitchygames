@@ -118,3 +118,32 @@ def scanned_source_files(*, project_root: Path) -> list[tuple[str, Path]]:
             for source_path in sorted(package_directory.rglob('*.py'))
         )
     return scanned
+
+
+def write_project_with_member_module(*, project_root: Path, source: str) -> str:
+    """Write a small workspace project whose one member module holds ``source``.
+
+    The project has an empty ``glitchygames/`` and the member ``games/space-game`` with the
+    package ``space_game`` and its module ``game.py``.
+
+    Args:
+        project_root: Where to write the project (a temporary directory).
+        source: The member module's source.
+
+    Returns:
+        The key the guards' allowlists would spell the member module by.
+
+    """
+    (project_root / 'glitchygames').mkdir()
+    (project_root / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = ["games/space-game"]\n', encoding='utf-8'
+    )
+    member_directory = project_root / 'games' / 'space-game'
+    (member_directory / 'space_game').mkdir(parents=True)
+    (member_directory / 'pyproject.toml').write_text(
+        '[project]\nname = "space-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["space_game"]\n',
+        encoding='utf-8',
+    )
+    (member_directory / 'space_game' / 'game.py').write_text(source, encoding='utf-8')
+    return 'games/space-game/space_game/game.py'
