@@ -40,7 +40,7 @@ SEAT_PADDING_PIXELS = 6
 SEAT_LINE_GAP_PIXELS = 1
 NOTE_TITLE_FONT_SIZE = 18
 NOTE_FONT_SIZE = 13
-NOTE_LINES = ('Press START to join!', 'Enter on the keyboard', 'and take over a soldier')
+NOTE_LINES = ('Press START to enlist!', 'Enter on the keyboard', 'and become a soldier')
 NOTE_TAPE_SIZE = (36, 8)
 # A card holds a title and three lines (the side card is the tallest)
 CARD_SIZE = (160, 80)
@@ -81,8 +81,11 @@ SEAT_TAG_PADDING_PIXELS = 2
 SEAT_TAG_ABOVE_FEET_PIXELS = 64
 # Soldiers stand 20 px apart, closer than a tag is wide: every second soldier's tag is raised
 SEAT_TAG_STAGGER_PIXELS = 16
-# The panel sits in the bottom-right corner, opposite the join note, and holds about 8 log lines
-SEATS_PANEL_MARGIN_PIXELS = 10
+# The panel hangs at the top centre, in the sky over the field (the ground lies at 78% of the
+# height), just under the engine's DEBUG mode line (glitchygames/debug/panels.py draws it at the
+# top centre). The bottom corners belong to the join note and the players' cards, the top corners
+# to the army HUD and the engine's camera and FPS readouts. It holds about 8 log lines.
+SEATS_PANEL_TOP_PIXELS = 32
 SEATS_PANEL_PADDING_PIXELS = 6
 # The bundled font has no arrow glyph (it draws an empty box), so the panel spells it out
 PANEL_ARROW = '→'
@@ -151,7 +154,7 @@ def _blit_lines(
 
 
 def draw_join_prompt(surface: pygame.Surface) -> None:
-    """Stick the "Press START to join!" note on the paper, taped at the top.
+    """Stick the "Press START to enlist!" note on the paper, taped at the top.
 
     Args:
         surface: Where to draw.
@@ -290,7 +293,7 @@ def _panel_line(line: str) -> pygame.Surface:
 
 
 def seats_panel_rect(surface: pygame.Surface, *, lines: Sequence[str]) -> pygame.Rect:
-    """Find where the seats panel goes: the bottom-right corner, sized to its lines.
+    """Find where the seats panel goes: the top centre, under the DEBUG line, sized to its lines.
 
     Args:
         surface: Where the panel is drawn.
@@ -306,10 +309,7 @@ def seats_panel_rect(surface: pygame.Surface, *, lines: Sequence[str]) -> pygame
         2 * SEATS_PANEL_PADDING_PIXELS
     )
     panel = pygame.Rect(0, 0, width, height)
-    panel.bottomright = (
-        surface.get_width() - SEATS_PANEL_MARGIN_PIXELS,
-        surface.get_height() - SEATS_PANEL_MARGIN_PIXELS,
-    )
+    panel.midtop = (surface.get_width() // 2, SEATS_PANEL_TOP_PIXELS)
     return panel
 
 

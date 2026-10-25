@@ -24,6 +24,7 @@ from glitchygames.examples.drawing_fire.battle import (
 from glitchygames.examples.drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
 from glitchygames.examples.drawing_fire.drivers import ComputerSoldier
 from glitchygames.examples.drawing_fire.game import (
+    COMPUTER_COUNT_MARK,
     DRAW_LINES,
     NO_SOLDIER_ID,
     PAPER_COLOR,
@@ -41,6 +42,7 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     NOTE_COLOR,
     SEAT_TAG_ABOVE_FEET_PIXELS,
     SEAT_TAG_STAGGER_PIXELS,
+    SEATS_PANEL_TOP_PIXELS,
     join_note_rect,
     seat_card_rect,
     seats_panel_rect,
@@ -782,9 +784,9 @@ def test_the_debug_overlay_tags_every_living_soldier_and_draws_the_panel(scene):
         assert pink_in(scene, tag_area_over(soldier, raised=rank % 2))
     # Where the fallen soldier stood there is no tag (a sliver, clear of his neighbours' tags)
     assert not pink_in(scene, tag_area_over(scene.battle.soldier(0), raised=0, width=4))
-    corner = pygame.Rect(0, 0, 200, 100)
-    corner.bottomright = scene.screen.get_rect().bottomright
-    assert pink_in(scene, corner)
+    top_centre = pygame.Rect(0, 0, 200, 100)
+    top_centre.midtop = (scene.screen.get_width() // 2, 0)
+    assert pink_in(scene, top_centre)
     assert not pink_in(scene, join_note_rect(scene.screen))
     assert before.get_at((0, 0)) == scene.screen.get_at((0, 0))
 
@@ -822,23 +824,38 @@ def test_the_debug_panel_ends_with_the_held_keys(scene):
     seat_lines = seats_panel_lines(scene.seats, scene.battle)
     with_held_keys = seats_panel_rect(scene.screen, lines=[*seat_lines, 'held: ESCAPE'])
     without_held_keys = seats_panel_rect(scene.screen, lines=seat_lines)
-    assert with_held_keys.top < without_held_keys.top
+    assert with_held_keys.bottom > without_held_keys.bottom
     scene.render(scene.screen)
     scene.debug_draw(
         scene.screen, Camera2D(screen_width=SCREEN_SIZE[0], screen_height=SCREEN_SIZE[1])
     )
-    # The panel's outline runs along the top of the taller panel, the one with the held keys
-    outline_row = pygame.Rect(with_held_keys.left, with_held_keys.top, with_held_keys.width, 1)
+    # The panel's outline runs along the bottom of the taller panel, the one with the held keys
+    outline_row = pygame.Rect(
+        with_held_keys.left, with_held_keys.bottom - 1, with_held_keys.width, 1
+    )
     assert pink_in(scene, outline_row)
 
 
-def test_the_panel_does_not_cover_the_join_note_or_cards(scene):
-    """The panel's corner is the bottom right; the note and cards sit at the bottom left."""
-    panel = seats_panel_rect(scene.screen, lines=['0:04  P1 START → random → PLATOON'] * 10)
-    assert panel.right <= scene.screen.get_width()
-    assert panel.bottom <= scene.screen.get_height()
+def test_the_panel_hangs_in_the_sky_clear_of_the_note_cards_and_hills(scene):
+    """The panel is at the top centre, under the DEBUG line; the note and cards are at the bottom.
+
+    A full log (two army lines, eight log lines, the held keys) still ends above the raised tag
+    of a soldier standing on this battle's highest ground.
+    """
+    full_log = [
+        f'PLATOON  P1 · P2 · CPU {COMPUTER_COUNT_MARK}6',
+        f'BRIGADE  CPU {COMPUTER_COUNT_MARK}8',
+    ]
+    full_log += ['0:04  P1 START → random → PLATOON'] * 8
+    full_log += ['held: A ESCAPE mouse left']
+    panel = seats_panel_rect(scene.screen, lines=full_log)
+    assert scene.screen.get_rect().contains(panel)
+    assert panel.top >= SEATS_PANEL_TOP_PIXELS
     assert not panel.colliderect(join_note_rect(scene.screen))
-    assert not panel.colliderect(seat_card_rect(scene.screen, slot=1))
+    for slot in range(3):
+        assert not panel.colliderect(seat_card_rect(scene.screen, slot=slot))
+    highest_ground = min(scene.battle.terrain.ground)
+    assert panel.bottom < highest_ground - SEAT_TAG_ABOVE_FEET_PIXELS - SEAT_TAG_STAGGER_PIXELS
 
 
 def test_the_panel_spells_arrows_the_font_cannot_draw(scene):
