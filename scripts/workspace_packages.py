@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 ENGINE_PACKAGE = 'glitchygames'
 
@@ -24,6 +24,8 @@ class WorkspaceMember(BaseModel):
         directory: The member's directory (games/mr-muncher).
         distribution: Its distribution name (mr-muncher).
         import_packages: The packages its wheel holds (mr_muncher).
+        package_relative_paths: Where each import package is below the directory (mr_muncher, or
+            src/mr_muncher in a src layout); defaults to the import packages' names.
         console_scripts: Its console scripts (mr-muncher).
 
     """
@@ -34,11 +36,33 @@ class WorkspaceMember(BaseModel):
     distribution: str
     import_packages: tuple[str, ...]
     console_scripts: tuple[str, ...]
+    package_relative_paths: tuple[Path, ...] = ()
+
+    @model_validator(mode='before')
+    @classmethod
+    def _default_package_relative_paths(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """Fill package_relative_paths from the import packages when none were given.
+
+        Args:
+            values: The fields as given.
+
+        Returns:
+            The fields, with package_relative_paths set.
+
+        """
+        if not values.get('package_relative_paths'):
+            values = {
+                **values,
+                'package_relative_paths': tuple(
+                    Path(package) for package in values.get('import_packages', ())
+                ),
+            }
+        return values
 
     @property
     def package_directories(self: Self) -> tuple[Path, ...]:
         """The source directories of its import packages."""
-        return tuple(self.directory / package for package in self.import_packages)
+        return tuple(self.directory / relative for relative in self.package_relative_paths)
 
     @property
     def tests_directory(self: Self) -> Path:
@@ -66,13 +90,23 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
         The members.
 
     Raises:
-        FileNotFoundError: If a listed member has no pyproject.toml.
+        FileNotFoundError: If a listed member has no pyproject.toml, or a package its wheel
+            declares is not a directory.
+        ValueError: If the workspace's members are not a list of strings, or a member declares
+            no wheel packages.
 
     """
     root = _read_toml(path=project_root / 'pyproject.toml')
     workspace = root.get('tool', {}).get('uv', {}).get('workspace', {})
+    declared_members: object = workspace.get('members', [])
+    if not isinstance(declared_members, list) or not all(
+        isinstance(declared, str) for declared in cast('list[object]', declared_members)
+    ):
+        message = f'[tool.uv.workspace] members must be a list of strings, not {declared_members!r}'
+        raise ValueError(message)
+    member_paths = cast('list[str]', declared_members)
     members: list[WorkspaceMember] = []
-    for member_path in workspace.get('members', []):
+    for member_path in member_paths:
         directory = project_root / member_path
         pyproject_path = directory / 'pyproject.toml'
         if not pyproject_path.is_file():
@@ -82,11 +116,22 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
         project = member['project']
         wheel = member.get('tool', {}).get('hatch', {}).get('build', {}).get('targets', {})
         packages = wheel.get('wheel', {}).get('packages', [])
+        if not packages:
+            message = (
+                f'Workspace member {member_path} declares no '
+                '[tool.hatch.build.targets.wheel] packages'
+            )
+            raise ValueError(message)
+        for package in packages:
+            if not (directory / package).is_dir():
+                message = f'Workspace member {member_path} has no package directory {package}'
+                raise FileNotFoundError(message)
         members.append(
             WorkspaceMember(
                 directory=directory,
                 distribution=project['name'],
                 import_packages=tuple(Path(package).name for package in packages),
+                package_relative_paths=tuple(Path(package) for package in packages),
                 console_scripts=tuple(project.get('scripts', {})),
             )
         )
