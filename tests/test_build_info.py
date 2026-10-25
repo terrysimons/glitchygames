@@ -13,7 +13,7 @@ import json
 import os
 import shutil
 import tarfile
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from scripts import write_build_stamp as write_build_stamp_script
@@ -34,13 +34,14 @@ from glitchygames.build_info import (
 )
 from glitchygames.process import TimeoutExpired, run_command
 from glitchygames.recording_history import MeasurementRun, latest_measurement_run
+from tests.harness import CHECKOUT_ENGINE_DIRECTORY
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 ARCHIVAL_TEMPLATE = 'commit: $Format:%H$\ncommitted: $Format:%cI$\n'
 BUILT_AT = '2026-10-23T12:00:00+00:00'
 MODULE_FILE_NAME = 'module.py'
-# The checkout's own engine source, asked explicitly: under nox the imported engine is a built
-# copy in the session's site-packages, whose revision is unknown
-CHECKOUT_ENGINE_DIRECTORY = Path(__file__).resolve().parent.parent / 'src' / 'glitchygames'
 
 
 def _git(*arguments: str, directory: Path) -> str:

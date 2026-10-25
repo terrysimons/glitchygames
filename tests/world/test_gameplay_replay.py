@@ -5373,14 +5373,14 @@ class TestProcessingComparison:
         # Every run names its timer; nothing paced this one, so auto never measured
         assert run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert run.rebaselined_from is None
-        # The engine's commit (glitchygames/build_info.py): this checkout's when the imported
-        # engine is the checkout's source, unknown for nox's built copy
+        # The engine's commit (glitchygames/build_info.py): from git when the imported engine is
+        # the checkout's source, from the build stamp nox's test session installs it with
         assert run.source_revision == engine_source_revision()
         assert run.source_revision is not None
         assert run.source_revision.source is (
             RevisionSource.GIT_CHECKOUT
             if imported_engine_is_the_checkouts()
-            else RevisionSource.UNKNOWN
+            else RevisionSource.BUILD_STAMP
         )
         # The machine's state as the run started (glitchygames/machine_state.py)
         assert run.machine_state is not None

@@ -13,6 +13,8 @@ import json
 import tomllib
 from pathlib import Path
 
+from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
+
 PROJECT_ROOT = Path(__file__).parent.parent
 TESTS_ROOT = PROJECT_ROOT / 'tests'
 PYTEST_SETTINGS = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))[
@@ -144,18 +146,12 @@ def test_the_engine_is_imported_from_its_installed_package_never_the_source_tree
     uv sync installs it editable, through a .pth naming src/. Either way the engine imported is
     the one the distribution installed.
     """
-    import glitchygames
-
     project_root = PROJECT_ROOT.resolve()
     assert not (project_root / 'glitchygames').exists(), 'the engine lives in src/glitchygames'
-    # The engine is a namespace package (no __init__.py, so no __file__): it is imported from its
-    # __path__, where any other glitchygames/ on sys.path would be merged in beside it
-    imported_directories = [Path(entry).resolve() for entry in glitchygames.__path__]
-    assert len(imported_directories) == 1, imported_directories
-    imported_from = imported_directories[0]
+    imported_from = imported_engine_directory()
     distribution = importlib.metadata.distribution('glitchygames')
     direct_url = json.loads(distribution.read_text('direct_url.json') or '{}')
     if direct_url.get('dir_info', {}).get('editable', False):
-        assert imported_from == project_root / 'src' / 'glitchygames'
+        assert imported_from == CHECKOUT_ENGINE_DIRECTORY
     else:
         assert imported_from == Path(str(distribution.locate_file('glitchygames'))).resolve()

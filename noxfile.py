@@ -492,7 +492,10 @@ def _usable_cpu_count() -> int:
 @nox.session(python=['3.14'], reuse_venv=False)
 def test(session: nox.Session) -> None:
     """Run tests."""
-    _install_from_lockfile(session)
+    # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
+    # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare
+    with _build_stamp(session):
+        _install_from_lockfile(session)
 
     # The SDL drivers are left to the suite (tests/sdl_defaults.py defaults both to dummy, and
     # outside CI tests/driver_comparison.py also runs the native driver and compares the

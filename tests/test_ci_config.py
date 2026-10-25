@@ -179,6 +179,25 @@ def test_nox_sessions_always_reinstall_the_project():
     ] == ('--reinstall-package', 'glitchygames')
 
 
+def test_the_test_session_installs_a_stamped_engine():
+    """The nox test session builds its engine with the build stamp: the installed copy names HEAD.
+
+    The installed copy is not editable and has no git checkout; without the stamp it records an
+    unknown commit, which replay_metrics refuses (tests/test_replay_metrics.py).
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile.test(session)
+    commands = session.commands
+    write_stamp = ('uv', 'run', '--frozen', 'python', 'scripts/write_build_stamp.py')
+    remove_stamp = (*write_stamp, '--remove')
+    install = next(index for index, command in enumerate(commands) if command[:2] == ('uv', 'sync'))
+    pytest_run = next(index for index, command in enumerate(commands) if command[0] == 'pytest')
+
+    assert commands.index(write_stamp) < install < commands.index(remove_stamp) < pytest_run
+
+
 def test_docs_deploy_publishes_only_from_main():
     """A deploy from a branch would publish its unlanded rows: refused before anything is pushed.
 

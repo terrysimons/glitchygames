@@ -187,9 +187,6 @@ include = [
   "scripts/**/*.py",
   "noxfile.py",
 ]
-# The engine is a namespace package (no __init__.py); src = ["glitchygames", ...] exempted its
-# top-level modules from INP001 before the move to src/ (2026-10-25), this keeps that exemption
-namespace-packages = ["src/glitchygames"]
 target-version = "py314"
 
 [tool.ruff.lint]

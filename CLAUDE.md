@@ -121,8 +121,9 @@ nox -s safety-scan         # Run safety only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build wheel (.whl) only
-# build, build-wheel and build-binary stamp the engine's commit into the package first
-# (glitchygames/_build_info.json, removed after; glitchygames/build_info.py)
+# build, build-wheel, build-binary and test stamp the engine's commit into the package first
+# (glitchygames/_build_info.json, removed after; glitchygames/build_info.py): test's installed
+# copy is not editable, so the stamp is how it names its commit
 
 # --- Docs ---
 nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
@@ -733,7 +734,7 @@ uncommitted changes to tracked files; only when git tracks the package's files, 
 installed in another repository's `.venv` does not count), a git archive
 (`glitchygames/_git_archival.txt`, `export-subst` in `.gitattributes`: `git archive` and GitHub's
 source zips write the commit in), a build stamp (`_build_info.json`, written by
-`scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`, gitignored, packaged
+`scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`/`test`, gitignored, packaged
 through hatch `artifacts`), else unknown. Every recorded run holds it
 (`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process)
 
