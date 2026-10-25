@@ -1,6 +1,7 @@
 """The CRT power-on sequence: every game's canvas switches on like an analogue TV first.
 
-Before control is handed to the game (``GameEngine._prepare_run``, so every game, Bitmappy
+Before control is handed to the game (``GameEngine.start`` and ``start_async``, between
+``_begin_run`` and ``_build_game``, so every game started through the engine, Bitmappy
 included), its canvas shows a CRT switching on: black, a bright dot in the centre, the dot
 stretched into a line, the picture opening from the line, a warm-up flicker, then the
 configured default background (glitchygames/backgrounds.py: the TV test pattern or the channel

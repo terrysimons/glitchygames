@@ -32,7 +32,13 @@ from glitchygames.backgrounds import (
 from glitchygames.build_info import engine_source_revision
 from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
-from glitchygames.crt_power_on import CrtPowerOnMode
+from glitchygames.crt_power_on import (
+    CrtPowerOnMode,
+    PowerOnOutcome,
+    play_power_on,
+    play_power_on_async,
+    should_play,
+)
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
@@ -68,6 +74,7 @@ from glitchygames.recording import (
     json_safe_value,
     pending_internal_posts,
     post_event,
+    post_input_event,
     reset_internal_post_tracking,
     start_tracking_internal_posts,
 )
@@ -2479,7 +2486,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             raise RuntimeError(ASYNC_RUN_NEEDS_HOST_MSG)
         profiler = self._begin_start()
         with self._crash_boundary(profiler=profiler):
-            if self._prepare_run(paced_by_timer=False):
+            if self._begin_run():
+                if self._power_on_plays():
+                    self._hand_back_power_on(
+                        outcome=await play_power_on_async(
+                            screen=self.screen,
+                            sources=active_sources(),
+                            wait_for_tick=wait_for_tick,
+                        )
+                    )
+                self._build_game(paced_by_timer=False)
                 await run_frames()
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
@@ -2563,26 +2579,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
     def _run_game(self: Self) -> None:
         """Construct the game and run its scenes: the whole run inside start()'s crash boundary."""
-        if not self._prepare_run(paced_by_timer=True):
+        if not self._begin_run():
             return
+        if self._power_on_plays():
+            self._hand_back_power_on(
+                outcome=play_power_on(screen=self.screen, sources=active_sources())
+            )
+        self._build_game(paced_by_timer=True)
         if self.host is not None:
             self.host.run(scene_manager=self.scene_manager)
         else:
             # A replay: its doors (and watched, its viewer) drive the blocking loop
             self.scene_manager.start()
 
-    def _prepare_run(self: Self, *, paced_by_timer: bool) -> bool:
-        """Construct the game and its first scene, up to the first frame (inside the boundary).
+    def _begin_run(self: Self) -> bool:
+        """Start the run inside the crash boundary: signal handlers, then the game or a listing.
 
         With --list-input-devices the listing replaces the game: it is printed and nothing is
         built, so no frame runs.
 
-        Args:
-            paced_by_timer: Whether the frames wait on the engine's timer (``start()``), which
-                is then calibrated; False for ``start_async()``.
-
         Returns:
-            Whether frames are to run (False after --list-input-devices).
+            Whether the game is to be built and run (False after --list-input-devices).
 
         """
         # For the whole run, so a signal always ends it through start()'s teardown
@@ -2597,7 +2614,40 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
             sys.stdout.write('\n'.join(lines) + '\n')
             return False
+        return True
 
+    def _power_on_plays(self: Self) -> bool:
+        """Return whether the CRT power-on sequence plays before the game (``--crt-power-on``).
+
+        Returns:
+            True to play it (glitchygames/crt_power_on.py ``should_play``).
+
+        """
+        return should_play(
+            mode=CrtPowerOnMode(GameEngine.OPTIONS.get('crt_power_on', CrtPowerOnMode.AUTO)),
+            video_driver=pygame.display.get_driver(),
+            options=GameEngine.OPTIONS,
+        )
+
+    def _hand_back_power_on(self: Self, *, outcome: PowerOnOutcome) -> None:
+        """Give the game what the power-on sequence ended with: a window closed during it quits.
+
+        Args:
+            outcome: How the sequence ended.
+
+        """
+        self.log.debug('CRT power-on sequence: %s', outcome)
+        if outcome is PowerOnOutcome.QUIT:
+            post_input_event(event=pygame.event.Event(pygame.QUIT))
+
+    def _build_game(self: Self, *, paced_by_timer: bool) -> None:
+        """Construct the game and its first scene, up to the first frame (inside the boundary).
+
+        Args:
+            paced_by_timer: Whether the frames wait on the engine's timer (``start()``), which
+                is then calibrated; False for ``start_async()``.
+
+        """
         # Initialize the game instance
         self.game = self.game(options=GameEngine.OPTIONS)
 
@@ -2610,7 +2660,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.scene_manager.switch_to_scene(self.game)
         self._configure_timer_and_performance(paced_by_timer=paced_by_timer)
         self._start_requested_trace_recording()
-        return True
 
     def _describe_exit_request(self: Self, *, exit_status: object) -> str:
         """Describe a SystemExit that ended the run, for the log and the replay report.

@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.record_golden_traces import GoldenTraceEngine
 
+from glitchygames.crt_power_on import PowerOnOutcome
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events.audio import AudioEventManager
@@ -612,3 +613,111 @@ class TestCrtPowerOnOption:
 
         assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
         assert f'Cannot play the CRT power-on sequence with {flag}' in caplog.text
+
+
+def game_noting_when_it_is_built(*, run_log: list[str]) -> type[FirstFrameGame]:
+    """Return a FirstFrameGame class that notes ``'game built'`` in ``run_log`` when constructed.
+
+    Returns:
+        A new subclass.
+
+    """
+
+    class LoggingFirstFrameGame(FirstFrameGame):
+        """Notes when it is built."""
+
+        def __init__(self, options: dict[str, Any], groups: Any = None) -> None:
+            """Note the construction, then build as FirstFrameGame does."""
+            run_log.append('game built')
+            super().__init__(options=options, groups=groups)
+
+    return LoggingFirstFrameGame
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestCrtPowerOnBeforeEveryGame:
+    """The power-on sequence plays on the game's canvas before the game is built."""
+
+    def test_start_plays_it_before_the_game_is_built(self, mocker):
+        run_log: list[str] = []
+        engine = build_engine(
+            mocker,
+            game=game_noting_when_it_is_built(run_log=run_log),
+            extra_arguments=('--crt-power-on', 'on'),
+        )
+        mocker.patch.object(
+            game_engine_module,
+            'play_power_on',
+            side_effect=lambda **_arguments: run_log.append('power on') or PowerOnOutcome.FINISHED,
+        )
+
+        engine.start()
+
+        assert run_log == ['power on', 'game built']
+
+    def test_start_async_plays_the_async_sequence_first(self, mocker):
+        run_log: list[str] = []
+        engine = build_engine(
+            mocker,
+            game=game_noting_when_it_is_built(run_log=run_log),
+            extra_arguments=('--crt-power-on', 'on'),
+        )
+
+        async def play_async(**_arguments):
+            await asyncio.sleep(0)
+            run_log.append('power on (async)')
+            return PowerOnOutcome.FINISHED
+
+        mocker.patch.object(game_engine_module, 'play_power_on_async', side_effect=play_async)
+        _, wait_for_tick = async_ticks()
+
+        asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+
+        assert run_log == ['power on (async)', 'game built']
+
+    def test_the_game_is_handed_its_screen_and_doors(self, mocker):
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
+        )
+        player = mocker.patch.object(
+            game_engine_module, 'play_power_on', return_value=PowerOnOutcome.FINISHED
+        )
+
+        engine.start()
+
+        player.assert_called_once_with(screen=engine.screen, sources=active_sources())
+
+    def test_closing_the_window_during_it_quits_the_game(self, mocker):
+        """The QUIT is handed back to the game, which then ends the run normally."""
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
+        )
+        mocker.patch.object(game_engine_module, 'play_power_on', return_value=PowerOnOutcome.QUIT)
+        posted = mocker.spy(game_engine_module, 'post_input_event')
+
+        engine.start()
+
+        (call,) = posted.call_args_list
+        assert call.kwargs['event'].type == pygame.QUIT
+
+    def test_a_skip_hands_nothing_to_the_game(self, mocker):
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
+        )
+        mocker.patch.object(
+            game_engine_module, 'play_power_on', return_value=PowerOnOutcome.SKIPPED
+        )
+        posted = mocker.spy(game_engine_module, 'post_input_event')
+
+        engine.start()
+
+        posted.assert_not_called()
+
+    def test_by_default_it_never_plays_on_the_test_driver(self, mocker):
+        """Auto on SDL's dummy driver: no test pays for the sequence."""
+        engine = build_engine(mocker, game=first_frame_game())
+        player = mocker.spy(game_engine_module, 'play_power_on')
+
+        engine.start()
+
+        player.assert_not_called()
