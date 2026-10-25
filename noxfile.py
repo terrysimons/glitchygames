@@ -177,7 +177,9 @@ def _lint_cves(session: nox.Session) -> None:
             'uv',
             'export',
             '--quiet',
-            '--no-emit-project',
+            # Not the workspace's own projects (the root and every member): the root's dev group
+            # names each member, which uv exports as an editable path pip-audit cannot hash
+            '--no-emit-workspace',
             # The extras too (dev tools, aisuite and its SDKs): what `uv sync --all-extras` installs
             '--all-extras',
             '--output-file',
