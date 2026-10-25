@@ -11,6 +11,7 @@ It writes, into the output directory:
   boot.py             browser/boot.py, which starts the game with GameEngine.start_async
   browser_*.py        the page's services for the engine (browser/): IndexedDB-backed saves,
                       the clipboard, and the player's own files (a file picker, downloads)
+  touch_controls.js   on-screen buttons on touch devices (the layout in boot_config.json)
   boot_config.json    which game to start, and its command-line arguments
   glitchygames.zip    the engine package, without what only desktop tools use (the API server
                       and its services, test helpers, project templates, the large PNG assets,
@@ -71,6 +72,8 @@ ALL_GAMES = 'all'
 
 # browser/boot.py's own modules, served next to it (pyscript.toml's [files])
 BROWSER_MODULES = ('browser_storage.py', 'browser_clipboard.py', 'browser_user_files.py')
+# The page's own scripts, served next to it (index.html loads them)
+BROWSER_PAGE_SCRIPTS = ('touch_controls.js',)
 
 # Engine subpackages no game imports: desktop tools only (checked: nothing outside them refers
 # to them, but sprites/animated.py's TOML sprite loading, which no bundled game uses)
@@ -109,6 +112,125 @@ class GameSpecification:
     scene_class: str
     title: str
     included_subpackages: frozenset[str] = frozenset()
+
+
+# The keys a touch button can press, by DOM KeyboardEvent.code: the event's key, its legacy
+# keyCode (Emscripten passes keyCode and code to SDL, which maps code to the scancode the games
+# bind) and the name shown under the button ('' for an arrow, whose label is the arrow)
+TOUCH_KEYS: dict[str, tuple[str, int, str]] = {
+    'ArrowUp': ('ArrowUp', 38, ''),
+    'ArrowDown': ('ArrowDown', 40, ''),
+    'ArrowLeft': ('ArrowLeft', 37, ''),
+    'ArrowRight': ('ArrowRight', 39, ''),
+    'Space': (' ', 32, 'Space'),
+    'Escape': ('Escape', 27, 'Esc'),
+    'KeyW': ('w', 87, 'W'),
+    'KeyS': ('s', 83, 'S'),
+    'KeyP': ('p', 80, 'P'),
+    'ShiftLeft': ('Shift', 16, 'Shift'),
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class TouchButton:
+    """One on-screen button: held, it holds its key down.
+
+    Attributes:
+        label: What it does ('Jump'), or an arrow.
+        code: The key it presses (a ``TOUCH_KEYS`` code).
+
+    """
+
+    label: str
+    code: str
+
+
+# Rows of buttons, top to bottom; None leaves a gap (a D-pad's corners)
+type TouchRows = tuple[tuple[TouchButton | None, ...], ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class TouchLayout:
+    """A game's touch controls: a cluster for each thumb, and one between them.
+
+    Attributes:
+        left: Usually movement.
+        center: Pause and the like.
+        right: Usually actions.
+
+    """
+
+    left: TouchRows = ()
+    center: TouchRows = ()
+    right: TouchRows = ()
+
+
+UP = TouchButton('▲', 'ArrowUp')
+DOWN = TouchButton('▼', 'ArrowDown')
+LEFT = TouchButton('◀', 'ArrowLeft')
+RIGHT = TouchButton('▶', 'ArrowRight')
+# The shared pause and game-over screens resume or restart with Space and quit with Esc, so a
+# button names its key as well as its action: their "Press SPACE" prompts then point at it
+JUMP = TouchButton('Jump', 'Space')
+PAUSE_ESCAPE = TouchButton('Pause', 'Escape')
+
+# Each game's touch controls (keys from its action maps; checked by
+# tests/test_browser_touch_controls.py). Bitmappy has none: the editor needs a pointer and a
+# keyboard
+TOUCH_LAYOUTS: dict[str, TouchLayout] = {
+    # Two players on one phone, a thumb each: W/S and the arrows
+    'paddleslap': TouchLayout(
+        left=((TouchButton('▲', 'KeyW'),), (TouchButton('▼', 'KeyS'),)),
+        center=((TouchButton('Pause', 'Space'),),),
+        right=((UP,), (DOWN,)),
+    ),
+    'brave-adventurer': TouchLayout(
+        left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
+    ),
+    'clockwork-keep': TouchLayout(
+        left=((LEFT, RIGHT),),
+        center=((PAUSE_ESCAPE,),),
+        right=((TouchButton('Use', 'KeyW'), JUMP), (TouchButton('Run', 'ShiftLeft'),)),
+    ),
+    # P pauses here (Esc too, but on the pause screen Esc quits)
+    'mr-muncher': TouchLayout(
+        left=((None, UP, None), (LEFT, None, RIGHT), (None, DOWN, None)),
+        center=((TouchButton('Pause', 'KeyP'),),),
+        right=((TouchButton('Start', 'Space'),),),
+    ),
+}
+
+
+def touch_controls_config(
+    *, layout: TouchLayout
+) -> dict[str, list[list[dict[str, object] | None]]]:
+    """Return a layout as boot_config.json holds it: each button with its key's event fields.
+
+    Returns:
+        The clusters (left, center, right), each a list of rows of buttons or None (a gap).
+
+    """
+
+    def button_config(button: TouchButton | None) -> dict[str, object] | None:
+        if button is None:
+            return None
+        key, key_code, key_name = TOUCH_KEYS[button.code]
+        return {
+            'label': button.label,
+            'key_name': key_name,
+            'code': button.code,
+            'key': key,
+            'key_code': key_code,
+        }
+
+    return {
+        cluster: [[button_config(button) for button in row] for row in rows]
+        for cluster, rows in (
+            ('left', layout.left),
+            ('center', layout.center),
+            ('right', layout.right),
+        )
+    }
 
 
 GAMES: dict[str, GameSpecification] = {
@@ -256,19 +378,25 @@ def pyscript_config(*, wheel_name: str) -> str:
 
 
 def boot_config(*, game: str, arguments: list[str]) -> dict[str, object]:
-    """Return what browser/boot.py starts: the game, its scene class and arguments.
+    """Return what browser/boot.py starts, and the touch controls the page shows.
+
+    browser/boot.py starts the game (its module, scene class and arguments);
+    browser/touch_controls.js builds the on-screen buttons.
 
     Returns:
         The configuration (written as boot_config.json).
 
     """
     specification = GAMES[game]
+    layout = TOUCH_LAYOUTS.get(game)
     return {
         'game': game,
         'module': specification.module,
         'scene_class': specification.scene_class,
         'title': specification.title,
         'arguments': arguments,
+        # browser/touch_controls.js builds the on-screen buttons from it (None: no buttons)
+        'touch_controls': None if layout is None else touch_controls_config(layout=layout),
     }
 
 
@@ -349,8 +477,8 @@ def write_bundle(
     (output_directory / 'wheels').mkdir(parents=True)
     shutil.copy2(wheel_path, output_directory / 'wheels' / wheel_path.name)
     shutil.copy2(BROWSER_DIRECTORY / 'boot.py', output_directory / 'boot.py')
-    for module in BROWSER_MODULES:
-        shutil.copy2(BROWSER_DIRECTORY / module, output_directory / module)
+    for file_name in (*BROWSER_MODULES, *BROWSER_PAGE_SCRIPTS):
+        shutil.copy2(BROWSER_DIRECTORY / file_name, output_directory / file_name)
     template = (BROWSER_DIRECTORY / 'index.html').read_text(encoding='utf-8')
     (output_directory / 'index.html').write_text(
         render_page(template=template, game=game), encoding='utf-8'

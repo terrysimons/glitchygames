@@ -30,6 +30,36 @@
       background: rgba(0, 0, 0, 0.6); font-size: 1.5rem; cursor: pointer;
     }
     #status { font-size: 0.9rem; color: #999; }
+
+    /* Touch controls (touch_controls.js; shown on touch devices with body.touch). Portrait:
+       below the game; landscape: over its bottom corners, with the game as tall as the screen */
+    :root { --touch-button-size: 64px; }
+    #touch-controls { display: none; }
+    body.touch { touch-action: manipulation; }
+    body.touch #touch-controls {
+      display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;
+      width: 100%; max-width: 800px; box-sizing: border-box; padding: 4px;
+      touch-action: none; -webkit-touch-callout: none;
+    }
+    .touch-cluster { display: grid; gap: 10px; }
+    .touch-button, .touch-gap { width: var(--touch-button-size); height: var(--touch-button-size); }
+    .touch-button {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.12); color: #eee; font-size: 1.35rem; line-height: 1.1;
+    }
+    .touch-button.pressed { background: rgba(255, 255, 255, 0.4); }
+    .touch-key-name { font-size: 0.7rem; opacity: 0.75; }
+    @media (orientation: landscape) {
+      body.touch main { padding: 0; }
+      body.touch #canvas { width: auto; height: auto; max-height: 100vh; }
+      body.touch #touch-controls {
+        position: fixed; left: 0; right: 0; bottom: 0; max-width: none; padding: 12px;
+        pointer-events: none;
+      }
+      body.touch .touch-cluster { pointer-events: auto; }
+      body.touch .touch-button { background: rgba(255, 255, 255, 0.08); }
+    }
   </style>
 </head>
 <body>
@@ -41,5 +71,6 @@
     <p id="status">Loading Python and pygame-ce...</p>
   </main>
   <script type="py" src="boot.py" config="pyscript.toml"></script>
+  <script src="touch_controls.js"></script>
 </body>
 </html>
