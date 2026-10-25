@@ -29,9 +29,10 @@ from scripts.record_scripted_session import (
 )
 
 from glitchygames import live_sources
+from glitchygames.events import GAMEEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.state import IDLE_INPUT
-from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN
+from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, post_event
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine
 
@@ -104,6 +105,37 @@ def test_scripted_session_records_and_replays(mocker, tmp_path):
     assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
     assert replay.result.end_reason == 'end_of_recording'
     assert replay.result.frames_replayed == RECORDED_FRAME_COUNT
+
+
+# A subtype no game posts: the stale event a previous test left in the queue
+STALE_EVENT_SUBTYPE = 9999
+
+
+@pytest.mark.frames_vary(
+    reason='the session runs the real frame loop: each frame moves by its measured frame time'
+)
+def test_a_session_drops_events_left_queued_before_it(mocker, tmp_path):
+    """An internal event a caller left queued is never recorded as the session's own."""
+    path = tmp_path / 'stale.jsonl.gz'
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    # What an earlier test's scene left behind: a game event it posted and never pumped
+    post_event(pygame.event.Event(GAMEEVENT, {'subtype': STALE_EVENT_SUBTYPE}))
+
+    record_scripted_session(
+        game_key='paddleslap', frame_count=5, path=path, exercise_controls=False
+    )
+
+    frames = read_trace_result(path=path).trace['frames']
+    recorded_subtypes = [
+        record['attributes'].get('subtype')
+        for frame in frames
+        for batch in frame.get(EVENT_BATCHES_FIELD, [])
+        for record in batch
+        if record['type'] == GAMEEVENT
+    ]
+    assert STALE_EVENT_SUBTYPE not in recorded_subtypes
 
 
 def test_games_with_sprite_placements_are_refused(scene_manager):

@@ -559,6 +559,11 @@ def record_scripted_session(
         tempfile.TemporaryDirectory(prefix='scripted-session-saves-') as save_directory,
         deterministic_environment(save_root=Path(save_directory)),
     ):
+        # A caller that keeps pygame running (a test) may have left events queued: a game's own
+        # internal events, which this session's first frame would pump and record as its own
+        # (and its replay, never posting them, diverges). The session starts on an empty queue
+        if pygame.display.get_init():
+            pygame.event.clear()
         manager = GoldenTraceSceneManager.install()
         try:
             with command_line([
