@@ -407,7 +407,7 @@ def _draw_pennant(
         round(soldier.y) - frame_height + SPRITE_EMPTY_ROWS_ABOVE_HELMET * SPRITE_SCALE,
     )
     pole_top = (pole_bottom[0], pole_bottom[1] - PENNANT_POLE_HEIGHT)
-    label = _text_surface(name, size=PENNANT_FONT_SIZE)
+    label = text_surface(name, size=PENNANT_FONT_SIZE)
     flag = pygame.Rect(
         pole_top[0] + PENNANT_POLE_WIDTH,
         pole_top[1],
@@ -464,7 +464,7 @@ def draw_bullet(surface: pygame.Surface, bullet: Bullet) -> None:
 
 
 @functools.cache
-def _text_surface(text: str, *, size: int) -> pygame.Surface:
+def text_surface(text: str, *, size: int) -> pygame.Surface:
     """Render a line of pencilled text once: the same text at the same size is the same surface.
 
     Args:
@@ -488,8 +488,8 @@ def draw_hud(surface: pygame.Surface, battle: Battle) -> None:
     """
     for side in Side:
         on_left = side is Side.PLATOON
-        name = _text_surface(ARMY_NAMES[side], size=HUD_NAME_FONT_SIZE)
-        count = _text_surface(f'soldiers {len(battle.living(side))}', size=HUD_COUNT_FONT_SIZE)
+        name = text_surface(ARMY_NAMES[side], size=HUD_NAME_FONT_SIZE)
+        count = text_surface(f'soldiers {len(battle.living(side))}', size=HUD_COUNT_FONT_SIZE)
         chip = pygame.Rect(0, 0, HUD_CHIP_SIZE_PIXELS, HUD_CHIP_SIZE_PIXELS)
         top = HUD_MARGIN_PIXELS
         if on_left:

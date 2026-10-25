@@ -7,10 +7,13 @@ import pytest
 
 from glitchygames.display_mode import set_display_mode
 from glitchygames.examples import drawing_fire
+from glitchygames.examples.drawing_fire import drawing as drawing_module
 from glitchygames.examples.drawing_fire import game as drawing_fire_game
 from glitchygames.examples.drawing_fire.battle import (
     ARMY_NAMES,
+    SAND_PER_HIT,
     SOLDIERS_PER_SIDE,
+    WALK_SPEED,
     Bullet,
     Side,
 )
@@ -21,6 +24,15 @@ from glitchygames.examples.drawing_fire.game import (
     DrawingFireScene,
     Phase,
 )
+from glitchygames.examples.drawing_fire.players import KEYBOARD, Device
+from glitchygames.examples.drawing_fire.seat_drawing import (
+    CARD_COLOR,
+    NOTE_COLOR,
+    join_note_rect,
+    seat_card_rect,
+)
+from glitchygames.examples.drawing_fire.seats import Stage
+from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 
 SCREEN_SIZE = (800, 480)
@@ -216,3 +228,346 @@ def test_battles_replay_from_the_same_seed():
             scene.dt_tick(1 / 60)
         snapshots.append([(soldier.x, soldier.health) for soldier in scene.battle.soldiers])
     assert snapshots[0] == snapshots[1]
+
+
+# --- Seats: players join, choose, play and leave (milestones 2 and 3) ---
+
+CONTROLLER_ID = 5
+CONTROLLER_AXIS_COUNT = 6
+CONTROLLER_BUTTON_COUNT = 21
+FULL_DEFLECTION = 32767
+# A soldier's helmet top is this far above his feet (px); the highlight's label and a pennant
+# are drawn above it
+HELMET_TOP_PIXELS = 36
+
+
+def keyboard_input(*, scancodes=()):
+    """Build a snapshot with these keyboard scancodes held and no controller.
+
+    Returns:
+        The snapshot.
+
+    """
+    return InputSnapshot(
+        pressed_scancodes=frozenset(scancodes),
+        modifiers=0,
+        mouse_position=(0, 0),
+        mouse_buttons=(False, False, False),
+        mouse_focused=True,
+    )
+
+
+def controller_input(*, buttons=(), axes=None):
+    """Build a snapshot with controller 5 plugged in, holding these buttons and axes.
+
+    Returns:
+        The snapshot.
+
+    """
+    axis_values = [0] * CONTROLLER_AXIS_COUNT
+    for axis, value in (axes or {}).items():
+        axis_values[axis] = value
+    return InputSnapshot(
+        pressed_scancodes=frozenset(),
+        modifiers=0,
+        mouse_position=(0, 0),
+        mouse_buttons=(False, False, False),
+        mouse_focused=True,
+        controller_axes={CONTROLLER_ID: tuple(axis_values)},
+        controller_buttons={
+            CONTROLLER_ID: tuple(index in buttons for index in range(CONTROLLER_BUTTON_COUNT))
+        },
+    )
+
+
+def tick_with(scene, snapshot, frames=1):
+    """Make this the frame's input and step the scene that many frames."""
+    set_current_input(snapshot=snapshot)
+    for _ in range(frames):
+        scene.dt_tick(1 / 60)
+
+
+def keyboard_tap(scene, scancode):
+    """Press a key for a frame, then let it go for a frame."""
+    tick_with(scene, keyboard_input(scancodes={scancode}))
+    tick_with(scene, keyboard_input())
+
+
+def controller_tap(scene, button):
+    """Press a controller button for a frame, then let it go for a frame."""
+    tick_with(scene, controller_input(buttons={button}))
+    tick_with(scene, controller_input())
+
+
+def keyboard_joins_and_plays(scene):
+    """The keyboard player presses Enter three times: join, a random side, the highlighted soldier.
+
+    Returns:
+        The player's seat, playing.
+
+    """
+    for _ in range(3):
+        keyboard_tap(scene, pygame.KSCAN_RETURN)
+    seat = scene.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    assert seat.stage is Stage.PLAYING
+    return seat
+
+
+def colors_in(surface, rect):
+    """Collect the colours in a rectangle of a surface.
+
+    Returns:
+        The set of (r, g, b) colours.
+
+    """
+    clipped = rect.clip(surface.get_rect())
+    return {
+        tuple(surface.get_at((x, y)))[:3]
+        for x in range(clipped.left, clipped.right)
+        for y in range(clipped.top, clipped.bottom)
+    }
+
+
+def test_the_join_prompt_shows_while_a_device_is_unseated(scene):
+    """The sticky note is on the paper until every device (here the keyboard) has a seat."""
+    note = join_note_rect(scene.screen)
+    corner = (note.right - 3, note.bottom - 3)
+    scene.render(scene.screen)
+    assert tuple(scene.screen.get_at(corner))[:3] == NOTE_COLOR
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    scene.render(scene.screen)
+    assert tuple(scene.screen.get_at(corner))[:3] != NOTE_COLOR
+    # A controller plugged in is a device without a seat: the note is back
+    tick_with(scene, controller_input())
+    scene.render(scene.screen)
+    assert tuple(scene.screen.get_at(corner))[:3] == NOTE_COLOR
+
+
+def test_a_player_choosing_a_side_sees_the_side_card(scene):
+    """START opens a card beside the note; the soldier choice keeps a card, playing has none."""
+    card = seat_card_rect(scene.screen, slot=0)
+    scene.render(scene.screen)
+    assert CARD_COLOR not in colors_in(scene.screen, card)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    scene.render(scene.screen)
+    assert CARD_COLOR in colors_in(scene.screen, card)
+    keyboard_tap(scene, pygame.KSCAN_RIGHT)
+    scene.render(scene.screen)
+    # The chosen line (Pencil Platoon) is marked with its army's colour
+    assert ARMY_COLORS[Side.PLATOON] in colors_in(scene.screen, card)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    scene.render(scene.screen)
+    assert CARD_COLOR in colors_in(scene.screen, card)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    scene.render(scene.screen)
+    assert CARD_COLOR not in colors_in(scene.screen, card)
+
+
+def test_a_waiting_player_has_a_card(scene):
+    """A player who has no soldier yet is told he waits."""
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    seat = scene.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    kill_army(scene, Side.PLATOON)
+    kill_army(scene, Side.BRIGADE)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    assert seat.stage is Stage.WAITING
+    scene.render(scene.screen)
+    assert CARD_COLOR in colors_in(scene.screen, seat_card_rect(scene.screen, slot=0))
+
+
+def test_the_highlight_marks_the_soldier_being_chosen(scene):
+    """In CHOOSING_SOLDIER a pencil ring and the player's name mark the highlighted soldier."""
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    seat = scene.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    assert seat.stage is Stage.CHOOSING_SOLDIER
+    highlighted = scene.seats.highlighted_soldier(seat, battle=scene.battle)
+    assert highlighted is not None
+    above_head = pygame.Rect(0, 0, 40, 40)
+    above_head.midbottom = (round(highlighted.x), round(highlighted.y) - HELMET_TOP_PIXELS - 8)
+    scene.render(scene.screen)
+    assert PENCIL_COLOR in colors_in(scene.screen, above_head)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    assert seat.stage is Stage.PLAYING
+    scene.render(scene.screen)
+    # Playing, he flies his pennant instead: his army's colour over his helmet
+    assert ARMY_COLORS[highlighted.side] in colors_in(scene.screen, above_head)
+
+
+def test_no_highlight_is_drawn_when_the_last_free_soldier_has_just_died(scene):
+    """A chooser's side lost its free soldiers this step: the next update sends him to wait."""
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    seat = scene.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    assert seat.side is not None
+    kill_army(scene, seat.side)
+    scene.render(scene.screen)
+    assert scene.seats.highlighted_soldier(seat, battle=scene.battle) is None
+    tick_with(scene, keyboard_input())
+    assert seat.stage is Stage.WAITING
+
+
+def test_a_new_battle_highlights_a_soldier_in_it(scene):
+    """The highlight is drawn over the new battle's soldier after battle_started."""
+    seat = keyboard_joins_and_plays(scene)
+    scene.start_battle()
+    assert seat.stage is Stage.CHOOSING_SOLDIER
+    scene.render(scene.screen)
+
+
+def test_a_joined_player_plays_the_next_battle(scene):
+    """After the victory the player chooses a soldier of the same side in battle 2."""
+    seat = keyboard_joins_and_plays(scene)
+    side = seat.side
+    assert side is not None
+    soldier_id = seat.soldier_id
+    assert soldier_id is not None
+    kill_army(scene, side.opponent)
+    tick_with(scene, keyboard_input())
+    assert scene.phase is Phase.VICTORY
+    # During the victory his soldier stands, still his, and START still opens a seat
+    tick_with(scene, controller_input(buttons={pygame.CONTROLLER_BUTTON_START}))
+    tick_with(scene, controller_input())
+    assert scene.battle.soldier(soldier_id).alive
+    assert scene.seats.driver_of(soldier_id) == seat.name
+    second_seat = scene.seats.seat_of(Device(controller_id=CONTROLLER_ID))
+    assert second_seat is not None
+    assert second_seat.stage is Stage.CHOOSING_SIDE
+    tick_with(scene, controller_input(), frames=round(VICTORY_SECONDS * 60) + 1)
+    assert scene.battle_number == 2
+    assert seat.stage is Stage.CHOOSING_SOLDIER
+    assert seat.side is side
+    assert seat.soldier_id is None
+
+
+def test_the_scene_drives_a_players_soldier_from_their_device(scene):
+    """A controller player on the Brigade pushes the left stick right: his soldier walks right."""
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_START)
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_DPAD_RIGHT)
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_START)
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_START)
+    seat = scene.seats.seat_of(Device(controller_id=CONTROLLER_ID))
+    assert seat is not None
+    assert seat.stage is Stage.PLAYING
+    assert seat.side is Side.BRIGADE
+    assert seat.soldier_id is not None
+    soldier = scene.battle.soldier(seat.soldier_id)
+    start_x = soldier.x
+    tick_with(
+        scene, controller_input(axes={pygame.CONTROLLER_AXIS_LEFTX: FULL_DEFLECTION}), frames=30
+    )
+    # The computer would have walked him left, toward the Platoon
+    assert soldier.x > start_x
+    assert soldier.x == pytest.approx(start_x + 30 * WALK_SPEED / 60)
+    # The computer keeps his mind thinking (a target) while the player drives him
+    assert scene.minds[seat.soldier_id].target_id is not None
+
+
+def test_an_unplugged_controller_hands_the_soldier_back_that_frame(scene):
+    """Unplugged, the player leaves and the computer walks his soldier toward the enemy at once."""
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_START)
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_START)
+    controller_tap(scene, pygame.CONTROLLER_BUTTON_START)
+    seat = scene.seats.seat_of(Device(controller_id=CONTROLLER_ID))
+    assert seat is not None
+    assert seat.soldier_id is not None
+    soldier = scene.battle.soldier(seat.soldier_id)
+    tick_with(scene, controller_input(), frames=5)
+    standing_x = soldier.x
+    tick_with(scene, keyboard_input())
+    assert scene.seats.players == {}
+    assert scene.seats.driver_of(soldier.soldier_id) == 'CPU'
+    toward_enemy = 1.0 if soldier.side is Side.PLATOON else -1.0
+    assert (soldier.x - standing_x) * toward_enemy > 0
+
+
+def test_a_players_death_moves_him_to_another_soldier(scene):
+    """An enemy bullet kills the player's soldier: the scene hands him another of his side."""
+    seat = keyboard_joins_and_plays(scene)
+    assert seat.side is not None
+    assert seat.soldier_id is not None
+    soldier = scene.battle.soldier(seat.soldier_id)
+    soldier.health = 1
+    chest_x, chest_y = soldier.chest
+    scene.battle.bullets.append(
+        Bullet(
+            x=chest_x - 1.0,
+            y=chest_y,
+            velocity_x=600.0,
+            velocity_y=0.0,
+            side=seat.side.opponent,
+            distance_left=100.0,
+        )
+    )
+    # A sandbag flattened in the same step moves no one
+    sandbag = scene.battle.sandbags[0]
+    sandbag.sand = SAND_PER_HIT
+    sandbag_top = scene.terrain.ground_y(sandbag.x) - sandbag.height
+    scene.battle.bullets.append(
+        Bullet(
+            x=sandbag.x,
+            y=sandbag_top - 1.0,
+            velocity_x=0.0,
+            velocity_y=600.0,
+            side=Side.PLATOON,
+            distance_left=100.0,
+        )
+    )
+    tick_with(scene, keyboard_input())
+    assert sandbag.flattened
+    assert not soldier.alive
+    assert seat.stage is Stage.PLAYING
+    assert seat.soldier_id != soldier.soldier_id
+    assert scene.battle.soldier(seat.soldier_id).side is seat.side
+    assert scene.seats.log[-1].text == f'{seat.name} died → soldier {seat.soldier_id}'
+
+
+def test_seats_draw_only_from_their_own_stream(scene):
+    """Joining, choosing a random side and taking a soldier never move a soldier's stream."""
+    stream_states = {
+        soldier_id: stream.getstate() for soldier_id, stream in scene.soldier_streams.items()
+    }
+    edges = scene.button_edges
+    for held in ({pygame.KSCAN_RETURN}, set(), {pygame.KSCAN_RETURN}, set()):
+        edges.update(keyboard_input(scancodes=held))
+        scene.seats.update(
+            edges=edges, devices=(KEYBOARD,), battle=scene.battle, seconds=scene.game_time
+        )
+    seat = scene.seats.seat_of(KEYBOARD)
+    assert seat is not None
+    assert seat.side is not None
+    assert {
+        soldier_id: stream.getstate() for soldier_id, stream in scene.soldier_streams.items()
+    } == stream_states
+
+
+def test_the_seat_texts_are_rendered_once(scene, mocker):
+    """The note, the card and the highlight's label make no font and render no text twice."""
+    keyboard_tap(scene, pygame.KSCAN_RETURN)
+    tick_with(scene, controller_input())
+    scene.render(scene.screen)
+    font_constructor = mocker.spy(pygame.font, 'Font')
+    rendered = mocker.spy(drawing_module, '_font')
+    scene.render(scene.screen)
+    assert font_constructor.call_count == 0
+    assert rendered.call_count == 0
+
+
+def test_releasing_escape_never_quits_but_q_does(scene):
+    """Escape is the keyboard's Back (held to leave a seat): its release must not quit; Q quits."""
+    pygame.event.clear()  # the real queue: only this test's posts
+    scene.record_key_press(key=pygame.K_ESCAPE)
+    scene.on_key_up_event(
+        pygame.event.Event(pygame.KEYUP, key=pygame.K_ESCAPE, scancode=pygame.KSCAN_ESCAPE, mod=0)
+    )
+    assert pygame.event.get(eventtype=pygame.QUIT) == []
+    scene.record_key_press(key=pygame.K_q)
+    scene.on_key_up_event(
+        pygame.event.Event(pygame.KEYUP, key=pygame.K_q, scancode=pygame.KSCAN_Q, mod=0)
+    )
+    assert len(pygame.event.get(eventtype=pygame.QUIT)) == 1

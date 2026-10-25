@@ -30,7 +30,6 @@ from glitchygames.examples.drawing_fire.drawing import (
     SPRITE_SCALE,
     WOBBLE_PIXELS,
     _banner_surface,
-    _text_surface,
     draw_banner,
     draw_bullet,
     draw_hud,
@@ -38,6 +37,7 @@ from glitchygames.examples.drawing_fire.drawing import (
     draw_soldier,
     draw_terrain,
     load_soldier_frames,
+    text_surface,
     wobble,
 )
 from glitchygames.examples.drawing_fire.swatches import load_swatch_sets
@@ -413,7 +413,7 @@ def test_the_hud_counts_the_living(paper, battle):
 def test_the_hud_font_and_text_are_made_once(paper, battle, mocker):
     """The HUD builds its two fonts once (through pygame.font.Font) and renders each text once."""
     mocker.patch.dict(FontManager._font_cache, clear=True)
-    _text_surface.cache_clear()
+    text_surface.cache_clear()
     font_constructor = mocker.spy(pygame.font, 'Font')
     draw_hud(paper, battle)
     # The name font and the count font: this spy does see FontManager build them

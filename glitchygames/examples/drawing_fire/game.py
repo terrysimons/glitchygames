@@ -1,8 +1,9 @@
 """Drawing Fire: a pencil-on-paper stick-figure battle.
 
-This cut is the battlefield (paper, and the ground with its hills) and a battle that plays
-itself: every soldier is driven by the computer, the winner is announced, and the next battle
-starts on its own. ``drawing`` draws it all in pencil.
+This cut is the battlefield (paper, and the ground with its hills) and a battle the computer
+plays, the winner announced and the next battle started on its own. Players join it at any time
+(``seats``): START on the keyboard (Enter) or a controller chooses a side and takes over one of
+its soldiers. ``drawing`` and ``seat_drawing`` draw it all in pencil.
 """
 
 from __future__ import annotations
@@ -14,7 +15,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 
 from glitchygames.engine import GameEngine
-from glitchygames.examples.drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Battle
+from glitchygames.examples.drawing_fire.battle import (
+    ARMY_NAMES,
+    SOLDIERS_PER_SIDE,
+    Battle,
+    SoldierKilled,
+)
 from glitchygames.examples.drawing_fire.drawing import (
     draw_banner,
     draw_bullet,
@@ -29,11 +35,27 @@ from glitchygames.examples.drawing_fire.drivers import (
     computer_intents,
     muster_battle,
 )
+from glitchygames.examples.drawing_fire.players import (
+    KEYBOARD,
+    ButtonEdges,
+    connected_devices,
+    device_intent,
+)
+from glitchygames.examples.drawing_fire.seat_drawing import (
+    draw_join_prompt,
+    draw_seat_card,
+    draw_soldier_highlight,
+)
+from glitchygames.examples.drawing_fire.seats import COMPUTER_DRIVER_NAME, Seats, Stage
+from glitchygames.input.state import current_input
+from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
     from random import Random
 
+    from glitchygames.events.base import KeyEvent
+    from glitchygames.examples.drawing_fire.players import Device
     from glitchygames.examples.drawing_fire.terrain import Terrain
 
 PAPER_COLOR = (251, 248, 239)
@@ -80,6 +102,11 @@ class DrawingFireScene(Scene):
         # The soldier sprite, scaled once and recoloured once per army
         self.soldier_frames = load_soldier_frames(path=SOLDIER_SPRITE_PATH)
         self.walking_soldier_ids: set[int] = set()
+        # The players: who sits where, from the seats' own stream (never a soldier's)
+        self.seats = Seats(random=random_stream('drawing_fire.seats'))
+        self.button_edges = ButtonEdges()
+        # The devices plugged in at the latest tick (the keyboard is always there)
+        self.devices: tuple[Device, ...] = (KEYBOARD,)
         self.start_battle()
 
     def start_battle(self: Self) -> None:
@@ -103,22 +130,51 @@ class DrawingFireScene(Scene):
         # battle, and LayeredDirty repaints the background, so it has to be on the background)
         self.background.fill(PAPER_COLOR)
         draw_terrain(self.background, self.terrain)
+        # Joined players choose a soldier of their side again
+        self.seats.battle_started(battle=self.battle)
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Play the battle (every soldier is the computer's), or count down the victory.
+        """Seat the players, then play the battle (or count down the victory).
+
+        Players' soldiers are driven by their devices, every other soldier by the computer.
 
         Args:
             dt: The seconds to advance.
 
         """
         super().dt_tick(dt)
+        snapshot = current_input()
+        self.button_edges.update(snapshot)
+        self.devices = connected_devices(snapshot)
+        self.seats.update(
+            edges=self.button_edges,
+            devices=self.devices,
+            battle=self.battle,
+            seconds=self.game_time,
+        )
         if self.phase is Phase.BATTLE:
+            # The computer thinks for every soldier, so a player's soldier's mind and stream stay
+            # current and he is handed back cleanly; a player's intent then replaces its own
             intents = computer_intents(
                 battle=self.battle, minds=self.minds, streams=self.soldier_streams
             )
+            for seat in self.seats.players.values():
+                if seat.stage is Stage.PLAYING and seat.soldier_id is not None:
+                    soldier = self.battle.soldier(seat.soldier_id)
+                    intents[seat.soldier_id] = device_intent(
+                        device=seat.device,
+                        snapshot=snapshot,
+                        soldier_position=soldier.chest,
+                        last_aim=soldier.aim_angle,
+                    )
             walked_from = {soldier.soldier_id: soldier.x for soldier in self.battle.soldiers}
-            self.battle.step(dt=dt, intents=intents)
+            events = self.battle.step(dt=dt, intents=intents)
+            for event in events:
+                if isinstance(event, SoldierKilled):
+                    self.seats.soldier_killed(
+                        soldier_id=event.soldier_id, battle=self.battle, seconds=self.game_time
+                    )
             # A soldier whose x changed this step is walking
             self.walking_soldier_ids = {
                 soldier.soldier_id
@@ -149,20 +205,61 @@ class DrawingFireScene(Scene):
             draw_sandbag(screen, sandbag, self.terrain)
         # The fallen are drawn first, so the standing are never hidden behind them
         for soldier in sorted(self.battle.soldiers, key=lambda soldier: soldier.alive):
+            driver = self.seats.driver_of(soldier.soldier_id)
             draw_soldier(
                 screen,
                 soldier,
                 frames=self.soldier_frames,
-                marked=None,
+                marked=None if driver == COMPUTER_DRIVER_NAME else driver,
                 walking=soldier.soldier_id in self.walking_soldier_ids,
                 seconds=self.battle.seconds,
             )
         for bullet in self.battle.bullets:
             draw_bullet(screen, bullet)
         draw_hud(screen, self.battle)
+        self._render_seats(screen)
         if self.victory_message:
             draw_banner(screen, self.victory_message)
         self.rects = None  # The whole screen is presented
+
+    def _render_seats(self: Self, screen: pygame.Surface) -> None:
+        """Draw the join note while a device has no seat, each player's card and highlight.
+
+        Args:
+            screen: The display surface.
+
+        """
+        if any(self.seats.seat_of(device) is None for device in self.devices):
+            draw_join_prompt(screen)
+        # Every player not yet playing has a card, in name order
+        slot = 0
+        for name in sorted(self.seats.players):
+            seat = self.seats.players[name]
+            if seat.stage is Stage.PLAYING:
+                continue
+            draw_seat_card(screen, seat, slot=slot, battle_over=self.phase is Phase.VICTORY)
+            slot += 1
+            if seat.stage is Stage.CHOOSING_SOLDIER:
+                highlighted = self.seats.highlighted_soldier(seat, battle=self.battle)
+                if highlighted is not None:
+                    draw_soldier_highlight(screen, highlighted, name=seat.name)
+
+    @override
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
+        """Quit on a Q release as every scene does, but never on an Escape release.
+
+        Escape is the keyboard's Back, held to leave a seat (``seats``), so the base scene's
+        quit on its release would end the game for a player who only meant to leave. Like
+        Mr. Muncher's override (``mr_muncher/game.py``, where Escape pauses), this reads no
+        gameplay input: the seats read Escape from the frame's snapshot.
+
+        Args:
+            event: The key up event.
+
+        """
+        if event.key == pygame.K_ESCAPE:
+            return
+        super().on_key_up_event(event)
 
 
 def main() -> None:
