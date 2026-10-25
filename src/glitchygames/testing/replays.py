@@ -1,11 +1,17 @@
 r"""A pytest plugin that runs recordings as regression tests.
 
-A recording ``.../fixtures/replays/<console-script>/<name>.jsonl.gz`` (in this project,
-``tests/fixtures/replays/``; the directory is the game's console script from ``[project.scripts]``,
-for example ``paddleslap`` or ``clockwork-keep``) is collected as one test item,
-``<console-script>/<name>``. The item replays the recording headless through the real engine in
-a child process (started with ``run_command``, glitchygames/process.py: the engine's one
-child-process launcher):
+A recording is collected as one test item, ``<console-script>/<name>``, from either of two
+layouts (``recording_console_script`` tells which console script replays it):
+
+- ``.../fixtures/replays/<console-script>/<name>.jsonl.gz`` (in this project, the engine's own
+  ``tests/fixtures/replays/``; the directory is the game's console script from
+  ``[project.scripts]``, for example ``paddleslap`` or ``clockwork-keep``);
+- ``<member>/tests/fixtures/replays/<name>.jsonl.gz``, a workspace member's golden replays
+  (``src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz``): the member's directory is
+  named after its distribution, whose one console script replays them.
+
+The item replays the recording headless through the real engine in a child process (started
+with ``run_command``, glitchygames/process.py: the engine's one child-process launcher):
 
     <this interpreter> -c 'from importlib.metadata import EntryPoint; \
         EntryPoint(name=..., value=..., group=...).load()()' \
@@ -19,9 +25,10 @@ every frame); any other exit fails it with the exit code's name and the child's 
 output and error together), which holds the divergence report (``Replay diverged at frame N:
 ...``) or the reason the recording was refused (``ExitCode.UNUSABLE_INPUT`` and
 ``ExitCode.MISSING_INPUT`` are reported as an unusable recording). These fail at collection: a
-directory under ``fixtures/replays/`` that is not a console script, and a recording anywhere under
-``fixtures/replays/`` that is not directly in a game's directory (directly in ``replays/``, or
-nested deeper). A bookmarked copy (a header naming its source, ``bookmarked_copy_of``: what S
+directory under ``fixtures/replays/`` that is not a console script, a recording directly in
+``fixtures/replays/`` whose member (the directory above ``tests/``) is not an installed
+distribution with exactly one console script, and a recording nested deeper than a game's
+directory. A bookmarked copy (a header naming its source, ``bookmarked_copy_of``: what S
 saves beside a recording a watched replay plays; glitchygames/replay/driver.py, rule 16) is not
 collected.
 
@@ -59,12 +66,17 @@ if TYPE_CHECKING:
 
     from glitchygames.process import CompletedProcess
 
-# A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz
+RECORDING_SUFFIX = '.jsonl.gz'
+# A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz, or from a
+# workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz
 REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')
-REPLAY_FIXTURES_LAYOUT = f'{"/".join(REPLAY_FIXTURES_PATH_PARTS)}/<console-script>/'
+REPLAY_FIXTURES_LAYOUT = (
+    f'{"/".join(REPLAY_FIXTURES_PATH_PARTS)}/<console-script>/<name>{RECORDING_SUFFIX} '
+    f"(a workspace member's: <member>/tests/{'/'.join(REPLAY_FIXTURES_PATH_PARTS)}/"
+    f'<name>{RECORDING_SUFFIX})'
+)
 # The exit codes of a replay that refused its recording
 UNUSABLE_RECORDING_EXIT_CODES = frozenset({ExitCode.UNUSABLE_INPUT, ExitCode.MISSING_INPUT})
-RECORDING_SUFFIX = '.jsonl.gz'
 CONSOLE_SCRIPTS_GROUP = 'console_scripts'
 # Kill a replay child that runs longer than this (a headless replay of a few hundred frames
 # takes a second or two)
@@ -101,6 +113,52 @@ def game_entry_point(*, console_script: str) -> importlib.metadata.EntryPoint:
         ):
             return entry_point
     raise KeyError(console_script)
+
+
+def recording_console_script(*, path: Path) -> str:
+    """Return the console script that replays a recording under a ``fixtures/replays/`` directory.
+
+    Two layouts: a workspace member's recordings lie directly in
+    ``<member>/tests/fixtures/replays/`` and are replayed by the member distribution's one console
+    script (the member's directory is named after its distribution: ``src/games/mr-muncher``);
+    the engine's own (and the games not yet moved) lie in
+    ``tests/fixtures/replays/<console-script>/``, whose folder names the script.
+
+    Args:
+        path: The recording.
+
+    Returns:
+        The console script's name.
+
+    Raises:
+        KeyError: If the member's distribution is not installed or has not exactly one console
+            script, or the folder names no installed console script.
+
+    """
+    if path.parent.parts[-len(REPLAY_FIXTURES_PATH_PARTS) :] == REPLAY_FIXTURES_PATH_PARTS:
+        distribution_name = path.parent.parent.parent.parent.name
+        try:
+            distribution = importlib.metadata.distribution(distribution_name)
+        except importlib.metadata.PackageNotFoundError:
+            message = f'{path}: {distribution_name!r} is not an installed workspace member'
+            raise KeyError(message) from None
+        console_scripts = [
+            entry_point.name
+            for entry_point in distribution.entry_points
+            if entry_point.group == CONSOLE_SCRIPTS_GROUP
+        ]
+        if len(console_scripts) != 1:
+            message = (
+                f'{path}: {distribution_name!r} has {len(console_scripts)} console scripts, not one'
+            )
+            raise KeyError(message)
+        return console_scripts[0]
+    try:
+        game_entry_point(console_script=path.parent.name)
+    except KeyError:
+        message = f'{path}: the directory {path.parent.name!r} is not a console script'
+        raise KeyError(message) from None
+    return path.parent.name
 
 
 class ReplayFileFactory(Protocol):
@@ -293,26 +351,22 @@ class ReplayFile(pytest.File):
             The recording's ReplayItem, named ``<console-script>/<name>``.
 
         Raises:
-            pytest.Collector.CollectError: If the recording is not directly in a game's
-                directory, or the directory name is not an installed console script.
+            pytest.Collector.CollectError: If the recording is in neither layout
+                (``REPLAY_FIXTURES_LAYOUT``), or ``recording_console_script`` finds no console
+                script for it.
 
         """
-        if self.path.parent.parent.parts[-len(REPLAY_FIXTURES_PATH_PARTS) :] != (
-            REPLAY_FIXTURES_PATH_PARTS
-        ):
-            message = (
-                f'{self.path}: recordings go in {REPLAY_FIXTURES_LAYOUT}<name>{RECORDING_SUFFIX}'
-            )
+        width = len(REPLAY_FIXTURES_PATH_PARTS)
+        if REPLAY_FIXTURES_PATH_PARTS not in {
+            self.path.parent.parts[-width:],
+            self.path.parent.parent.parts[-width:],
+        }:
+            message = f'{self.path}: recordings go in {REPLAY_FIXTURES_LAYOUT}'
             raise pytest.Collector.CollectError(message)
-        console_script = self.path.parent.name
         try:
-            game_entry_point(console_script=console_script)
-        except KeyError:
-            message = (
-                f'{self.path}: the directory {console_script!r} is not a console script; '
-                f"recordings go in {REPLAY_FIXTURES_LAYOUT}, named after the game's "
-                '[project.scripts] entry'
-            )
+            console_script = recording_console_script(path=self.path)
+        except KeyError as error:
+            message = f'{error.args[0]}; recordings go in {REPLAY_FIXTURES_LAYOUT}'
             raise pytest.Collector.CollectError(message) from None
         name = self.path.name.removesuffix(RECORDING_SUFFIX)
         make_item = cast('ReplayItemFactory', ReplayItem.from_parent)
@@ -331,8 +385,10 @@ class ReplayItem(pytest.Item):
         fails with run_command's ``subprocess.TimeoutExpired``.
 
         """
-        # ReplayFile.collect has checked the directory is a console script
-        finished = replay_recording_headless(console_script=self.path.parent.name, path=self.path)
+        # ReplayFile.collect has checked the recording has a console script
+        finished = replay_recording_headless(
+            console_script=recording_console_script(path=self.path), path=self.path
+        )
         if finished.returncode == ExitCode.SUCCESS:
             return
         unusable = (

@@ -163,7 +163,7 @@ class TestTheRecordings:
         assert 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
         assert (
             'mr-muncher',
-            PROJECT_ROOT / 'tests/fixtures/replays/mr-muncher/golden.jsonl.gz',
+            PROJECT_ROOT / 'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
         ) in (recordings)
         assert all(console_script for console_script, _ in recordings)
 

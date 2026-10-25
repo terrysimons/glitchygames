@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from scripts.workspace_packages import workspace_members
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
@@ -172,11 +173,38 @@ def test_nox_sessions_always_reinstall_the_project():
     added since (glitchygames/code_tree.py) was missing from the docs build.
     """
     install = docs_deploy_commands(posargs=['--no-measure'])[0]
+    reinstalled = {
+        install[index + 1]
+        for index, argument in enumerate(install)
+        if argument == '--reinstall-package'
+    }
 
     assert install[:2] == ('uv', 'sync')
-    assert install[
-        install.index('--reinstall-package') : install.index('--reinstall-package') + 2
-    ] == ('--reinstall-package', 'glitchygames')
+    assert '--all-packages' in install
+    # The engine and every workspace member (src/games/mr-muncher), kept the same way
+    assert reinstalled == {
+        'glitchygames',
+        *(member.distribution for member in workspace_members(project_root=PROJECT_ROOT)),
+    }
+
+
+def test_every_other_sync_installs_the_workspace_members():
+    """The Linux test container's sync and direnv's (.envrc) install the members (C4, C5).
+
+    Without --all-packages an exact uv sync uninstalls them: the member's tests, its golden
+    replay and the replay-metrics hook would then find no mr-muncher.
+    """
+    import noxfile
+
+    envrc_syncs = [
+        line.split()
+        for line in (PROJECT_ROOT / '.envrc').read_text(encoding='utf-8').splitlines()
+        if line.strip().startswith('uv sync')
+    ]
+
+    assert '--all-packages' in noxfile._LINUX_X11_SYNC.split()
+    assert envrc_syncs
+    assert all('--all-packages' in sync for sync in envrc_syncs)
 
 
 def test_the_test_session_installs_a_stamped_engine():

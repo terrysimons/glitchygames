@@ -39,6 +39,7 @@ from scripts.build_browser_bundle import (
     touch_controls_config,
     write_engine_archive,
 )
+from scripts.workspace_packages import declared_console_scripts
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
@@ -172,7 +173,7 @@ class TestGeneratedFiles:
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {
             'game': 'mr-muncher',
-            'module': 'glitchygames.examples.mr_muncher.game',
+            'module': 'mr_muncher.game',
             'scene_class': 'MrMuncherScene',
             'title': 'Mr. Muncher',
             'arguments': ['--target-fps', '30'],
@@ -455,7 +456,6 @@ def test_every_game_has_a_browser_build():
     The two Brave Adventurer editions are separate games: the primitive old-school pygame style
     and the modern GlitchyGames style.
     """
-    with (REPOSITORY_DIRECTORY / 'pyproject.toml').open('rb') as pyproject_file:
-        scripts = tomllib.load(pyproject_file)['project']['scripts']
+    scripts = declared_console_scripts(project_root=REPOSITORY_DIRECTORY)
 
     assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS

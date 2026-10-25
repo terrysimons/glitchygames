@@ -25,14 +25,13 @@ EXAMPLES_LAYERS: dict[str, str] = {
     'brave_adventurer': 'games',
     'brave_adventurer_papyrus': 'games',
     'clockwork_keep': 'games',
-    'mr_muncher': 'games',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
     'text_input_demo': 'demos',
 }
 # Workspace members: top-level import package -> layer (src/<layer>/<member>/); equal to the
 # workspace, checked by tests/test_workspace_config.py
-MEMBER_LAYERS: dict[str, str] = {}
+MEMBER_LAYERS: dict[str, str] = {'mr_muncher': 'games'}
 
 
 def logical_module_name(*, module: str) -> str:

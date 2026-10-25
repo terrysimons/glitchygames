@@ -27,24 +27,27 @@ from typing import TYPE_CHECKING, Any
 import pygame
 import pytest
 from pydantic import BaseModel, ConfigDict
+from scripts.record_golden_traces import PROJECT_ROOT
 from scripts.record_scripted_session import (
     CONSOLE_SCRIPT_GAME_KEYS,
     REPLAY_FIXTURE_DIRECTORY,
     REPLAY_FIXTURE_SUFFIX,
     fixture_path,
 )
+from scripts.workspace_packages import workspace_members
 
 from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
-from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
 from glitchygames.replay.driver import SPRITE_DIVERGENCE
 from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.testing.replays import recording_console_script
 from glitchygames.tracing import read_trace_result
+from mr_muncher.game import MrMuncherScene
 from tests.replay.replay_helpers import replay_through_engine, tamper_first_sprite_rect
 
 if TYPE_CHECKING:
@@ -55,7 +58,16 @@ if TYPE_CHECKING:
 # The frame a tampered copy of a fixture first differs from the engine at
 TAMPERED_FRAME = 10
 
-REPLAY_FIXTURES = sorted(REPLAY_FIXTURE_DIRECTORY.glob(f'*/*{REPLAY_FIXTURE_SUFFIX}'))
+# The engine's (tests/fixtures/replays/<console-script>/) and each workspace member's (directly in
+# <member>/tests/fixtures/replays/)
+REPLAY_FIXTURES = sorted([
+    *REPLAY_FIXTURE_DIRECTORY.glob(f'*/*{REPLAY_FIXTURE_SUFFIX}'),
+    *(
+        path
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        for path in member.replay_fixtures_directory.glob(f'*{REPLAY_FIXTURE_SUFFIX}')
+    ),
+])
 
 
 def test_the_fixture_directory_holds_golden_replays():
@@ -66,11 +78,38 @@ def test_the_fixture_directory_holds_golden_replays():
 
 
 def test_every_fixture_directory_is_a_game_console_script():
-    """Each fixture directory names a game's console script (so the replay knows the game)."""
-    unknown_directories = sorted(
-        {path.parent.name for path in REPLAY_FIXTURES} - set(CONSOLE_SCRIPT_GAME_KEYS)
+    """Each fixture's place names a game's console script (so the replay knows the game)."""
+    unknown_console_scripts = sorted(
+        {recording_console_script(path=path) for path in REPLAY_FIXTURES}
+        - set(CONSOLE_SCRIPT_GAME_KEYS)
     )
-    assert not unknown_directories
+    assert not unknown_console_scripts
+
+
+def test_a_members_golden_replay_is_replayed_by_the_members_console_script():
+    """<member>/tests/fixtures/replays/<name>.jsonl.gz: the member distribution names the game."""
+    (member,) = [
+        member
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        if member.distribution == 'mr-muncher'
+    ]
+    golden = member.replay_fixtures_directory / 'golden.jsonl.gz'
+
+    assert recording_console_script(path=golden) == 'mr-muncher'
+    assert (
+        recording_console_script(
+            path=PROJECT_ROOT / 'tests' / 'fixtures' / 'replays' / 'paddleslap' / 'golden.jsonl.gz'
+        )
+        == 'paddleslap'
+    )
+
+
+def test_a_recording_of_a_folder_that_is_no_member_is_refused(tmp_path):
+    """A distribution that is not installed (or has several console scripts) names no game."""
+    misplaced = tmp_path / 'not-a-member' / 'tests' / 'fixtures' / 'replays' / 'golden.jsonl.gz'
+
+    with pytest.raises(KeyError, match='not-a-member'):
+        recording_console_script(path=misplaced)
 
 
 def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_path):

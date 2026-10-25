@@ -20,7 +20,7 @@ class LocalScene(Scene):
 @pytest.mark.parametrize(
     ('module', 'expected'),
     [
-        ('glitchygames.examples.mr_muncher.game', 'games.mr_muncher.game'),
+        ('mr_muncher.game', 'games.mr_muncher.game'),
         ('glitchygames.examples.paddleslap', 'games.paddleslap'),
         ('glitchygames.examples.joystick_demo', 'demos.joystick_demo'),
         ('glitchygames.scenes.builtin_scenes.pause', 'glitchygames.scenes.builtin_scenes.pause'),
@@ -67,11 +67,11 @@ def test_every_example_game_and_demo_has_a_layer():
         'brave_adventurer': 'games',
         'brave_adventurer_papyrus': 'games',
         'clockwork_keep': 'games',
-        'mr_muncher': 'games',
         'dt_demo': 'demos',
         'joystick_demo': 'demos',
         'text_input_demo': 'demos',
     }
+    assert logical_names.MEMBER_LAYERS == {'mr_muncher': 'games'}
 
 
 def test_a_logical_module_of_an_unknown_package_is_left_as_it_is():

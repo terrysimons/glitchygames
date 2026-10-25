@@ -81,7 +81,7 @@ class WorkspaceMember(BaseModel):
 
     @property
     def replay_fixtures_directory(self: Self) -> Path:
-        """Where its golden replays are (``<console-script>/<name>.jsonl.gz`` below it)."""
+        """Where its golden replays are, ``<name>.jsonl.gz`` directly in it."""
         return self.tests_directory / 'fixtures' / 'replays'
 
 
@@ -169,3 +169,23 @@ def source_package_directories(*, project_root: Path) -> list[Path]:
     for member in workspace_members(project_root=project_root):
         directories.extend(member.package_directories)
     return directories
+
+
+def declared_console_scripts(*, project_root: Path) -> dict[str, str]:
+    """Return every console script the workspace declares: the root project's, then each member's.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        Console script name -> its entry point (``module:function``), as each ``pyproject.toml``
+        ``[project.scripts]`` gives it.
+
+    """
+    scripts: dict[str, str] = dict(
+        _read_toml(path=project_root / 'pyproject.toml')['project'].get('scripts', {})
+    )
+    for member in workspace_members(project_root=project_root):
+        member_project = _read_toml(path=member.directory / 'pyproject.toml')['project']
+        scripts.update(member_project.get('scripts', {}))
+    return scripts

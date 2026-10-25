@@ -16,22 +16,23 @@ script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from t
 ## Development Setup
 
 ```bash
-# Install dependencies (uv manages the virtual environment automatically)
-uv sync
+# Install dependencies (uv manages the virtual environment automatically); --all-packages
+# installs the workspace members too (src/games/mr-muncher), which an exact sync would remove
+uv sync --all-packages
 
 # Install with dev extras (for testing/linting)
-uv sync --extra dev
+uv sync --extra dev --all-packages
 
 # Install with all extras
-uv sync --all-extras
+uv sync --all-extras --all-packages
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
-# `uv sync --all-extras --all-groups` (the locked versions) and, on macOS, installs PulseAudio with
-# Homebrew (sound from the Linux test container, nox -s test-linux-x11)
+# `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
+# installs PulseAudio with Homebrew (sound from the Linux test container, nox -s test-linux-x11)
 direnv allow
 
 # Upgrade dependencies deliberately, then review the uv.lock change
-uv sync --upgrade --all-extras --all-groups
+uv sync --upgrade --all-extras --all-groups --all-packages
 ```
 
 ## Common Commands

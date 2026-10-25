@@ -162,3 +162,10 @@ def test_a_member_outside_a_layer_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match='src/<layer>/'):
         workspace_members(project_root=tmp_path)
+
+
+def test_this_repositorys_members_are_read():
+    """The real workspace (members grow part by part)."""
+    distributions = [member.distribution for member in workspace_members(project_root=PROJECT_ROOT)]
+
+    assert 'mr-muncher' in distributions

@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-_CODE_DIRS = ['noxfile.py', 'src/glitchygames', 'scripts', 'tests']
+_CODE_DIRS = ['noxfile.py', 'src/glitchygames', 'src/games/mr-muncher', 'scripts', 'tests']
+# The source packages vulture and bandit scan: the engine's and each workspace member's
+_SOURCE_PACKAGE_DIRS = ['src/glitchygames', 'src/games/mr-muncher/mr_muncher']
+# The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
+# through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
+# pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
+_MEMBER_DISTRIBUTIONS = ['mr-muncher']
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +40,7 @@ def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> 
     the locked versions (installing ``.[api,dev,docs]`` with pip-style resolution picked the
     newest matching versions, so a new release of any dependency could change what CI tested
     without the lockfile changing). ``--no-editable`` installs the built package, as before,
-    not the source tree.
+    not the source tree. ``--all-packages`` installs the workspace members too.
 
     Args:
         session: The nox session whose venv to fill.
@@ -47,10 +53,17 @@ def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> 
         'sync',
         '--frozen',
         '--no-editable',
+        '--all-packages',
         # A reused venv keeps an installed project whose version is unchanged, so a module added
-        # since would be missing (the docs build imported glitchygames.code_tree): reinstall it
+        # since would be missing (the docs build imported glitchygames.code_tree): reinstall it,
+        # and every workspace member, which is kept the same way
         '--reinstall-package',
         'glitchygames',
+        *(
+            argument
+            for distribution in _MEMBER_DISTRIBUTIONS
+            for argument in ('--reinstall-package', distribution)
+        ),
         *(['--all-extras'] if all_extras else []),
         env={'UV_PROJECT_ENVIRONMENT': session.virtualenv.location},
     )
@@ -121,7 +134,7 @@ def _lint_dependencies(session: nox.Session) -> None:
 
 def _lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
-    session.run('vulture', 'src/glitchygames', 'vulture_whitelist.py', '--min-confidence=80')
+    session.run('vulture', *_SOURCE_PACKAGE_DIRS, 'vulture_whitelist.py', '--min-confidence=80')
 
 
 # Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
@@ -259,7 +272,9 @@ _GIT_FETCH_STATUSES = [0, 1, 128]
 
 
 def _replay_metrics(session: nox.Session, *arguments: str) -> None:
-    """Run scripts/replay_metrics.py in the project's environment (``uv run``).
+    """Run scripts/replay_metrics.py in the project's environment (``uv run``), as a module.
+
+    It imports scripts.workspace_packages, so it runs as ``python -m scripts.replay_metrics``.
 
     The rebaselines it starts must run this checkout's package (the project's editable install)
     to know their commit: a nox venv's built copy of the package cannot name it.
@@ -269,7 +284,8 @@ def _replay_metrics(session: nox.Session, *arguments: str) -> None:
         'run',
         '--frozen',
         'python',
-        'scripts/replay_metrics.py',
+        '-m',
+        'scripts.replay_metrics',
         *arguments,
         external=True,
         # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
@@ -654,7 +670,7 @@ def _start_pulseaudio(session: nox.Session) -> bool:
 
 
 # The container's setup before its command: the locked dev dependencies into the venv volume
-_LINUX_X11_SYNC = 'uv sync --frozen --extra dev --no-install-package taplo --quiet'
+_LINUX_X11_SYNC = 'uv sync --frozen --extra dev --all-packages --no-install-package taplo --quiet'
 
 
 def _run_in_linux_x11_container(
@@ -1270,7 +1286,7 @@ def _bandit_scan(session: nox.Session) -> None:
         '-ll',  # Medium+ severity
         '-ii',  # Medium+ confidence
         '-r',
-        'src/glitchygames',
+        *_SOURCE_PACKAGE_DIRS,
         '-f',
         'json',
         '-o',

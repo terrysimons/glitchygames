@@ -258,7 +258,7 @@ GAMES: dict[str, GameSpecification] = {
         title='Clockwork Keep',
     ),
     'mr-muncher': GameSpecification(
-        module='glitchygames.examples.mr_muncher.game',
+        module='mr_muncher.game',
         scene_class='MrMuncherScene',
         title='Mr. Muncher',
     ),

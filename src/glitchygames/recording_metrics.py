@@ -86,6 +86,9 @@ RECORDING_PATH_RENAMES: dict[str, str] = {
     'glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
         'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
     ),
+    'tests/fixtures/replays/mr-muncher/golden.jsonl.gz': (
+        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
+    ),
 }
 
 

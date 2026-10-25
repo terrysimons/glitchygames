@@ -43,38 +43,6 @@ from glitchygames.audio.synth import Waveform
 from glitchygames.color import BLACK
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
-from glitchygames.examples.mr_muncher import drawing
-from glitchygames.examples.mr_muncher.actors import (
-    ChaseSituation,
-    MazeGeometry,
-    Muncher,
-    MuncherState,
-    Player,
-    muncher_profiles,
-)
-from glitchygames.examples.mr_muncher.levels import (
-    LevelSettings,
-    frightened_is_flashing,
-    mode_phase_index,
-    munchers_chase,
-    settings_for_level,
-)
-from glitchygames.examples.mr_muncher.maze import (
-    SNACK,
-    SPROCKET,
-    Direction,
-    Maze,
-    build_maze,
-)
-from glitchygames.examples.mr_muncher.scenery import (
-    Picture,
-    SidePanel,
-    Sprocket,
-    bundled_font,
-    fitted_font,
-    render_text,
-)
-from glitchygames.examples.mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
 from glitchygames.input import ActionMap
 from glitchygames.opacity import make_opaque
 from glitchygames.scenes import Scene
@@ -82,6 +50,38 @@ from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, Te
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 from glitchygames.transitions import FadeTransition
+from mr_muncher import drawing
+from mr_muncher.actors import (
+    ChaseSituation,
+    MazeGeometry,
+    Muncher,
+    MuncherState,
+    Player,
+    muncher_profiles,
+)
+from mr_muncher.levels import (
+    LevelSettings,
+    frightened_is_flashing,
+    mode_phase_index,
+    munchers_chase,
+    settings_for_level,
+)
+from mr_muncher.maze import (
+    SNACK,
+    SPROCKET,
+    Direction,
+    Maze,
+    build_maze,
+)
+from mr_muncher.scenery import (
+    Picture,
+    SidePanel,
+    Sprocket,
+    bundled_font,
+    fitted_font,
+    render_text,
+)
+from mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping

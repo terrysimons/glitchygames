@@ -155,3 +155,28 @@ def test_the_engine_is_imported_from_its_installed_package_never_the_source_tree
         assert imported_from == CHECKOUT_ENGINE_DIRECTORY
     else:
         assert imported_from == Path(str(distribution.locate_file('glitchygames'))).resolve()
+
+
+def test_every_member_packages_tests_are_collected(pytestconfig):
+    """A member's tests directory is in testpaths and its test files are importable by name."""
+    from scripts.workspace_packages import workspace_members
+
+    testpaths = pytestconfig.getini('testpaths')
+    for member in workspace_members(project_root=PROJECT_ROOT):
+        relative = member.tests_directory.relative_to(PROJECT_ROOT).as_posix()
+        assert relative in testpaths, f'{relative} is not collected'
+        assert not (member.tests_directory / '__init__.py').exists(), (
+            f'{relative} must not be a package named "tests" (it would shadow tests/)'
+        )
+
+
+def test_test_file_names_are_unique_across_packages():
+    """Member tests are not packages, so pytest imports them by file name: names must differ."""
+    from scripts.workspace_packages import workspace_members
+
+    roots = [TESTS_ROOT] + [
+        member.tests_directory for member in workspace_members(project_root=PROJECT_ROOT)
+    ]
+    names = [path.name for root in roots for path in root.rglob('test_*.py')]
+
+    assert len(names) == len(set(names))

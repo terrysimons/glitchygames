@@ -53,7 +53,6 @@ brave-adventurer = "glitchygames.examples.brave_adventurer:main"
 brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
 paddleslap = "glitchygames.examples.paddleslap:main"
 clockwork-keep = "glitchygames.examples.clockwork_keep:main"
-mr-muncher = "glitchygames.examples.mr_muncher:main"
 
 [project.optional-dependencies]
 docs = [
@@ -98,6 +97,11 @@ dev = [
 ]
 api = []
 
+[tool.uv.workspace]
+# Each a package of its own beside the engine, under src/<layer>/
+# (plans/2026-10-24-workspace-packages.md); listed one by one, never by glob
+members = ["src/games/mr-muncher"]
+
 [tool.hatch.build]
 # The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
 # build-binary write it before building (glitchygames/build_info.py)
@@ -109,7 +113,7 @@ artifacts = ["src/glitchygames/_build_info.json"]
 packages = ["src/glitchygames"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "src/games/mr-muncher/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -124,7 +128,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -137,7 +141,7 @@ filterwarnings = [
 # Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
-source = ["glitchygames"]
+source = ["glitchygames", "mr_muncher"]
 branch = true
 parallel = true
 omit = [
@@ -152,6 +156,7 @@ omit = [
 # The imported copy (nox: site-packages, not editable; uv sync: src/ itself) is reported as the
 # repository's src/glitchygames, so the report and its 100% gate name the files in git
 glitchygames = ["src/glitchygames", "*/site-packages/glitchygames"]
+mr_muncher = ["src/games/mr-muncher/mr_muncher", "*/site-packages/mr_muncher"]
 
 [tool.coverage.report]
 show_missing = true
@@ -180,14 +185,18 @@ directory = "htmlcov"
 preview = true
 line-length = 100
 output-format = "grouped"
-src = ["src", "tests", "scripts"]
+src = ["src", "tests", "scripts", "src/games/mr-muncher"]
 include = [
   "src/glitchygames/*.py",
+  "src/games/mr-muncher/**/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
   "noxfile.py",
 ]
 target-version = "py314"
+# A workspace member's tests directory is not a package (pytest imports its files by name; a
+# package named tests would shadow the engine's tests/), so it is a namespace on purpose
+namespace-packages = ["src/games/mr-muncher/tests"]
 
 [tool.ruff.lint]
 task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
@@ -213,6 +222,27 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "PLC2801", # Tests may call dunder methods directly to verify they work
+  "D102",    # Test method names are self-documenting
+  "DOC201",  # Test helper return docs unnecessary
+  "RET504",  # Explicit assignment before return aids test readability
+  "F841",
+  "B007",
+  "S101",
+  "PT018",   # Compound assertions are acceptable in tests
+  "RUF069",  # Exact float comparisons are intentional in property-based tests
+  "B905",    # zip() without strict= is fine in tests
+  "B002",    # False positive on double-negation test: -(-speed)
+  "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
+  "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+# Workspace members' tests get the same relaxations as tests/ (one glob per layer)
+"src/games/*/tests/**/*.py" = [
   "PLR2004",
   "ANN",
   "ARG001",
@@ -322,7 +352,7 @@ multiline-quotes = "double"
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["glitchygames"]
+known-first-party = ["glitchygames", "mr_muncher"]
 
 ## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
 
@@ -330,14 +360,14 @@ known-first-party = ["glitchygames"]
 [tool.ty.environment]
 python-version = "3.14"
 # src/ first: the engine's source package (explicit; ty's automatic src root is not relied on)
-root = ["src", "."]
+root = ["src", ".", "src/games/mr-muncher"]
 extra-paths = ["scripts"]
 
 [tool.ty.src]
-include = ["src/glitchygames", "scripts"]
+include = ["src/glitchygames", "src/games/mr-muncher", "scripts"]
 # Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
 # generating hundreds of false positives on mock attribute access and assignments.
-exclude = ["tests", ".venv", ".nox"]
+exclude = ["tests", "src/games/*/tests", ".venv", ".nox"]
 
 [tool.ty.rules]
 # type: ignore comments are shared with basedpyright — don't flag them as unused
@@ -359,12 +389,13 @@ confidence = "medium"
 [tool.deptry]
 # pygame-ce installs as the 'pygame' module
 package_module_name_map = { "pygame-ce" = "pygame" }
-# Not this package's code: the pygame-ce submodule (its own project), and browser/, which runs
-# in Pyodide on its runtime modules (js, pyodide) and its own files
-extend_exclude = ["third_party", "browser"]
-# The engine's own package, under src/ (deptry guesses first-party modules from the root's
-# direct children only)
-known_first_party = ["glitchygames"]
+# Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
+# in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
+# under src/games (projects of their own, each declaring its dependencies)
+extend_exclude = ["third_party", "browser", "src/games"]
+# The engine's own package, under src/, and the workspace members' packages scripts/ imports
+# (deptry guesses first-party modules from the root's direct children only)
+known_first_party = ["glitchygames", "mr_muncher"]
 
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime

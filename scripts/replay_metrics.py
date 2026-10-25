@@ -12,9 +12,10 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
 1. refuses a checkout whose commit is unknown, and one with uncommitted changes unless
    ``--allow-dirty`` (the rows say so; such a trial never counts as measuring its commit) or
    ``--skip-dirty`` (measure nothing and succeed: what docs-deploy passes);
-2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``) and
-   bundled demo (``glitchygames/examples/<game>_demos/*.jsonl.gz``) not already measured for this
-   commit on this machine (published or pending; ``--force`` measures again): rebaselines it
+2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, and each
+   workspace member's ``<member>/tests/fixtures/replays/golden.jsonl.gz``) and bundled demo
+   (``glitchygames/examples/<game>_demos/*.jsonl.gz``) not already measured for this commit on
+   this machine (published or pending; ``--force`` measures again): rebaselines it
    headless into a temporary file through its console script
    (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
    frame's processing time and records its provenance (commit, machine state);
@@ -32,10 +33,10 @@ they cannot name their commit: a row whose commit is not the checkout's is a fai
 ``clear-published`` (docs-deploy, after ``mkdocs gh-deploy`` succeeded): removes the pending rows
 that ``origin/gh-pages``'s ledger now holds; the rest stay pending.
 
-Usage:
-    uv run python scripts/replay_metrics.py measure [--force] [--allow-dirty | --skip-dirty]
+Usage (a module: it imports scripts.workspace_packages):
+    uv run python -m scripts.replay_metrics measure [--force] [--allow-dirty | --skip-dirty]
         [--only TEXT] [--pending PATH]
-    uv run python scripts/replay_metrics.py clear-published [--pending PATH]
+    uv run python -m scripts.replay_metrics clear-published [--pending PATH]
 
 Exit codes: ``SUCCESS``; ``OPTIONS_REFUSED`` for an unknown commit or uncommitted changes;
 ``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured).
@@ -72,8 +73,13 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.testing.replays import bundled_demo_paths, rebaseline_recording_headless
+from glitchygames.testing.replays import (
+    bundled_demo_paths,
+    rebaseline_recording_headless,
+    recording_console_script,
+)
 from glitchygames.tracing import read_trace
+from scripts.workspace_packages import workspace_members
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -82,7 +88,10 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
-GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
+# The engine's golden replays (tests/fixtures/replays/<console-script>/); each workspace member's
+# are directly in its replay fixtures directory (golden_replay_globs)
+ENGINE_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
+MEMBER_GOLDEN_REPLAYS_GLOB = 'golden.jsonl.gz'
 EXAMPLES_PATH = Path('src') / 'glitchygames' / 'examples'
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
@@ -113,6 +122,28 @@ class MeasureResult(BaseModel):
     failures: tuple[str, ...] = ()
 
 
+def golden_replay_globs(*, project_root: Path) -> list[str]:
+    """Return the globs, relative to the repository, that find every golden replay.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The engine's glob, then each workspace member's.
+
+    """
+    return [
+        ENGINE_GOLDEN_REPLAYS_GLOB,
+        *(
+            (
+                member.replay_fixtures_directory.relative_to(project_root)
+                / MEMBER_GOLDEN_REPLAYS_GLOB
+            ).as_posix()
+            for member in workspace_members(project_root=project_root)
+        ),
+    ]
+
+
 def metric_recordings(*, project_root: Path) -> list[tuple[str, Path]]:
     """Return every golden replay and bundled demo, with the console script that replays it.
 
@@ -123,7 +154,14 @@ def metric_recordings(*, project_root: Path) -> list[tuple[str, Path]]:
         ``(console script, path)`` pairs: the golden replays, then the demos, each by path.
 
     """
-    goldens = [(path.parent.name, path) for path in sorted(project_root.glob(GOLDEN_REPLAYS_GLOB))]
+    goldens = [
+        (recording_console_script(path=path), path)
+        for path in sorted(
+            path
+            for glob in golden_replay_globs(project_root=project_root)
+            for path in project_root.glob(glob)
+        )
+    ]
     demos = bundled_demo_paths(examples_directory=project_root / EXAMPLES_PATH)
     return [*goldens, *demos]
 

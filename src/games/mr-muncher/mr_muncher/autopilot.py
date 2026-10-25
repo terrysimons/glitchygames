@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.examples.mr_muncher.game import Phase
-from glitchygames.examples.mr_muncher.maze import DIRECTION_PREFERENCE, Direction, Maze
+from mr_muncher.game import Phase
+from mr_muncher.maze import DIRECTION_PREFERENCE, Direction, Maze
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
-    from glitchygames.examples.mr_muncher.game import MrMuncherScene
+    from mr_muncher.game import MrMuncherScene
 
 type Cell = tuple[int, int]
 

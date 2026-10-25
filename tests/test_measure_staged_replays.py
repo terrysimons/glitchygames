@@ -28,8 +28,11 @@ if TYPE_CHECKING:
 
 # The machine the stand-in rows were measured on (ledger_row's)
 MACHINE = ledger_row().machine
-# The recordings the stand-in measurement measures (the repository holds a file for each)
-RECORDING_NAMES = ('alpha', 'beta')
+# The recordings the stand-in measurement measures (the repository holds a file for each): their
+# folders are installed games' console scripts, as replay_metrics.metric_recordings requires
+RECORDING_NAMES = ('paddleslap', 'clockwork-keep')
+# The repository's root project: a workspace without members (metric_recordings reads it)
+ROOT_PYPROJECT = '[project]\nname = "stand-in"\n'
 
 
 @pytest.fixture
@@ -41,6 +44,7 @@ def repository(tmp_path: Path) -> Path:
 
     """
     git(repository=tmp_path, arguments=['init', '--quiet'])
+    write(repository=tmp_path, relative_path='pyproject.toml', text=ROOT_PYPROJECT)
     write(repository=tmp_path, relative_path='src/glitchygames/game.py', text='speed = 1\n')
     for name in RECORDING_NAMES:
         write(

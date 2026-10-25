@@ -29,16 +29,16 @@ from typing import TYPE_CHECKING, Any, Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.examples.mr_muncher import drawing
-from glitchygames.examples.mr_muncher.maze import DIRECTION_PREFERENCE, Direction, Maze
 from glitchygames.randomness import random_stream
 from glitchygames.sprites import Sprite
 from glitchygames.world import CoordinateSpace
+from mr_muncher import drawing
+from mr_muncher.maze import DIRECTION_PREFERENCE, Direction, Maze
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from glitchygames.examples.mr_muncher.levels import LevelSettings
+    from mr_muncher.levels import LevelSettings
 
 # The munchers' random stream (glitchygames/randomness.py): frightened munchers' turns
 MUNCHER_RANDOM_STREAM = 'mr_muncher.munchers'

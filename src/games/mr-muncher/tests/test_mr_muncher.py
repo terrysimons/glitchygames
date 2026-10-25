@@ -23,16 +23,22 @@ from scripts.record_golden_traces import (
     release,
 )
 
+import mr_muncher
 from glitchygames.audio.live import LiveAudio
 from glitchygames.camera import Camera2D
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
-from glitchygames.examples import mr_muncher
-from glitchygames.examples.mr_muncher import drawing
-from glitchygames.examples.mr_muncher import game as mr_muncher_game
-from glitchygames.examples.mr_muncher.actors import MuncherState
-from glitchygames.examples.mr_muncher.autopilot import Autopilot
-from glitchygames.examples.mr_muncher.game import (
+from glitchygames.exit_codes import ExitCode
+from glitchygames.randomness import reset_streams
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.testing.keys import qwerty_scancode
+from glitchygames.transitions import FadeTransition
+from glitchygames.world import position_world_sprites
+from mr_muncher import drawing
+from mr_muncher import game as mr_muncher_game
+from mr_muncher.actors import MuncherState
+from mr_muncher.autopilot import Autopilot
+from mr_muncher.game import (
     BONUS_POINTS_SHOW_SECONDS,
     BONUS_SECONDS,
     CAUGHT_SHAKE,
@@ -58,13 +64,7 @@ from glitchygames.examples.mr_muncher.game import (
     maze_geometry,
     shared_sound_bank,
 )
-from glitchygames.examples.mr_muncher.maze import Direction, build_maze
-from glitchygames.exit_codes import ExitCode
-from glitchygames.randomness import reset_streams
-from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.testing.keys import qwerty_scancode
-from glitchygames.transitions import FadeTransition
-from glitchygames.world import position_world_sprites
+from mr_muncher.maze import Direction, build_maze
 
 SCREEN_SIZE = (800, 480)
 FRAME_SECONDS = 1.0 / 60.0
@@ -73,9 +73,8 @@ TEST_SEED = 20261023
 TILE_SIZE = 20
 MAZE_LEFT = 130
 
-GOLDEN_REPLAY_PATH = (
-    Path(__file__).parent.parent / 'fixtures' / 'replays' / 'mr-muncher' / 'golden.jsonl.gz'
-)
+# The member's golden replay, directly in its tests/fixtures/replays/
+GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
 
 
 @pytest.fixture(autouse=True)

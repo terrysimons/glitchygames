@@ -111,6 +111,8 @@ def test_member_tests_get_the_tests_relaxations(member):
     # src/games/*/tests/**/*.py: one glob per layer (games, demos, apps)
     layer = repository_path(member.directory.parent)
     assert per_file_ignores[f'{layer}/*/tests/**/*.py'] == per_file_ignores['tests/**/*.py']
+    # ty leaves tests out (it misreads mocker.patch), a member's as tests/ (pre-flight C12)
+    assert f'{layer}/*/tests' in root_pyproject()['tool']['ty']['src']['exclude']
 
     environments = pyright_configuration()['executionEnvironments']
     roots = [environment['root'] for environment in environments]
@@ -125,6 +127,8 @@ def test_member_tests_get_the_tests_relaxations(member):
         key: value for key, value in environments[roots.index('tests')].items() if key != 'root'
     }
     assert member_tests == engine_tests
+    # Not a package (it would shadow tests/), so ruff is told it is a namespace on purpose
+    assert tests_path in root_pyproject()['tool']['ruff']['namespace-packages']
     assert member_path in engine_tests['extraPaths']
     assert 'src' in environments[roots.index(member_path)]['extraPaths']
 
@@ -143,6 +147,15 @@ def test_dependency_dead_code_security_and_complexity_scans_cover_every_member(m
     for package_directory in member.package_directories:
         assert repository_path(package_directory) in noxfile._SOURCE_PACKAGE_DIRS
     assert repository_path(member.directory) in wily['wily']['path'].split(',')
+
+
+def test_nox_installs_and_reinstalls_every_member():
+    """noxfile._MEMBER_DISTRIBUTIONS is the workspace (pre-flight C3).
+
+    nox reinstalls each listed member in a reused venv; CI runs nox through uvx, which cannot
+    import scripts/workspace_packages.py, so the noxfile lists them and this keeps the list equal.
+    """
+    assert [member.distribution for member in MEMBERS] == noxfile._MEMBER_DISTRIBUTIONS
 
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)

@@ -59,13 +59,13 @@ from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
-from glitchygames.examples.mr_muncher.autopilot import Autopilot
-from glitchygames.examples.mr_muncher.game import MrMuncherScene
-from glitchygames.examples.mr_muncher.maze import Direction
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
+from mr_muncher.autopilot import Autopilot
+from mr_muncher.game import MrMuncherScene
+from mr_muncher.maze import Direction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -105,6 +105,16 @@ GAME_SCENES: dict[str, type[Scene]] = {
     'brave_adventurer_papyrus': PapyrusBraveAdventurerScene,
     'paddleslap': paddleslap.Game,
     'mr_muncher': MrMuncherScene,
+}
+
+# Game key -> the module holding its main() (where its console script's entry point is):
+# a game moved into its own package names its package (plans/2026-10-24-workspace-packages.md)
+GAME_MODULES: dict[str, str] = {
+    'clockwork_keep': 'glitchygames.examples.clockwork_keep',
+    'brave_adventurer': 'glitchygames.examples.brave_adventurer',
+    'brave_adventurer_papyrus': 'glitchygames.examples.brave_adventurer_papyrus',
+    'paddleslap': 'glitchygames.examples.paddleslap',
+    'mr_muncher': 'mr_muncher',
 }
 
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
@@ -467,7 +477,7 @@ def paddleslap_script() -> InputScript:
 class MuncherSteering:
     """Hold the arrow key for the way Mr. Muncher's autopilot asks for, frame by frame.
 
-    The autopilot (glitchygames/examples/mr_muncher/autopilot.py) reads the scene and names a
+    The autopilot (src/games/mr-muncher/mr_muncher/autopilot.py) reads the scene and names a
     direction; this presses that direction's arrow key (releasing the one held before). A key
     is pressed again when the player still wants another way after MR_MUNCHER_REPRESS_FRAMES
     (a new life starts heading left, whatever key is held). Nothing is pressed while another

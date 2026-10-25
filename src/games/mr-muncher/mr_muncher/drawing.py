@@ -20,7 +20,7 @@ import math
 
 import pygame
 
-from glitchygames.examples.mr_muncher.maze import WALL, Direction, Maze
+from mr_muncher.maze import WALL, Direction, Maze
 
 type Color = tuple[int, int, int]
 

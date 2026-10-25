@@ -2,8 +2,8 @@
 
 The layout is text, one string per row of tiles (``MAZE_LAYOUT``). It is symmetric left to
 right, every corridor is one tile wide, there are no dead ends, and every open tile can be
-reached from every other (``tests/examples/test_mr_muncher_maze_and_actors.py`` checks all
-four). The long corridors at the top and bottom are tunnels: leaving one side enters the other.
+reached from every other (the member's ``tests/test_mr_muncher_maze_and_actors.py`` checks
+all four). The long corridors at the top and bottom are tunnels: leaving one side enters the other.
 
 Positions are in tile units: the centre of the tile in column c, row r is (c, r), so an actor
 standing on a tile centre has whole-number coordinates. The maze knows nothing of pixels; the

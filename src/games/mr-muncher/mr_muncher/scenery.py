@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
-from glitchygames.examples.mr_muncher import drawing
 from glitchygames.fonts.font_manager import bundled_font_path
 from glitchygames.sprites import Sprite
+from mr_muncher import drawing
 
 if TYPE_CHECKING:
-    from glitchygames.examples.mr_muncher.actors import MazeGeometry
+    from mr_muncher.actors import MazeGeometry
 
 type Color = tuple[int, int, int]
 

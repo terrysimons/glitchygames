@@ -14,8 +14,9 @@ import pytest
 from pydantic import ValidationError
 
 from glitchygames.display_mode import set_display_mode
-from glitchygames.examples.mr_muncher import drawing, scenery
-from glitchygames.examples.mr_muncher.actors import (
+from glitchygames.randomness import random_stream, reset_streams
+from mr_muncher import drawing, scenery
+from mr_muncher.actors import (
     ACTOR_SIZE_TILES,
     AMBUSH_TILES_AHEAD,
     HOUSE_BOB_TILES,
@@ -32,15 +33,15 @@ from glitchygames.examples.mr_muncher.actors import (
     muncher_profiles,
     nearest_cell,
 )
-from glitchygames.examples.mr_muncher.autopilot import (
+from mr_muncher.autopilot import (
     Autopilot,
     WayOn,
     corridor_distances,
     decision_point,
     shortest_way,
 )
-from glitchygames.examples.mr_muncher.game import MrMuncherScene, Phase
-from glitchygames.examples.mr_muncher.levels import (
+from mr_muncher.game import MrMuncherScene, Phase
+from mr_muncher.levels import (
     BONUS_POINTS_BY_LEVEL,
     FRIGHTENED_FLASH_SECONDS,
     FRIGHTENED_SECONDS_LEVEL_ONE,
@@ -57,7 +58,7 @@ from glitchygames.examples.mr_muncher.levels import (
     munchers_chase,
     settings_for_level,
 )
-from glitchygames.examples.mr_muncher.maze import (
+from mr_muncher.maze import (
     DIRECTION_PREFERENCE,
     DOOR,
     HOUSE,
@@ -70,8 +71,7 @@ from glitchygames.examples.mr_muncher.maze import (
     Maze,
     build_maze,
 )
-from glitchygames.examples.mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
-from glitchygames.randomness import random_stream, reset_streams
+from mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
 
 SCREEN_SIZE = (800, 480)
 TEST_SEED = 20261023

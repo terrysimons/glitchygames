@@ -16,17 +16,17 @@ A Python 3.14 game engine built on Pygame with an event-driven architecture. Inc
 git clone https://github.com/terrysimons/glitchygames.git
 cd glitchygames
 
-# Install core dependencies
-uv sync
+# Install core dependencies (--all-packages: the workspace members too, src/games/mr-muncher)
+uv sync --all-packages
 
 # Install with dev extras (testing, linting, type checking, security scanning)
-uv sync --extra dev
+uv sync --extra dev --all-packages
 
 # Install with documentation extras (MkDocs)
-uv sync --extra docs
+uv sync --extra docs --all-packages
 
 # Install everything
-uv sync --all-extras
+uv sync --all-extras --all-packages
 ```
 
 ### Optional Dependency Groups

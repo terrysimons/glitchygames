@@ -22,8 +22,8 @@ from scripts.build_browser_bundle import (
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
-from glitchygames.examples.mr_muncher.game import MrMuncherScene
 from glitchygames.examples.paddleslap import Game as PaddleSlapScene
+from mr_muncher.game import MrMuncherScene
 
 # The pygame scancode of each key a touch button can press (its DOM KeyboardEvent.code)
 SCANCODE_BY_CODE = {
