@@ -166,8 +166,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - an option to turn it off (and probably one to force it on for a replay watched by a person)
   - drawn from the background pattern the run is configured with, at the display's size
     (`BackgroundPattern`, cached per size), opaque on cocoa (glitchygames/opacity.py)
-- **Where**: the engine already paints a new display with the default background before the
-  first frame (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
+- **Where** (the user, 2026-10-24: "wired up to the front of every game"): the engine runs it
+  for every game, on the game's own canvas (its display, at its resolution), after the display
+  opens and before control is handed to the game: before the first scene's setup and first
+  frame, with no input reaching the game while it plays. No game opts in or writes code for it.
+  The engine already paints a new display with the default background before the first frame
+  (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
 - **Status**: TODO
 
 ## Medium Priority Features
