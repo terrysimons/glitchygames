@@ -51,7 +51,7 @@ def _mouse_down_event(position):
 def _install_frame_modifiers(modifiers):
     """Make this frame's polled input hold the given modifier keys (what the text box reads).
 
-    The autouse reset_engine_sources fixture (tests/conftest.py) resets it after the test.
+    The autouse reset_engine_sources fixture (tests/harness.py) resets it after the test.
     """
     set_current_input(
         snapshot=InputSnapshot(

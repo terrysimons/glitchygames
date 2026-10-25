@@ -1837,7 +1837,7 @@ class TestRecordedDisplaySize:
 def pygame_init_noting_drivers(mocker) -> list[tuple[str | None, str | None]]:
     """Replace pygame.init with a stub that notes the SDL driver variables when called.
 
-    pygame is already started on the test worker (tests/conftest.py), so the stub starts nothing:
+    pygame is already started on the test worker (tests/harness.py), so the stub starts nothing:
     the variables it notes are never read by SDL.
 
     Returns:

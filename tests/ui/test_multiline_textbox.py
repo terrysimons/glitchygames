@@ -32,7 +32,7 @@ def _install_frame_input(*, modifiers=0, mouse_position=(0, 0)):
     """Make this frame's polled input (``current_input()``) hold modifiers and a mouse position.
 
     The text box reads held modifiers and the mouse from the frame's InputSnapshot, never from
-    pygame. The autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after
+    pygame. The autouse ``reset_engine_sources`` fixture (tests/harness.py) resets it after
     the test.
     """
     set_current_input(

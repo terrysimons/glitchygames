@@ -3,7 +3,7 @@
 A scene that sets no background (no ``background_color``, no ``background_pattern``) gets the
 active default pattern, so a scene that draws nothing is visibly "on the air" instead of black:
 black cannot be told from "nothing rendered", and an entirely black frame is treated as a
-rendering bug (the test suite fails a test that ends on one, tests/conftest.py).
+rendering bug (the test suite fails a test that ends on one, tests/harness.py).
 
 - ``BackgroundPattern.TEST_PATTERN``: SMPTE-style colour bars (the engine default). The top
   two thirds hold the seven 75% bars (grey, yellow, cyan, green, magenta, red, blue), then a

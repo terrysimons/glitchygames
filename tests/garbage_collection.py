@@ -8,7 +8,7 @@ suite. Collecting only when the process's peak has grown ``COLLECTION_STEP_BYTES
 last collection costs about 6 s in 44 collections and keeps the peak at 1.4 GB (macOS, serial,
 coverage on, 2026-10-24); between those, freed memory is reused and the peak does not move.
 
-``tests/conftest.py``'s ``pytest_runtest_logfinish`` calls ``after_test`` once per test: by
+``tests/harness.py``'s ``pytest_runtest_logfinish`` calls ``after_test`` once per test: by
 then pytest has dropped the test's fixture values, so its scene is garbage. Never
 ``gc.freeze()`` here: Hypothesis warns about a ``register_random`` object frozen out of view.
 """

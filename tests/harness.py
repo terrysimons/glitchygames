@@ -1,4 +1,4 @@
-"""Shared test fixtures for the GlitchyGames test suite.
+"""The shared test harness, loaded by the root conftest.py for every package's tests.
 
 This module provides common fixtures and utilities used across multiple test files.
 Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.

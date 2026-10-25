@@ -4,7 +4,7 @@ This module tests that animated sprites properly reach the display surface, prov
 multiple layers of verification to quickly identify where rendering problems occur in the
 pipeline.
 
-The tests draw on a real pygame display: ``tests/conftest.py`` sets ``SDL_VIDEODRIVER`` to
+The tests draw on a real pygame display: ``tests/harness.py`` sets ``SDL_VIDEODRIVER`` to
 ``dummy``, so ``pygame.display.set_mode`` gives a headless display surface that holds real
 pixels (set ``SDL_VIDEODRIVER=cocoa`` or similar to watch them in a window). They used to
 run on the shared pygame mocks, whose display surface answers black for every pixel, so

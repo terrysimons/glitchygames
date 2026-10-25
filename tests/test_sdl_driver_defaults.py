@@ -1,4 +1,4 @@
-"""Tests for the SDL driver defaults that tests/conftest.py applies to every test run.
+"""Tests for the SDL driver defaults that tests/harness.py applies to every test run.
 
 Also the driver isolation it applies after each test (tests/sdl_driver_isolation.py): a test
 that moved the SDL driver variables, display or mixer off the run's drivers (an engine run with

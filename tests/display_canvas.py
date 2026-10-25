@@ -4,7 +4,7 @@ Every test starts on a display showing the canvas: the engine's default backgrou
 (glitchygames/backgrounds.py), the TV test pattern, or the channel 3 blue screen when
 GLITCHYGAMES_TEST_CANVAS=channel-3. A test that draws nothing therefore shows the pattern
 (intentional), and a test whose last frame looks entirely black fails: black cannot be told
-from "nothing rendered", so it is a rendering bug (tests/conftest.py runs the check). "Looks"
+from "nothing rendered", so it is a rendering bug (tests/harness.py runs the check). "Looks"
 judges what the window shows: on a display with per-pixel alpha (cocoa's) a pixel with alpha 0
 shows black whatever its colour.
 

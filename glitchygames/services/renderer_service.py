@@ -97,7 +97,7 @@ class RendererService:
         is started again (BUGS.md #110).
         """
         # Headless by default, set before importing/initializing pygame. A driver already chosen
-        # is kept, the same rule as tests/conftest.py's (BUGS.md #110)
+        # is kept, the same rule as tests/harness.py's (BUGS.md #110)
         os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 

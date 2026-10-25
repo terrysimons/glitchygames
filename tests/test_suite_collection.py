@@ -124,3 +124,11 @@ def test_no_test_reassigns_pygame_constants():
     assert not offending_assignments, (
         f'Tests reassign pygame constants (use mocker.patch): {offending_assignments}'
     )
+
+
+def test_the_shared_harness_is_a_plugin_loaded_before_any_other():
+    """Every package's tests get the harness: SDL defaults set before anything imports pygame."""
+    import conftest as root_conftest
+
+    assert root_conftest.pytest_plugins[0] == 'tests.harness'
+    assert not (TESTS_ROOT / 'conftest.py').exists(), 'the harness lives in tests/harness.py'

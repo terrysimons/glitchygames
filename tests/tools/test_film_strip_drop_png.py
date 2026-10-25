@@ -21,7 +21,7 @@ STRIP_Y = 0
 def install_mouse_position(position: tuple[int, int]) -> None:
     """Make the frame's polled mouse position ``position`` (drop events carry none).
 
-    The autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
+    The autouse ``reset_engine_sources`` fixture (tests/harness.py) resets it after the test.
     """
     set_current_input(
         snapshot=InputSnapshot(

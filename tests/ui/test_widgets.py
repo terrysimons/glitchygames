@@ -154,7 +154,7 @@ def _key_up(*, key, mod=0):
 def _install_frame_input(*, modifiers=0, mouse_position=(0, 0)):
     """Make this frame's polled input (``current_input()``) hold modifiers and a mouse position.
 
-    The autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
+    The autouse ``reset_engine_sources`` fixture (tests/harness.py) resets it after the test.
     """
     set_current_input(
         snapshot=InputSnapshot(
@@ -1980,7 +1980,7 @@ class _UnavailableClipboard:
 class TestMultiLineTextBoxClipboard:
     """Test MultiLineTextBox clipboard operations (copy, paste, cut).
 
-    Every test has an in-process clipboard (tests/conftest.py): none may read or write the
+    Every test has an in-process clipboard (tests/harness.py): none may read or write the
     machine's clipboard.
     """
 
@@ -2099,7 +2099,7 @@ class TestMultiLineTextBoxClipboard:
 class TestMultiLineTextBoxClipboardKeys:
     """Test the Ctrl key shortcuts MultiLineTextBox dispatches to clipboard operations.
 
-    Every test has an in-process clipboard (tests/conftest.py): none may read or write the
+    Every test has an in-process clipboard (tests/harness.py): none may read or write the
     machine's clipboard.
     """
 

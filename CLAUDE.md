@@ -882,7 +882,7 @@ Features:
 - Text widgets copy and paste through `system_clipboard()`: the installed clipboard, else
   `create_clipboard()`'s choice (`PyperclipClipboard`, else `InProcessClipboard` without
   pyperclip). A clipboard that cannot be used raises `ClipboardUnavailableError`. Tests get a
-  fresh `InProcessClipboard` each (`tests/conftest.py` `in_process_clipboard`), never the machine's
+  fresh `InProcessClipboard` each (`tests/harness.py` `in_process_clipboard`), never the machine's
 - The browser installs `BrowserClipboard` (`browser/browser_clipboard.py`): paste takes the
   page's paste event text (Ctrl/Cmd+V fires it before the game's frame reads the key); copy is
   kept in the game and written with `navigator.clipboard.writeText`, which Safari refuses
@@ -930,7 +930,7 @@ Features:
   (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
   per-pixel alpha)
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
-- `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
+- `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
   (`SDL_JOYSTICK_HIDAPI`, `SDL_JOYSTICK_MFI`, `SDL_JOYSTICK_IOKIT` = `0`; each alone finds pads),
