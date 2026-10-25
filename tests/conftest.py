@@ -196,10 +196,8 @@ def _fail_on_entirely_black_frame(
 settings.register_profile('glitchygames', deadline=None)
 settings.load_profile('glitchygames')
 
-# This process's collector (None on Windows and real audio drivers), made as the session starts
-_PEAK_MEMORY_COLLECTOR = process_peak_memory_collector(
-    audio_driver=SDL_DRIVER_ENVIRONMENT_FOR_RUN['SDL_AUDIODRIVER']
-)
+# This process's collector (None on Windows), made as the session starts
+_PEAK_MEMORY_COLLECTOR = process_peak_memory_collector()
 
 
 def pytest_runtest_logfinish(nodeid, location):

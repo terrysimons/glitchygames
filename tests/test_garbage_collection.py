@@ -79,21 +79,20 @@ def test_the_next_step_counts_from_the_last_collection():
 
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='Windows has no resource module')
-def test_a_dummy_audio_run_gets_a_collector_reading_its_real_peak():
-    """Off Windows, on the dummy audio driver, a collector starts from this process's peak."""
-    collector = process_peak_memory_collector(audio_driver='dummy')
+def test_every_run_gets_a_collector_reading_its_real_peak():
+    """Off Windows, every run collects, the native coreaudio run too (BUGS.md #212).
+
+    The native run once stalled with these collections; that no longer reproduces (#212's
+    record), so its memory is bounded the same way as the dummy run's.
+    """
+    collector = process_peak_memory_collector()
 
     assert collector is not None
     # The peak only grows, so a fresh collector has not grown a step yet
     assert not collector.after_test()
 
 
-def test_a_real_audio_driver_gets_no_collector():
-    """A run on a real audio driver (coreaudio) is left to the collector's own schedule."""
-    assert process_peak_memory_collector(audio_driver='coreaudio') is None
-
-
 @pytest.mark.skipif(sys.platform != 'win32', reason='only Windows lacks the resource module')
 def test_windows_gets_no_collector():
     """Windows cannot read the peak, so there is no collector."""
-    assert process_peak_memory_collector(audio_driver='dummy') is None
+    assert process_peak_memory_collector() is None
