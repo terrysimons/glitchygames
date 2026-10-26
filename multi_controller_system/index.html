@@ -162,6 +162,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -206,11 +211,11 @@
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">#</a></h2>
 <h3 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">#</a></h3>
 <ol>
-<li><strong>MultiControllerManager</strong> (<code>src/glitchygames/bitmappy/controllers/manager.py</code>) - Central singleton managing all controllers</li>
-<li><strong>ControllerSelection</strong> (<code>src/glitchygames/bitmappy/controllers/selection.py</code>) - Individual controller state management</li>
-<li><strong>VisualCollisionManager</strong> (<code>src/glitchygames/bitmappy/indicators/collision.py</code>) - Smart positioning and collision avoidance</li>
-<li><strong>ModeSwitcher</strong> (<code>src/glitchygames/bitmappy/controllers/modes.py</code>) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers</li>
-<li><strong>Integration with Bitmappy</strong> - <code>ControllerEventHandler</code> (<code>src/glitchygames/bitmappy/controllers/event_handler.py</code>) and the per-mode button strategies (<code>src/glitchygames/bitmappy/controllers/strategies.py</code>)</li>
+<li><strong>MultiControllerManager</strong> (<code>src/apps/bitmappy/bitmappy/controllers/manager.py</code>) - Central singleton managing all controllers</li>
+<li><strong>ControllerSelection</strong> (<code>src/apps/bitmappy/bitmappy/controllers/selection.py</code>) - Individual controller state management</li>
+<li><strong>VisualCollisionManager</strong> (<code>src/apps/bitmappy/bitmappy/indicators/collision.py</code>) - Smart positioning and collision avoidance</li>
+<li><strong>ModeSwitcher</strong> (<code>src/apps/bitmappy/bitmappy/controllers/modes.py</code>) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers</li>
+<li><strong>Integration with Bitmappy</strong> - <code>ControllerEventHandler</code> (<code>src/apps/bitmappy/bitmappy/controllers/event_handler.py</code>) and the per-mode button strategies (<code>src/apps/bitmappy/bitmappy/controllers/strategies.py</code>)</li>
 </ol>
 <p>The button and trigger bindings are listed in <code>CONTROLLER_CONTROLS_README.md</code> at the repository root.</p>
 <h3 id="controller-color-scheme">Controller Color Scheme<a class="headerlink" href="#controller-color-scheme" title="Permanent link">#</a></h3>
@@ -223,8 +228,8 @@
 </ul>
 <h2 id="usage-examples">Usage Examples<a class="headerlink" href="#usage-examples" title="Permanent link">#</a></h2>
 <h3 id="basic-setup">Basic Setup<a class="headerlink" href="#basic-setup" title="Permanent link">#</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.bitmappy.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllerSelection</span><span class="p">,</span> <span class="n">MultiControllerManager</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.bitmappy.indicators</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualCollisionManager</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">bitmappy.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllerSelection</span><span class="p">,</span> <span class="n">MultiControllerManager</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">bitmappy.indicators</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualCollisionManager</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Initialize the system (MultiControllerManager is a singleton)</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">manager</span> <span class="o">=</span> <span class="n">MultiControllerManager</span><span class="p">()</span>

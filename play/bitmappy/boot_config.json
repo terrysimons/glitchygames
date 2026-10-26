@@ -1,6 +1,6 @@
 {
   "game": "bitmappy",
-  "module": "glitchygames.bitmappy.editor",
+  "module": "bitmappy.editor",
   "scene_class": "BitmapEditorScene",
   "title": "Bitmappy",
   "arguments": [],

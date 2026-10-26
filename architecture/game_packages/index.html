@@ -162,6 +162,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -201,8 +206,8 @@ order of the moves are in the plan, <code>plans/2026-10-24-workspace-packages.md
 <h2 id="the-layout">The layout<a class="headerlink" href="#the-layout" title="Permanent link">#</a></h2>
 <p>Four layers, all under <code>src/</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>src/
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  glitchygames/        the engine (distribution glitchygames); examples/ holds the demos and
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                       Bitmappy's resources, which have not moved yet
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  glitchygames/        the engine (distribution glitchygames); examples/ now holds only the
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                       three demos, which have not moved yet (Part 3)
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  games/&lt;game&gt;/        one member per game: every game (mr-muncher, clockwork-keep,
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                       brave-adventurer, paddleslap, drawing-fire)
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  demos/&lt;demo&gt;/        one member per demo
@@ -262,9 +267,10 @@ and every member together, so it is met only by the whole run.</p>
 <p>Each layer is also an extra of the engine, naming that layer's members, so an installer picks
 the engine alone or with them:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>build<span class="w"> </span>--all-packages<span class="w">                                    </span><span class="c1"># every wheel, into dist/</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span>glitchygames<span class="w">                 </span><span class="c1"># the engine</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[games]"</span><span class="w">        </span><span class="c1"># the engine and every game</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[demos,apps]"</span><span class="w">   </span><span class="c1"># the engine, the demos and the apps</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">                                                           </span><span class="c1"># (nox -s build-wheel does the same)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span>glitchygames<span class="w">                 </span><span class="c1"># the engine</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[games]"</span><span class="w">        </span><span class="c1"># the engine and every game</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pip<span class="w"> </span>install<span class="w"> </span>--find-links<span class="w"> </span>dist<span class="w"> </span><span class="s2">"glitchygames[demos,apps]"</span><span class="w">   </span><span class="c1"># the engine, the demos and the apps</span>
 </code></pre></div>
 <p>The names are not yet on PyPI (neither <code>glitchygames</code> nor any game's), so install from the built
 wheels as above: a plain <code>pip install glitchygames</code> would fetch whatever package someone else
@@ -277,13 +283,16 @@ extra; <code>tests/test_workspace_config.py</code> keeps each extra equal to its
   code lives, and moving a game changes no recording. The layers are data in the engine,
   <code>src/glitchygames/logical_names.py</code>: <code>MEMBER_LAYERS</code> for members (kept equal to the workspace by
   <code>tests/test_workspace_config.py</code>) and <code>EXAMPLES_LAYERS</code> for the demos still in
-  <code>src/glitchygames/examples/</code> (every game has moved; Part 3 moves the demos).</li>
+  <code>src/glitchygames/examples/</code> (every game and Bitmappy have moved; Part 3 moves the demos).</li>
 <li><strong>Golden replays</strong> live with the member's tests; the golden plugin collects them from every
   member, so the engine's <code>uv run pytest</code> replays each one.</li>
 <li><strong>The browser build</strong> ships a member's package as its own archive (<code>&lt;package&gt;.zip</code>) beside the
   engine's <code>glitchygames.zip</code> (<code>scripts/build_browser_bundle.py</code>, <code>GameSpecification.member_packages</code>).</li>
 <li><strong>API reference</strong>: <code>scripts/gen_ref_pages.py</code> writes a page per member package
-  (<code>&lt;package&gt;/index.md</code>), listed under "Games API Reference" in <code>mkdocs.yml</code>.</li>
+  (<code>&lt;package&gt;/index.md</code>), listed under "Games API Reference" in <code>mkdocs.yml</code>, or under "Apps API
+  Reference" for an app (Bitmappy's <code>bitmappy/index.md</code>).</li>
+<li><strong>Wheels</strong>: <code>nox -s build-wheel</code> builds the wheel of the engine and of every member
+  (<code>uv build --all-packages</code>).</li>
 </ul>
 <h2 id="moving-a-game-out-of-the-engine">Moving a game out of the engine<a class="headerlink" href="#moving-a-game-out-of-the-engine" title="Permanent link">#</a></h2>
 <p>The recipe Mr. Muncher's move followed (<code>plans/2026-10-24-workspace-packages-1-foundation.md</code>,
@@ -456,6 +465,18 @@ rows (about 12 s). It refuses a commit with untracked files under <code>src/</co
 stage the whole move (<code>git add -A src tests scripts docs</code>) before committing.</p>
 <h2 id="special-cases">Special cases<a class="headerlink" href="#special-cases" title="Permanent link">#</a></h2>
 <ul>
+<li><strong>A member that was never in a layer</strong> (Bitmappy, an app that lived in the engine as
+  <code>glitchygames.bitmappy</code>, outside <code>examples/</code>, so no layer table named it): its logical name
+  changes when it moves, from its module path (<code>glitchygames.bitmappy.editor:BitmapEditorScene</code>)
+  to <code>apps.bitmappy.editor:BitmapEditorScene</code>, so a recording made before the move no longer
+  matches. A plain replay refuses such a recording, naming the remedy, and
+  <code>--replay-trace OLD --rebaseline NEW --headless</code> converts it (a rebaseline compares the game
+  and each scene by qualified name alone and writes the current logical names:
+  <a href="../gameplay_replay/">gameplay replay</a>). A game that was already in a layer keeps its logical
+  name when it moves, as the recipe above says. Bitmappy has no golden replay, so its move
+  converted none; it keeps its tests named <code>test_bitmappy_*.py</code>, its sprite library as package
+  data (<code>bitmappy.SPRITE_CONFIG_DIR</code>), and its member declares everything it imports itself (the
+  engine's <code>pyproject.toml</code> no longer lists tenacity, for instance).</li>
 <li><strong>Several games in one project</strong> (Brave Adventurer and its Egyptian edition, Papyrus): one
   member, built and published together, with layered import packages in its own src layout
   (<code>src/games/brave-adventurer/src/</code>): the primitives both games share
@@ -510,7 +531,9 @@ stage the whole move (<code>git add -A src tests scripts docs</code>) before com
   coverage.</li>
 <li>An old example directory left on disk (its ignored <code>__pycache__</code>) is importable and shadows
   the member, and <code>tests/test_suite_collection.py</code> rejects a <code>glitchygames/</code> directory at the
-  root. Delete leftovers after moving.</li>
+  root. Delete leftovers after moving. The same trap applies to Bitmappy's old directory:
+  a leftover <code>src/glitchygames/bitmappy/</code> (ignored <code>__pycache__</code>) resolves as a namespace
+  package and fails <code>test_the_old_engine_package_is_gone</code>; <code>rm -rf src/glitchygames/bitmappy</code>.</li>
 <li>A member's console script resolves through its installed distribution: the golden plugin
   cannot find it unless <code>--all-packages</code> installed the member.</li>
 </ul>

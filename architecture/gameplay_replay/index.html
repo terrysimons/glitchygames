@@ -162,6 +162,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -470,8 +475,18 @@ streams with its seed. It refuses, logging the reason and exiting with one of th
   inside the game's package, then <code>:</code> and the qualified name, as in
   <code>games.mr_muncher.game:MrMuncherScene</code>, which stay the same when the game's code moves; a
   recording made before logical names is compared by its exact <code>game_module</code> and
-  <code>scene_module</code>, and a <code>--rebaseline</code> of it writes the logical names), cannot be read (not gzip, no permission, a directory) or
-  has an unsupported format version: <code>UNUSABLE_INPUT</code> (65);</li>
+  <code>scene_module</code>, and a <code>--rebaseline</code> of it writes the logical names), cannot be read (not gzip,
+  no permission, a directory) or has an unsupported format version: <code>UNUSABLE_INPUT</code> (65);</li>
+<li>the recording's game or scene has the same class name as the one loaded but another logical
+  module (any class that moved to another logical module, for instance Bitmappy's scene, which
+  left <code>glitchygames.bitmappy.editor</code> for <code>apps.bitmappy.editor:BitmapEditorScene</code>): a plain replay
+  cannot tell a moved class from a different class of that name, so it refuses with
+  <code>UNUSABLE_INPUT</code> (65) and a message naming the remedy,
+  <code>--replay-trace OLD --rebaseline NEW --headless</code> (<code>REBASELINE_REMEDY</code> in
+  <code>src/glitchygames/replay/driver.py</code>). A <code>--rebaseline</code> compares such records by qualified name
+  alone (<code>modules_not_compared</code>, used for the game by <code>check_recorded_game</code> and for each scene
+  start by <code>find_scene_class</code> in <code>src/glitchygames/replay/playback.py</code>), and NEW holds the current
+  logical names;</li>
 <li>the file does not exist: <code>MISSING_INPUT</code> (66);</li>
 <li><code>--record-trace</code> is given too: <code>OPTIONS_REFUSED</code> (64). Recording over a replay is what
   <a href="#rebaselining-rebaseline-new"><code>--rebaseline</code></a> does, and only it;</li>
@@ -933,6 +948,9 @@ an intentional change, rebaseline it instead (below), so it keeps its recorded i
 writes what that code did to NEW: the same inputs and a new picture. The contract is
 <code>src/glitchygames/replay/rebaseline.py</code>'s docstring.</p>
 <ul>
+<li>A recording whose game or scene classes moved to another logical module is converted here and
+  only here: the run matches them by qualified name alone, and NEW holds the current logical
+  names (a plain replay refuses it, above).</li>
 <li>The replay does not stop at a divergence: it runs to OLD's last frame (or until the game
   ends), counting every frame that differs and naming every sprite that differs in them.</li>
 <li>NEW holds OLD's inputs as the replay served them: the event batches with their origins
